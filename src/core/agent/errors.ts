@@ -1,4 +1,4 @@
-import type { Issue } from '@core/error/issue.js';
+import type { Issue } from '@core/error/types.js';
 import { DextoErrorCode } from '../schemas/errors.js';
 
 /**

@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
-import { ErrorScope } from './scopes.js';
+import { ErrorScope } from './types.js';
 import { ErrorType } from './types.js';
-import type { Issue } from './issue.js';
-import type { DextoErrorCode } from './codes.js';
+import type { Issue } from './types.js';
+import type { DextoErrorCode } from './types.js';
 import { logger } from '../logger/index.js';
 
 /**

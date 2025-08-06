@@ -4,10 +4,8 @@
  */
 
 export { DextoError } from './DextoError.js';
-export { ErrorScope } from './scopes.js';
-export { ErrorType } from './types.js';
-export type { DextoErrorCode } from './codes.js';
-export type { Issue, Severity } from './issue.js';
+export { ErrorScope, ErrorType, DextoErrorCode } from './types.js';
+export type { Issue, Severity } from './types.js';
 export { ensureOk } from './result-bridge.js';
 
 // Re-export domain error codes for convenience

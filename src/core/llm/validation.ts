@@ -2,7 +2,7 @@ import { validateModelFileSupport, getAllowedMimeTypes, LLMProvider } from './re
 import { logger } from '../logger/index.js';
 import type { ImageData, FileData } from './messages/types.js';
 import { Result, ok, fail } from '../utils/result.js';
-import { Issue } from '@core/error/issue.js';
+import { Issue } from '@core/error/types.js';
 import { DextoErrorCode } from '../schemas/errors.js';
 
 export interface ValidationLLMConfig {

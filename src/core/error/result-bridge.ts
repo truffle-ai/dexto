@@ -1,5 +1,5 @@
 import type { Result } from '../utils/result.js';
-import type { Issue } from './issue.js';
+import type { Issue } from './types.js';
 import type { DextoError } from './DextoError.js';
 
 /**

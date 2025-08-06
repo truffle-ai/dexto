@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { LLMProvider } from '../llm/registry.js';
-import type { Issue } from '@core/error/issue.js';
+import type { Issue } from '@core/error/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
