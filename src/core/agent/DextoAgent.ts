@@ -8,6 +8,7 @@ import {
     SessionMetadata,
     ChatSession,
     SessionErrorCode,
+    SessionError,
 } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
@@ -15,7 +16,6 @@ import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js'
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { Result, ok, fail } from '../utils/result.js';
 import type { LLMUpdateContext } from '../llm/types.js';
-import { AgentErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/error/types.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { AgentError } from './errors.js';
@@ -151,7 +151,7 @@ export class DextoAgent {
      */
     public async start(): Promise<void> {
         if (this._isStarted) {
-            throw new Error('Agent is already started');
+            throw AgentError.initializationFailed('Agent is already started');
         }
 
         try {
@@ -163,7 +163,9 @@ export class DextoAgent {
             // Validate all required services are provided
             for (const service of requiredServices) {
                 if (!services[service]) {
-                    throw new Error(`Required service ${service} is missing during agent start`);
+                    throw AgentError.initializationFailed(
+                        `Required service ${service} is missing during agent start`
+                    );
                 }
             }
 
@@ -207,7 +209,7 @@ export class DextoAgent {
         }
 
         if (!this._isStarted) {
-            throw new Error('Agent must be started before it can be stopped');
+            throw AgentError.notStarted();
         }
 
         try {
@@ -286,10 +288,10 @@ export class DextoAgent {
      */
     private ensureStarted(): void {
         if (this._isStopped) {
-            throw new Error('Agent has been stopped and cannot be used');
+            throw AgentError.notStarted();
         }
         if (!this._isStarted) {
-            throw new Error('Agent must be started before use. Call agent.start() first.');
+            throw AgentError.notStarted();
         }
     }
 
@@ -461,7 +463,7 @@ export class DextoAgent {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
-            throw new Error(`Session '${sessionId}' not found`);
+            throw SessionError.notFound(sessionId);
         }
         return await session.getHistory();
     }
@@ -523,7 +525,7 @@ export class DextoAgent {
         // Verify session exists before loading it
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
-            throw new Error(`Session '${sessionId}' not found`);
+            throw SessionError.notFound(sessionId);
         }
 
         this.currentDefaultSessionId = sessionId;
@@ -796,9 +798,7 @@ export class DextoAgent {
     ): Array<ModelInfo & { isDefault: boolean }> {
         const supportedProviders = getSupportedProviders() as LLMProvider[];
         if (!supportedProviders.includes(provider)) {
-            throw new Error(
-                `Unsupported provider: ${provider}. Supported providers: ${supportedProviders.join(', ')}`
-            );
+            throw LLMError.unsupportedProvider(provider, supportedProviders);
         }
 
         const defaultModel = getDefaultModelForProvider(provider);

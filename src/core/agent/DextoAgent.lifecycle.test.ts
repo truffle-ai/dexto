@@ -3,6 +3,9 @@ import { DextoAgent } from './DextoAgent.js';
 import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
+import { DextoError } from '../error/DextoError.js';
+import { ErrorScope, ErrorType } from '../error/types.js';
+import { AgentErrorCode } from './error-codes.js';
 
 // Mock the createAgentServices function
 vi.mock('../utils/service-initializer.js', () => ({
@@ -137,7 +140,13 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await agent.start();
 
-            await expect(agent.start()).rejects.toThrow('Agent is already started');
+            await expect(agent.start()).rejects.toThrow(
+                expect.objectContaining({
+                    code: AgentErrorCode.INITIALIZATION_FAILED,
+                    scope: ErrorScope.AGENT,
+                    type: ErrorType.SYSTEM,
+                })
+            );
         });
 
         test('should handle start failure gracefully', async () => {
@@ -167,7 +176,11 @@ describe('DextoAgent Lifecycle Management', () => {
             const agent = new DextoAgent(mockConfig);
 
             await expect(agent.stop()).rejects.toThrow(
-                'Agent must be started before it can be stopped'
+                expect.objectContaining({
+                    code: AgentErrorCode.NOT_STARTED,
+                    scope: ErrorScope.AGENT,
+                    type: ErrorType.USER,
+                })
             );
         });
 
@@ -216,18 +229,20 @@ describe('DextoAgent Lifecycle Management', () => {
         test.each(testMethods)('$name should throw before start()', async ({ name, args }) => {
             const agent = new DextoAgent(mockConfig);
 
-            let thrownError: Error | undefined;
+            let thrownError: DextoError | undefined;
             try {
                 const method = agent[name as keyof DextoAgent] as Function;
                 await method.apply(agent, args);
             } catch (error) {
-                thrownError = error as Error;
+                thrownError = error as DextoError;
             }
 
             expect(thrownError).toBeDefined();
-            expect(thrownError?.message).toBe(
-                'Agent must be started before use. Call agent.start() first.'
-            );
+            expect(thrownError).toMatchObject({
+                code: AgentErrorCode.NOT_STARTED,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+            });
         });
 
         test.each(testMethods)('$name should throw after stop()', async ({ name, args }) => {
@@ -235,16 +250,20 @@ describe('DextoAgent Lifecycle Management', () => {
             await agent.start();
             await agent.stop();
 
-            let thrownError: Error | undefined;
+            let thrownError: DextoError | undefined;
             try {
                 const method = agent[name as keyof DextoAgent] as Function;
                 await method.apply(agent, args);
             } catch (error) {
-                thrownError = error as Error;
+                thrownError = error as DextoError;
             }
 
             expect(thrownError).toBeDefined();
-            expect(thrownError?.message).toBe('Agent has been stopped and cannot be used');
+            expect(thrownError).toMatchObject({
+                code: AgentErrorCode.NOT_STARTED,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+            });
         });
 
         test('getCurrentSessionId should work without start() (read-only)', () => {
