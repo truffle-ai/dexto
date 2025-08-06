@@ -1,6 +1,6 @@
 // src/config/mcp/resolver.ts
 import { ok, fail, type Result, hasErrors, zodToIssues } from '../utils/result.js';
-import { type Issue } from '@core/error/types.js';
+import { type Issue, ErrorScope, ErrorType } from '@core/error/types.js';
 import { MCPErrorCode } from './error-codes.js';
 
 import {
@@ -40,6 +40,8 @@ function resolveMcpServerConfig(
             code: MCPErrorCode.SCHEMA_VALIDATION,
             message: 'Server name must be a non-empty string',
             severity: 'error',
+            scope: ErrorScope.MCP,
+            type: ErrorType.USER,
             context: { serverName },
         });
     }
@@ -53,6 +55,8 @@ function resolveMcpServerConfig(
             code: MCPErrorCode.SERVER_DUPLICATE_NAME,
             message: `Server name '${serverName}' is similar to existing '${dup}' (case differs)`,
             severity: 'warning',
+            scope: ErrorScope.MCP,
+            type: ErrorType.USER,
             context: { serverName },
         });
     }

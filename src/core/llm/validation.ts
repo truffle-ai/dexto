@@ -5,6 +5,7 @@ import { Result, ok, fail } from '../utils/result.js';
 import { Issue, ErrorScope, ErrorType } from '@core/error/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
+// TOOD: Refactor/simplify this file
 export interface ValidationLLMConfig {
     provider: LLMProvider;
     model?: string;

@@ -128,13 +128,14 @@ export const modelCommands: CommandDefinition = {
                     if (error instanceof DextoError) {
                         console.log(chalk.red('❌ Failed to switch model:'));
                         console.log(chalk.red(`   ${error.message}`));
-                        // Show warnings if any
-                        const warnings = error.issues.filter(
-                            (issue) => issue.severity === 'warning'
-                        );
-                        if (warnings.length > 0) {
-                            for (const warning of warnings) {
-                                console.log(chalk.yellow(`⚠️  ${warning.message}`));
+                        // Show error details
+                        console.log(chalk.dim(`   Code: ${error.code}`));
+                        if (error.recovery) {
+                            const recoverySteps = Array.isArray(error.recovery)
+                                ? error.recovery
+                                : [error.recovery];
+                            for (const step of recoverySteps) {
+                                console.log(chalk.blue(`💡 ${step}`));
                             }
                         }
                     } else {

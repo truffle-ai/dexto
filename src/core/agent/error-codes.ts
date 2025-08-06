@@ -21,6 +21,10 @@ export const enum AgentErrorCode {
     MCP_CONNECTION_FAILED = 'agent_mcp_connection_failed',
     RUN_FAILED = 'agent_run_failed',
 
-    // Initialization
+    // Lifecycle
+    NOT_STARTED = 'agent_not_started',
     INITIALIZATION_FAILED = 'agent_initialization_failed',
+
+    // Configuration validation
+    CONFIG_INVALID = 'agent_config_invalid',
 }

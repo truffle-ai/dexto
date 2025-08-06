@@ -1,5 +1,5 @@
 import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
-import { Issue } from '@core/error/types.js';
+import { Issue, ErrorScope, ErrorType } from '@core/error/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
@@ -70,6 +70,8 @@ export function resolveLLMConfig(
             code: LLMErrorCode.API_KEY_CANDIDATE_MISSING,
             message: 'API key not provided or found in environment',
             severity: 'warning',
+            scope: ErrorScope.LLM,
+            type: ErrorType.USER,
             context: { provider },
         });
     } else if (typeof apiKey === 'string' && apiKey.length < 10) {
@@ -77,6 +79,8 @@ export function resolveLLMConfig(
             code: LLMErrorCode.API_KEY_INVALID,
             message: 'API key looks unusually short',
             severity: 'warning',
+            scope: ErrorScope.LLM,
+            type: ErrorType.USER,
             context: { provider },
         });
     }
@@ -98,6 +102,8 @@ export function resolveLLMConfig(
                     code: LLMErrorCode.ROUTER_UNSUPPORTED,
                     message: `No routers supported for provider '${provider}'`,
                     severity: 'error',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
                     context: router ? { provider, router } : { provider },
                 });
                 // if routers supported, use the first supported router
@@ -107,6 +113,8 @@ export function resolveLLMConfig(
                     code: LLMErrorCode.ROUTER_UNSUPPORTED,
                     message: `Router changed to '${router}' for provider '${provider}'`,
                     severity: 'warning',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
                     context: { provider, router },
                 });
             }
@@ -128,6 +136,8 @@ export function resolveLLMConfig(
             code: LLMErrorCode.MODEL_INCOMPATIBLE,
             message: `Model set to default '${model}' for provider '${provider}'`,
             severity: 'warning',
+            scope: ErrorScope.LLM,
+            type: ErrorType.USER,
             context: { provider, model },
         });
     }
@@ -173,6 +183,8 @@ export function validateLLMConfig(
             message: 'API key seems too short - please verify it is correct',
             path: ['apiKey'],
             severity: 'warning',
+            scope: ErrorScope.LLM,
+            type: ErrorType.USER,
             context: {
                 provider: candidate.provider,
                 model: candidate.model,
