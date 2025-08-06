@@ -1,15 +1,13 @@
-import { randomUUID } from 'crypto';
+import { DextoBaseError } from './DextoBaseError.js';
 import { ErrorScope } from './types.js';
 import { ErrorType } from './types.js';
 import type { DextoErrorCode } from './types.js';
 
 /**
- * Base error class for all Dexto errors
+ * Runtime error class for single-issue errors
  * Provides structured error information with scope, type, and recovery guidance
  */
-export class DextoError<C = unknown> extends Error {
-    public readonly traceId: string;
-
+export class DextoError<C = unknown> extends DextoBaseError {
     constructor(
         public readonly code: DextoErrorCode,
         public readonly scope: ErrorScope,
@@ -19,9 +17,8 @@ export class DextoError<C = unknown> extends Error {
         public readonly recovery?: string | string[],
         traceId?: string
     ) {
-        super(message);
-        this.name = new.target.name;
-        this.traceId = traceId || randomUUID();
+        super(message, traceId);
+        this.name = 'DextoError';
     }
 
     toJSON() {
