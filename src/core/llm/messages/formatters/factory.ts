@@ -21,9 +21,10 @@ export function createMessageFormatter(
             logger.error(
                 `Provider '${provider}' supported by registry but not configured for 'default' router message formatting.`
             );
-            throw LLMError.unsupportedProvider(provider);
+            throw LLMError.unsupportedRouter(router, provider);
         }
     } else {
+        // Unreachable
         logger.error(`Unsupported LLM router specified: ${router}`);
         throw LLMError.unsupportedRouter(router, provider);
     }

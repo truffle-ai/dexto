@@ -7,7 +7,14 @@ import { StorageSchema } from '@core/storage/schemas.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
-vi.mock('../logger/index.js');
+vi.mock('../logger/index.js', () => ({
+    logger: {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+    },
+}));
 vi.mock('crypto', () => ({
     randomUUID: vi.fn(() => 'mock-uuid-123'),
 }));
@@ -18,15 +25,7 @@ describe('SessionManager', () => {
     let sessionManager: SessionManager;
     let mockServices: any;
     let mockStorageManager: any;
-
-    const mockLLMConfig = LLMConfigSchema.parse({
-        provider: 'openai',
-        model: 'gpt-4o',
-        apiKey: 'test-key',
-        router: 'in-built',
-        maxIterations: 50,
-        maxInputTokens: 128000,
-    });
+    let mockLLMConfig: ValidatedLLMConfig;
 
     const mockSessionData = {
         id: 'test-session',
@@ -84,6 +83,16 @@ describe('SessionManager', () => {
             },
             storage: mockStorageManager,
         };
+
+        // Parse LLM config now that mocks are set up
+        mockLLMConfig = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-4o',
+            apiKey: 'test-key',
+            router: 'in-built',
+            maxIterations: 50,
+            maxInputTokens: 128000,
+        });
 
         // Create SessionManager instance
         sessionManager = new SessionManager(mockServices, {

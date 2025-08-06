@@ -87,18 +87,6 @@ export class LLMError {
         );
     }
 
-    // Shouldn't happen because provider is typed everywhere, but for some default cases
-    static unsupportedProvider(provider: string) {
-        const availableProviders = getSupportedProviders();
-        return new DextoError(
-            LLMErrorCode.PROVIDER_UNSUPPORTED,
-            ErrorScope.LLM,
-            ErrorType.USER,
-            `Provider '${provider}' not supported. Available: ${availableProviders.join(', ')}`,
-            { provider, availableProviders }
-        );
-    }
-
     static unsupportedRouter(router: LLMRouter, provider: LLMProvider) {
         const supportedRouters = getSupportedRoutersForProvider(provider).map((r) => r);
         return new DextoError(
