@@ -7,7 +7,7 @@ import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../messages/manager.js';
 import { getMaxInputTokensForModel, LLMProvider } from '../registry.js';
 import { ImageData, FileData } from '../messages/types.js';
-import { DextoError } from '../../errors/DextoError.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { SessionEventBus } from '../../events/index.js';
 import { ToolExecutionDeniedError } from '../../tools/confirmation/errors.js';
@@ -499,7 +499,7 @@ export class VercelLLMService implements ILLMService {
             );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
-            if (error instanceof DextoError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
+            if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 modelMaxInputTokens = configuredMaxTokens;
                 logger.debug(
                     `Could not find model ${this.model.modelId} in LLM registry to get max tokens. Using configured max tokens: ${configuredMaxTokens}.`

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { DextoError } from '@core/errors/DextoError.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorType } from '@core/errors/types.js';
 import { logger } from '@core/logger/index.js';
 
@@ -7,7 +7,7 @@ import { logger } from '@core/logger/index.js';
  * Maps ErrorType to HTTP status codes
  * Clean 1:1 mapping without special cases
  */
-const statusFor = (err: DextoError): number => {
+const statusFor = (err: DextoRuntimeError): number => {
     switch (err.type) {
         case ErrorType.USER:
             return 400;
@@ -35,7 +35,7 @@ const statusFor = (err: DextoError): number => {
  * Provides consistent error responses across all API endpoints
  */
 export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction): void {
-    if (err instanceof DextoError) {
+    if (err instanceof DextoRuntimeError) {
         const status = statusFor(err);
         res.status(status).json(err.toJSON());
         return;

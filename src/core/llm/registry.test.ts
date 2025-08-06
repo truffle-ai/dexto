@@ -19,7 +19,6 @@ import {
     getSupportedRoutersForProvider,
     isRouterSupportedForProvider,
 } from './registry.js';
-import { DextoError } from '../errors/DextoError.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 
@@ -43,7 +42,7 @@ describe('LLM Registry Core Functions', () => {
             expect(getMaxInputTokensForModel('openai', 'o4-mini')).toBe(200000);
         });
 
-        it('throws UnknownModelError for unknown model', () => {
+        it('throws DextoRuntimeError with model unknown code for unknown model', () => {
             expect(() => getMaxInputTokensForModel('openai', 'unknown-model')).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,
@@ -277,7 +276,7 @@ describe('File Support Functions', () => {
             expect(getSupportedFileTypesForModel('openai-compatible', 'custom-model')).toEqual([]);
         });
 
-        it('throws UnknownModelError for unknown model', () => {
+        it('throws DextoRuntimeError for unknown model', () => {
             expect(() => getSupportedFileTypesForModel('openai', 'unknown-model')).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,

@@ -1,10 +1,7 @@
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService } from './types.js';
 import { ValidatedLLMConfig } from '../schemas.js';
-import { logger } from '../../logger/index.js';
 import { LLMError } from '../errors.js';
-import { getSupportedProviders } from '../registry.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -22,28 +19,6 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 
 /**
- * Extract and validate API key from config or environment variables
- * @param config LLM configuration from the config file
- * @returns Valid API key or throws an error
- */
-function extractApiKey(config: ValidatedLLMConfig): string {
-    const provider = config.provider;
-
-    // Get API key from config (already expanded)
-    let apiKey = config.apiKey || '';
-
-    if (!apiKey) {
-        logger.error(`API key for ${provider} not found`);
-        logger.error(`Please set your ${provider} API key in the config file or .env file`);
-        const envVar = getPrimaryApiKeyEnvVar(provider);
-        throw LLMError.missingApiKey(provider, envVar);
-    }
-
-    logger.debug('Verified API key');
-    return apiKey;
-}
-
-/**
  * Create an instance of one of our in-built LLM services
  * @param config LLM configuration from the config file
  * @param toolManager Unified tool manager instance
@@ -59,8 +34,7 @@ function _createInBuiltLLMService(
     contextManager: ContextManager,
     sessionId: string
 ): ILLMService {
-    // Extract and validate API key
-    const apiKey = extractApiKey(config);
+    const apiKey = config.apiKey;
 
     switch (config.provider.toLowerCase()) {
         case 'openai': {
@@ -110,7 +84,7 @@ function _createInBuiltLLMService(
 function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModelV1 {
     const provider = llmConfig.provider;
     const model = llmConfig.model;
-    const apiKey = extractApiKey(llmConfig);
+    const apiKey = llmConfig.apiKey;
 
     switch (provider.toLowerCase()) {
         case 'openai': {

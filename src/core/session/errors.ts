@@ -1,4 +1,4 @@
-import { DextoError } from '@core/errors/DextoError.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 
@@ -11,7 +11,7 @@ export class SessionError {
      * Session not found
      */
     static notFound(sessionId: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_NOT_FOUND,
             ErrorScope.SESSION,
             ErrorType.NOT_FOUND,
@@ -24,7 +24,7 @@ export class SessionError {
      * Session creation failed
      */
     static creationFailed(reason: string, sessionId?: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_CREATION_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
@@ -37,7 +37,7 @@ export class SessionError {
      * Session initialization failed
      */
     static initializationFailed(sessionId: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_INITIALIZATION_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
@@ -50,7 +50,7 @@ export class SessionError {
      * Session cleanup failed
      */
     static cleanupFailed(sessionId: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_CLEANUP_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
@@ -63,7 +63,7 @@ export class SessionError {
      * Session in invalid state
      */
     static invalidState(sessionId: string, currentState: string, expectedState?: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_INVALID_STATE,
             ErrorScope.SESSION,
             ErrorType.USER,
@@ -76,7 +76,7 @@ export class SessionError {
      * Session has expired
      */
     static expired(sessionId: string, expiredAt: Date) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_EXPIRED,
             ErrorScope.SESSION,
             ErrorType.NOT_FOUND,
@@ -89,7 +89,7 @@ export class SessionError {
      * Maximum number of sessions exceeded
      */
     static maxSessionsExceeded(currentCount: number, maxSessions: number) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
             ErrorScope.SESSION,
             ErrorType.USER,
@@ -103,7 +103,7 @@ export class SessionError {
      * Session storage failed
      */
     static storageFailed(sessionId: string, operation: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_STORAGE_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
@@ -116,7 +116,7 @@ export class SessionError {
      * Session restoration failed
      */
     static restorationFailed(reason: string, sessionCount?: number) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_RESTORATION_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
@@ -129,7 +129,7 @@ export class SessionError {
      * Session metadata save failed
      */
     static metadataSaveFailed(sessionId: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_METADATA_SAVE_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
@@ -142,7 +142,7 @@ export class SessionError {
      * Session reset failed
      */
     static resetFailed(sessionId: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             SessionErrorCode.SESSION_RESET_FAILED,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,

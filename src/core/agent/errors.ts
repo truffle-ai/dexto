@@ -1,4 +1,4 @@
-import { DextoError } from '@core/errors/DextoError.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 
@@ -12,7 +12,7 @@ export class AgentError {
      * Agent not started
      */
     static notStarted() {
-        return new DextoError(
+        return new DextoRuntimeError(
             AgentErrorCode.NOT_STARTED,
             ErrorScope.AGENT,
             ErrorType.USER,
@@ -26,7 +26,7 @@ export class AgentError {
      * Configuration invalid
      */
     static configInvalid(message: string, details?: unknown) {
-        return new DextoError(
+        return new DextoRuntimeError(
             AgentErrorCode.CONFIG_INVALID,
             ErrorScope.AGENT,
             ErrorType.USER,
@@ -40,7 +40,7 @@ export class AgentError {
      * Agent initialization failed
      */
     static initializationFailed(reason: string, details?: unknown) {
-        return new DextoError(
+        return new DextoRuntimeError(
             AgentErrorCode.INITIALIZATION_FAILED,
             ErrorScope.AGENT,
             ErrorType.SYSTEM,
@@ -54,7 +54,7 @@ export class AgentError {
      * Run operation failed
      */
     static runFailed(reason: string, details?: unknown) {
-        return new DextoError(
+        return new DextoRuntimeError(
             AgentErrorCode.RUN_FAILED,
             ErrorScope.AGENT,
             ErrorType.SYSTEM,

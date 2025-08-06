@@ -1,5 +1,6 @@
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError } from '@core/errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/result.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { z } from 'zod';
@@ -155,21 +156,36 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                     });
                 }
             } catch (error: unknown) {
-                // TODO: improve this
-                const e = error as { name?: string; message?: string };
-                const isUnknownModelError = e?.name === 'UnknownModelError';
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    path: ['model'],
-                    message: e?.message ?? 'Unknown provider/model',
-                    params: {
-                        code: isUnknownModelError
-                            ? LLMErrorCode.MODEL_UNKNOWN
-                            : LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.USER,
-                    },
-                });
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === LLMErrorCode.MODEL_UNKNOWN
+                ) {
+                    // Model not found in registry
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message: error.message,
+                        params: {
+                            code: error.code,
+                            scope: error.scope,
+                            type: error.type,
+                        },
+                    });
+                } else {
+                    // Unexpected error
+                    const message =
+                        error instanceof Error ? error.message : 'Unknown error occurred';
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message,
+                        params: {
+                            code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.SYSTEM,
+                        },
+                    });
+                }
             }
         }
     }

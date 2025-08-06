@@ -652,6 +652,7 @@ export class DextoAgent {
         this.ensureStarted();
 
         // Basic validation
+        // TODO: move this to LLMUpdatesSchema zod validation
         if (!llmUpdates.model && !llmUpdates.provider) {
             throw LLMError.switchInputMissing();
         }

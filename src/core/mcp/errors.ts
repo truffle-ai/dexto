@@ -1,4 +1,4 @@
-import { DextoError } from '@core/errors/DextoError.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { MCPErrorCode } from './error-codes.js';
 
@@ -11,7 +11,7 @@ export class MCPError {
      * MCP server connection failed
      */
     static connectionFailed(serverName: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.CONNECTION_FAILED,
             ErrorScope.MCP,
             ErrorType.THIRD_PARTY,
@@ -25,7 +25,7 @@ export class MCPError {
      * MCP server connection lost
      */
     static connectionLost(serverName: string, reason?: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.CONNECTION_LOST,
             ErrorScope.MCP,
             ErrorType.THIRD_PARTY,
@@ -39,7 +39,7 @@ export class MCPError {
      * MCP protocol error
      */
     static protocolError(message: string, details?: unknown) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.PROTOCOL_ERROR,
             ErrorScope.MCP,
             ErrorType.THIRD_PARTY,
@@ -53,7 +53,7 @@ export class MCPError {
      * MCP validation failed
      */
     static validationFailed(message: string, details?: unknown) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.VALIDATION_FAILED,
             ErrorScope.MCP,
             ErrorType.USER,
@@ -67,7 +67,7 @@ export class MCPError {
      * MCP command missing
      */
     static commandMissing() {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.COMMAND_MISSING,
             ErrorScope.MCP,
             ErrorType.USER,
@@ -81,7 +81,7 @@ export class MCPError {
      * MCP duplicate server name
      */
     static duplicateName(name: string, existingName: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.DUPLICATE_NAME,
             ErrorScope.MCP,
             ErrorType.USER,
@@ -95,7 +95,7 @@ export class MCPError {
      * MCP initialization failed
      */
     static initializationFailed(serverName: string, reason: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.INITIALIZATION_FAILED,
             ErrorScope.MCP,
             ErrorType.THIRD_PARTY,
@@ -109,7 +109,7 @@ export class MCPError {
      * MCP request timeout
      */
     static requestTimeout(serverName: string, operation: string) {
-        return new DextoError(
+        return new DextoRuntimeError(
             MCPErrorCode.REQUEST_TIMEOUT,
             ErrorScope.MCP,
             ErrorType.TIMEOUT,

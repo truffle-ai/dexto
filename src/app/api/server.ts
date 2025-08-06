@@ -16,7 +16,7 @@ import {
     type McpTransportType,
 } from './mcp/mcp_handler.js';
 import { createAgentCard } from '@core/index.js';
-import { DextoAgent, DextoError } from '@core/index.js';
+import { DextoAgent, DextoRuntimeError } from '@core/index.js';
 import { stringify as yamlStringify } from 'yaml';
 import os from 'os';
 import { resolveBundledScript } from '@core/index.js';
@@ -672,13 +672,15 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 issues: [],
             });
             // TODO: move this check to middleware
-        } catch (error) {
-            if (error instanceof DextoError) {
+        } catch (error: unknown) {
+            if (error instanceof DextoRuntimeError) {
                 // Use error middleware for consistent handling
                 throw error;
             } else {
                 // Infrastructure errors -> 500
-                logger.error('LLM switch failed:', error);
+                logger.error(
+                    `LLM switch failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
                 return res.status(500).json({
                     ok: false,
                     issues: [

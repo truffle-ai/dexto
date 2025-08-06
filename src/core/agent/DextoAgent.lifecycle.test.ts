@@ -3,7 +3,7 @@ import { DextoAgent } from './DextoAgent.js';
 import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
-import { DextoError } from '../errors/DextoError.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 
@@ -229,12 +229,12 @@ describe('DextoAgent Lifecycle Management', () => {
         test.each(testMethods)('$name should throw before start()', async ({ name, args }) => {
             const agent = new DextoAgent(mockConfig);
 
-            let thrownError: DextoError | undefined;
+            let thrownError: DextoRuntimeError | undefined;
             try {
                 const method = agent[name as keyof DextoAgent] as Function;
                 await method.apply(agent, args);
             } catch (error) {
-                thrownError = error as DextoError;
+                thrownError = error as DextoRuntimeError;
             }
 
             expect(thrownError).toBeDefined();
@@ -250,12 +250,12 @@ describe('DextoAgent Lifecycle Management', () => {
             await agent.start();
             await agent.stop();
 
-            let thrownError: DextoError | undefined;
+            let thrownError: DextoRuntimeError | undefined;
             try {
                 const method = agent[name as keyof DextoAgent] as Function;
                 await method.apply(agent, args);
             } catch (error) {
-                thrownError = error as DextoError;
+                thrownError = error as DextoRuntimeError;
             }
 
             expect(thrownError).toBeDefined();

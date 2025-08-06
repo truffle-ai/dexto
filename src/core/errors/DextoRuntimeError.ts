@@ -7,7 +7,7 @@ import type { DextoErrorCode } from './types.js';
  * Runtime error class for single-issue errors
  * Provides structured error information with scope, type, and recovery guidance
  */
-export class DextoError<C = unknown> extends DextoBaseError {
+export class DextoRuntimeError<C = unknown> extends DextoBaseError {
     constructor(
         public readonly code: DextoErrorCode,
         public readonly scope: ErrorScope,
@@ -18,7 +18,7 @@ export class DextoError<C = unknown> extends DextoBaseError {
         traceId?: string
     ) {
         super(message, traceId);
-        this.name = 'DextoError';
+        this.name = 'DextoRuntimeError';
     }
 
     toJSON() {

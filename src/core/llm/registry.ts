@@ -2,7 +2,7 @@ import { logger } from '../logger/index.js';
 import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
-import { DextoError } from '../errors/DextoError.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 export interface ModelInfo {
     name: string;
@@ -488,7 +488,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig): number {
             }
         } catch (error: any) {
             // Handle registry lookup failures during override check
-            if (error instanceof DextoError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
+            if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 logger.warn(
                     `Registry lookup failed during maxInputTokens override check for ${config.provider}/${config.model}: ${error.message}. ` +
                         `Proceeding with the provided maxInputTokens value (${configuredMaxInputTokens}), but it might be invalid.`
@@ -531,7 +531,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig): number {
         return registryMaxInputTokens;
     } catch (error: any) {
         // Handle registry lookup failures gracefully (e.g., typo in validated config)
-        if (error instanceof DextoError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
+        if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
             // Log as error and throw a specific fatal error
             logger.error(
                 `Registry lookup failed for ${config.provider}/${config.model}: ${error.message}. ` +

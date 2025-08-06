@@ -4,7 +4,7 @@
  */
 
 export { DextoBaseError } from './DextoBaseError.js';
-export { DextoError } from './DextoError.js';
+export { DextoRuntimeError } from './DextoRuntimeError.js';
 export { DextoValidationError } from './DextoValidationError.js';
 export { ErrorScope, ErrorType, DextoErrorCode } from './types.js';
 export type { Issue, Severity } from './types.js';

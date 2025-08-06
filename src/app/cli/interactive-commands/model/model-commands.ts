@@ -14,7 +14,7 @@
 
 import chalk from 'chalk';
 import { logger } from '@core/index.js';
-import { DextoAgent, DextoError } from '@core/index.js';
+import { DextoAgent, DextoRuntimeError, DextoValidationError, LLMErrorCode } from '@core/index.js';
 import { CommandDefinition } from '../command-parser.js';
 
 /**
@@ -124,8 +124,8 @@ export const modelCommands: CommandDefinition = {
                     await agent.switchLLM(llmConfig);
 
                     console.log(chalk.green(`✅ Successfully switched to ${model} (${provider})`));
-                } catch (error) {
-                    if (error instanceof DextoError) {
+                } catch (error: unknown) {
+                    if (error instanceof DextoRuntimeError) {
                         console.log(chalk.red('❌ Failed to switch model:'));
                         console.log(chalk.red(`   ${error.message}`));
                         // Show error details
@@ -138,6 +138,11 @@ export const modelCommands: CommandDefinition = {
                                 console.log(chalk.blue(`💡 ${step}`));
                             }
                         }
+                    } else if (error instanceof DextoValidationError) {
+                        console.log(chalk.red('❌ Validation failed:'));
+                        error.errors.forEach((err) => {
+                            console.log(chalk.red(`   - ${err.message}`));
+                        });
                     } else {
                         logger.error(
                             `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`
