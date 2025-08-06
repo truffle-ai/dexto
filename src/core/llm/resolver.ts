@@ -1,5 +1,5 @@
 import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
-import { Issue, ErrorScope, ErrorType } from '@core/error/types.js';
+import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';

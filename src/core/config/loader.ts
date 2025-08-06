@@ -8,7 +8,7 @@ import {
     ConfigFileReadError,
     ConfigFileWriteError,
     ConfigParseError,
-} from '@core/error/index.js';
+} from '@core/errors/index.js';
 
 /**
  * Load the complete agent configuration

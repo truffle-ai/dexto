@@ -1,8 +1,8 @@
-import { DextoError } from '../error/DextoError.js';
-import { ErrorScope } from '@core/error/types.js';
-import { ErrorType } from '../error/types.js';
+import { DextoError } from '../errors/DextoError.js';
+import { ErrorScope } from '@core/errors/types.js';
+import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
-import type { Issue } from '@core/error/types.js';
+import type { Issue } from '@core/errors/types.js';
 import type { LLMProvider } from './registry.js';
 
 /**

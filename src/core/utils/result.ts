@@ -1,7 +1,7 @@
 // schemas/helpers.ts
 import { z, type ZodError, type ZodIssue } from 'zod';
-import type { DextoErrorCode, Issue } from '@core/error/types.js';
-import { ErrorScope, ErrorType } from '@core/error/types.js';
+import type { DextoErrorCode, Issue } from '@core/errors/types.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 /** Trim and require non-empty after trim */
 export const NonEmptyTrimmed = z

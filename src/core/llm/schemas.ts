@@ -1,5 +1,5 @@
 import { LLMErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/result.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { z } from 'zod';

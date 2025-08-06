@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
-import { ConfigFileNotFoundError } from '@core/error/index.js';
+import { ConfigFileNotFoundError } from '@core/errors/index.js';
 /**
  * Default config file path (relative to package root)
  */

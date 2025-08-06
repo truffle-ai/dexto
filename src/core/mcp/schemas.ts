@@ -1,5 +1,5 @@
 import { MCPErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { EnvExpandedString, RequiredEnvURL } from '@core/utils/result.js';
 import { z } from 'zod';
 

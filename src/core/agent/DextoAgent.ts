@@ -16,12 +16,12 @@ import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js'
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { Result, ok, fail } from '../utils/result.js';
 import type { LLMUpdateContext } from '../llm/types.js';
-import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { AgentError } from './errors.js';
 import { LLMError } from '../llm/errors.js';
 import { MCPError } from '../mcp/errors.js';
-import { ensureOk } from '@core/error/result-bridge.js';
+import { ensureOk } from '@core/errors/result-bridge.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {

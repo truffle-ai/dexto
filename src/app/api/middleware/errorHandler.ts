@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
-import { DextoError } from '@core/error/DextoError.js';
-import { ErrorType } from '@core/error/types.js';
+import { DextoError } from '@core/errors/DextoError.js';
+import { ErrorType } from '@core/errors/types.js';
 import { logger } from '@core/logger/index.js';
 
 /**

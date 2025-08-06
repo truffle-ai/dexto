@@ -1,5 +1,5 @@
-import { DextoError } from '@core/error/DextoError.js';
-import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { DextoError } from '@core/errors/DextoError.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 
 /**

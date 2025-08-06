@@ -3,8 +3,8 @@ import { DextoAgent } from './DextoAgent.js';
 import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
-import { DextoError } from '../error/DextoError.js';
-import { ErrorScope, ErrorType } from '../error/types.js';
+import { DextoError } from '../errors/DextoError.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 
 // Mock the createAgentServices function

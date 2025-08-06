@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { StorageErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 // ==== STORAGE CONFIGURATION ====
 // Base schema for common connection pool options

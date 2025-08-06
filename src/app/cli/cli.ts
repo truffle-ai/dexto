@@ -7,7 +7,7 @@ import { parseInput } from './interactive-commands/command-parser.js';
 import { executeCommand } from './interactive-commands/commands.js';
 import { getDextoPath } from '@core/utils/path.js';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import { ConfigurationError } from '@core/error/index.js';
+import { ConfigurationError } from '@core/errors/index.js';
 import { UnknownProviderError, UnknownModelError } from '@core/llm/errors.js';
 
 /**
