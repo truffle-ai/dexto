@@ -1,4 +1,5 @@
-import { Result, Issue, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
+import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
+import { Issue } from '@core/error/issue.js';
 import { DextoErrorCode } from '../schemas/errors.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';

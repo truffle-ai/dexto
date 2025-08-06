@@ -1,5 +1,6 @@
 // src/config/mcp/resolver.ts
-import { ok, fail, type Result, type Issue, hasErrors, zodToIssues } from '../utils/result.js';
+import { ok, fail, type Result, hasErrors, zodToIssues } from '../utils/result.js';
+import { type Issue } from '@core/error/issue.js';
 import { DextoErrorCode } from '../schemas/errors.js';
 
 import {

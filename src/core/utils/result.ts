@@ -1,6 +1,7 @@
 // schemas/helpers.ts
 import { z, type ZodError, type ZodIssue } from 'zod';
 import { DextoErrorCode } from '../schemas/errors.js';
+import { Issue } from '@core/error/issue.js';
 
 /** Trim and require non-empty after trim */
 export const NonEmptyTrimmed = z
@@ -58,18 +59,6 @@ export const RequiredEnvURL = (env?: Record<string, string | undefined>) =>
         },
         { message: 'Invalid URL' }
     );
-
-/** Severity of an issue */
-export type Severity = 'error' | 'warning';
-
-/** Generic issue type for validation results */
-export interface Issue<C = unknown> {
-    code: DextoErrorCode;
-    message: string;
-    path?: Array<string | number>;
-    severity: Severity;
-    context?: C;
-}
 
 /**
  * A discriminated union result type that can be either successful or failed
