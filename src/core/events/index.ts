@@ -9,7 +9,6 @@ export const AGENT_EVENT_NAMES = [
     'dexto:conversationReset',
     'dexto:mcpServerConnected',
     'dexto:availableToolsUpdated',
-    'dexto:inputValidationFailed',
     'dexto:llmSwitched',
     // Agent state manager events
     'dexto:stateChanged',
@@ -66,14 +65,6 @@ export interface AgentEventMap {
     'dexto:availableToolsUpdated': {
         tools: string[];
         source: 'mcp' | 'builtin';
-    };
-
-    /** Fired when input validation fails */
-    'dexto:inputValidationFailed': {
-        sessionId: string;
-        issues: Issue<Record<string, unknown>>[];
-        provider: LLMProvider;
-        model: string;
     };
 
     /** Fired when LLM service switched */

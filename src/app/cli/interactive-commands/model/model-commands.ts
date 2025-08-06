@@ -14,7 +14,7 @@
 
 import chalk from 'chalk';
 import { logger } from '@core/index.js';
-import { DextoAgent, DextoLLMError } from '@core/index.js';
+import { DextoAgent, DextoError } from '@core/index.js';
 import { CommandDefinition } from '../command-parser.js';
 
 /**
@@ -125,12 +125,9 @@ export const modelCommands: CommandDefinition = {
 
                     console.log(chalk.green(`✅ Successfully switched to ${model} (${provider})`));
                 } catch (error) {
-                    if (error instanceof DextoLLMError) {
+                    if (error instanceof DextoError) {
                         console.log(chalk.red('❌ Failed to switch model:'));
-                        const errors = error.issues.filter((issue) => issue.severity === 'error');
-                        for (const err of errors) {
-                            console.log(chalk.red(`   ${err.message}`));
-                        }
+                        console.log(chalk.red(`   ${error.message}`));
                         // Show warnings if any
                         const warnings = error.issues.filter(
                             (issue) => issue.severity === 'warning'

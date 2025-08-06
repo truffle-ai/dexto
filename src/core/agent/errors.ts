@@ -1,55 +1,92 @@
-// import type { Issue } from '@core/error/types.js';
-// import { AgentErrorCode } from './error-codes.js';
+import { DextoError } from '@core/error/DextoError.js';
+import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { AgentErrorCode } from './error-codes.js';
 
-// /**
-//  * Base class for DextoAgent validation errors that occurred during Result->Exception conversion
-//  * Preserves rich validation context from internal Result pattern for advanced error handling
-//  */
-// export class DextoValidationError extends Error {
-//     public readonly issues: Issue[];
-//     public readonly code: AgentErrorCode;
+/**
+ * Agent-specific error factory
+ * Creates properly typed errors for Agent operations
+ */
+export class AgentError {
+    /**
+     * LLM input missing (model/provider not specified)
+     */
+    static llmInputMissing() {
+        return new DextoError(
+            AgentErrorCode.LLM_INPUT_MISSING,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'At least model or provider must be specified',
+            undefined,
+            'Provide either a model name or provider in your LLM configuration'
+        );
+    }
 
-//     constructor(
-//         message: string,
-//         issues: Issue[],
-//         code: AgentErrorCode = AgentErrorCode.RUN_FAILED
-//     ) {
-//         super(message);
-//         this.name = 'DextoValidationError';
-//         this.issues = issues;
-//         this.code = code;
-//     }
-// }
+    /**
+     * Agent not started
+     */
+    static notStarted() {
+        return new DextoError(
+            AgentErrorCode.NOT_STARTED,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'Agent must be started before use',
+            undefined,
+            'Call agent.start() before using other methods'
+        );
+    }
 
-// /**
-//  * LLM configuration and switching errors
-//  * Thrown by DextoAgent.switchLLM() when validation or switching fails
-//  */
-// export class DextoLLMError extends DextoValidationError {
-//     constructor(message: string, issues: Issue[]) {
-//         super(message, issues, AgentErrorCode.LLM_SWITCH_FAILED);
-//         this.name = 'DextoLLMError';
-//     }
-// }
+    /**
+     * Session not found
+     */
+    static sessionNotFound(sessionId: string) {
+        return new DextoError(
+            AgentErrorCode.SESSION_NOT_FOUND,
+            ErrorScope.AGENT,
+            ErrorType.NOT_FOUND,
+            `Session ${sessionId} not found`,
+            { sessionId },
+            'Use an existing session ID or create a new session'
+        );
+    }
 
-// /**
-//  * MCP server configuration and connection errors
-//  * Thrown by DextoAgent.connectMcpServer() when validation or connection fails
-//  */
-// export class DextoMCPError extends DextoValidationError {
-//     constructor(message: string, issues: Issue[]) {
-//         super(message, issues, AgentErrorCode.MCP_CONNECTION_FAILED);
-//         this.name = 'DextoMCPError';
-//     }
-// }
+    /**
+     * Configuration invalid
+     */
+    static configInvalid(message: string, details?: unknown) {
+        return new DextoError(
+            AgentErrorCode.CONFIG_INVALID,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            message,
+            details,
+            'Fix the configuration errors and try again'
+        );
+    }
 
-// /**
-//  * Input validation errors (text/image/file)
-//  * Thrown by DextoAgent.run() when input validation fails
-//  */
-// export class DextoInputError extends DextoValidationError {
-//     constructor(message: string, issues: Issue[]) {
-//         super(message, issues, AgentErrorCode.RUN_FAILED);
-//         this.name = 'DextoInputError';
-//     }
-// }
+    /**
+     * Agent initialization failed
+     */
+    static initializationFailed(reason: string, details?: unknown) {
+        return new DextoError(
+            AgentErrorCode.INITIALIZATION_FAILED,
+            ErrorScope.AGENT,
+            ErrorType.SYSTEM,
+            `Agent initialization failed: ${reason}`,
+            details,
+            'Check logs for initialization errors'
+        );
+    }
+
+    /**
+     * Run operation failed
+     */
+    static runFailed(reason: string, details?: unknown) {
+        return new DextoError(
+            AgentErrorCode.RUN_FAILED,
+            ErrorScope.AGENT,
+            ErrorType.SYSTEM,
+            `Agent run failed: ${reason}`,
+            details
+        );
+    }
+}

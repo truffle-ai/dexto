@@ -11,9 +11,11 @@ import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { Result, ok, fail } from '../utils/result.js';
 import type { LLMUpdateContext } from '../llm/types.js';
 import { AgentErrorCode } from './error-codes.js';
-import { validateInputForLLM } from '../llm/validation.js';
-import { DextoLLMError, DextoMCPError, DextoInputError } from './errors.js';
 import { ErrorScope, ErrorType } from '@core/error/types.js';
+import { validateInputForLLM } from '../llm/validation.js';
+import { AgentError } from './errors.js';
+import { MCPError } from '../mcp/errors.js';
+import { ensureOk } from '@core/error/result-bridge.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -326,25 +328,8 @@ export class DextoAgent {
                 }
             );
 
-            if (!validation.ok) {
-                // Extract error messages from validation issues
-                const errorMessages = validation.issues
-                    .filter((issue) => issue.severity === 'error')
-                    .map((issue) => issue.message);
-
-                // Emit event for monitoring/webhooks
-                this.agentEventBus.emit('dexto:inputValidationFailed', {
-                    sessionId: targetSessionId,
-                    issues: validation.issues,
-                    provider: llmConfig.provider,
-                    model: llmConfig.model,
-                });
-
-                throw new DextoInputError(
-                    `Input validation failed: ${errorMessages.join('; ')}`,
-                    validation.issues
-                );
-            }
+            // Validate input and throw if invalid
+            ensureOk(validation);
 
             let session: ChatSession;
 
@@ -660,16 +645,7 @@ export class DextoAgent {
 
         // Basic validation
         if (!llmUpdates.model && !llmUpdates.provider) {
-            throw new DextoLLMError('At least model or provider must be specified', [
-                {
-                    code: AgentErrorCode.LLM_INPUT_MISSING,
-                    message: 'At least model or provider must be specified',
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
-                    severity: 'error',
-                    context: {},
-                },
-            ]);
+            throw AgentError.llmInputMissing();
         }
 
         // Get current config for the session
@@ -679,23 +655,11 @@ export class DextoAgent {
 
         // Build and validate the new configuration using Result pattern internally
         const result = resolveAndValidateLLMConfig(currentLLMConfig, llmUpdates);
-
-        if (!result.ok) {
-            // Convert Result to exception
-            const errorMessages = result.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoLLMError(errorMessages.join('; '), result.issues);
-        }
+        const validatedConfig = ensureOk(result);
 
         // Perform the actual LLM switch with validated config
-        const switchResult = await this.performLLMSwitch(result.data, sessionId);
-        if (!switchResult.ok) {
-            const errorMessages = switchResult.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoLLMError(errorMessages.join('; '), switchResult.issues);
-        }
+        const switchResult = await this.performLLMSwitch(validatedConfig, sessionId);
+        ensureOk(switchResult);
 
         // Log warnings if present
         const warnings = result.issues.filter((issue) => issue.severity === 'warning');
@@ -706,7 +670,7 @@ export class DextoAgent {
         }
 
         // Return the validated config directly
-        return result.data;
+        return validatedConfig;
     }
 
     /**
@@ -734,6 +698,8 @@ export class DextoAgent {
                     {
                         code: AgentErrorCode.SESSION_NOT_FOUND,
                         message: `Session ${sessionScope} not found`,
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.NOT_FOUND,
                         severity: 'error',
                         context: {
                             provider: validatedConfig.provider,
@@ -873,7 +839,7 @@ export class DextoAgent {
      *
      * @param name The name of the server to connect.
      * @param config The configuration object for the server.
-     * @throws DextoMCPError if validation fails or connection fails
+     * @throws DextoError if validation fails or connection fails
      */
     public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
         this.ensureStarted();
@@ -881,17 +847,10 @@ export class DextoAgent {
         // Validate the server configuration
         const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
         const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
-
-        if (!validation.ok) {
-            // Convert Result to exception
-            const errorMessages = validation.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoMCPError(errorMessages.join('; '), validation.issues);
-        }
+        const validatedConfig = ensureOk(validation);
 
         // Add to runtime state (no validation needed - already validated)
-        this.stateManager.addMcpServer(name, validation.data);
+        this.stateManager.addMcpServer(name, validatedConfig);
 
         try {
             // Connect the server
@@ -930,14 +889,7 @@ export class DextoAgent {
                 error: errorMessage,
             });
 
-            throw new DextoMCPError(`Failed to connect to MCP server '${name}': ${errorMessage}`, [
-                {
-                    code: AgentErrorCode.MCP_CONNECTION_FAILED,
-                    message: errorMessage,
-                    severity: 'error',
-                    context: { serverName: name },
-                },
-            ]);
+            throw MCPError.connectionFailed(name, errorMessage);
         }
     }
 
