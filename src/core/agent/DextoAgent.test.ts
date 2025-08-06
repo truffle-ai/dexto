@@ -3,7 +3,8 @@ import { DextoAgent } from './DextoAgent.js';
 import { DextoLLMError } from './errors.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import type { LLMConfig, ValidatedLLMConfig } from '@core/llm/schemas.js';
-import { DextoErrorCode } from '../schemas/errors.js';
+import { LLMErrorCode } from '../llm/error-codes.js';
+import { AgentErrorCode } from './error-codes.js';
 
 // Mock the dependencies
 vi.mock('../logger/index.js');
@@ -182,7 +183,7 @@ describe('DextoAgent.switchLLM', () => {
                 ok: false,
                 issues: [
                     {
-                        code: DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER,
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         message: 'Invalid model',
                         severity: 'error',
                         context: {},
@@ -227,7 +228,7 @@ describe('DextoAgent.switchLLM', () => {
                 data: { ...mockLLMConfig, model: 'gpt-4o' } as ValidatedLLMConfig,
                 issues: [
                     {
-                        code: DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER,
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         message: 'Config warning',
                         severity: 'warning',
                         context: {},
@@ -322,7 +323,7 @@ describe('DextoAgent.switchLLM', () => {
                 expect(error).toBeInstanceOf(DextoLLMError);
                 const llmError = error as DextoLLMError;
                 expect(llmError.issues).toHaveLength(1);
-                expect(llmError.issues[0]?.code).toBe(DextoErrorCode.AGENT_SESSION_NOT_FOUND);
+                expect(llmError.issues[0]?.code).toBe(AgentErrorCode.SESSION_NOT_FOUND);
                 expect(llmError.issues[0]?.message).toBe('Session nonexistent not found');
             }
         });
@@ -420,7 +421,7 @@ describe('DextoAgent.switchLLM', () => {
                 data: { ...mockLLMConfig, model: 'gpt-4o-mini' } as ValidatedLLMConfig,
                 issues: [
                     {
-                        code: DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER,
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         message: 'Config warning',
                         severity: 'warning',
                         context: {},
@@ -447,7 +448,7 @@ describe('DextoAgent.switchLLM', () => {
                 ok: false,
                 issues: [
                     {
-                        code: DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER,
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         message: 'Validation failed',
                         severity: 'error',
                         context: {},
@@ -462,9 +463,7 @@ describe('DextoAgent.switchLLM', () => {
                 expect(error).toBeInstanceOf(DextoLLMError);
                 const llmError = error as DextoLLMError;
                 expect(llmError.issues).toHaveLength(1);
-                expect(llmError.issues[0]?.code).toBe(
-                    DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER
-                );
+                expect(llmError.issues[0]?.code).toBe(LLMErrorCode.MODEL_INCOMPATIBLE);
                 expect(llmError.issues[0]?.message).toBe('Validation failed');
                 expect(llmError.issues[0]?.severity).toBe('error');
             }

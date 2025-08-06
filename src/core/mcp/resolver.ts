@@ -1,7 +1,7 @@
 // src/config/mcp/resolver.ts
 import { ok, fail, type Result, hasErrors, zodToIssues } from '../utils/result.js';
 import { type Issue } from '@core/error/types.js';
-import { DextoErrorCode } from '../schemas/errors.js';
+import { MCPErrorCode } from './error-codes.js';
 
 import {
     McpServerConfigSchema,
@@ -37,7 +37,7 @@ function resolveMcpServerConfig(
     // name sanity: keep it as a hard error if it's clearly unusable
     if (typeof serverName !== 'string' || serverName.trim() === '') {
         warnings.push({
-            code: DextoErrorCode.MCP_SCHEMA_VALIDATION,
+            code: MCPErrorCode.SCHEMA_VALIDATION,
             message: 'Server name must be a non-empty string',
             severity: 'error',
             context: { serverName },
@@ -50,7 +50,7 @@ function resolveMcpServerConfig(
     );
     if (dup) {
         warnings.push({
-            code: DextoErrorCode.MCP_DUPLICATE_NAME,
+            code: MCPErrorCode.SERVER_DUPLICATE_NAME,
             message: `Server name '${serverName}' is similar to existing '${dup}' (case differs)`,
             severity: 'warning',
             context: { serverName },

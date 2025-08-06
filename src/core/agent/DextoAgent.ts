@@ -10,9 +10,10 @@ import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js'
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { Result, ok, fail } from '../utils/result.js';
 import type { LLMUpdateContext } from '../llm/types.js';
-import { DextoErrorCode } from '../schemas/errors.js';
+import { AgentErrorCode } from './error-codes.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { DextoLLMError, DextoMCPError, DextoInputError } from './errors.js';
+import { ErrorScope, ErrorType } from '@core/error/types.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -661,8 +662,10 @@ export class DextoAgent {
         if (!llmUpdates.model && !llmUpdates.provider) {
             throw new DextoLLMError('At least model or provider must be specified', [
                 {
-                    code: DextoErrorCode.AGENT_MISSING_LLM_INPUT,
+                    code: AgentErrorCode.LLM_INPUT_MISSING,
                     message: 'At least model or provider must be specified',
+                    scope: ErrorScope.AGENT,
+                    type: ErrorType.USER,
                     severity: 'error',
                     context: {},
                 },
@@ -729,7 +732,7 @@ export class DextoAgent {
             if (!session) {
                 return fail([
                     {
-                        code: DextoErrorCode.AGENT_SESSION_NOT_FOUND,
+                        code: AgentErrorCode.SESSION_NOT_FOUND,
                         message: `Session ${sessionScope} not found`,
                         severity: 'error',
                         context: {
@@ -929,7 +932,7 @@ export class DextoAgent {
 
             throw new DextoMCPError(`Failed to connect to MCP server '${name}': ${errorMessage}`, [
                 {
-                    code: DextoErrorCode.AGENT_MCP_CONNECTION_FAILED,
+                    code: AgentErrorCode.MCP_CONNECTION_FAILED,
                     message: errorMessage,
                     severity: 'error',
                     context: { serverName: name },

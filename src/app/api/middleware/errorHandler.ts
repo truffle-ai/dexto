@@ -23,6 +23,8 @@ const statusFor = (err: DextoError): number => {
             return 500;
         case ErrorType.THIRD_PARTY:
             return 502;
+        case ErrorType.UNKNOWN:
+            return 500;
         default:
             return 500;
     }

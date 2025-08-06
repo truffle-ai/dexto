@@ -17,10 +17,8 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Missing API key for provider '${provider}' – set ${envVar} or pass --api-key`,
-            {
-                details: { provider, envVar },
-                recovery: `Set the environment variable ${envVar} with your API key`,
-            }
+            { provider, envVar },
+            `Set the environment variable ${envVar} with your API key`
         );
     }
 
@@ -30,7 +28,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Invalid API key for provider '${provider}': ${reason}`,
-            { details: { provider, reason } }
+            { provider, reason }
         );
     }
 
@@ -41,7 +39,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Provider '${provider}' requires a 'baseURL'`,
-            { details: { provider } }
+            { provider }
         );
     }
 
@@ -51,7 +49,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Invalid base URL for provider '${provider}': ${url}`,
-            { details: { provider, url } }
+            { provider, url }
         );
     }
 
@@ -62,7 +60,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Model '${model}' is not supported for provider '${provider}'. Supported: ${supportedModels.join(', ')}`,
-            { details: { provider, model, supportedModels } }
+            { provider, model, supportedModels }
         );
     }
 
@@ -72,7 +70,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Unknown model '${model}' for provider '${provider}'`,
-            { details: { provider, model } }
+            { provider, model }
         );
     }
 
@@ -82,7 +80,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Provider '${provider}' not supported. Available: ${availableProviders.join(', ')}`,
-            { details: { provider, availableProviders } }
+            { provider, availableProviders }
         );
     }
 
@@ -92,7 +90,7 @@ export class LLMError {
             ErrorScope.LLM,
             ErrorType.USER,
             `Router '${router}' not supported for provider '${provider}'. Supported: ${supportedRouters.join(', ')}`,
-            { details: { router, provider, supportedRouters } }
+            { router, provider, supportedRouters }
         );
     }
 

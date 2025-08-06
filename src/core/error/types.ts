@@ -5,6 +5,18 @@ import type { StorageErrorCode } from '@core/storage/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
 
 /**
+ * Error scopes representing functional domains in the system
+ * Each scope owns its validation and error logic
+ */
+export const enum ErrorScope {
+    LLM = 'llm', // LLM operations, model compatibility, input validation for LLMs
+    AGENT = 'agent', // Agent lifecycle, configuration, session management
+    MCP = 'mcp', // MCP server connections and protocol
+    TOOLS = 'tools', // Tool execution and authorization
+    STORAGE = 'storage',
+}
+
+/**
  * Error types that map directly to HTTP status codes
  * Each type represents the nature of the error
  */
@@ -16,18 +28,7 @@ export const enum ErrorType {
     RATE_LIMIT = 'rate_limit', // 429 - too many requests
     SYSTEM = 'system', // 500 - bugs, internal failures, unexpected states
     THIRD_PARTY = 'third_party', // 502 - upstream provider failures, API errors
-}
-
-/**
- * Error scopes representing functional domains in the system
- * Each scope owns its validation and error logic
- */
-export const enum ErrorScope {
-    LLM = 'llm', // LLM operations, model compatibility, input validation for LLMs
-    AGENT = 'agent', // Agent lifecycle, configuration, session management
-    MCP = 'mcp', // MCP server connections and protocol
-    TOOLS = 'tools', // Tool execution and authorization
-    STORAGE = 'storage',
+    UNKNOWN = 'unknown', // 500 - unclassified errors, fallback
 }
 
 /**
@@ -48,7 +49,9 @@ export type Severity = 'error' | 'warning';
 export interface Issue<C = unknown> {
     code: DextoErrorCode;
     message: string;
-    path?: Array<string | number>;
+    scope: ErrorScope; // Domain that generated this issue
+    type: ErrorType; // HTTP status mapping
     severity: Severity;
+    path?: Array<string | number>;
     context?: C;
 }

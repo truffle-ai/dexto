@@ -3,7 +3,7 @@ import { logger } from '../logger/index.js';
 import type { ImageData, FileData } from './messages/types.js';
 import { Result, ok, fail } from '../utils/result.js';
 import { Issue } from '@core/error/types.js';
-import { DextoErrorCode } from '../schemas/errors.js';
+import { LLMErrorCode } from './error-codes.js';
 
 export interface ValidationLLMConfig {
     provider: LLMProvider;
@@ -73,7 +73,7 @@ export function validateInputForLLM(
 
             if (!fileValidation.isSupported) {
                 issues.push({
-                    code: DextoErrorCode.FILE_VALIDATION,
+                    code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
                     message: fileValidation.error || 'File type not supported by current LLM',
                     severity: 'error',
                     context: {
@@ -94,7 +94,7 @@ export function validateInputForLLM(
 
             if (!imageValidation.isSupported) {
                 issues.push({
-                    code: DextoErrorCode.IMAGE_VALIDATION,
+                    code: LLMErrorCode.INPUT_IMAGE_UNSUPPORTED,
                     message: imageValidation.error || 'Image format not supported by current LLM',
                     severity: 'error',
                     context: {
@@ -114,7 +114,7 @@ export function validateInputForLLM(
         logger.error(`Error during input validation: ${error}`);
         return fail([
             {
-                code: DextoErrorCode.VALIDATION_ERROR,
+                code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
                 message: 'Failed to validate input',
                 severity: 'error',
                 context: {

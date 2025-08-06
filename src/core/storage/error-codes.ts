@@ -6,6 +6,7 @@ export const enum StorageErrorCode {
     // Connection
     CONNECTION_FAILED = 'storage_connection_failed',
     CONNECTION_LOST = 'storage_connection_lost',
+    CONNECTION_CONFIG_MISSING = 'storage_connection_config_missing',
 
     // Operations
     READ_FAILED = 'storage_read_failed',
