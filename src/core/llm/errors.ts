@@ -184,6 +184,18 @@ export class LLMError {
             { issues }
         );
     }
+
+    // Switch operation errors (moved from agent)
+    static switchInputMissing() {
+        return new DextoError(
+            LLMErrorCode.SWITCH_INPUT_MISSING,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            'At least model or provider must be specified for LLM switch',
+            {},
+            'Provide either a model name, provider, or both'
+        );
+    }
 }
 
 // Legacy error classes for backward compatibility (to be deprecated)

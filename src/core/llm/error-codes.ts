@@ -29,6 +29,9 @@ export const enum LLMErrorCode {
     SWITCH_FAILED = 'llm_switch_failed',
     GENERATION_FAILED = 'llm_generation_failed',
 
+    // Input validation (moved from agent)
+    SWITCH_INPUT_MISSING = 'llm_switch_input_missing', // At least model or provider must be specified
+
     // Schema validation
     REQUEST_INVALID_SCHEMA = 'llm_request_invalid_schema',
 }

@@ -117,7 +117,7 @@ export const ok = <T, C = unknown>(data: T, issues: Issue<C>[] = []): Result<T, 
  * // Validation failure
  * return fail([
  *   {
- *     code: AgentErrorCode.LLM_INPUT_MISSING,
+ *     code: LLMErrorCode.SWITCH_INPUT_MISSING,
  *     message: 'At least model or provider must be specified',
  *     severity: 'error',
  *     context: {}

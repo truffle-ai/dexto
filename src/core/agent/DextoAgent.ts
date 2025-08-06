@@ -3,7 +3,12 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../config/agent-state-manager.js';
-import { SessionManager, SessionMetadata, ChatSession } from '../session/index.js';
+import {
+    SessionManager,
+    SessionMetadata,
+    ChatSession,
+    SessionErrorCode,
+} from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js';
@@ -14,6 +19,7 @@ import { AgentErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/error/types.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { AgentError } from './errors.js';
+import { LLMError } from '../llm/errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/error/result-bridge.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
@@ -645,7 +651,7 @@ export class DextoAgent {
 
         // Basic validation
         if (!llmUpdates.model && !llmUpdates.provider) {
-            throw AgentError.llmInputMissing();
+            throw LLMError.switchInputMissing();
         }
 
         // Get current config for the session
@@ -696,9 +702,9 @@ export class DextoAgent {
             if (!session) {
                 return fail([
                     {
-                        code: AgentErrorCode.SESSION_NOT_FOUND,
+                        code: SessionErrorCode.SESSION_NOT_FOUND,
                         message: `Session ${sessionScope} not found`,
-                        scope: ErrorScope.AGENT,
+                        scope: ErrorScope.SESSION,
                         type: ErrorType.NOT_FOUND,
                         severity: 'error',
                         context: {
