@@ -796,11 +796,6 @@ export class DextoAgent {
     public getSupportedModelsForProvider(
         provider: LLMProvider
     ): Array<ModelInfo & { isDefault: boolean }> {
-        const supportedProviders = getSupportedProviders() as LLMProvider[];
-        if (!supportedProviders.includes(provider)) {
-            throw LLMError.unsupportedProvider(provider, supportedProviders);
-        }
-
         const defaultModel = getDefaultModelForProvider(provider);
         const providerInfo = LLM_REGISTRY[provider];
 

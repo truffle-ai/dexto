@@ -3,7 +3,8 @@ import { ErrorScope } from '@core/errors/types.js';
 import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 import type { Issue } from '@core/errors/types.js';
-import type { LLMProvider } from './registry.js';
+import type { LLMProvider, LLMRouter } from './registry.js';
+import { getSupportedProviders, getSupportedRoutersForProvider } from './registry.js';
 
 /**
  * LLM error factory methods
@@ -16,7 +17,7 @@ export class LLMError {
             LLMErrorCode.API_KEY_MISSING,
             ErrorScope.LLM,
             ErrorType.USER,
-            `Missing API key for provider '${provider}' – set ${envVar} or pass --api-key`,
+            `Missing API key for provider '${provider}'`,
             { provider, envVar },
             `Set the environment variable ${envVar} with your API key`
         );
@@ -74,7 +75,21 @@ export class LLMError {
         );
     }
 
-    static unsupportedProvider(provider: string, availableProviders: LLMProvider[]) {
+    static modelProviderUnknown(model: string) {
+        const availableProviders = getSupportedProviders();
+        return new DextoError(
+            LLMErrorCode.MODEL_UNKNOWN,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Unknown model '${model}' - could not infer provider. Available providers: ${availableProviders.join(', ')}`,
+            { model, availableProviders },
+            'Specify the provider explicitly or use a recognized model name'
+        );
+    }
+
+    // Shouldn't happen because provider is typed everywhere, but for some default cases
+    static unsupportedProvider(provider: string) {
+        const availableProviders = getSupportedProviders();
         return new DextoError(
             LLMErrorCode.PROVIDER_UNSUPPORTED,
             ErrorScope.LLM,
@@ -84,7 +99,8 @@ export class LLMError {
         );
     }
 
-    static unsupportedRouter(router: string, provider: LLMProvider, supportedRouters: string[]) {
+    static unsupportedRouter(router: LLMRouter, provider: LLMProvider) {
+        const supportedRouters = getSupportedRoutersForProvider(provider).map((r) => r);
         return new DextoError(
             LLMErrorCode.ROUTER_UNSUPPORTED,
             ErrorScope.LLM,

@@ -2,6 +2,9 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService } from './types.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { logger } from '../../logger/index.js';
+import { LLMError } from '../errors.js';
+import { getSupportedProviders } from '../registry.js';
+import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -30,10 +33,10 @@ function extractApiKey(config: ValidatedLLMConfig): string {
     let apiKey = config.apiKey || '';
 
     if (!apiKey) {
-        const errorMsg = `Error: API key for ${provider} not found`;
-        logger.error(errorMsg);
+        logger.error(`API key for ${provider} not found`);
         logger.error(`Please set your ${provider} API key in the config file or .env file`);
-        throw new Error(errorMsg);
+        const envVar = getPrimaryApiKeyEnvVar(provider);
+        throw LLMError.missingApiKey(provider, envVar);
     }
 
     logger.debug('Verified API key');
@@ -100,7 +103,7 @@ function _createInBuiltLLMService(
             );
         }
         default:
-            throw new Error(`Unsupported LLM provider: ${config.provider}`);
+            throw LLMError.unsupportedRouter('in-built', config.provider);
     }
 }
 
@@ -130,7 +133,7 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModelV1 {
         case 'cohere':
             return createCohere({ apiKey })(model);
         default:
-            throw new Error(`Unsupported LLM provider: ${provider}`);
+            throw LLMError.unsupportedRouter('vercel', provider);
     }
 }
 

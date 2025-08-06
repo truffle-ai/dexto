@@ -4,6 +4,7 @@ import { OpenAIMessageFormatter } from './openai.js';
 import { AnthropicMessageFormatter } from './anthropic.js';
 import { logger } from '../../../logger/index.js';
 import { LLMProvider, LLMRouter } from '../../registry.js';
+import { LLMError } from '../../errors.js';
 
 export function createMessageFormatter(
     provider: LLMProvider,
@@ -20,10 +21,10 @@ export function createMessageFormatter(
             logger.error(
                 `Provider '${provider}' supported by registry but not configured for 'default' router message formatting.`
             );
-            throw new Error(`Unsupported LLM provider: ${provider} for router: ${router}`);
+            throw LLMError.unsupportedProvider(provider);
         }
     } else {
         logger.error(`Unsupported LLM router specified: ${router}`);
-        throw new Error(`Unsupported LLM router: ${router}`);
+        throw LLMError.unsupportedRouter(router, provider);
     }
 }
