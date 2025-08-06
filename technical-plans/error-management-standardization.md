@@ -16,7 +16,7 @@ The intended audience is an engineer who has **never** touched this repository b
 | API layer                                 | `src/app/api/**`                                        | Controllers manually call `res.status(400).json(err)`; no central middleware (~400+ lines repetitive) |
 
 **Pain points**
-* No concept of _domain_ or _category_; dashboards only see a flat code string.
+* No concept of _scope_ or _errorcategory_; dashboards only see a flat code string.
 * Boiler-plate: every throw site repeats the code and an ad-hoc message.
 * Inconsistent JSON responses from the REST layer.
 * "Validation" is overloaded to mean schema validation, input validation, and business rule validation.
@@ -31,7 +31,7 @@ The intended audience is an engineer who has **never** touched this repository b
 2. **Three-axis metadata** – `code`, `scope`, `type` shipped with every error.
 3. **Zero boiler-plate at call-sites** – via domain helper factories.
 4. **Transport separation** – business logic only throws; HTTP/CLI layers decide how to serialise.
-5. **Backwards compatibility** – existing code strings remain unchanged.
+5. **Pseudo backwards compatibility** – existing code strings remain unchanged, with not complete backward compatibility required becuase of few users.
 6. **Domain-owned validation** – validation errors belong to their functional domain, not a separate "validation" scope.
 7. **Typed contexts** – preserve domain-specific context for better debugging.
 
@@ -68,9 +68,13 @@ export const enum ErrorScope {
 
 // src/core/error/types.ts
 export const enum ErrorType {
-  USER        = 'user',         // bad input, config errors, validation failures
-  SYSTEM      = 'system',       // bugs, internal failures, unexpected states
-  THIRD_PARTY = 'third_party',  // upstream provider failures, API errors
+  USER        = 'user',         // 400 - bad input, config errors, validation failures
+  NOT_FOUND   = 'not_found',    // 404 - resource doesn't exist (session, file, etc.)
+  FORBIDDEN   = 'forbidden',    // 403 - permission denied, unauthorized
+  TIMEOUT     = 'timeout',      // 408 - operation timed out
+  RATE_LIMIT  = 'rate_limit',   // 429 - too many requests
+  SYSTEM      = 'system',       // 500 - bugs, internal failures, unexpected states
+  THIRD_PARTY = 'third_party',  // 502 - upstream provider failures, API errors
 }
 ```
 
@@ -195,6 +199,16 @@ export class LLMError {
       `Provider '${provider}' is not supported`,
     );
   }
+  
+  static rateLimitExceeded(provider: string, retryAfter?: number) {
+    return new DextoError(
+      LLMErrorCode.RATE_LIMIT_EXCEEDED,
+      ErrorScope.LLM,
+      ErrorType.RATE_LIMIT,  // Maps to 429 automatically
+      `Rate limit exceeded for ${provider}`,
+      { details: { provider, retryAfter } }
+    );
+  }
   // …other helpers
 }
 ```
@@ -236,24 +250,16 @@ ensureOk(result, (issues) =>
 // src/app/api/middleware/errorHandler.ts
 import { ErrorType } from '@core/error/types.js';
 
-// Explicit status overrides for specific error codes
-const STATUS_OVERRIDES: Partial<Record<string, number>> = {
-  'agent_session_not_found': 404,
-  'tools_execution_denied': 403,
-  'tools_execution_timeout': 408,
-  'llm_rate_limit_exceeded': 429,
-};
-
 const statusFor = (err: DextoError): number => {
-  // Check explicit overrides first
-  const override = STATUS_OVERRIDES[err.code];
-  if (override) return override;
-  
-  // Then by type
+  // Clean mapping from ErrorType to HTTP status
   switch (err.type) {
     case ErrorType.USER:        return 400;
-    case ErrorType.THIRD_PARTY: return 502;
+    case ErrorType.NOT_FOUND:   return 404;
+    case ErrorType.FORBIDDEN:   return 403;
+    case ErrorType.TIMEOUT:     return 408;
+    case ErrorType.RATE_LIMIT:  return 429;
     case ErrorType.SYSTEM:      return 500;
+    case ErrorType.THIRD_PARTY: return 502;
     default:                    return 500;
   }
 };
@@ -363,7 +369,8 @@ Immediate deprecation list (20 classes total):
 * Validation errors should live with their domain (e.g., `LLM_INPUT_FILE_UNSUPPORTED` not `VALIDATION_FILE_UNSUPPORTED`).
 * The `recovery` field is now included in `DextoError` for actionable user suggestions.
 * The `ensureOk` bridge requires an errorFactory function for proper domain-specific error creation.
-* Tool confirmation errors should distinguish between user denial (403), timeout (408), and failure (500).
+* Expanded ErrorType enum eliminates need for STATUS_OVERRIDES hack - each type maps to exactly one HTTP status.
+* Tool errors use ErrorType.FORBIDDEN (403) for denial, ErrorType.TIMEOUT (408) for timeout.
 * Result<T,C> pattern should be preserved for validation functions that aggregate issues.
 * Since we have 0 users, deprecate all old error classes immediately without migration shims.
 
