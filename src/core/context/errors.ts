@@ -19,17 +19,6 @@ export class ContextError {
         );
     }
 
-    static messageRoleUnknown(role: string) {
-        return new DextoRuntimeError(
-            ContextErrorCode.MESSAGE_ROLE_UNKNOWN,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
-            `Unknown message role: ${role}`,
-            { role },
-            'Use a valid message role: user, assistant, system, or tool'
-        );
-    }
-
     static userMessageContentInvalid() {
         return new DextoRuntimeError(
             ContextErrorCode.USER_MESSAGE_CONTENT_INVALID,

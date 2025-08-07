@@ -1,16 +1,21 @@
-import { generateText, LanguageModelV1, streamText } from 'ai';
+import { generateText, LanguageModelV1, streamText, type CoreMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { getMaxInputTokensForModel, LLMProvider } from '../registry.js';
+import { getMaxInputTokensForModel, LLMProvider, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { SessionEventBus } from '../../events/index.js';
 import { ToolExecutionDeniedError } from '../../tools/confirmation/errors.js';
+import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { PromptManager } from '../../systemPrompt/manager.js';
+import { VercelMessageFormatter } from '../formatters/vercel.js';
+import { createTokenizer } from '../tokenizer/factory.js';
+import type { ValidatedLLMConfig } from '../schemas.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -18,42 +23,45 @@ import { ToolExecutionDeniedError } from '../../tools/confirmation/errors.js';
  */
 export class VercelLLMService implements ILLMService {
     private model: LanguageModelV1;
-    private provider: LLMProvider;
+    private config: ValidatedLLMConfig;
     private toolManager: ToolManager;
-    private contextManager: ContextManager;
+    private contextManager: ContextManager<CoreMessage>;
     private sessionEventBus: SessionEventBus;
-    private maxIterations: number;
-    private temperature: number | undefined;
-    private maxOutputTokens: number | undefined;
     private readonly sessionId: string;
-    private baseURL: string | undefined;
     private toolSupportCache: Map<string, boolean> = new Map();
 
     constructor(
         toolManager: ToolManager,
         model: LanguageModelV1,
-        provider: LLMProvider,
+        promptManager: PromptManager,
+        historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
-        contextManager: ContextManager,
-        maxIterations: number = 10,
-        sessionId: string,
-        temperature?: number,
-        maxOutputTokens?: number,
-        baseURL?: string
+        config: ValidatedLLMConfig,
+        sessionId: string
     ) {
         this.model = model;
-        this.provider = provider;
-        this.maxIterations = maxIterations;
+        this.config = config;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
-        this.contextManager = contextManager;
-        this.temperature = temperature;
-        this.maxOutputTokens = maxOutputTokens;
         this.sessionId = sessionId;
-        this.baseURL = baseURL;
+
+        // Create properly-typed ContextManager for Vercel
+        const formatter = new VercelMessageFormatter();
+        const tokenizer = createTokenizer(config.provider, model.modelId);
+        const maxInputTokens = getEffectiveMaxInputTokens(config);
+
+        this.contextManager = new ContextManager<CoreMessage>(
+            formatter,
+            promptManager,
+            sessionEventBus,
+            maxInputTokens,
+            tokenizer,
+            historyProvider,
+            sessionId
+        );
 
         logger.debug(
-            `[VercelLLMService] Initialized for model: ${this.model.modelId}, provider: ${this.provider}, temperature: ${temperature}, maxOutputTokens: ${maxOutputTokens}`
+            `[VercelLLMService] Initialized for model: ${this.model.modelId}, provider: ${this.config.provider}, temperature: ${this.config.temperature}, maxOutputTokens: ${this.config.maxOutputTokens}`
         );
     }
 
@@ -92,7 +100,7 @@ export class VercelLLMService implements ILLMService {
     }
 
     private async validateToolSupport(): Promise<boolean> {
-        const modelKey = `${this.provider}:${this.model.modelId}`;
+        const modelKey = `${this.config.provider}:${this.model.modelId}`;
 
         // Check cache first
         if (this.toolSupportCache.has(modelKey)) {
@@ -101,7 +109,7 @@ export class VercelLLMService implements ILLMService {
 
         // Only test tool support for providers using custom baseURL endpoints
         // Built-in providers without baseURL have known tool support
-        if (!this.baseURL) {
+        if (!this.config.baseURL) {
             logger.debug(`Skipping tool validation for ${modelKey} - no custom baseURL`);
             // Assume built-in providers support tools
             this.toolSupportCache.set(modelKey, true);
@@ -189,7 +197,7 @@ export class VercelLLMService implements ILLMService {
                     tokensUsed,
                 } = await this.contextManager.getFormattedMessagesWithCompression(
                     { mcpManager: this.toolManager.getMcpManager() },
-                    { provider: this.provider, model: this.model.modelId }
+                    { provider: this.config.provider, model: this.model.modelId }
                 );
 
                 logger.silly(
@@ -203,13 +211,13 @@ export class VercelLLMService implements ILLMService {
                     fullResponse = await this.streamText(
                         formattedMessages,
                         formattedTools,
-                        this.maxIterations
+                        this.config.maxIterations
                     );
                 } else {
                     fullResponse = await this.generateText(
                         formattedMessages,
                         formattedTools,
-                        this.maxIterations
+                        this.config.maxIterations
                     );
                 }
             }
@@ -244,8 +252,8 @@ export class VercelLLMService implements ILLMService {
             `vercel generateText:Generating text with messages (${estimatedTokens} estimated tokens)`
         );
 
-        const temperature = this.temperature;
-        const maxTokens = this.maxOutputTokens;
+        const temperature = this.config.temperature;
+        const maxTokens = this.config.maxOutputTokens;
 
         // Check if model supports tools and adjust accordingly
         const supportsTools = await this.validateToolSupport();
@@ -333,8 +341,8 @@ export class VercelLLMService implements ILLMService {
         let stepIteration = 0;
         let totalTokens = 0;
 
-        const temperature = this.temperature;
-        const maxTokens = this.maxOutputTokens;
+        const temperature = this.config.temperature;
+        const maxTokens = this.config.maxOutputTokens;
 
         // Check if model supports tools and adjust accordingly
         const supportsTools = await this.validateToolSupport();
@@ -494,7 +502,7 @@ export class VercelLLMService implements ILLMService {
         // Max tokens may not be found if the model is supplied by user
         try {
             modelMaxInputTokens = getMaxInputTokensForModel(
-                this.provider, // Use our internal provider name
+                this.config.provider, // Use our internal provider name
                 this.model.modelId
             );
         } catch (error) {
@@ -511,10 +519,17 @@ export class VercelLLMService implements ILLMService {
         }
         return {
             router: 'vercel',
-            provider: this.provider, // Use our internal provider name
+            provider: this.config.provider, // Use our internal provider name
             model: this.model,
             configuredMaxInputTokens: configuredMaxTokens,
             modelMaxInputTokens: modelMaxInputTokens,
         };
+    }
+
+    /**
+     * Get the context manager for external access
+     */
+    getContextManager(): ContextManager<unknown> {
+        return this.contextManager;
     }
 }

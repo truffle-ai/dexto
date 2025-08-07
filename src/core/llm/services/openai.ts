@@ -1,14 +1,20 @@
 import OpenAI from 'openai';
+import { ChatCompletionMessageParam } from 'openai/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { ToolSet } from '../../tools/types.js';
 import { logger } from '../../logger/index.js';
 import { ContextManager } from '../../context/manager.js';
-import { getMaxInputTokensForModel } from '../registry.js';
+import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { SessionEventBus } from '../../events/index.js';
+import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { PromptManager } from '../../systemPrompt/manager.js';
+import { OpenAIMessageFormatter } from '../formatters/openai.js';
+import { createTokenizer } from '../tokenizer/factory.js';
+import type { ValidatedLLMConfig } from '../schemas.js';
 
 /**
  * OpenAI implementation of LLMService
@@ -16,29 +22,41 @@ import type { SessionEventBus } from '../../events/index.js';
  */
 export class OpenAIService implements ILLMService {
     private openai: OpenAI;
-    private model: string;
+    private config: ValidatedLLMConfig;
     private toolManager: ToolManager;
-    private contextManager: ContextManager;
+    private contextManager: ContextManager<ChatCompletionMessageParam>;
     private sessionEventBus: SessionEventBus;
-    private maxIterations: number;
     private readonly sessionId: string;
 
     constructor(
         toolManager: ToolManager,
         openai: OpenAI,
+        promptManager: PromptManager,
+        historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
-        contextManager: ContextManager,
-        model: string,
-        maxIterations: number = 10,
+        config: ValidatedLLMConfig,
         sessionId: string
     ) {
-        this.maxIterations = maxIterations;
-        this.model = model;
+        this.config = config;
         this.openai = openai;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
-        this.contextManager = contextManager;
         this.sessionId = sessionId;
+
+        // Create properly-typed ContextManager for OpenAI
+        const formatter = new OpenAIMessageFormatter();
+        const tokenizer = createTokenizer(config.provider, config.model);
+        const maxInputTokens = getEffectiveMaxInputTokens(config);
+
+        this.contextManager = new ContextManager<ChatCompletionMessageParam>(
+            formatter,
+            promptManager,
+            sessionEventBus,
+            maxInputTokens,
+            tokenizer,
+            historyProvider,
+            sessionId
+        );
     }
 
     getAllTools(): Promise<ToolSet> {
@@ -67,7 +85,7 @@ export class OpenAIService implements ILLMService {
         let totalTokens = 0;
 
         try {
-            while (iterationCount < this.maxIterations) {
+            while (iterationCount < this.config.maxIterations) {
                 iterationCount++;
 
                 // Attempt to get a response, with retry logic
@@ -93,7 +111,7 @@ export class OpenAIService implements ILLMService {
                     // Emit final response
                     this.sessionEventBus.emit('llmservice:response', {
                         content: responseText,
-                        model: this.model,
+                        model: this.config.model,
                         tokenCount: totalTokens > 0 ? totalTokens : undefined,
                     });
                     return responseText;
@@ -174,7 +192,7 @@ export class OpenAIService implements ILLMService {
             }
 
             // If we reached max iterations, return a message
-            logger.warn(`Reached maximum iterations (${this.maxIterations}) for task.`);
+            logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
             const finalResponse = 'Task completed but reached maximum tool call iterations.';
             await this.contextManager.addAssistantMessage(finalResponse);
 
@@ -186,7 +204,7 @@ export class OpenAIService implements ILLMService {
             // Emit final response
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
-                model: this.model,
+                model: this.config.model,
                 tokenCount: totalTokens > 0 ? totalTokens : undefined,
             });
             return finalResponse;
@@ -221,13 +239,13 @@ export class OpenAIService implements ILLMService {
         // Fetching max tokens from LLM registry - default to configured max tokens if not found
         // Max tokens may not be found if the model is supplied by user
         try {
-            modelMaxInputTokens = getMaxInputTokensForModel('openai', this.model);
+            modelMaxInputTokens = getMaxInputTokensForModel('openai', this.config.model);
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 modelMaxInputTokens = configuredMaxInputTokens;
                 logger.debug(
-                    `Could not find model ${this.model} in LLM registry to get max tokens. Using configured max tokens: ${configuredMaxInputTokens}.`
+                    `Could not find model ${this.config.model} in LLM registry to get max tokens. Using configured max tokens: ${configuredMaxInputTokens}.`
                 );
                 // for any other error, throw
             } else {
@@ -238,7 +256,7 @@ export class OpenAIService implements ILLMService {
         return {
             router: 'in-built',
             provider: 'openai',
-            model: this.model,
+            model: this.config.model,
             configuredMaxInputTokens: configuredMaxInputTokens,
             modelMaxInputTokens,
         };
@@ -263,7 +281,7 @@ export class OpenAIService implements ILLMService {
                     tokensUsed,
                 } = await this.contextManager.getFormattedMessagesWithCompression(
                     { mcpManager: this.toolManager.getMcpManager() },
-                    { provider: 'openai' as const, model: this.model }
+                    { provider: 'openai' as const, model: this.config.model }
                 );
 
                 logger.silly(
@@ -273,7 +291,7 @@ export class OpenAIService implements ILLMService {
 
                 // Call OpenAI API
                 const response = await this.openai.chat.completions.create({
-                    model: this.model,
+                    model: this.config.model,
                     messages: formattedMessages,
                     tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
                     tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
@@ -334,5 +352,12 @@ export class OpenAIService implements ILLMService {
                 },
             };
         });
+    }
+
+    /**
+     * Get the context manager for external access
+     */
+    getContextManager(): ContextManager<unknown> {
+        return this.contextManager;
     }
 }

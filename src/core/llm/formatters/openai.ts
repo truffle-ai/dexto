@@ -1,3 +1,4 @@
+import { ChatCompletionMessageParam, ChatCompletionContentPart } from 'openai/resources';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
@@ -24,8 +25,9 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
         history: Readonly<InternalMessage[]>,
         context: LLMContext,
         systemPrompt: string | null
-    ): unknown[] {
-        const formatted = [];
+    ): ChatCompletionMessageParam[] {
+        // Returns OpenAI-specific type
+        const formatted: ChatCompletionMessageParam[] = [];
 
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
@@ -55,7 +57,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     // system messages in the history, add them
                     formatted.push({
                         role: 'system',
-                        content: msg.content,
+                        content: String(msg.content || ''),
                     });
                     break;
 
@@ -71,13 +73,13 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     if (msg.toolCalls && msg.toolCalls.length > 0) {
                         formatted.push({
                             role: 'assistant',
-                            content: msg.content,
+                            content: String(msg.content || ''),
                             tool_calls: msg.toolCalls,
                         });
                     } else {
                         formatted.push({
                             role: 'assistant',
-                            content: msg.content,
+                            content: String(msg.content || ''),
                         });
                     }
                     break;
@@ -86,9 +88,8 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     // Tool results for OpenAI
                     formatted.push({
                         role: 'tool',
-                        content: msg.content,
-                        tool_call_id: msg.toolCallId,
-                        name: msg.name,
+                        content: String(msg.content || ''),
+                        tool_call_id: msg.toolCallId || '',
                     });
                     break;
             }
@@ -160,12 +161,15 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
     }
 
     // Helper to format user message parts (text + image + file) into chat API shape
-    private formatUserContent(content: InternalMessage['content']): unknown {
+    private formatUserContent(
+        content: InternalMessage['content']
+    ): string | ChatCompletionContentPart[] {
         if (!Array.isArray(content)) {
-            return content;
+            return String(content || '');
         }
-        return content
-            .map((part) => {
+
+        const parts = content
+            .map((part): ChatCompletionContentPart | null => {
                 if (part.type === 'text') {
                     return { type: 'text', text: part.text };
                 }
@@ -187,10 +191,12 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                         raw.startsWith('data:')
                             ? raw
                             : `data:${part.mimeType || 'application/octet-stream'};base64,${raw}`;
-                    return { type: 'file_url', file_url: { url } };
+                    return { type: 'file', file: part };
                 }
                 return null;
             })
-            .filter(Boolean);
+            .filter((part): part is ChatCompletionContentPart => part !== null);
+
+        return parts;
     }
 }

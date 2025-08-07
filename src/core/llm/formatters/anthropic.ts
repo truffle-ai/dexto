@@ -1,3 +1,11 @@
+import { MessageParam } from '@anthropic-ai/sdk/resources';
+import type {
+    ContentBlockParam,
+    TextBlockParam,
+    ImageBlockParam,
+    ToolUseBlockParam,
+    ToolResultBlockParam,
+} from '@anthropic-ai/sdk/resources/messages';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
@@ -29,8 +37,9 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         history: Readonly<InternalMessage[]>,
         context: LLMContext,
         _systemPrompt?: string | null
-    ): unknown[] {
-        const formatted = [];
+    ): MessageParam[] {
+        // Returns Anthropic-specific type
+        const formatted: MessageParam[] = [];
 
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
@@ -49,7 +58,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         const pendingToolCalls = new Map<
             string,
             {
-                assistantMsg: unknown;
+                assistantMsg: MessageParam | null;
                 index: number;
             }
         >();
@@ -87,32 +96,34 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     }
 
                     // Then add the tool result as a user message
-                    formatted.push({
+                    const toolResultMsg: MessageParam = {
                         role: 'user',
                         content: [
                             {
                                 type: 'tool_result',
                                 tool_use_id: msg.toolCallId,
-                                content: msg.content!,
-                            },
+                                content: String(msg.content || ''),
+                            } as ToolResultBlockParam,
                         ],
-                    });
+                    };
+                    formatted.push(toolResultMsg);
 
                     // Remove from pending calls
                     pendingToolCalls.delete(msg.toolCallId);
                 } else {
                     // This shouldn't normally happen
                     logger.warn(`Tool result found without matching tool call: ${msg.toolCallId}`);
-                    formatted.push({
+                    const orphanToolResult: MessageParam = {
                         role: 'user',
                         content: [
                             {
                                 type: 'tool_result',
                                 tool_use_id: msg.toolCallId!,
-                                content: msg.content!,
-                            },
+                                content: String(msg.content || ''),
+                            } as ToolResultBlockParam,
                         ],
-                    });
+                    };
+                    formatted.push(orphanToolResult);
                 }
                 continue;
             }
@@ -141,9 +152,9 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     });
 
                     // Create assistant message with just this one tool call
-                    const assistantMsg = {
+                    const assistantMsg: MessageParam = {
                         role: 'assistant',
-                        content: contentArray,
+                        content: contentArray as ContentBlockParam[],
                     };
 
                     // Store as pending - we'll add it when we find its result
@@ -157,10 +168,11 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
 
             // 4. Regular assistant message (no tool calls)
             if (msg.role === 'assistant' && (!msg.toolCalls || msg.toolCalls.length === 0)) {
-                formatted.push({
+                const assistantMsg: MessageParam = {
                     role: 'assistant',
-                    content: msg.content,
-                });
+                    content: String(msg.content || ''),
+                };
+                formatted.push(assistantMsg);
                 continue;
             }
         }
@@ -236,18 +248,19 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
     }
 
     // Helper to format user message parts (text + image + file) into Anthropic multimodal API format
-    private formatUserContent(content: InternalMessage['content']): unknown {
+    private formatUserContent(content: InternalMessage['content']): string | ContentBlockParam[] {
         if (!Array.isArray(content)) {
-            return content;
+            return String(content || '');
         }
-        return content
-            .map((part) => {
+
+        const blocks: ContentBlockParam[] = content
+            .map((part): ContentBlockParam | null => {
                 if (part.type === 'text') {
-                    return { type: 'text', text: part.text };
+                    return { type: 'text', text: part.text } as TextBlockParam;
                 }
                 if (part.type === 'image') {
                     const raw = getImageData(part);
-                    let source: unknown;
+                    let source: any;
                     if (raw.startsWith('http://') || raw.startsWith('https://')) {
                         source = { type: 'url', url: raw };
                     } else if (raw.startsWith('data:')) {
@@ -263,30 +276,39 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                         // Plain base64 string
                         source = { type: 'base64', media_type: part.mimeType, data: raw };
                     }
-                    return { type: 'image', source };
+                    return { type: 'image', source } as ImageBlockParam;
                 }
                 if (part.type === 'file') {
+                    // Anthropic doesn't support file uploads directly, so we convert files to text
                     const raw = getFileData(part);
-                    let source: unknown;
-                    if (raw.startsWith('http://') || raw.startsWith('https://')) {
-                        source = { type: 'url', url: raw };
-                    } else if (raw.startsWith('data:')) {
-                        // Data URI: split metadata and base64 data
-                        const [meta, b64] = raw.split(',', 2);
-                        const mediaTypeMatch = meta?.match(/data:(.*);base64/);
-                        const media_type =
-                            (mediaTypeMatch && mediaTypeMatch[1]) ||
-                            part.mimeType ||
-                            'application/octet-stream';
-                        source = { type: 'base64', media_type, data: b64 };
-                    } else {
-                        // Plain base64 string
-                        source = { type: 'base64', media_type: part.mimeType, data: raw };
+                    const fileName = (part as any).filename || 'file';
+
+                    // If it's a text-based file, try to decode it
+                    let content = '';
+                    try {
+                        if (raw.startsWith('data:')) {
+                            const [, base64Data] = raw.split(',', 2);
+                            content = Buffer.from(base64Data || '', 'base64').toString('utf-8');
+                        } else if (raw.match(/^[A-Za-z0-9+/]*={0,2}$/)) {
+                            // Looks like base64
+                            content = Buffer.from(raw, 'base64').toString('utf-8');
+                        } else {
+                            content = raw;
+                        }
+                    } catch {
+                        // If we can't decode, just indicate it's a binary file
+                        content = `[Binary file: ${fileName}]`;
                     }
-                    return { type: 'file', source };
+
+                    return {
+                        type: 'text',
+                        text: `File "${fileName}":\n${content}`,
+                    } as TextBlockParam;
                 }
                 return null;
             })
-            .filter(Boolean);
+            .filter((block): block is ContentBlockParam => block !== null);
+
+        return blocks;
     }
 }

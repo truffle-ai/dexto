@@ -6,6 +6,14 @@ import type { IConversationHistoryProvider } from './types.js';
 /**
  * History provider that works directly with DatabaseBackend.
  * Handles message-specific operations and key formatting internally.
+ *
+ * TODO: Add in-memory caching to reduce database queries.
+ * Cache should be invalidated on writes and persist across LLM switches.
+ * Consider caching strategy:
+ * - Load cache on first getHistory() call
+ * - Update cache optimistically on saveMessage()
+ * - Clear cache on clearHistory()
+ * This will significantly improve performance for sessions with many messages.
  */
 export class DatabaseHistoryProvider implements IConversationHistoryProvider {
     constructor(

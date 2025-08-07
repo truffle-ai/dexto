@@ -27,8 +27,10 @@ import { ContextError } from './errors.js';
  * TODO: clean up tokenizer logic if we are relying primarily on LLM API to give us token count.
  * TODO: Move InternalMessage parsing logic to zod
  * Right now its weaker because it doesn't account for tools and other non-text content in the prompt.
+ *
+ * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, CoreMessage)
  */
-export class ContextManager {
+export class ContextManager<TMessage = unknown> {
     /**
      * PromptManager used to generate/manage the system prompt
      */
@@ -261,11 +263,6 @@ export class ContextManager {
      * @throws Error if message validation fails
      */
     async addMessage(message: InternalMessage): Promise<void> {
-        // Validation based on role
-        if (!message.role) {
-            throw ContextError.messageRoleMissing();
-        }
-
         switch (message.role) {
             case 'user':
                 if (
@@ -310,8 +307,6 @@ export class ContextManager {
                     throw ContextError.systemMessageContentInvalid();
                 }
                 break;
-            default:
-                throw ContextError.messageRoleUnknown((message as any).role);
         }
 
         logger.debug(
@@ -433,7 +428,7 @@ export class ContextManager {
      * @param result The result returned by the tool
      * @throws Error if required parameters are missing
      */
-    async addToolResult(toolCallId: string, name: string, result: any): Promise<void> {
+    async addToolResult(toolCallId: string, name: string, result: unknown): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
@@ -493,7 +488,8 @@ export class ContextManager {
         llmContext: LLMContext,
         systemPrompt?: string | undefined,
         history?: InternalMessage[]
-    ): Promise<any[]> {
+    ): Promise<TMessage[]> {
+        // TMessage type is provided by the service that instantiates ContextManager
         // Use provided history or fetch from provider
         let messageHistory: InternalMessage[];
         try {
@@ -511,7 +507,7 @@ export class ContextManager {
         try {
             // Use pre-computed system prompt if provided
             const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));
-            return this.formatter.format([...messageHistory], llmContext, prompt);
+            return this.formatter.format([...messageHistory], llmContext, prompt) as TMessage[];
         } catch (error) {
             logger.error(
                 `Error formatting messages: ${error instanceof Error ? error.message : String(error)}`
@@ -537,8 +533,7 @@ export class ContextManager {
         contributorContext: DynamicContributorContext,
         llmContext: LLMContext
     ): Promise<{
-        // TODO: fix this type
-        formattedMessages: any[];
+        formattedMessages: TMessage[];
         systemPrompt: string;
         tokensUsed: number;
     }> {
@@ -557,7 +552,7 @@ export class ContextManager {
                 llmContext,
                 systemPrompt,
                 history
-            );
+            ); // Type cast happens here via TMessage generic
 
             // Calculate final token usage
             const historyTokens = countMessagesTokens(history, this.tokenizer);
@@ -690,7 +685,7 @@ export class ContextManager {
      *
      * @param response The stream response from the LLM provider
      */
-    async processLLMStreamResponse(response: any): Promise<void> {
+    async processLLMStreamResponse(response: unknown): Promise<void> {
         // Use type-safe access to parseStreamResponse method
         if (this.formatter.parseStreamResponse) {
             const msgs = (await this.formatter.parseStreamResponse(response)) ?? [];
@@ -715,7 +710,7 @@ export class ContextManager {
      *
      * @param response The response from the LLM provider
      */
-    async processLLMResponse(response: any): Promise<void> {
+    async processLLMResponse(response: unknown): Promise<void> {
         const msgs = this.formatter.parseResponse(response) ?? [];
         for (const msg of msgs) {
             try {

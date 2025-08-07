@@ -5,9 +5,7 @@
 export const enum ContextErrorCode {
     // Message validation
     MESSAGE_ROLE_MISSING = 'context_message_role_missing',
-    MESSAGE_ROLE_UNKNOWN = 'context_message_role_unknown',
     MESSAGE_CONTENT_EMPTY = 'context_message_content_empty',
-    MESSAGE_CONTENT_INVALID = 'context_message_content_invalid',
 
     // User message validation
     USER_MESSAGE_CONTENT_INVALID = 'context_user_message_content_invalid',
@@ -37,7 +35,6 @@ export const enum ContextErrorCode {
     PROVIDER_MODEL_REQUIRED = 'context_provider_model_required',
 
     // Compression strategy configuration errors
-    COMPRESSION_CONFIG_INVALID = 'context_compression_config_invalid',
     PRESERVE_VALUES_NEGATIVE = 'context_preserve_values_negative',
     MIN_MESSAGES_NEGATIVE = 'context_min_messages_negative',
 }

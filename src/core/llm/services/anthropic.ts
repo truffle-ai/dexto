@@ -1,12 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { MessageParam } from '@anthropic-ai/sdk/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { ToolSet } from '../../tools/types.js';
 import { logger } from '../../logger/index.js';
 import { ContextManager } from '../../context/manager.js';
-import { getMaxInputTokensForModel } from '../registry.js';
+import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
+import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { PromptManager } from '../../systemPrompt/manager.js';
+import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
+import { createTokenizer } from '../tokenizer/factory.js';
+import type { ValidatedLLMConfig } from '../schemas.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -14,29 +20,41 @@ import type { SessionEventBus } from '../../events/index.js';
  */
 export class AnthropicService implements ILLMService {
     private anthropic: Anthropic;
-    private model: string;
+    private config: ValidatedLLMConfig;
     private toolManager: ToolManager;
-    private contextManager: ContextManager;
+    private contextManager: ContextManager<MessageParam>;
     private sessionEventBus: SessionEventBus;
-    private maxIterations: number;
     private readonly sessionId: string;
 
     constructor(
         toolManager: ToolManager,
         anthropic: Anthropic,
+        promptManager: PromptManager,
+        historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
-        contextManager: ContextManager,
-        model: string,
-        maxIterations: number = 10,
+        config: ValidatedLLMConfig,
         sessionId: string
     ) {
-        this.maxIterations = maxIterations;
-        this.model = model;
+        this.config = config;
         this.anthropic = anthropic;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
-        this.contextManager = contextManager;
         this.sessionId = sessionId;
+
+        // Create properly-typed ContextManager for Anthropic
+        const formatter = new AnthropicMessageFormatter();
+        const tokenizer = createTokenizer('anthropic', config.model);
+        const maxInputTokens = getEffectiveMaxInputTokens(config);
+
+        this.contextManager = new ContextManager<MessageParam>(
+            formatter,
+            promptManager,
+            sessionEventBus,
+            maxInputTokens,
+            tokenizer,
+            historyProvider,
+            sessionId
+        );
     }
 
     getAllTools(): Promise<any> {
@@ -66,7 +84,7 @@ export class AnthropicService implements ILLMService {
         let totalTokens = 0;
 
         try {
-            while (iterationCount < this.maxIterations) {
+            while (iterationCount < this.config.maxIterations) {
                 iterationCount++;
                 logger.debug(`Iteration ${iterationCount}`);
 
@@ -79,7 +97,7 @@ export class AnthropicService implements ILLMService {
 
                 const llmContext = {
                     provider: 'anthropic' as const,
-                    model: this.model,
+                    model: this.config.model,
                 };
 
                 const {
@@ -99,7 +117,7 @@ export class AnthropicService implements ILLMService {
                 logger.debug(`Estimated tokens being sent to Anthropic: ${tokensUsed}`);
 
                 const response = await this.anthropic.messages.create({
-                    model: this.model,
+                    model: this.config.model,
                     messages: formattedMessages,
                     ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
                     tools: formattedTools,
@@ -153,7 +171,7 @@ export class AnthropicService implements ILLMService {
 
                     this.sessionEventBus.emit('llmservice:response', {
                         content: fullResponse,
-                        model: this.model,
+                        model: this.config.model,
                         tokenCount: totalTokens > 0 ? totalTokens : undefined,
                     });
                     return fullResponse;
@@ -219,7 +237,7 @@ export class AnthropicService implements ILLMService {
             }
 
             // If we reached max iterations
-            logger.warn(`Reached maximum iterations (${this.maxIterations}) for task.`);
+            logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
 
             // Update ContextManager with actual token count for hybrid approach
             if (totalTokens > 0) {
@@ -228,7 +246,7 @@ export class AnthropicService implements ILLMService {
 
             this.sessionEventBus.emit('llmservice:response', {
                 content: fullResponse,
-                model: this.model,
+                model: this.config.model,
                 tokenCount: totalTokens > 0 ? totalTokens : undefined,
             });
             return (
@@ -255,12 +273,12 @@ export class AnthropicService implements ILLMService {
      */
     getConfig(): LLMServiceConfig {
         const configuredMaxInputTokens = this.contextManager.getMaxInputTokens();
-        const modelMaxInputTokens = getMaxInputTokensForModel('anthropic', this.model);
+        const modelMaxInputTokens = getMaxInputTokensForModel('anthropic', this.config.model);
 
         return {
             router: 'in-built',
             provider: 'anthropic',
-            model: this.model,
+            model: this.config.model,
             configuredMaxInputTokens: configuredMaxInputTokens,
             modelMaxInputTokens: modelMaxInputTokens,
         };
@@ -301,5 +319,12 @@ export class AnthropicService implements ILLMService {
                 input_schema: input_schema,
             };
         });
+    }
+
+    /**
+     * Get the context manager for external access
+     */
+    getContextManager(): ContextManager<unknown> {
+        return this.contextManager;
     }
 }
