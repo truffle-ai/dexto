@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { filterMessagesByLLMCapabilities } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '@core/llm/types.js';
+import { ContextErrorCode, ErrorScope, ErrorType } from '@core/errors/index.js';
 import * as registry from '@core/llm/registry.js';
 
 // Mock the registry module
@@ -188,7 +189,13 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Create an invalid config at runtime to test the error
         const config = { provider: 'anthropic' } as any; // No model specified
 
-        expect(() => filterMessagesByLLMCapabilities(messages, config)).toThrow();
+        expect(() => filterMessagesByLLMCapabilities(messages, config)).toThrow(
+            expect.objectContaining({
+                code: ContextErrorCode.PROVIDER_MODEL_REQUIRED,
+                scope: ErrorScope.CONTEXT,
+                type: ErrorType.USER,
+            })
+        );
     });
 
     test('should only filter user messages with array content', () => {

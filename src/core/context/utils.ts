@@ -3,6 +3,7 @@ import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { logger } from '@core/logger/index.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
+import { ContextError } from './errors.js';
 
 // Approximation for message format overhead
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4;
@@ -97,9 +98,7 @@ export function countMessagesTokens(
     } catch (error) {
         console.error('countMessagesTokens: Error counting tokens:', error);
         // Re-throw to indicate failure
-        throw new Error(
-            `Failed to count tokens: ${error instanceof Error ? error.message : String(error)}`
-        );
+        throw ContextError.tokenCountFailed(error instanceof Error ? error.message : String(error));
     }
     return total;
 }
@@ -166,7 +165,7 @@ export function filterMessagesByLLMCapabilities(
 ): InternalMessage[] {
     // Validate that both provider and model are provided
     if (!config.provider || !config.model) {
-        throw new Error('Both provider and model are required for message filtering');
+        throw ContextError.providerModelRequired();
     }
 
     try {

@@ -2,6 +2,7 @@ import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { InternalMessage } from '../types.js';
 import { ICompressionStrategy } from './types.js';
 import { countMessagesTokens } from '../utils.js';
+import { ContextError } from '../errors.js';
 
 /**
  * Configuration options for the OldestRemovalStrategy.
@@ -33,7 +34,7 @@ export class OldestRemovalStrategy implements ICompressionStrategy {
         this.minMessagesToKeep = options.minMessagesToKeep ?? 4;
 
         if (this.minMessagesToKeep < 0) {
-            throw new Error('minMessagesToKeep must be non-negative.');
+            throw ContextError.minMessagesNegative();
         }
     }
 

@@ -11,6 +11,7 @@ import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { SessionEventBus } from '../events/index.js';
+import { ContextError } from './errors.js';
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -23,7 +24,8 @@ import { SessionEventBus } from '../events/index.js';
  *
  * Note: All conversation history is stored and retrieved via the injected ConversationHistoryProvider.
  * The ContextManager does not maintain an internal history cache.
- * TOOD: clean up tokenizer logic if we are relying primarily on LLM API to give us token count.
+ * TODO: clean up tokenizer logic if we are relying primarily on LLM API to give us token count.
+ * TODO: Move InternalMessage parsing logic to zod
  * Right now its weaker because it doesn't account for tools and other non-text content in the prompt.
  */
 export class ContextManager {
@@ -99,15 +101,6 @@ export class ContextManager {
             new OldestRemovalStrategy(),
         ]
     ) {
-        if (!formatter) throw new Error('formatter is required');
-        if (!promptManager) throw new Error('promptManager is required');
-        if (!sessionEventBus) throw new Error('sessionEventBus is required');
-        if (!maxInputTokens) throw new Error('maxInputTokens is required');
-        if (!tokenizer) throw new Error('tokenizer is required');
-        if (!historyProvider) throw new Error('historyProvider is required');
-        if (!sessionId) throw new Error('sessionId is required');
-        if (!compressionStrategies) throw new Error('compressionStrategies is required');
-
         this.formatter = formatter;
         this.promptManager = promptManager;
         this.sessionEventBus = sessionEventBus;
@@ -270,7 +263,7 @@ export class ContextManager {
     async addMessage(message: InternalMessage): Promise<void> {
         // Validation based on role
         if (!message.role) {
-            throw new Error('ContextManager: Message must have a role.');
+            throw ContextError.messageRoleMissing();
         }
 
         switch (message.role) {
@@ -280,9 +273,7 @@ export class ContextManager {
                     !(Array.isArray(message.content) && message.content.length > 0) &&
                     (typeof message.content !== 'string' || message.content.trim() === '')
                 ) {
-                    throw new Error(
-                        'ContextManager: User message content should be a non-empty string or a non-empty array of parts.'
-                    );
+                    throw ContextError.userMessageContentInvalid();
                 }
                 // Optional: Add validation for the structure of array parts if needed
                 break;
@@ -292,9 +283,7 @@ export class ContextManager {
                     message.content === null &&
                     (!message.toolCalls || message.toolCalls.length === 0)
                 ) {
-                    throw new Error(
-                        'ContextManager: Assistant message must have content or toolCalls.'
-                    );
+                    throw ContextError.assistantMessageContentOrToolsRequired();
                 }
                 if (message.toolCalls) {
                     if (
@@ -303,17 +292,13 @@ export class ContextManager {
                             (tc) => !tc.id || !tc.function?.name || !tc.function?.arguments
                         )
                     ) {
-                        throw new Error(
-                            'ContextManager: Invalid toolCalls structure in assistant message.'
-                        );
+                        throw ContextError.assistantMessageToolCallsInvalid();
                     }
                 }
                 break;
             case 'tool':
                 if (!message.toolCallId || !message.name || message.content === null) {
-                    throw new Error(
-                        'ContextManager: Tool message missing required fields (toolCallId, name, content).'
-                    );
+                    throw ContextError.toolMessageFieldsMissing();
                 }
                 break;
             case 'system':
@@ -322,13 +307,11 @@ export class ContextManager {
                     'ContextManager: Adding system message directly to history. Use setSystemPrompt instead.'
                 );
                 if (typeof message.content !== 'string' || message.content.trim() === '') {
-                    throw new Error(
-                        'ContextManager: System message content must be a non-empty string.'
-                    );
+                    throw ContextError.systemMessageContentInvalid();
                 }
                 break;
             default:
-                throw new Error(`ContextManager: Unknown message role: ${(message as any).role}`);
+                throw ContextError.messageRoleUnknown((message as any).role);
         }
 
         logger.debug(
@@ -347,8 +330,9 @@ export class ContextManager {
                 `ContextManager: Failed to save message for session ${this.sessionId}:`,
                 error
             );
-            throw new Error(
-                `Failed to save message: ${error instanceof Error ? error.message : String(error)}`
+            throw ContextError.messageSaveFailed(
+                this.sessionId,
+                error instanceof Error ? error.message : String(error)
             );
         }
 
@@ -374,9 +358,7 @@ export class ContextManager {
             typeof textContent !== 'string' ||
             (textContent.trim() === '' && !imageData && !fileData)
         ) {
-            throw new Error(
-                'addUserMessage: Content must be a non-empty string or have imageData/fileData.'
-            );
+            throw ContextError.userMessageContentEmpty();
         }
 
         // If text is empty but we have attachments, use a placeholder
@@ -433,7 +415,7 @@ export class ContextManager {
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
-            throw new Error('addAssistantMessage: Must provide content or toolCalls.');
+            throw ContextError.assistantMessageContentOrToolsRequired();
         }
         // Further validation happens within addMessage
         await this.addMessage({
@@ -453,7 +435,7 @@ export class ContextManager {
      */
     async addToolResult(toolCallId: string, name: string, result: any): Promise<void> {
         if (!toolCallId || !name) {
-            throw new Error('addToolResult: toolCallId and name are required.');
+            throw ContextError.toolCallIdNameRequired();
         }
 
         // Simplest image detection: if result has an 'image' field, treat as ImagePart
@@ -520,8 +502,9 @@ export class ContextManager {
             logger.error(
                 `ContextManager: Failed to get history for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
-            throw new Error(
-                `Failed to get conversation history: ${error instanceof Error ? error.message : String(error)}`
+            throw ContextError.historyRetrievalFailed(
+                this.sessionId,
+                error instanceof Error ? error.message : String(error)
             );
         }
 
@@ -533,8 +516,8 @@ export class ContextManager {
             logger.error(
                 `Error formatting messages: ${error instanceof Error ? error.message : String(error)}`
             );
-            throw new Error(
-                `Failed to format messages: ${error instanceof Error ? error.message : String(error)}`
+            throw ContextError.messageFormattingFailed(
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -592,8 +575,8 @@ export class ContextManager {
             };
         } catch (error) {
             logger.error('Error in getFormattedMessagesWithCompression:', error);
-            throw new Error(
-                `Failed to get formatted messages with compression: ${error instanceof Error ? error.message : String(error)}`
+            throw ContextError.compressionFailed(
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -612,8 +595,10 @@ export class ContextManager {
             const systemPrompt = await this.getSystemPrompt(context);
             return this.formatter.formatSystemPrompt?.(systemPrompt);
         } catch (error) {
-            console.error('Error getting formatted system prompt:', error);
-            throw new Error(`Failed to get formatted system prompt: ${error}`);
+            logger.error(`Error getting formatted system prompt: ${error}`);
+            throw ContextError.systemPromptFormattingFailed(
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 

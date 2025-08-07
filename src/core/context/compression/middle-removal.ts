@@ -2,6 +2,7 @@ import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { InternalMessage } from '@core/context/types.js';
 import { ICompressionStrategy } from './types.js';
 import { countMessagesTokens } from '@core/context/utils.js';
+import { ContextError } from '../errors.js';
 
 /**
  * Configuration options for the MiddleRemovalStrategy.
@@ -39,7 +40,7 @@ export class MiddleRemovalStrategy implements ICompressionStrategy {
         this.preserveEnd = options.preserveEnd ?? 5;
 
         if (this.preserveStart < 0 || this.preserveEnd < 0) {
-            throw new Error('preserveStart and preserveEnd must be non-negative.');
+            throw ContextError.preserveValuesNegative();
         }
     }
 
