@@ -1,6 +1,6 @@
 import { LanguageModelV1 } from 'ai';
 import { ToolSet } from '../../tools/types.js';
-import { ImageData, FileData } from '../messages/types.js';
+import { ImageData, FileData } from '../../context/types.js';
 import { LLMProvider, LLMRouter } from '../registry.js';
 
 /**

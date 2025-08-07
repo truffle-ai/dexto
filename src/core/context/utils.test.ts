@@ -1,12 +1,12 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { filterMessagesByLLMCapabilities } from './utils.js';
 import { InternalMessage } from './types.js';
-import { LLMContext } from '../types.js';
-import * as registry from '../registry.js';
+import { LLMContext } from '@core/llm/types.js';
+import * as registry from '@core/llm/registry.js';
 
 // Mock the registry module
-vi.mock('../registry.js');
-const mockValidateModelFileSupport = registry.validateModelFileSupport as any;
+vi.mock('@core/llm/registry.js');
+const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
 
 describe('filterMessagesByLLMCapabilities', () => {
     beforeEach(() => {

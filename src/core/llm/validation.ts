@@ -1,6 +1,6 @@
 import { validateModelFileSupport, getAllowedMimeTypes, LLMProvider } from './registry.js';
 import { logger } from '../logger/index.js';
-import type { ImageData, FileData } from './messages/types.js';
+import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
 import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
 import { LLMErrorCode } from './error-codes.js';

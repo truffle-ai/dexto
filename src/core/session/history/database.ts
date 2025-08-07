@@ -1,6 +1,6 @@
 import { logger } from '@core/logger/logger.js';
 import type { DatabaseBackend } from '@core/storage/types.js';
-import type { InternalMessage } from '../types.js';
+import type { InternalMessage } from '@core/context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
 
 /**

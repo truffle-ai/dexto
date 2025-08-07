@@ -1,6 +1,6 @@
 import { logger } from '../logger/index.js';
 import type { DatabaseBackend } from '../storage/backend/database-backend.js';
-import type { InternalMessage } from '../llm/messages/types.js';
+import type { InternalMessage } from '../context/types.js';
 import type {
     SearchOptions,
     SearchResult,

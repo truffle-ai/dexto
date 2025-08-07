@@ -13,7 +13,7 @@ import { AnthropicService } from './anthropic.js';
 import { LanguageModelV1 } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { LLMRouter } from '../registry.js';
-import { ContextManager } from '../messages/manager.js';
+import { ContextManager } from '../../context/manager.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';

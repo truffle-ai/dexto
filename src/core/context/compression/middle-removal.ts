@@ -1,7 +1,7 @@
-import { ITokenizer } from '../../tokenizer/types.js';
-import { InternalMessage } from '../types.js';
+import { ITokenizer } from '@core/llm/tokenizer/types.js';
+import { InternalMessage } from '@core/context/types.js';
 import { ICompressionStrategy } from './types.js';
-import { countMessagesTokens } from '../utils.js';
+import { countMessagesTokens } from '@core/context/utils.js';
 
 /**
  * Configuration options for the MiddleRemovalStrategy.

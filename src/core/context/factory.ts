@@ -1,13 +1,13 @@
 import { ContextManager } from './manager.js';
-import { PromptManager } from '../../systemPrompt/manager.js';
-import { IConversationHistoryProvider } from './history/types.js';
-import { ValidatedLLMConfig } from '../schemas.js';
-import { LLMRouter } from '../registry.js';
-import { createMessageFormatter } from './formatters/factory.js';
-import { createTokenizer } from '../tokenizer/factory.js';
-import { getEffectiveMaxInputTokens } from '../registry.js';
-import { SessionEventBus } from '../../events/index.js';
-import { logger } from '../../logger/index.js';
+import { PromptManager } from '@core/systemPrompt/manager.js';
+import { IConversationHistoryProvider } from '@core/session/history/types.js';
+import { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import { LLMRouter } from '@core/llm/registry.js';
+import { createMessageFormatter } from '@core/llm/formatters/factory.js';
+import { createTokenizer } from '@core/llm/tokenizer/factory.js';
+import { getEffectiveMaxInputTokens } from '@core/llm/registry.js';
+import { SessionEventBus } from '@core/events/index.js';
+import { logger } from '@core/logger/index.js';
 
 /**
  * Factory function to create a ContextManager instance with the correct formatter, tokenizer, and maxInputTokens

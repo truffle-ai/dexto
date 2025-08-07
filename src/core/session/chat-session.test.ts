@@ -4,10 +4,10 @@ import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 
 // Mock all dependencies
-vi.mock('../llm/messages/history/factory.js', () => ({
+vi.mock('./history/factory.js', () => ({
     createDatabaseHistoryProvider: vi.fn(),
 }));
-vi.mock('../llm/messages/factory.js', () => ({
+vi.mock('../context/factory.js', () => ({
     createContextManager: vi.fn(),
 }));
 vi.mock('../llm/services/factory.js', () => ({
@@ -16,7 +16,7 @@ vi.mock('../llm/services/factory.js', () => ({
 vi.mock('../llm/tokenizer/factory.js', () => ({
     createTokenizer: vi.fn(),
 }));
-vi.mock('../llm/messages/formatters/factory.js', () => ({
+vi.mock('../llm/formatters/factory.js', () => ({
     createMessageFormatter: vi.fn(),
 }));
 vi.mock('../llm/registry.js', async (importOriginal) => {
@@ -36,11 +36,11 @@ vi.mock('../logger/index.js', () => ({
     },
 }));
 
-import { createDatabaseHistoryProvider } from '../llm/messages/history/factory.js';
-import { createContextManager } from '../llm/messages/factory.js';
+import { createDatabaseHistoryProvider } from './history/factory.js';
+import { createContextManager } from '../context/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { createTokenizer } from '../llm/tokenizer/factory.js';
-import { createMessageFormatter } from '../llm/messages/formatters/factory.js';
+import { createMessageFormatter } from '../llm/formatters/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);

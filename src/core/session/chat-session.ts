@@ -1,10 +1,10 @@
-import { createDatabaseHistoryProvider } from '../llm/messages/history/factory.js';
-import { createContextManager } from '../llm/messages/factory.js';
+import { createDatabaseHistoryProvider } from './history/factory.js';
+import { createContextManager } from '../context/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { createTokenizer } from '../llm/tokenizer/factory.js';
-import { createMessageFormatter } from '../llm/messages/formatters/factory.js';
+import { createMessageFormatter } from '@core/llm/formatters/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
-import type { ContextManager } from '../llm/messages/manager.js';
+import type { ContextManager } from '@core/context/index.js';
 import type { ILLMService } from '../llm/services/types.js';
 import type { PromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';

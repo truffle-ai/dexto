@@ -1,8 +1,8 @@
 import { InternalMessage } from './types.js';
-import { ITokenizer } from '../tokenizer/types.js';
-import { logger } from '../../logger/index.js';
-import { validateModelFileSupport } from '../registry.js';
-import { LLMContext } from '../types.js';
+import { ITokenizer } from '@core/llm/tokenizer/types.js';
+import { logger } from '@core/logger/index.js';
+import { validateModelFileSupport } from '@core/llm/registry.js';
+import { LLMContext } from '@core/llm/types.js';
 
 // Approximation for message format overhead
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4;

@@ -1,8 +1,8 @@
 import { IMessageFormatter } from './types.js';
-import { LLMContext } from '../../types.js';
-import { InternalMessage } from '../types.js';
-import { logger } from '../../../logger/index.js';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../utils.js';
+import { LLMContext } from '../types.js';
+import { InternalMessage } from '@core/context/types.js';
+import { logger } from '@core/logger/index.js';
+import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
 
 /**
  * Message formatter for Anthropic's Claude API.

@@ -1,4 +1,4 @@
-import { ITokenizer } from '../../tokenizer/types.js';
+import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { InternalMessage } from '../types.js';
 import { ICompressionStrategy } from './types.js';
 import { countMessagesTokens } from '../utils.js';

@@ -1,9 +1,9 @@
 import { IMessageFormatter } from './types.js';
-import { LLMContext } from '../../types.js';
-import { InternalMessage } from '../types.js';
+import { LLMContext } from '../types.js';
+import { InternalMessage } from '@core/context/types.js';
 import type { GenerateTextResult, StreamTextResult, ToolSet as VercelToolSet } from 'ai';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../utils.js';
-import { logger } from '../../../logger/index.js';
+import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
+import { logger } from '@core/logger/index.js';
 // import Core SDK types if/when needed
 
 /**

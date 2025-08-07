@@ -1,16 +1,16 @@
-import { IMessageFormatter } from './formatters/types.js';
-import { LLMContext } from '../types.js';
+import { IMessageFormatter } from '@core/llm/formatters/types.js';
+import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
-import { ITokenizer } from '../tokenizer/types.js';
+import { ITokenizer } from '../llm/tokenizer/types.js';
 import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../logger/index.js';
 import { getImageData, countMessagesTokens } from './utils.js';
-import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { PromptManager } from '../../systemPrompt/manager.js';
-import { IConversationHistoryProvider } from './history/types.js';
-import { SessionEventBus } from '../../events/index.js';
+import { DynamicContributorContext } from '../systemPrompt/types.js';
+import { PromptManager } from '../systemPrompt/manager.js';
+import { IConversationHistoryProvider } from '@core/session/history/types.js';
+import { SessionEventBus } from '../events/index.js';
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:

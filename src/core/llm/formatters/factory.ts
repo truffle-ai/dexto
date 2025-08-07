@@ -2,9 +2,9 @@ import { IMessageFormatter } from './types.js';
 import { VercelMessageFormatter } from './vercel.js';
 import { OpenAIMessageFormatter } from './openai.js';
 import { AnthropicMessageFormatter } from './anthropic.js';
-import { logger } from '../../../logger/index.js';
-import { LLMProvider, LLMRouter } from '../../registry.js';
-import { LLMError } from '../../errors.js';
+import { logger } from '@core/logger/index.js';
+import { LLMProvider, LLMRouter } from '../registry.js';
+import { LLMError } from '../errors.js';
 
 export function createMessageFormatter(
     provider: LLMProvider,

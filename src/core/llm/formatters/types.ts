@@ -1,5 +1,5 @@
-import { InternalMessage } from '../types.js';
-import { LLMContext } from '../../types.js';
+import { InternalMessage } from '@core/context/types.js';
+import { LLMContext } from '../types.js';
 
 /**
  * Interface for converting internal message format to LLM provider-specific formats.

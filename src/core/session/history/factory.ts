@@ -1,5 +1,5 @@
 import type { IConversationHistoryProvider } from './types.js';
-import type { DatabaseBackend } from '../../../storage/backend/types.js';
+import type { DatabaseBackend } from '@core/storage/backend/types.js';
 import { DatabaseHistoryProvider } from './database.js';
 
 /**
