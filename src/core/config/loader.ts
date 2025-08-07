@@ -3,12 +3,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
 import { resolveConfigPath } from '../utils/path.js';
-import {
-    ConfigFileNotFoundError,
-    ConfigFileReadError,
-    ConfigFileWriteError,
-    ConfigParseError,
-} from '@core/errors/index.js';
+import { ConfigError } from './errors.js';
 
 /**
  * Load the complete agent configuration
@@ -44,7 +39,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
         await fs.access(absolutePath);
     } catch (_error) {
         // Throw a specific error indicating that the configuration file was not found.
-        throw new ConfigFileNotFoundError(absolutePath);
+        throw ConfigError.fileNotFound(absolutePath);
     }
 
     let fileContent: string;
@@ -55,7 +50,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
     } catch (error) {
         // If an error occurs during file reading (e.g., I/O error, corrupted file),
         // throw a `ConfigFileReadError` with the absolute path and the underlying cause.
-        throw new ConfigFileReadError(
+        throw ConfigError.fileReadError(
             absolutePath,
             error instanceof Error ? error.message : String(error)
         );
@@ -69,7 +64,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
     } catch (error) {
         // If the content is not valid YAML, `parseYaml` will throw an error.
         // Catch it and throw a `ConfigParseError` with details.
-        throw new ConfigParseError(
+        throw ConfigError.parseError(
             absolutePath,
             error instanceof Error ? error.message : String(error)
         );
@@ -111,9 +106,9 @@ export async function writeConfigFile(
     } catch (error: any) {
         // Catch any errors that occur during YAML stringification or file writing.
         // Throw a specific `ConfigFileWriteError` for better error categorization.
-        throw new ConfigFileWriteError(
-            absolutePath, // Pass the absolute path for context
-            error instanceof Error ? error.message : String(error) // Provide the underlying cause message
+        throw ConfigError.fileWriteError(
+            absolutePath,
+            error instanceof Error ? error.message : String(error)
         );
     }
 }

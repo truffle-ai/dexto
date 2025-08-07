@@ -1,4 +1,5 @@
 import type { AgentErrorCode } from '@core/agent/error-codes.js';
+import type { ConfigErrorCode } from '@core/config/error-codes.js';
 import type { LLMErrorCode } from '@core/llm/error-codes.js';
 import type { MCPErrorCode } from '@core/mcp/error-codes.js';
 import type { SessionErrorCode } from '@core/session/error-codes.js';
@@ -12,6 +13,7 @@ import type { ToolErrorCode } from '@core/tools/error-codes.js';
 export const enum ErrorScope {
     LLM = 'llm', // LLM operations, model compatibility, input validation for LLMs
     AGENT = 'agent', // Agent lifecycle, configuration
+    CONFIG = 'config', // Configuration file operations, parsing, validation
     SESSION = 'session', // Session lifecycle, management, and state
     MCP = 'mcp', // MCP server connections and protocol
     TOOLS = 'tools', // Tool execution and authorization
@@ -40,6 +42,7 @@ export const enum ErrorType {
 export type DextoErrorCode =
     | LLMErrorCode
     | AgentErrorCode
+    | ConfigErrorCode
     | SessionErrorCode
     | MCPErrorCode
     | ToolErrorCode

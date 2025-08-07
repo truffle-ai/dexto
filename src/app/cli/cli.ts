@@ -7,8 +7,12 @@ import { parseInput } from './interactive-commands/command-parser.js';
 import { executeCommand } from './interactive-commands/commands.js';
 import { getDextoPath } from '@core/utils/path.js';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import { ConfigurationError } from '@core/errors/index.js';
-import { DextoRuntimeError, DextoValidationError, LLMErrorCode } from '@core/errors/index.js';
+import {
+    DextoRuntimeError,
+    DextoValidationError,
+    LLMErrorCode,
+    ErrorScope,
+} from '@core/errors/index.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
@@ -218,7 +222,7 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
             error.errors.forEach((err) => {
                 logger.error(`  - ${err.message}`, null, 'red');
             });
-        } else if (error instanceof ConfigurationError) {
+        } else if (error instanceof DextoRuntimeError && error.scope === ErrorScope.CONFIG) {
             logger.error(`Configuration error: ${error.message}`, null, 'red');
         } else {
             logger.error(
