@@ -56,8 +56,8 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
         );
     }
 
-    let config: any;
     // --- Step 3: Parse the file content as YAML ---
+    let config;
     try {
         // Attempt to parse the string content into a JavaScript object using a YAML parser.
         config = parseYaml(fileContent);
@@ -103,7 +103,7 @@ export async function writeConfigFile(
 
         // Log a debug message indicating successful file write.
         logger.debug(`Wrote dexto config to: ${absolutePath}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Catch any errors that occur during YAML stringification or file writing.
         // Throw a specific `ConfigFileWriteError` for better error categorization.
         throw ConfigError.fileWriteError(

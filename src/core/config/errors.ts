@@ -41,17 +41,6 @@ export class ConfigError {
         );
     }
 
-    static fileAccessDenied(configPath: string) {
-        return new DextoRuntimeError(
-            ConfigErrorCode.FILE_ACCESS_DENIED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
-            `Access denied to configuration file: ${configPath}`,
-            { configPath },
-            'Check file permissions or run with appropriate privileges'
-        );
-    }
-
     // Parsing errors
     static parseError(configPath: string, cause: string) {
         return new DextoRuntimeError(
@@ -61,40 +50,6 @@ export class ConfigError {
             `Failed to parse configuration file: ${cause}`,
             { configPath, cause },
             'Ensure the configuration file contains valid YAML syntax'
-        );
-    }
-
-    static yamlInvalid(configPath: string, yamlError: string) {
-        return new DextoRuntimeError(
-            ConfigErrorCode.YAML_INVALID,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
-            `Invalid YAML in configuration file: ${yamlError}`,
-            { configPath, yamlError },
-            'Fix the YAML syntax errors in the configuration file'
-        );
-    }
-
-    // Path resolution errors
-    static pathInvalid(path: string, reason: string) {
-        return new DextoRuntimeError(
-            ConfigErrorCode.PATH_INVALID,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
-            `Invalid configuration path '${path}': ${reason}`,
-            { path, reason },
-            'Provide a valid file path for the configuration file'
-        );
-    }
-
-    static pathNotResolved(path?: string) {
-        return new DextoRuntimeError(
-            ConfigErrorCode.PATH_NOT_RESOLVED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
-            'Could not resolve configuration file path',
-            { providedPath: path },
-            'Ensure a valid configuration path is provided or working directory contains agent.yml'
         );
     }
 }
