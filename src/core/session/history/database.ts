@@ -1,5 +1,6 @@
 import { logger } from '@core/logger/logger.js';
 import type { DatabaseBackend } from '@core/storage/types.js';
+import { SessionError } from '../errors.js';
 import type { InternalMessage } from '@core/context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
 
@@ -66,8 +67,10 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             logger.error(
                 `DatabaseHistoryProvider: Error saving message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
-            throw new Error(
-                `Failed to save message: ${error instanceof Error ? error.message : String(error)}`
+            throw SessionError.storageFailed(
+                this.sessionId,
+                'save message',
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -81,8 +84,9 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             logger.error(
                 `DatabaseHistoryProvider: Error clearing session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
-            throw new Error(
-                `Failed to clear session: ${error instanceof Error ? error.message : String(error)}`
+            throw SessionError.resetFailed(
+                this.sessionId,
+                error instanceof Error ? error.message : String(error)
             );
         }
     }

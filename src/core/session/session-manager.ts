@@ -7,6 +7,7 @@ import { logger } from '../logger/index.js';
 import type { AgentStateManager } from '../config/agent-state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageBackends } from '../storage/index.js';
+import { SessionError } from './errors.js';
 
 export interface SessionMetadata {
     createdAt: number;
@@ -203,7 +204,7 @@ export class SessionManager {
         // This ensures the limit check and session creation happen as close to atomically as possible
         const activeSessionKeys = await this.services.storage.database.list('session:');
         if (activeSessionKeys.length >= this.maxSessions) {
-            throw new Error(`Maximum sessions (${this.maxSessions}) reached`);
+            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
 
         // Create new session metadata first to "reserve" the session slot
@@ -241,9 +242,8 @@ export class SessionManager {
             logger.error(`Failed to initialize session ${id}:`, error);
             await this.services.storage.database.delete(sessionKey);
             await this.services.storage.cache.delete(sessionKey);
-            throw new Error(
-                `Failed to initialize session ${id}: ${error instanceof Error ? error.message : 'unknown error'}`
-            );
+            const reason = error instanceof Error ? error.message : 'unknown error';
+            throw SessionError.initializationFailed(id, reason);
         }
     }
 
@@ -350,7 +350,7 @@ export class SessionManager {
 
         const session = await this.getSession(sessionId);
         if (!session) {
-            throw new Error(`Session '${sessionId}' not found`);
+            throw SessionError.notFound(sessionId);
         }
 
         await session.reset();
@@ -544,7 +544,7 @@ export class SessionManager {
     ): Promise<{ message: string; warnings: string[] }> {
         const session = await this.getSession(sessionId);
         if (!session) {
-            throw new Error(`Session ${sessionId} not found`);
+            throw SessionError.notFound(sessionId);
         }
 
         await session.switchLLM(newLLMConfig);
