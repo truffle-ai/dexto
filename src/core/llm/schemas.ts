@@ -82,7 +82,7 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['apiKey'],
-            message: `Missing API key for provider '${data.provider}' – set ${primaryVar} or pass --api-key`,
+            message: `Missing API key for provider '${data.provider}' – set $${primaryVar}`,
             params: {
                 code: LLMErrorCode.API_KEY_MISSING,
                 scope: ErrorScope.LLM,

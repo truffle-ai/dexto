@@ -238,7 +238,8 @@ export function zodToIssues<C = unknown>(
             code: (params.code ?? 'schema_validation') as DextoErrorCode,
             message: e.message,
             scope: params.scope ?? ErrorScope.AGENT, // Fallback for non-custom Zod errors
-            type: params.type ?? ErrorType.UNKNOWN, // Unknown type for non-custom errors
+            // Treat plain Zod schema failures as USER errors by default
+            type: params.type ?? ErrorType.USER,
             path: e.path,
             severity,
             context: params as C,
