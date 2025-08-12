@@ -66,6 +66,9 @@ export type LLMRouter = (typeof LLM_ROUTERS)[number];
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
+            { name: 'gpt-5', maxInputTokens: 400000, supportedFileTypes: ['pdf'] },
+            { name: 'gpt-5-mini', maxInputTokens: 400000, supportedFileTypes: ['pdf'] },
+            { name: 'gpt-5-nano', maxInputTokens: 400000, supportedFileTypes: ['pdf'] },
             { name: 'gpt-4.1', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
             {
                 name: 'gpt-4.1-mini',
