@@ -57,16 +57,52 @@ async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
 async function _initCli(agent: DextoAgent): Promise<void> {
     await loadMostRecentSession(agent);
     registerGracefulShutdown(agent);
-    // Log connection info
-    logger.debug(`Log level: ${logger.getLevel()}`);
-    logger.info(`Connected servers: ${agent.mcpManager.getClients().size}`, null, 'green');
+
+    // Gather startup information
+    const llmConfig = agent.getCurrentLLMConfig();
+    const connectedServers = agent.mcpManager.getClients();
     const failedConnections = agent.mcpManager.getFailedConnections();
-    if (Object.keys(failedConnections).length > 0) {
-        logger.error(`Failed connections: ${Object.keys(failedConnections).length}.`, null, 'red');
+    const currentSessionId = agent.getCurrentSessionId();
+
+    let toolStats: { total: number; mcp: number; internal: number } | undefined;
+    try {
+        toolStats = await agent.toolManager.getToolStats();
+    } catch (error) {
+        logger.error(
+            `Failed to load tools: ${error instanceof Error ? error.message : String(error)}`
+        );
     }
 
-    // Reset conversation
-    // await agent.resetConversation();
+    // Display all startup information at once using the logger's dedicated method
+    const startupInfo: Parameters<typeof logger.displayStartupInfo>[0] = {
+        model: llmConfig.model,
+        provider: llmConfig.provider,
+        connectedServers: {
+            count: connectedServers.size,
+            names: Array.from(connectedServers.keys()),
+        },
+        sessionId: currentSessionId,
+        logLevel: logger.getLevel(),
+    };
+
+    if (Object.keys(failedConnections).length > 0) {
+        startupInfo.failedConnections = failedConnections;
+    }
+
+    if (toolStats) {
+        startupInfo.toolStats = toolStats;
+    }
+
+    const logFile = logger.getLogFilePath();
+    if (logFile) {
+        startupInfo.logFile = logFile;
+    }
+
+    // Display startup info to console
+    logger.displayStartupInfo(startupInfo);
+
+    // Log complete startup info to file for debugging
+    logger.debug(`Startup configuration: ${JSON.stringify(startupInfo, null, 2)}`);
 
     // Set up event management
     logger.info('Setting up CLI event subscriptions...');
@@ -75,15 +111,9 @@ async function _initCli(agent: DextoAgent): Promise<void> {
 
     // Load available tools
     logger.info('Loading available tools...');
-    try {
-        const toolStats = await agent.toolManager.getToolStats();
-
+    if (toolStats) {
         logger.info(
             `Loaded ${toolStats.total} total tools: ${toolStats.mcp} MCP, ${toolStats.internal} internal`
-        );
-    } catch (error) {
-        logger.error(
-            `Failed to load tools: ${error instanceof Error ? error.message : String(error)}`
         );
     }
 
