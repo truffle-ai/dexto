@@ -1,4 +1,4 @@
-import React, {version, type ReactNode} from 'react';
+import React, {version, type ReactNode, type HTMLAttributes} from 'react';
 import clsx from 'clsx';
 import {useNavbarSecondaryMenu} from '@docusaurus/theme-common/internal';
 import {ThemeClassNames} from '@docusaurus/theme-common';
@@ -7,10 +7,12 @@ import type {Props} from '@theme/Navbar/MobileSidebar/Layout';
 // TODO Docusaurus v4: remove temporary inert workaround
 //  See https://github.com/facebook/react/issues/17157
 //  See https://github.com/radix-ui/themes/pull/509
-function inertProps(inert: boolean) {
+function inertProps(inert: boolean): HTMLAttributes<HTMLDivElement> {
   const isBeforeReact19 = parseInt(version!.split('.')[0]!, 10) < 19;
   if (isBeforeReact19) {
-    return {inert: inert ? '' : undefined};
+    // React <19 workaround: set boolean attribute presence via empty string
+    // Cast to satisfy TS typings expecting boolean
+    return {inert: (inert ? ('' as unknown as boolean) : undefined) as unknown as boolean};
   }
   return {inert};
 }
