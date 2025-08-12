@@ -271,7 +271,7 @@ process.on('SIGTERM', async () => {
 });
 ```
 
-**What you're learning:** The same agent works everywhere - CLI, web, mobile, anywhere TypeScript/JavaScript runs.
+**What you're learning:** The same agent works everywhere—CLI, web, mobile—anywhere TypeScript runs.
 
 ### Testing Your Web Service
 

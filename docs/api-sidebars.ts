@@ -21,12 +21,13 @@ const sidebars: SidebarsConfig = {
         'websocket',
         {
             type: 'category',
-            label: 'TypeScript SDK',
+            label: 'Dexto SDK',
             link: {
                 type: 'generated-index',
-                title: 'TypeScript SDK API Reference',
+                slug: 'category/typescript-sdk',
+                title: 'Dexto SDK API Reference',
                 description:
-                    'Complete technical API reference for the Dexto TypeScript/JavaScript SDK.',
+                    'Complete technical API reference for the Dexto SDK for TypeScript/JavaScript.',
             },
             items: ['dexto-agent', 'mcp-manager', 'events', 'types'],
         },

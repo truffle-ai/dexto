@@ -131,14 +131,14 @@ Once deployed, your Dexto server provides:
 
 ## Next Steps
 
-- **[TypeScript SDK Guide](./typescript-sdk)** - Integrate Dexto into your application's codebase
+- **[Dexto SDK Guide](./dexto-sdk)** - Integrate Dexto into your application's codebase
 - **[API Reference](/api)** - Complete API documentation
 
 For more detailed information on configuring agents, refer to the [Dexto Configuration Guide](./configuring-dexto/overview).
 
-### Building with the TypeScript SDK
+### Building with the Dexto SDK for TypeScript
 
-For custom builds and advanced integration, you can use the [TypeScript SDK Guide](./typescript-sdk) to bundle Dexto into your own applications.
+For custom builds and advanced integration, you can use the [Dexto SDK Guide](./dexto-sdk) to bundle Dexto into your own applications.
 
 For a complete technical reference, see the [API Reference](/api).
 
