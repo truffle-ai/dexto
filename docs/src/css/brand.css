@@ -116,7 +116,9 @@
 } 
 
 /* Slightly increase navbar logo size */
-.navbar__logo {
+.navbar__logo img {
   height: 36px;
-  scale: 1.1;
+  transform: scale(1.1);
+  -webkit-transform: scale(1.1);
+  transform-origin: center;
 }
