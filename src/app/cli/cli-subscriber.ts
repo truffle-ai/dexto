@@ -1,4 +1,4 @@
-import { logger } from '@core/index.js';
+import { logger, Logger } from '@core/index.js';
 import boxen from 'boxen';
 import chalk from 'chalk';
 import { EventSubscriber } from '../api/types.js';
@@ -19,6 +19,15 @@ import { AgentEventBus } from '@core/events/index.js';
 export class CLISubscriber implements EventSubscriber {
     private accumulatedResponse: string = '';
     private currentLines: number = 0;
+    private consoleLogger: Logger;
+
+    constructor() {
+        // Create a console logger for error visibility
+        this.consoleLogger = new Logger({
+            logToConsole: true,
+            level: logger.getLevel(),
+        });
+    }
 
     subscribe(eventBus: AgentEventBus): void {
         eventBus.on('llmservice:thinking', this.onThinking.bind(this));
@@ -110,7 +119,9 @@ export class CLISubscriber implements EventSubscriber {
         this.accumulatedResponse = '';
         this.currentLines = 0;
 
-        logger.error(`❌ Error: ${error.message}`, null, 'red');
+        // Show error prominently via console logger and also log to file
+        this.consoleLogger.error(`❌ Error: ${error.message}`, { stack: error.stack }, 'red');
+        logger.error(`❌ Error: ${error.message}`, { stack: error.stack }, 'red');
     }
 
     onConversationReset(): void {
