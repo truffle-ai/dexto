@@ -131,7 +131,7 @@ systemPrompt:
 
 ## 2. Usage Methods
 
-Dexto can be used via its CLI, a TypeScript SDK, or as a server with a REST API.
+Dexto can be used via its CLI, the Dexto SDK for TypeScript, or as a server with a REST API.
 
 ### Method 1: CLI Usage
 

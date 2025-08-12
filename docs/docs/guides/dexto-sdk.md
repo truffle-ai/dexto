@@ -1,11 +1,11 @@
 ---
 sidebar_position: 1
-title: "TypeScript SDK Guide"
+title: "Dexto SDK Guide"
 ---
 
-# TypeScript SDK Guide
+# Dexto SDK Guide
 
-Welcome to the Dexto TypeScript/JavaScript SDK guide! This guide provides everything you need to start building powerful AI applications with Dexto.
+Welcome to the Dexto SDK guide for TypeScript. This guide provides everything you need to build high-quality AI applications with Dexto.
 
 Whether you're creating standalone agents, integrating with existing applications, or building custom AI workflows, the SDK offers a flexible and robust set of tools.
 
@@ -49,12 +49,12 @@ For more detailed examples, see the [Examples & Demos](/docs/category/examples--
 
 ## Overview
 
-The Dexto TypeScript SDK provides a complete library for building AI agents with MCP (Model Context Protocol) integration. It offers both high-level agent abstractions and low-level utilities for maximum flexibility.
+The Dexto SDK provides a complete TypeScript library for building AI agents with MCP (Model Context Protocol) integration. It offers both high-level agent abstractions and low-level utilities for maximum flexibility.
 
 ### When to Use the SDK vs REST API
 
-**Use the TypeScript SDK when:**
-- Building TypeScript/JavaScript applications
+**Use the Dexto SDK when:**
+- Building TypeScript applications
 - Need real-time event handling
 - Want type safety and IDE support
 - Require complex session management

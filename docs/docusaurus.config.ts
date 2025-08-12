@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
     title: 'Dexto',
     tagline: 'Build AI Agents with ease',
-    favicon: 'img/favicon.ico',
+    favicon: 'img/logo_no_text.png',
 
     // Set the production url of your site here
     url: 'https://docs.dexto.ai',
@@ -77,12 +77,9 @@ const config: Config = {
             respectPrefersColorScheme: true,
         },
         navbar: {
-            title: 'Dexto',
             logo: {
                 alt: 'Dexto Logo',
-                src: 'img/favicon.ico',
-                width: 32,
-                height: 32,
+                src: 'img/logo.svg',
             },
             hideOnScroll: true,
             items: [

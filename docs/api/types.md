@@ -2,9 +2,9 @@
 sidebar_position: 4
 ---
 
-# TypeScript Types
+# SDK Types for TypeScript
 
-Type definitions and interfaces for the Dexto TypeScript/JavaScript SDK.
+Type definitions and interfaces for the Dexto SDK for TypeScript.
 
 ## Core Imports
 
