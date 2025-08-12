@@ -1,6 +1,6 @@
 import readline from 'readline';
 import chalk from 'chalk';
-import { logger, Logger } from '@core/index.js';
+import { logger } from '@core/index.js';
 import { CLISubscriber } from './cli-subscriber.js';
 import { DextoAgent } from '@core/index.js';
 import { parseInput } from './interactive-commands/command-parser.js';
@@ -58,92 +58,52 @@ async function _initCli(agent: DextoAgent): Promise<void> {
     await loadMostRecentSession(agent);
     registerGracefulShutdown(agent);
 
-    // Create CLI-specific logger for console output
-    const cliLogger = new Logger({
-        logToConsole: true,
-        level: logger.getLevel(),
-    });
-
-    // Show current model/provider information prominently
+    // Gather startup information
     const llmConfig = agent.getCurrentLLMConfig();
-    cliLogger.info(`🤖 Current Model: ${llmConfig.model} (${llmConfig.provider})`, null, 'cyan');
-
-    // Show MCP server connection status
     const connectedServers = agent.mcpManager.getClients();
     const failedConnections = agent.mcpManager.getFailedConnections();
-
-    if (connectedServers.size > 0) {
-        const serverNames = Array.from(connectedServers.keys()).join(', ');
-        cliLogger.info(
-            `🔗 Connected Servers: ${connectedServers.size} (${serverNames})`,
-            null,
-            'green'
-        );
-    } else {
-        cliLogger.warn(`🔗 Connected Servers: 0 (no MCP servers connected)`, null, 'yellow');
-    }
-
-    if (Object.keys(failedConnections).length > 0) {
-        const failedNames = Object.keys(failedConnections);
-        cliLogger.error(
-            `❌ Failed Connections: ${failedNames.length} (${failedNames.join(', ')})`,
-            null,
-            'red'
-        );
-        // Show specific error details for failed connections
-        for (const [serverName, error] of Object.entries(failedConnections)) {
-            cliLogger.error(`   • ${serverName}: ${error}`, null, 'red');
-        }
-    }
-
-    // Show tool statistics
-    try {
-        const toolStats = await agent.toolManager.getToolStats();
-        cliLogger.info(
-            `🛠️  Available Tools: ${toolStats.total} total (${toolStats.mcp} MCP, ${toolStats.internal} internal)`,
-            null,
-            'green'
-        );
-    } catch (error) {
-        cliLogger.error(`🛠️  Available Tools: Failed to load tools`, null, 'red');
-        cliLogger.error(
-            `   • ${error instanceof Error ? error.message : String(error)}`,
-            null,
-            'red'
-        );
-    }
-
-    // Show session info
     const currentSessionId = agent.getCurrentSessionId();
-    if (currentSessionId) {
-        cliLogger.info(`💬 Session: ${currentSessionId}`, null, 'blue');
-    }
 
-    // Show log level and file location for debugging
-    cliLogger.info(
-        `📋 Log Level: ${logger.getLevel()} (file: ${logger.getLogFilePath()})`,
-        null,
-        'cyan'
-    );
-
-    // Set up event management
-    logger.info('Setting up CLI event subscriptions...');
-    const cliSubscriber = new CLISubscriber();
-    cliSubscriber.subscribe(agent.agentEventBus);
-
-    // Load available tools
-    logger.info('Loading available tools...');
+    let toolStats: { total: number; mcp: number; internal: number } | undefined;
     try {
-        const toolStats = await agent.toolManager.getToolStats();
-
-        logger.info(
-            `Loaded ${toolStats.total} total tools: ${toolStats.mcp} MCP, ${toolStats.internal} internal`
-        );
+        toolStats = await agent.toolManager.getToolStats();
     } catch (error) {
         logger.error(
             `Failed to load tools: ${error instanceof Error ? error.message : String(error)}`
         );
     }
+
+    // Display all startup information at once using the logger's dedicated method
+    const startupInfo: Parameters<typeof logger.displayStartupInfo>[0] = {
+        model: llmConfig.model,
+        provider: llmConfig.provider,
+        connectedServers: {
+            count: connectedServers.size,
+            names: Array.from(connectedServers.keys()),
+        },
+        sessionId: currentSessionId,
+        logLevel: logger.getLevel(),
+    };
+
+    if (Object.keys(failedConnections).length > 0) {
+        startupInfo.failedConnections = failedConnections;
+    }
+
+    if (toolStats) {
+        startupInfo.toolStats = toolStats;
+    }
+
+    const logFile = logger.getLogFilePath();
+    if (logFile) {
+        startupInfo.logFile = logFile;
+    }
+
+    logger.displayStartupInfo(startupInfo);
+
+    // Set up event management
+    logger.info('Setting up CLI event subscriptions...');
+    const cliSubscriber = new CLISubscriber();
+    cliSubscriber.subscribe(agent.agentEventBus);
 
     logger.info(`CLI initialized successfully. Ready for input.`, null, 'green');
 
