@@ -101,18 +101,8 @@ async function _initCli(agent: DextoAgent): Promise<void> {
     // Display startup info to console
     logger.displayStartupInfo(startupInfo);
 
-    // Also log this information to file for debugging (maintaining original logging)
-    logger.debug(`Log level: ${logger.getLevel()}`);
-    logger.info(`Current Model: ${llmConfig.model} (${llmConfig.provider})`);
-    logger.info(`Connected servers: ${connectedServers.size}`, null, 'green');
-    const failedConnectionsObj = agent.mcpManager.getFailedConnections();
-    if (Object.keys(failedConnectionsObj).length > 0) {
-        logger.error(
-            `Failed connections: ${Object.keys(failedConnectionsObj).length}.`,
-            null,
-            'red'
-        );
-    }
+    // Log complete startup info to file for debugging
+    logger.debug(`Startup configuration: ${JSON.stringify(startupInfo, null, 2)}`);
 
     // Set up event management
     logger.info('Setting up CLI event subscriptions...');
