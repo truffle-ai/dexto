@@ -110,9 +110,25 @@ export class CLISubscriber implements EventSubscriber {
         this.accumulatedResponse = '';
         this.currentLines = 0;
 
-        // Show error prominently via displayError method and also log to file
+        // Show error prominently via displayError method
         logger.displayError(error.message, error);
-        logger.error(`❌ Error: ${error.message}`, { stack: error.stack }, 'red');
+
+        // Log to file with level-based verbosity
+        if (logger.getLevel() === 'debug') {
+            // Debug level: include full error details and stack trace
+            logger.error(
+                `❌ Error: ${error.message}`,
+                {
+                    stack: error.stack,
+                    name: error.name,
+                    cause: error.cause,
+                },
+                'red'
+            );
+        } else {
+            // Info level and above: only log the error message
+            logger.error(`❌ Error: ${error.message}`, null, 'red');
+        }
     }
 
     onConversationReset(): void {
