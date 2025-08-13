@@ -6,6 +6,8 @@ import {
     cleanupTestEnvironment,
     TestEnvironment,
 } from './test-utils.integration.js';
+import { ErrorScope, ErrorType } from '@core/errors/index.js';
+import { LLMErrorCode } from '../error-codes.js';
 
 /**
  * Anthropic LLM Service Integration Tests
@@ -116,8 +118,8 @@ describe('Anthropic LLM Service Integration', () => {
         // Test with unsupported file type to trigger validation error
         const invalidFileData = Buffer.from('test data').toString('base64');
 
-        await expect(async () => {
-            await testEnv.agent.run(
+        await expect(
+            testEnv.agent.run(
                 'Process this file',
                 undefined,
                 {
@@ -126,8 +128,16 @@ describe('Anthropic LLM Service Integration', () => {
                     filename: 'test.unknown',
                 },
                 testEnv.sessionId
-            );
-        }).rejects.toThrow();
+            )
+        ).rejects.toMatchObject({
+            issues: [
+                expect.objectContaining({
+                    code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                }),
+            ],
+        });
     });
 
     // Skip test warning

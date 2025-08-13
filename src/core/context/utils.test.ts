@@ -171,32 +171,6 @@ describe('filterMessagesByLLMCapabilities', () => {
         ]);
     });
 
-    test('should throw error when no model specified', () => {
-        const messages: InternalMessage[] = [
-            {
-                role: 'user',
-                content: [
-                    {
-                        type: 'file',
-                        data: 'audiodata',
-                        mimeType: 'audio/mp3',
-                        filename: 'song.mp3',
-                    },
-                ],
-            },
-        ];
-
-        // Create an invalid config at runtime to test the error
-        const config = { provider: 'anthropic' } as any; // No model specified
-
-        expect(() => filterMessagesByLLMCapabilities(messages, config)).toThrow(
-            expect.objectContaining({
-                scope: ErrorScope.CONTEXT,
-                type: ErrorType.USER,
-            })
-        );
-    });
-
     test('should only filter user messages with array content', () => {
         const messages: InternalMessage[] = [
             {

@@ -196,38 +196,36 @@ export class VercelLLMService implements ILLMService {
         let iterationCount = 0;
         let fullResponse = '';
 
-        while (iterationCount < 1) {
-            this.sessionEventBus.emit('llmservice:thinking');
-            iterationCount++;
-            logger.debug(`Iteration ${iterationCount}`);
-            const prepared = await this.contextManager.getFormattedMessagesWithCompression(
-                { mcpManager: this.toolManager.getMcpManager() },
-                { provider: this.config.provider, model: this.model.modelId }
-            );
-            const formattedMessages: unknown[] = prepared.formattedMessages;
-            const _systemPrompt: string | undefined = prepared.systemPrompt;
-            const tokensUsed: number = prepared.tokensUsed;
+        this.sessionEventBus.emit('llmservice:thinking');
+        iterationCount++;
+        logger.debug(`Iteration ${iterationCount}`);
+        const prepared = await this.contextManager.getFormattedMessagesWithCompression(
+            { mcpManager: this.toolManager.getMcpManager() },
+            { provider: this.config.provider, model: this.model.modelId }
+        );
+        const formattedMessages: unknown[] = prepared.formattedMessages;
+        const _systemPrompt: string | undefined = prepared.systemPrompt;
+        const tokensUsed: number = prepared.tokensUsed;
 
-            logger.silly(
-                `Messages (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
-            );
-            logger.silly(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
-            logger.debug(`Estimated tokens being sent to Vercel provider: ${tokensUsed}`);
+        logger.silly(
+            `Messages (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
+        );
+        logger.silly(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
+        logger.debug(`Estimated tokens being sent to Vercel provider: ${tokensUsed}`);
 
-            // Both methods now return strings and handle message processing internally
-            if (stream) {
-                fullResponse = await this.streamText(
-                    formattedMessages,
-                    formattedTools,
-                    this.config.maxIterations
-                );
-            } else {
-                fullResponse = await this.generateText(
-                    formattedMessages,
-                    formattedTools,
-                    this.config.maxIterations
-                );
-            }
+        // Both methods now return strings and handle message processing internally
+        if (stream) {
+            fullResponse = await this.streamText(
+                formattedMessages,
+                formattedTools,
+                this.config.maxIterations
+            );
+        } else {
+            fullResponse = await this.generateText(
+                formattedMessages,
+                formattedTools,
+                this.config.maxIterations
+            );
         }
 
         return (
