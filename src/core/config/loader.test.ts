@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { loadAgentConfig } from './loader.js';
-import { ConfigErrorCode, ErrorScope, ErrorType } from '@core/errors/index.js';
+import { ErrorScope, ErrorType } from '@core/errors/index.js';
+import { ConfigErrorCode } from './error-codes.js';
 
 const tmpFile = path.resolve(process.cwd(), 'src/core/config/temp-config.yml');
 
