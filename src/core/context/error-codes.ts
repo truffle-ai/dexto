@@ -2,7 +2,7 @@
  * Context-specific error codes
  * Includes initialization, message validation, token processing, and formatting errors
  */
-export const enum ContextErrorCode {
+export enum ContextErrorCode {
     // Message validation
     MESSAGE_ROLE_MISSING = 'context_message_role_missing',
     MESSAGE_CONTENT_EMPTY = 'context_message_content_empty',

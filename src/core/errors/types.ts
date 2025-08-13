@@ -12,7 +12,7 @@ import type { ToolErrorCode } from '@core/tools/error-codes.js';
  * Error scopes representing functional domains in the system
  * Each scope owns its validation and error logic
  */
-export const enum ErrorScope {
+export enum ErrorScope {
     LLM = 'llm', // LLM operations, model compatibility, input validation for LLMs
     AGENT = 'agent', // Agent lifecycle, configuration
     CONFIG = 'config', // Configuration file operations, parsing, validation
@@ -28,7 +28,7 @@ export const enum ErrorScope {
  * Error types that map directly to HTTP status codes
  * Each type represents the nature of the error
  */
-export const enum ErrorType {
+export enum ErrorType {
     USER = 'user', // 400 - bad input, config errors, validation failures
     NOT_FOUND = 'not_found', // 404 - resource doesn't exist (session, file, etc.)
     FORBIDDEN = 'forbidden', // 403 - permission denied, unauthorized

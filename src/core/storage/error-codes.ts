@@ -2,7 +2,7 @@
  * Storage-specific error codes
  * Includes database, file system, and persistence errors
  */
-export const enum StorageErrorCode {
+export enum StorageErrorCode {
     // Connection
     CONNECTION_FAILED = 'storage_connection_failed',
     CONNECTION_CONFIG_MISSING = 'storage_connection_config_missing',

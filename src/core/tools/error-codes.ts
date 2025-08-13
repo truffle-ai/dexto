@@ -2,7 +2,7 @@
  * Tools-specific error codes
  * Includes tool execution, confirmation, and authorization errors
  */
-export const enum ToolErrorCode {
+export enum ToolErrorCode {
     // Execution
     EXECUTION_DENIED = 'tools_execution_denied',
     EXECUTION_TIMEOUT = 'tools_execution_timeout',

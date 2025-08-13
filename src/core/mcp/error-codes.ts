@@ -2,7 +2,7 @@
  * MCP-specific error codes
  * Includes server configuration, connection, and protocol errors
  */
-export const enum MCPErrorCode {
+export enum MCPErrorCode {
     // Configuration validation (used in schemas/resolver)
     SCHEMA_VALIDATION = 'mcp_schema_validation',
     COMMAND_MISSING = 'mcp_command_missing',

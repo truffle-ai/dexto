@@ -2,7 +2,7 @@
  * Session-specific error codes
  * Includes session lifecycle, management, and state errors
  */
-export const enum SessionErrorCode {
+export enum SessionErrorCode {
     // Session lifecycle
     SESSION_NOT_FOUND = 'session_not_found',
     SESSION_INITIALIZATION_FAILED = 'session_initialization_failed',

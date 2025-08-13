@@ -2,7 +2,7 @@
  * LLM-specific error codes
  * Includes configuration, validation, and runtime errors for LLM operations
  */
-export const enum LLMErrorCode {
+export enum LLMErrorCode {
     // Configuration errors
     API_KEY_MISSING = 'llm_api_key_missing',
     API_KEY_INVALID = 'llm_api_key_invalid', // Too short, wrong format

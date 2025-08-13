@@ -2,7 +2,7 @@
  * SystemPrompt-specific error codes
  * Includes file processing and configuration errors
  */
-export const enum SystemPromptErrorCode {
+export enum SystemPromptErrorCode {
     // File processing
     FILE_INVALID_TYPE = 'systemprompt_file_invalid_type',
     FILE_TOO_LARGE = 'systemprompt_file_too_large',
