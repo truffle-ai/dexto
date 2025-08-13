@@ -1,0 +1,62 @@
+{
+  "database-agent": {
+    "name": "database-agent",
+    "displayName": "Database Agent",
+    "description": "Demo AI agent for database operations and SQL queries",
+    "version": "1.0.0",
+    "author": "Truffle AI",
+    "tags": ["database", "sql", "data", "queries"],
+    "configFile": "database-agent/database-agent.yml",
+    "lastUpdated": "2025-08-04T12:44:11Z"
+  },
+  "talk2pdf-agent": {
+    "name": "talk2pdf-agent",
+    "displayName": "Talk2PDF Agent",
+    "description": "AI agent for PDF document analysis and conversation",
+    "version": "1.0.0",
+    "author": "Truffle AI",
+    "tags": ["pdf", "documents", "analysis", "conversation"],
+    "configFile": "talk2pdf-agent/talk2pdf-agent.yml",
+    "lastUpdated": "2025-08-04T12:44:11Z"
+  },
+  "image-editor-agent": {
+    "name": "image-editor-agent",
+    "displayName": "Image Editor Agent",
+    "description": "AI agent for image editing and manipulation",
+    "version": "1.0.0",
+    "author": "Truffle AI",
+    "tags": ["images", "editing", "graphics", "visual"],
+    "configFile": "image-editor-agent/image-editor-agent.yml",
+    "lastUpdated": "2025-08-04T12:44:11Z"
+  },
+  "music-agent": {
+    "name": "music-agent",
+    "displayName": "Music Agent",
+    "description": "AI agent for music creation and audio processing",
+    "version": "1.0.0",
+    "author": "Truffle AI",
+    "tags": ["music", "audio", "creation", "sound"],
+    "configFile": "music-agent/music-agent.yml",
+    "lastUpdated": "2025-08-04T12:44:11Z"
+  },
+  "product-researcher": {
+    "name": "product-researcher",
+    "displayName": "Product Name Researcher",
+    "description": "AI agent for product name research and branding",
+    "version": "1.0.0",
+    "author": "Truffle AI",
+    "tags": ["product", "research", "branding", "naming"],
+    "configFile": "product-name-researcher/product-name-researcher.yml",
+    "lastUpdated": "2025-08-04T12:44:11Z"
+  },
+  "triage-agent": {
+    "name": "triage-agent",
+    "displayName": "Support Triage Agent",
+    "description": "AI agent for customer support triage and routing",
+    "version": "1.0.0",
+    "author": "Truffle AI",
+    "tags": ["support", "triage", "customer-service", "routing"],
+    "configFile": "triage-demo/triage-agent.yml",
+    "lastUpdated": "2025-08-04T12:44:11Z"
+  }
+}

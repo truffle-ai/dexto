@@ -19,7 +19,9 @@ import {
     DextoAgent,
     loadAgentConfig,
     LLMProvider,
+    getDefaultAgentRegistry,
 } from '@core/index.js';
+import { DEFAULT_CONFIG_PATH } from '@core/utils/path.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import { startAiCli, startHeadlessCli } from './cli/cli.js';
@@ -28,7 +30,7 @@ import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import { applyCLIOverrides } from './config/cli-overrides.js';
+import { applyCLIOverrides, CLIConfigOverrides } from './config/cli-overrides.js';
 import { isFirstTimeUserScenario, handleFirstTimeSetup } from './cli/utils/first-time-setup.js';
 import { getPort } from '@core/utils/port-utils.js';
 import {
@@ -45,7 +47,6 @@ import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
 import { createAgentCard } from '@core/config/agentCard.js';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
-import { CLIConfigOverrides } from './config/cli-overrides.js';
 
 const program = new Command();
 
@@ -54,7 +55,15 @@ program
     .name('dexto')
     .description('AI-powered CLI and WebUI for interacting with MCP servers')
     .version(pkg.version, '-v, --version', 'output the current version')
-    .option('-a, --agent <path>', 'Path to agent config file')
+    .option(
+        '-a, --agent <path>',
+        'Agent name (from registry) or path to agent config file',
+        DEFAULT_CONFIG_PATH
+    )
+    .option(
+        '-p, --prompt <text>',
+        'One-shot prompt text. Alternatively provide a single quoted string as positional argument.'
+    )
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('-m, --model <model>', 'Specify the LLM model to use. ')
@@ -138,7 +147,49 @@ program
         }
     });
 
-// 4) `mcp` SUB-COMMAND
+// 4) `list-agents` SUB-COMMAND
+program
+    .command('list-agents')
+    .description('List all available agents in the registry')
+    .action(async () => {
+        try {
+            const registry = getDefaultAgentRegistry();
+            const agents = await registry.listAgents();
+
+            if (agents.length === 0) {
+                console.log(chalk.yellow('No agents found in the registry.'));
+                return;
+            }
+
+            console.log(chalk.bold.cyan('\n📋 Available Agents:\n'));
+
+            agents.forEach((agent) => {
+                console.log(chalk.bold.green(`• ${agent.name}`));
+                console.log(chalk.dim(`  ${agent.description}`));
+                if (agent.tags && agent.tags.length > 0) {
+                    console.log(chalk.dim(`  Tags: ${agent.tags.join(', ')}`));
+                }
+                console.log(); // Empty line for spacing
+            });
+
+            console.log(chalk.dim(`Total: ${agents.length} agents available`));
+            console.log(chalk.dim('\nUsage examples:'));
+            console.log(
+                chalk.dim(`  npx @truffle-ai/dexto -a ${agents[0]?.name || 'github-agent'}`)
+            );
+            console.log(
+                chalk.dim(`  npx @truffle-ai/dexto --agent ${agents[0]?.name || 'github-agent'}`)
+            );
+            console.log(chalk.dim('  npx @truffle-ai/dexto --agent /path/to/custom-agent.yml'));
+        } catch (error) {
+            console.error(
+                `❌ Failed to list agents: ${error instanceof Error ? error.message : String(error)}`
+            );
+            process.exit(1);
+        }
+    });
+
+// 5) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -221,7 +272,9 @@ program
         'Dexto CLI allows you to talk to Dexto, build custom AI Agents, ' +
             'build complex AI applications like Cursor, and more.\n\n' +
             // TODO: Add `dexto tell me about your cli` starter prompt
-            'Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto <prompt>`\n' +
+            'Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto -p "<prompt>"` or `dexto "<prompt>"`\n' +
+            'Use available agents: `dexto -a github-agent`, `dexto -a database-agent`, etc.\n' +
+            'List all available agents with `dexto list-agents`\n' +
             'Start with a new session using `dexto --new-session [sessionId]`\n' +
             'Run dexto web UI with `dexto --mode web`\n' +
             'Run dexto as a server (REST APIs + WebSockets) with `dexto --mode server`\n' +
@@ -237,8 +290,50 @@ program
             logger.debug('WARNING: .env file not found; copy .env.example and set your API keys.');
         }
 
+        // Check if any API key is available for common providers
+        const commonProviders: LLMProvider[] = [
+            'openai',
+            'google',
+            'anthropic',
+            'groq',
+            'xai',
+            'cohere',
+        ];
+        const hasApiKey = commonProviders.some((provider) => resolveApiKeyForProvider(provider));
+
+        if (!hasApiKey) {
+            console.log(
+                chalk.yellow(
+                    '⚠️  No API keys found for common LLM providers (OpenAI, Google, Anthropic, etc.)'
+                )
+            );
+            console.log(
+                chalk.dim(
+                    'You may need to set up API keys in your .env file to use certain features.'
+                )
+            );
+        }
+
         const opts = program.opts();
-        const headlessInput = prompt.join(' ') || undefined;
+        let headlessInput: string | undefined = undefined;
+
+        // Prefer explicit -p/--prompt for headless one-shot
+        if (opts.prompt) {
+            headlessInput = String(opts.prompt);
+        } else if (prompt.length > 0) {
+            // Enforce quoted single positional argument for headless mode
+            if (prompt.length === 1) {
+                headlessInput = prompt[0];
+            } else {
+                console.error(
+                    '❌ For headless one-shot mode, pass the prompt in double quotes as a single argument (e.g., "say hello") or use -p/--prompt.'
+                );
+                process.exit(1);
+            }
+        }
+
+        // Note: Agent selection must be passed via -a/--agent. We no longer interpret
+        // the first positional argument as an agent name to avoid ambiguity with prompts.
 
         // ——— Infer provider & API key from model ———
         if (opts.model) {
@@ -311,8 +406,23 @@ program
         // ——— CREATE AGENT ———
         let agent: DextoAgent;
         try {
-            console.log(`🚀 Initializing Dexto with config: ${resolveConfigPath(opts.agent)}`);
+            const configPath = opts.agent === DEFAULT_CONFIG_PATH ? undefined : opts.agent;
 
+            // Resolve the actual config path for display (using the same logic as loadAgentConfig)
+            let displayPath: string;
+            if (configPath) {
+                try {
+                    const registry = getDefaultAgentRegistry();
+                    displayPath = await registry.resolveAgent(configPath);
+                } catch (_error) {
+                    displayPath = resolveConfigPath(configPath);
+                }
+            } else {
+                // When configPath is undefined, resolveConfigPath will use default behavior
+                displayPath = resolveConfigPath(undefined);
+            }
+
+            console.log(`🚀 Initializing Dexto with config: ${displayPath}`);
             // Set run mode for tool confirmation provider
             process.env.DEXTO_RUN_MODE = opts.mode;
 

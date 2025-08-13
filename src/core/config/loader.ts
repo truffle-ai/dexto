@@ -3,6 +3,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
 import { resolveConfigPath } from '../utils/path.js';
+import { resolveAgentConfig } from '../agent-registry/index.js';
 import {
     ConfigFileNotFoundError,
     ConfigFileReadError,
@@ -32,10 +33,24 @@ import {
  * @throws {ConfigParseError} If the content of the configuration file is not valid YAML.
  */
 export async function loadAgentConfig(configPath?: string): Promise<AgentConfig> {
-    // Resolve the absolute path of the configuration file.
-    // This utility function should handle cases where `configPath` is undefined,
-    // determining a default or conventional location for the config.
-    const absolutePath = resolveConfigPath(configPath);
+    let absolutePath: string;
+
+    // If configPath is provided, try to resolve it through the agent registry first
+    if (configPath) {
+        try {
+            // This will handle both registry agent names and file paths
+            absolutePath = await resolveAgentConfig(configPath);
+        } catch (error) {
+            // If agent registry resolution fails, fall back to the old behavior
+            logger.debug(
+                `Agent registry resolution failed for '${configPath}': ${error instanceof Error ? error.message : String(error)}`
+            );
+            absolutePath = resolveConfigPath(configPath);
+        }
+    } else {
+        // No configPath provided, use default behavior
+        absolutePath = resolveConfigPath(configPath);
+    }
 
     // --- Step 1: Verify the configuration file exists and is accessible ---
     try {

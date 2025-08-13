@@ -65,6 +65,13 @@
         "dist/",
         "agents/agent.yml",
         "agents/agent-template.yml",
+        "agents/agent-registry.json",
+        "agents/talk2pdf-agent/",
+        "agents/image-editor-agent/",
+        "agents/music-agent/",
+        "agents/product-name-researcher/",
+        "agents/triage-demo/",
+        "agents/database-agent/",
         "public/"
     ],
     "dependencies": {

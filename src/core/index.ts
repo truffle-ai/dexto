@@ -12,3 +12,4 @@ export * from './events/index.js';
 export * from './storage/index.js';
 export * from './tools/index.js';
 export * from './session/index.js';
+export * from './agent-registry/index.js';
