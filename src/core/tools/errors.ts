@@ -136,4 +136,17 @@ export class ToolError {
             {}
         );
     }
+
+    /**
+     * Confirmation cancelled
+     */
+    static confirmationCancelled(toolName: string, reason: string) {
+        return new DextoRuntimeError(
+            ToolErrorCode.CONFIRMATION_CANCELLED,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Tool confirmation for '${toolName}' was cancelled: ${reason}`,
+            { toolName, reason }
+        );
+    }
 }

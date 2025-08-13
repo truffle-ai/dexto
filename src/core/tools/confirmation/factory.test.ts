@@ -4,6 +4,8 @@ import { EventBasedConfirmationProvider } from './event-based-confirmation-provi
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
 import { InMemoryAllowedToolsProvider } from './allowed-tools-provider/in-memory.js';
 import { AgentEventBus } from '../../events/index.js';
+import { ErrorScope, ErrorType } from '@core/errors/index.js';
+import { ToolErrorCode } from '../error-codes.js';
 
 describe('Tool Confirmation Factory', () => {
     let agentEventBus: AgentEventBus;
@@ -91,7 +93,11 @@ describe('Tool Confirmation Factory', () => {
 
             // Cross the timeout threshold
             await vi.advanceTimersByTimeAsync(1);
-            await expect(confirmationPromise).rejects.toThrow(/timeout/i);
+            await expect(confirmationPromise).rejects.toMatchObject({
+                code: ToolErrorCode.CONFIRMATION_TIMEOUT,
+                scope: ErrorScope.TOOLS,
+                type: ErrorType.TIMEOUT,
+            });
 
             vi.useRealTimers();
         });

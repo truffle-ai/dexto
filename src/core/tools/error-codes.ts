@@ -11,6 +11,7 @@ export enum ToolErrorCode {
     // Confirmation
     CONFIRMATION_HANDLER_MISSING = 'tools_confirmation_handler_missing',
     CONFIRMATION_TIMEOUT = 'tools_confirmation_timeout',
+    CONFIRMATION_CANCELLED = 'tools_confirmation_cancelled',
 
     // Tool management
     TOOL_NOT_FOUND = 'tools_tool_not_found',
