@@ -2,7 +2,7 @@
 /* eslint-env node */
 // Usage: start server, then run: node ./scripts/test_websocket_comprehensive.js ws://localhost:3001
 
-import { WebSocket } from 'ws';
+import WebSocket from 'ws';
 
 const WS_URL = process.argv[2] || 'ws://localhost:3001';
 
@@ -80,10 +80,15 @@ async function runWebSocketTest(name, message, expectations) {
 
         ws.on('close', (code, reason) => {
             if (expectations.shouldCloseConnection) {
-                console.log(`  ${green('PASS: Connection closed as expected')}`);
+                const noEvents = receivedEvents.length === 0;
+                if (noEvents) {
+                    console.log(`  ${green('PASS: Connection closed as expected')}`);
+                } else {
+                    console.log(`  ${red('FAIL: Connection closed but events were received')}`);
+                }
                 console.log(`  Close code: ${code}, reason: ${reason?.toString() || 'none'}`);
                 console.log();
-                testPassed = true;
+                testPassed = noEvents;
             }
             clearTimeout(timeout);
             resolve(testPassed);
