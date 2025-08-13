@@ -23,20 +23,6 @@ export class AgentError {
     }
 
     /**
-     * Configuration invalid
-     */
-    static configInvalid(message: string, details?: unknown) {
-        return new DextoRuntimeError(
-            AgentErrorCode.CONFIG_INVALID,
-            ErrorScope.AGENT,
-            ErrorType.USER,
-            message,
-            details,
-            'Fix the configuration errors and try again'
-        );
-    }
-
-    /**
      * Agent initialization failed
      */
     static initializationFailed(reason: string, details?: unknown) {
@@ -47,19 +33,6 @@ export class AgentError {
             `Agent initialization failed: ${reason}`,
             details,
             'Check logs for initialization errors'
-        );
-    }
-
-    /**
-     * Run operation failed
-     */
-    static runFailed(reason: string, details?: unknown) {
-        return new DextoRuntimeError(
-            AgentErrorCode.RUN_FAILED,
-            ErrorScope.AGENT,
-            ErrorType.SYSTEM,
-            `Agent run failed: ${reason}`,
-            details
         );
     }
 }
