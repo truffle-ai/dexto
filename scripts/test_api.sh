@@ -37,7 +37,7 @@ run_test() {
   echo "  Expected: ${expected_code}  Got: ${http_code}"
   echo "  Body: ${resp_body}" | sed 's/^/  /'
   echo
-  if [[ "${status}" == "$(red FAIL)" ]]; then
+  if [[ "${http_code}" != "${expected_code}" ]]; then
     return 1
   fi
 }

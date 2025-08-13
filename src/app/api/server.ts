@@ -83,12 +83,11 @@ const MessageRequestSchema = z
     })
     .refine(
         (data) => {
+            const msg = (data.message ?? '').trim();
             // Must have either message text, image data, or file data
-            return (data.message && data.message.length > 0) || data.imageData || data.fileData;
+            return msg.length > 0 || !!data.imageData || !!data.fileData;
         },
-        {
-            message: 'Must provide either message text, image data, or file data',
-        }
+        { message: 'Must provide either message text, image data, or file data' }
     );
 
 // Reuse existing MCP server config schema
@@ -212,14 +211,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             if (fileDataInput) logger.info('File data included in message.');
             if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            await agent.run(
+            const response = await agent.run(
                 message || '',
                 imageDataInput,
                 fileDataInput,
                 sessionId,
-                stream || false
+                false // Force non-streaming for sync endpoint
             );
-            return res.status(202).send({ status: 'processing', sessionId });
+            return res.status(200).json({ response, sessionId });
         } catch (error) {
             return next(error);
         }
@@ -228,7 +227,10 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     app.post('/api/reset', express.json(), async (req, res, next) => {
         logger.info('Received request via POST /api/reset');
         try {
-            const sessionId = req.body.sessionId as string | undefined;
+            const { sessionId } = parseBody(
+                z.object({ sessionId: z.string().optional() }),
+                req.body
+            );
             await agent.resetConversation(sessionId);
             return res.status(200).send({ status: 'reset initiated', sessionId });
         } catch (error) {
