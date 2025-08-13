@@ -33,6 +33,7 @@ import {
 } from '@core/llm/registry.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
+import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -397,22 +398,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     );
 
                     if (!validation.ok) {
-                        const errorMessages = validation.issues
-                            .filter((issue) => issue.severity === 'error')
-                            .map((issue) => issue.message);
-
-                        const errorDetails = {
-                            error: errorMessages.join('; '),
-                            provider: currentConfig.llm.provider,
-                            model: currentConfig.llm.model,
-                            issues: validation.issues,
-                        };
-
-                        ws.send(
-                            JSON.stringify({
-                                event: 'error',
-                                data: errorDetails,
-                            })
+                        sendWebSocketValidationError(
+                            ws,
+                            'Invalid input for current LLM configuration',
+                            {
+                                provider: currentConfig.llm.provider,
+                                model: currentConfig.llm.model,
+                                issues: validation.issues,
+                            }
                         );
                         return;
                     }
@@ -426,22 +419,15 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     await agent.resetConversation(sessionId);
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
-                    ws.send(
-                        JSON.stringify({
-                            event: 'error',
-                            data: { message: 'Unknown message type' },
-                        })
-                    );
+                    sendWebSocketValidationError(ws, 'Unknown message type', {
+                        messageType: data.type,
+                    });
                 }
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                logger.error(`Error processing WebSocket message: ${errorMessage}`);
-                ws.send(
-                    JSON.stringify({
-                        event: 'error',
-                        data: { message: 'Failed to process message' },
-                    })
+                logger.error(
+                    `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
+                sendWebSocketError(ws, error);
             }
         });
         ws.on('close', () => {
