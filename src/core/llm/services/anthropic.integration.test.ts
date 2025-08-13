@@ -114,7 +114,7 @@ describe('Anthropic LLM Service Integration', () => {
     // Error handling tests
     test.skipIf(skipTests)('errors handled with correct error codes', async () => {
         // Test with unsupported file type to trigger validation error
-        const invalidFileData = btoa('test data');
+        const invalidFileData = Buffer.from('test data').toString('base64');
 
         await expect(async () => {
             await testEnv.agent.run(

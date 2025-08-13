@@ -2,7 +2,7 @@ import { ChatCompletionMessageParam, ChatCompletionContentPart } from 'openai/re
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
+import { getImageData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
 import { logger } from '@core/logger/index.js';
 
 /**
@@ -180,13 +180,6 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     return { type: 'image_url', image_url: { url } };
                 }
                 if (part.type === 'file') {
-                    const raw = getFileData(part);
-                    const url =
-                        raw.startsWith('http://') ||
-                        raw.startsWith('https://') ||
-                        raw.startsWith('data:')
-                            ? raw
-                            : `data:${part.mimeType || 'application/octet-stream'};base64,${raw}`;
                     return { type: 'file', file: part };
                 }
                 return null;

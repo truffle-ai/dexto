@@ -2,7 +2,6 @@ import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
-import type { InternalMessage } from '@core/context/types.js';
 import type { ILLMService } from '../llm/services/types.js';
 import type { PromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';

@@ -4,7 +4,6 @@ import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 

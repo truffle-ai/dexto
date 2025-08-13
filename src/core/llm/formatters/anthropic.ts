@@ -3,7 +3,6 @@ import type {
     ContentBlockParam,
     TextBlockParam,
     ImageBlockParam,
-    ToolUseBlockParam,
     ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages';
 import { IMessageFormatter } from './types.js';
