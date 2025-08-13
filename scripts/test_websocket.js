@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-env node */
 // Usage: start server, then run: node ./scripts/test_websocket_comprehensive.js ws://localhost:3001
 
 import { WebSocket } from 'ws';
@@ -66,7 +67,7 @@ async function runWebSocketTest(name, message, expectations) {
                     ws.close();
                     resolve(true);
                 }
-            } catch (e) {
+            } catch {
                 console.log(`  ${red('Invalid JSON in WebSocket response')}: ${data.toString()}`);
             }
         });

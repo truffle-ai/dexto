@@ -362,9 +362,6 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const session = await this.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
 
         await session.reset();
 
@@ -557,9 +554,6 @@ export class SessionManager {
         sessionId: string
     ): Promise<{ message: string; warnings: string[] }> {
         const session = await this.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
 
         await session.switchLLM(newLLMConfig);
 

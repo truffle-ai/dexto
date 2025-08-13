@@ -13,7 +13,7 @@ import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
-import { Result, ok, fail } from '../utils/result.js';
+import { Result } from '../utils/result.js';
 import type { LLMUpdateContext } from '../llm/types.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -672,8 +672,7 @@ export class DextoAgent {
         const validatedConfig = ensureOk(result);
 
         // Perform the actual LLM switch with validated config
-        const switchResult = await this.performLLMSwitch(validatedConfig, sessionId);
-        ensureOk(switchResult);
+        await this.performLLMSwitch(validatedConfig, sessionId);
 
         // Log warnings if present
         const warnings = result.issues.filter((issue) => issue.severity === 'warning');
@@ -697,7 +696,7 @@ export class DextoAgent {
     private async performLLMSwitch(
         validatedConfig: ValidatedLLMConfig,
         sessionScope?: string
-    ): Promise<Result<void, LLMUpdateContext>> {
+    ): Promise<void> {
         // Update state manager (no validation needed - already validated)
         this.stateManager.updateLLM(validatedConfig, sessionScope);
 
@@ -705,29 +704,12 @@ export class DextoAgent {
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
-            // Verify session exists
-            const session = await this.sessionManager.getSession(sessionScope);
-            if (!session) {
-                return fail([
-                    {
-                        code: SessionErrorCode.SESSION_NOT_FOUND,
-                        message: `Session ${sessionScope} not found`,
-                        scope: ErrorScope.SESSION,
-                        type: ErrorType.NOT_FOUND,
-                        severity: 'error',
-                        context: {
-                            provider: validatedConfig.provider,
-                            model: validatedConfig.model,
-                        },
-                    },
-                ]);
-            }
+            // getSession() throws SessionError.notFound() if session doesn't exist
+            await this.sessionManager.getSession(sessionScope);
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             await this.sessionManager.switchLLMForDefaultSession(validatedConfig);
         }
-
-        return ok(undefined);
     }
 
     /**
