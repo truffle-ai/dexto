@@ -4,6 +4,9 @@ import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { SessionErrorCode } from './error-codes.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -260,9 +263,11 @@ describe('SessionManager', () => {
                 'session:session-2',
             ]);
 
-            await expect(limitedManager.createSession()).rejects.toThrow(
-                'Maximum sessions (2) reached'
-            );
+            await expect(limitedManager.createSession()).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.USER,
+            });
         });
 
         test('should clean up expired sessions before enforcing limits', async () => {
@@ -539,7 +544,11 @@ describe('SessionManager', () => {
 
             await expect(
                 sessionManager.switchLLMForSpecificSession(newLLMConfig, 'non-existent')
-            ).rejects.toThrow('Session non-existent not found');
+            ).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_NOT_FOUND,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.NOT_FOUND,
+            });
         });
 
         test('should handle partial failures when switching LLM for all sessions', async () => {
@@ -685,9 +694,10 @@ describe('SessionManager', () => {
 
             // All failures should be due to session limit
             failures.forEach((failure) => {
-                expect((failure as PromiseRejectedResult).reason.message).toContain(
-                    'Maximum sessions (2) reached'
-                );
+                const err = (failure as PromiseRejectedResult).reason as any;
+                expect(err.code).toBe(SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED);
+                expect(err.scope).toBe(ErrorScope.SESSION);
+                expect(err.type).toBe(ErrorType.USER);
             });
 
             // Clean up

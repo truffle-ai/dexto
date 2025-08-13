@@ -314,7 +314,7 @@ export class DextoAgent {
         fileDataInput?: { data: string; mimeType: string; filename?: string },
         sessionId?: string,
         stream: boolean = false
-    ): Promise<string | null> {
+    ): Promise<string> {
         this.ensureStarted();
         try {
             // Determine target session ID for validation
@@ -368,14 +368,12 @@ export class DextoAgent {
             const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
-            await this.sessionManager.incrementMessageCount(session.id);
+            // Fire-and-forget to avoid race conditions during shutdown
+            this.sessionManager
+                .incrementMessageCount(session.id)
+                .catch((error) => logger.warn(`Failed to increment message count: ${error}`));
 
-            // If response is an empty string, treat it as no significant response.
-            if (response && response.trim() !== '') {
-                return response;
-            }
-            // Return null if the response is empty or just whitespace.
-            return null;
+            return response;
         } catch (error) {
             logger.error(
                 `Error during DextoAgent.run: ${error instanceof Error ? error.message : String(error)}`

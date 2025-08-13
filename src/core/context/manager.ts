@@ -27,8 +27,10 @@ import { ContextError } from './errors.js';
  * TODO: clean up tokenizer logic if we are relying primarily on LLM API to give us token count.
  * TODO: Move InternalMessage parsing logic to zod
  * Right now its weaker because it doesn't account for tools and other non-text content in the prompt.
+ *
+ * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, CoreMessage)
  */
-export class ContextManager {
+export class ContextManager<TMessage = unknown> {
     /**
      * PromptManager used to generate/manage the system prompt
      */
@@ -261,11 +263,6 @@ export class ContextManager {
      * @throws Error if message validation fails
      */
     async addMessage(message: InternalMessage): Promise<void> {
-        // Validation based on role
-        if (!message.role) {
-            throw ContextError.messageRoleMissing();
-        }
-
         switch (message.role) {
             case 'user':
                 if (
@@ -310,31 +307,18 @@ export class ContextManager {
                     throw ContextError.systemMessageContentInvalid();
                 }
                 break;
-            default:
-                throw ContextError.messageRoleUnknown((message as any).role);
         }
 
         logger.debug(
             `ContextManager: Adding message to history provider: ${JSON.stringify(message, null, 2)}`
         );
 
-        try {
-            // Save to history provider
-            await this.historyProvider.saveMessage(message);
+        // Save to history provider
+        await this.historyProvider.saveMessage(message);
 
-            // Get updated history for logging
-            const history = await this.historyProvider.getHistory();
-            logger.debug(`ContextManager: History now contains ${history.length} messages`);
-        } catch (error) {
-            logger.error(
-                `ContextManager: Failed to save message for session ${this.sessionId}:`,
-                error
-            );
-            throw ContextError.messageSaveFailed(
-                this.sessionId,
-                error instanceof Error ? error.message : String(error)
-            );
-        }
+        // Get updated history for logging
+        const history = await this.historyProvider.getHistory();
+        logger.debug(`ContextManager: History now contains ${history.length} messages`);
 
         // Note: Compression is currently handled lazily in getFormattedMessages
     }
@@ -433,7 +417,7 @@ export class ContextManager {
      * @param result The result returned by the tool
      * @throws Error if required parameters are missing
      */
-    async addToolResult(toolCallId: string, name: string, result: any): Promise<void> {
+    async addToolResult(toolCallId: string, name: string, result: unknown): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
@@ -493,33 +477,15 @@ export class ContextManager {
         llmContext: LLMContext,
         systemPrompt?: string | undefined,
         history?: InternalMessage[]
-    ): Promise<any[]> {
+    ): Promise<TMessage[]> {
+        // TMessage type is provided by the service that instantiates ContextManager
         // Use provided history or fetch from provider
-        let messageHistory: InternalMessage[];
-        try {
-            messageHistory = history ?? (await this.historyProvider.getHistory());
-        } catch (error) {
-            logger.error(
-                `ContextManager: Failed to get history for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
-            );
-            throw ContextError.historyRetrievalFailed(
-                this.sessionId,
-                error instanceof Error ? error.message : String(error)
-            );
-        }
+        const messageHistory: InternalMessage[] =
+            history ?? (await this.historyProvider.getHistory());
 
-        try {
-            // Use pre-computed system prompt if provided
-            const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));
-            return this.formatter.format([...messageHistory], llmContext, prompt);
-        } catch (error) {
-            logger.error(
-                `Error formatting messages: ${error instanceof Error ? error.message : String(error)}`
-            );
-            throw ContextError.messageFormattingFailed(
-                error instanceof Error ? error.message : String(error)
-            );
-        }
+        // Use pre-computed system prompt if provided
+        const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));
+        return this.formatter.format([...messageHistory], llmContext, prompt) as TMessage[];
     }
 
     /**
@@ -537,48 +503,40 @@ export class ContextManager {
         contributorContext: DynamicContributorContext,
         llmContext: LLMContext
     ): Promise<{
-        // TODO: fix this type
-        formattedMessages: any[];
+        formattedMessages: TMessage[];
         systemPrompt: string;
         tokensUsed: number;
     }> {
-        try {
-            // Step 1: Get system prompt
-            const systemPrompt = await this.getSystemPrompt(contributorContext);
-            const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
+        // Step 1: Get system prompt
+        const systemPrompt = await this.getSystemPrompt(contributorContext);
+        const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
 
-            // Step 2: Get history and compress if needed
-            let history = await this.historyProvider.getHistory();
-            history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
+        // Step 2: Get history and compress if needed
+        let history = await this.historyProvider.getHistory();
+        history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
 
-            // Step 3: Format messages with compressed history
-            const formattedMessages = await this.getFormattedMessages(
-                contributorContext,
-                llmContext,
-                systemPrompt,
-                history
-            );
+        // Step 3: Format messages with compressed history
+        const formattedMessages = await this.getFormattedMessages(
+            contributorContext,
+            llmContext,
+            systemPrompt,
+            history
+        ); // Type cast happens here via TMessage generic
 
-            // Calculate final token usage
-            const historyTokens = countMessagesTokens(history, this.tokenizer);
-            const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
-            const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
+        // Calculate final token usage
+        const historyTokens = countMessagesTokens(history, this.tokenizer);
+        const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
+        const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
 
-            logger.debug(
-                `Final token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${tokensUsed}`
-            );
+        logger.debug(
+            `Final token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${tokensUsed}`
+        );
 
-            return {
-                formattedMessages,
-                systemPrompt,
-                tokensUsed,
-            };
-        } catch (error) {
-            logger.error('Error in getFormattedMessagesWithCompression:', error);
-            throw ContextError.compressionFailed(
-                error instanceof Error ? error.message : String(error)
-            );
-        }
+        return {
+            formattedMessages,
+            systemPrompt,
+            tokensUsed,
+        };
     }
 
     /**
@@ -591,15 +549,8 @@ export class ContextManager {
     async getFormattedSystemPrompt(
         context: DynamicContributorContext
     ): Promise<string | null | undefined> {
-        try {
-            const systemPrompt = await this.getSystemPrompt(context);
-            return this.formatter.formatSystemPrompt?.(systemPrompt);
-        } catch (error) {
-            logger.error(`Error getting formatted system prompt: ${error}`);
-            throw ContextError.systemPromptFormattingFailed(
-                error instanceof Error ? error.message : String(error)
-            );
-        }
+        const systemPrompt = await this.getSystemPrompt(context);
+        return this.formatter.formatSystemPrompt?.(systemPrompt);
     }
 
     /**
@@ -690,7 +641,7 @@ export class ContextManager {
      *
      * @param response The stream response from the LLM provider
      */
-    async processLLMStreamResponse(response: any): Promise<void> {
+    async processLLMStreamResponse(response: unknown): Promise<void> {
         // Use type-safe access to parseStreamResponse method
         if (this.formatter.parseStreamResponse) {
             const msgs = (await this.formatter.parseStreamResponse(response)) ?? [];
@@ -715,7 +666,7 @@ export class ContextManager {
      *
      * @param response The response from the LLM provider
      */
-    async processLLMResponse(response: any): Promise<void> {
+    async processLLMResponse(response: unknown): Promise<void> {
         const msgs = this.formatter.parseResponse(response) ?? [];
         for (const msg of msgs) {
             try {

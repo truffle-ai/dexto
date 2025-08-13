@@ -1,10 +1,10 @@
+import type { CoreMessage, AssistantContent, ToolContent } from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
 import type { GenerateTextResult, StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
 import { logger } from '@core/logger/index.js';
-// import Core SDK types if/when needed
 
 /**
  * Message formatter for Vercel AI SDK.
@@ -29,17 +29,13 @@ export class VercelMessageFormatter implements IMessageFormatter {
         history: Readonly<InternalMessage[]>,
         context: LLMContext,
         systemPrompt: string | null
-    ): unknown[] {
-        const formatted = [];
+    ): CoreMessage[] {
+        // Returns Vercel-specific type
+        const formatted: CoreMessage[] = [];
 
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
         try {
-            if (!context?.provider) {
-                logger.error(`Context: ${JSON.stringify(context)}`);
-                throw new Error('Provider is required for Vercel formatter context');
-            }
-
             filteredHistory = filterMessagesByLLMCapabilities([...history], context);
 
             const modelInfo = `${context.provider}/${context.model}`;
@@ -60,13 +56,24 @@ export class VercelMessageFormatter implements IMessageFormatter {
         for (const msg of filteredHistory) {
             switch (msg.role) {
                 case 'user':
-                case 'system':
-                    // Images (and text) in user/system content arrays are handled natively
+                    // Images (and text) in user content arrays are handled natively
                     // by the Vercel SDK. We can forward the array of TextPart/ImagePart directly.
-                    formatted.push({
-                        role: msg.role,
-                        content: msg.content,
-                    });
+                    if (msg.content !== null) {
+                        formatted.push({
+                            role: 'user',
+                            content: msg.content,
+                        });
+                    }
+                    break;
+
+                case 'system':
+                    // System messages
+                    if (msg.content !== null) {
+                        formatted.push({
+                            role: 'system',
+                            content: String(msg.content),
+                        });
+                    }
                     break;
 
                 case 'assistant':
@@ -208,30 +215,42 @@ export class VercelMessageFormatter implements IMessageFormatter {
     }
 
     // Helper to format Assistant messages (with optional tool calls)
+    // Todo: improve typingwhen InternalMessage type is updated
     private formatAssistantMessage(msg: InternalMessage): {
-        content: unknown;
+        content: AssistantContent;
         function_call?: { name: string; arguments: string };
     } {
         if (msg.toolCalls && msg.toolCalls.length > 0) {
-            const contentParts: unknown[] = [];
+            const contentParts = [];
             if (msg.content) {
                 contentParts.push({ type: 'text', text: msg.content });
             }
             for (const toolCall of msg.toolCalls) {
+                const rawArgs = toolCall.function.arguments;
+                let parsed: any = {};
+                if (typeof rawArgs === 'string') {
+                    try {
+                        parsed = JSON.parse(rawArgs);
+                    } catch {
+                        parsed = {};
+                        logger.warn(
+                            `Vercel formatter: invalid tool args JSON for ${toolCall.function.name}`
+                        );
+                    }
+                } else {
+                    parsed = rawArgs;
+                }
                 contentParts.push({
                     type: 'tool-call',
                     toolCallId: toolCall.id,
                     toolName: toolCall.function.name,
-                    args:
-                        typeof toolCall.function.arguments === 'string'
-                            ? JSON.parse(toolCall.function.arguments)
-                            : toolCall.function.arguments,
+                    args: parsed,
                 });
             }
             const firstToolCall = msg.toolCalls?.[0];
             if (firstToolCall) {
                 return {
-                    content: contentParts,
+                    content: contentParts as AssistantContent,
                     function_call: {
                         name: firstToolCall.function.name,
                         arguments:
@@ -242,11 +261,11 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 };
             }
         }
-        return { content: msg.content };
+        return { content: msg.content as AssistantContent };
     }
 
     // Helper to format Tool result messages
-    private formatToolMessage(msg: InternalMessage): { content: unknown[] } {
+    private formatToolMessage(msg: InternalMessage): { content: ToolContent } {
         let toolResultPart: unknown;
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
@@ -294,6 +313,6 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 result: msg.content,
             };
         }
-        return { content: [toolResultPart] };
+        return { content: [toolResultPart] as ToolContent };
     }
 }

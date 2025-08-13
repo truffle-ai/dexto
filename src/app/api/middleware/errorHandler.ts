@@ -1,14 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
 import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { ErrorType } from '@core/errors/types.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
+import { ErrorType, type Issue } from '@core/errors/types.js';
+import { ZodError } from 'zod';
+import { zodToIssues } from '@core/utils/result.js';
 import { logger } from '@core/logger/index.js';
 
 /**
- * Maps ErrorType to HTTP status codes
- * Clean 1:1 mapping without special cases
+ * Single mapping from ErrorType to HTTP status code
  */
-const statusFor = (err: DextoRuntimeError): number => {
-    switch (err.type) {
+const mapErrorTypeToStatus = (type: ErrorType): number => {
+    switch (type) {
         case ErrorType.USER:
             return 400;
         case ErrorType.NOT_FOUND:
@@ -24,10 +26,19 @@ const statusFor = (err: DextoRuntimeError): number => {
         case ErrorType.THIRD_PARTY:
             return 502;
         case ErrorType.UNKNOWN:
-            return 500;
         default:
             return 500;
     }
+};
+
+/**
+ * Map validation issues to HTTP status, based on the most relevant Issue.type
+ * Defaults to 400 for unknown/missing types
+ */
+const statusForValidation = (issues: Issue[]): number => {
+    const firstError = issues.find((i) => i.severity === 'error');
+    const type = firstError?.type ?? ErrorType.USER;
+    return mapErrorTypeToStatus(type);
 };
 
 /**
@@ -36,8 +47,23 @@ const statusFor = (err: DextoRuntimeError): number => {
  */
 export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction): void {
     if (err instanceof DextoRuntimeError) {
-        const status = statusFor(err);
+        const status = mapErrorTypeToStatus(err.type);
         res.status(status).json(err.toJSON());
+        return;
+    }
+
+    if (err instanceof DextoValidationError) {
+        const status = statusForValidation(err.issues);
+        res.status(status).json(err.toJSON());
+        return;
+    }
+
+    // Handle raw Zod errors defensively by converting to our validation error
+    if (err instanceof ZodError) {
+        const issues = zodToIssues(err);
+        const dexErr = new DextoValidationError(issues);
+        const status = statusForValidation(issues);
+        res.status(status).json(dexErr.toJSON());
         return;
     }
 

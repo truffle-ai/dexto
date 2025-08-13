@@ -13,25 +13,28 @@ import { AnthropicService } from './anthropic.js';
 import { LanguageModelV1 } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { LLMRouter } from '../registry.js';
-import { ContextManager } from '../../context/manager.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { PromptManager } from '../../systemPrompt/manager.js';
 
 /**
  * Create an instance of one of our in-built LLM services
  * @param config LLM configuration from the config file
  * @param toolManager Unified tool manager instance
+ * @param promptManager Prompt manager for system prompts
+ * @param historyProvider History provider for conversation persistence
  * @param sessionEventBus Session-level event bus for emitting LLM events
- * @param contextManager Message manager instance
  * @param sessionId Session ID
  * @returns ILLMService instance
  */
 function _createInBuiltLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
+    promptManager: PromptManager,
+    historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    contextManager: ContextManager,
     sessionId: string
 ): ILLMService {
     const apiKey = config.apiKey;
@@ -43,10 +46,10 @@ function _createInBuiltLLMService(
             return new OpenAIService(
                 toolManager,
                 openai,
+                promptManager,
+                historyProvider,
                 sessionEventBus,
-                contextManager,
-                config.model,
-                config.maxIterations,
+                config,
                 sessionId
             );
         }
@@ -57,10 +60,10 @@ function _createInBuiltLLMService(
             return new OpenAIService(
                 toolManager,
                 openai,
+                promptManager,
+                historyProvider,
                 sessionEventBus,
-                contextManager,
-                config.model,
-                config.maxIterations,
+                config,
                 sessionId
             );
         }
@@ -69,10 +72,10 @@ function _createInBuiltLLMService(
             return new AnthropicService(
                 toolManager,
                 anthropic,
+                promptManager,
+                historyProvider,
                 sessionEventBus,
-                contextManager,
-                config.model,
-                config.maxIterations,
+                config,
                 sessionId
             );
         }
@@ -132,8 +135,9 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
 function _createVercelLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
+    promptManager: PromptManager,
+    historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    contextManager: ContextManager,
     sessionId: string
 ): VercelLLMService {
     const model = _createVercelModel(config);
@@ -141,14 +145,11 @@ function _createVercelLLMService(
     return new VercelLLMService(
         toolManager,
         model,
-        config.provider,
+        promptManager,
+        historyProvider,
         sessionEventBus,
-        contextManager,
-        config.maxIterations,
-        sessionId,
-        config.temperature,
-        config.maxOutputTokens,
-        config.baseURL
+        config,
+        sessionId
     );
 }
 
@@ -159,24 +160,27 @@ export function createLLMService(
     config: ValidatedLLMConfig,
     router: LLMRouter,
     toolManager: ToolManager,
+    promptManager: PromptManager,
+    historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    contextManager: ContextManager,
     sessionId: string
 ): ILLMService {
     if (router === 'vercel') {
         return _createVercelLLMService(
             config,
             toolManager,
+            promptManager,
+            historyProvider,
             sessionEventBus,
-            contextManager,
             sessionId
         );
     } else {
         return _createInBuiltLLMService(
             config,
             toolManager,
+            promptManager,
+            historyProvider,
             sessionEventBus,
-            contextManager,
             sessionId
         );
     }

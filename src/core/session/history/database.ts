@@ -1,11 +1,20 @@
 import { logger } from '@core/logger/logger.js';
 import type { DatabaseBackend } from '@core/storage/types.js';
+import { SessionError } from '../errors.js';
 import type { InternalMessage } from '@core/context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
 
 /**
  * History provider that works directly with DatabaseBackend.
  * Handles message-specific operations and key formatting internally.
+ *
+ * TODO: Add in-memory caching to reduce database queries.
+ * Cache should be invalidated on writes and persist across LLM switches.
+ * Consider caching strategy:
+ * - Load cache on first getHistory() call
+ * - Update cache optimistically on saveMessage()
+ * - Clear cache on clearHistory()
+ * This will significantly improve performance for sessions with many messages.
  */
 export class DatabaseHistoryProvider implements IConversationHistoryProvider {
     constructor(
@@ -58,8 +67,10 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             logger.error(
                 `DatabaseHistoryProvider: Error saving message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
-            throw new Error(
-                `Failed to save message: ${error instanceof Error ? error.message : String(error)}`
+            throw SessionError.storageFailed(
+                this.sessionId,
+                'save message',
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -73,8 +84,9 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             logger.error(
                 `DatabaseHistoryProvider: Error clearing session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
-            throw new Error(
-                `Failed to clear session: ${error instanceof Error ? error.message : String(error)}`
+            throw SessionError.resetFailed(
+                this.sessionId,
+                error instanceof Error ? error.message : String(error)
             );
         }
     }

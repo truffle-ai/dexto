@@ -15,7 +15,7 @@ export interface IMessageFormatter {
      * @param history The raw internal message history (read-only to prevent modifications)
      * @param systemPrompt The system prompt, if any
      * @param context Optional context containing model information for capability-based filtering
-     * @returns The message history structured for the target API
+     * @returns The message history structured for the target API (provider-specific type)
      */
     format(
         history: Readonly<InternalMessage[]>,

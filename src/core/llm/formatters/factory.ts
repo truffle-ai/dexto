@@ -6,6 +6,11 @@ import { logger } from '@core/logger/index.js';
 import { LLMProvider, LLMRouter } from '../registry.js';
 import { LLMError } from '../errors.js';
 
+/**
+ * Creates a message formatter for the specified provider and router combination.
+ * Each formatter handles the conversion between internal message format and
+ * provider-specific message structures.
+ */
 export function createMessageFormatter(
     provider: LLMProvider,
     router: LLMRouter
@@ -13,7 +18,7 @@ export function createMessageFormatter(
     if (router === 'vercel') {
         return new VercelMessageFormatter();
     } else if (router === 'in-built') {
-        if (provider === 'openai') {
+        if (provider === 'openai' || provider === 'openai-compatible') {
             return new OpenAIMessageFormatter();
         } else if (provider === 'anthropic') {
             return new AnthropicMessageFormatter();
