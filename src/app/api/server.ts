@@ -362,7 +362,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     (data.content || data.imageData || data.fileData)
                 ) {
                     logger.info(
-                        `Processing message from WebSocket: ${data.content.substring(0, 50)}...`
+                        `Processing message from WebSocket: ${data.content ? data.content.substring(0, 50) + '...' : '[image/file only]'}`
                     );
                     const imageDataInput = data.imageData
                         ? { image: data.imageData.base64, mimeType: data.imageData.mimeType }
