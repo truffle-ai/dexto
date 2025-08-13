@@ -5,6 +5,7 @@ import { logger } from '../../logger/index.js';
 import type { SqliteBackendConfig } from '../schemas.js';
 import { getDextoPath } from '../../utils/path.js';
 import * as path from 'path';
+import { StorageError } from '../errors.js';
 
 // Dynamic import for better-sqlite3
 let Database: any;
@@ -78,7 +79,7 @@ export class SQLiteBackend implements DatabaseBackend {
                 const module = await import('better-sqlite3');
                 Database = (module as any).default || module;
             } catch (error) {
-                throw new Error(
+                throw StorageError.connectionFailed(
                     `Failed to import better-sqlite3: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -222,7 +223,7 @@ export class SQLiteBackend implements DatabaseBackend {
 
     private checkConnection(): void {
         if (!this.db) {
-            throw new Error('SQLiteBackend not connected');
+            throw StorageError.notConnected('SQLiteBackend');
         }
     }
 

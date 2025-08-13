@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
 import type { CacheBackend } from './cache-backend.js';
 import type { RedisBackendConfig } from '../schemas.js';
+import { StorageError } from '../errors.js';
 
 /**
  * Redis storage backend for production cache operations.
@@ -149,7 +150,7 @@ export class RedisBackend implements CacheBackend {
 
     private checkConnection(): void {
         if (!this.connected || !this.redis || this.redis.status !== 'ready') {
-            throw new Error('RedisBackend not connected');
+            throw StorageError.notConnected('RedisBackend');
         }
     }
 

@@ -1,5 +1,6 @@
 import type { CacheBackend } from './cache-backend.js';
 import type { DatabaseBackend } from './database-backend.js';
+import { StorageError } from '../errors.js';
 
 /**
  * In-memory storage backend for development and testing.
@@ -97,7 +98,7 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
     // Helper methods
     private checkConnection(): void {
         if (!this.connected) {
-            throw new Error('MemoryBackend not connected');
+            throw StorageError.notConnected('MemoryBackend');
         }
     }
 

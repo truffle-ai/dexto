@@ -1,6 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import type { DatabaseBackend } from './database-backend.js';
 import type { PostgresBackendConfig } from '../schemas.js';
+import { StorageError } from '../errors.js';
 
 /**
  * PostgreSQL storage backend for production database operations.
@@ -175,7 +176,7 @@ export class PostgresBackend implements DatabaseBackend {
 
     private checkConnection(): void {
         if (!this.connected || !this.pool) {
-            throw new Error('PostgresBackend not connected');
+            throw StorageError.notConnected('PostgresBackend');
         }
     }
 
