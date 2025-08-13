@@ -22,20 +22,6 @@ export class MCPError {
     }
 
     /**
-     * MCP server connection lost
-     */
-    static connectionLost(serverName: string, reason?: string) {
-        return new DextoRuntimeError(
-            MCPErrorCode.CONNECTION_LOST,
-            ErrorScope.MCP,
-            ErrorType.THIRD_PARTY,
-            `Lost connection to MCP server '${serverName}'${reason ? `: ${reason}` : ''}`,
-            { serverName, reason },
-            'Check network connection and server status'
-        );
-    }
-
-    /**
      * MCP protocol error
      */
     static protocolError(message: string, details?: unknown) {
@@ -46,34 +32,6 @@ export class MCPError {
             `MCP protocol error: ${message}`,
             details,
             'Check MCP server compatibility and protocol version'
-        );
-    }
-
-    /**
-     * MCP validation failed
-     */
-    static validationFailed(message: string, details?: unknown) {
-        return new DextoRuntimeError(
-            MCPErrorCode.VALIDATION_FAILED,
-            ErrorScope.MCP,
-            ErrorType.USER,
-            `MCP configuration validation failed: ${message}`,
-            details,
-            'Fix the configuration errors and try again'
-        );
-    }
-
-    /**
-     * MCP command missing
-     */
-    static commandMissing() {
-        return new DextoRuntimeError(
-            MCPErrorCode.COMMAND_MISSING,
-            ErrorScope.MCP,
-            ErrorType.USER,
-            'Stdio server requires a non-empty command',
-            undefined,
-            'Provide a command for the stdio MCP server'
         );
     }
 
@@ -92,30 +50,67 @@ export class MCPError {
     }
 
     /**
-     * MCP initialization failed
+     * MCP tool not found
      */
-    static initializationFailed(serverName: string, reason: string) {
+    static toolNotFound(toolName: string) {
         return new DextoRuntimeError(
-            MCPErrorCode.INITIALIZATION_FAILED,
+            MCPErrorCode.TOOL_NOT_FOUND,
             ErrorScope.MCP,
-            ErrorType.THIRD_PARTY,
-            `Failed to initialize MCP server '${serverName}': ${reason}`,
-            { serverName, reason },
-            'Check server configuration and logs'
+            ErrorType.NOT_FOUND,
+            `No MCP tool found: ${toolName}`,
+            { toolName }
         );
     }
 
     /**
-     * MCP request timeout
+     * MCP prompt not found
      */
-    static requestTimeout(serverName: string, operation: string) {
+    static promptNotFound(promptName: string) {
         return new DextoRuntimeError(
-            MCPErrorCode.REQUEST_TIMEOUT,
+            MCPErrorCode.PROMPT_NOT_FOUND,
             ErrorScope.MCP,
-            ErrorType.TIMEOUT,
-            `MCP request to '${serverName}' timed out during ${operation}`,
-            { serverName, operation },
-            'Increase timeout or check server responsiveness'
+            ErrorType.NOT_FOUND,
+            `No client found for prompt: ${promptName}`,
+            { promptName }
+        );
+    }
+
+    /**
+     * MCP resource not found
+     */
+    static resourceNotFound(resourceUri: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.RESOURCE_NOT_FOUND,
+            ErrorScope.MCP,
+            ErrorType.NOT_FOUND,
+            `No client found for resource: ${resourceUri}`,
+            { resourceUri }
+        );
+    }
+
+    /**
+     * MCP client not connected
+     */
+    static clientNotConnected(context?: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.CONNECTION_FAILED,
+            ErrorScope.MCP,
+            ErrorType.SYSTEM,
+            `MCP client is not connected${context ? `: ${context}` : ''}`,
+            { context }
+        );
+    }
+
+    /**
+     * Invalid tool schema
+     */
+    static invalidToolSchema(toolName: string, reason: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.PROTOCOL_ERROR,
+            ErrorScope.MCP,
+            ErrorType.THIRD_PARTY,
+            `Tool '${toolName}' has invalid schema: ${reason}`,
+            { toolName, reason }
         );
     }
 }

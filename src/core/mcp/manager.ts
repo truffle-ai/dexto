@@ -6,6 +6,7 @@ import { ToolSet } from '../tools/types.js';
 import { ToolConfirmationProvider } from '../tools/confirmation/types.js';
 import { NoOpConfirmationProvider } from '../tools/confirmation/noop-confirmation-provider.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import { MCPError } from './errors.js';
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -76,10 +77,7 @@ export class MCPManager {
         const existingServerWithSameSanitizedName =
             this.sanitizedNameToServerMap.get(sanitizedName);
         if (existingServerWithSameSanitizedName && existingServerWithSameSanitizedName !== name) {
-            throw new Error(
-                `Server name conflict: '${name}' and '${existingServerWithSameSanitizedName}' both sanitize to '${sanitizedName}'. ` +
-                    `Please use different server names to avoid ambiguity in qualified tool names.`
-            );
+            throw MCPError.duplicateName(name, existingServerWithSameSanitizedName);
         }
 
         this.clients.set(name, client);
@@ -352,7 +350,7 @@ export class MCPManager {
             logger.debug(
                 `Server tools map keys: ${Array.from(this.serverToolsMap.keys()).join(', ')}`
             );
-            throw new Error(`No MCP tool found: ${toolName}`);
+            throw MCPError.toolNotFound(toolName);
         }
 
         // Extract actual tool name (remove server prefix if present)
@@ -399,7 +397,7 @@ export class MCPManager {
     async getPrompt(name: string, args?: any): Promise<GetPromptResult> {
         const client = this.getPromptClient(name);
         if (!client) {
-            throw new Error(`No client found for prompt: ${name}`);
+            throw MCPError.promptNotFound(name);
         }
         return await client.getPrompt(name, args);
     }
@@ -429,7 +427,7 @@ export class MCPManager {
     async readResource(uri: string): Promise<ReadResourceResult> {
         const client = this.getResourceClient(uri);
         if (!client) {
-            throw new Error(`No client found for resource: ${uri}`);
+            throw MCPError.resourceNotFound(uri);
         }
         return await client.readResource(uri);
     }
@@ -482,7 +480,7 @@ export class MCPManager {
             const strictErrors = failedStrictServers
                 .map((name) => `${name}: ${this.connectionErrors[name] || 'Unknown error'}`)
                 .join('; ');
-            throw new Error(`Failed to connect to required strict servers: ${strictErrors}`);
+            throw MCPError.connectionFailed('strict servers', strictErrors);
         }
 
         // Lenient servers are allowed to fail without throwing errors
@@ -514,7 +512,7 @@ export class MCPManager {
             this.connectionErrors[name] = errorMsg;
             logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
             this.clients.delete(name);
-            throw new Error(`Failed to connect to new server '${name}': ${errorMsg}`);
+            throw MCPError.connectionFailed(name, errorMsg);
         }
     }
 

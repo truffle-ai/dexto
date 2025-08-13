@@ -13,6 +13,7 @@ import type {
 import { ToolSet } from '../tools/types.js';
 import { IMCPClient } from './types.js';
 import { resolveBundledScript } from '../utils/path.js';
+import { MCPError } from './errors.js';
 import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 
@@ -52,8 +53,9 @@ export class MCPClient implements IMCPClient {
             const httpConfig: HttpServerConfig = config;
             return this.connectViaHttp(httpConfig.url, httpConfig.headers || {}, serverName);
         } else {
-            // Unreachable code
-            throw new Error('Unsupported server type');
+            // TypeScript exhaustiveness check - should never reach here
+            const _exhaustive: never = config;
+            throw MCPError.protocolError(`Unsupported server type: ${JSON.stringify(_exhaustive)}`);
         }
     }
 
@@ -310,7 +312,7 @@ export class MCPClient implements IMCPClient {
                         logger.warn(`Tool '${tool.name}' is missing a description`);
                     }
                     if (!tool.inputSchema) {
-                        throw new Error(`Tool '${tool.name}' is missing an input schema`);
+                        throw MCPError.invalidToolSchema(tool.name, 'missing input schema');
                     }
                     tools[tool.name] = {
                         description: tool.description ?? '',
@@ -318,7 +320,9 @@ export class MCPClient implements IMCPClient {
                     };
                 });
             } else {
-                throw new Error('listTools did not return the expected structure: missing tools');
+                throw MCPError.protocolError(
+                    'listTools did not return the expected structure: missing tools'
+                );
             }
         } catch (error) {
             logger.warn(
@@ -370,7 +374,7 @@ export class MCPClient implements IMCPClient {
             logger.debug(
                 `Failed to get prompt '${name}' from MCP server: ${JSON.stringify(error, null, 2)}`
             );
-            throw new Error(
+            throw MCPError.protocolError(
                 `Error getting prompt '${name}': ${error instanceof Error ? error.message : String(error)}`
             );
         }
@@ -412,7 +416,7 @@ export class MCPClient implements IMCPClient {
             logger.debug(
                 `Failed to read resource '${uri}' from MCP server: ${JSON.stringify(error, null, 2)}`
             );
-            throw new Error(
+            throw MCPError.protocolError(
                 `Error reading resource '${uri}': ${error instanceof Error ? error.message : String(error)}`
             );
         }
@@ -461,14 +465,14 @@ export class MCPClient implements IMCPClient {
      */
     async getConnectedClient(): Promise<Client> {
         if (!this.client || !this.isConnected) {
-            throw new Error('MCP client is not connected.');
+            throw MCPError.clientNotConnected();
         }
         return this.client;
     }
 
     private ensureConnected(): void {
         if (!this.isConnected || !this.client) {
-            throw new Error('Client not connected. Please call connect() first.');
+            throw MCPError.clientNotConnected('Please call connect() first');
         }
     }
 }

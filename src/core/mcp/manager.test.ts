@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MCPManager } from './manager.js';
 import { IMCPClient } from './types.js';
 import { NoOpConfirmationProvider } from '../tools/confirmation/noop-confirmation-provider.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { MCPErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
 // Mock client for testing
 class MockMCPClient implements IMCPClient {
@@ -221,9 +224,18 @@ describe('MCPManager Tool Conflict Resolution', () => {
         it('should prevent sanitized name collisions', () => {
             manager.registerClient('my_server', client1);
 
-            expect(() => {
-                manager.registerClient('my@server', client2); // Both sanitize to 'my_server'
-            }).toThrow(/Server name conflict.*both sanitize to 'my_server'/);
+            const error = (() => {
+                try {
+                    manager.registerClient('my@server', client2); // Both sanitize to 'my_server'
+                    return null;
+                } catch (e) {
+                    return e;
+                }
+            })() as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(MCPErrorCode.DUPLICATE_NAME);
+            expect(error.scope).toBe(ErrorScope.MCP);
+            expect(error.type).toBe(ErrorType.USER);
         });
 
         it('should allow re-registering the same server name', () => {
