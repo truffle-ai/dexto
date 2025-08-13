@@ -22,9 +22,9 @@ import { ConfigError } from './errors.js';
  * @param configPath - An optional string representing the path to the configuration file.
  * If not provided, a default path will be resolved internally.
  * @returns A Promise that resolves to the raw parsed `AgentConfig` object.
- * @throws {ConfigFileNotFoundError} If the configuration file does not exist at the resolved path.
- * @throws {ConfigFileReadError} If an error occurs while attempting to read the configuration file (e.g., permissions issues).
- * @throws {ConfigParseError} If the content of the configuration file is not valid YAML.
+ * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_NOT_FOUND if the configuration file does not exist.
+ * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_READ_ERROR if file read fails (e.g., permissions issues).
+ * @throws {DextoRuntimeError} with ConfigErrorCode.PARSE_ERROR if the content is not valid YAML.
  */
 export async function loadAgentConfig(configPath?: string): Promise<AgentConfig> {
     // Resolve the absolute path of the configuration file.

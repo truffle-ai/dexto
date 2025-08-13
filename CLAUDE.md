@@ -49,7 +49,7 @@
 
 3. **API Layer Error Mapping** - Centralised Express error middleware  
    - `DextoValidationError` (or any subclass) → 400  
-   - `ToolExecutionDeniedError` → 403  
+   - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
    - Any other uncaught exception → 500  
    - Successful calls → 200 (may include warnings in `issues`)
 
