@@ -141,12 +141,11 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
   - **In tests**: For invalid input testing, prefer `@ts-expect-error` over `as any` to be explicit about intentional type violations
 
 ### Git and PR Standards
+- **NEVER use `git add .` or `git add -A`** - Always specify exact files: `git add file1.ts file2.ts` or `src` folders. This is to avoid untracked files
+- **ALWAYS vet the staged files before committing** - This is to catch mistakes in previous step
 - **Never include "Generated with Claude Code" footers** - In commit messages, PR descriptions, or any documentation
 - **Clean commit messages** - Focus on technical changes and business value
 - **Descriptive PR titles** - Should clearly indicate the change without AI attribution
-- **NEVER use `git add .`** - Always specify exact files: `git add file1.ts file2.ts`
-- **Stage only relevant changes** - Only add files that were actually modified for the current task
-- **Avoid untracked files** - Never commit untracked files unless explicitly intended by user
 
 ### Documentation Standards
 - **Always request user review before committing documentation changes** - Documentation impacts user experience and should be user-approved
