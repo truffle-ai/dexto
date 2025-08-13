@@ -11,6 +11,7 @@ import type {
 
 /**
  * Service for searching through conversation history
+ * TODO: remove duplicate stuff related to session manager instead of directly using DB
  */
 export class SearchService {
     constructor(private database: DatabaseBackend) {}
@@ -101,15 +102,22 @@ export class SearchService {
                 const messageResults = await this.searchInSession(query, sessionId);
 
                 if (messageResults.length > 0) {
-                    const sessionMetadata = await this.getSessionMetadata(sessionId);
-                    const firstMatch = messageResults[0];
-                    if (sessionMetadata && firstMatch) {
-                        sessionResults.push({
-                            sessionId,
-                            matchCount: messageResults.length,
-                            firstMatch,
-                            metadata: sessionMetadata,
-                        });
+                    try {
+                        const sessionMetadata = await this.getSessionMetadata(sessionId);
+                        const firstMatch = messageResults[0];
+                        if (firstMatch) {
+                            sessionResults.push({
+                                sessionId,
+                                matchCount: messageResults.length,
+                                firstMatch,
+                                metadata: sessionMetadata,
+                            });
+                        }
+                    } catch (error) {
+                        // Skip sessions that no longer exist or have metadata issues
+                        logger.debug(
+                            `Skipping session ${sessionId} in search results: metadata unavailable`
+                        );
                     }
                 }
             }
@@ -290,7 +298,7 @@ export class SearchService {
         createdAt: number;
         lastActivity: number;
         messageCount: number;
-    } | null> {
+    }> {
         const sessionKey = `session:${sessionId}`;
         const sessionData = await this.database.get<{
             createdAt: number;
@@ -298,6 +306,9 @@ export class SearchService {
             messageCount: number;
         }>(sessionKey);
 
-        return sessionData || null;
+        if (!sessionData) {
+            throw new Error(`Session metadata not found: ${sessionId}`);
+        }
+        return sessionData;
     }
 }

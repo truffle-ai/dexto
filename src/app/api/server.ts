@@ -189,7 +189,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     app.post('/api/message-sync', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message-sync');
         try {
-            const { message, sessionId, stream, imageData, fileData } = parseBody(
+            const { message, sessionId, imageData, fileData } = parseBody(
                 MessageRequestSchema,
                 req.body
             );
@@ -618,13 +618,23 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const sessionIds = await agent.listSessions();
             const sessions = await Promise.all(
                 sessionIds.map(async (id) => {
-                    const metadata = await agent.getSessionMetadata(id);
-                    return {
-                        id,
-                        createdAt: metadata?.createdAt || null,
-                        lastActivity: metadata?.lastActivity || null,
-                        messageCount: metadata?.messageCount || 0,
-                    };
+                    try {
+                        const metadata = await agent.getSessionMetadata(id);
+                        return {
+                            id,
+                            createdAt: metadata.createdAt,
+                            lastActivity: metadata.lastActivity,
+                            messageCount: metadata.messageCount,
+                        };
+                    } catch (error) {
+                        // Skip sessions that no longer exist
+                        return {
+                            id,
+                            createdAt: null,
+                            lastActivity: null,
+                            messageCount: 0,
+                        };
+                    }
                 })
             );
             return res.json({ sessions });
@@ -642,9 +652,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return res.status(201).json({
                 session: {
                     id: session.id,
-                    createdAt: metadata?.createdAt || null,
-                    lastActivity: metadata?.lastActivity || null,
-                    messageCount: metadata?.messageCount || 0,
+                    createdAt: metadata.createdAt,
+                    lastActivity: metadata.lastActivity,
+                    messageCount: metadata.messageCount,
                 },
             });
         } catch (error) {
@@ -672,9 +682,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return res.json({
                 session: {
                     id: sessionId,
-                    createdAt: metadata?.createdAt || null,
-                    lastActivity: metadata?.lastActivity || null,
-                    messageCount: metadata?.messageCount || 0,
+                    createdAt: metadata.createdAt,
+                    lastActivity: metadata.lastActivity,
+                    messageCount: metadata.messageCount,
                     history: history.length,
                 },
             });

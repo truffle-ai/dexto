@@ -148,7 +148,7 @@ export class DextoAgent {
      */
     public async start(): Promise<void> {
         if (this._isStarted) {
-            throw AgentError.initializationFailed('Agent is already started');
+            throw AgentError.alreadyStarted();
         }
 
         try {
@@ -285,7 +285,7 @@ export class DextoAgent {
      */
     private ensureStarted(): void {
         if (this._isStopped) {
-            throw AgentError.notStarted();
+            throw AgentError.stopped();
         }
         if (!this._isStarted) {
             throw AgentError.notStarted();

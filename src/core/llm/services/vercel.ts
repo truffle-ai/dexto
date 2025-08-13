@@ -193,12 +193,9 @@ export class VercelLLMService implements ILLMService {
             `[VercelLLMService] Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`
         );
 
-        let iterationCount = 0;
         let fullResponse = '';
 
         this.sessionEventBus.emit('llmservice:thinking');
-        iterationCount++;
-        logger.debug(`Iteration ${iterationCount}`);
         const prepared = await this.contextManager.getFormattedMessagesWithCompression(
             { mcpManager: this.toolManager.getMcpManager() },
             { provider: this.config.provider, model: this.model.modelId }
@@ -230,7 +227,7 @@ export class VercelLLMService implements ILLMService {
 
         return (
             fullResponse ||
-            'Reached maximum number of tool call iterations without a final response.'
+            `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
         );
     }
 

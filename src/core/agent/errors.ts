@@ -23,6 +23,34 @@ export class AgentError {
     }
 
     /**
+     * Agent already started
+     */
+    static alreadyStarted() {
+        return new DextoRuntimeError(
+            AgentErrorCode.ALREADY_STARTED,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'Agent is already started',
+            undefined,
+            'Call agent.stop() before starting again'
+        );
+    }
+
+    /**
+     * Agent stopped
+     */
+    static stopped() {
+        return new DextoRuntimeError(
+            AgentErrorCode.STOPPED,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'Agent has been stopped and cannot be used',
+            undefined,
+            'Create a new agent instance or restart this one'
+        );
+    }
+
+    /**
      * Agent initialization failed
      */
     static initializationFailed(reason: string, details?: unknown) {

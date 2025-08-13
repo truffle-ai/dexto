@@ -57,7 +57,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
     }
 
     // --- Step 3: Parse the file content as YAML ---
-    let config;
+    let config: unknown;
     try {
         // Attempt to parse the string content into a JavaScript object using a YAML parser.
         config = parseYaml(fileContent);
@@ -71,7 +71,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
     }
 
     // Return raw config - environment variable expansion handled by Zod schema
-    return config;
+    return config as AgentConfig;
 }
 
 /**

@@ -142,9 +142,9 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await expect(agent.start()).rejects.toThrow(
                 expect.objectContaining({
-                    code: AgentErrorCode.INITIALIZATION_FAILED,
+                    code: AgentErrorCode.ALREADY_STARTED,
                     scope: ErrorScope.AGENT,
-                    type: ErrorType.SYSTEM,
+                    type: ErrorType.USER,
                 })
             );
         });
@@ -260,7 +260,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(thrownError).toBeDefined();
             expect(thrownError).toMatchObject({
-                code: AgentErrorCode.NOT_STARTED,
+                code: AgentErrorCode.STOPPED,
                 scope: ErrorScope.AGENT,
                 type: ErrorType.USER,
             });

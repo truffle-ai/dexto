@@ -6,5 +6,10 @@
 export enum AgentErrorCode {
     // Lifecycle
     NOT_STARTED = 'agent_not_started',
+    ALREADY_STARTED = 'agent_already_started',
+    STOPPED = 'agent_stopped',
     INITIALIZATION_FAILED = 'agent_initialization_failed',
+
+    // API layer
+    API_VALIDATION_ERROR = 'agent_api_validation_error',
 }
