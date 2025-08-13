@@ -8,6 +8,7 @@ import {
     SessionMetadata,
     ChatSession,
     SessionErrorCode,
+    SessionError,
 } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
@@ -340,19 +341,8 @@ export class DextoAgent {
 
             if (sessionId) {
                 // Use specific session or create it if it doesn't exist
-                try {
-                    session = await this.sessionManager.getSession(sessionId);
-                } catch (error) {
-                    // If session doesn't exist, create it
-                    if (
-                        error instanceof DextoRuntimeError &&
-                        error.code === SessionErrorCode.SESSION_NOT_FOUND
-                    ) {
-                        session = await this.sessionManager.createSession(sessionId);
-                    } else {
-                        throw error; // Re-throw other errors
-                    }
-                }
+                const existingSession = await this.sessionManager.getSession(sessionId);
+                session = existingSession || (await this.sessionManager.createSession(sessionId));
             } else {
                 // Use loaded default session for backward compatibility
                 if (
@@ -404,10 +394,9 @@ export class DextoAgent {
     /**
      * Retrieves an existing session by ID.
      * @param sessionId The session ID to retrieve
-     * @returns The ChatSession
-     * @throws SessionError.notFound if session doesn't exist
+     * @returns The ChatSession if found, undefined otherwise
      */
-    public async getSession(sessionId: string): Promise<ChatSession> {
+    public async getSession(sessionId: string): Promise<ChatSession | undefined> {
         this.ensureStarted();
         return await this.sessionManager.getSession(sessionId);
     }
@@ -452,10 +441,9 @@ export class DextoAgent {
     /**
      * Gets metadata for a specific session.
      * @param sessionId The session ID
-     * @returns The session metadata
-     * @throws SessionError.notFound if session doesn't exist
+     * @returns The session metadata if found, undefined otherwise
      */
-    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata> {
+    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
         this.ensureStarted();
         return await this.sessionManager.getSessionMetadata(sessionId);
     }
@@ -469,6 +457,9 @@ export class DextoAgent {
     public async getSessionHistory(sessionId: string) {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
         return await session.getHistory();
     }
 
@@ -527,7 +518,10 @@ export class DextoAgent {
         }
 
         // Verify session exists before loading it
-        await this.sessionManager.getSession(sessionId);
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
 
         this.currentDefaultSessionId = sessionId;
         this.defaultSession = null; // Clear cached session to force reload
@@ -701,8 +695,11 @@ export class DextoAgent {
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
-            // getSession() throws SessionError.notFound() if session doesn't exist
-            await this.sessionManager.getSession(sessionScope);
+            // Verify session exists before switching LLM
+            const session = await this.sessionManager.getSession(sessionScope);
+            if (!session) {
+                throw SessionError.notFound(sessionScope);
+            }
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             await this.sessionManager.switchLLMForDefaultSession(validatedConfig);

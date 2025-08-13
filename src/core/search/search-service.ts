@@ -102,8 +102,8 @@ export class SearchService {
                 const messageResults = await this.searchInSession(query, sessionId);
 
                 if (messageResults.length > 0) {
-                    try {
-                        const sessionMetadata = await this.getSessionMetadata(sessionId);
+                    const sessionMetadata = await this.getSessionMetadata(sessionId);
+                    if (sessionMetadata) {
                         const firstMatch = messageResults[0];
                         if (firstMatch) {
                             sessionResults.push({
@@ -113,11 +113,6 @@ export class SearchService {
                                 metadata: sessionMetadata,
                             });
                         }
-                    } catch (_error) {
-                        // Skip sessions that no longer exist or have metadata issues
-                        logger.debug(
-                            `Skipping session ${sessionId} in search results: metadata unavailable`
-                        );
                     }
                 }
             }

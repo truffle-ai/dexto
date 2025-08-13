@@ -622,11 +622,11 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         const metadata = await agent.getSessionMetadata(id);
                         return {
                             id,
-                            createdAt: metadata.createdAt,
-                            lastActivity: metadata.lastActivity,
-                            messageCount: metadata.messageCount,
+                            createdAt: metadata?.createdAt || null,
+                            lastActivity: metadata?.lastActivity || null,
+                            messageCount: metadata?.messageCount || 0,
                         };
-                    } catch (_error) {
+                    } catch (error) {
                         // Skip sessions that no longer exist
                         return {
                             id,
@@ -652,9 +652,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return res.status(201).json({
                 session: {
                     id: session.id,
-                    createdAt: metadata.createdAt,
-                    lastActivity: metadata.lastActivity,
-                    messageCount: metadata.messageCount,
+                    createdAt: metadata?.createdAt || Date.now(),
+                    lastActivity: metadata?.lastActivity || Date.now(),
+                    messageCount: metadata?.messageCount || 0,
                 },
             });
         } catch (error) {
@@ -682,9 +682,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return res.json({
                 session: {
                     id: sessionId,
-                    createdAt: metadata.createdAt,
-                    lastActivity: metadata.lastActivity,
-                    messageCount: metadata.messageCount,
+                    createdAt: metadata?.createdAt || null,
+                    lastActivity: metadata?.lastActivity || null,
+                    messageCount: metadata?.messageCount || 0,
                     history: history.length,
                 },
             });

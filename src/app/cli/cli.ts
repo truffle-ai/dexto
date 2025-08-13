@@ -29,15 +29,10 @@ async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
         let mostRecentActivity = 0;
 
         for (const sessionId of sessionIds) {
-            try {
-                const metadata = await agent.getSessionMetadata(sessionId);
-                if (metadata.lastActivity > mostRecentActivity) {
-                    mostRecentActivity = metadata.lastActivity;
-                    mostRecentSession = sessionId;
-                }
-            } catch (_error) {
-                // Skip sessions that no longer exist
-                continue;
+            const metadata = await agent.getSessionMetadata(sessionId);
+            if (metadata && metadata.lastActivity > mostRecentActivity) {
+                mostRecentActivity = metadata.lastActivity;
+                mostRecentSession = sessionId;
             }
         }
 

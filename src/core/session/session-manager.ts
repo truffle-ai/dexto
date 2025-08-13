@@ -268,7 +268,7 @@ export class SessionManager {
      * @param sessionId The session ID to retrieve
      * @returns The ChatSession if found, undefined otherwise
      */
-    public async getSession(sessionId: string): Promise<ChatSession> {
+    public async getSession(sessionId: string): Promise<ChatSession | undefined> {
         await this.ensureInitialized();
 
         // Check if there's a pending creation for this session ID
@@ -292,7 +292,7 @@ export class SessionManager {
             return session;
         }
 
-        throw SessionError.notFound(sessionId);
+        return undefined;
     }
 
     /**
@@ -328,22 +328,11 @@ export class SessionManager {
         await this.ensureInitialized();
 
         // Get session (load from storage if not in memory) to clear conversation history
-        // Make deletion idempotent - don't throw if session doesn't exist
-        try {
-            const session = await this.getSession(sessionId);
+        const session = await this.getSession(sessionId);
+        if (session) {
             await session.reset(); // This deletes the conversation history
             await session.cleanup(); // This cleans up memory resources
             this.sessions.delete(sessionId);
-        } catch (error) {
-            // Session doesn't exist - that's fine for deletion
-            if (
-                error instanceof DextoRuntimeError &&
-                error.code === SessionErrorCode.SESSION_NOT_FOUND
-            ) {
-                logger.debug(`Session ${sessionId} not found during deletion - already deleted`);
-            } else {
-                throw error; // Re-throw other errors
-            }
         }
 
         // Remove session metadata from storage
@@ -364,6 +353,9 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const session = await this.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
 
         await session.reset();
 
@@ -398,18 +390,17 @@ export class SessionManager {
      * @param sessionId The session ID
      * @returns Session metadata if found, undefined otherwise
      */
-    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata> {
+    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
         await this.ensureInitialized();
         const sessionKey = `session:${sessionId}`;
         const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
-        if (!sessionData) {
-            throw SessionError.notFound(sessionId);
-        }
-        return {
-            createdAt: sessionData.createdAt,
-            lastActivity: sessionData.lastActivity,
-            messageCount: sessionData.messageCount,
-        };
+        return sessionData
+            ? {
+                  createdAt: sessionData.createdAt,
+                  lastActivity: sessionData.lastActivity,
+                  messageCount: sessionData.messageCount,
+              }
+            : undefined;
     }
 
     /**
@@ -507,8 +498,8 @@ export class SessionManager {
         const failedSessions: string[] = [];
 
         for (const sId of sessionIds) {
-            try {
-                const session = await this.getSession(sId);
+            const session = await this.getSession(sId);
+            if (session) {
                 try {
                     // Update state with validated config (validation already done by DextoAgent)
                     // Using exceptions here for session-specific runtime failures (corruption, disposal, etc.)
@@ -522,10 +513,6 @@ export class SessionManager {
                         `Error switching LLM for session ${sId}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
-            } catch (_error) {
-                // Session not found - skip it and continue with other sessions
-                logger.debug(`Skipping session ${sId}: session not found`);
-                continue;
             }
         }
 
@@ -560,6 +547,9 @@ export class SessionManager {
         sessionId: string
     ): Promise<{ message: string; warnings: string[] }> {
         const session = await this.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
 
         await session.switchLLM(newLLMConfig);
 
