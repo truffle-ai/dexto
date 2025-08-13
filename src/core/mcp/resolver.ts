@@ -52,7 +52,7 @@ function resolveMcpServerConfig(
     );
     if (dup) {
         warnings.push({
-            code: MCPErrorCode.SERVER_DUPLICATE_NAME,
+            code: MCPErrorCode.DUPLICATE_NAME,
             message: `Server name '${serverName}' is similar to existing '${dup}' (case differs)`,
             severity: 'warning',
             scope: ErrorScope.MCP,

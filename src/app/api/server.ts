@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
-import type { WebhookRegistrationRequest, WebhookConfig } from './webhook-types.js';
+import type { WebhookConfig } from './webhook-types.js';
 import { logger } from '@core/index.js';
 import type { AgentCard } from '@core/index.js';
 import { setupA2ARoutes } from './a2a.js';
@@ -678,7 +678,6 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     app.get('/api/sessions/:sessionId', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const session = await agent.getSession(sessionId);
             const metadata = await agent.getSessionMetadata(sessionId);
             const history = await agent.getSessionHistory(sessionId);
 
