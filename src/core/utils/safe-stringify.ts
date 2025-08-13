@@ -1,4 +1,4 @@
-import { redactSensitiveData } from '../../app/api/middleware/redactor.js';
+import { redactSensitiveData } from './redactor.js';
 
 /**
  * Safe stringify that handles circular references, BigInt, and limits output size
