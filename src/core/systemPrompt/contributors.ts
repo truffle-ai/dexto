@@ -3,6 +3,7 @@ import { readFile, stat } from 'fs/promises';
 import { resolve, extname } from 'path';
 import { logger } from '../logger/index.js';
 import { SystemPromptError } from './errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 export class StaticContributor implements SystemPromptContributor {
     constructor(
@@ -118,12 +119,14 @@ export class FileContributor implements SystemPromptContributor {
                 filePart += content;
 
                 fileParts.push(filePart);
-            } catch (error: any) {
+            } catch (error: unknown) {
                 if (errorHandling === 'error') {
-                    throw SystemPromptError.fileReadFailed(
-                        filePath,
-                        error.message || String(error)
-                    );
+                    // Preserve previously constructed structured errors
+                    if (error instanceof DextoRuntimeError) {
+                        throw error;
+                    }
+                    const reason = error instanceof Error ? error.message : String(error);
+                    throw SystemPromptError.fileReadFailed(filePath, reason);
                 }
                 // 'skip' mode - do nothing, continue to next file
             }
