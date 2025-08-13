@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { DatabaseHistoryProvider } from './database.js';
-import type { DatabaseBackend } from '@core/storage/backend/types.js';
+import type { DatabaseBackend } from '@core/storage/types.js';
 import { SessionErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
