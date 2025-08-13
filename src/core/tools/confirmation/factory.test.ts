@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createToolConfirmationProvider } from './factory.js';
 import { EventBasedConfirmationProvider } from './event-based-confirmation-provider.js';
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
@@ -67,6 +67,33 @@ describe('Tool Confirmation Factory', () => {
                 agentEventBus,
             });
             expect(provider).toBeInstanceOf(EventBasedConfirmationProvider);
+        });
+
+        it('should reject after the configured confirmation timeout if no response arrives', async () => {
+            vi.useFakeTimers();
+            const provider = createToolConfirmationProvider({
+                mode: 'event-based',
+                allowedToolsProvider,
+                confirmationTimeout: 5000,
+                agentEventBus,
+            });
+
+            const confirmationPromise = provider.requestConfirmation({
+                toolName: 'needsConfirmation',
+                args: {},
+            });
+
+            // Advance timers to just before timeout
+            await vi.advanceTimersByTimeAsync(4999);
+            await expect(
+                Promise.race([confirmationPromise, Promise.resolve('pending')])
+            ).resolves.toBe('pending');
+
+            // Cross the timeout threshold
+            await vi.advanceTimersByTimeAsync(1);
+            await expect(confirmationPromise).rejects.toThrow(/timeout/i);
+
+            vi.useRealTimers();
         });
     });
 
