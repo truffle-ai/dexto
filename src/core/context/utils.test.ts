@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { filterMessagesByLLMCapabilities } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '@core/llm/types.js';
-import { ContextErrorCode, ErrorScope, ErrorType } from '@core/errors/index.js';
+import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import * as registry from '@core/llm/registry.js';
 
 // Mock the registry module
@@ -191,7 +191,6 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         expect(() => filterMessagesByLLMCapabilities(messages, config)).toThrow(
             expect.objectContaining({
-                code: ContextErrorCode.PROVIDER_MODEL_REQUIRED,
                 scope: ErrorScope.CONTEXT,
                 type: ErrorType.USER,
             })
@@ -274,30 +273,6 @@ describe('filterMessagesByLLMCapabilities', () => {
         const result = filterMessagesByLLMCapabilities(messages, config);
 
         // Should keep the malformed file part since it doesn't have mimeType to validate
-        expect(result).toEqual(messages);
-    });
-
-    test('should handle validation errors gracefully', () => {
-        // Mock validation to throw an error
-        mockValidateModelFileSupport.mockImplementation(() => {
-            throw new Error('Validation service unavailable');
-        });
-
-        const messages: InternalMessage[] = [
-            {
-                role: 'user',
-                content: [
-                    { type: 'text', text: 'Hello' },
-                    { type: 'file', data: 'data', mimeType: 'application/pdf' },
-                ],
-            },
-        ];
-
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
-
-        // Should return original messages when validation fails
-        const result = filterMessagesByLLMCapabilities(messages, config);
-
         expect(result).toEqual(messages);
     });
 

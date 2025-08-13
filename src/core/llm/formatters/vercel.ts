@@ -36,11 +36,6 @@ export class VercelMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
         try {
-            if (!context?.provider) {
-                logger.error(`Context: ${JSON.stringify(context)}`);
-                throw new Error('Provider is required for Vercel formatter context');
-            }
-
             filteredHistory = filterMessagesByLLMCapabilities([...history], context);
 
             const modelInfo = `${context.provider}/${context.model}`;
@@ -231,14 +226,25 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 contentParts.push({ type: 'text', text: msg.content });
             }
             for (const toolCall of msg.toolCalls) {
+                const rawArgs = toolCall.function.arguments;
+                let parsed: any = {};
+                if (typeof rawArgs === 'string') {
+                    try {
+                        parsed = JSON.parse(rawArgs);
+                    } catch {
+                        parsed = {};
+                        logger.warn(
+                            `Vercel formatter: invalid tool args JSON for ${toolCall.function.name}`
+                        );
+                    }
+                } else {
+                    parsed = rawArgs;
+                }
                 contentParts.push({
                     type: 'tool-call',
                     toolCallId: toolCall.id,
                     toolName: toolCall.function.name,
-                    args:
-                        typeof toolCall.function.arguments === 'string'
-                            ? JSON.parse(toolCall.function.arguments)
-                            : toolCall.function.arguments,
+                    args: parsed,
                 });
             }
             const firstToolCall = msg.toolCalls?.[0];

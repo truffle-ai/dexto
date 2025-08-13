@@ -44,10 +44,6 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
         try {
-            if (!context?.provider) {
-                throw new Error('Provider is required for Anthropic formatter context');
-            }
-
             filteredHistory = filterMessagesByLLMCapabilities([...history], context);
         } catch (error) {
             logger.warn('Failed to apply capability filtering, using original history:', error);

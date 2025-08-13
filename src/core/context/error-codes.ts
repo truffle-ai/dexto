@@ -21,18 +21,10 @@ export const enum ContextErrorCode {
     // System message validation
     SYSTEM_MESSAGE_CONTENT_INVALID = 'context_system_message_content_invalid',
 
-    // Operation errors
-    MESSAGE_SAVE_FAILED = 'context_message_save_failed',
-    HISTORY_RETRIEVAL_FAILED = 'context_history_retrieval_failed',
-    MESSAGE_FORMATTING_FAILED = 'context_message_formatting_failed',
-    COMPRESSION_FAILED = 'context_compression_failed',
-    SYSTEM_PROMPT_FORMATTING_FAILED = 'context_system_prompt_formatting_failed',
-
-    // Token processing errors
     TOKEN_COUNT_FAILED = 'context_token_count_failed',
-
-    // Message filtering errors
-    PROVIDER_MODEL_REQUIRED = 'context_provider_model_required',
+    // (removed) Operation/formatting wrappers; domain errors bubble up
+    // (removed) Token processing wrappers; domain errors bubble up
+    // (removed) Provider/model required; validated at LLM or agent layer
 
     // Compression strategy configuration errors
     PRESERVE_VALUES_NEGATIVE = 'context_preserve_values_negative',

@@ -52,6 +52,7 @@ export class MCPClient implements IMCPClient {
             const httpConfig: HttpServerConfig = config;
             return this.connectViaHttp(httpConfig.url, httpConfig.headers || {}, serverName);
         } else {
+            // Unreachable code
             throw new Error('Unsupported server type');
         }
     }

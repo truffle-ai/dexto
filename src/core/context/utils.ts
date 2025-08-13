@@ -4,6 +4,8 @@ import { logger } from '@core/logger/index.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 // Approximation for message format overhead
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4;
@@ -165,7 +167,12 @@ export function filterMessagesByLLMCapabilities(
 ): InternalMessage[] {
     // Validate that both provider and model are provided
     if (!config.provider || !config.model) {
-        throw ContextError.providerModelRequired();
+        throw new DextoRuntimeError(
+            'context_provider_model_required' as any,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            'Both provider and model are required for message filtering'
+        );
     }
 
     try {

@@ -1,4 +1,4 @@
-import { generateText, LanguageModelV1, streamText, type CoreMessage } from 'ai';
+import { generateText, LanguageModelV1, streamText, type CoreMessage, APICallError } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { logger } from '../../logger/index.js';
@@ -8,7 +8,9 @@ import { ContextManager } from '../../context/manager.js';
 import { getMaxInputTokensForModel, LLMProvider, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { DextoValidationError } from '../../errors/DextoValidationError.js';
 import { LLMErrorCode } from '../error-codes.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import { ToolExecutionDeniedError } from '../../tools/confirmation/errors.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
@@ -186,57 +188,44 @@ export class VercelLLMService implements ILLMService {
         let iterationCount = 0;
         let fullResponse = '';
 
-        try {
-            while (iterationCount < 1) {
-                this.sessionEventBus.emit('llmservice:thinking');
-                iterationCount++;
-                logger.debug(`Iteration ${iterationCount}`);
-                const {
-                    formattedMessages,
-                    systemPrompt: _systemPrompt,
-                    tokensUsed,
-                } = await this.contextManager.getFormattedMessagesWithCompression(
-                    { mcpManager: this.toolManager.getMcpManager() },
-                    { provider: this.config.provider, model: this.model.modelId }
-                );
-
-                logger.silly(
-                    `Messages (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
-                );
-                logger.silly(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
-                logger.debug(`Estimated tokens being sent to Vercel provider: ${tokensUsed}`);
-
-                // Both methods now return strings and handle message processing internally
-                if (stream) {
-                    fullResponse = await this.streamText(
-                        formattedMessages,
-                        formattedTools,
-                        this.config.maxIterations
-                    );
-                } else {
-                    fullResponse = await this.generateText(
-                        formattedMessages,
-                        formattedTools,
-                        this.config.maxIterations
-                    );
-                }
-            }
-
-            return (
-                fullResponse ||
-                'Reached maximum number of tool call iterations without a final response.'
+        while (iterationCount < 1) {
+            this.sessionEventBus.emit('llmservice:thinking');
+            iterationCount++;
+            logger.debug(`Iteration ${iterationCount}`);
+            const prepared = await this.contextManager.getFormattedMessagesWithCompression(
+                { mcpManager: this.toolManager.getMcpManager() },
+                { provider: this.config.provider, model: this.model.modelId }
             );
-        } catch (error) {
-            // Handle API errors
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`Error in Vercel LLM service execution: ${errorMessage}`, { error });
-            this.sessionEventBus.emit('llmservice:error', {
-                error: error instanceof Error ? error : new Error(errorMessage),
-                context: 'Vercel LLM service execution',
-                recoverable: false,
-            });
-            return `Error processing request: ${errorMessage}`;
+            const formattedMessages: unknown[] = prepared.formattedMessages;
+            const _systemPrompt: string | undefined = prepared.systemPrompt;
+            const tokensUsed: number = prepared.tokensUsed;
+
+            logger.silly(
+                `Messages (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
+            );
+            logger.silly(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
+            logger.debug(`Estimated tokens being sent to Vercel provider: ${tokensUsed}`);
+
+            // Both methods now return strings and handle message processing internally
+            if (stream) {
+                fullResponse = await this.streamText(
+                    formattedMessages,
+                    formattedTools,
+                    this.config.maxIterations
+                );
+            } else {
+                fullResponse = await this.generateText(
+                    formattedMessages,
+                    formattedTools,
+                    this.config.maxIterations
+                );
+            }
         }
+
+        return (
+            fullResponse ||
+            'Reached maximum number of tool call iterations without a final response.'
+        );
     }
 
     async generateText(
@@ -265,61 +254,63 @@ export class VercelLLMService implements ILLMService {
             );
         }
 
-        const response = await generateText({
-            model: this.model,
-            messages: messages as any, // Type assertion for complex message structure compatibility
-            tools: effectiveTools,
-            onStepFinish: (step) => {
-                logger.debug(`Step iteration: ${stepIteration}`);
-                stepIteration++;
-                logger.debug(`Step finished, step type: ${step.stepType}`);
-                logger.debug(`Step finished, step text: ${step.text}`);
-                logger.debug(
-                    `Step finished, step tool calls: ${JSON.stringify(step.toolCalls, null, 2)}`
-                );
-                logger.debug(
-                    `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
-                );
+        let response;
+        try {
+            response = await generateText({
+                model: this.model,
+                messages: messages as any,
+                tools: effectiveTools,
+                onStepFinish: (step) => {
+                    logger.debug(`Step iteration: ${stepIteration}`);
+                    stepIteration++;
+                    logger.debug(`Step finished, step type: ${step.stepType}`);
+                    logger.debug(`Step finished, step text: ${step.text}`);
+                    logger.debug(
+                        `Step finished, step tool calls: ${JSON.stringify(step.toolCalls, null, 2)}`
+                    );
+                    logger.debug(
+                        `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
+                    );
 
-                // Track token usage from each step
-                if (step.usage?.totalTokens !== undefined) {
-                    totalTokens += step.usage.totalTokens;
-                }
+                    if (step.usage?.totalTokens !== undefined) {
+                        totalTokens += step.usage.totalTokens;
+                    }
 
-                if (step.text) {
-                    this.sessionEventBus.emit('llmservice:response', {
-                        content: step.text,
-                        model: this.model.modelId,
-                        tokenCount: totalTokens > 0 ? totalTokens : undefined,
-                    });
-                }
-                // Emit events based on step content (kept from original)
-                if (step.toolCalls && step.toolCalls.length > 0) {
-                    for (const toolCall of step.toolCalls) {
-                        this.sessionEventBus.emit('llmservice:toolCall', {
-                            toolName: toolCall.toolName,
-                            args: toolCall.args,
-                            callId: toolCall.toolCallId,
+                    if (step.text) {
+                        this.sessionEventBus.emit('llmservice:response', {
+                            content: step.text,
+                            model: this.model.modelId,
+                            tokenCount: totalTokens > 0 ? totalTokens : undefined,
                         });
                     }
-                }
-                if (step.toolResults && step.toolResults.length > 0) {
-                    for (const toolResult of step.toolResults as any) {
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName: toolResult.toolName,
-                            result: toolResult.result,
-                            callId: toolResult.toolCallId,
-                            success: true,
-                        });
+                    if (step.toolCalls && step.toolCalls.length > 0) {
+                        for (const toolCall of step.toolCalls) {
+                            this.sessionEventBus.emit('llmservice:toolCall', {
+                                toolName: toolCall.toolName,
+                                args: toolCall.args,
+                                callId: toolCall.toolCallId,
+                            });
+                        }
                     }
-                }
-                // NOTE: Message manager additions are now handled after generateText completes
-            },
-            maxSteps: maxSteps,
-            ...(maxTokens && { maxTokens }),
-            ...(temperature !== undefined && { temperature }),
-        });
-
+                    if (step.toolResults && step.toolResults.length > 0) {
+                        for (const toolResult of step.toolResults as any) {
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName: toolResult.toolName,
+                                result: toolResult.result,
+                                callId: toolResult.toolCallId,
+                                success: true,
+                            });
+                        }
+                    }
+                },
+                maxSteps,
+                ...(maxTokens && { maxTokens }),
+                ...(temperature !== undefined && { temperature }),
+            });
+        } catch (err: any) {
+            this.mapProviderError(err, 'generate');
+        }
+        // Response received successfully
         // Parse and append each new InternalMessage from the formatter using ContextManager
         await this.contextManager.processLLMResponse(response);
 
@@ -330,6 +321,69 @@ export class VercelLLMService implements ILLMService {
 
         // Return the plain text of the response
         return response.text;
+    }
+
+    private mapProviderError(err: any, phase: 'generate' | 'stream'): never {
+        // APICallError from Vercel AI SDK
+        if (APICallError.isInstance?.(err)) {
+            const status = err.statusCode;
+            const headers = (err.responseHeaders || {}) as Record<string, string>;
+            const retryAfter = headers['retry-after'] ? Number(headers['retry-after']) : undefined;
+            const body =
+                typeof err.responseBody === 'string'
+                    ? err.responseBody
+                    : JSON.stringify(err.responseBody ?? '');
+
+            if (status === 429) {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.RATE_LIMIT_EXCEEDED,
+                    ErrorScope.LLM,
+                    ErrorType.RATE_LIMIT,
+                    'Rate limit exceeded',
+                    {
+                        sessionId: this.sessionId,
+                        provider: this.config.provider,
+                        model: this.model.modelId,
+                        status,
+                        retryAfter,
+                        body,
+                        phase,
+                    }
+                );
+            }
+            if (status === 408) {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.GENERATION_FAILED,
+                    ErrorScope.LLM,
+                    ErrorType.TIMEOUT,
+                    'Provider timed out',
+                    {
+                        sessionId: this.sessionId,
+                        provider: this.config.provider,
+                        model: this.model.modelId,
+                        status,
+                        body,
+                        phase,
+                    }
+                );
+            }
+            throw new DextoRuntimeError(
+                LLMErrorCode.GENERATION_FAILED,
+                ErrorScope.LLM,
+                ErrorType.THIRD_PARTY,
+                `Provider error ${status}`,
+                {
+                    sessionId: this.sessionId,
+                    provider: this.config.provider,
+                    model: this.model.modelId,
+                    status,
+                    body,
+                    phase,
+                }
+            );
+        }
+        // rethrow any other errors (including DextoRuntimeError and DextoValidationError)
+        throw err;
     }
 
     // Updated streamText to behave like generateText - returns string and handles message processing internally
@@ -355,6 +409,7 @@ export class VercelLLMService implements ILLMService {
         }
 
         // use vercel's streamText
+        let streamErr: unknown | undefined;
         const response = streamText({
             model: this.model,
             messages: messages as any, // Type assertion for complex message structure compatibility
@@ -375,6 +430,7 @@ export class VercelLLMService implements ILLMService {
                     context: 'streamText',
                     recoverable: false,
                 });
+                streamErr = error;
             },
             onStepFinish: (step) => {
                 logger.debug(`Step iteration: ${stepIteration}`);
@@ -466,6 +522,11 @@ export class VercelLLMService implements ILLMService {
         let fullResponse = '';
         for await (const textPart of response.textStream) {
             fullResponse += textPart;
+        }
+
+        // If streaming reported an error, map and throw now
+        if (streamErr) {
+            this.mapProviderError(streamErr, 'stream');
         }
 
         // Process the LLM response through ContextManager using the new stream method

@@ -97,58 +97,17 @@ export class ContextError {
     }
 
     // Operation errors
-    static messageSaveFailed(sessionId: string, cause: string) {
-        return new DextoRuntimeError(
-            ContextErrorCode.MESSAGE_SAVE_FAILED,
-            ErrorScope.CONTEXT,
-            ErrorType.SYSTEM,
-            `Failed to save message: ${cause}`,
-            { sessionId, cause },
-            'Check storage backend configuration and connectivity'
-        );
-    }
+    // Removed operation and tokenization/formatting wrappers; let domain errors bubble
 
-    static historyRetrievalFailed(sessionId: string, cause: string) {
+    // Compression strategy configuration errors
+    static preserveValuesNegative() {
         return new DextoRuntimeError(
-            ContextErrorCode.HISTORY_RETRIEVAL_FAILED,
+            ContextErrorCode.PRESERVE_VALUES_NEGATIVE,
             ErrorScope.CONTEXT,
-            ErrorType.SYSTEM,
-            `Failed to get conversation history: ${cause}`,
-            { sessionId, cause },
-            'Check history provider configuration and storage connectivity'
-        );
-    }
-
-    static messageFormattingFailed(cause: string) {
-        return new DextoRuntimeError(
-            ContextErrorCode.MESSAGE_FORMATTING_FAILED,
-            ErrorScope.CONTEXT,
-            ErrorType.SYSTEM,
-            `Failed to format messages: ${cause}`,
-            { cause },
-            'Check message formatter configuration and message structure'
-        );
-    }
-
-    static compressionFailed(cause: string) {
-        return new DextoRuntimeError(
-            ContextErrorCode.COMPRESSION_FAILED,
-            ErrorScope.CONTEXT,
-            ErrorType.SYSTEM,
-            `Failed to get formatted messages with compression: ${cause}`,
-            { cause },
-            'Check compression strategy configuration and token limits'
-        );
-    }
-
-    static systemPromptFormattingFailed(cause: string) {
-        return new DextoRuntimeError(
-            ContextErrorCode.SYSTEM_PROMPT_FORMATTING_FAILED,
-            ErrorScope.CONTEXT,
-            ErrorType.SYSTEM,
-            `Failed to get formatted system prompt: ${cause}`,
-            { cause },
-            'Check system prompt configuration and formatter implementation'
+            ErrorType.USER,
+            'preserveStart and preserveEnd must be non-negative',
+            {},
+            'Set preserveStart and preserveEnd to zero or positive values'
         );
     }
 
@@ -160,29 +119,6 @@ export class ContextError {
             `Failed to count tokens: ${cause}`,
             { cause },
             'Check tokenizer implementation and message content structure'
-        );
-    }
-
-    static providerModelRequired() {
-        return new DextoRuntimeError(
-            ContextErrorCode.PROVIDER_MODEL_REQUIRED,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
-            'Both provider and model are required for message filtering',
-            {},
-            'Provide both provider and model in LLM context for message filtering'
-        );
-    }
-
-    // Compression strategy configuration errors
-    static preserveValuesNegative() {
-        return new DextoRuntimeError(
-            ContextErrorCode.PRESERVE_VALUES_NEGATIVE,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
-            'preserveStart and preserveEnd must be non-negative',
-            {},
-            'Set preserveStart and preserveEnd to zero or positive values'
         );
     }
 
