@@ -11,7 +11,7 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { SessionEventBus } from '../../events/index.js';
-import { ToolExecutionDeniedError } from '../../tools/confirmation/errors.js';
+import { ToolErrorCode } from '../../tools/error-codes.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { PromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
@@ -85,8 +85,17 @@ export class VercelLLMService implements ILLMService {
                                 this.sessionId
                             );
                         } catch (err: unknown) {
-                            if (err instanceof ToolExecutionDeniedError) {
+                            if (
+                                err instanceof DextoRuntimeError &&
+                                err.code === ToolErrorCode.EXECUTION_DENIED
+                            ) {
                                 return { error: err.message, denied: true };
+                            }
+                            if (
+                                err instanceof DextoRuntimeError &&
+                                err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
+                            ) {
+                                return { error: err.message, denied: true, timeout: true };
                             }
                             // Other failures
                             const message = err instanceof Error ? err.message : String(err);

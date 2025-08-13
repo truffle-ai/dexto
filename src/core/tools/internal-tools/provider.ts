@@ -1,6 +1,7 @@
 import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
 import { ToolConfirmationProvider } from '../confirmation/types.js';
 import { logger } from '../../logger/index.js';
+import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, KnownInternalTool, getInternalToolInfo } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
@@ -117,7 +118,7 @@ export class InternalToolsProvider {
         if (!tool) {
             logger.error(`❌ No internal tool found: ${toolName}`);
             logger.debug(`Available internal tools: ${Array.from(this.tools.keys()).join(', ')}`);
-            throw new Error(`Internal tool not found: ${toolName}`);
+            throw ToolError.notFound(toolName);
         }
 
         try {

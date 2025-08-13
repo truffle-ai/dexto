@@ -4,6 +4,9 @@ import { NoOpConfirmationProvider } from '../confirmation/noop-confirmation-prov
 import type { InternalToolsServices } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
 import type { InternalTool } from '../types.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from '../error-codes.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 
 // Mock logger
 vi.mock('../../logger/index.js', () => ({
@@ -206,9 +209,13 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should throw error for nonexistent tool', async () => {
-            await expect(provider.executeTool('nonexistent_tool', {})).rejects.toThrow(
-                'Internal tool not found: nonexistent_tool'
-            );
+            const error = (await provider
+                .executeTool('nonexistent_tool', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.NOT_FOUND);
         });
 
         it('should propagate tool execution errors', async () => {
