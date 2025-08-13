@@ -8,8 +8,6 @@ import type { AgentStateManager } from '../config/agent-state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageBackends } from '../storage/index.js';
 import { SessionError } from './errors.js';
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { SessionErrorCode } from './error-codes.js';
 
 export interface SessionMetadata {
     createdAt: number;

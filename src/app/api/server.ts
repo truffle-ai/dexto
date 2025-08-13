@@ -57,7 +57,7 @@ const LLMSwitchRequestSchema = z
     .object({
         sessionId: z.string().optional(),
     })
-    .merge(LLMUpdatesSchema);
+    .and(LLMUpdatesSchema);
 
 /**
  * API request validation schemas based on actual usage
@@ -626,7 +626,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                             lastActivity: metadata?.lastActivity || null,
                             messageCount: metadata?.messageCount || 0,
                         };
-                    } catch (error) {
+                    } catch (_error) {
                         // Skip sessions that no longer exist
                         return {
                             id,

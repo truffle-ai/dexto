@@ -3,23 +3,16 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../config/agent-state-manager.js';
-import {
-    SessionManager,
-    SessionMetadata,
-    ChatSession,
-    SessionErrorCode,
-    SessionError,
-} from '../session/index.js';
+import { SessionManager, SessionMetadata, ChatSession, SessionError } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
-import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js';
+import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { AgentError } from './errors.js';
-import { LLMError } from '../llm/errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
+import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -47,6 +40,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'agentEventBus',
     'stateManager',
     'sessionManager',
+    'searchService',
 ];
 
 /**
@@ -368,7 +362,11 @@ export class DextoAgent {
             // Fire-and-forget to avoid race conditions during shutdown
             this.sessionManager
                 .incrementMessageCount(session.id)
-                .catch((error) => logger.warn(`Failed to increment message count: ${error}`));
+                .catch((error) =>
+                    logger.warn(
+                        `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
+                    )
+                );
 
             return response;
         } catch (error) {
@@ -647,11 +645,14 @@ export class DextoAgent {
     ): Promise<ValidatedLLMConfig> {
         this.ensureStarted();
 
-        // Basic validation
-        // TODO: move this to LLMUpdatesSchema zod validation
-        if (!llmUpdates.model && !llmUpdates.provider) {
-            throw LLMError.switchInputMissing();
+        // Validate input using schema (single source of truth)
+        const parseResult = LLMUpdatesSchema.safeParse(llmUpdates);
+        if (!parseResult.success) {
+            const validation = fail(zodToIssues(parseResult.error, 'error'));
+            ensureOk(validation); // This will throw DextoValidationError
+            throw new Error('Unreachable'); // For TypeScript
         }
+        const validatedUpdates = parseResult.data;
 
         // Get current config for the session
         const currentLLMConfig = sessionId
@@ -659,7 +660,7 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, llmUpdates);
+        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates);
         const validatedConfig = ensureOk(result);
 
         // Perform the actual LLM switch with validated config
@@ -837,7 +838,7 @@ export class DextoAgent {
 
         try {
             // Connect the server
-            await this.mcpManager.connectServer(name, config);
+            await this.mcpManager.connectServer(name, validatedConfig);
 
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,

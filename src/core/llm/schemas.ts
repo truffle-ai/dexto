@@ -213,7 +213,18 @@ export type LLMConfig = z.input<typeof LLMConfigSchema>;
 export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 // PATCH-like schema for updates (switch flows)
 
-export const LLMUpdatesSchema = LLMConfigBaseSchema.partial().strict();
+export const LLMUpdatesSchema = LLMConfigBaseSchema.partial()
+    .strict()
+    .superRefine((data, ctx) => {
+        // At least model or provider must be specified for updates
+        if (!data.model && !data.provider) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'At least model or provider must be specified for LLM switch',
+                path: [],
+            });
+        }
+    });
 export type LLMUpdates = z.input<typeof LLMUpdatesSchema>;
 // Re-export context type from llm module
 export type { LLMUpdateContext } from '../llm/types.js';

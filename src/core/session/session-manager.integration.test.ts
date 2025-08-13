@@ -2,7 +2,6 @@ import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import type { SessionData } from './session-manager.js';
-import { SessionErrorCode } from './error-codes.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.
