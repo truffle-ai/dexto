@@ -93,7 +93,7 @@ export const sessionCommand: CommandDefinition = {
                             const metadata = await agent.getSessionMetadata(sessionId);
                             const isCurrent = sessionId === current.id;
                             console.log('  ' + formatSessionInfo(sessionId, metadata, isCurrent));
-                        } catch (error) {
+                        } catch (_error) {
                             // Skip sessions that no longer exist
                             continue;
                         }

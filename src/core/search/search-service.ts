@@ -113,7 +113,7 @@ export class SearchService {
                                 metadata: sessionMetadata,
                             });
                         }
-                    } catch (error) {
+                    } catch (_error) {
                         // Skip sessions that no longer exist or have metadata issues
                         logger.debug(
                             `Skipping session ${sessionId} in search results: metadata unavailable`

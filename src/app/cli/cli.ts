@@ -35,7 +35,7 @@ async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
                     mostRecentActivity = metadata.lastActivity;
                     mostRecentSession = sessionId;
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Skip sessions that no longer exist
                 continue;
             }

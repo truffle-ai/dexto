@@ -626,7 +626,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                             lastActivity: metadata.lastActivity,
                             messageCount: metadata.messageCount,
                         };
-                    } catch (error) {
+                    } catch (_error) {
                         // Skip sessions that no longer exist
                         return {
                             id,

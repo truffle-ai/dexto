@@ -522,7 +522,7 @@ export class SessionManager {
                         `Error switching LLM for session ${sId}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Session not found - skip it and continue with other sessions
                 logger.debug(`Skipping session ${sId}: session not found`);
                 continue;
