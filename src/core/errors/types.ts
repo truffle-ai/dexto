@@ -5,6 +5,7 @@ import type { LLMErrorCode } from '@core/llm/error-codes.js';
 import type { MCPErrorCode } from '@core/mcp/error-codes.js';
 import type { SessionErrorCode } from '@core/session/error-codes.js';
 import type { StorageErrorCode } from '@core/storage/error-codes.js';
+import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
 
 /**
@@ -19,7 +20,8 @@ export const enum ErrorScope {
     SESSION = 'session', // Session lifecycle, management, and state
     MCP = 'mcp', // MCP server connections and protocol
     TOOLS = 'tools', // Tool execution and authorization
-    STORAGE = 'storage',
+    STORAGE = 'storage', // Storage backend operations
+    SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
 }
 
 /**
@@ -49,7 +51,8 @@ export type DextoErrorCode =
     | SessionErrorCode
     | MCPErrorCode
     | ToolErrorCode
-    | StorageErrorCode;
+    | StorageErrorCode
+    | SystemPromptErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

@@ -2,6 +2,7 @@ import { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { readFile, stat } from 'fs/promises';
 import { resolve, extname } from 'path';
 import { logger } from '../logger/index.js';
+import { SystemPromptError } from './errors.js';
 
 export class StaticContributor implements SystemPromptContributor {
     constructor(
@@ -86,7 +87,7 @@ export class FileContributor implements SystemPromptContributor {
                 const ext = extname(resolvedPath).toLowerCase();
                 if (ext !== '.md' && ext !== '.txt') {
                     if (errorHandling === 'error') {
-                        throw new Error(`File ${filePath} is not a .md or .txt file`);
+                        throw SystemPromptError.invalidFileType(filePath, ['.md', '.txt']);
                     }
                     continue;
                 }
@@ -95,9 +96,7 @@ export class FileContributor implements SystemPromptContributor {
                 const stats = await stat(resolvedPath);
                 if (stats.size > maxFileSize) {
                     if (errorHandling === 'error') {
-                        throw new Error(
-                            `File ${filePath} exceeds maximum size of ${maxFileSize} bytes`
-                        );
+                        throw SystemPromptError.fileTooLarge(filePath, stats.size, maxFileSize);
                     }
                     continue;
                 }
@@ -121,7 +120,10 @@ export class FileContributor implements SystemPromptContributor {
                 fileParts.push(filePart);
             } catch (error: any) {
                 if (errorHandling === 'error') {
-                    throw new Error(`Failed to read file ${filePath}: ${error.message || error}`);
+                    throw SystemPromptError.fileReadFailed(
+                        filePath,
+                        error.message || String(error)
+                    );
                 }
                 // 'skip' mode - do nothing, continue to next file
             }
