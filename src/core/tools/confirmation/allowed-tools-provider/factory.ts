@@ -11,10 +11,14 @@ import type { StorageBackends } from '@core/storage/index.js';
 // This creates potential duplication when storage backend is in-memory.
 // Consider: Always use StorageAllowedToolsProvider and let storage backend handle memory vs persistence.
 
-export interface AllowedToolsConfig {
-    type: 'memory' | 'storage';
-    storage: StorageBackends;
-}
+export type AllowedToolsConfig =
+    | {
+          type: 'memory';
+      }
+    | {
+          type: 'storage';
+          storage: StorageBackends;
+      };
 
 /**
  * Create an AllowedToolsProvider based on configuration.
