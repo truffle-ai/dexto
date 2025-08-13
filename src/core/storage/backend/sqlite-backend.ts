@@ -39,37 +39,47 @@ export class SQLiteBackend implements DatabaseBackend {
     private initializeTables(): void {
         logger.debug('SQLite initializing database schema...');
 
-        // Create key-value table
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS kv_store (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                created_at INTEGER DEFAULT (strftime('%s', 'now')),
-                updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-            )
-        `);
+        try {
+            // Create key-value table
+            this.db.exec(`
+                CREATE TABLE IF NOT EXISTS kv_store (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+                    updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+                )
+            `);
 
-        // Create list table for append operations
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS list_store (
-                key TEXT NOT NULL,
-                value TEXT NOT NULL,
-                sequence INTEGER,
-                created_at INTEGER DEFAULT (strftime('%s', 'now')),
-                PRIMARY KEY (key, sequence)
-            )
-        `);
+            // Create list table for append operations
+            this.db.exec(`
+                CREATE TABLE IF NOT EXISTS list_store (
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    sequence INTEGER,
+                    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+                    PRIMARY KEY (key, sequence)
+                )
+            `);
 
-        // Create indexes for better performance
-        this.db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_kv_store_key ON kv_store(key);
-            CREATE INDEX IF NOT EXISTS idx_list_store_key ON list_store(key);
-            CREATE INDEX IF NOT EXISTS idx_list_store_sequence ON list_store(key, sequence);
-        `);
+            // Create indexes for better performance
+            this.db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_kv_store_key ON kv_store(key);
+                CREATE INDEX IF NOT EXISTS idx_list_store_key ON list_store(key);
+                CREATE INDEX IF NOT EXISTS idx_list_store_sequence ON list_store(key, sequence);
+            `);
 
-        logger.debug(
-            'SQLite database schema initialized: kv_store, list_store tables with indexes'
-        );
+            logger.debug(
+                'SQLite database schema initialized: kv_store, list_store tables with indexes'
+            );
+        } catch (error) {
+            throw StorageError.migrationFailed(
+                error instanceof Error ? error.message : String(error),
+                {
+                    operation: 'table_initialization',
+                    backend: 'sqlite',
+                }
+            );
+        }
     }
 
     async connect(): Promise<void> {
@@ -155,68 +165,117 @@ export class SQLiteBackend implements DatabaseBackend {
     // Core operations
     async get<T>(key: string): Promise<T | undefined> {
         this.checkConnection();
-        const row = this.db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key) as
-            | { value: string }
-            | undefined;
-        return row ? JSON.parse(row.value) : undefined;
+        try {
+            const row = this.db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key) as
+                | { value: string }
+                | undefined;
+            return row ? JSON.parse(row.value) : undefined;
+        } catch (error) {
+            throw StorageError.readFailed(
+                'get',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     async set<T>(key: string, value: T): Promise<void> {
         this.checkConnection();
-        const serialized = JSON.stringify(value);
-        this.db
-            .prepare('INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)')
-            .run(key, serialized, Date.now());
+        try {
+            const serialized = JSON.stringify(value);
+            this.db
+                .prepare(
+                    'INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)'
+                )
+                .run(key, serialized, Date.now());
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'set',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     async delete(key: string): Promise<void> {
         this.checkConnection();
-        this.db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
-        this.db.prepare('DELETE FROM list_store WHERE key = ?').run(key);
+        try {
+            this.db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
+            this.db.prepare('DELETE FROM list_store WHERE key = ?').run(key);
+        } catch (error) {
+            throw StorageError.deleteFailed(
+                'delete',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     // List operations
     async list(prefix: string): Promise<string[]> {
         this.checkConnection();
+        try {
+            // Get keys from both tables
+            const kvKeys = this.db
+                .prepare('SELECT key FROM kv_store WHERE key LIKE ?')
+                .all(`${prefix}%`) as { key: string }[];
+            const listKeys = this.db
+                .prepare('SELECT DISTINCT key FROM list_store WHERE key LIKE ?')
+                .all(`${prefix}%`) as { key: string }[];
 
-        // Get keys from both tables
-        const kvKeys = this.db
-            .prepare('SELECT key FROM kv_store WHERE key LIKE ?')
-            .all(`${prefix}%`) as { key: string }[];
-        const listKeys = this.db
-            .prepare('SELECT DISTINCT key FROM list_store WHERE key LIKE ?')
-            .all(`${prefix}%`) as { key: string }[];
+            const allKeys = new Set([
+                ...kvKeys.map((row) => row.key),
+                ...listKeys.map((row) => row.key),
+            ]);
 
-        const allKeys = new Set([
-            ...kvKeys.map((row) => row.key),
-            ...listKeys.map((row) => row.key),
-        ]);
-
-        return Array.from(allKeys).sort();
+            return Array.from(allKeys).sort();
+        } catch (error) {
+            throw StorageError.readFailed(
+                'list',
+                error instanceof Error ? error.message : String(error),
+                { prefix }
+            );
+        }
     }
 
     async append<T>(key: string, item: T): Promise<void> {
         this.checkConnection();
-        const serialized = JSON.stringify(item);
+        try {
+            const serialized = JSON.stringify(item);
 
-        // Use atomic subquery to calculate next sequence and insert in single statement
-        // This eliminates race conditions under WAL mode
-        this.db
-            .prepare(
-                'INSERT INTO list_store (key, value, sequence) VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM list_store WHERE key = ?))'
-            )
-            .run(key, serialized, key);
+            // Use atomic subquery to calculate next sequence and insert in single statement
+            // This eliminates race conditions under WAL mode
+            this.db
+                .prepare(
+                    'INSERT INTO list_store (key, value, sequence) VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM list_store WHERE key = ?))'
+                )
+                .run(key, serialized, key);
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'append',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
         this.checkConnection();
-        const rows = this.db
-            .prepare(
-                'SELECT value FROM list_store WHERE key = ? ORDER BY sequence ASC LIMIT ? OFFSET ?'
-            )
-            .all(key, count, start) as { value: string }[];
+        try {
+            const rows = this.db
+                .prepare(
+                    'SELECT value FROM list_store WHERE key = ? ORDER BY sequence ASC LIMIT ? OFFSET ?'
+                )
+                .all(key, count, start) as { value: string }[];
 
-        return rows.map((row) => JSON.parse(row.value));
+            return rows.map((row) => JSON.parse(row.value));
+        } catch (error) {
+            throw StorageError.readFailed(
+                'getRange',
+                error instanceof Error ? error.message : String(error),
+                { key, start, count }
+            );
+        }
     }
 
     // Schema management

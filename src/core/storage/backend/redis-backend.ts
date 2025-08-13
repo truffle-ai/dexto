@@ -69,24 +69,48 @@ export class RedisBackend implements CacheBackend {
     // Core operations
     async get<T>(key: string): Promise<T | undefined> {
         this.checkConnection();
-        const value = await this.redis!.get(key);
-        return value ? JSON.parse(value) : undefined;
+        try {
+            const value = await this.redis!.get(key);
+            return value ? JSON.parse(value) : undefined;
+        } catch (error) {
+            throw StorageError.readFailed(
+                'get',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
         this.checkConnection();
-        const serialized = JSON.stringify(value);
+        try {
+            const serialized = JSON.stringify(value);
 
-        if (ttlSeconds) {
-            await this.redis!.setex(key, ttlSeconds, serialized);
-        } else {
-            await this.redis!.set(key, serialized);
+            if (ttlSeconds) {
+                await this.redis!.setex(key, ttlSeconds, serialized);
+            } else {
+                await this.redis!.set(key, serialized);
+            }
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'set',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
         }
     }
 
     async delete(key: string): Promise<void> {
         this.checkConnection();
-        await this.redis!.del(key);
+        try {
+            await this.redis!.del(key);
+        } catch (error) {
+            throw StorageError.deleteFailed(
+                'delete',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     // Redis-specific optimizations

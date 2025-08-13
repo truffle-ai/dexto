@@ -59,6 +59,12 @@ export class PostgresBackend implements DatabaseBackend {
         try {
             const result = await client.query('SELECT value FROM kv WHERE key = $1', [key]);
             return result.rows[0] ? result.rows[0].value : undefined;
+        } catch (error) {
+            throw StorageError.readFailed(
+                'get',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
         } finally {
             client.release();
         }
