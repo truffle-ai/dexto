@@ -1,6 +1,7 @@
 import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SystemPromptErrorCode } from './error-codes.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 
 /**
  * SystemPrompt error factory with typed methods for creating systemPrompt-specific errors
@@ -62,12 +63,12 @@ export class SystemPromptError {
     /**
      * Invalid contributor config error (for exhaustive type checking)
      */
-    static invalidContributorConfig(config: unknown) {
+    static invalidContributorConfig(config: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
             SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
             ErrorScope.SYSTEM_PROMPT,
             ErrorType.USER,
-            `Invalid contributor config: ${JSON.stringify(config)}`,
+            `Invalid contributor config: ${safeStringify(config)}`,
             { config }
         );
     }
