@@ -2,7 +2,6 @@ import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { filterMessagesByLLMCapabilities } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '@core/llm/types.js';
-import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import * as registry from '@core/llm/registry.js';
 
 // Mock the registry module

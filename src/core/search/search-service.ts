@@ -1,5 +1,5 @@
 import { logger } from '../logger/index.js';
-import type { DatabaseBackend } from '../storage/backend/database-backend.js';
+import type { DatabaseBackend } from '@core/storage/types.js';
 import type { InternalMessage } from '../context/types.js';
 import type {
     SearchOptions,

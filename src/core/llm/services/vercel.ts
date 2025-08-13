@@ -260,9 +260,8 @@ export class VercelLLMService implements ILLMService {
             );
         }
 
-        let response;
         try {
-            response = await generateText({
+            const response = await generateText({
                 model: this.model,
                 messages: messages as any,
                 tools: effectiveTools,
@@ -313,20 +312,21 @@ export class VercelLLMService implements ILLMService {
                 ...(maxTokens && { maxTokens }),
                 ...(temperature !== undefined && { temperature }),
             });
+
+            // Response received successfully
+            // Parse and append each new InternalMessage from the formatter using ContextManager
+            await this.contextManager.processLLMResponse(response);
+
+            // Update ContextManager with actual token count for hybrid approach
+            if (totalTokens > 0) {
+                this.contextManager.updateActualTokenCount(totalTokens);
+            }
+
+            // Return the plain text of the response
+            return response.text;
         } catch (err: any) {
             this.mapProviderError(err, 'generate');
         }
-        // Response received successfully
-        // Parse and append each new InternalMessage from the formatter using ContextManager
-        await this.contextManager.processLLMResponse(response);
-
-        // Update ContextManager with actual token count for hybrid approach
-        if (totalTokens > 0) {
-            this.contextManager.updateActualTokenCount(totalTokens);
-        }
-
-        // Return the plain text of the response
-        return response.text;
     }
 
     private mapProviderError(err: any, phase: 'generate' | 'stream'): never {
