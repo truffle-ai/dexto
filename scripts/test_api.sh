@@ -56,7 +56,46 @@ main() {
   run_test "POST /api/llm/switch unknown provider" POST "/api/llm/switch" 400 '{"provider":"unknown_vendor"}' || failures=$((failures+1))
   run_test "POST /api/llm/switch valid openai" POST "/api/llm/switch" 200 '{"provider":"openai","model":"gpt-4o"}' || failures=$((failures+1))
   run_test "POST /api/llm/switch session not found" POST "/api/llm/switch" 404 '{"model":"gpt-4o","sessionId":"does-not-exist-123"}' || failures=$((failures+1))
-  run_test "POST /api/llm/switch missing anthropic key" POST "/api/llm/switch" 400 '{"model":"claude-4-sonnet-20250514"}' || failures=$((failures+1))
+  # Test missing API key scenario by using empty API key  
+  run_test "POST /api/llm/switch missing API key" POST "/api/llm/switch" 400 '{"provider":"cohere","apiKey":""}' || failures=$((failures+1))
+
+  # Message endpoints (basic validation)
+  run_test "POST /api/message no data" POST "/api/message" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/message-sync no data" POST "/api/message-sync" 400 '{}' || failures=$((failures+1))
+
+  # Reset endpoint
+  run_test "POST /api/reset valid" POST "/api/reset" 200 '{}' || failures=$((failures+1))
+
+  # Config endpoint
+  run_test "GET /api/config.yaml" GET "/api/config.yaml" 200 || failures=$((failures+1))
+
+  # Session endpoints
+  run_test "GET /api/sessions" GET "/api/sessions" 200 || failures=$((failures+1))
+  run_test "POST /api/sessions create" POST "/api/sessions" 201 '{"sessionId":"test-session-123"}' || failures=$((failures+1))
+  run_test "GET /api/sessions/test-session-123" GET "/api/sessions/test-session-123" 200 || failures=$((failures+1))
+  run_test "POST /api/sessions/test-session-123/load" POST "/api/sessions/test-session-123/load" 200 '{}' || failures=$((failures+1))
+  run_test "GET /api/sessions/current" GET "/api/sessions/current" 200 || failures=$((failures+1))
+  run_test "GET /api/sessions/test-session-123/history" GET "/api/sessions/test-session-123/history" 200 || failures=$((failures+1))
+
+  # Search endpoints validation
+  run_test "GET /api/search/messages no query" GET "/api/search/messages" 400 || failures=$((failures+1))
+  run_test "GET /api/search/sessions no query" GET "/api/search/sessions" 400 || failures=$((failures+1))
+  run_test "GET /api/search/messages with query" GET "/api/search/messages?q=test" 200 || failures=$((failures+1))
+  run_test "GET /api/search/sessions with query" GET "/api/search/sessions?q=test" 200 || failures=$((failures+1))
+
+  # MCP endpoints validation
+  run_test "GET /api/mcp/servers" GET "/api/mcp/servers" 200 || failures=$((failures+1))
+  run_test "POST /api/mcp/servers no data" POST "/api/mcp/servers" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/connect-server no data" POST "/api/connect-server" 400 '{}' || failures=$((failures+1))
+
+  # Webhook endpoints validation
+  run_test "POST /api/webhooks no data" POST "/api/webhooks" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/webhooks invalid URL" POST "/api/webhooks" 400 '{"url":"not-a-url"}' || failures=$((failures+1))
+  run_test "POST /api/webhooks valid" POST "/api/webhooks" 201 '{"url":"https://example.com/webhook"}' || failures=$((failures+1))
+  run_test "GET /api/webhooks" GET "/api/webhooks" 200 || failures=$((failures+1))
+
+  # Cleanup test data
+  run_test "DELETE /api/sessions/test-session-123" DELETE "/api/sessions/test-session-123" 200 || failures=$((failures+1))
 
   if [[ ${failures} -eq 0 ]]; then
     echo "$(green "All tests passed")"

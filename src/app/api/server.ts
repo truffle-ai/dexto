@@ -32,6 +32,7 @@ import {
     supportsBaseURL,
 } from '@core/llm/registry.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -57,7 +58,69 @@ const LLMSwitchRequestSchema = z
     })
     .merge(LLMUpdatesSchema);
 
-// Validation helper removed in favor of middleware catching ZodError
+/**
+ * API request validation schemas based on actual usage
+ */
+const MessageRequestSchema = z
+    .object({
+        message: z.string().optional(),
+        sessionId: z.string().optional(),
+        stream: z.boolean().optional(),
+        imageData: z
+            .object({
+                base64: z.string(),
+                mimeType: z.string(),
+            })
+            .optional(),
+        fileData: z
+            .object({
+                base64: z.string(),
+                mimeType: z.string(),
+                filename: z.string().optional(),
+            })
+            .optional(),
+    })
+    .refine(
+        (data) => {
+            // Must have either message text, image data, or file data
+            return (data.message && data.message.length > 0) || data.imageData || data.fileData;
+        },
+        {
+            message: 'Must provide either message text, image data, or file data',
+        }
+    );
+
+// Reuse existing MCP server config schema
+const McpServerRequestSchema = z.object({
+    name: z.string().min(1, 'Server name is required'),
+    config: McpServerConfigSchema,
+});
+
+// Based on existing WebhookRegistrationRequest interface
+const WebhookRequestSchema = z.object({
+    url: z.string().url('Invalid URL format'),
+    secret: z.string().optional(),
+    description: z.string().optional(),
+});
+
+// Schema for search query parameters
+const SearchQuerySchema = z.object({
+    q: z.string().min(1, 'Search query is required'),
+    limit: z.coerce.number().min(1).max(100).optional(),
+    offset: z.coerce.number().min(0).optional(),
+    sessionId: z.string().optional(),
+    role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
+});
+
+// Helper to parse and validate request body
+function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
+    return schema.parse(body); // ZodError handled by error middleware
+}
+
+// Helper to parse and validate query parameters
+function parseQuery<T>(schema: z.ZodSchema<T>, query: unknown): T {
+    return schema.parse(query); // ZodError handled by error middleware
+}
 
 // TODO: API endpoint names are work in progress and might be refactored/renamed in future versions
 export async function initializeApi(agent: DextoAgent, agentCardOverride?: Partial<AgentCard>) {
@@ -86,22 +149,22 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     app.post('/api/message', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message');
-        if (!req.body || !req.body.message) {
-            return res.status(400).send({ error: 'Missing message content' });
-        }
         try {
-            const sessionId = req.body.sessionId as string | undefined;
-            const stream = req.body.stream === true; // Extract stream preference, default to false
-            const imageDataInput = req.body.imageData
-                ? { image: req.body.imageData.base64, mimeType: req.body.imageData.mimeType }
+            const { message, sessionId, stream, imageData, fileData } = parseBody(
+                MessageRequestSchema,
+                req.body
+            );
+
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
                 : undefined;
 
             // Process file data
-            const fileDataInput = req.body.fileData
+            const fileDataInput = fileData
                 ? {
-                      data: req.body.fileData.base64,
-                      mimeType: req.body.fileData.mimeType,
-                      filename: req.body.fileData.filename,
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      filename: fileData.filename,
                   }
                 : undefined;
 
@@ -110,11 +173,11 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
             const response = await agent.run(
-                req.body.message,
+                message || '',
                 imageDataInput,
                 fileDataInput,
                 sessionId,
-                stream
+                stream || false
             );
             return res.status(202).send({ response, sessionId });
         } catch (error) {
@@ -125,31 +188,36 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Synchronous endpoint: await the full AI response and return it in one go
     app.post('/api/message-sync', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message-sync');
-        if (!req.body || !req.body.message) {
-            return res.status(400).send({ error: 'Missing message content' });
-        }
         try {
+            const { message, sessionId, stream, imageData, fileData } = parseBody(
+                MessageRequestSchema,
+                req.body
+            );
+
             // Extract optional image and file data
-            const imageDataInput = req.body.imageData
-                ? { image: req.body.imageData.base64, mimeType: req.body.imageData.mimeType }
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
                 : undefined;
 
             // Process file data
-            const fileDataInput = req.body.fileData
+            const fileDataInput = fileData
                 ? {
-                      data: req.body.fileData.base64,
-                      mimeType: req.body.fileData.mimeType,
-                      filename: req.body.fileData.filename,
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      filename: fileData.filename,
                   }
                 : undefined;
-
-            const sessionId = req.body.sessionId as string | undefined;
-            const stream = req.body.stream === true; // Extract stream preference, default to false
             if (imageDataInput) logger.info('Image data included in message.');
             if (fileDataInput) logger.info('File data included in message.');
             if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            await agent.run(req.body.message, imageDataInput, fileDataInput, sessionId, stream);
+            await agent.run(
+                message || '',
+                imageDataInput,
+                fileDataInput,
+                sessionId,
+                stream || false
+            );
             return res.status(202).send({ status: 'processing', sessionId });
         } catch (error) {
             return next(error);
@@ -169,14 +237,8 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // Dynamic MCP server connection endpoint (legacy)
     app.post('/api/connect-server', express.json(), async (req, res, next) => {
-        const { name, config } = req.body;
-        if (!name || typeof name !== 'string' || name.trim() === '') {
-            return res.status(400).send({ error: 'Missing or invalid server name' });
-        }
-        if (!config || typeof config !== 'object') {
-            return res.status(400).send({ error: 'Missing or invalid server config object' });
-        }
         try {
+            const { name, config } = parseBody(McpServerRequestSchema, req.body);
             await agent.connectMcpServer(name, config);
             logger.info(`Successfully connected to new server '${name}' via API request.`);
             return res.status(200).send({ status: 'connected', name });
@@ -187,11 +249,8 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // Add a new MCP server
     app.post('/api/mcp/servers', express.json(), async (req, res, next) => {
-        const { name, config } = req.body;
-        if (!name || !config) {
-            return res.status(400).json({ error: 'Missing name or config' });
-        }
         try {
+            const { name, config } = parseBody(McpServerRequestSchema, req.body);
             await agent.connectMcpServer(name, config);
             return res.status(201).json({ status: 'connected', name });
         } catch (error) {
@@ -239,7 +298,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     });
 
     // Endpoint to remove/disconnect an MCP server
-    app.delete('/api/mcp/servers/:serverId', async (req, res) => {
+    app.delete('/api/mcp/servers/:serverId', async (req, res, next) => {
         const { serverId } = req.params;
         logger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
 
@@ -255,11 +314,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             await agent.removeMcpServer(serverId);
             return res.status(200).json({ status: 'disconnected', id: serverId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error deleting server '${serverId}': ${errorMessage}`);
-            return res.status(500).json({
-                error: `Failed to delete server '${serverId}': ${errorMessage}`,
-            });
+            return next(error);
         }
     });
 
@@ -484,7 +539,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         return redactedServers;
     }
 
-    app.get('/api/config.yaml', async (req, res) => {
+    app.get('/api/config.yaml', async (req, res, next) => {
         try {
             const sessionId = req.query.sessionId as string | undefined;
             const config = agent.getEffectiveConfig(sessionId);
@@ -502,14 +557,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const yamlStr = yamlStringify(maskedConfig);
             res.set('Content-Type', 'application/x-yaml');
             res.send(yamlStr);
-        } catch (error: any) {
-            logger.error(`Error exporting config: ${error.message}`);
-            res.status(500).json({ error: 'Failed to export configuration' });
+        } catch (error) {
+            return next(error);
         }
     });
 
     // Get current LLM configuration
-    app.get('/api/llm/current', async (req, res) => {
+    app.get('/api/llm/current', async (req, res, next) => {
         try {
             const { sessionId } = req.query;
 
@@ -519,9 +573,8 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 : agent.getCurrentLLMConfig();
 
             res.json({ config: currentConfig });
-        } catch (error: any) {
-            logger.error(`Error getting current LLM config: ${error.message}`);
-            res.status(500).json({ error: 'Failed to get current LLM configuration' });
+        } catch (error) {
+            return next(error);
         }
     });
 
@@ -611,15 +664,21 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
+    // Get current working session (must come before parameterized route)
+    app.get('/api/sessions/current', async (req, res, next) => {
+        try {
+            const currentSessionId = agent.getCurrentSessionId();
+            return res.json({ currentSessionId });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     // Get session details
     app.get('/api/sessions/:sessionId', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
             const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
             const metadata = await agent.getSessionMetadata(sessionId);
             const history = await agent.getSessionHistory(sessionId);
 
@@ -641,11 +700,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     app.get('/api/sessions/:sessionId/history', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
+            // getSessionHistory already checks existence via getSession
             const history = await agent.getSessionHistory(sessionId);
             return res.json({ history });
         } catch (error) {
@@ -656,30 +711,20 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Search messages across all sessions or within a specific session
     app.get('/api/search/messages', async (req, res, next) => {
         try {
-            const query = req.query.q as string;
-            if (!query) {
-                return res.status(400).json({ error: 'Search query is required' });
-            }
+            const {
+                q: query,
+                limit,
+                offset,
+                sessionId,
+                role,
+            } = parseQuery(SearchQuerySchema, req.query);
 
-            const options: {
-                limit: number;
-                offset: number;
-                sessionId?: string;
-                role?: 'user' | 'assistant' | 'system' | 'tool';
-            } = {
-                limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
-                offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
+            const options = {
+                limit: limit || 20,
+                offset: offset || 0,
+                ...(sessionId && { sessionId }),
+                ...(role && { role }),
             };
-
-            const sessionId = req.query.sessionId as string | undefined;
-            const role = req.query.role as 'user' | 'assistant' | 'system' | 'tool' | undefined;
-
-            if (sessionId) {
-                options.sessionId = sessionId;
-            }
-            if (role) {
-                options.role = role;
-            }
 
             const searchResults = await agent.searchMessages(query, options);
             return sendJsonResponse(res, searchResults);
@@ -691,11 +736,10 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Search sessions that contain the query
     app.get('/api/search/sessions', async (req, res, next) => {
         try {
-            const query = req.query.q as string;
-            if (!query) {
-                return res.status(400).json({ error: 'Search query is required' });
-            }
-
+            const { q: query } = parseQuery(
+                z.object({ q: z.string().min(1, 'Search query is required') }),
+                req.query
+            );
             const searchResults = await agent.searchSessions(query);
             return sendJsonResponse(res, searchResults);
         } catch (error) {
@@ -707,11 +751,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     app.delete('/api/sessions/:sessionId', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
+            // deleteSession already checks existence internally
             await agent.deleteSession(sessionId);
             return res.json({ status: 'deleted', sessionId });
         } catch (error) {
@@ -735,27 +775,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 return;
             }
 
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
+            // loadSession already checks session existence
             await agent.loadSession(sessionId);
             return res.json({
                 status: 'loaded',
                 sessionId,
                 currentSession: agent.getCurrentSessionId(),
             });
-        } catch (error) {
-            return next(error);
-        }
-    });
-
-    // Get current working session
-    app.get('/api/sessions/current', async (req, res, next) => {
-        try {
-            const currentSessionId = agent.getCurrentSessionId();
-            return res.json({ currentSessionId });
         } catch (error) {
             return next(error);
         }
@@ -771,18 +797,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Register a new webhook endpoint
     app.post('/api/webhooks', express.json(), async (req, res, next) => {
         try {
-            const { url, secret, description }: WebhookRegistrationRequest = req.body;
-
-            if (!url || typeof url !== 'string') {
-                return res.status(400).json({ error: 'Invalid or missing webhook URL' });
-            }
-
-            // Validate URL format
-            try {
-                new URL(url);
-            } catch {
-                return res.status(400).json({ error: 'Invalid URL format' });
-            }
+            const { url, secret, description } = parseBody(WebhookRequestSchema, req.body);
 
             // Generate unique webhook ID
             const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

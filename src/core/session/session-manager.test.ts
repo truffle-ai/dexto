@@ -331,10 +331,13 @@ describe('SessionManager', () => {
             expect(mockStorageManager.database.get).toHaveBeenCalledWith(`session:${sessionId}`);
         });
 
-        test('should return undefined for non-existent sessions', async () => {
-            const session = await sessionManager.getSession('non-existent');
-
-            expect(session).toBeUndefined();
+        test('should throw SessionError.notFound for non-existent sessions', async () => {
+            await expect(sessionManager.getSession('non-existent')).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_NOT_FOUND,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.NOT_FOUND,
+                context: { sessionId: 'non-existent' },
+            });
         });
 
         test('should update session activity timestamps on access', async () => {

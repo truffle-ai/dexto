@@ -266,12 +266,6 @@ describe('DextoAgent Lifecycle Management', () => {
             });
         });
 
-        test('getCurrentSessionId should work without start() (read-only)', () => {
-            const agent = new DextoAgent(mockConfig);
-
-            expect(() => agent.getCurrentSessionId()).not.toThrow();
-        });
-
         test('isStarted and isStopped should work without start() (read-only)', () => {
             const agent = new DextoAgent(mockConfig);
 

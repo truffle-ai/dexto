@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import type { SessionData } from './session-manager.js';
+import { SessionErrorCode } from './error-codes.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.
@@ -136,7 +137,9 @@ describe('Session Integration: Chat History Preservation', () => {
         await agent.deleteSession(sessionId);
 
         // Everything should be gone including chat history
-        expect(await agent.getSession(sessionId)).toBeUndefined();
+        await expect(agent.getSession(sessionId)).rejects.toMatchObject({
+            code: SessionErrorCode.SESSION_NOT_FOUND,
+        });
         expect(await storage.database.get(sessionKey)).toBeUndefined();
         expect(await storage.database.get(messagesKey)).toBeUndefined();
     });

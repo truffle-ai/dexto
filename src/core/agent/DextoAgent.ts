@@ -8,7 +8,6 @@ import {
     SessionMetadata,
     ChatSession,
     SessionErrorCode,
-    SessionError,
 } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
@@ -22,6 +21,7 @@ import { AgentError } from './errors.js';
 import { LLMError } from '../llm/errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -343,9 +343,19 @@ export class DextoAgent {
 
             if (sessionId) {
                 // Use specific session or create it if it doesn't exist
-                session =
-                    (await this.sessionManager.getSession(sessionId)) ??
-                    (await this.sessionManager.createSession(sessionId));
+                try {
+                    session = await this.sessionManager.getSession(sessionId);
+                } catch (error) {
+                    // If session doesn't exist, create it
+                    if (
+                        error instanceof DextoRuntimeError &&
+                        error.code === SessionErrorCode.SESSION_NOT_FOUND
+                    ) {
+                        session = await this.sessionManager.createSession(sessionId);
+                    } else {
+                        throw error; // Re-throw other errors
+                    }
+                }
             } else {
                 // Use loaded default session for backward compatibility
                 if (
@@ -397,9 +407,10 @@ export class DextoAgent {
     /**
      * Retrieves an existing session by ID.
      * @param sessionId The session ID to retrieve
-     * @returns The ChatSession if found, undefined otherwise
+     * @returns The ChatSession
+     * @throws SessionError.notFound if session doesn't exist
      */
-    public async getSession(sessionId: string): Promise<ChatSession | undefined> {
+    public async getSession(sessionId: string): Promise<ChatSession> {
         this.ensureStarted();
         return await this.sessionManager.getSession(sessionId);
     }
@@ -444,9 +455,10 @@ export class DextoAgent {
     /**
      * Gets metadata for a specific session.
      * @param sessionId The session ID
-     * @returns The session metadata or undefined if session doesn't exist
+     * @returns The session metadata
+     * @throws SessionError.notFound if session doesn't exist
      */
-    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
+    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata> {
         this.ensureStarted();
         return await this.sessionManager.getSessionMetadata(sessionId);
     }
@@ -460,9 +472,6 @@ export class DextoAgent {
     public async getSessionHistory(sessionId: string) {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
         return await session.getHistory();
     }
 
@@ -521,10 +530,7 @@ export class DextoAgent {
         }
 
         // Verify session exists before loading it
-        const session = await this.sessionManager.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
+        await this.sessionManager.getSession(sessionId);
 
         this.currentDefaultSessionId = sessionId;
         this.defaultSession = null; // Clear cached session to force reload
@@ -538,6 +544,7 @@ export class DextoAgent {
      * @returns The current default session ID
      */
     public getCurrentSessionId(): string {
+        this.ensureStarted();
         return this.currentDefaultSessionId;
     }
 

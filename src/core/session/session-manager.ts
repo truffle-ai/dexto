@@ -8,6 +8,8 @@ import type { AgentStateManager } from '../config/agent-state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageBackends } from '../storage/index.js';
 import { SessionError } from './errors.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
+import { SessionErrorCode } from './error-codes.js';
 
 export interface SessionMetadata {
     createdAt: number;
@@ -264,7 +266,7 @@ export class SessionManager {
      * @param sessionId The session ID to retrieve
      * @returns The ChatSession if found, undefined otherwise
      */
-    public async getSession(sessionId: string): Promise<ChatSession | undefined> {
+    public async getSession(sessionId: string): Promise<ChatSession> {
         await this.ensureInitialized();
 
         // Check if there's a pending creation for this session ID
@@ -274,7 +276,7 @@ export class SessionManager {
 
         // Check memory first
         if (this.sessions.has(sessionId)) {
-            return this.sessions.get(sessionId);
+            return this.sessions.get(sessionId)!;
         }
 
         // Check storage
@@ -288,7 +290,7 @@ export class SessionManager {
             return session;
         }
 
-        return undefined;
+        throw SessionError.notFound(sessionId);
     }
 
     /**
@@ -324,11 +326,22 @@ export class SessionManager {
         await this.ensureInitialized();
 
         // Get session (load from storage if not in memory) to clear conversation history
-        const session = await this.getSession(sessionId);
-        if (session) {
+        // Make deletion idempotent - don't throw if session doesn't exist
+        try {
+            const session = await this.getSession(sessionId);
             await session.reset(); // This deletes the conversation history
             await session.cleanup(); // This cleans up memory resources
             this.sessions.delete(sessionId);
+        } catch (error) {
+            // Session doesn't exist - that's fine for deletion
+            if (
+                error instanceof DextoRuntimeError &&
+                error.code === SessionErrorCode.SESSION_NOT_FOUND
+            ) {
+                logger.debug(`Session ${sessionId} not found during deletion - already deleted`);
+            } else {
+                throw error; // Re-throw other errors
+            }
         }
 
         // Remove session metadata from storage
@@ -386,17 +399,18 @@ export class SessionManager {
      * @param sessionId The session ID
      * @returns Session metadata if found, undefined otherwise
      */
-    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
+    public async getSessionMetadata(sessionId: string): Promise<SessionMetadata> {
         await this.ensureInitialized();
         const sessionKey = `session:${sessionId}`;
         const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
-        return sessionData
-            ? {
-                  createdAt: sessionData.createdAt,
-                  lastActivity: sessionData.lastActivity,
-                  messageCount: sessionData.messageCount,
-              }
-            : undefined;
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+        return {
+            createdAt: sessionData.createdAt,
+            lastActivity: sessionData.lastActivity,
+            messageCount: sessionData.messageCount,
+        };
     }
 
     /**
