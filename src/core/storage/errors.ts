@@ -21,19 +21,6 @@ export class StorageError {
     }
 
     /**
-     * Connection lost error
-     */
-    static connectionLost(reason: string) {
-        return new DextoRuntimeError(
-            StorageErrorCode.CONNECTION_LOST,
-            ErrorScope.STORAGE,
-            ErrorType.THIRD_PARTY,
-            `Storage connection lost: ${reason}`,
-            { reason }
-        );
-    }
-
-    /**
      * Backend not connected error
      */
     static notConnected(backendType: string) {
