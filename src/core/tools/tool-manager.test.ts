@@ -167,7 +167,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
         });
 
-        it('should throw ToolExecutionDeniedError when confirmation denied', async () => {
+        it('should throw execution denied error when confirmation denied', async () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(false);
 
             const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);

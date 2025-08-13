@@ -121,9 +121,22 @@ export class InternalToolsProvider {
             throw ToolError.notFound(toolName);
         }
 
+        // Validate input against tool's Zod schema
+        const validationResult = tool.inputSchema.safeParse(args);
+        if (!validationResult.success) {
+            logger.error(
+                `❌ Invalid arguments for tool ${toolName}:`,
+                validationResult.error.message
+            );
+            throw ToolError.invalidName(
+                toolName,
+                `Invalid arguments: ${validationResult.error.message}`
+            );
+        }
+
         try {
             const context: ToolExecutionContext = { sessionId };
-            const result = await tool.execute(args, context);
+            const result = await tool.execute(validationResult.data, context);
             return result;
         } catch (error) {
             logger.error(`❌ Internal tool execution failed: ${toolName}`, error);

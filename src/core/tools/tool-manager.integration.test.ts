@@ -97,8 +97,8 @@ describe('ToolManager Integration Tests', () => {
             expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test query',
                 expect.objectContaining({
-                    sessionId: undefined,
-                    role: undefined,
+                    limit: 20, // Default from Zod schema
+                    offset: 0, // Default from Zod schema
                 })
             );
             expect(result).toEqual([{ id: '1', content: 'test message', role: 'user' }]);
@@ -419,12 +419,12 @@ describe('ToolManager Integration Tests', () => {
             // Verify MCP tool received sessionId (note: MCPManager doesn't use sessionId in callTool currently)
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
 
-            // Verify internal tool received sessionId in context
+            // Verify internal tool was called with proper defaults
             expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test',
                 expect.objectContaining({
-                    sessionId: undefined, // Note: search_history tool doesn't use sessionId from context yet
-                    role: undefined,
+                    limit: 20, // Default from Zod schema
+                    offset: 0, // Default from Zod schema
                 })
             );
         });
