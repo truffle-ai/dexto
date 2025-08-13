@@ -164,7 +164,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 ? {
                       data: fileData.base64,
                       mimeType: fileData.mimeType,
-                      filename: fileData.filename,
+                      ...(fileData.filename && { filename: fileData.filename }),
                   }
                 : undefined;
 
@@ -204,7 +204,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 ? {
                       data: fileData.base64,
                       mimeType: fileData.mimeType,
-                      filename: fileData.filename,
+                      ...(fileData.filename && { filename: fileData.filename }),
                   }
                 : undefined;
             if (imageDataInput) logger.info('Image data included in message.');
@@ -372,7 +372,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         ? {
                               data: data.fileData.base64,
                               mimeType: data.fileData.mimeType,
-                              filename: data.fileData.filename,
+                              ...(data.fileData.filename && { filename: data.fileData.filename }),
                           }
                         : undefined;
 
