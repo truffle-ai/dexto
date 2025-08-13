@@ -30,7 +30,7 @@ import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js
  */
 async function getCurrentSessionInfo(
     agent: DextoAgent
-): Promise<{ id: string; metadata: SessionMetadata | undefined }> {
+): Promise<{ id: string; metadata: SessionMetadata }> {
     const currentId = agent.getCurrentSessionId();
     const metadata = await agent.getSessionMetadata(currentId);
     return { id: currentId, metadata };
@@ -89,9 +89,14 @@ export const sessionCommand: CommandDefinition = {
                     }
 
                     for (const sessionId of sessionIds) {
-                        const metadata = await agent.getSessionMetadata(sessionId);
-                        const isCurrent = sessionId === current.id;
-                        console.log('  ' + formatSessionInfo(sessionId, metadata, isCurrent));
+                        try {
+                            const metadata = await agent.getSessionMetadata(sessionId);
+                            const isCurrent = sessionId === current.id;
+                            console.log('  ' + formatSessionInfo(sessionId, metadata, isCurrent));
+                        } catch (error) {
+                            // Skip sessions that no longer exist
+                            continue;
+                        }
                     }
 
                     console.log(chalk.dim(`\n  Total: ${sessionIds.length} sessions`));
@@ -144,7 +149,7 @@ export const sessionCommand: CommandDefinition = {
                     const metadata = await agent.getSessionMetadata(sessionId);
                     console.log(chalk.green(`✅ Switched to session: ${chalk.bold(sessionId)}`));
 
-                    if (metadata && metadata.messageCount > 0) {
+                    if (metadata.messageCount > 0) {
                         console.log(chalk.dim(`   ${metadata.messageCount} messages in history`));
                     } else {
                         console.log(chalk.dim('   New session - no previous messages'));

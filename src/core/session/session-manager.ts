@@ -241,7 +241,9 @@ export class SessionManager {
             return session;
         } catch (error) {
             // If session creation fails after we've claimed the slot, clean up the metadata
-            logger.error(`Failed to initialize session ${id}:`, error);
+            logger.error(
+                `Failed to initialize session ${id}: ${error instanceof Error ? error.message : String(error)}`
+            );
             await this.services.storage.database.delete(sessionKey);
             await this.services.storage.cache.delete(sessionKey);
             const reason = error instanceof Error ? error.message : 'unknown error';
@@ -505,8 +507,8 @@ export class SessionManager {
         const failedSessions: string[] = [];
 
         for (const sId of sessionIds) {
-            const session = await this.getSession(sId);
-            if (session) {
+            try {
+                const session = await this.getSession(sId);
                 try {
                     // Update state with validated config (validation already done by DextoAgent)
                     // Using exceptions here for session-specific runtime failures (corruption, disposal, etc.)
@@ -520,6 +522,10 @@ export class SessionManager {
                         `Error switching LLM for session ${sId}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
+            } catch (error) {
+                // Session not found - skip it and continue with other sessions
+                logger.debug(`Skipping session ${sId}: session not found`);
+                continue;
             }
         }
 
