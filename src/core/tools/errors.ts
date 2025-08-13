@@ -123,4 +123,17 @@ export class ToolError {
             { toolName }
         );
     }
+
+    /**
+     * Invalid tool configuration
+     */
+    static configInvalid(message: string) {
+        return new DextoRuntimeError(
+            ToolErrorCode.CONFIG_INVALID,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            message,
+            {}
+        );
+    }
 }

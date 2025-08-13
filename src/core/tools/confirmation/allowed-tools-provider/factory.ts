@@ -2,6 +2,7 @@ import { InMemoryAllowedToolsProvider } from './in-memory.js';
 import { StorageAllowedToolsProvider } from './storage.js';
 import type { IAllowedToolsProvider } from './types.js';
 import type { StorageBackends } from '@core/storage/index.js';
+import { ToolError } from '../../errors.js';
 
 // TODO: Re-evaluate storage + toolConfirmation config together to avoid duplication
 // Currently we have:
@@ -29,5 +30,12 @@ export function createAllowedToolsProvider(config: AllowedToolsConfig): IAllowed
             return new InMemoryAllowedToolsProvider();
         case 'storage':
             return new StorageAllowedToolsProvider(config.storage);
+        default: {
+            // Exhaustive check; at runtime this guards malformed config
+            const _exhaustive: never = config;
+            throw ToolError.configInvalid(
+                `Unsupported AllowedToolsConfig type: ${(config as any)?.type}`
+            );
+        }
     }
 }

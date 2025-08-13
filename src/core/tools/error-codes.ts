@@ -16,4 +16,7 @@ export enum ToolErrorCode {
     TOOL_NOT_FOUND = 'tools_tool_not_found',
     TOOL_INVALID_ARGS = 'tools_invalid_args',
     TOOL_UNAUTHORIZED = 'tools_unauthorized',
+
+    // Configuration
+    CONFIG_INVALID = 'tools_config_invalid',
 }
