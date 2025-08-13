@@ -67,8 +67,14 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
         return;
     }
 
-    // Log unexpected errors for debugging
-    logger.error(`Unhandled error: ${err}`);
+    // Log unexpected errors with full context for debugging
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    logger.error(`Unhandled error in API middleware: ${errorMessage}`, {
+        error: err,
+        stack: errorStack,
+        type: typeof err,
+    });
 
     // Generic error response for non-DextoError exceptions
     res.status(500).json({

@@ -7,12 +7,8 @@ import { parseInput } from './interactive-commands/command-parser.js';
 import { executeCommand } from './interactive-commands/commands.js';
 import { getDextoPath } from '@core/utils/path.js';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import {
-    DextoRuntimeError,
-    DextoValidationError,
-    LLMErrorCode,
-    ErrorScope,
-} from '@core/errors/index.js';
+import { DextoRuntimeError, DextoValidationError, ErrorScope } from '@core/errors/index.js';
+import { LLMErrorCode } from '@core/llm/error-codes.js';
 
 /**
  * Find and load the most recent session based on lastActivity.

@@ -602,7 +602,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         try {
             const { sessionId, ...llmConfig } = LLMSwitchRequestSchema.parse(req.body);
             const config = await agent.switchLLM(llmConfig, sessionId);
-            return res.status(200).json({ ok: true, data: config, issues: [] });
+            return res.status(200).json({ config, sessionId });
         } catch (error) {
             return next(error);
         }
