@@ -35,8 +35,6 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'auto-approve',
                 allowedToolsProvider,
-                confirmationTimeout: 30000,
-                agentEventBus,
             });
             expect(provider).toBeInstanceOf(NoOpConfirmationProvider);
         });
@@ -45,8 +43,6 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'auto-deny',
                 allowedToolsProvider,
-                confirmationTimeout: 30000,
-                agentEventBus,
             });
             expect(provider).toBeInstanceOf(NoOpConfirmationProvider);
         });
@@ -114,8 +110,6 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'auto-approve',
                 allowedToolsProvider,
-                confirmationTimeout: 30000,
-                agentEventBus,
             });
             const result = await provider.requestConfirmation({
                 toolName: 'testTool',
@@ -128,8 +122,6 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'auto-deny',
                 allowedToolsProvider,
-                confirmationTimeout: 30000,
-                agentEventBus,
             });
             const result = await provider.requestConfirmation({
                 toolName: 'testTool',
