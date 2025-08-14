@@ -1,7 +1,7 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { ResourceManager } from '../resources/index.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../config/agent-state-manager.js';
 import { SessionManager, SessionMetadata, ChatSession } from '../session/index.js';
@@ -375,7 +375,42 @@ export class DextoAgent {
             logger.debug(
                 `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+
+            // Expand @ resource references in the message
+            let processedTextInput = textInput;
+            try {
+                const resources = await this.resourceManager.list();
+                const expansion = await expandMessageReferences(
+                    textInput,
+                    resources,
+                    (uri: string) => this.resourceManager.read(uri)
+                );
+
+                if (expansion.expandedReferences.length > 0) {
+                    processedTextInput = expansion.expandedMessage;
+                    logger.info(
+                        `Expanded ${expansion.expandedReferences.length} resource references`
+                    );
+                }
+
+                if (expansion.unresolvedReferences.length > 0) {
+                    logger.warn(
+                        `Could not resolve ${expansion.unresolvedReferences.length} resource references: ${expansion.unresolvedReferences.map((r) => r.originalRef).join(', ')}`
+                    );
+                }
+            } catch (error) {
+                // Log error but don't fail the entire message processing
+                logger.error(
+                    `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+
+            const response = await session.run(
+                processedTextInput,
+                imageDataInput,
+                fileDataInput,
+                stream
+            );
 
             // Increment message count for this session (counts each)
             await this.sessionManager.incrementMessageCount(session.id);
@@ -1010,25 +1045,13 @@ export class DextoAgent {
     // ============= RESOURCE MANAGEMENT =============
 
     /**
-     * Gets all available resources from all sources.
+     * Lists all available resources with their info.
      * This includes resources from MCP servers and any custom resource providers.
      * @returns Promise resolving to a map of resource URIs to resource metadata
      */
-    public async getAllResources(): Promise<import('../resources/index.js').ResourceSet> {
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
         this.ensureStarted();
-        return await this.resourceManager.getAllResources();
-    }
-
-    /**
-     * Gets metadata for a specific resource by URI.
-     * @param uri The resource URI
-     * @returns Promise resolving to resource metadata or undefined if not found
-     */
-    public async getResourceMetadata(
-        uri: string
-    ): Promise<import('../resources/index.js').ResourceMetadata | undefined> {
-        this.ensureStarted();
-        return await this.resourceManager.getResourceMetadata(uri);
+        return await this.resourceManager.list();
     }
 
     /**
@@ -1038,7 +1061,7 @@ export class DextoAgent {
      */
     public async hasResource(uri: string): Promise<boolean> {
         this.ensureStarted();
-        return await this.resourceManager.hasResource(uri);
+        return await this.resourceManager.has(uri);
     }
 
     /**
@@ -1050,34 +1073,7 @@ export class DextoAgent {
         uri: string
     ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
         this.ensureStarted();
-        return await this.resourceManager.readResource(uri);
-    }
-
-    /**
-     * Queries resources with filters and options.
-     * @param options Query options including filters and whether to include content
-     * @returns Promise resolving to query results
-     */
-    public async queryResources(
-        options: import('../resources/index.js').ResourceQueryOptions = {}
-    ): Promise<import('../resources/index.js').ResourceQueryResult> {
-        this.ensureStarted();
-        return await this.resourceManager.queryResources(options);
-    }
-
-    /**
-     * Gets resource statistics across all sources.
-     * @returns Promise resolving to resource statistics
-     */
-    public async getResourceStats(): Promise<{
-        total: number;
-        mcp: number;
-        plugin: number;
-        custom: number;
-        byServer: Record<string, number>;
-    }> {
-        this.ensureStarted();
-        return await this.resourceManager.getResourceStats();
+        return await this.resourceManager.read(uri);
     }
 
     /**

@@ -8,12 +8,16 @@ export type {
     ResourceContent,
     ResourceProvider,
     ResourceSet,
-    ResourceFilters,
-    ResourceQueryOptions,
-    ResourceQueryResult,
 } from './types.js';
 
 export { ResourceManager } from './resource-manager.js';
-export type { ResourceManagerOptions } from './resource-manager.js';
 
 export { MCPResourceProvider } from './providers/mcp-resource-provider.js';
+
+export {
+    parseResourceReferences,
+    resolveResourceReferences,
+    expandMessageReferences,
+    formatResourceContent,
+} from './reference-parser.js';
+export type { ResourceReference, ResourceExpansionResult } from './reference-parser.js';

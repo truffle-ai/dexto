@@ -16,6 +16,9 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import { useResources } from './hooks/useResources';
+import { useResourceAutocomplete } from './hooks/useResourceAutocomplete';
+import { ResourceAutocomplete } from './ResourceAutocomplete';
 
 interface InputAreaProps {
   onSend: (
@@ -47,6 +50,10 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  
+  // Resource autocomplete functionality
+  const { resources } = useResources();
+  const autocomplete = useResourceAutocomplete(textareaRef);
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
@@ -500,7 +507,7 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
           onChange={handleAudioFileChange}
         />
  
-        <div className="flex-1 flex flex-col w-full">
+        <div className="flex-1 flex flex-col w-full relative">
           {imageData && (
             <div className="relative mb-1.5 w-fit border border-border rounded-lg p-1 bg-muted/50 group">
               <img
@@ -549,9 +556,46 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
             <Textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Dexto anything..."
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setText(newValue);
+                // Handle resource autocomplete
+                const cursorPosition = e.target.selectionStart || 0;
+                autocomplete.handleTextChange(newValue, cursorPosition);
+              }}
+              onSelect={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onClick={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onKeyDown={(e) => {
+                // Handle resource autocomplete first
+                const handled = autocomplete.handleKeyDown(e, resources.filter((resource) => {
+                  if (!autocomplete.query || autocomplete.query === '@') return true;
+                  const searchQuery = autocomplete.query.replace('@', '').toLowerCase();
+                  const searchFields = [
+                    resource.name,
+                    resource.description,
+                    resource.serverName,
+                    resource.uri,
+                  ].filter(Boolean);
+                  return searchFields.some((field) =>
+                    field?.toLowerCase().includes(searchQuery)
+                  );
+                }));
+                
+                if (!handled) {
+                  handleKeyDown(e);
+                }
+              }}
+              placeholder="Ask Dexto anything... Type @ to see available resources"
               rows={1}
               className="resize-none min-h-[42px] w-full border-input bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-lg p-2.5 pr-32 text-sm"
             />
@@ -657,6 +701,33 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
            </div>
         )}
       </div>
+
+      {/* Resource Autocomplete Dropdown */}
+      <ResourceAutocomplete
+        resources={resources}
+        isOpen={autocomplete.isOpen}
+        position={autocomplete.position}
+        query={autocomplete.query}
+        onSelect={autocomplete.insertResource}
+        onClose={autocomplete.closeAutocomplete}
+        selectedIndex={autocomplete.selectedIndex}
+        onKeyDown={(e) => {
+          const filteredResources = resources.filter((resource) => {
+            if (!autocomplete.query || autocomplete.query === '@') return true;
+            const searchQuery = autocomplete.query.replace('@', '').toLowerCase();
+            const searchFields = [
+              resource.name,
+              resource.description,
+              resource.serverName,
+              resource.uri,
+            ].filter(Boolean);
+            return searchFields.some((field) =>
+              field?.toLowerCase().includes(searchQuery)
+            );
+          });
+          autocomplete.handleKeyDown(e, filteredResources);
+        }}
+      />
     </div>
   );
 } 

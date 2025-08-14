@@ -386,28 +386,10 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Get all available resources
     app.get('/api/resources', async (req, res) => {
         try {
-            const { source, serverName, mimeType, search, limit, includeContent } = req.query;
-
-            const filters: any = {};
-            if (source) filters.source = Array.isArray(source) ? source : [source];
-            if (serverName)
-                filters.serverName = Array.isArray(serverName) ? serverName : [serverName];
-            if (mimeType) filters.mimeType = Array.isArray(mimeType) ? mimeType : [mimeType];
-            if (search) filters.search = search as string;
-            if (limit) filters.limit = parseInt(limit as string);
-
-            const options = {
-                filters: Object.keys(filters).length > 0 ? filters : undefined,
-                includeContent: includeContent === 'true' || includeContent === '1',
-            };
-
-            const result = await agent.queryResources(options);
-
+            const resources = await agent.listResources();
             return res.status(200).json({
                 ok: true,
-                resources: result.resources,
-                total: result.total,
-                hasMore: result.hasMore,
+                resources: Object.values(resources),
             });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -415,45 +397,6 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return res.status(500).json({
                 ok: false,
                 error: 'Failed to list resources',
-                message: errorMessage,
-            });
-        }
-    });
-
-    // Get resource statistics
-    app.get('/api/resources/stats', async (req, res) => {
-        try {
-            const stats = await agent.getResourceStats();
-            return res.status(200).json({ ok: true, stats });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error getting resource stats: ${errorMessage}`);
-            return res.status(500).json({
-                ok: false,
-                error: 'Failed to get resource statistics',
-                message: errorMessage,
-            });
-        }
-    });
-
-    // Get specific resource metadata
-    app.get('/api/resources/:resourceId/metadata', async (req, res) => {
-        const resourceId = decodeURIComponent(req.params.resourceId);
-        try {
-            const metadata = await agent.getResourceMetadata(resourceId);
-            if (!metadata) {
-                return res.status(404).json({
-                    ok: false,
-                    error: `Resource '${resourceId}' not found`,
-                });
-            }
-            return res.status(200).json({ ok: true, metadata });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error getting resource metadata for '${resourceId}': ${errorMessage}`);
-            return res.status(500).json({
-                ok: false,
-                error: 'Failed to get resource metadata',
                 message: errorMessage,
             });
         }

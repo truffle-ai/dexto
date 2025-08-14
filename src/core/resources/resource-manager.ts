@@ -1,26 +1,8 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type {
-    ResourceProvider,
-    ResourceMetadata,
-    ResourceContent,
-    ResourceSet,
-    ResourceFilters,
-    ResourceQueryOptions,
-    ResourceQueryResult,
-} from './types.js';
+import type { ResourceProvider, ResourceSet } from './types.js';
 import { MCPResourceProvider } from './providers/mcp-resource-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../logger/index.js';
-
-/**
- * Options for ResourceManager configuration
- */
-export interface ResourceManagerOptions {
-    /** Enable automatic cache refresh when MCP servers change */
-    autoRefresh?: boolean;
-    /** Maximum number of resources to cache per provider */
-    maxCacheSize?: number;
-}
 
 /**
  * Unified Resource Manager - Single interface for all resource operations
@@ -43,19 +25,13 @@ export class ResourceManager {
     private mcpManager: MCPManager;
     private mcpResourceProvider: MCPResourceProvider;
     private customProviders: Map<string, ResourceProvider> = new Map();
-    private options: ResourceManagerOptions;
 
     // Resource caching for performance
     private resourcesCache: ResourceSet = {};
     private cacheValid: boolean = false;
 
-    constructor(mcpManager: MCPManager, options: ResourceManagerOptions = {}) {
+    constructor(mcpManager: MCPManager) {
         this.mcpManager = mcpManager;
-        this.options = {
-            autoRefresh: true,
-            maxCacheSize: 10000,
-            ...options,
-        };
 
         // Initialize MCP resource provider
         this.mcpResourceProvider = new MCPResourceProvider(mcpManager);
@@ -169,9 +145,9 @@ export class ResourceManager {
     }
 
     /**
-     * Get all available resources from all sources
+     * List all available resources with their info
      */
-    async getAllResources(): Promise<ResourceSet> {
+    async list(): Promise<ResourceSet> {
         if (!this.cacheValid) {
             await this.buildResourceCache();
         }
@@ -179,26 +155,19 @@ export class ResourceManager {
     }
 
     /**
-     * Get resource metadata by URI
-     */
-    async getResourceMetadata(uri: string): Promise<ResourceMetadata | undefined> {
-        const resources = await this.getAllResources();
-        return resources[uri];
-    }
-
-    /**
      * Check if a resource exists
      */
-    async hasResource(uri: string): Promise<boolean> {
-        const resources = await this.getAllResources();
+    async has(uri: string): Promise<boolean> {
+        const resources = await this.list();
         return uri in resources;
     }
 
     /**
      * Read the content of a specific resource
      */
-    async readResource(uri: string): Promise<ReadResourceResult> {
-        const metadata = await this.getResourceMetadata(uri);
+    async read(uri: string): Promise<ReadResourceResult> {
+        const resources = await this.list();
+        const metadata = resources[uri];
         if (!metadata) {
             throw new Error(`Resource not found: ${uri}`);
         }
@@ -219,153 +188,6 @@ export class ResourceManager {
         }
 
         throw new Error(`No provider found for resource: ${uri}`);
-    }
-
-    /**
-     * Query resources with filters and options
-     */
-    async queryResources(options: ResourceQueryOptions = {}): Promise<ResourceQueryResult> {
-        const allResources = await this.getAllResources();
-        const { filters, includeContent = false } = options;
-
-        let resources = Object.values(allResources);
-
-        // Apply filters
-        if (filters) {
-            resources = this.applyFilters(resources, filters);
-        }
-
-        const total = resources.length;
-
-        // Apply limit
-        if (filters?.limit && filters.limit > 0) {
-            resources = resources.slice(0, filters.limit);
-        }
-
-        // Build result
-        const result: ResourceContent[] = [];
-
-        for (const metadata of resources) {
-            if (includeContent) {
-                try {
-                    const content = await this.readResource(metadata.uri);
-                    result.push({ metadata, content });
-                } catch (error) {
-                    logger.warn(
-                        `Failed to read content for resource ${metadata.uri}: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
-                    );
-                    // Include metadata even if content fails to load
-                    result.push({
-                        metadata,
-                        content: { contents: [], _meta: {} } as ReadResourceResult,
-                    });
-                }
-            } else {
-                result.push({
-                    metadata,
-                    content: { contents: [], _meta: {} } as ReadResourceResult,
-                });
-            }
-        }
-
-        return {
-            resources: result,
-            total,
-            hasMore: filters?.limit ? total > filters.limit : false,
-        };
-    }
-
-    /**
-     * Apply filters to a list of resources
-     */
-    private applyFilters(
-        resources: ResourceMetadata[],
-        filters: ResourceFilters
-    ): ResourceMetadata[] {
-        let filtered = resources;
-
-        // Filter by source
-        if (filters.source) {
-            const sources = Array.isArray(filters.source) ? filters.source : [filters.source];
-            filtered = filtered.filter((resource) => sources.includes(resource.source));
-        }
-
-        // Filter by MIME type
-        if (filters.mimeType) {
-            const mimeTypes = Array.isArray(filters.mimeType)
-                ? filters.mimeType
-                : [filters.mimeType];
-            filtered = filtered.filter(
-                (resource) => resource.mimeType && mimeTypes.includes(resource.mimeType)
-            );
-        }
-
-        // Filter by server name (for MCP resources)
-        if (filters.serverName) {
-            const serverNames = Array.isArray(filters.serverName)
-                ? filters.serverName
-                : [filters.serverName];
-            filtered = filtered.filter(
-                (resource) => resource.serverName && serverNames.includes(resource.serverName)
-            );
-        }
-
-        // Text search in name or description
-        if (filters.search) {
-            const searchLower = filters.search.toLowerCase();
-            filtered = filtered.filter(
-                (resource) =>
-                    (resource.name && resource.name.toLowerCase().includes(searchLower)) ||
-                    (resource.description &&
-                        resource.description.toLowerCase().includes(searchLower)) ||
-                    resource.uri.toLowerCase().includes(searchLower)
-            );
-        }
-
-        return filtered;
-    }
-
-    /**
-     * Get resource statistics
-     */
-    async getResourceStats(): Promise<{
-        total: number;
-        mcp: number;
-        plugin: number;
-        custom: number;
-        byServer: Record<string, number>;
-    }> {
-        const resources = await this.getAllResources();
-        const resourceList = Object.values(resources);
-
-        const stats = {
-            total: resourceList.length,
-            mcp: 0,
-            plugin: 0,
-            custom: 0,
-            byServer: {} as Record<string, number>,
-        };
-
-        resourceList.forEach((resource) => {
-            // Count by source
-            if (resource.source === 'mcp') {
-                stats.mcp++;
-            } else if (resource.source === 'plugin') {
-                stats.plugin++;
-            } else {
-                stats.custom++;
-            }
-
-            // Count by server (for MCP resources)
-            if (resource.serverName) {
-                stats.byServer[resource.serverName] =
-                    (stats.byServer[resource.serverName] || 0) + 1;
-            }
-        });
-
-        return stats;
     }
 
     /**

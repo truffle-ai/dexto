@@ -87,7 +87,7 @@ describe('MCPResourceProvider - Unit Tests', () => {
 
             // Should still get resources from the working server
             expect(resources).toHaveLength(1);
-            expect(resources[0].serverName).toBe('web-api');
+            expect(resources[0]?.serverName).toBe('web-api');
         });
 
         it('should cache resources and not rebuild unnecessarily', async () => {

@@ -100,10 +100,7 @@ export async function createAgentServices(
     const searchService = new SearchService(storage.database);
 
     // 5. Initialize resource manager
-    const resourceManager = new ResourceManager(mcpManager, {
-        autoRefresh: true,
-        maxCacheSize: 10000,
-    });
+    const resourceManager = new ResourceManager(mcpManager);
     await resourceManager.initialize();
     logger.debug('ResourceManager initialized');
 
