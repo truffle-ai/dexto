@@ -13,7 +13,7 @@ Watch the Music Creator Agent in action:
 <iframe
   width="100%"
   height="400"
-  src="https://www.youtube.com/embed/FGg0nIOZUig"
+  src="https://www.youtube.com/embed/wEnQy1zEVZw"
   title="Music Creator Agent Demo"
   frameborder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"

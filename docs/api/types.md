@@ -33,7 +33,7 @@ import {
   ConversationHistory,
   
   // Result types
-  SwitchLLMResult,
+  ValidatedLLMConfig,
   
   // Event types
   AgentEventMap,
@@ -185,24 +185,15 @@ interface ConversationMessage {
 
 ## Result Types
 
-### `SwitchLLMResult`
+### `ValidatedLLMConfig`
 
-Result object returned by LLM switching operations.
+Validated LLM configuration returned by `switchLLM`.
 
 ```typescript
-interface SwitchLLMResult {
-  success: boolean;
-  config?: LLMConfig;
-  message?: string;
-  warnings?: string[];
-  errors?: LLMInputValidationError[];
-}
-
-interface LLMInputValidationError {
-  field: string;
-  message: string;
-  code: string;
-}
+type ValidatedLLMConfig = LLMConfig & {
+  router: 'vercel' | 'in-built';
+  maxInputTokens?: number;
+};
 ```
 
 ---

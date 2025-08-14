@@ -13,7 +13,7 @@ Watch the Image Editor Agent in action:
 <iframe
   width="100%"
   height="400"
-  src="https://www.youtube.com/embed/3X6edzACT3U"
+  src="https://www.youtube.com/embed/A0j61EIgWdI"
   title="Image Editor Agent Demo"
   frameborder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"

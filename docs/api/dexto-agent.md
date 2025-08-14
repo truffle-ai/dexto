@@ -59,8 +59,9 @@ Processes user input through the agent's LLM and returns the response.
 
 ```typescript
 async run(
-  userInput: string,
+  textInput: string,
   imageDataInput?: { image: string; mimeType: string },
+  fileDataInput?: { data: string; mimeType: string; filename?: string },
   sessionId?: string,
   stream?: boolean
 ): Promise<string | null>
@@ -68,8 +69,9 @@ async run(
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `userInput` | `string` | User message or query |
+| `textInput` | `string` | User message or query |
 | `imageDataInput` | `{ image: string; mimeType: string }` | (Optional) Base64 image data |
+| `fileDataInput` | `{ data: string; mimeType: string; filename?: string }` | (Optional) Base64 file data |
 | `sessionId` | `string` | (Optional) Session ID |
 | `stream` | `boolean` | (Optional) Enable streaming (default: false) |
 
@@ -222,28 +224,24 @@ Dynamically changes the LLM configuration for the agent or a specific session.
 
 ```typescript
 async switchLLM(
-  llmUpdates: Partial<LLMConfig>,
+  llmUpdates: LLMUpdates,
   sessionId?: string
-): Promise<SwitchLLMResult>
+): Promise<ValidatedLLMConfig>
 ```
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `llmUpdates` | `Partial<LLMConfig>` | LLM configuration updates |
+| `llmUpdates` | `LLMUpdates` | LLM configuration updates (model, provider, router, apiKey, etc.) |
 | `sessionId` | `string` | (Optional) Target session ID |
 
-**Returns:** `Promise<SwitchLLMResult>` with properties:
-- `success: boolean`
-- `config?: LLMConfig`
-- `message?: string`
-- `warnings?: string[]`
-- `errors?: Array<{...}>`
+**Returns:** `Promise<ValidatedLLMConfig>` – the fully validated, effective LLM configuration.
 
 ```typescript
-const result = await agent.switchLLM({ 
+const config = await agent.switchLLM({ 
   provider: 'anthropic', 
-  model: 'claude-3-opus-20240229' 
+  model: 'claude-4-sonnet-20250514' 
 });
+console.log(config.model);
 ```
 
 ### `getCurrentLLMConfig`
@@ -334,16 +332,6 @@ async getAllTools(): Promise<Record<string, ToolDefinition>>
 
 **Returns:** `Promise<Record<string, ToolDefinition>>`
 
-### `getCustomTools`
-
-Returns an array of custom tool names only (excludes MCP and internal tools). Useful for filtering UI displays or analytics.
-
-```typescript
-async getCustomTools(): Promise<string[]>
-```
-
-**Returns:** `Promise<string[]>` - Array of custom tool names
-
 ### `getMcpClients`
 
 Returns a map of all connected MCP client instances.
@@ -363,3 +351,59 @@ getMcpFailedConnections(): Record<string, string>
 ```
 
 **Returns:** `Record<string, string>` - Failed connection names to error messages 
+
+---
+
+## Model & Provider Introspection
+
+### `getSupportedProviders`
+
+Returns the list of supported LLM providers.
+
+```typescript
+getSupportedProviders(): LLMProvider[]
+```
+
+### `getSupportedModels`
+
+Returns supported models grouped by provider, including a flag for the default model per provider.
+
+```typescript
+getSupportedModels(): Record<LLMProvider, Array<ModelInfo & { isDefault: boolean }>>
+```
+
+### `getSupportedModelsForProvider`
+
+Returns supported models for a specific provider.
+
+```typescript
+getSupportedModelsForProvider(provider: LLMProvider): Array<ModelInfo & { isDefault: boolean }>
+```
+
+### `inferProviderFromModel`
+
+Infers the provider from a model name or returns `null` if unknown.
+
+```typescript
+inferProviderFromModel(modelName: string): LLMProvider | null
+```
+
+---
+
+## Search
+
+### `searchMessages`
+
+Search for messages across all sessions or within a specific session.
+
+```typescript
+async searchMessages(query: string, options?: SearchOptions): Promise<SearchResponse>
+```
+
+### `searchSessions`
+
+Search for sessions that contain the specified query.
+
+```typescript
+async searchSessions(query: string): Promise<SessionSearchResponse>
+```
