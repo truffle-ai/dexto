@@ -174,7 +174,7 @@ async function main() {
     if (!(await runWebSocketTest(
         'Reset conversation',
         { type: 'reset', sessionId: 'test-simple' },
-        { minEvents: 0 } // Reset doesn't send back events normally
+        { expectEvents: ['conversationReset'], minEvents: 1 } // Reset sends confirmation event
     ))) failures++;
 
     // Test tool confirmation response (should not send events back)
