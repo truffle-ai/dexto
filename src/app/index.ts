@@ -245,8 +245,14 @@ program
         let headlessInput: string | undefined = undefined;
 
         // Prefer explicit -p/--prompt for headless one-shot
-        if (opts.prompt) {
+        if (opts.prompt !== undefined && String(opts.prompt).trim() !== '') {
             headlessInput = String(opts.prompt);
+        } else if (opts.prompt !== undefined) {
+            // Explicit empty -p "" was provided
+            console.error(
+                '❌ For headless one-shot mode, prompt cannot be empty. Provide a non-empty prompt with -p/--prompt or use positional argument.'
+            );
+            process.exit(1);
         } else if (prompt.length > 0) {
             // Enforce quoted single positional argument for headless mode
             if (prompt.length === 1) {
