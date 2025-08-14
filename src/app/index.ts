@@ -55,6 +55,10 @@ program
     .description('AI-powered CLI and WebUI for interacting with MCP servers')
     .version(pkg.version, '-v, --version', 'output the current version')
     .option('-a, --agent <path>', 'Path to agent config file')
+    .option(
+        '-p, --prompt <text>',
+        'One-shot prompt text. Alternatively provide a single quoted string as positional argument.'
+    )
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('-m, --model <model>', 'Specify the LLM model to use. ')
@@ -221,7 +225,7 @@ program
         'Dexto CLI allows you to talk to Dexto, build custom AI Agents, ' +
             'build complex AI applications like Cursor, and more.\n\n' +
             // TODO: Add `dexto tell me about your cli` starter prompt
-            'Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto <prompt>`\n' +
+            'Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto -p "<prompt>"` or `dexto "<prompt>"`\n' +
             'Start with a new session using `dexto --new-session [sessionId]`\n' +
             'Run dexto web UI with `dexto --mode web`\n' +
             'Run dexto as a server (REST APIs + WebSockets) with `dexto --mode server`\n' +
@@ -238,7 +242,31 @@ program
         }
 
         const opts = program.opts();
-        const headlessInput = prompt.join(' ') || undefined;
+        let headlessInput: string | undefined = undefined;
+
+        // Prefer explicit -p/--prompt for headless one-shot
+        if (opts.prompt !== undefined && String(opts.prompt).trim() !== '') {
+            headlessInput = String(opts.prompt);
+        } else if (opts.prompt !== undefined) {
+            // Explicit empty -p "" was provided
+            console.error(
+                '❌ For headless one-shot mode, prompt cannot be empty. Provide a non-empty prompt with -p/--prompt or use positional argument.'
+            );
+            process.exit(1);
+        } else if (prompt.length > 0) {
+            // Enforce quoted single positional argument for headless mode
+            if (prompt.length === 1) {
+                headlessInput = prompt[0];
+            } else {
+                console.error(
+                    '❌ For headless one-shot mode, pass the prompt in double quotes as a single argument (e.g., "say hello") or use -p/--prompt.'
+                );
+                process.exit(1);
+            }
+        }
+
+        // Note: Agent selection must be passed via -a/--agent. We no longer interpret
+        // the first positional argument as an agent name to avoid ambiguity with prompts.
 
         // ——— Infer provider & API key from model ———
         if (opts.model) {
