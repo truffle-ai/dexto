@@ -115,6 +115,7 @@ describe('DextoAgent.switchLLM', () => {
         const mockServices = {
             mcpManager: mockMcpManager,
             toolManager: {} as any,
+            resourceManager: {} as any,
             promptManager: mockPromptManager,
             agentEventBus: mockEventBus,
             stateManager: mockStateManager,

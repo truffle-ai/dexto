@@ -210,6 +210,146 @@ program
         }
     });
 
+// 4) `resources` SUB-COMMAND - Resource management
+program
+    .command('resources')
+    .description('Manage and query resources from MCP servers and other sources')
+    .option('-a, --agent <path>', 'Path to agent config file (uses global option if not specified)')
+    .option('-s, --strict', 'Require all MCP server connections to succeed')
+    .option('--server <server>', 'Filter resources by specific MCP server name')
+    .option('--source <source>', 'Filter resources by source (mcp, plugin, custom)')
+    .option('--mime-type <type>', 'Filter resources by MIME type')
+    .option('--search <query>', 'Search resources by name or description')
+    .option('--limit <number>', 'Limit number of results', '10')
+    .option('--include-content', 'Include resource content in output (can be large)')
+    .option('--stats', 'Show resource statistics only')
+    .option('--read <uri>', 'Read content of a specific resource by URI')
+    .option('--metadata <uri>', 'Get metadata for a specific resource by URI')
+    .option('--json', 'Output results in JSON format')
+    .action(async (options) => {
+        try {
+            // Load config
+            const globalOpts = program.opts();
+            const configPath = options.agent || globalOpts.agent;
+
+            const config = await loadAgentConfig(configPath);
+            console.log(`📄 Loading Dexto config from: ${resolveConfigPath(configPath)}`);
+
+            // Initialize agent
+            const agent = new DextoAgent(config, configPath);
+            await agent.start();
+
+            // Handle specific resource operations
+            if (options.stats) {
+                const stats = await agent.getResourceStats();
+                if (options.json) {
+                    console.log(JSON.stringify(stats, null, 2));
+                } else {
+                    console.log('📊 Resource Statistics:');
+                    console.log(`  Total: ${stats.total}`);
+                    console.log(`  MCP: ${stats.mcp}`);
+                    console.log(`  Plugin: ${stats.plugin}`);
+                    console.log(`  Custom: ${stats.custom}`);
+                    if (Object.keys(stats.byServer).length > 0) {
+                        console.log('  By Server:');
+                        for (const [server, count] of Object.entries(stats.byServer)) {
+                            console.log(`    ${server}: ${count}`);
+                        }
+                    }
+                }
+                await agent.stop();
+                return;
+            }
+
+            if (options.read) {
+                console.log(`📖 Reading resource: ${options.read}`);
+                try {
+                    const content = await agent.readResource(options.read);
+                    if (options.json) {
+                        console.log(JSON.stringify(content, null, 2));
+                    } else {
+                        console.log('Content:', content);
+                    }
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    process.exit(1);
+                }
+                await agent.stop();
+                return;
+            }
+
+            if (options.metadata) {
+                console.log(`📋 Getting metadata for: ${options.metadata}`);
+                try {
+                    const metadata = await agent.getResourceMetadata(options.metadata);
+                    if (!metadata) {
+                        console.error(`❌ Resource not found: ${options.metadata}`);
+                        process.exit(1);
+                    }
+                    if (options.json) {
+                        console.log(JSON.stringify(metadata, null, 2));
+                    } else {
+                        console.log('Metadata:', metadata);
+                    }
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to get metadata: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    process.exit(1);
+                }
+                await agent.stop();
+                return;
+            }
+
+            // Query resources with filters
+            const filters: any = {};
+            if (options.server) filters.serverName = options.server;
+            if (options.source) filters.source = options.source;
+            if (options.mimeType) filters.mimeType = options.mimeType;
+            if (options.search) filters.search = options.search;
+            if (options.limit) filters.limit = parseInt(options.limit);
+
+            const queryOptions = {
+                filters: Object.keys(filters).length > 0 ? filters : undefined,
+                includeContent: options.includeContent || false,
+            };
+
+            console.log('🔍 Querying resources...');
+            const result = await agent.queryResources(queryOptions);
+
+            if (options.json) {
+                console.log(JSON.stringify(result, null, 2));
+            } else {
+                console.log(
+                    `\n📁 Found ${result.total} resources (showing ${result.resources.length}):`
+                );
+                if (result.hasMore) {
+                    console.log(`   (Use --limit to show more results)`);
+                }
+
+                result.resources.forEach((resource, index) => {
+                    const { metadata } = resource;
+                    console.log(`\n${index + 1}. ${metadata.name || metadata.uri}`);
+                    console.log(`   URI: ${metadata.uri}`);
+                    if (metadata.description)
+                        console.log(`   Description: ${metadata.description}`);
+                    if (metadata.mimeType) console.log(`   MIME Type: ${metadata.mimeType}`);
+                    if (metadata.serverName) console.log(`   Server: ${metadata.serverName}`);
+                    console.log(`   Source: ${metadata.source}`);
+                    if (metadata.size) console.log(`   Size: ${metadata.size} bytes`);
+                });
+            }
+
+            await agent.stop();
+        } catch (err) {
+            console.error(`❌ dexto resources command failed: ${err}`);
+            logger.error('Error in resources command', err);
+            process.exit(1);
+        }
+    });
+
 // 5) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
@@ -228,7 +368,8 @@ program
             'Run dexto as a discord bot with `dexto --mode discord`\n' +
             'Run dexto as a telegram bot with `dexto --mode telegram`\n' +
             'Run dexto agent as an MCP server with `dexto --mode mcp`\n' +
-            'Run dexto as an MCP server aggregator with `dexto mcp --group-servers`\n\n' +
+            'Run dexto as an MCP server aggregator with `dexto mcp --group-servers`\n' +
+            'Manage and query resources with `dexto resources`\n\n' +
             'Check subcommands for more features. Check https://github.com/truffle-ai/dexto for documentation on how to customize dexto and other examples'
     )
     .action(async (prompt: string[] = []) => {

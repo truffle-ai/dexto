@@ -1,6 +1,7 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
+import { ResourceManager } from '../resources/index.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../config/agent-state-manager.js';
 import { SessionManager, SessionMetadata, ChatSession } from '../session/index.js';
@@ -36,6 +37,7 @@ import { getDextoPath } from '../utils/path.js';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
+    'resourceManager',
     'promptManager',
     'agentEventBus',
     'stateManager',
@@ -104,6 +106,7 @@ export class DextoAgent {
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -162,6 +165,7 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
+                resourceManager: services.resourceManager,
                 promptManager: services.promptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
@@ -1001,6 +1005,101 @@ export class DextoAgent {
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
         return this.mcpManager.getFailedConnections();
+    }
+
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Gets all available resources from all sources.
+     * This includes resources from MCP servers and any custom resource providers.
+     * @returns Promise resolving to a map of resource URIs to resource metadata
+     */
+    public async getAllResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.getAllResources();
+    }
+
+    /**
+     * Gets metadata for a specific resource by URI.
+     * @param uri The resource URI
+     * @returns Promise resolving to resource metadata or undefined if not found
+     */
+    public async getResourceMetadata(
+        uri: string
+    ): Promise<import('../resources/index.js').ResourceMetadata | undefined> {
+        this.ensureStarted();
+        return await this.resourceManager.getResourceMetadata(uri);
+    }
+
+    /**
+     * Checks if a resource exists.
+     * @param uri The resource URI to check
+     * @returns Promise resolving to true if the resource exists, false otherwise
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.hasResource(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource.
+     * @param uri The resource URI to read
+     * @returns Promise resolving to the resource content
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.readResource(uri);
+    }
+
+    /**
+     * Queries resources with filters and options.
+     * @param options Query options including filters and whether to include content
+     * @returns Promise resolving to query results
+     */
+    public async queryResources(
+        options: import('../resources/index.js').ResourceQueryOptions = {}
+    ): Promise<import('../resources/index.js').ResourceQueryResult> {
+        this.ensureStarted();
+        return await this.resourceManager.queryResources(options);
+    }
+
+    /**
+     * Gets resource statistics across all sources.
+     * @returns Promise resolving to resource statistics
+     */
+    public async getResourceStats(): Promise<{
+        total: number;
+        mcp: number;
+        plugin: number;
+        custom: number;
+        byServer: Record<string, number>;
+    }> {
+        this.ensureStarted();
+        return await this.resourceManager.getResourceStats();
+    }
+
+    /**
+     * Registers a custom resource provider.
+     * @param name Unique name for the provider
+     * @param provider The resource provider instance
+     */
+    public registerResourceProvider(
+        name: string,
+        provider: import('../resources/index.js').ResourceProvider
+    ): void {
+        this.ensureStarted();
+        this.resourceManager.registerProvider(name, provider);
+    }
+
+    /**
+     * Unregisters a custom resource provider.
+     * @param name The name of the provider to remove
+     */
+    public unregisterResourceProvider(name: string): void {
+        this.ensureStarted();
+        this.resourceManager.unregisterProvider(name);
     }
 
     // ============= PROMPT MANAGEMENT =============

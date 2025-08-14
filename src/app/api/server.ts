@@ -381,6 +381,175 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     );
 
+    // ============= RESOURCE MANAGEMENT ENDPOINTS =============
+
+    // Get all available resources
+    app.get('/api/resources', async (req, res) => {
+        try {
+            const { source, serverName, mimeType, search, limit, includeContent } = req.query;
+
+            const filters: any = {};
+            if (source) filters.source = Array.isArray(source) ? source : [source];
+            if (serverName)
+                filters.serverName = Array.isArray(serverName) ? serverName : [serverName];
+            if (mimeType) filters.mimeType = Array.isArray(mimeType) ? mimeType : [mimeType];
+            if (search) filters.search = search as string;
+            if (limit) filters.limit = parseInt(limit as string);
+
+            const options = {
+                filters: Object.keys(filters).length > 0 ? filters : undefined,
+                includeContent: includeContent === 'true' || includeContent === '1',
+            };
+
+            const result = await agent.queryResources(options);
+
+            return res.status(200).json({
+                ok: true,
+                resources: result.resources,
+                total: result.total,
+                hasMore: result.hasMore,
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error listing resources: ${errorMessage}`);
+            return res.status(500).json({
+                ok: false,
+                error: 'Failed to list resources',
+                message: errorMessage,
+            });
+        }
+    });
+
+    // Get resource statistics
+    app.get('/api/resources/stats', async (req, res) => {
+        try {
+            const stats = await agent.getResourceStats();
+            return res.status(200).json({ ok: true, stats });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error getting resource stats: ${errorMessage}`);
+            return res.status(500).json({
+                ok: false,
+                error: 'Failed to get resource statistics',
+                message: errorMessage,
+            });
+        }
+    });
+
+    // Get specific resource metadata
+    app.get('/api/resources/:resourceId/metadata', async (req, res) => {
+        const resourceId = decodeURIComponent(req.params.resourceId);
+        try {
+            const metadata = await agent.getResourceMetadata(resourceId);
+            if (!metadata) {
+                return res.status(404).json({
+                    ok: false,
+                    error: `Resource '${resourceId}' not found`,
+                });
+            }
+            return res.status(200).json({ ok: true, metadata });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error getting resource metadata for '${resourceId}': ${errorMessage}`);
+            return res.status(500).json({
+                ok: false,
+                error: 'Failed to get resource metadata',
+                message: errorMessage,
+            });
+        }
+    });
+
+    // Read resource content
+    app.get('/api/resources/:resourceId/content', async (req, res) => {
+        const resourceId = decodeURIComponent(req.params.resourceId);
+        try {
+            const content = await agent.readResource(resourceId);
+            return res.status(200).json({ ok: true, content });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error reading resource content for '${resourceId}': ${errorMessage}`);
+            return res.status(500).json({
+                ok: false,
+                error: 'Failed to read resource content',
+                message: errorMessage,
+            });
+        }
+    });
+
+    // Check if resource exists
+    app.head('/api/resources/:resourceId', async (req, res) => {
+        const resourceId = decodeURIComponent(req.params.resourceId);
+        try {
+            const exists = await agent.hasResource(resourceId);
+            if (exists) {
+                return res.status(200).end();
+            } else {
+                return res.status(404).end();
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error checking resource existence for '${resourceId}': ${errorMessage}`);
+            return res.status(500).end();
+        }
+    });
+
+    // List resources for a specific MCP server
+    app.get('/api/mcp/servers/:serverId/resources', async (req, res) => {
+        const serverId = req.params.serverId;
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            return res.status(404).json({
+                ok: false,
+                error: `Server '${serverId}' not found`,
+            });
+        }
+        try {
+            const resourceUris = await client.listResources();
+            const resources = resourceUris.map((uri) => ({
+                uri,
+                name: uri.split('/').pop() || uri,
+                originalUri: uri,
+                serverName: serverId,
+            }));
+            return res.status(200).json({ ok: true, resources });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error fetching resources for server '${serverId}': ${errorMessage}`);
+            return res.status(500).json({
+                ok: false,
+                error: 'Failed to fetch resources for server',
+                message: errorMessage,
+            });
+        }
+    });
+
+    // Read resource content from specific MCP server
+    app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res) => {
+        const serverId = req.params.serverId;
+        const resourceId = decodeURIComponent(req.params.resourceId);
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            return res.status(404).json({
+                ok: false,
+                error: `Server '${serverId}' not found`,
+            });
+        }
+        try {
+            const content = await client.readResource(resourceId);
+            return res.status(200).json({ ok: true, content });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error reading resource '${resourceId}' from server '${serverId}': ${errorMessage}`
+            );
+            return res.status(500).json({
+                ok: false,
+                error: 'Failed to read resource content',
+                message: errorMessage,
+            });
+        }
+    });
+
     // WebSocket handling
     // handle inbound client messages over WebSocket
     wss.on('connection', (ws: WebSocket) => {
