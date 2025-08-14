@@ -1,4 +1,6 @@
-import { DextoErrorCode } from '@core/schemas/errors.js';
+import { LLMErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError } from '@core/errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/result.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { z } from 'zod';
@@ -80,9 +82,11 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['apiKey'],
-            message: `Missing API key for provider '${data.provider}' – set ${primaryVar} or pass --api-key`,
+            message: `Missing API key for provider '${data.provider}' – set $${primaryVar}`,
             params: {
-                code: DextoErrorCode.LLM_MISSING_API_KEY,
+                code: LLMErrorCode.API_KEY_MISSING,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
                 provider: data.provider,
                 envVar: primaryVar,
             },
@@ -97,7 +101,11 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                 message:
                     `Provider '${data.provider}' does not support baseURL. ` +
                     `Use an 'openai-compatible' provider if you need a custom base URL.`,
-                params: { code: DextoErrorCode.LLM_INVALID_BASE_URL },
+                params: {
+                    code: LLMErrorCode.BASE_URL_INVALID,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
             });
         }
     } else if (requiresBaseURL(data.provider)) {
@@ -105,7 +113,11 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             code: z.ZodIssueCode.custom,
             path: ['baseURL'],
             message: `Provider '${data.provider}' requires a 'baseURL'.`,
-            params: { code: DextoErrorCode.LLM_MISSING_BASE_URL },
+            params: {
+                code: LLMErrorCode.BASE_URL_MISSING,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+            },
         });
     } else {
         if (!acceptsAnyModel(data.provider)) {
@@ -117,7 +129,11 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                     message:
                         `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
                         `Supported: ${supportedModelsList.join(', ')}`,
-                    params: { code: DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER },
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
                 });
             }
         }
@@ -132,23 +148,44 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                         message:
                             `Max input tokens for model '${data.model}' is ${cap}. ` +
                             `You provided ${data.maxInputTokens}`,
-                        params: { code: DextoErrorCode.LLM_MAX_INPUT_TOKENS_EXCEEDED },
+                        params: {
+                            code: LLMErrorCode.TOKENS_EXCEEDED,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.USER,
+                        },
                     });
                 }
             } catch (error: unknown) {
-                // TODO: improve this
-                const e = error as { name?: string; message?: string };
-                const isUnknownModelError = e?.name === 'UnknownModelError';
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    path: ['model'],
-                    message: e?.message ?? 'Unknown provider/model',
-                    params: {
-                        code: isUnknownModelError
-                            ? DextoErrorCode.LLM_UNKNOWN_MODEL
-                            : DextoErrorCode.SCHEMA_VALIDATION,
-                    },
-                });
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === LLMErrorCode.MODEL_UNKNOWN
+                ) {
+                    // Model not found in registry
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message: error.message,
+                        params: {
+                            code: error.code,
+                            scope: error.scope,
+                            type: error.type,
+                        },
+                    });
+                } else {
+                    // Unexpected error
+                    const message =
+                        error instanceof Error ? error.message : 'Unknown error occurred';
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message,
+                        params: {
+                            code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.SYSTEM,
+                        },
+                    });
+                }
             }
         }
     }
@@ -161,7 +198,11 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             message:
                 `Provider '${data.provider}' does not support router '${data.router}'. ` +
                 `Supported: ${supportedRouters.join(', ')}`,
-            params: { code: DextoErrorCode.LLM_UNSUPPORTED_ROUTER },
+            params: {
+                code: LLMErrorCode.ROUTER_UNSUPPORTED,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+            },
         });
     }
 }) // Brand the validated type so it can be distinguished at compile time
@@ -172,7 +213,18 @@ export type LLMConfig = z.input<typeof LLMConfigSchema>;
 export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 // PATCH-like schema for updates (switch flows)
 
-export const LLMUpdatesSchema = LLMConfigBaseSchema.partial().strict();
+export const LLMUpdatesSchema = LLMConfigBaseSchema.partial()
+    .strict()
+    .superRefine((data, ctx) => {
+        // At least model or provider must be specified for updates
+        if (!data.model && !data.provider) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'At least model or provider must be specified for LLM switch',
+                path: [],
+            });
+        }
+    });
 export type LLMUpdates = z.input<typeof LLMUpdatesSchema>;
 // Re-export context type from llm module
 export type { LLMUpdateContext } from '../llm/types.js';

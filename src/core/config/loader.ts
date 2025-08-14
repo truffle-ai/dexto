@@ -3,12 +3,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
 import { resolveConfigPath } from '../utils/path.js';
-import {
-    ConfigFileNotFoundError,
-    ConfigFileReadError,
-    ConfigFileWriteError,
-    ConfigParseError,
-} from '@core/error/index.js';
+import { ConfigError } from './errors.js';
 
 /**
  * Load the complete agent configuration
@@ -27,9 +22,9 @@ import {
  * @param configPath - An optional string representing the path to the configuration file.
  * If not provided, a default path will be resolved internally.
  * @returns A Promise that resolves to the raw parsed `AgentConfig` object.
- * @throws {ConfigFileNotFoundError} If the configuration file does not exist at the resolved path.
- * @throws {ConfigFileReadError} If an error occurs while attempting to read the configuration file (e.g., permissions issues).
- * @throws {ConfigParseError} If the content of the configuration file is not valid YAML.
+ * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_NOT_FOUND if the configuration file does not exist.
+ * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_READ_ERROR if file read fails (e.g., permissions issues).
+ * @throws {DextoRuntimeError} with ConfigErrorCode.PARSE_ERROR if the content is not valid YAML.
  */
 export async function loadAgentConfig(configPath?: string): Promise<AgentConfig> {
     // Resolve the absolute path of the configuration file.
@@ -44,7 +39,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
         await fs.access(absolutePath);
     } catch (_error) {
         // Throw a specific error indicating that the configuration file was not found.
-        throw new ConfigFileNotFoundError(absolutePath);
+        throw ConfigError.fileNotFound(absolutePath);
     }
 
     let fileContent: string;
@@ -55,28 +50,28 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
     } catch (error) {
         // If an error occurs during file reading (e.g., I/O error, corrupted file),
         // throw a `ConfigFileReadError` with the absolute path and the underlying cause.
-        throw new ConfigFileReadError(
+        throw ConfigError.fileReadError(
             absolutePath,
             error instanceof Error ? error.message : String(error)
         );
     }
 
-    let config: any;
     // --- Step 3: Parse the file content as YAML ---
+    let config: unknown;
     try {
         // Attempt to parse the string content into a JavaScript object using a YAML parser.
         config = parseYaml(fileContent);
     } catch (error) {
         // If the content is not valid YAML, `parseYaml` will throw an error.
         // Catch it and throw a `ConfigParseError` with details.
-        throw new ConfigParseError(
+        throw ConfigError.parseError(
             absolutePath,
             error instanceof Error ? error.message : String(error)
         );
     }
 
     // Return raw config - environment variable expansion handled by Zod schema
-    return config;
+    return config as AgentConfig;
 }
 
 /**
@@ -108,12 +103,12 @@ export async function writeConfigFile(
 
         // Log a debug message indicating successful file write.
         logger.debug(`Wrote dexto config to: ${absolutePath}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Catch any errors that occur during YAML stringification or file writing.
         // Throw a specific `ConfigFileWriteError` for better error categorization.
-        throw new ConfigFileWriteError(
-            absolutePath, // Pass the absolute path for context
-            error instanceof Error ? error.message : String(error) // Provide the underlying cause message
+        throw ConfigError.fileWriteError(
+            absolutePath,
+            error instanceof Error ? error.message : String(error)
         );
     }
 }

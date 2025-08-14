@@ -7,6 +7,7 @@ import {
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
 import { logger } from '@core/logger/logger.js';
 import { AgentEventBus } from '../../events/index.js';
+import { ToolError } from '../errors.js';
 
 /**
  * Event-based tool confirmation provider that uses the official AgentEventBus
@@ -93,7 +94,13 @@ export class EventBasedConfirmationProvider implements ToolConfirmationProvider 
                 // pending entry is already gone so it will be ignored.
                 this.agentEventBus.emit('dexto:toolConfirmationResponse', timeoutResponse);
 
-                reject(new Error(`Tool confirmation timeout for ${details.toolName}`));
+                reject(
+                    ToolError.confirmationTimeout(
+                        details.toolName,
+                        this.confirmationTimeout,
+                        details.sessionId
+                    )
+                );
             }, this.confirmationTimeout);
 
             // Store the promise resolvers with cleanup
@@ -162,7 +169,9 @@ export class EventBasedConfirmationProvider implements ToolConfirmationProvider 
     cancelConfirmation(executionId: string): void {
         const pending = this.pendingConfirmations.get(executionId);
         if (pending) {
-            pending.reject(new Error('Confirmation request cancelled'));
+            pending.reject(
+                ToolError.confirmationCancelled(pending.toolName, 'individual request cancelled')
+            );
             this.pendingConfirmations.delete(executionId);
         }
     }
@@ -172,7 +181,9 @@ export class EventBasedConfirmationProvider implements ToolConfirmationProvider 
      */
     cancelAllConfirmations(): void {
         for (const [_executionId, pending] of this.pendingConfirmations) {
-            pending.reject(new Error('All confirmation requests cancelled'));
+            pending.reject(
+                ToolError.confirmationCancelled(pending.toolName, 'all requests cancelled')
+            );
         }
         this.pendingConfirmations.clear();
     }

@@ -1,7 +1,7 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/llm/messages/types';
+import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;

@@ -1,6 +1,7 @@
 // schemas/helpers.ts
 import { z, type ZodError, type ZodIssue } from 'zod';
-import { DextoErrorCode } from '../schemas/errors.js';
+import type { DextoErrorCode, Issue } from '@core/errors/types.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 /** Trim and require non-empty after trim */
 export const NonEmptyTrimmed = z
@@ -59,18 +60,6 @@ export const RequiredEnvURL = (env?: Record<string, string | undefined>) =>
         { message: 'Invalid URL' }
     );
 
-/** Severity of an issue */
-export type Severity = 'error' | 'warning';
-
-/** Generic issue type for validation results */
-export interface Issue<C = unknown> {
-    code: DextoErrorCode;
-    message: string;
-    path?: Array<string | number>;
-    severity: Severity;
-    context?: C;
-}
-
 /**
  * A discriminated union result type that can be either successful or failed
  * Provides type safety by ensuring data is only available on success
@@ -128,7 +117,7 @@ export const ok = <T, C = unknown>(data: T, issues: Issue<C>[] = []): Result<T, 
  * // Validation failure
  * return fail([
  *   {
- *     code: DextoErrorCode.AGENT_MISSING_LLM_INPUT,
+ *     code: LLMErrorCode.SWITCH_INPUT_MISSING,
  *     message: 'At least model or provider must be specified',
  *     severity: 'error',
  *     context: {}
@@ -235,7 +224,7 @@ export function splitIssues<C>(issues: Issue<C>[]) {
  * // Custom error codes in Zod schema
  * const schema = z.string().refine(val => val.length > 0, {
  *   message: 'Field is required',
- *   params: { code: DextoErrorCode.LLM_MISSING_API_KEY }
+ *   params: { code: LLMErrorCode.API_KEY_MISSING }
  * });
  * ```
  */
@@ -243,10 +232,17 @@ export function zodToIssues<C = unknown>(
     err: ZodError,
     severity: 'error' | 'warning' = 'error'
 ): Issue<C>[] {
-    return err.errors.map((e: ZodIssue) => ({
-        code: ((e as any).params?.code ?? DextoErrorCode.SCHEMA_VALIDATION) as DextoErrorCode,
-        message: e.message,
-        path: e.path,
-        severity,
-    }));
+    return err.errors.map((e: ZodIssue) => {
+        const params = (e as any).params || {};
+        return {
+            code: (params.code ?? 'schema_validation') as DextoErrorCode,
+            message: e.message,
+            scope: params.scope ?? ErrorScope.AGENT, // Fallback for non-custom Zod errors
+            // Treat plain Zod schema failures as USER errors by default
+            type: params.type ?? ErrorType.USER,
+            path: e.path,
+            severity,
+            context: params as C,
+        };
+    });
 }

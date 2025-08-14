@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
-import { ToolExecutionDeniedError } from './confirmation/errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -94,21 +96,33 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            await expect(toolManager.executeTool('invalid_tool', {})).rejects.toThrow(
-                'Tool not found or missing source prefix: invalid_tool'
-            );
+            const error = (await toolManager
+                .executeTool('invalid_tool', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.NOT_FOUND);
         });
 
         it('should reject tools with prefix but no name', async () => {
             const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            await expect(toolManager.executeTool('mcp--', {})).rejects.toThrow(
-                "Invalid tool name: 'mcp--' - tool name cannot be empty after prefix"
-            );
+            const mcpError = (await toolManager
+                .executeTool('mcp--', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(mcpError).toBeInstanceOf(DextoRuntimeError);
+            expect(mcpError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
+            expect(mcpError.scope).toBe(ErrorScope.TOOLS);
+            expect(mcpError.type).toBe(ErrorType.USER);
 
-            await expect(toolManager.executeTool('internal--', {})).rejects.toThrow(
-                "Invalid tool name: 'internal--' - tool name cannot be empty after prefix"
-            );
+            const internalError = (await toolManager
+                .executeTool('internal--', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(internalError).toBeInstanceOf(DextoRuntimeError);
+            expect(internalError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
+            expect(internalError.scope).toBe(ErrorScope.TOOLS);
+            expect(internalError.type).toBe(ErrorType.USER);
 
             // Should NOT call the underlying managers
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -153,14 +167,18 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
         });
 
-        it('should throw ToolExecutionDeniedError when confirmation denied', async () => {
+        it('should throw execution denied error when confirmation denied', async () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(false);
 
             const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123')
-            ).rejects.toThrow(ToolExecutionDeniedError);
+            const error = (await toolManager
+                .executeTool('mcp--file_read', { path: '/test' }, 'session123')
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.FORBIDDEN);
 
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });

@@ -1,9 +1,11 @@
 import { validateModelFileSupport, getAllowedMimeTypes, LLMProvider } from './registry.js';
 import { logger } from '../logger/index.js';
-import type { ImageData, FileData } from './messages/types.js';
-import { Result, ok, fail, Issue } from '../utils/result.js';
-import { DextoErrorCode } from '../schemas/errors.js';
+import type { ImageData, FileData } from '../context/types.js';
+import { Result, ok, fail } from '../utils/result.js';
+import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
+import { LLMErrorCode } from './error-codes.js';
 
+// TOOD: Refactor/simplify this file
 export interface ValidationLLMConfig {
     provider: LLMProvider;
     model?: string;
@@ -72,8 +74,10 @@ export function validateInputForLLM(
 
             if (!fileValidation.isSupported) {
                 issues.push({
-                    code: DextoErrorCode.FILE_VALIDATION,
+                    code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
                     message: fileValidation.error || 'File type not supported by current LLM',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
                     severity: 'error',
                     context: {
                         ...context,
@@ -93,8 +97,10 @@ export function validateInputForLLM(
 
             if (!imageValidation.isSupported) {
                 issues.push({
-                    code: DextoErrorCode.IMAGE_VALIDATION,
+                    code: LLMErrorCode.INPUT_IMAGE_UNSUPPORTED,
                     message: imageValidation.error || 'Image format not supported by current LLM',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
                     severity: 'error',
                     context: {
                         ...context,
@@ -113,8 +119,10 @@ export function validateInputForLLM(
         logger.error(`Error during input validation: ${error}`);
         return fail([
             {
-                code: DextoErrorCode.VALIDATION_ERROR,
+                code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
                 message: 'Failed to validate input',
+                scope: ErrorScope.LLM,
+                type: ErrorType.SYSTEM,
                 severity: 'error',
                 context: {
                     provider: config.provider,

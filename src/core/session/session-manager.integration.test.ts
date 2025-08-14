@@ -136,7 +136,8 @@ describe('Session Integration: Chat History Preservation', () => {
         await agent.deleteSession(sessionId);
 
         // Everything should be gone including chat history
-        expect(await agent.getSession(sessionId)).toBeUndefined();
+        const deletedSession = await agent.getSession(sessionId);
+        expect(deletedSession).toBeUndefined();
         expect(await storage.database.get(sessionKey)).toBeUndefined();
         expect(await storage.database.get(messagesKey)).toBeUndefined();
     });
