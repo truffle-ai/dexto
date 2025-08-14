@@ -265,7 +265,11 @@ describe('File Support Functions', () => {
                 'pdf',
                 'audio',
             ]);
-            expect(getSupportedFileTypesForModel('openai', 'gpt-4o')).toEqual(['pdf']);
+            expect(getSupportedFileTypesForModel('openai', 'gpt-4o')).toEqual([
+                'pdf',
+                'image',
+                'audio',
+            ]);
         });
 
         it('returns empty array for models without file support', () => {
@@ -296,7 +300,7 @@ describe('File Support Functions', () => {
         });
 
         it('returns false for unsupported model-file combinations', () => {
-            expect(modelSupportsFileType('openai', 'gpt-4o', 'audio')).toBe(false);
+            expect(modelSupportsFileType('openai', 'gpt-4o', 'audio')).toBe(true);
         });
 
         it('returns false for openai-compatible models (unknown capabilities)', () => {
@@ -323,10 +327,10 @@ describe('File Support Functions', () => {
         });
 
         it('rejects unsupported files with descriptive error', () => {
-            const result = validateModelFileSupport('openai', 'gpt-4o', 'audio/mp3');
+            const result = validateModelFileSupport('xai', 'grok-4', 'audio/mp3');
             expect(result.isSupported).toBe(false);
             expect(result.fileType).toBe('audio');
-            expect(result.error).toBe("Model 'gpt-4o' (openai) does not support audio files");
+            expect(result.error).toBe("Model 'grok-4' (xai) does not support audio files");
         });
 
         it('handles unknown MIME types', () => {

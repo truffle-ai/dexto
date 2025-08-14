@@ -12,7 +12,7 @@ export interface ModelInfo {
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
-export type SupportedFileType = 'audio' | 'pdf';
+export type SupportedFileType = 'audio' | 'pdf' | 'image';
 
 // Central MIME type to file type mapping
 export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
@@ -26,11 +26,21 @@ export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
     'audio/ogg': 'audio',
     'audio/m4a': 'audio',
     'audio/aac': 'audio',
+    'image/jpeg': 'image',
+    'image/png': 'image',
+    'image/gif': 'image',
+    'image/webp': 'image',
+    'image/bmp': 'image',
+    'image/tiff': 'image',
 };
 
 // Helper function to get array of allowed MIME types
 export function getAllowedMimeTypes(): string[] {
     return Object.keys(MIME_TYPE_TO_FILE_TYPE);
+}
+
+export function getSupportedImageMimeTypes(): string[] {
+    return Object.keys(MIME_TYPE_TO_FILE_TYPE).filter((mimeType) => mimeType.startsWith('image/'));
 }
 
 export interface ProviderInfo {
@@ -64,70 +74,110 @@ export type LLMRouter = (typeof LLM_ROUTERS)[number];
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
-            { name: 'gpt-4.1', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
+            {
+                name: 'gpt-4.1',
+                maxInputTokens: 1047576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+            },
             {
                 name: 'gpt-4.1-mini',
                 maxInputTokens: 1047576,
                 default: true,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
-            { name: 'gpt-4.1-nano', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-4o', maxInputTokens: 128000, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-4o-mini', maxInputTokens: 128000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'gpt-4.1-nano',
+                maxInputTokens: 1047576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+            },
+            {
+                name: 'gpt-4o',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+            },
+            {
+                name: 'gpt-4o-mini',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+            },
             {
                 name: 'gpt-4o-audio-preview',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf', 'audio'],
             },
-            { name: 'o4-mini', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o3', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o3-mini', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o1', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'o4-mini',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+            },
+            {
+                name: 'o3',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+            },
+            {
+                name: 'o3-mini',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+            },
+            {
+                name: 'o1',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+            },
         ],
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
+        supportedFileTypes: [],
     },
     'openai-compatible': {
-        models: [], // Empty - accepts any model name for custom endpoints
+        models: [],
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'required',
-        supportedFileTypes: [], // Unknown capabilities for custom endpoints
+        supportedFileTypes: [],
     },
     anthropic: {
         models: [
-            { name: 'claude-4-opus-20250514', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'claude-4-opus-20250514',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+            },
             {
                 name: 'claude-4-sonnet-20250514',
                 maxInputTokens: 200000,
                 default: true,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
             },
             {
                 name: 'claude-3-7-sonnet-20250219',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
             },
             {
                 name: 'claude-3-5-sonnet-20240620',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
             },
             {
                 name: 'claude-3-haiku-20240307',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
             },
-            { name: 'claude-3-opus-20240229', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'claude-3-opus-20240229',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+            },
             {
                 name: 'claude-3-sonnet-20240229',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
             },
         ],
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
+        supportedFileTypes: [],
     },
     google: {
         models: [
@@ -135,42 +185,45 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.5-pro',
                 maxInputTokens: 1048576,
                 default: true,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
             {
                 name: 'gemini-2.5-flash',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
             {
                 name: 'gemini-2.0-flash',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
             {
                 name: 'gemini-2.0-flash-lite',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
             {
                 name: 'gemini-1.5-pro-latest',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
             {
                 name: 'gemini-1.5-flash-latest',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
             },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
+        supportedFileTypes: [],
     },
-    // https://console.groq.com/docs/models
     groq: {
         models: [
-            { name: 'gemma-2-9b-it', maxInputTokens: 8192, supportedFileTypes: [] },
+            {
+                name: 'gemma-2-9b-it',
+                maxInputTokens: 8192,
+                supportedFileTypes: [],
+            },
             {
                 name: 'llama-3.3-70b-versatile',
                 maxInputTokens: 128000,
@@ -180,20 +233,31 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',
-        supportedFileTypes: [], // Groq currently doesn't support file uploads
+        supportedFileTypes: [],
     },
-    // https://docs.x.ai/docs/models
     xai: {
         models: [
-            { name: 'grok-4', maxInputTokens: 256000, default: true, supportedFileTypes: [] },
-            { name: 'grok-3', maxInputTokens: 131072, supportedFileTypes: [] },
-            { name: 'grok-3-mini', maxInputTokens: 131072, supportedFileTypes: [] },
+            {
+                name: 'grok-4',
+                maxInputTokens: 256000,
+                default: true,
+                supportedFileTypes: ['image'],
+            },
+            {
+                name: 'grok-3',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'grok-3-mini',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+            },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',
-        supportedFileTypes: [], // XAI currently doesn't support file uploads
+        supportedFileTypes: [],
     },
-    // https://docs.cohere.com/reference/models
     cohere: {
         models: [
             {
@@ -202,14 +266,30 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 default: true,
                 supportedFileTypes: [],
             },
-            { name: 'command-r-plus', maxInputTokens: 128000, supportedFileTypes: [] },
-            { name: 'command-r', maxInputTokens: 128000, supportedFileTypes: [] },
-            { name: 'command', maxInputTokens: 4000, supportedFileTypes: [] },
-            { name: 'command-light', maxInputTokens: 4000, supportedFileTypes: [] },
+            {
+                name: 'command-r-plus',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'command-r',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'command',
+                maxInputTokens: 4000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'command-light',
+                maxInputTokens: 4000,
+                supportedFileTypes: [],
+            },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',
-        supportedFileTypes: [], // Cohere currently doesn't support file uploads
+        supportedFileTypes: [],
     },
 };
 
