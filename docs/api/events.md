@@ -28,12 +28,6 @@ Fired when a conversation history is reset for a session.
 }
 ```
 
-**Example:**
-```typescript
-agent.agentEventBus.on('dexto:conversationReset', (data) => {
-  console.log(`Conversation reset for session: ${data.sessionId}`);
-});
-```
 
 ### MCP Server Events
 
@@ -107,15 +101,6 @@ Fired when input validation fails for an LLM request.
 }
 ```
 
-**Example:**
-```typescript
-agent.agentEventBus.on('dexto:inputValidationFailed', (data) => {
-  console.log(`Input validation failed for ${data.provider}/${data.model} in session ${data.sessionId}`);
-  data.issues.forEach(issue => {
-    console.log(`  - ${issue.severity}: ${issue.message}`);
-  });
-});
-```
 
 ### Configuration Events
 
@@ -189,6 +174,36 @@ Fired when session-specific configuration is cleared.
 }
 ```
 
+### Tool Confirmation Events
+
+#### `dexto:toolConfirmationRequest`
+
+Fired when a tool execution requires confirmation.
+
+```typescript
+{
+  toolName: string;
+  args: Record<string, any>;
+  description?: string;
+  executionId: string;
+  timestamp: string; // ISO 8601 timestamp
+  sessionId?: string;
+}
+```
+
+#### `dexto:toolConfirmationResponse`
+
+Fired when a confirmation response is received.
+
+```typescript
+{
+  executionId: string;
+  approved: boolean;
+  rememberChoice?: boolean;
+  sessionId?: string;
+}
+```
+
 ---
 
 ## Session-Level Events
@@ -258,6 +273,21 @@ Fired when session LLM configuration is changed.
 }
 ```
 
+#### `llmservice:unsupportedInput`
+
+Fired when the LLM service receives unsupported input.
+
+```typescript
+{
+  errors: string[];
+  provider: LLMProvider;
+  model?: string;
+  fileType?: string;
+  details?: any;
+  sessionId: string;
+}
+```
+
 ### Tool Execution Events
 
 #### `llmservice:toolCall`
@@ -289,139 +319,6 @@ Fired when a tool execution completes.
 
 ---
 
-## Event Usage Patterns
-
-### Basic Event Listening
-
-```typescript
-import { DextoAgent } from 'dexto';
-
-const agent = new DextoAgent(config);
-await agent.start();
-
-// Listen to agent-level events
-agent.agentEventBus.on('dexto:conversationReset', (data) => {
-  console.log(`Conversation reset: ${data.sessionId}`);
-});
-
-agent.agentEventBus.on('dexto:mcpServerConnected', (data) => {
-  if (data.success) {
-    console.log(`✅ MCP server '${data.name}' connected`);
-  } else {
-    console.log(`❌ MCP server '${data.name}' failed: ${data.error}`);
-  }
-});
-
-// Listen to LLM events
-agent.agentEventBus.on('llmservice:thinking', (data) => {
-  console.log(`🤔 Agent thinking... (session: ${data.sessionId})`);
-});
-
-agent.agentEventBus.on('llmservice:response', (data) => {
-  console.log(`💬 Response: ${data.content.substring(0, 100)}...`);
-});
-```
-
-### Tool Execution Monitoring
-
-```typescript
-// Monitor tool executions
-agent.agentEventBus.on('llmservice:toolCall', (data) => {
-  console.log(`🔧 Executing tool: ${data.toolName}`);
-  console.log(`   Arguments:`, data.args);
-});
-
-agent.agentEventBus.on('llmservice:toolResult', (data) => {
-  if (data.success) {
-    console.log(`✅ Tool '${data.toolName}' completed successfully`);
-  } else {
-    console.log(`❌ Tool '${data.toolName}' failed:`, data.result);
-  }
-});
-```
-
-### Session-Specific Event Handling
-
-```typescript
-// Create a session and listen to its events
-const session = await agent.createSession('my-session');
-
-// Listen for events from specific session
-agent.agentEventBus.on('llmservice:thinking', (data) => {
-  if (data.sessionId === 'my-session') {
-    console.log('My session is thinking...');
-  }
-});
-
-agent.agentEventBus.on('llmservice:response', (data) => {
-  if (data.sessionId === 'my-session') {
-    console.log('My session responded:', data.content);
-  }
-});
-```
-
-### Error Handling
-
-```typescript
-// Handle LLM service errors
-agent.agentEventBus.on('llmservice:error', (data) => {
-  console.error(`LLM Error in session ${data.sessionId}:`, data.error.message);
-  
-  if (data.recoverable) {
-    console.log('Error is recoverable, continuing...');
-  } else {
-    console.log('Fatal error, may need intervention');
-  }
-});
-
-// Handle MCP connection failures
-agent.agentEventBus.on('dexto:mcpServerConnected', (data) => {
-  if (!data.success) {
-    console.error(`Failed to connect to MCP server '${data.name}': ${data.error}`);
-    // Implement retry logic or fallback behavior
-  }
-});
-```
-
-### Event Cleanup
-
-```typescript
-// Using AbortController for cleanup
-const controller = new AbortController();
-
-agent.agentEventBus.on('llmservice:response', (data) => {
-  console.log('Response received:', data.content);
-}, { signal: controller.signal });
-
-// Later, cleanup all listeners
-controller.abort();
-```
-
-### Standalone Event Bus Usage
-
-```typescript
-import { AgentEventBus, SessionEventBus } from 'dexto';
-
-// Create standalone event buses
-const agentBus = new AgentEventBus();
-const sessionBus = new SessionEventBus();
-
-// Use them independently
-agentBus.on('dexto:llmSwitched', (data) => {
-  console.log('LLM configuration changed:', data.newConfig);
-});
-
-sessionBus.on('llmservice:thinking', () => {
-  console.log('Processing request...');
-});
-
-// Emit custom events
-agentBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
-
-// Don't forget to clean up when done
-// agentBus.removeAllListeners();
-// sessionBus.removeAllListeners();
-```
 
 ---
 

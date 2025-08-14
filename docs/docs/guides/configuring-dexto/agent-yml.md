@@ -1,3 +1,7 @@
+---
+sidebar_position: 9
+sidebar_label: "Annotated agent.yml"
+---
 # agent.yml – Annotated Example
 
 Below is a **canonical** configuration file with inline comments.  Adjust paths and credentials for your environment.

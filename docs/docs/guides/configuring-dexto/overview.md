@@ -48,7 +48,7 @@ mcpServers:
 - **mcpServers:**
   - This section represents the different MCP servers that you want to connect to your agent
   - Each key represents a different MCP server
-  - [Complete Reference](./mcpServers)
+  - [Complete Reference](../../mcp/connecting-servers)
 - **llm:**
   - This section defines the configuration for the LLM that your agent will use as its brain.
   - [Complete Reference](./llm)

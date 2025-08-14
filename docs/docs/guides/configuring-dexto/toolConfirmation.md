@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 sidebar_label: "Tool Confirmation"
 ---
 
@@ -483,5 +483,5 @@ These implementations serve as reference examples for building your own custom U
 
 Tool confirmation works with these other configuration sections:
 - **[Storage](./storage)** - Required for persistent approval storage
-- **[MCP Servers](./mcpServers)** - Defines which tools are available for confirmation
+- **[MCP Servers](../../mcp/connecting-servers)** - Defines which tools are available for confirmation
 - **[Sessions](./sessions)** - Affects session-scoped approval behavior

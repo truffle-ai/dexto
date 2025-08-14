@@ -1,9 +1,11 @@
 ---
 sidebar_position: 2
-sidebar_label: "MCP Configuration"
+title: Configure MCP Connections
+sidebar_label: "Configure Connections"
+description: How to connect Dexto to MCP servers via stdio, http, and sse, with examples and best practices.
 ---
 
-# mcpServers Configuration
+# Configuring MCP Connections
 
 The `mcpServers` section defines the Model Context Protocol (MCP) servers that your Dexto Agent can use for tool execution.
 

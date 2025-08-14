@@ -1,3 +1,7 @@
+---
+sidebar_position: 10
+sidebar_label: "Dynamic Changes"
+---
 # Runtime / Dynamic Configuration Changes
 
 `AgentStateManager` allows safe, validated modifications to the running configuration.
