@@ -150,6 +150,7 @@ await manager.initializeFromConfig({
     env: {
         MCP_LOG_LEVEL: "info",
         GIT_SIGN_COMMITS: "false"
+    }
   }
 });
 
