@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { useLocation } from '@docusaurus/router';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 
 interface CopyMarkdownProps {
   className?: string;
@@ -7,7 +6,7 @@ interface CopyMarkdownProps {
 
 export default function CopyMarkdown({ className }: CopyMarkdownProps) {
   const [copied, setCopied] = useState(false);
-  const location = useLocation();
+  const timeoutRef = useRef<number | null>(null);
 
   const extractMarkdownFromPage = useCallback((): string => {
     // Get the main content area
@@ -179,9 +178,10 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
       const markdown = extractMarkdownFromPage();
       await navigator.clipboard.writeText(markdown);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Error in handleCopy (clipboard API): ${message}`);
       // Fallback for older browsers
       const textarea = document.createElement('textarea');
       textarea.value = extractMarkdownFromPage();
@@ -190,13 +190,22 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
       try {
         document.execCommand('copy');
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
       } catch (fallbackErr) {
-        console.error('Fallback copy failed:', fallbackErr);
+        const fbMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        console.error(`Error in handleCopy (fallback copy): ${fbMessage}`);
       }
       document.body.removeChild(textarea);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <button
