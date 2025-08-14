@@ -186,7 +186,7 @@ Fired when a tool execution requires confirmation.
   args: Record<string, any>;
   description?: string;
   executionId: string;
-  timestamp: Date;
+  timestamp: string; // ISO 8601 timestamp
   sessionId?: string;
 }
 ```

@@ -60,8 +60,8 @@ Processes user input through the agent's LLM and returns the response.
 ```typescript
 async run(
   textInput: string,
-  imageDataInput?: { image: string; mimeType: string },
-  fileDataInput?: { data: string; mimeType: string; filename?: string },
+  imageDataInput?: { base64: string; mimeType: string },
+  fileDataInput?: { base64: string; mimeType: string; filename?: string },
   sessionId?: string,
   stream?: boolean
 ): Promise<string | null>
@@ -70,8 +70,8 @@ async run(
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `textInput` | `string` | User message or query |
-| `imageDataInput` | `{ image: string; mimeType: string }` | (Optional) Base64 image data |
-| `fileDataInput` | `{ data: string; mimeType: string; filename?: string }` | (Optional) Base64 file data |
+| `imageDataInput` | `{ base64: string; mimeType: string }` | (Optional) Base64-encoded image |
+| `fileDataInput` | `{ base64: string; mimeType: string; filename?: string }` | (Optional) Base64-encoded file |
 | `sessionId` | `string` | (Optional) Session ID |
 | `stream` | `boolean` | (Optional) Enable streaming (default: false) |
 

@@ -2,7 +2,7 @@ import React from 'react';
 import MDXContent from '@theme-original/MDXContent';
 import CopyMarkdown from '../../components/CopyMarkdown';
 
-export default function MDXContentWrapper(props: any) {
+export default function MDXContentWrapper(props: React.ComponentProps<typeof MDXContent>) {
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ 

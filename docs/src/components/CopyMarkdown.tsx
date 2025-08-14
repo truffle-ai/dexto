@@ -85,21 +85,23 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
             return `\`${children}\``;
           }
           return children;
-        case 'pre':
+        case 'pre': {
           // Try to get the language from class
           const codeEl = el.querySelector('code');
           const className = codeEl?.className || '';
           const languageMatch = className.match(/language-(\w+)/);
           const language = languageMatch ? languageMatch[1] : '';
           return `\`\`\`${language}\n${children}\n\`\`\`\n\n`;
-        case 'a':
+        }
+        case 'a': {
           const href = el.getAttribute('href') || '';
           return `[${children}](${href})`;
+        }
         case 'ul':
           return `${children}\n`;
         case 'ol':
           return `${children}\n`;
-        case 'li':
+        case 'li': {
           // Check if parent is ol or ul
           const parent = el.parentElement;
           if (parent?.tagName.toLowerCase() === 'ol') {
@@ -108,16 +110,18 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
           } else {
             return `- ${children}\n`;
           }
+        }
         case 'blockquote':
           return `> ${children}\n\n`;
         case 'hr':
           return `---\n\n`;
         case 'br':
           return '\n';
-        case 'img':
+        case 'img': {
           const src = el.getAttribute('src') || '';
           const alt = el.getAttribute('alt') || '';
           return `![${alt}](${src})`;
+        }
         case 'table':
           return convertTable(el) + '\n\n';
         case 'div':
@@ -126,10 +130,11 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
             return handleAdmonition(el);
           }
           return children;
-        case 'details':
+        case 'details': {
           const summary = el.querySelector('summary');
           const summaryText = summary ? summary.textContent : 'Details';
           return `<details>\n<summary>${summaryText}</summary>\n\n${children}\n</details>\n\n`;
+        }
         case 'summary':
           return ''; // Handled in details
         default:
