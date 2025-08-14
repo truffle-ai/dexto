@@ -59,13 +59,32 @@ async function runWebSocketTest(name, message, expectations) {
                 
                 // For immediate error responses, resolve quickly
                 if (event.event === 'error' && expectations.shouldError) {
-                    console.log(`  ${green('PASS: Error event received as expected')}`);
+                    const data = event.data || {};
+                    
+                    // Check for DextoValidationError format (name + issues)
+                    const isDextoValidationError = data.name === 'DextoValidationError' && 
+                                                  Array.isArray(data.issues) && 
+                                                  data.issues.length > 0;
+                    
+                    // Check for simple error format (code + scope + type)
+                    const isSimpleError = typeof data.code === 'string' && 
+                                         typeof data.scope === 'string' && 
+                                         typeof data.type === 'string';
+                    
+                    const hasStandardizedShape = isDextoValidationError || isSimpleError;
+                    
+                    if (hasStandardizedShape) {
+                        console.log(`  ${green('PASS: Error event shape is standardized')}`);
+                    } else {
+                        console.log(`  ${red('FAIL: Error event missing standardized fields')}`);
+                        console.log(`    Expected: DextoValidationError (name+issues) OR simple error (code+scope+type)`);
+                    }
                     console.log(`  Error: ${JSON.stringify(event.data)}`);
                     console.log();
-                    testPassed = true;
+                    testPassed = hasStandardizedShape;
                     clearTimeout(timeout);
                     ws.close();
-                    resolve(true);
+                    resolve(testPassed);
                 }
             } catch {
                 console.log(`  ${red('Invalid JSON in WebSocket response')}: ${data.toString()}`);
@@ -116,11 +135,12 @@ function evaluateTestResults(events, expectations) {
     }
     
     if (expectations.minEvents !== undefined) {
-        return events.length >= expectations.minEvents;
+        const nonErrorCount = events.filter(e => e.event !== 'error').length;
+        return nonErrorCount >= expectations.minEvents;
     }
     
-    // Default: expect at least one event for successful operations
-    return events.length > 0;
+    // Default: expect at least one non-error event for successful operations
+    return events.some(e => e.event !== 'error');
 }
 
 async function main() {

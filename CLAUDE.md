@@ -52,6 +52,7 @@
    - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
    - Any other uncaught exception → 500  
    - Successful calls → 200 (may include warnings in `issues`)
+   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `src/app/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
 
 4. **Defensive API Validation** - API layer validates request schemas
    - Use Zod schemas for request validation at API boundary
