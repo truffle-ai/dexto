@@ -530,7 +530,7 @@ After every sub-task, commit relevant changes and update task list
 - [x] **1.1 Add getDextoGlobalPath utility** - Always returns global `~/.dexto/` paths, not project-relative
 - [x] **1.2 Port agent registry types** - Clean up and adapt from agent-registry-2 branch
 - [x] **1.3 Implement registry loading** - JSON parsing, validation, bundled script resolution
-- [ ] **1.4 Audit bundled agents** - Determine which are single-file vs directory, update registry JSON
+- [x] **1.4 Audit bundled agents** - Determine which are single-file vs directory, update registry JSON
 
 ### Phase 2: Core Resolution Logic  
 - [ ] **2.1 Implement agent resolution logic** - Name vs path detection, registry lookups
