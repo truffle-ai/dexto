@@ -528,8 +528,8 @@ After every sub-task, commit relevant changes and update task list
 
 ### Phase 1: Foundation (Core Infrastructure)
 - [x] **1.1 Add getDextoGlobalPath utility** - Always returns global `~/.dexto/` paths, not project-relative
-- [ ] **1.2 Port agent registry types** - Clean up and adapt from agent-registry-2 branch
-- [ ] **1.3 Implement registry loading** - JSON parsing, validation, bundled script resolution
+- [x] **1.2 Port agent registry types** - Clean up and adapt from agent-registry-2 branch
+- [x] **1.3 Implement registry loading** - JSON parsing, validation, bundled script resolution
 - [ ] **1.4 Audit bundled agents** - Determine which are single-file vs directory, update registry JSON
 
 ### Phase 2: Core Resolution Logic  
