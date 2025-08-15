@@ -125,6 +125,19 @@ export function getDextoPath(type: string, filename?: string, startPath?: string
 }
 
 /**
+ * Global path resolver that ALWAYS returns paths in the user's home directory
+ * Used for agent registry and other global-only resources that should not be project-relative
+ * @param type Path type (agents, cache, etc.)
+ * @param filename Optional filename to append
+ * @returns Absolute path to the global location (~/.dexto/...)
+ */
+export function getDextoGlobalPath(type: string, filename?: string): string {
+    // ALWAYS return global path, ignore project context
+    const basePath = path.join(homedir(), '.dexto', type);
+    return filename ? path.join(basePath, filename) : basePath;
+}
+
+/**
  * Resolve config path with context awareness
  * @param configPath Optional explicit config path
  * @param startPath Starting directory for project detection
