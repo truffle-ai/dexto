@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
+import path from 'path';
 import { logger } from '@core/logger/index.js';
-import { resolveBundledScript } from '@core/utils/path.js';
+import { resolveBundledScript, getDextoGlobalPath } from '@core/utils/path.js';
 import { Registry, RegistrySchema, AgentRegistry } from './types.js';
 
 /**
@@ -48,10 +49,89 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
+     * Check if string looks like a path vs registry name
+     */
+    private isPath(str: string): boolean {
+        // Absolute paths
+        if (path.isAbsolute(str)) return true;
+
+        // Relative paths with separators
+        if (/[\\/]/.test(str)) return true;
+
+        // File extensions
+        if (/\.(ya?ml|json)$/i.test(str)) return true;
+
+        return false;
+    }
+
+    /**
+     * Check if agent exists in registry
+     */
+    private hasRegistryAgent(name: string): boolean {
+        const registry = this.getRegistry();
+        return name in registry.agents;
+    }
+
+    /**
+     * Resolve main config file for directory agent
+     */
+    private resolveMainConfig(agentDir: string, agentName: string): string {
+        const registry = this.getRegistry();
+        const agentData = registry.agents[agentName];
+
+        if (agentData?.main) {
+            return path.join(agentDir, agentData.main);
+        }
+
+        // Fallback: look for agent.yml or first .yml file
+        const defaultPath = path.join(agentDir, 'agent.yml');
+        if (existsSync(defaultPath)) {
+            return defaultPath;
+        }
+
+        throw new Error(`No config file found in agent directory: ${agentDir}`);
+    }
+
+    /**
      * Resolve an agent name/path to a config path
      */
     async resolveAgent(nameOrPath: string): Promise<string> {
-        // For now, just throw - will implement in next task
-        throw new Error('Not implemented yet');
+        logger.debug(`Resolving agent: ${nameOrPath}`);
+
+        // 1. Check if it's a path - resolve directly
+        if (this.isPath(nameOrPath)) {
+            const resolved = path.resolve(nameOrPath);
+            if (!existsSync(resolved)) {
+                throw new Error(`Agent config not found: ${resolved}`);
+            }
+            logger.debug(`Resolved path '${nameOrPath}' to: ${resolved}`);
+            return resolved;
+        }
+
+        // 2. Must be a registry name - check if installed
+        const globalAgentsDir = getDextoGlobalPath('agents');
+        const installedPath = path.join(globalAgentsDir, nameOrPath);
+
+        if (existsSync(installedPath)) {
+            const mainConfig = this.resolveMainConfig(installedPath, nameOrPath);
+            logger.debug(`Resolved installed agent '${nameOrPath}' to: ${mainConfig}`);
+            return mainConfig;
+        }
+
+        // 3. Check if available in registry (will need installation next)
+        if (this.hasRegistryAgent(nameOrPath)) {
+            throw new Error(
+                `Agent '${nameOrPath}' not installed yet - installation not implemented`
+            );
+        }
+
+        // 4. Not found anywhere
+        const registry = this.getRegistry();
+        const available = Object.keys(registry.agents);
+        throw new Error(
+            `Agent '${nameOrPath}' not found. ` +
+                `Available agents: ${available.join(', ')}. ` +
+                `Use a file path for custom agents.`
+        );
     }
 }
