@@ -518,3 +518,48 @@ Available to Install:
 
 Usage: dexto -a <agent-name>
 ```
+
+## Technical plan
+Check technical-plans/agent-registry for detailed technical plans
+
+## Task List
+
+After every sub-task, commit relevant changes and update task list
+
+### Phase 1: Foundation (Core Infrastructure)
+- [x] **1.1 Add getDextoGlobalPath utility** - Always returns global `~/.dexto/` paths, not project-relative
+- [ ] **1.2 Port agent registry types** - Clean up and adapt from agent-registry-2 branch
+- [ ] **1.3 Implement registry loading** - JSON parsing, validation, bundled script resolution
+- [ ] **1.4 Audit bundled agents** - Determine which are single-file vs directory, update registry JSON
+
+### Phase 2: Core Resolution Logic  
+- [ ] **2.1 Implement agent resolution logic** - Name vs path detection, registry lookups
+- [ ] **2.2 Template variable expansion system** - Insert into config loading pipeline after YAML, before Zod
+- [ ] **2.3 Update loadAgentConfig integration** - Try registry first, fall back to file paths
+- [ ] **2.4 Test with database-agent** - First agent to get template variables, verify data files work
+
+### Phase 3: Installation System
+- [ ] **3.1 Implement atomic installation** - Temp directory + rename pattern for safety
+- [ ] **3.2 Handle directory vs single-file agents** - Preserve structure, resolve main entry points  
+- [ ] **3.3 Auto-install on first use** - Trigger from resolution logic when registry agent not found
+- [ ] **3.4 Update remaining bundled agents** - Apply template variables to all agents
+
+### Phase 4: CLI Integration
+- [ ] **4.1 Update -a/--agent flag behavior** - Accept names or paths transparently
+- [ ] **4.2 Verify list-agents command** - Ensure it uses getDextoGlobalPath, shows installed vs available
+- [ ] **4.3 Add which command** - For debugging resolution: `dexto which database-agent`
+- [ ] **4.4 Enhance first-time setup** - Add tips about available agents after setup completes
+
+### Phase 5: Testing & Polish
+- [ ] **5.1 Cross-platform testing** - Windows, Mac, Linux path handling
+- [ ] **5.2 Multi-agent system testing** - triage-demo with sub-agents and shared resources
+- [ ] **5.3 Edge case testing** - All scenarios from E1-E11 in feature plan
+- [ ] **5.4 Error message polish** - Clear, helpful messages with suggestions
+- [ ] **5.5 Documentation updates** - User-facing docs about registry system
+
+### Priority Dependencies
+- Everything depends on **1.1** (getDextoGlobalPath)
+- **2.2** needs **2.1** (template expansion needs resolution working)  
+- **3.x** needs **2.x** (installation needs template variables)
+- **4.x** can be done in parallel with core work
+- **5.x** should be continuous but comprehensive testing comes last
