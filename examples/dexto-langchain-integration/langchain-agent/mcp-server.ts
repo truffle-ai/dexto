@@ -26,6 +26,7 @@ class LangChainMCPServer {
                 description:
                     'Chat with a helpful LangChain agent that can summarize text, translate languages, and perform sentiment analysis.',
                 inputSchema: {
+                    // Cannot use zod object here due to type incompatibility with MCP SDK
                     message: z
                         .string()
                         .describe(

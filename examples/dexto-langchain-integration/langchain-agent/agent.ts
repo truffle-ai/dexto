@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-env node */
 
 import { ChatOpenAI } from '@langchain/openai';
 import { PromptTemplate } from '@langchain/core/prompts';
@@ -15,7 +16,7 @@ export class LangChainAgent {
 
     constructor() {
         this.llm = new ChatOpenAI({
-            modelName: 'gpt-4o-mini',
+            model: 'gpt-4o-mini',
             temperature: 0.7,
         });
 

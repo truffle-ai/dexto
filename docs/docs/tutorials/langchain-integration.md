@@ -30,9 +30,12 @@ Here's a typical LangChain agent you might already have:
 
 ```javascript
 // agent.js
+import { ChatOpenAI } from '@langchain/openai';
+import { PromptTemplate } from '@langchain/core/prompts';
+
 class LangChainAgent {
     constructor() {
-        this.llm = new ChatOpenAI({ modelName: 'gpt-4o-mini' });
+        this.llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
         this.tools = {
             summarize: this.summarize.bind(this),
             translate: this.translate.bind(this),
@@ -63,6 +66,7 @@ Now we create a thin MCP wrapper that exposes your agent:
 ```javascript
 // mcp-server.js
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { LangChainAgent } from './agent.js';
 
 class LangChainMCPServer {

@@ -35,9 +35,11 @@ npm install
 # Set API key
 export OPENAI_API_KEY="your_openai_api_key_here"
 
-# Test integration
-dexto ../../.. # Run from project root
+# Test integration (run from repository root)
+cd ../../..
 dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Analyze the sentiment of this review: 'I absolutely love this product! The quality is amazing and the customer service was outstanding. Best purchase I've made this year.'"
+
+# Note: Agent file paths in the YAML config are resolved relative to the current working directory
 ```
 
 ## What You Can Do
