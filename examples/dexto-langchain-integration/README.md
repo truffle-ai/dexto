@@ -1,4 +1,4 @@
-# Dexto + LangChain Integration Example
+# Dexto + LangChain Example
 
 This example demonstrates how Dexto's orchestration layer can integrate existing agents from other frameworks (like LangChain, LangGraph, etc.) via the Model Context Protocol (MCP), enabling seamless multi-agent workflows.
 
