@@ -8,15 +8,12 @@ This example demonstrates how Dexto's orchestration layer can integrate existing
 graph TD
     A[Dexto Orchestrator] --> B[Filesystem Tools]
     A --> C[Puppeteer Tools]
-    A --> D[LangChain MCP]
-    
-    D --> E[LangChain Agent]
+    A --> D[LangChain Agent]
     
     style A fill:#4f46e5,stroke:#312e81,stroke-width:2px,color:#fff
     style B fill:#10b981,stroke:#065f46,stroke-width:1px,color:#fff
     style C fill:#f59e0b,stroke:#92400e,stroke-width:1px,color:#fff
     style D fill:#8b5cf6,stroke:#5b21b6,stroke-width:1px,color:#fff
-    style E fill:#6b7280,stroke:#374151,stroke-width:1px,color:#fff
 ```
 
 ## How to Think About Multi-Agent Integration
@@ -39,7 +36,8 @@ npm install
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Test integration
-dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Solve: 2^10 + 15 * 3"
+dexto ../../.. # Run from project root
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Analyze the sentiment of this review: 'I absolutely love this product! The quality is amazing and the customer service was outstanding. Best purchase I've made this year.'"
 ```
 
 ## What You Can Do
