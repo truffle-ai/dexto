@@ -116,7 +116,7 @@ mcpServers:
   langchain:
     type: stdio
     command: node
-    args: ["./langchain-agent/mcp-server.js"]
+    args: ["./langchain-agent/dist/mcp-server.js"]
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
 ```
@@ -127,11 +127,12 @@ Now Dexto can coordinate between file operations, web browsing, and your LangCha
 
 ```bash
 # Setup
-cd examples/dexto-langchain-integration/langchain-agent && npm install
+cd examples/dexto-langchain-integration/langchain-agent && npm install && npm run build
 export OPENAI_API_KEY="your_key_here"
+cd ../../../  # Return to repo root
 
 # Run a multi-agent workflow
-dexto --agent ./dexto-agent-with-langchain.yml "Read README.md, analyze its sentiment, and save the analysis"
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Read README.md, analyze its sentiment, and save the analysis"
 ```
 
 What happens when you run this:
@@ -154,7 +155,7 @@ mcpServers:
   langchain:
     type: stdio
     command: node
-    args: ["./langchain-agent/mcp-server.js"]
+    args: ["./langchain-agent/dist/mcp-server.js"]
     
   # Add more agents
   autogen-research:

@@ -31,6 +31,7 @@ When building multi-agent systems, you often have agents built in different fram
 # Install dependencies
 cd examples/dexto-langchain-integration/langchain-agent
 npm install
+npm run build
 
 # Set API key
 export OPENAI_API_KEY="your_openai_api_key_here"
