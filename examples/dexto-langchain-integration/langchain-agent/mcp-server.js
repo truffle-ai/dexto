@@ -15,15 +15,10 @@ import { LangChainAgent } from './agent.js';
 
 class LangChainMCPServer {
     constructor() {
-        this.server = new McpServer(
-            { name: 'langchain-agent', version: '1.0.0' },
-            { 
-                capabilities: { 
-                    tools: {},
-                    resources: {}
-                } 
-            }
-        );
+        this.server = new McpServer({
+            name: 'langchain-agent',
+            version: '1.0.0'
+        });
         
         // Initialize the LangChain agent
         this.agent = new LangChainAgent();
@@ -33,11 +28,13 @@ class LangChainMCPServer {
 
     registerTools() {
         // Single tool that exposes the entire LangChain agent
-        this.server.tool(
+        this.server.registerTool(
             'chat_with_langchain_agent',
-            'Chat with a complete LangChain agent that has its own internal tools and reasoning capabilities. The agent can perform calculations, analyze text, search for information, and create content.',
             {
-                message: z.string().describe('The message to send to the LangChain agent. The agent will use its own reasoning to determine which internal tools to use.')
+                description: 'Chat with a complete LangChain agent that has its own internal tools and reasoning capabilities. The agent can perform calculations, analyze text, search for information, and create content.',
+                inputSchema: {
+                    message: z.string().describe('The message to send to the LangChain agent. The agent will use its own reasoning to determine which internal tools to use.')
+                }
             },
             async ({ message }) => {
                 try {

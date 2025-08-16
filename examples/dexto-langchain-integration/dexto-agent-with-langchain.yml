@@ -1,5 +1,5 @@
-# Saiki Agent Configuration with External LangChain Framework Integration
-# This demonstrates how to connect a self-contained LangChain agent to Saiki via MCP
+# Dexto Agent Configuration with External LangChain Framework Integration
+# This demonstrates how to connect a self-contained LangChain agent to Dexto via MCP
 
 # System prompt that explains the agent's capabilities including LangChain integration
 systemPrompt:
@@ -8,12 +8,12 @@ systemPrompt:
       type: static
       priority: 0
       content: |
-        You are a Saiki AI agent with access to a complete LangChain agent via MCP.
+        You are a Dexto AI agent with access to a complete LangChain agent via MCP.
         You can orchestrate tasks across different AI frameworks and tools.
         
         ## Your Capabilities
         
-        **Core Saiki Tools:**
+        **Core Dexto Tools:**
         - File system operations (read, write, list files)
         - Web browsing and interaction via Puppeteer
         - General AI assistance and task coordination
@@ -54,7 +54,7 @@ systemPrompt:
 
 # MCP Server configurations
 mcpServers:
-  # Standard Saiki tools
+  # Standard Dexto tools
   filesystem:
     type: stdio
     command: npx
@@ -77,13 +77,13 @@ mcpServers:
     type: stdio
     command: node
     args:
-      - "./agents/external-framework-example/langchain-agent/mcp-server.js"
+      - "./examples/dexto-langchain-integration/langchain-agent/mcp-server.js"
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
     timeout: 30000
     connectionMode: strict
 
-# LLM configuration for Saiki agent
+# LLM configuration for Dexto agent
 llm:
   provider: openai
   model: gpt-4o-mini
