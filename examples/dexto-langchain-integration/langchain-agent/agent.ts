@@ -1,25 +1,24 @@
 #!/usr/bin/env node
 
-/**
- * Self-Contained LangChain Agent Example
- * 
- * This represents how someone would typically build an agent using LangChain.
- * The agent has its own internal tools, reasoning, and orchestration capabilities.
- * It's designed to be a complete, standalone agent that can be wrapped in an MCP server.
- */
-
 import { ChatOpenAI } from '@langchain/openai';
 import { PromptTemplate } from '@langchain/core/prompts';
 
-class LangChainAgent {
+interface AgentTools {
+    summarize: (input: string | { text: string }) => Promise<string>;
+    translate: (input: string | { text: string; target_language?: string }) => Promise<string>;
+    analyze: (input: string | { text: string }) => Promise<string>;
+}
+
+export class LangChainAgent {
+    private llm: ChatOpenAI;
+    private tools: AgentTools;
+
     constructor() {
-        // Initialize the LLM
         this.llm = new ChatOpenAI({
             modelName: 'gpt-4o-mini',
             temperature: 0.7,
         });
 
-        // Define the agent's tools
         this.tools = {
             summarize: this.summarize.bind(this),
             translate: this.translate.bind(this),
@@ -27,15 +26,12 @@ class LangChainAgent {
         };
     }
 
-    /**
-     * Main entry point for the agent
-     * This is how someone would typically interact with a LangChain agent
-     */
-    async run(input) {
+    async run(input: string): Promise<string> {
         try {
-            console.error(`LangChain Agent received: ${input.substring(0, 100)}${input.length > 100 ? '...' : ''}`);
-            
-            // Simple prompt that describes the agent's core capabilities
+            console.error(
+                `LangChain Agent received: ${input.substring(0, 100)}${input.length > 100 ? '...' : ''}`
+            );
+
             const prompt = PromptTemplate.fromTemplate(`
                 You are a helpful AI assistant with three core capabilities:
 
@@ -57,19 +53,20 @@ class LangChainAgent {
             const chain = prompt.pipe(this.llm);
             const result = await chain.invoke({ user_input: input });
 
-            console.error(`LangChain Agent response: ${result.content.substring(0, 100)}${result.content.length > 100 ? '...' : ''}`);
-            
-            return result.content;
-        } catch (error) {
+            const content =
+                typeof result.content === 'string' ? result.content : String(result.content);
+            console.error(
+                `LangChain Agent response: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+            );
+
+            return content;
+        } catch (error: any) {
             console.error(`LangChain Agent error: ${error.message}`);
             return `I encountered an error: ${error.message}`;
         }
     }
 
-    /**
-     * Tool: Text summarization
-     */
-    async summarize(input) {
+    private async summarize(input: string | { text: string }): Promise<string> {
         const summaryPrompt = PromptTemplate.fromTemplate(`
             Please create a concise summary of the following text:
             
@@ -80,15 +77,14 @@ class LangChainAgent {
 
         const chain = summaryPrompt.pipe(this.llm);
         const result = await chain.invoke({
-            text: input.text || input
+            text: typeof input === 'string' ? input : input.text,
         });
-        return result.content;
+        return result.content as string;
     }
 
-    /**
-     * Tool: Text translation
-     */
-    async translate(input) {
+    private async translate(
+        input: string | { text: string; target_language?: string }
+    ): Promise<string> {
         const translatePrompt = PromptTemplate.fromTemplate(`
             Please translate the following text:
             
@@ -100,16 +96,14 @@ class LangChainAgent {
 
         const chain = translatePrompt.pipe(this.llm);
         const result = await chain.invoke({
-            text: input.text || input,
-            target_language: input.target_language || 'English'
+            text: typeof input === 'string' ? input : input.text,
+            target_language:
+                typeof input === 'string' ? 'English' : input.target_language || 'English',
         });
-        return result.content;
+        return result.content as string;
     }
 
-    /**
-     * Tool: Sentiment analysis
-     */
-    async analyze(input) {
+    private async analyze(input: string | { text: string }): Promise<string> {
         const analyzePrompt = PromptTemplate.fromTemplate(`
             Please perform sentiment analysis on the following text:
             
@@ -128,35 +122,33 @@ class LangChainAgent {
 
         const chain = analyzePrompt.pipe(this.llm);
         const result = await chain.invoke({
-            text: input.text || input
+            text: typeof input === 'string' ? input : input.text,
         });
-        return result.content;
+        return result.content as string;
     }
 }
 
 // For direct testing
 if (import.meta.url === `file://${process.argv[1]}`) {
     const agent = new LangChainAgent();
-    
+
     console.log('LangChain Agent Test Mode');
     console.log('Type your message (or "quit" to exit):');
-    
+
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', async (data) => {
-        const input = data.trim();
+        const input = data.toString().trim();
         if (input.toLowerCase() === 'quit') {
             process.exit(0);
         }
-        
+
         try {
             const response = await agent.run(input);
             console.log('\nAgent Response:', response);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error:', error.message);
         }
-        
+
         console.log('\nType your message (or "quit" to exit):');
     });
 }
-
-export { LangChainAgent }; 
