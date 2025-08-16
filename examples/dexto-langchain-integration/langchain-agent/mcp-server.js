@@ -31,7 +31,7 @@ class LangChainMCPServer {
         this.server.registerTool(
             'chat_with_langchain_agent',
             {
-                description: 'Chat with a complete LangChain agent that has its own internal tools and reasoning capabilities. The agent can perform calculations, analyze text, search for information, and create content.',
+                description: 'Chat with a helpful LangChain agent that can summarize text, translate languages, and perform sentiment analysis.',
                 inputSchema: {
                     message: z.string().describe('The message to send to the LangChain agent. The agent will use its own reasoning to determine which internal tools to use.')
                 }

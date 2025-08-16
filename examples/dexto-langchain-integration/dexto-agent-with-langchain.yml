@@ -22,27 +22,25 @@ systemPrompt:
         - `chat_with_langchain_agent`: Interact with a complete LangChain agent that has its own internal tools and reasoning capabilities
         
         The LangChain agent can handle:
-        - Mathematical calculations and problem solving
-        - Text analysis (sentiment, topics, summary)
-        - Information search and research
-        - Creative content generation (stories, poems, articles)
-        - Intelligent tool selection and reasoning
+        - Text summarization and content analysis
+        - Language translation between different languages
+        - Sentiment analysis and emotion detection
         
         ## Usage Examples
         
         **Basic LangChain interaction:**
-        - "Use the LangChain agent to solve this math problem: 2^10 + 15 * 3"
-        - "Ask the LangChain agent to analyze this text: 'I love this product!'"
-        - "Have the LangChain agent create a short story about AI"
+        - "Use the LangChain agent to summarize this article about AI trends"
+        - "Ask the LangChain agent to translate this text to Spanish"
+        - "Have the LangChain agent analyze the sentiment of this customer review"
         
         **Multi-framework orchestration:**
-        - "Read the README.md file, then use the LangChain agent to analyze its content"
-        - "Search the web for information about AI agents, then have the LangChain agent summarize the findings"
-        - "Use the LangChain agent to generate a creative story, then save it as an HTML file"
+        - "Read the README.md file, then use the LangChain agent to summarize it"
+        - "Search the web for news about AI, then have the LangChain agent translate it to Spanish"
+        - "Use the LangChain agent to analyze sentiment of customer feedback, then save the report"
         
         **Complex workflows:**
-        - "Use the LangChain agent to analyze this document, then create a summary report"
-        - "Have the LangChain agent research a topic, then format the results as a markdown file"
+        - "Use the LangChain agent to summarize this document, then save it as a report"
+        - "Have the LangChain agent analyze sentiment of this text, then translate the analysis to Spanish"
         
         The LangChain agent handles its own internal reasoning and tool selection, so you can simply send it natural language requests and it will figure out what to do.
         
@@ -77,7 +75,7 @@ mcpServers:
     type: stdio
     command: node
     args:
-      - "./examples/dexto-langchain-integration/langchain-agent/mcp-server.js"
+      - "./examples/dexto-langchain-integration/langchain-agent/mcp-server.js" # Adjust this path to the correct location of your LangChain MCP server
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
     timeout: 30000

@@ -10,7 +10,6 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { PromptTemplate } from '@langchain/core/prompts';
-import { z } from 'zod';
 
 class LangChainAgent {
     constructor() {
@@ -22,10 +21,9 @@ class LangChainAgent {
 
         // Define the agent's tools
         this.tools = {
-            calculate: this.calculate.bind(this),
+            summarize: this.summarize.bind(this),
+            translate: this.translate.bind(this),
             analyze: this.analyze.bind(this),
-            search: this.search.bind(this),
-            create: this.create.bind(this),
         };
     }
 
@@ -37,19 +35,23 @@ class LangChainAgent {
         try {
             console.error(`LangChain Agent received: ${input.substring(0, 100)}${input.length > 100 ? '...' : ''}`);
             
-            // Simple prompt-based approach
+            // Simple prompt that describes the agent's core capabilities
             const prompt = PromptTemplate.fromTemplate(`
-                You are a helpful AI agent with access to various tools. You can:
-                - calculate: Perform mathematical calculations
-                - analyze: Analyze text for sentiment, topics, and insights
-                - search: Search for information (simulated)
-                - create: Generate creative content
+                You are a helpful AI assistant with three core capabilities:
+
+                **Core Tools:**
+                - summarize: Create concise summaries of text, articles, or documents
+                - translate: Translate text between different languages
+                - analyze: Perform sentiment analysis on text to understand emotions and tone
 
                 User input: {user_input}
 
-                Think through what the user needs and respond appropriately. If you need to perform a calculation, analysis, search, or create content, let me know and I'll help you with that.
+                Based on the user's request, determine which tool would be most helpful:
+                - summarize: For creating summaries of text, articles, or documents
+                - translate: For translating text between languages
+                - analyze: For performing sentiment analysis on text to understand emotions and tone
 
-                Please provide a helpful response to the user's request.
+                Provide a helpful response that addresses the user's needs.
             `);
 
             const chain = prompt.pipe(this.llm);
@@ -65,76 +67,69 @@ class LangChainAgent {
     }
 
     /**
-     * Tool: Mathematical calculations
+     * Tool: Text summarization
      */
-    async calculate(input) {
-        const calculationPrompt = PromptTemplate.fromTemplate(`
-            You are a mathematical assistant. Please evaluate the following expression:
-            {expression}
-            
-            Provide the result and a brief explanation of your calculation.
-        `);
-
-        const chain = calculationPrompt.pipe(this.llm);
-        const result = await chain.invoke({ expression: input });
-        return result.content;
-    }
-
-    /**
-     * Tool: Text analysis
-     */
-    async analyze(input) {
-        const analysisPrompt = PromptTemplate.fromTemplate(`
-            Please analyze the following text:
+    async summarize(input) {
+        const summaryPrompt = PromptTemplate.fromTemplate(`
+            Please create a concise summary of the following text:
             
             Text: {text}
-            Analysis Type: {analysis_type}
             
-            For sentiment analysis: Provide sentiment (positive/negative/neutral) and confidence level
-            For topics: Identify main topics and themes
-            For summary: Provide a concise summary
-            For full analysis: Provide sentiment, topics, summary, and key insights
+            Provide a clear, well-structured summary that captures the key points and main ideas.
         `);
 
-        const chain = analysisPrompt.pipe(this.llm);
+        const chain = summaryPrompt.pipe(this.llm);
         const result = await chain.invoke({
-            text: input.text || input,
-            analysis_type: input.analysis_type || 'full',
+            text: input.text || input
         });
         return result.content;
     }
 
     /**
-     * Tool: Information search (simulated)
+     * Tool: Text translation
      */
-    async search(input) {
-        const searchPrompt = PromptTemplate.fromTemplate(`
-            Simulate a search for the following query:
-            {query}
+    async translate(input) {
+        const translatePrompt = PromptTemplate.fromTemplate(`
+            Please translate the following text:
             
-            Provide a comprehensive response as if you searched the web and found relevant information.
-            Include multiple sources and perspectives.
+            Text: {text}
+            Target Language: {target_language}
+            
+            Provide an accurate translation that maintains the original meaning and tone.
         `);
 
-        const chain = searchPrompt.pipe(this.llm);
-        const result = await chain.invoke({ query: input });
+        const chain = translatePrompt.pipe(this.llm);
+        const result = await chain.invoke({
+            text: input.text || input,
+            target_language: input.target_language || 'English'
+        });
         return result.content;
     }
 
     /**
-     * Tool: Creative content generation
+     * Tool: Sentiment analysis
      */
-    async create(input) {
-        const createPrompt = PromptTemplate.fromTemplate(`
-            Create creative content based on the following request:
-            {request}
+    async analyze(input) {
+        const analyzePrompt = PromptTemplate.fromTemplate(`
+            Please perform sentiment analysis on the following text:
             
-            Generate engaging, original content that matches the request.
-            Be creative and imaginative in your response.
+            Text: {text}
+            
+            Provide a comprehensive sentiment analysis covering:
+            1. **Overall Sentiment**: Positive, Negative, or Neutral
+            2. **Sentiment Score**: Rate from 1-10 (1=very negative, 10=very positive)
+            3. **Key Emotions**: Identify specific emotions present (e.g., joy, anger, sadness, excitement)
+            4. **Confidence Level**: How confident are you in this analysis?
+            5. **Key Phrases**: Highlight specific phrases that influenced the sentiment
+            6. **Context**: Any contextual factors that might affect interpretation
+            
+            Be specific and provide clear reasoning for your analysis.
         `);
 
-        const chain = createPrompt.pipe(this.llm);
-        const result = await chain.invoke({ request: input });
+        const chain = analyzePrompt.pipe(this.llm);
+        const result = await chain.invoke({
+            text: input.text || input
+        });
         return result.content;
     }
 }

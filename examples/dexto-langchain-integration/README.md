@@ -47,21 +47,24 @@ dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.
 **Dexto orchestrates between:**
 - **Filesystem**: Read/write files
 - **Puppeteer**: Web browsing and interaction
-- **LangChain Agent**: Math, text analysis, creative content
+- **LangChain Agent**: Text summarization, translation, sentiment analysis
 
 **Example workflows:**
 ```bash
-# Math calculation
-dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Solve: 2^10 + 15 * 3"
+# Text summarization
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Summarize this article: Artificial intelligence has transformed how we work, with tools like ChatGPT and GitHub Copilot becoming essential for developers. These AI assistants help write code, debug issues, and even design entire applications. The impact extends beyond coding - AI is reshaping customer service, content creation, and decision-making processes across industries."
 
-# Text analysis
-dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Analyze this text: 'I love this product!'"
+# Translation
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Translate this text to Spanish: The weather is beautiful today and I'm going to the park to enjoy the sunshine."
 
-# Multi-step: Read file → Analyze with LangChain
-dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Read README.md, then analyze its content."
+# Sentiment Analysis
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Analyze the sentiment of this customer review: 'I absolutely love this product! The quality is amazing and the customer service was outstanding. Best purchase I've made this year.'"
 
-# Complex: Web scrape → LangChain analysis → Save report
-dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Search web for AI trends, analyze with LangChain Agent, save report"
+# Multi-step: Read file → Summarize → Save
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Read README.md, summarize it, save the summary"
+
+# Complex: Web scrape → Sentiment Analysis → Save
+dexto --agent ./examples/dexto-langchain-integration/dexto-agent-with-langchain.yml "Search for customer reviews about our product, analyze the sentiment, save as sentiment_report.md"
 ```
 
 ## How It Works
