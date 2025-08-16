@@ -29,13 +29,17 @@ This separation allows the agent to focus on understanding and analysis while th
 The talk2pdf agent uses a published MCP server that's automatically installed:
 
 ```bash
-# From the saiki project root
-saiki --agent agents/talk2pdf-agent/talk2pdf-agent.yml
+# From the dexto project root
+dexto --agent agents/talk2pdf-agent/talk2pdf-agent.yml
 ```
 
 That's it! The MCP server (`@truffle-ai/talk2pdf-mcp`) will be automatically downloaded and installed via `npx` on first run.
 
 ## Step 3: Understanding the MCP Server
+
+The core functionality is provided by the **Talk2PDF MCP Server**, a TypeScript-based server built with the Model Context Protocol SDK. To understand the complete MCP server implementation, refer to the [mcp-servers repository](https://github.com/truffle-ai/mcp-servers/tree/main):
+
+- **Talk2PDF Server**: [src/talk2pdf](https://github.com/truffle-ai/mcp-servers/tree/main/src/talk2pdf) - PDF parsing, text extraction, and content analysis tools
 
 ### What's Happening Behind the Scenes
 
@@ -252,7 +256,7 @@ Now we can test our agent:
 
 ```bash
 # From the project root
-saiki --agent ./agents/talk2pdf-agent/talk2pdf-agent.yml
+dexto --agent ./agents/talk2pdf-agent/talk2pdf-agent.yml
 ```
 
 Once started, try these interactions:

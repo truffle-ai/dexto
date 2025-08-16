@@ -1,7 +1,7 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { TextPart as CoreTextPart, InternalMessage } from '@core/ai/llm/messages/types';
+import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -12,15 +12,76 @@ export interface ImagePart {
     base64: string;
     mimeType: string;
 }
+
+export interface FileData {
+    base64: string;
+    mimeType: string;
+    filename?: string;
+}
+
+// Tool result types
+export interface ToolResultError {
+    error: string | Record<string, unknown>;
+}
+
+export interface ToolResultContent {
+    content: Array<TextPart | ImagePart | FilePart>;
+}
+
+export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
+
+// Type guards for tool results
+export function isToolResultError(result: unknown): result is ToolResultError {
+    return typeof result === 'object' && result !== null && 'error' in result;
+}
+
+export function isToolResultContent(result: unknown): result is ToolResultContent {
+    return (
+        typeof result === 'object' &&
+        result !== null &&
+        'content' in result &&
+        Array.isArray((result as ToolResultContent).content)
+    );
+}
+
+// Type guards for content parts
+export function isTextPart(part: unknown): part is TextPart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'text'
+    );
+}
+
+export function isImagePart(part: unknown): part is ImagePart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'image'
+    );
+}
+
+export function isFilePart(part: unknown): part is FilePart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'file'
+    );
+}
+
 // Extend core InternalMessage for WebUI
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
     content: string | null | Array<TextPart | ImagePart>;
     imageData?: { base64: string; mimeType: string };
+    fileData?: FileData;
     toolName?: string;
-    toolArgs?: any;
-    toolResult?: any;
+    toolArgs?: Record<string, unknown>;
+    toolResult?: ToolResult;
     tokenCount?: number;
     model?: string;
     sessionId?: string;
@@ -57,7 +118,7 @@ export function useChat(wsUrl: string) {
                         {
                             id: generateUniqueId(),
                             role: 'system',
-                            content: 'Saiki is thinking...',
+                            content: 'Dexto is thinking...',
                             createdAt: Date.now(),
                         },
                     ]);
@@ -67,7 +128,7 @@ export function useChat(wsUrl: string) {
                     setMessages((ms) => {
                         // Remove any existing 'thinking' system messages
                         const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Saiki is thinking...')
+                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
                         );
                         const last = cleaned[cleaned.length - 1];
                         if (last && last.role === 'assistant') {
@@ -104,7 +165,7 @@ export function useChat(wsUrl: string) {
                     setMessages((ms) => {
                         // Remove 'thinking' placeholders
                         const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Saiki is thinking...')
+                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
                         );
                         // Embed image part in content if available
                         let content: string | Array<TextPart | ImagePart> = text;
@@ -139,7 +200,7 @@ export function useChat(wsUrl: string) {
                     // Emit DOM event for other components to listen to
                     if (typeof window !== 'undefined') {
                         window.dispatchEvent(
-                            new CustomEvent('saiki:response', {
+                            new CustomEvent('dexto:response', {
                                 detail: {
                                     text,
                                     sessionId,
@@ -258,6 +319,7 @@ export function useChat(wsUrl: string) {
         (
             content: string,
             imageData?: { base64: string; mimeType: string },
+            fileData?: FileData,
             sessionId?: string,
             stream = false
         ) => {
@@ -266,6 +328,7 @@ export function useChat(wsUrl: string) {
                     type: 'message',
                     content,
                     imageData,
+                    fileData,
                     sessionId,
                     stream,
                 };
@@ -280,13 +343,15 @@ export function useChat(wsUrl: string) {
                         content,
                         createdAt: Date.now(),
                         sessionId,
+                        imageData,
+                        fileData,
                     },
                 ]);
 
                 // Emit DOM event for other components to listen to
                 if (typeof window !== 'undefined') {
                     window.dispatchEvent(
-                        new CustomEvent('saiki:message', {
+                        new CustomEvent('dexto:message', {
                             detail: { content, sessionId, timestamp: Date.now() },
                         })
                     );

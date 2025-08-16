@@ -64,7 +64,7 @@ storage:
     type: in-memory
   database:
     type: sqlite
-    # path: ./data/saiki.db
+    # path: ./data/dexto.db
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.

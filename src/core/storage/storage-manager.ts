@@ -1,9 +1,5 @@
-import type {
-    CacheBackend,
-    DatabaseBackend,
-    StorageBackends,
-    StorageConfig,
-} from './backend/types.js';
+import type { CacheBackend, DatabaseBackend, StorageBackends } from './backend/types.js';
+import type { ValidatedStorageConfig } from './schemas.js';
 import { MemoryBackend } from './backend/memory-backend.js';
 import { logger } from '../logger/index.js';
 
@@ -19,12 +15,12 @@ const HEALTH_CHECK_KEY = 'storage_manager_health_check';
  * Handles both cache and database backends with automatic fallbacks.
  */
 export class StorageManager {
-    private config: StorageConfig;
+    private config: ValidatedStorageConfig;
     private cache?: CacheBackend;
     private database?: DatabaseBackend;
     private connected = false;
 
-    constructor(config: StorageConfig) {
+    constructor(config: ValidatedStorageConfig) {
         this.config = config;
     }
 
@@ -222,7 +218,7 @@ export class StorageManager {
  * Create storage backends without using singleton pattern
  * This allows multiple agent instances to have independent storage
  */
-export async function createStorageBackends(config: StorageConfig): Promise<{
+export async function createStorageBackends(config: ValidatedStorageConfig): Promise<{
     manager: StorageManager;
     backends: StorageBackends;
 }> {

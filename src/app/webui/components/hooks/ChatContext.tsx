@@ -5,7 +5,11 @@ import { useChat, Message } from './useChat';
 
 interface ChatContextType {
   messages: Message[];
-  sendMessage: (content: string, imageData?: { base64: string; mimeType: string }) => void;
+  sendMessage: (
+    content: string,
+    imageData?: { base64: string; mimeType: string },
+    fileData?: { base64: string; mimeType: string; filename?: string }
+  ) => void;
   status: 'connecting' | 'open' | 'closed';
   reset: () => void;
   currentSessionId: string | null;
@@ -64,7 +68,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Enhanced sendMessage with auto-session creation
-  const sendMessage = useCallback(async (content: string, imageData?: { base64: string; mimeType: string }) => {
+  const sendMessage = useCallback(async (
+    content: string,
+    imageData?: { base64: string; mimeType: string },
+    fileData?: { base64: string; mimeType: string; filename?: string }
+  ) => {
     let sessionId = currentSessionId;
     
     // Auto-create session on first message
@@ -86,7 +94,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     
     if (sessionId) {
-      originalSendMessage(content, imageData, sessionId, isStreaming);
+      originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
     } else {
       console.error('No session available for sending message');
     }
@@ -246,14 +254,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('saiki:configChanged', handleConfigChange);
-      window.addEventListener('saiki:serversChanged', handleServersChange);
-      window.addEventListener('saiki:conversationReset', handleSessionReset);
+      window.addEventListener('dexto:configChanged', handleConfigChange);
+      window.addEventListener('dexto:serversChanged', handleServersChange);
+      window.addEventListener('dexto:conversationReset', handleSessionReset);
       
       return () => {
-        window.removeEventListener('saiki:configChanged', handleConfigChange);
-        window.removeEventListener('saiki:serversChanged', handleServersChange);
-        window.removeEventListener('saiki:conversationReset', handleSessionReset);
+        window.removeEventListener('dexto:configChanged', handleConfigChange);
+        window.removeEventListener('dexto:serversChanged', handleServersChange);
+        window.removeEventListener('dexto:conversationReset', handleSessionReset);
       };
     }
   }, [currentSessionId, setMessages]);

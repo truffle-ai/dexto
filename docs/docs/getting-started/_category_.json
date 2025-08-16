@@ -4,6 +4,6 @@
   "link": {
     "type": "generated-index",
     "title": "Getting Started",
-    "description": "Learn how to build AI agents using Saiki's declarative configuration and runtime orchestration. These guides provide a hands-on introduction to creating persistent, tool-enabled agents."
+    "description": "Learn how to build AI agents using Dexto's declarative configuration and runtime orchestration. These guides provide a hands-on introduction to creating persistent, tool-enabled agents."
   }
 } 

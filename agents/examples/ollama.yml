@@ -54,8 +54,8 @@ systemPrompt:
 # first start the ollama server
 # ollama run gemma3n:e2b
 # then run the following command to start the agent:
-# saiki --agent <path_to_ollama.yml>
-# saiki --agent <path_to_ollama.yml> --mode web for web ui
+# dexto --agent <path_to_ollama.yml>
+# dexto --agent <path_to_ollama.yml> --mode web for web ui
 llm:
   provider: openai-compatible
   model: gemma3n:e2b
@@ -70,7 +70,7 @@ cache:
     type: in-memory
   database:
     type: sqlite
-    # path: ./data/saiki.db
+    # path: ./data/dexto.db
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.

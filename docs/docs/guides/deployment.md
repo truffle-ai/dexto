@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Deployment Guide
 
-Deploy Saiki agents using Docker for local or production environments.
+Deploy Dexto agents using Docker for local or production environments.
 
 ## Docker Deployment
 
@@ -12,7 +12,7 @@ Deploy Saiki agents using Docker for local or production environments.
 
 1. **Build the Docker image**
    ```bash
-   docker build -t saiki .
+   docker build -t dexto .
    ```
 
 2. **Create environment file**
@@ -25,27 +25,27 @@ Deploy Saiki agents using Docker for local or production environments.
 
 3. **Run the container**
    ```bash
-   docker run --env-file .env -p 3001:3001 saiki
+   docker run --env-file .env -p 3001:3001 dexto
    ```
 
-Your Saiki server will be available at `http://localhost:3001` with:
+Your Dexto server will be available at `http://localhost:3001` with:
 - ✅ SQLite database connected
 - ✅ MCP servers (filesystem & puppeteer) connected  
 - ✅ REST API + WebSocket endpoints available
 
 ### Background Mode
 
-Run Saiki in detached mode:
+Run Dexto in detached mode:
 
 ```bash
 # Start in background
-docker run -d --name saiki-server --env-file .env -p 3001:3001 saiki
+docker run -d --name dexto-server --env-file .env -p 3001:3001 dexto
 
 # View logs
-docker logs -f saiki-server
+docker logs -f dexto-server
 
 # Stop server
-docker stop saiki-server
+docker stop dexto-server
 ```
 
 ### Docker Compose
@@ -56,18 +56,18 @@ For easier management:
 # docker-compose.yml
 version: '3.8'
 services:
-  saiki:
+  dexto:
     build: .
     ports:
       - "3001:3001"
     env_file:
       - .env
     volumes:
-      - saiki_data:/app/.saiki
+      - dexto_data:/app/.dexto
     restart: unless-stopped
 
 volumes:
-  saiki_data:
+  dexto_data:
 ```
 
 Run with:
@@ -83,7 +83,7 @@ docker compose up --build
 # Production environment variables
 NODE_ENV=production
 PORT=3001
-CONFIG_FILE=/app/configuration/saiki.yml
+CONFIG_FILE=/app/configuration/dexto.yml
 ```
 
 ### Persistent Storage
@@ -92,11 +92,11 @@ Mount a volume for persistent data:
 
 ```bash
 docker run -d \
-  --name saiki-server \
+  --name dexto-server \
   --env-file .env \
   -p 3001:3001 \
-  -v saiki_data:/app/.saiki \
-  saiki
+  -v dexto_data:/app/.dexto \
+  dexto
 ```
 
 ### Resource Limits
@@ -105,17 +105,17 @@ Set memory and CPU limits:
 
 ```bash
 docker run -d \
-  --name saiki-server \
+  --name dexto-server \
   --env-file .env \
   --memory=1g \
   --cpus=1 \
   -p 3001:3001 \
-  saiki
+  dexto
 ```
 
 ## API Endpoints
 
-Once deployed, your Saiki server provides:
+Once deployed, your Dexto server provides:
 
 ### REST API
 - `POST /api/message` - Send async message
@@ -131,14 +131,14 @@ Once deployed, your Saiki server provides:
 
 ## Next Steps
 
-- **[TypeScript SDK Guide](./typescript-sdk)** - Integrate Saiki into your application's codebase
+- **[Dexto SDK Guide](./dexto-sdk)** - Integrate Dexto into your application's codebase
 - **[API Reference](/api)** - Complete API documentation
 
-For more detailed information on configuring agents, refer to the [Saiki Configuration Guide](./configuring-saiki/overview).
+For more detailed information on configuring agents, refer to the [Dexto Configuration Guide](./configuring-dexto/overview).
 
-### Building with the TypeScript SDK
+### Building with the Dexto SDK for TypeScript
 
-For custom builds and advanced integration, you can use the [TypeScript SDK Guide](./typescript-sdk) to bundle Saiki into your own applications.
+For custom builds and advanced integration, you can use the [Dexto SDK Guide](./dexto-sdk) to bundle Dexto into your own applications.
 
 For a complete technical reference, see the [API Reference](/api).
 

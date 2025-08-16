@@ -547,11 +547,11 @@ export default function PlaygroundView() {
       inputs: toolInputs
     };
     
-    const shareText = `Check out this Saiki tool configuration:\n\nServer: ${selectedServer.name}\nTool: ${selectedTool.name}\nInputs: ${JSON.stringify(toolInputs, null, 2)}`;
+    const shareText = `Check out this Dexto tool configuration:\n\nServer: ${selectedServer.name}\nTool: ${selectedTool.name}\nInputs: ${JSON.stringify(toolInputs, null, 2)}`;
     
     if (navigator.share) {
       navigator.share({
-        title: `Saiki Tool: ${selectedTool.name}`,
+        title: `Dexto Tool: ${selectedTool.name}`,
         text: shareText
       });
     } else {

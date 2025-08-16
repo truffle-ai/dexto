@@ -47,15 +47,15 @@ This agent provides a complete suite of image manipulation tools through a Pytho
 ## Quick Start
 
 ### Prerequisites
-- **Node.js 20+**: For the Saiki framework
+- **Node.js 20+**: For the Dexto framework
 - **Python 3.10+**: Automatically managed by the MCP server
 
 ### Installation
 
 1. **Run the Agent**:
    ```bash
-   # From the saiki project root
-   saiki --agent agents/image-editor-agent/image-editor-agent.yml
+   # From the dexto project root
+   dexto --agent agents/image-editor-agent/image-editor-agent.yml
    ```
 
 That's it! The MCP server will be automatically downloaded and installed via `uvx` on first run.
@@ -427,9 +427,9 @@ Process multiple images with the same operation.
 ## Getting Help
 
 - **MCP Server Issues**: Report at the [mcp-servers repository](https://github.com/truffle-ai/mcp-servers/issues)
-- **Agent Configuration**: Report at the main Saiki repository
+- **Agent Configuration**: Report at the main Dexto repository
 - **Feature Requests**: Use the mcp-servers repository for tool-related requests
 
 ## License
 
-This project is part of the Saiki AI agent framework. 
+This project is part of the Dexto AI agent framework. 

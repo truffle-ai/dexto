@@ -1,13 +1,13 @@
 # Telegram Bot Setup
 
-To run Saiki as a Telegram bot, you need to configure the following environment variable:
+To run Dexto as a Telegram bot, you need to configure the following environment variable:
 
 1.  **`TELEGRAM_BOT_TOKEN` (Required)**
-    *   This is the authentication token for your Telegram bot. It allows your Saiki instance to connect to Telegram as your bot.
+    *   This is the authentication token for your Telegram bot. It allows your Dexto instance to connect to Telegram as your bot.
     *   **How to get your token:**
         1.  Open Telegram and search for "BotFather" (it's an official bot from Telegram with a verified checkmark).
         2.  Start a chat with BotFather by sending `/start`.
-        3.  To create a new bot, send `/newbot`. Follow the prompts to choose a name and username for your bot. The username must end in "bot" (e.g., `YourSaikiBot`).
+        3.  To create a new bot, send `/newbot`. Follow the prompts to choose a name and username for your bot. The username must end in "bot" (e.g., `YourDextoBot`).
         4.  Alternatively, if you already have a bot, you can generate/regenerate a token by sending `/token` and selecting your bot.
         5.  Once your bot is created or selected, BotFather will provide you with an API token. This is your `TELEGRAM_BOT_TOKEN`.
             *   **Important:** Treat this token like a password. Do not share it publicly or commit it to your repository.
@@ -18,11 +18,11 @@ To run Saiki as a Telegram bot, you need to configure the following environment 
 
 Once the `TELEGRAM_BOT_TOKEN` is set (e.g., in a `.env` file at the project root), you can start the Telegram bot.
 
-To use the default Saiki configuration (`agents/agent.yml`):
+To use the default Dexto configuration (`agents/agent.yml`):
 ```bash
-saiki --mode telegram
+dexto --mode telegram
 # With a custom config path:
-# saiki --mode telegram --agent ./agents/telegram_bot_config.yml
+# dexto --mode telegram --agent ./agents/telegram_bot_config.yml
 ```
 
 Or, if you are running directly from the source without a global installation:
@@ -32,7 +32,7 @@ npm start -- --mode telegram
 # npm start -- --mode telegram --agent ./agents/telegram_bot_config.yml
 ```
 
-Refer to the main project [README.md](../../../README.md) for more details on general Saiki setup and configuration.
+Refer to the main project [README.md](../../../README.md) for more details on general Dexto setup and configuration.
 
 ## Technical Details
 

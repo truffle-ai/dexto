@@ -31,7 +31,7 @@ export class CLISubscriber implements EventSubscriber {
         );
         eventBus.on('llmservice:response', (payload) => this.onResponse(payload.content));
         eventBus.on('llmservice:error', (payload) => this.onError(payload.error));
-        eventBus.on('saiki:conversationReset', this.onConversationReset.bind(this));
+        eventBus.on('dexto:conversationReset', this.onConversationReset.bind(this));
     }
 
     /**
@@ -110,7 +110,25 @@ export class CLISubscriber implements EventSubscriber {
         this.accumulatedResponse = '';
         this.currentLines = 0;
 
-        logger.error(`❌ Error: ${error.message}`, null, 'red');
+        // Show error prominently via displayError method
+        logger.displayError(error.message, error);
+
+        // Log to file with level-based verbosity
+        if (logger.getLevel() === 'debug') {
+            // Debug level: include full error details and stack trace
+            logger.error(
+                `❌ Error: ${error.message}`,
+                {
+                    stack: error.stack,
+                    name: error.name,
+                    cause: error.cause,
+                },
+                'red'
+            );
+        } else {
+            // Info level and above: only log the error message
+            logger.error(`❌ Error: ${error.message}`, null, 'red');
+        }
     }
 
     onConversationReset(): void {

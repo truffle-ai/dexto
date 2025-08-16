@@ -138,7 +138,7 @@ Hi, I'm having trouble with your service. Can you help me?
 
 1. **Start the complete triage system**:
    ```bash
-   npx saiki --agent agents/triage-demo/triage-agent.yml
+   npx dexto --agent agents/triage-demo/triage-agent.yml
    ```
 
 2. **Copy and paste** scenarios from above into the chat
@@ -155,16 +155,16 @@ Test scenarios quickly with command-line execution:
 
 ```bash
 # Test Technical Support scenario
-npx saiki --agent agents/triage-demo/triage-agent.yml "My TeamFlow mobile app crashes every time I try to export project data. I'm using iPhone 15 with iOS 17.2. This is urgent."
+npx dexto --agent agents/triage-demo/triage-agent.yml "My TeamFlow mobile app crashes every time I try to export project data. I'm using iPhone 15 with iOS 17.2. This is urgent."
 
 # Test Billing scenario  
-npx saiki --agent agents/triage-demo/triage-agent.yml "I want to upgrade from Basic to Pro but confused about pricing. Will I be charged the full amount?"
+npx dexto --agent agents/triage-demo/triage-agent.yml "I want to upgrade from Basic to Pro but confused about pricing. Will I be charged the full amount?"
 
 # Test Product Info scenario
-npx saiki --agent agents/triage-demo/triage-agent.yml "What's the difference between Pro and Enterprise plans? I need API access for 25 people."
+npx dexto --agent agents/triage-demo/triage-agent.yml "What's the difference between Pro and Enterprise plans? I need API access for 25 people."
 
 # Test Escalation scenario
-npx saiki --agent agents/triage-demo/triage-agent.yml "Your system outage cost my business $50,000 in lost sales. I need compensation and want to discuss SLA violations."
+npx dexto --agent agents/triage-demo/triage-agent.yml "Your system outage cost my business $50,000 in lost sales. I need compensation and want to discuss SLA violations."
 ```
 
 ### Expected Response Quality

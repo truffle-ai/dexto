@@ -1,5 +1,5 @@
 /**
- * Saiki Storage Layer
+ * Dexto Storage Layer
  *
  * A storage system with two backend types:
  * - CacheBackend: Fast, ephemeral storage (Redis, Memory) with TTL support
@@ -38,6 +38,7 @@ export type {
     StorageBackends,
     BackendConfig,
     StorageConfig,
+    ValidatedStorageConfig,
 } from './backend/types.js';
 
 // Backend implementations - always available

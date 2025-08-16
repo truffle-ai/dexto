@@ -1,12 +1,12 @@
 ---
-title: "Design a website with saiki"
+title: "Design a website with dexto"
 hide_title: true
 ---
 
 ## Website Designer
 
 ```bash
-saiki --agent ./agents/examples/website_designer.yml
+dexto --agent ./agents/examples/website_designer.yml
 ```
 
 **Task:**
@@ -17,4 +17,4 @@ saiki --agent ./agents/examples/website_designer.yml
 
 ---
 
-For more examples and advanced use cases, see the [project README](https://github.com/truffle-ai/saiki#examples--demos). 
+For more examples and advanced use cases, see the [project README](https://github.com/truffle-ai/dexto#examples--demos). 

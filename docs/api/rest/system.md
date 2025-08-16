@@ -13,3 +13,8 @@ sidebar_position: 5
 *Exports the agent's current configuration as a YAML file.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/config.yaml</code></p>
+
+### Agent Card (A2A)
+Provides the Agent Card for Agent-to-Agent discovery.
+
+<p class="api-endpoint-header"><span class="api-method get">GET</span><code>/.well-known/agent.json</code></p>

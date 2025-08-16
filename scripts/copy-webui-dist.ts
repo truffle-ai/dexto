@@ -66,7 +66,7 @@ const path = require('path');
 // Start the standalone Next.js server
 const standaloneServer = path.join(__dirname, '.next', 'standalone', 'server.js');
 
-console.log('Starting Saiki WebUI server...');
+console.log('Starting Dexto WebUI server...');
 
 const server = spawn('node', [standaloneServer], {
     stdio: 'inherit',

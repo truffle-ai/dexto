@@ -1,19 +1,27 @@
 /* Brand Theme Variables (Infima overrides) */
 
-/* Import brand fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+/* Geist fonts loaded via <link> tag in docusaurus.config.ts for better performance */
 
 :root {
-  /* Primary brand colors – Teal */
-  --ifm-color-primary: #14b8a6;
-  --ifm-color-primary-dark: #0d9488;
-  --ifm-color-primary-darker: #0f766e;
-  --ifm-color-primary-darkest: #134e4a;
+  /* Primary brand colors – VS Code inspired teal */
+  --ifm-color-primary: #4ec9b0;
+  --ifm-color-primary-dark: #14b8a6;
+  --ifm-color-primary-darker: #0d9488;
+  --ifm-color-primary-darkest: #0f766e;
   --ifm-color-primary-light: #5eead4;
   --ifm-color-primary-lighter: #99f6e4;
   --ifm-color-primary-lightest: #ccfbf1;
 
-  /* Neutral greys */
+  /* VS Code color palette */
+  --vscode-bg: #1e1e1e;
+  --vscode-surface: #252526;
+  --vscode-darker: #181818;
+  --vscode-accent: #4ec9b0;
+  --vscode-secondary: #9cdcfe;
+  --vscode-text: #d4d4d4;
+  --vscode-text-secondary: #cccccc;
+
+  /* Neutral greys - adjusted for dark theme */
   --ifm-color-gray-0: #ffffff;
   --ifm-color-gray-50: #f9fafb;
   --ifm-color-gray-100: #f3f4f6;
@@ -23,8 +31,8 @@
   --ifm-color-gray-500: #6b7280;
   --ifm-color-gray-600: #4b5563;
   --ifm-color-gray-700: #374151;
-  --ifm-color-gray-800: #1f2937;
-  --ifm-color-gray-900: #111827;
+  --ifm-color-gray-800: #252526;
+  --ifm-color-gray-900: #1e1e1e;
 
   /* Semantic colours */
   --ifm-color-success: #10b981;
@@ -32,27 +40,27 @@
   --ifm-color-warning: #f59e0b;
   --ifm-color-danger: #ef4444;
 
-  /* Typography */
-  --ifm-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+  /* Typography - Geist fonts (matching your website/webui) */
+  --ifm-font-family-base: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, Oxygen, sans-serif;
-  --ifm-font-family-monospace: 'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono',
+  --ifm-font-family-monospace: 'Geist Mono', 'Monaco', 'Menlo', 'Ubuntu Mono',
     monospace;
   --ifm-font-size-base: 16px;
   --ifm-line-height-base: 1.6;
 
   /* Layout */
-  --ifm-container-width-xl: 1280px;
+  --ifm-container-width-xl: 1400px;
 
   /* Code blocks */
   --ifm-code-font-size: 0.875rem;
-  --ifm-code-border-radius: 0.375rem;
-  --ifm-code-padding-horizontal: 0.5rem;
-  --ifm-code-padding-vertical: 0.25rem;
-  --docusaurus-highlighted-code-line-bg: rgba(20, 184, 166, 0.1);
+  --ifm-code-border-radius: 0.5rem;
+  --ifm-code-padding-horizontal: 0.75rem;
+  --ifm-code-padding-vertical: 0.5rem;
+  --docusaurus-highlighted-code-line-bg: rgba(78, 201, 176, 0.1);
 
   /* Navbar */
   --ifm-navbar-height: 4rem;
-  --ifm-navbar-background-color: rgba(255, 255, 255, 0.85);
+  --ifm-navbar-background-color: var(--ifm-background-color);
 
   /* Components */
   --ifm-card-border-radius: 0.75rem;
@@ -62,31 +70,55 @@
   /* Transitions */
   --ifm-transition-fast: 150ms ease-in-out;
   --ifm-transition-slow: 250ms ease-in-out;
+
+  /* Light theme background enhancements */
+  --mesh-gradient-1: rgba(78, 201, 176, 0.03);
+  --mesh-gradient-2: rgba(156, 220, 254, 0.02);
+  --grid-opacity: 0.02;
 }
 
-/* Dark-mode overrides */
+/* Enhanced Dark-mode overrides */
 [data-theme='dark'] {
-  --ifm-color-primary: #5eead4;
+  --ifm-color-primary: #4ec9b0;
   --ifm-color-primary-dark: #14b8a6;
   --ifm-color-primary-darker: #0d9488;
   --ifm-color-primary-darkest: #0f766e;
-  --ifm-color-primary-light: #99f6e4;
-  --ifm-color-primary-lighter: #ccfbf1;
+  --ifm-color-primary-light: #5eead4;
+  --ifm-color-primary-lighter: #99f6e4;
   --ifm-color-primary-lightest: #f0fdfa;
 
-  /* Backgrounds */
-  --ifm-background-color: #111827;
-  --ifm-background-surface-color: #1f2937;
+  /* VS Code dark backgrounds */
+  --ifm-background-color: var(--vscode-bg);
+  --ifm-background-surface-color: var(--vscode-surface);
+
+  /* Enhanced gradients for dark mode */
+  --mesh-gradient-1: rgba(78, 201, 176, 0.08);
+  --mesh-gradient-2: rgba(156, 220, 254, 0.06);
+  --grid-opacity: 0.02;
 
   /* Code */
-  --ifm-code-background: rgba(100, 116, 139, 0.2);
+  --ifm-code-background: rgba(78, 201, 176, 0.1);
   --ifm-code-color: #e2e8f0;
-  --docusaurus-highlighted-code-line-bg: rgba(94, 234, 212, 0.2);
+  --docusaurus-highlighted-code-line-bg: rgba(78, 201, 176, 0.15);
 
-  /* Navbar */
-  --ifm-navbar-background-color: rgba(24, 24, 24, 0.85);
+  /* Navbar with glass effect */
+  --ifm-navbar-background-color: rgba(30, 30, 30, 0.85);
 
-  /* Text */
-  --ifm-color-content: #cbd5e1;
-  --ifm-color-content-secondary: #94a3b8;
+  /* Text colors matching VS Code */
+  --ifm-color-content: var(--vscode-text);
+  --ifm-color-content-secondary: var(--vscode-text-secondary);
+  --ifm-font-color-base: var(--vscode-text);
+
+  /* Enhanced surface colors */
+  --ifm-color-gray-700: var(--vscode-surface);
+  --ifm-color-gray-800: var(--vscode-bg);
+  --ifm-color-gray-900: var(--vscode-darker);
 } 
+
+/* Slightly increase navbar logo size */
+.navbar__logo img {
+  height: 32px;
+  transform: scale(1.1);
+  -webkit-transform: scale(1.1);
+  transform-origin: center;
+}

@@ -1,4 +1,4 @@
-import { findProjectRoot } from './path.js';
+import { findPackageRoot } from '../../../core/utils/path.js';
 import fsExtra from 'fs-extra';
 import path from 'path';
 import { PackageJson } from 'type-fest';
@@ -29,7 +29,7 @@ export function getPackageManagerInstallCommand(pm: string): string {
  * @returns The package manager for the given project
  */
 export function getPackageManager(): string {
-    const projectRoot = findProjectRoot(process.cwd());
+    const projectRoot = findPackageRoot(process.cwd());
     if (!projectRoot) {
         return 'npm'; // Default to npm if no project root is found
     }
@@ -55,7 +55,7 @@ export function getPackageManager(): string {
  * @returns The version of the given project
  */
 export async function getPackageVersion(): Promise<string> {
-    const projectRoot = findProjectRoot(process.cwd());
+    const projectRoot = findPackageRoot(process.cwd());
     if (!projectRoot) {
         throw new Error('Could not find project root');
     }

@@ -27,15 +27,15 @@ This agent provides intelligent PDF document processing through a TypeScript-bas
 ## Quick Start
 
 ### Prerequisites
-- **Node.js 20+**: For the Saiki framework
+- **Node.js 20+**: For the Dexto framework
 - **TypeScript**: Automatically managed by the MCP server
 
 ### Installation
 
 1. **Run the Agent**:
    ```bash
-   # From the saiki project root
-   saiki --agent agents/talk2pdf-agent/talk2pdf-agent.yml
+   # From the dexto project root
+   dexto --agent agents/talk2pdf-agent/talk2pdf-agent.yml
    ```
 
 That's it! The MCP server will be automatically downloaded and installed via `npx` on first run.
@@ -158,9 +158,9 @@ The agent provides clear error messages for common issues:
 ## Getting Help
 
 - **MCP Server Issues**: Report at the [mcp-servers repository](https://github.com/truffle-ai/mcp-servers/issues)
-- **Agent Configuration**: Report at the main Saiki repository
+- **Agent Configuration**: Report at the main Dexto repository
 - **Feature Requests**: Use the mcp-servers repository for tool-related requests
 
 ## License
 
-This project is part of the Saiki AI agent framework.
+This project is part of the Dexto AI agent framework.

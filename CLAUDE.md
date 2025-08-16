@@ -1,4 +1,4 @@
-# Saiki Development Guidelines for AI Assistants
+# Dexto Development Guidelines for AI Assistants
 
 ## Code Quality Requirements
 
@@ -8,11 +8,19 @@
 3. `npm run lint` - Check code style
 4. `npm run typecheck` - Validate TypeScript types
 
+## General rules
+- Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
+- Do not be lazy. Read as much relevant code as possible to keep your answers grounded in reality
+- If the user is asking you a question, it DOES NOT MEAN YOU ARE WRONG. JUST ANSWER THE QUESTION
+- Make as few assumptions as possible. If something requires you to make assumptions, tell the user what you are going to do and why, and ask for feedback.
+- Never communicate to the user with code comments. These comments add nothing. Comments are for people reading the code.
+
+
 ## Architecture & Design Patterns
 
 ### API Layer Design
-- **APIs are thin wrappers around SaikiAgent class** - Keep business logic in core layer
-- **No direct service communication** - API layer communicates only with SaikiAgent
+- **APIs are thin wrappers around DextoAgent class** - Keep business logic in core layer
+- **No direct service communication** - API layer communicates only with DextoAgent
 - APIs should resemble code that users could write with public libraries
 
 ### Service Initialization
@@ -28,10 +36,92 @@
 - **Provide sensible defaults** with `.default()` - Simplifies consuming code
 - **Use `superRefine` for complex validation** - Cross-field validation logic
 
+### Result Pattern & Validation Architecture
+
+#### Core Principles
+1. **DextoAgent as Validation Boundary** - All input validation happens at DextoAgent level
+   - Public SDK methods validate all inputs before processing
+   - Internal layers can assume data is already validated
+   - Creates clear contract between public API and internal implementation
+
+2. **Result<T,C> for Validation Layers** - Internal validation helpers return Result<T,C>; DextoAgent converts failures into typed exceptions (e.g. DextoLLMError) before exposing them
+
+
+3. **API Layer Error Mapping** - Centralised Express error middleware  
+   - `DextoValidationError` (or any subclass) → 400  
+   - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
+   - Any other uncaught exception → 500  
+   - Successful calls → 200 (may include warnings in `issues`)
+   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `src/app/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
+
+4. **Defensive API Validation** - API layer validates request schemas
+   - Use Zod schemas for request validation at API boundary
+   - Provides early error detection and clear error messages
+   - Prevents malformed data from reaching core logic
+
+#### Result Pattern Helpers
+Use standardized helpers from `src/core/schemas/helpers.ts`:
+
+- **`ok(data, issues?)`** - Success with optional warnings
+- **`fail(issues)`** - Failure with blocking errors  
+- **`hasErrors(issues)`** - Check if issues contain blocking errors
+- **`splitIssues(issues)`** - Separate errors from warnings
+- **`zodToIssues(zodError)`** - Convert Zod errors to Issue format
+
+#### Implementation Examples
+```typescript
+// Internal validation helper – returns Result pattern
+export function validateLLMUpdates(
+  updates: LLMUpdates
+): Result<ValidatedLLMConfig, LLMUpdateContext> {
+  if (!updates.model && !updates.provider) {
+    return fail([
+      { code: DextoErrorCode.AGENT_MISSING_LLM_INPUT, message: '...', severity: 'error', context: {} }
+    ]);
+  }
+  // … additional validation …
+  return ok(validatedConfig, warnings);
+}
+
+// DextoAgent public method – converts Result to exception
+public async switchLLM(updates: LLMUpdates, sessionId?: string): Promise<ValidatedLLMConfig> {
+  const result = validateLLMUpdates(updates);
+  if (!result.ok) {
+    throw new DextoLLMError('Validation failed', result.issues);
+  }
+  // ... perform switch ...
+  return result.data;
+}
+
+// API endpoint – relies on exceptions + central error middleware
+app.post('/api/llm/switch', express.json(), async (req, res, next) => {
+  const validation = validateBody(LLMSwitchRequestSchema, req.body);
+  if (!validation.success) return res.status(400).json(validation.response);
+
+  try {
+    const data = await agent.switchLLM(validation.data);
+    return res.status(200).json({ ok: true, data });
+  } catch (err) {
+    next(err); // let the error middleware decide 4xx / 5xx
+  }
+});
+```
+
 ## Code Standards
 
 ### Import Requirements
 - **All imports must end with `.js`** for ES module compatibility
+
+### Module Organization
+- **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
+- **✅ DO**: Add index.ts for main entry points and modules that export types/interfaces used by external consumers
+- **❌ DON'T**: Add index.ts for purely internal implementation folders
+- **Direct imports preferred** - Import directly from source files rather than through re-export chains for internal usage
+- **Avoid wildcard exports** - Prefer explicit named exports (`export { Type1, Type2 }`) over `export *` to improve tree-shaking and make dependencies explicit
+- **Watch for mega barrels** - If a barrel exports >20 symbols or pulls from >10 files, consider splitting into thematic sub-barrels with subpath exports
+- **Clear API boundaries** - index.ts files mark what's public vs internal implementation
+
+**TODO**: Current codebase has violations of these rules (wildcard exports in `src/core/index.ts`, potential mega barrel in events) that need refactoring.
 
 ### Logging Standards
 - **Use template literals** - `logger.info(\`Server running at \${url}\`)`
@@ -48,15 +138,15 @@
 - **Strict null safety** - Handle null/undefined cases explicitly
 - **Proper error handling** - Use type guards and proper error messages
 - **Consistent return patterns** - All API endpoints return responses consistently
-- **Avoid `any` types** - Use specific types unless absolutely necessary (rare exceptions in tests)
+- **Avoid `any` types** - Use specific types unless absolutely necessary
+  - **In tests**: For invalid input testing, prefer `@ts-expect-error` over `as any` to be explicit about intentional type violations
 
 ### Git and PR Standards
+- **NEVER use `git add .` or `git add -A`** - Always specify exact files: `git add file1.ts file2.ts` or `src` folders. This is to avoid untracked files
+- **ALWAYS vet the staged files before committing** - This is to catch mistakes in previous step
 - **Never include "Generated with Claude Code" footers** - In commit messages, PR descriptions, or any documentation
 - **Clean commit messages** - Focus on technical changes and business value
 - **Descriptive PR titles** - Should clearly indicate the change without AI attribution
-- **NEVER use `git add .`** - Always specify exact files: `git add file1.ts file2.ts`
-- **Stage only relevant changes** - Only add files that were actually modified for the current task
-- **Avoid untracked files** - Never commit untracked files unless explicitly intended by user
 
 ### Documentation Standards
 - **Always request user review before committing documentation changes** - Documentation impacts user experience and should be user-approved
@@ -83,15 +173,15 @@
 
 ### Layer Interaction Flow
 ```
-User Input → WebUI → WebSocket/REST → API → SaikiAgent → Core Services
+User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
                 ← WebSocket Events ← Agent Event Bus ← Core Services
 ```
 
 ## Documentation
-- **Update documentation when making changes** - Check `/docs` folder
+- **Update documentation when making changes** - Check `/docs` folder. And README.md for core modules
 - **Never create documentation proactively** - Only when explicitly requested
 
-### Mermaid Diagrams in Documentation
+### Mermaid Diagrams in Documentation (/docs folder)
 - **Use mermaid diagrams** for complex flows, architecture diagrams, and sequence diagrams
 - **ExpandableMermaid component** available for interactive diagrams:
   ```tsx

@@ -1,9 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { MCPManager } from '@core/client/manager.js';
+import { MCPManager } from '@core/mcp/manager.js';
 import { logger } from '@core/index.js';
-import { ServerConfigs } from '@core/config/schemas.js';
-import { NoOpConfirmationProvider } from '@core/client/tool-confirmation/noop-confirmation-provider.js';
+import { ServerConfigs } from '@core/mcp/schemas.js';
+import { NoOpConfirmationProvider } from '@core/tools/confirmation/noop-confirmation-provider.js';
 import { jsonSchemaToZodShape } from '@core/utils/index.js';
 
 /**

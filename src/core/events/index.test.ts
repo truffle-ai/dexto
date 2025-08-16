@@ -8,17 +8,17 @@ describe('EventBus AbortController Support', () => {
         const listener = vi.fn();
 
         // Add listener with abort signal
-        eventBus.on('saiki:conversationReset', listener, { signal: abortController.signal });
+        eventBus.on('dexto:conversationReset', listener, { signal: abortController.signal });
 
         // Emit event - should be received
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener).toHaveBeenCalledTimes(1);
 
         // Abort the signal
         abortController.abort();
 
         // Emit event again - should not be received
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
@@ -31,10 +31,10 @@ describe('EventBus AbortController Support', () => {
         abortController.abort();
 
         // Try to add listener with aborted signal
-        eventBus.on('saiki:conversationReset', listener, { signal: abortController.signal });
+        eventBus.on('dexto:conversationReset', listener, { signal: abortController.signal });
 
         // Emit event - should not be received
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener).not.toHaveBeenCalled();
     });
 
@@ -44,13 +44,13 @@ describe('EventBus AbortController Support', () => {
         const listener = vi.fn();
 
         // Add once listener with abort signal
-        eventBus.once('saiki:conversationReset', listener, { signal: abortController.signal });
+        eventBus.once('dexto:conversationReset', listener, { signal: abortController.signal });
 
         // Abort the signal before emitting
         abortController.abort();
 
         // Emit event - should not be received
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener).not.toHaveBeenCalled();
     });
 
@@ -59,17 +59,17 @@ describe('EventBus AbortController Support', () => {
         const listener = vi.fn();
 
         // Add listener without signal (old way)
-        eventBus.on('saiki:conversationReset', listener);
+        eventBus.on('dexto:conversationReset', listener);
 
         // Emit event - should be received
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener).toHaveBeenCalledTimes(1);
 
         // Remove manually
-        eventBus.off('saiki:conversationReset', listener);
+        eventBus.off('dexto:conversationReset', listener);
 
         // Emit event again - should not be received
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
@@ -82,12 +82,12 @@ describe('EventBus AbortController Support', () => {
         const listener3 = vi.fn();
 
         // Add listeners with different signals
-        eventBus.on('saiki:conversationReset', listener1, { signal: controller1.signal });
-        eventBus.on('saiki:conversationReset', listener2, { signal: controller2.signal });
-        eventBus.on('saiki:conversationReset', listener3); // No signal
+        eventBus.on('dexto:conversationReset', listener1, { signal: controller1.signal });
+        eventBus.on('dexto:conversationReset', listener2, { signal: controller2.signal });
+        eventBus.on('dexto:conversationReset', listener3); // No signal
 
         // Emit event - all should receive
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener1).toHaveBeenCalledTimes(1);
         expect(listener2).toHaveBeenCalledTimes(1);
         expect(listener3).toHaveBeenCalledTimes(1);
@@ -96,7 +96,7 @@ describe('EventBus AbortController Support', () => {
         controller1.abort();
 
         // Emit event - only listener2 and listener3 should receive
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener1).toHaveBeenCalledTimes(1); // Still 1
         expect(listener2).toHaveBeenCalledTimes(2);
         expect(listener3).toHaveBeenCalledTimes(2);
@@ -105,7 +105,7 @@ describe('EventBus AbortController Support', () => {
         controller2.abort();
 
         // Emit event - only listener3 should receive
-        eventBus.emit('saiki:conversationReset', { sessionId: 'test' });
+        eventBus.emit('dexto:conversationReset', { sessionId: 'test' });
         expect(listener1).toHaveBeenCalledTimes(1); // Still 1
         expect(listener2).toHaveBeenCalledTimes(2); // Still 2
         expect(listener3).toHaveBeenCalledTimes(3);

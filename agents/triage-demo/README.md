@@ -1,6 +1,6 @@
 # TeamFlow Customer Support Triage Agent System
 
-This demonstration showcases an intelligent **Customer Support Triage System** built with Saiki agents for **TeamFlow**, a cloud-based project management and team collaboration platform. The system automatically analyzes customer inquiries, routes them to specialized support agents, and provides complete customer support responses.
+This demonstration showcases an intelligent **Customer Support Triage System** built with Dexto agents for **TeamFlow**, a cloud-based project management and team collaboration platform. The system automatically analyzes customer inquiries, routes them to specialized support agents, and provides complete customer support responses.
 
 ## 🏢 About TeamFlow (Demo Business Context)
 
@@ -98,10 +98,10 @@ The **recommended way** to run the triage system is using the main triage agent,
 
 ```bash
 # Run the complete triage system (connects to all specialist agents automatically)
-npx saiki --agent agents/triage-demo/triage-agent.yml
+npx dexto --agent agents/triage-demo/triage-agent.yml
 
 # Test with a customer inquiry
-npx saiki --agent agents/triage-demo/triage-agent.yml "I want to upgrade from Basic to Pro but confused about pricing"
+npx dexto --agent agents/triage-demo/triage-agent.yml "I want to upgrade from Basic to Pro but confused about pricing"
 ```
 
 This will:
@@ -116,10 +116,10 @@ For testing individual specialist agents:
 
 ```bash
 # Run specialized agents individually  
-npx saiki --agent agents/triage-demo/technical-support-agent.yml
-npx saiki --agent agents/triage-demo/billing-agent.yml
-npx saiki --agent agents/triage-demo/product-info-agent.yml
-npx saiki --agent agents/triage-demo/escalation-agent.yml
+npx dexto --agent agents/triage-demo/technical-support-agent.yml
+npx dexto --agent agents/triage-demo/billing-agent.yml
+npx dexto --agent agents/triage-demo/product-info-agent.yml
+npx dexto --agent agents/triage-demo/escalation-agent.yml
 ```
 
 ### Environment Setup
@@ -177,12 +177,12 @@ mcpServers:
   technical_support:
     type: stdio
     command: npx
-    args: [saiki, --mode, mcp, --agent, agents/triage-demo/technical-support-agent.yml]
+    args: [dexto, --mode, mcp, --agent, agents/triage-demo/technical-support-agent.yml]
   
   billing_support:
     type: stdio  
     command: npx
-    args: [saiki, --mode, mcp, --agent, agents/triage-demo/billing-agent.yml]
+    args: [dexto, --mode, mcp, --agent, agents/triage-demo/billing-agent.yml]
   
   # Similar configuration for product_info and escalation agents...
 ```
@@ -223,19 +223,19 @@ mcpServers:
 
 ```bash
 # Terminal 1: Technical Support Server
-npx saiki --agent agents/triage-demo/technical-support-agent.yml --mode server --port 3001
+npx dexto --agent agents/triage-demo/technical-support-agent.yml --mode server --port 3001
 
 # Terminal 2: Billing Support Server  
-npx saiki --agent agents/triage-demo/billing-agent.yml --mode server --port 3002
+npx dexto --agent agents/triage-demo/billing-agent.yml --mode server --port 3002
 
 # Terminal 3: Product Info Server
-npx saiki --agent agents/triage-demo/product-info-agent.yml --mode server --port 3003
+npx dexto --agent agents/triage-demo/product-info-agent.yml --mode server --port 3003
 
 # Terminal 4: Escalation Server
-npx saiki --agent agents/triage-demo/escalation-agent.yml --mode server --port 3004
+npx dexto --agent agents/triage-demo/escalation-agent.yml --mode server --port 3004
 
 # Terminal 5: Main Triage Coordinator
-npx saiki --agent agents/triage-demo/triage-agent.yml --mode server --port 3000
+npx dexto --agent agents/triage-demo/triage-agent.yml --mode server --port 3000
 ```
 
 ## 🎯 Key Features Demonstrated
@@ -268,7 +268,7 @@ npx saiki --agent agents/triage-demo/triage-agent.yml --mode server --port 3000
 
 1. **Start the complete triage system**:
    ```bash
-   npx saiki --agent agents/triage-demo/triage-agent.yml
+   npx dexto --agent agents/triage-demo/triage-agent.yml
    ```
 
 2. **Test with various customer scenarios** and observe:
@@ -296,13 +296,13 @@ Expected: Escalation Agent → Complete escalation with management contact
 
 ```bash
 # Test billing scenario
-npx saiki --agent agents/triage-demo/triage-agent.yml "I was charged twice this month"
+npx dexto --agent agents/triage-demo/triage-agent.yml "I was charged twice this month"
 
 # Test technical scenario  
-npx saiki --agent agents/triage-demo/triage-agent.yml "Getting 500 errors on file upload"
+npx dexto --agent agents/triage-demo/triage-agent.yml "Getting 500 errors on file upload"
 
 # Test product scenario
-npx saiki --agent agents/triage-demo/triage-agent.yml "What integrations do you support?"
+npx dexto --agent agents/triage-demo/triage-agent.yml "What integrations do you support?"
 ```
 
 ## 🚦 Production Considerations
@@ -334,4 +334,4 @@ To extend this triage system:
 3. **Configure new agents as MCP servers** in the triage agent's mcpServers section
 4. **Test end-to-end flow** including tool execution and complete responses
 
-This demonstration showcases the power of **multi-agent coordination with tool execution** using Saiki's MCP integration capabilities! 
+This demonstration showcases the power of **multi-agent coordination with tool execution** using Dexto's MCP integration capabilities! 

@@ -98,13 +98,13 @@ mcpServers:
   technical_support:
     type: stdio
     command: npx
-    args: [saiki, --mode, mcp, --agent, technical-support-agent.yml]
+    args: [dexto, --mode, mcp, --agent, technical-support-agent.yml]
     connectionMode: lenient
   
   billing_support:
     type: stdio
     command: npx
-    args: [saiki, --mode, mcp, --agent, billing-agent.yml]
+    args: [dexto, --mode, mcp, --agent, billing-agent.yml]
     connectionMode: lenient
 
 llm:
@@ -118,7 +118,7 @@ llm:
 ### Start the Triage System
 
 ```bash
-npx saiki --agent triage-agent.yml
+npx dexto --agent triage-agent.yml
 ```
 
 This automatically:
@@ -183,7 +183,7 @@ Add the new specialist to your triage configuration:
 product_info:
   type: stdio
   command: npx
-  args: [saiki, --mode, mcp, --agent, product-info-agent.yml]
+  args: [dexto, --mode, mcp, --agent, product-info-agent.yml]
   connectionMode: lenient
 ```
 
@@ -235,13 +235,13 @@ For production, run specialists as separate servers:
 
 ```bash
 # Terminal 1: Technical Support
-npx saiki --agent technical-support-agent.yml --mode server --port 3001
+npx dexto --agent technical-support-agent.yml --mode server --port 3001
 
 # Terminal 2: Billing Support  
-npx saiki --agent billing-agent.yml --mode server --port 3002
+npx dexto --agent billing-agent.yml --mode server --port 3002
 
 # Terminal 3: Triage Coordinator
-npx saiki --agent triage-agent.yml --mode server --port 3000
+npx dexto --agent triage-agent.yml --mode server --port 3000
 ```
 
 Update triage agent to use HTTP connections:
@@ -309,7 +309,7 @@ triage-system/
 **Test the complete system:**
 
 ```bash
-npx saiki --agent triage-agent.yml "I need help with API integration and want to upgrade my billing plan"
+npx dexto --agent triage-agent.yml "I need help with API integration and want to upgrade my billing plan"
 ```
 
 The triage agent will:

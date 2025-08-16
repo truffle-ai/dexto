@@ -1,10 +1,10 @@
 # Configuration Guide
 
-Saiki uses a YAML configuration file to define tool servers and AI settings. This guide provides detailed information on all available configuration options.
+Dexto uses a YAML configuration file to define tool servers and AI settings. This guide provides detailed information on all available configuration options.
 
 ## Configuration File Location
 
-By default, Saiki looks for a configuration file at `agents/agent.yml` in the project directory. You can specify a different location using the `--agent` command-line option:
+By default, Dexto looks for a configuration file at `agents/agent.yml` in the project directory. You can specify a different location using the `--agent` command-line option:
 
 ```bash
 npm start -- --agent path/to/your/agent.yml
@@ -221,7 +221,7 @@ github-remote:
 
 ## Command-Line Options
 
-Saiki supports several command-line options:
+Dexto supports several command-line options:
 
 | Option | Description |
 |--------|-------------|

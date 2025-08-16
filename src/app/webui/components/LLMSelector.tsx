@@ -183,28 +183,57 @@ export default function LLMSelector() {
 
       const result = await response.json();
 
-      if (result.success) {
-        setCurrentConfig(result.config);
-        setSuccess(result.message);
+      if (result.ok) {
+        // Success case - update config and show success message
+        const newConfig: LLMConfig = {
+          config: result.data,
+          serviceInfo: {
+            provider: result.data.provider,
+            model: result.data.model,
+            router: result.data.router || selectedRouter,
+            configuredMaxTokens: result.data.maxInputTokens,
+            modelMaxTokens: result.data.maxInputTokens
+          }
+        };
+        setCurrentConfig(newConfig);
+        setSuccess(`Successfully switched to ${selectedModel}`);
         setTimeout(() => {
           setIsOpen(false);
           setSuccess(null);
         }, 1500);
       } else {
-        // Handle new structured error format
-        if (result.errors && result.errors.length > 0) {
-          const primaryError = result.errors[0];
-          let errorMessage = primaryError.message;
-          
-          // For API key errors, show the suggested action
-          if (primaryError.type === 'missing_api_key' && primaryError.suggestedAction) {
-            errorMessage += `. ${primaryError.suggestedAction}`;
+        // Error case - handle new validation error format
+        if (result.issues && result.issues.length > 0) {
+          const errors = result.issues.filter((issue: any) => issue.severity === 'error');
+          if (errors.length > 0) {
+            const primaryError = errors[0];
+            setError(primaryError.message);
+          } else {
+            // Only warnings, treat as success but show warning
+            const warnings = result.issues.filter((issue:any) => issue.severity === 'warning');
+            if (warnings.length > 0) {
+              console.warn('LLM switch warnings:', warnings);
+            }
+            const newConfig: LLMConfig = {
+              config: result.data,
+              serviceInfo: {
+                provider: result.data.provider,
+                model: result.data.model,
+                router: result.data.router || selectedRouter,
+                configuredMaxTokens: result.data.maxInputTokens,
+                modelMaxTokens: result.data.maxInputTokens
+              }
+            };
+            setCurrentConfig(newConfig);
+            setSuccess(`Successfully switched to ${selectedModel}`);
+            setTimeout(() => {
+              setIsOpen(false);
+              setSuccess(null);
+            }, 1500);
           }
-          
-          setError(errorMessage);
         } else {
-          // Fallback to old format or generic error
-          setError(result.error || 'Failed to switch LLM');
+          // Fallback error message
+          setError('Failed to switch LLM');
         }
       }
     } catch (err) {

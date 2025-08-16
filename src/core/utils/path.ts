@@ -1,15 +1,18 @@
 import * as path from 'path';
 import { existsSync, readFileSync } from 'fs';
-import { createRequire } from 'module';
+import { promises as fs } from 'fs';
 import { homedir } from 'os';
-
-// Create require function for ES modules
-const require = createRequire(import.meta.url);
-
+import { createRequire } from 'module';
+import { ConfigError } from '@core/config/errors.js';
 /**
  * Default config file path (relative to package root)
  */
 export const DEFAULT_CONFIG_PATH = 'agents/agent.yml';
+
+/**
+ * User's global config path (relative to home directory)
+ */
+export const USER_CONFIG_PATH = '.dexto/agent.yml';
 
 /**
  * Generic directory walker that searches up the directory tree
@@ -35,32 +38,154 @@ export function walkUpDirectories(
 }
 
 /**
- * Async version of directory walker for async predicates
- * @param startPath Starting directory path
- * @param predicate Async function that returns true when the desired condition is found
- * @returns The directory path where the condition was met, or null if not found
+ * Check if directory has dexto as dependency (MOST RELIABLE)
+ * @param dirPath Directory to check
+ * @returns True if directory contains dexto as dependency
  */
-export async function walkUpDirectoriesAsync(
-    startPath: string,
-    predicate: (dirPath: string) => Promise<boolean>
-): Promise<string | null> {
-    let currentPath = path.resolve(startPath);
-    const rootPath = path.parse(currentPath).root;
+function hasDextoDependency(dirPath: string): boolean {
+    const packageJsonPath = path.join(dirPath, 'package.json');
 
-    while (currentPath !== rootPath) {
-        if (await predicate(currentPath)) {
-            return currentPath;
+    try {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+
+        // Case 1: This IS the dexto package itself (local testing)
+        if (pkg.name === 'dexto') {
+            return true;
         }
-        currentPath = path.dirname(currentPath);
-    }
 
-    return null;
+        // Case 2: Project using dexto as dependency (SDK/CLI in project)
+        const allDeps = {
+            ...pkg.dependencies,
+            ...pkg.devDependencies,
+            ...pkg.peerDependencies,
+        };
+
+        return 'dexto' in allDeps;
+    } catch {
+        return false;
+    }
 }
 
 /**
- * Find the nearest package.json by walking up directories
+ * Check if we're currently in a dexto project
  * @param startPath Starting directory path
- * @returns The directory containing package.json, or null if not found
+ * @returns True if in a dexto project
+ */
+export function isDextoProject(startPath: string = process.cwd()): boolean {
+    return getDextoProjectRoot(startPath) !== null;
+}
+
+/**
+ * Check if we're currently in the dexto source code itself
+ * @param startPath Starting directory path
+ * @returns True if in dexto source code (package.name === 'dexto')
+ */
+export function isDextoSourceCode(startPath: string = process.cwd()): boolean {
+    const projectRoot = getDextoProjectRoot(startPath);
+    if (!projectRoot) return false;
+
+    try {
+        const pkg = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf-8'));
+        return pkg.name === 'dexto';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Get dexto project root (or null if not in project)
+ * @param startPath Starting directory path
+ * @returns Project root directory or null
+ */
+export function getDextoProjectRoot(startPath: string = process.cwd()): string | null {
+    return walkUpDirectories(startPath, hasDextoDependency);
+}
+
+/**
+ * Standard path resolver for logs/db/config/anything in dexto projects
+ * @param type Path type (logs, database, config, etc.)
+ * @param filename Optional filename to append
+ * @param startPath Starting directory for project detection
+ * @returns Absolute path to the requested location
+ */
+export function getDextoPath(type: string, filename?: string, startPath?: string): string {
+    const projectRoot = getDextoProjectRoot(startPath);
+
+    let basePath: string;
+
+    if (projectRoot) {
+        // In dexto project: /project/.dexto/logs/
+        basePath = path.join(projectRoot, '.dexto', type);
+    } else {
+        // Global: ~/.dexto/logs/
+        basePath = path.join(homedir(), '.dexto', type);
+    }
+
+    return filename ? path.join(basePath, filename) : basePath;
+}
+
+/**
+ * Resolve config path with context awareness
+ * @param configPath Optional explicit config path
+ * @param startPath Starting directory for project detection
+ * @returns Absolute path to config file
+ */
+export function resolveConfigPath(configPath?: string, startPath?: string): string {
+    if (configPath) {
+        // Explicit path provided
+        return path.resolve(configPath);
+    }
+
+    const projectRoot = getDextoProjectRoot(startPath);
+
+    if (projectRoot) {
+        // In dexto project: Look for config in project (multiple possible locations)
+        const configPaths = [
+            path.join(projectRoot, DEFAULT_CONFIG_PATH), // Standard
+            path.join(projectRoot, 'src', DEFAULT_CONFIG_PATH), // Common
+            path.join(projectRoot, 'src', 'dexto', DEFAULT_CONFIG_PATH), // Test app structure
+            path.join(projectRoot, '.dexto', 'agent.yml'), // Hidden
+            path.join(projectRoot, 'agent.yml'), // Root
+        ];
+
+        for (const configPath of configPaths) {
+            if (existsSync(configPath)) {
+                return configPath;
+            }
+        }
+
+        throw ConfigError.fileNotFound(
+            `No agent.yml found in project. Searched: ${configPaths.join(', ')}`
+        );
+    } else {
+        // Global CLI mode
+
+        // Check for user's global config first
+        const userConfigPath = getUserConfigPath();
+        if (existsSync(userConfigPath)) {
+            return userConfigPath;
+        }
+
+        // Fall back to bundled default config
+        try {
+            const bundledConfigPath = getBundledConfigPath();
+            if (existsSync(bundledConfigPath)) {
+                return bundledConfigPath;
+            }
+        } catch {
+            // Fallback if bundled script resolution fails
+        }
+
+        throw ConfigError.fileNotFound(
+            'Global CLI: No bundled config found and no explicit config provided'
+        );
+    }
+}
+
+/**
+ * Find package root (for other utilities)
+ * @param startPath Starting directory path
+ * @returns Directory containing package.json or null
  */
 export function findPackageRoot(startPath: string = process.cwd()): string | null {
     return walkUpDirectories(startPath, (dirPath) => {
@@ -70,181 +195,86 @@ export function findPackageRoot(startPath: string = process.cwd()): string | nul
 }
 
 /**
- * Find project root by looking for package manager lock files
- * @param startPath Starting directory path
- * @returns The project root directory, or null if not found
+ * Resolve bundled script paths for MCP servers
+ * @param scriptPath Relative script path
+ * @returns Absolute path to bundled script
  */
-export function findProjectRootByLockFiles(startPath: string = process.cwd()): string | null {
-    const lockFiles = [
-        'package-lock.json', // npm
-        'yarn.lock', // yarn
-        'pnpm-lock.yaml', // pnpm
-        'bun.lock', // bun
-    ];
-
-    return walkUpDirectories(startPath, (dirPath) => {
-        return lockFiles.some((lockFile) => existsSync(path.join(dirPath, lockFile)));
-    });
+export function resolveBundledScript(scriptPath: string): string {
+    try {
+        // Try to resolve from the installed package
+        const require = createRequire(import.meta.url);
+        const packageJsonPath = require.resolve('dexto/package.json');
+        const packageRoot = path.dirname(packageJsonPath);
+        return path.resolve(packageRoot, scriptPath);
+    } catch {
+        // Fallback for development
+        const packageRoot = findPackageRoot();
+        if (!packageRoot) {
+            throw new Error(`Cannot resolve bundled script: ${scriptPath}`);
+        }
+        return path.resolve(packageRoot, scriptPath);
+    }
 }
 
 /**
- * Check if a specific directory contains a package.json with a given name
- * @param dirPath Directory to check
- * @param packageName Expected package name
- * @returns True if the directory contains the specified package
+ * Ensure ~/.dexto directory exists for global storage
  */
-export function isDirectoryPackage(dirPath: string, packageName: string): boolean {
-    const packageJsonPath = path.join(dirPath, 'package.json');
-
+export async function ensureDextoGlobalDirectory(): Promise<void> {
+    const dextoDir = path.join(homedir(), '.dexto');
     try {
-        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-        return packageJson.name === packageName;
+        await fs.mkdir(dextoDir, { recursive: true });
+    } catch (error) {
+        // Directory might already exist, ignore EEXIST errors
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+            throw error;
+        }
+    }
+}
+
+/**
+ * Get the appropriate .env file path for saving API keys.
+ * Uses the same project detection logic as other dexto paths.
+ *
+ * @param startPath Starting directory for project detection
+ * @returns Absolute path to .env file for saving
+ */
+export function getDextoEnvPath(startPath: string = process.cwd()): string {
+    const projectRoot = getDextoProjectRoot(startPath);
+
+    if (projectRoot) {
+        // In dexto project: save to project .env
+        return path.join(projectRoot, '.env');
+    } else {
+        // Global usage: save to ~/.dexto/.env
+        return path.join(homedir(), '.dexto', '.env');
+    }
+}
+
+/**
+ * Get the user's global config path
+ * @returns Absolute path to ~/.dexto/agent.yml
+ */
+export function getUserConfigPath(): string {
+    return path.join(homedir(), USER_CONFIG_PATH);
+}
+
+/**
+ * Get the bundled config path
+ * @returns Absolute path to bundled agent.yml
+ */
+export function getBundledConfigPath(): string {
+    return resolveBundledScript(DEFAULT_CONFIG_PATH);
+}
+
+/**
+ * Check if a config path is the bundled config
+ * @param configPath Path to check
+ * @returns True if this is the bundled config
+ */
+export function isUsingBundledConfig(configPath: string): boolean {
+    try {
+        return configPath === getBundledConfigPath();
     } catch {
         return false;
     }
-}
-
-/**
- * Find directory containing a package with a specific name
- * @param packageName Package name to search for
- * @param startPath Starting directory path
- * @returns The directory containing the specified package, or null if not found
- */
-export function findPackageByName(
-    packageName: string,
-    startPath: string = process.cwd()
-): string | null {
-    return walkUpDirectories(startPath, (dirPath) => {
-        return isDirectoryPackage(dirPath, packageName);
-    });
-}
-
-/**
- * Check if current directory is the Saiki project
- * @param dirPath Directory to check (defaults to current working directory)
- * @returns True if the directory is the Saiki project root
- */
-export function isCurrentDirectorySaikiProject(dirPath: string = process.cwd()): boolean {
-    return isDirectoryPackage(dirPath, '@truffle-ai/saiki');
-}
-
-/**
- * Find the Saiki project root by walking up directories
- * @param startPath Starting directory path
- * @returns The Saiki project root directory, or null if not found
- */
-export function findSaikiProjectRoot(startPath: string = process.cwd()): string | null {
-    return findPackageByName('@truffle-ai/saiki', startPath);
-}
-
-/**
- * Detect if we're running as a global install (not in the Saiki project directory)
- * @returns True if running globally, false if in Saiki project
- */
-export function isGlobalInstall(): boolean {
-    const isInSaikiProject = isSaikiProject();
-    return !isInSaikiProject;
-}
-
-/**
- * Resolve the configuration file path.
- * - If it's absolute, return as-is.
- * - If it's the default config, resolve relative to the package installation root.
- * - Otherwise resolve relative to the current working directory.
- */
-export function resolvePackagePath(targetPath: string, resolveFromPackageRoot: boolean): string {
-    if (path.isAbsolute(targetPath)) {
-        return targetPath;
-    }
-    if (resolveFromPackageRoot) {
-        // For default config, we need to find the actual Saiki package installation root
-        try {
-            // First try to find the installed package using require.resolve
-            // This works for both global installs and local development
-            const packageJsonPath = require.resolve('@truffle-ai/saiki/package.json');
-            const packageRoot = path.dirname(packageJsonPath);
-            return path.resolve(packageRoot, targetPath);
-        } catch (_err) {
-            // If require.resolve fails, fall back to the old method
-            // This should handle edge cases or development scenarios
-            const packageRoot = findPackageRoot(process.cwd());
-
-            if (!packageRoot) {
-                throw new Error(
-                    `Cannot find package root when resolving default path: ${targetPath}`
-                );
-            }
-
-            return path.resolve(packageRoot, targetPath);
-        }
-    }
-    // User-specified relative path
-    return path.resolve(process.cwd(), targetPath);
-}
-
-/**
- * Check if a directory contains a Saiki configuration file
- * @param dirPath Directory to check
- * @returns True if the directory contains agents/agent.yml
- */
-export function hasSaikiConfig(dirPath: string): boolean {
-    const configPath = path.join(dirPath, DEFAULT_CONFIG_PATH);
-    return existsSync(configPath);
-}
-
-/**
- * Resolve the default log file path for Saiki
- * Uses reliable synchronous detection for immediate use in logger initialization
- * @param logFileName Optional custom log file name (defaults to 'saiki.log')
- * @returns Absolute path to the log file
- */
-export function resolveSaikiLogPath(logFileName: string = 'saiki.log'): string {
-    // Use reliable package detection - check if we're in a Saiki project
-    const isInSaikiProject = isSaikiProject();
-    const logDir = isInSaikiProject
-        ? path.join(process.cwd(), '.saiki', 'logs')
-        : path.join(homedir(), '.saiki', 'logs');
-
-    return path.join(logDir, logFileName);
-}
-
-/**
- * Find Saiki project root by looking for agents/agent.yml
- * @param startPath Starting directory path
- * @returns The directory containing agents/agent.yml, or null if not found
- */
-export function findSaikiProjectByConfig(startPath: string = process.cwd()): string | null {
-    return walkUpDirectories(startPath, hasSaikiConfig);
-}
-
-/**
- * Enhanced Saiki project detection that checks both package.json and config file
- * @param dirPath Directory to check (defaults to current working directory)
- * @returns True if the directory is a Saiki project (by package name OR config file)
- */
-export function isSaikiProject(dirPath: string = process.cwd()): boolean {
-    // Check for package.json with @truffle-ai/saiki name
-    const isPackage = isDirectoryPackage(dirPath, '@truffle-ai/saiki');
-    if (isPackage) {
-        return true;
-    }
-
-    // Check for agents/agent.yml
-    return hasSaikiConfig(dirPath);
-}
-
-/**
- * Enhanced Saiki project root finder that checks both package.json and config file
- * @param startPath Starting directory path
- * @returns The Saiki project root directory, or null if not found
- */
-export function findSaikiProjectRootEnhanced(startPath: string = process.cwd()): string | null {
-    // First try finding by package.json
-    const packageRoot = findPackageByName('@truffle-ai/saiki', startPath);
-    if (packageRoot) {
-        return packageRoot;
-    }
-
-    // Then try finding by configuration file
-    return findSaikiProjectByConfig(startPath);
 }

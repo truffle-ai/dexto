@@ -1,5 +1,5 @@
 ---
-description: Testing patterns, commands, and validation requirements for Saiki development
+description: Testing patterns, commands, and validation requirements for Dexto development
 globs: ["**/*.test.ts", "**/*.integration.test.ts", "**/*.spec.ts", "**/*.ts", "**/*.js"]
 alwaysApply: true
 ---
@@ -52,11 +52,11 @@ alwaysApply: true
 
   // ✅ DO: Integration test structure  
   describe('Session Integration: Chat History Preservation', () => {
-    let agent: SaikiAgent;
+    let agent: DextoAgent;
     
     beforeEach(async () => {
       // Setup real components with test config
-      agent = new SaikiAgent(testConfig);
+      agent = new DextoAgent(testConfig);
       await agent.start();
     });
 

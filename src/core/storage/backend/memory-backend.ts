@@ -1,5 +1,6 @@
 import type { CacheBackend } from './cache-backend.js';
 import type { DatabaseBackend } from './database-backend.js';
+import { StorageError } from '../errors.js';
 
 /**
  * In-memory storage backend for development and testing.
@@ -36,18 +37,34 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
     // Core operations
     async get<T>(key: string): Promise<T | undefined> {
         this.checkConnection();
-        this.checkTTL(key);
-        return this.data.get(key);
+        try {
+            this.checkTTL(key);
+            return this.data.get(key);
+        } catch (error) {
+            throw StorageError.readFailed(
+                'get',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
     }
 
     async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
         this.checkConnection();
-        this.data.set(key, value);
+        try {
+            this.data.set(key, value);
 
-        if (ttlSeconds) {
-            this.ttls.set(key, Date.now() + ttlSeconds * 1000);
-        } else {
-            this.ttls.delete(key);
+            if (ttlSeconds) {
+                this.ttls.set(key, Date.now() + ttlSeconds * 1000);
+            } else {
+                this.ttls.delete(key);
+            }
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'set',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
         }
     }
 
@@ -97,7 +114,7 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
     // Helper methods
     private checkConnection(): void {
         if (!this.connected) {
-            throw new Error('MemoryBackend not connected');
+            throw StorageError.notConnected('MemoryBackend');
         }
     }
 

@@ -2,15 +2,19 @@ import readline from 'readline';
 import chalk from 'chalk';
 import { logger } from '@core/index.js';
 import { CLISubscriber } from './cli-subscriber.js';
-import { SaikiAgent } from '@core/index.js';
-import { parseInput } from './command-parser.js';
-import { executeCommand } from './commands.js';
+import { DextoAgent } from '@core/index.js';
+import { parseInput } from './interactive-commands/command-parser.js';
+import { executeCommand } from './interactive-commands/commands.js';
+import { getDextoPath } from '@core/utils/path.js';
+import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
+import { DextoRuntimeError, DextoValidationError, ErrorScope } from '@core/errors/index.js';
+import { LLMErrorCode } from '@core/llm/error-codes.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
  * This provides better UX than always loading the "default" session.
  */
-async function loadMostRecentSession(agent: SaikiAgent): Promise<void> {
+async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
     try {
         const sessionIds = await agent.listSessions();
 
@@ -48,21 +52,57 @@ async function loadMostRecentSession(agent: SaikiAgent): Promise<void> {
 
 /**
  * Initializes common CLI setup: logging, event subscriptions, tool loading.
- * @param agent The SaikiAgent instance providing access to all required services
+ * @param agent The DextoAgent instance providing access to all required services
  */
-async function _initCli(agent: SaikiAgent): Promise<void> {
+async function _initCli(agent: DextoAgent): Promise<void> {
     await loadMostRecentSession(agent);
+    registerGracefulShutdown(agent);
 
-    // Log connection info
-    logger.debug(`Log level: ${logger.getLevel()}`);
-    logger.info(`Connected servers: ${agent.mcpManager.getClients().size}`, null, 'green');
+    // Gather startup information
+    const llmConfig = agent.getCurrentLLMConfig();
+    const connectedServers = agent.mcpManager.getClients();
     const failedConnections = agent.mcpManager.getFailedConnections();
-    if (Object.keys(failedConnections).length > 0) {
-        logger.error(`Failed connections: ${Object.keys(failedConnections).length}.`, null, 'red');
+    const currentSessionId = agent.getCurrentSessionId();
+
+    let toolStats: { total: number; mcp: number; internal: number } | undefined;
+    try {
+        toolStats = await agent.toolManager.getToolStats();
+    } catch (error) {
+        logger.error(
+            `Failed to load tools: ${error instanceof Error ? error.message : String(error)}`
+        );
     }
 
-    // Reset conversation
-    // await agent.resetConversation();
+    // Display all startup information at once using the logger's dedicated method
+    const startupInfo: Parameters<typeof logger.displayStartupInfo>[0] = {
+        model: llmConfig.model,
+        provider: llmConfig.provider,
+        connectedServers: {
+            count: connectedServers.size,
+            names: Array.from(connectedServers.keys()),
+        },
+        sessionId: currentSessionId,
+        logLevel: logger.getLevel(),
+    };
+
+    if (Object.keys(failedConnections).length > 0) {
+        startupInfo.failedConnections = failedConnections;
+    }
+
+    if (toolStats) {
+        startupInfo.toolStats = toolStats;
+    }
+
+    const logFile = logger.getLogFilePath();
+    if (logFile) {
+        startupInfo.logFile = logFile;
+    }
+
+    // Display startup info to console
+    logger.displayStartupInfo(startupInfo);
+
+    // Log complete startup info to file for debugging
+    logger.debug(`Startup configuration: ${JSON.stringify(startupInfo, null, 2)}`);
 
     // Set up event management
     logger.info('Setting up CLI event subscriptions...');
@@ -71,36 +111,28 @@ async function _initCli(agent: SaikiAgent): Promise<void> {
 
     // Load available tools
     logger.info('Loading available tools...');
-    try {
-        const tools = await agent.mcpManager.getAllTools(); // tools variable is not used currently but kept for potential future use
+    if (toolStats) {
         logger.info(
-            `Loaded ${Object.keys(tools).length} tools from ${
-                agent.mcpManager.getClients().size
-            } MCP servers`
-        );
-    } catch (error) {
-        logger.error(
-            `Failed to load tools: ${error instanceof Error ? error.message : String(error)}`
+            `Loaded ${toolStats.total} total tools: ${toolStats.mcp} MCP, ${toolStats.internal} internal`
         );
     }
 
     logger.info(`CLI initialized successfully. Ready for input.`, null, 'green');
 
     // Show welcome message with slash command instructions
-    console.log(chalk.bold.cyan('\n🚀 Welcome to Saiki CLI!'));
+    console.log(chalk.bold.cyan('\n🚀 Welcome to Dexto CLI!'));
     console.log(chalk.dim('• Type your message normally to chat with the AI'));
     console.log(chalk.dim('• Use /command for system commands (e.g., /help, /session, /model)'));
     console.log(chalk.dim('• Type /help to see all available commands'));
-    console.log(
-        chalk.dim('• Logs available in .saiki/logs/saiki.log or ~/.saiki/logs/saiki.log\n')
-    );
+    const logPath = getDextoPath('logs', 'dexto.log');
+    console.log(chalk.dim(`• Logs available in ${logPath}\n`));
 }
 
 /**
  * Run the AI CLI with the given LLM service
- * @param agent Saiki agent instance
+ * @param agent Dexto agent instance
  */
-export async function startAiCli(agent: SaikiAgent) {
+export async function startAiCli(agent: DextoAgent) {
     try {
         // Common initialization
         await _initCli(agent);
@@ -182,10 +214,10 @@ export async function startAiCli(agent: SaikiAgent) {
 
 /**
  * Run a single headless command via CLI without interactive prompt
- * @param agent The SaikiAgent instance providing access to all required services
+ * @param agent The DextoAgent instance providing access to all required services
  * @param prompt The user input to process
  */
-export async function startHeadlessCli(agent: SaikiAgent, prompt: string): Promise<void> {
+export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promise<void> {
     // Common initialization
     await _initCli(agent);
     try {
@@ -208,10 +240,21 @@ export async function startHeadlessCli(agent: SaikiAgent, prompt: string): Promi
             // await agent.resetConversation();
             await agent.run(prompt);
         }
-    } catch (error) {
-        logger.error(
-            `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
-        );
+    } catch (error: unknown) {
+        if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
+            logger.error(`LLM error: ${error.message}`, null, 'red');
+        } else if (error instanceof DextoValidationError) {
+            logger.error(`Validation failed:`, null, 'red');
+            error.errors.forEach((err) => {
+                logger.error(`  - ${err.message}`, null, 'red');
+            });
+        } else if (error instanceof DextoRuntimeError && error.scope === ErrorScope.CONFIG) {
+            logger.error(`Configuration error: ${error.message}`, null, 'red');
+        } else {
+            logger.error(
+                `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
         process.exit(1); // Exit with error code if headless execution fails
     }
 }

@@ -4,7 +4,7 @@ import { logger } from '@core/index.js';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,
-    type SaikiWebhookEvent,
+    type DextoWebhookEvent,
     type WebhookDeliveryResult,
     type WebhookDeliveryOptions,
 } from './webhook-types.js';
@@ -57,12 +57,12 @@ export class WebhookEventSubscriber implements EventSubscriber {
             'llmservice:toolResult',
             'llmservice:response',
             'llmservice:error',
-            'saiki:conversationReset',
-            'saiki:mcpServerConnected',
-            'saiki:availableToolsUpdated',
-            'saiki:toolConfirmationRequest',
-            'saiki:llmSwitched',
-            'saiki:stateChanged',
+            'dexto:conversationReset',
+            'dexto:mcpServerConnected',
+            'dexto:availableToolsUpdated',
+            'dexto:toolConfirmationRequest',
+            'dexto:llmSwitched',
+            'dexto:stateChanged',
         ];
 
         eventNames.forEach((eventName) => {
@@ -122,9 +122,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
             throw new Error(`Webhook not found: ${webhookId}`);
         }
 
-        const testEvent: SaikiWebhookEvent<'saiki:availableToolsUpdated'> = {
+        const testEvent: DextoWebhookEvent<'dexto:availableToolsUpdated'> = {
             id: `evt_test_${Date.now()}`,
-            type: 'saiki:availableToolsUpdated',
+            type: 'dexto:availableToolsUpdated',
             data: {
                 tools: ['test-tool'],
                 source: 'mcp',
@@ -160,7 +160,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
             return; // No webhooks to deliver to
         }
 
-        const webhookEvent: SaikiWebhookEvent<T> = {
+        const webhookEvent: DextoWebhookEvent<T> = {
             id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
             type: eventType,
             data: eventData,
@@ -204,7 +204,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
      */
     private async deliverToWebhook(
         webhook: WebhookConfig,
-        event: SaikiWebhookEvent
+        event: DextoWebhookEvent
     ): Promise<WebhookDeliveryResult> {
         const startTime = Date.now();
         let lastError: Error | undefined;
@@ -259,7 +259,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
      */
     private async sendWebhookRequest(
         webhook: WebhookConfig,
-        event: SaikiWebhookEvent,
+        event: DextoWebhookEvent,
         attempt: number
     ): Promise<WebhookDeliveryResult> {
         const startTime = Date.now();
@@ -268,16 +268,16 @@ export class WebhookEventSubscriber implements EventSubscriber {
         // Prepare headers
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
-            'User-Agent': 'SaikiAgent/1.0',
-            'X-Saiki-Event-Type': event.type,
-            'X-Saiki-Event-Id': event.id,
-            'X-Saiki-Delivery-Attempt': attempt.toString(),
+            'User-Agent': 'DextoAgent/1.0',
+            'X-Dexto-Event-Type': event.type,
+            'X-Dexto-Event-Id': event.id,
+            'X-Dexto-Delivery-Attempt': attempt.toString(),
         };
 
         // Add signature if secret is provided
         if (webhook.secret && this.deliveryOptions.includeSignature) {
             const signature = this.generateSignature(payload, webhook.secret);
-            headers['X-Saiki-Signature-256'] = signature;
+            headers['X-Dexto-Signature-256'] = signature;
         }
 
         try {

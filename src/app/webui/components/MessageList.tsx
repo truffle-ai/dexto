@@ -2,8 +2,17 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from "@/lib/utils";
-import { Message, TextPart, ImagePart } from './hooks/useChat';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info } from 'lucide-react';
+import { 
+    Message, 
+    TextPart, 
+    ImagePart, 
+    isToolResultError, 
+    isToolResultContent, 
+    isTextPart, 
+    isImagePart, 
+    isFilePart 
+} from './hooks/useChat';
+import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
@@ -106,7 +115,7 @@ export default function MessageList({ messages }: MessageListProps) {
                           Tool: {msg.toolName}
                         </span>
                         {msg.toolResult ? (
-                          typeof msg.toolResult === 'object' && msg.toolResult !== null && 'error' in (msg.toolResult as any) ? (
+                          isToolResultError(msg.toolResult) ? (
                             <AlertTriangle className="mx-2 h-4 w-4 text-red-500" />
                           ) : (
                             <CheckCircle className="mx-2 h-4 w-4 text-green-500" />
@@ -126,23 +135,40 @@ export default function MessageList({ messages }: MessageListProps) {
                           {msg.toolResult && (
                             <div>
                               <p className="text-xs font-medium">Result:</p>
-                              {typeof msg.toolResult === 'object' && msg.toolResult !== null && 'error' in (msg.toolResult as any) ? (
+                              {isToolResultError(msg.toolResult) ? (
                                 <pre className="whitespace-pre-wrap overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
-                                  {typeof (msg.toolResult as any).error === 'object'
-                                    ? JSON.stringify((msg.toolResult as any).error, null, 2)
-                                    : String((msg.toolResult as any).error)}
+                                  {typeof msg.toolResult.error === 'object'
+                                    ? JSON.stringify(msg.toolResult.error, null, 2)
+                                    : String(msg.toolResult.error)}
                                 </pre>
-                              ) : Array.isArray((msg.toolResult as any).content) ? (
-                                (msg.toolResult as any).content.map((part: any, index: number) => {
-                                  if (part.type === 'image') {
-                                    const src = part.data && part.mimeType
-                                      ? `data:${part.mimeType};base64,${part.data}`
-                                      : part.image || part.url;
-                                    if (src.startsWith('data:') && !isValidDataUri(src)) {
+                              ) : isToolResultContent(msg.toolResult) ? (
+                                msg.toolResult.content.map((part, index) => {
+                                  if (isImagePart(part)) {
+                                    const src = part.base64 && part.mimeType
+                                      ? `data:${part.mimeType};base64,${part.base64}`
+                                      : part.base64;
+                                    if (src && src.startsWith('data:') && !isValidDataUri(src)) {
                                       return null;
                                     }
                                     return (
                                       <img key={index} src={src} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" />
+                                    );
+                                  }
+                                  if (isTextPart(part)) {
+                                    return (
+                                      <pre key={index} className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
+                                        {part.text}
+                                      </pre>
+                                    );
+                                  }
+                                  if (isFilePart(part)) {
+                                    return (
+                                      <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
+                                        <FileAudio className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-xs text-muted-foreground">
+                                          {part.filename || 'File attachment'} ({part.mimeType})
+                                        </span>
+                                      </div>
                                     );
                                   }
                                   return (
@@ -151,13 +177,11 @@ export default function MessageList({ messages }: MessageListProps) {
                                     </pre>
                                   );
                                 })
-                              ) : typeof msg.toolResult === 'string' && msg.toolResult.startsWith('data:image') ? (
-                                isValidDataUri(msg.toolResult) ? (
-                                  <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" />
-                                ) : null
                               ) : (
                                 <pre className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
-                                  {typeof msg.toolResult === 'object' ? JSON.stringify(msg.toolResult, null, 2) : String(msg.toolResult)}
+                                  {typeof msg.toolResult === 'string' && msg.toolResult.startsWith('data:image') 
+                                    ? (isValidDataUri(msg.toolResult) ? <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" /> : 'Invalid image data')
+                                    : typeof msg.toolResult === 'object' ? JSON.stringify(msg.toolResult, null, 2) : String(msg.toolResult)}
                                 </pre>
                               )}
                             </div>
@@ -197,6 +221,40 @@ export default function MessageList({ messages }: MessageListProps) {
                             />
                           );
                         }
+                        if ((part as any).type === 'file' && 'data' in part && 'mimeType' in part) {
+                          const filePart = part as any;
+                          if (filePart.mimeType.startsWith('audio/')) {
+                            const src = `data:${filePart.mimeType};base64,${filePart.data}`;
+                            return (
+                              <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                                <FileAudio className="h-5 w-5 text-muted-foreground" />
+                                <audio 
+                                  controls 
+                                  src={src} 
+                                  className="flex-1 h-8"
+                                />
+                                {filePart.filename && (
+                                  <span className="text-sm text-muted-foreground truncate max-w-[120px]">
+                                    {filePart.filename}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            // Non-audio files (PDFs, etc.)
+                            return (
+                              <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                                <File className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm font-medium">
+                                  {filePart.filename || `${filePart.mimeType} file`}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {filePart.mimeType}
+                                </span>
+                              </div>
+                            );
+                          }
+                        }
                         return null;
                       })}
                       {isSystem && !msg.content && (
@@ -204,6 +262,7 @@ export default function MessageList({ messages }: MessageListProps) {
                       )}
                     </>
                   )}
+                  {/* Display imageData attachments if not already in content array */}
                   {msg.imageData && !Array.isArray(msg.content) && (
                     (() => {
                       const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.base64}`;
@@ -219,6 +278,36 @@ export default function MessageList({ messages }: MessageListProps) {
                       );
                     })()
                   )}
+                  {/* Display fileData attachments if not already in content array */}
+                  {msg.fileData && !Array.isArray(msg.content) && (
+                    <div className="mt-2">
+                      {msg.fileData.mimeType.startsWith('audio/') ? (
+                         <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                           <FileAudio className="h-5 w-5 text-muted-foreground" />
+                           <audio 
+                             controls 
+                             src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`} 
+                             className="flex-1 h-8"
+                           />
+                           {msg.fileData.filename && (
+                             <span className="text-sm text-muted-foreground truncate max-w-[120px]">
+                               {msg.fileData.filename}
+                             </span>
+                           )}
+                         </div>
+                       ) : (
+                         <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                           <File className="h-5 w-5 text-muted-foreground" />
+                           <span className="text-sm font-medium">
+                             {msg.fileData.filename || `${msg.fileData.mimeType} file`}
+                           </span>
+                           <span className="text-xs text-muted-foreground">
+                             {msg.fileData.mimeType}
+                           </span>
+                         </div>
+                       )}
+                     </div>
+                   )}
                 </div>
               </div>
               {!isSystem && !isToolRelated && (

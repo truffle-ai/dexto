@@ -109,6 +109,7 @@ export default [
             'docs/.docusaurus/**',
             'scripts/dev.js',
             'scripts/dev-status.js',
+            'scripts/test_websocket.js',
             'src/app/web/client/script.js',
             'src/app/webui/tailwind.config.js',
             '**/.venv/**',

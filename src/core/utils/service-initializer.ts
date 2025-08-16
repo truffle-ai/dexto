@@ -1,8 +1,8 @@
 /*
- * Service Initializer: Centralized Wiring for Saiki Core Services
+ * Service Initializer: Centralized Wiring for Dexto Core Services
  *
  * This module is responsible for initializing and wiring together all core agent services (LLM, client manager, message manager, event bus, etc.)
- * for the Saiki application. It provides a single entry point for constructing the service graph, ensuring consistent dependency injection
+ * for the Dexto application. It provides a single entry point for constructing the service graph, ensuring consistent dependency injection
  * and configuration across CLI, web, and test environments.
  *
  * **Configuration Pattern:**
@@ -21,17 +21,18 @@
  * This pattern ensures a clean, scalable, and maintainable architecture, balancing flexibility with simplicity.
  */
 
-import { MCPManager } from '../client/manager.js';
-import { createToolConfirmationProvider } from '../client/tool-confirmation/factory.js';
-import { PromptManager } from '../ai/systemPrompt/manager.js';
-import { ConfigManager } from '../config/config-manager.js';
+import { MCPManager } from '../mcp/manager.js';
+import { ToolManager } from '../tools/tool-manager.js';
+import { createToolConfirmationProvider } from '../tools/confirmation/factory.js';
+import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../config/agent-state-manager.js';
-import { SessionManager } from '../ai/session/session-manager.js';
+import { SessionManager } from '../session/index.js';
+import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
 import { createStorageBackends, type StorageBackends, StorageManager } from '../storage/index.js';
-import { createAllowedToolsProvider } from '../client/tool-confirmation/allowed-tools-provider/factory.js';
+import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';
-import type { AgentConfig } from '../config/schemas.js';
+import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
 
 /**
@@ -39,33 +40,32 @@ import { AgentEventBus } from '../events/index.js';
  */
 export type AgentServices = {
     mcpManager: MCPManager;
+    toolManager: ToolManager;
     promptManager: PromptManager;
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
+    searchService: SearchService;
     storage: StorageBackends;
     storageManager?: StorageManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
 /**
- * Loads and validates configuration and initializes all agent services as a single unit.
- * @param agentConfig The agent configuration object
- * @returns All the initialized services required for a Saiki agent
+ * Initializes all agent services from a validated configuration.
+ * @param config The validated agent configuration object
+ * @param configPath Optional path to the config file (for relative path resolution)
+ * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
-    agentConfig: AgentConfig,
+    config: ValidatedAgentConfig,
     configPath?: string
 ): Promise<AgentServices> {
-    // 1. Initialize config manager and validate
-    const configManager = new ConfigManager(agentConfig);
-    const config = configManager.getConfig();
-
-    // 2. Initialize shared event bus
+    // 1. Initialize shared event bus
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 3. Initialize storage backends (instance-specific, not singleton)
+    // 2. Initialize storage backends (instance-specific, not singleton)
     logger.debug('Initializing storage backends');
     const storageResult = await createStorageBackends(config.storage);
     const storage = storageResult.backends;
@@ -76,7 +76,7 @@ export async function createAgentServices(
         database: config.storage.database.type,
     });
 
-    // 4. Initialize client manager with configurable tool confirmation
+    // 3. Initialize client manager with configurable tool confirmation
     // Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
         type: config.toolConfirmation.allowedToolsStorage,
@@ -84,40 +84,65 @@ export async function createAgentServices(
     });
 
     // Create tool confirmation provider with configured mode and timeout
-    const confirmationProvider = createToolConfirmationProvider({
-        mode: config.toolConfirmation.mode,
-        allowedToolsProvider,
-        agentEventBus,
-        confirmationTimeout: config.toolConfirmation.timeout,
-    });
+    const confirmationProvider = createToolConfirmationProvider(
+        config.toolConfirmation.mode === 'event-based'
+            ? {
+                  mode: config.toolConfirmation.mode,
+                  allowedToolsProvider,
+                  agentEventBus,
+                  confirmationTimeout: config.toolConfirmation.timeout,
+              }
+            : {
+                  mode: config.toolConfirmation.mode,
+                  allowedToolsProvider,
+              }
+    );
 
     const mcpManager = new MCPManager(confirmationProvider);
     await mcpManager.initializeFromConfig(config.mcpServers);
+
+    // 4. Initialize search service
+    const searchService = new SearchService(storage.database);
+
+    // 5. Initialize unified tool manager with internal tools options
+    const toolManager = new ToolManager(mcpManager, confirmationProvider, {
+        internalToolsServices: { searchService },
+        internalToolsConfig: config.internalTools,
+    });
+
+    // Initialize the tool manager
+    await toolManager.initialize();
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
     if (mcpServerCount === 0) {
         logger.info('Agent initialized without MCP servers - only built-in capabilities available');
     } else {
-        logger.debug(`Client manager initialized with ${mcpServerCount} MCP server(s)`);
+        logger.debug(`MCPManager initialized with ${mcpServerCount} MCP server(s)`);
     }
 
-    // 5. Initialize prompt manager
+    if (config.internalTools.length === 0) {
+        logger.info('No internal tools enabled by configuration');
+    } else {
+        logger.info(`Internal tools enabled: ${config.internalTools.join(', ')}`);
+    }
+
+    // 6. Initialize prompt manager
     const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
     logger.debug(
         `[ServiceInitializer] Creating PromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
     const promptManager = new PromptManager(config.systemPrompt, configDir);
 
-    // 6. Initialize state manager for runtime state tracking
+    // 7. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
-    // 7. Initialize session manager
+    // 8. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,
             promptManager,
-            mcpManager,
+            toolManager,
             agentEventBus,
             storage, // Add storage backends to session services
         },
@@ -132,13 +157,15 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 8. Return the core services
+    // 9. Return the core services
     return {
         mcpManager,
+        toolManager,
         promptManager,
         agentEventBus,
         stateManager,
         sessionManager,
+        searchService,
         storage,
         storageManager,
     };

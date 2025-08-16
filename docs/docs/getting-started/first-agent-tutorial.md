@@ -4,10 +4,10 @@ sidebar_position: 3
 
 # Build Your First Agent
 
-Now that you have Saiki installed, let's build your first custom agent. This tutorial will guide you through creating an `agent.yml` file to define an agent with a unique personality and tools.
+Now that you have Dexto installed, let's build your first custom agent. This tutorial will guide you through creating an `agent.yml` file to define an agent with a unique personality and tools.
 
 ### 1. Create Your Agent Configuration
-The heart of a Saiki agent is the `agent.yml` configuration file. This is where you declaratively define the agent's identity and capabilities.
+The heart of a Dexto agent is the `agent.yml` configuration file. This is where you declaratively define the agent's identity and capabilities.
 
 Create a new directory for your project and add a basic configuration:
 
@@ -44,13 +44,13 @@ llm:
 Now run your agent from inside the `my-pirate-agent` directory:
 
 ```bash
-saiki --agent agent.yml "Who are you?"
+dexto --agent agent.yml "Who are you?"
 ```
 
 Your agent should now respond like a pirate. You've just changed your agent's behavior through declarative configuration—no code required.
 
 ### 3. Add Tool Integration
-A core feature of Saiki is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
+A core feature of Dexto is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
 
 Add the `puppeteer` tool to your configuration:
 
@@ -76,7 +76,7 @@ The runtime will automatically handle tool installation and integration when you
 Start an interactive session with your enhanced agent:
 
 ```bash
-saiki --agent agent.yml
+dexto --agent agent.yml
 ```
 
 Now ask it to use its new web browsing capability:
@@ -92,6 +92,6 @@ You've just built and customized your first AI agent using declarative configura
 - ✅ Integrate external tools via MCP servers
 - ✅ Run and interact with your agent using the runtime
 
-This is the fundamental development workflow with Saiki: configure declaratively, let the runtime handle orchestration, and focus on your agent's purpose rather than implementation details.
+This is the fundamental development workflow with Dexto: configure declaratively, let the runtime handle orchestration, and focus on your agent's purpose rather than implementation details.
 
 **Next Steps**: Explore adding more [tools](../concepts/tools.md) or building [multi-agent systems](../tutorials/multi-agent-systems.md).

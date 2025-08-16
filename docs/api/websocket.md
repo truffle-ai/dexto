@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # WebSocket API
 
-The WebSocket API offers real-time, bidirectional communication with Saiki. Use this for building highly interactive applications.
+The WebSocket API offers real-time, bidirectional communication with Dexto. Use this for building highly interactive applications.
 
 ### Connection URL
 <p class="api-endpoint-header"><code>ws://localhost:3000/</code></p>
@@ -23,7 +23,8 @@ Instructs the agent to process a user prompt.
   "content": "Your prompt here",
   "sessionId": "optional-session-id",
   "stream": true,
-  "imageData": { "base64": "...", "mimeType": "image/jpeg" }
+  "imageData": { "base64": "...", "mimeType": "image/jpeg" },
+  "fileData": { "base64": "...", "mimeType": "application/pdf", "filename": "doc.pdf" }
 }
 ```
 
@@ -43,9 +44,13 @@ Listen for these events from the server. All events follow the `{ "event": "EVEN
 
 | Event | Data Payload | Description |
 | :--- | :--- | :--- |
-| `thinking` | `{}` | The agent has received the prompt and started processing. |
-| `chunk` | `{ "content": "..." }` | A part of the agent's response when `stream` is `true`. |
-| `response` | `{ "content": "..." }` | The final, complete response from the agent. |
-| `toolCall` | `{ "toolName", "serverId", "arguments" }` | Informs that the agent is about to execute a tool. |
-| `toolResult` | `{ "toolName", "serverId", "result" }` | Provides the result from a tool's execution. |
-| `error` | `{ "message": "..." }` | An error occurred during message processing. | 
+| `thinking` | `{ sessionId }` | The agent has received the prompt and started processing. |
+| `chunk` | `{ text, isComplete?, sessionId }` | A part of the agent's response when `stream` is `true`. |
+| `response` | `{ text, tokenCount?, model?, sessionId }` | The final, complete response from the agent. |
+| `toolCall` | `{ toolName, args, callId?, sessionId }` | Informs that the agent is about to execute a tool. |
+| `toolResult` | `{ toolName, result, callId?, success, sessionId }` | Provides the result from a tool's execution. |
+| `conversationReset` | `{ sessionId }` | Conversation history cleared for session. |
+| `mcpServerConnected` | `{ name, success, error? }` | MCP server connection result. |
+| `availableToolsUpdated` | `{ tools, source }` | Available tools changed. |
+| `toolConfirmationRequest` | `{ ... }` | Request to confirm a tool execution. |
+| `error` | `{ message, context?, recoverable?, sessionId }` | An error occurred during message processing. |

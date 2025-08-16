@@ -126,7 +126,7 @@ mcpServers:
     type: stdio
     command: npx
     args:
-      - saiki
+      - dexto
       - --mode
       - mcp
       - --agent
@@ -137,7 +137,7 @@ mcpServers:
     type: stdio
     command: npx
     args:
-      - saiki
+      - dexto
       - --mode
       - mcp
       - --agent
@@ -148,7 +148,7 @@ mcpServers:
     type: stdio
     command: npx
     args:
-      - saiki
+      - dexto
       - --mode
       - mcp
       - --agent
@@ -159,7 +159,7 @@ mcpServers:
     type: stdio
     command: npx
     args:
-      - saiki
+      - dexto
       - --mode
       - mcp
       - --agent

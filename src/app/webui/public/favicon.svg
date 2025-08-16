@@ -21,6 +21,6 @@
   <!-- Robot Antenna -->
   <rect x="15.5" y="2" width="1" height="3" fill="url(#robotGradient)"/>
   <circle cx="16" cy="2" r="1.5" fill="url(#robotGradient)"/>
-  <!-- Saiki A Logo -->
+  <!-- Dexto A Logo -->
   <path d="M12 23 L14 27 L16 23 L15 23 L14 25 L13 23 Z" fill="#FF6B35"/>
 </svg> 

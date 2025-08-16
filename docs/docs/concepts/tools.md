@@ -13,10 +13,10 @@ sidebar_label: "What are Tools?"
 
 AI agents are powerful because they can go beyond language understanding—they can take real actions in the world. Tools are the bridge between the agent's reasoning and real-world effects.
 
-### How do Saiki Agents use Tools?
-Saiki agents use tools from MCP servers - MCP servers define the tools, saiki uses them.
+### How do Dexto Agents use Tools?
+Dexto agents use tools from MCP servers - MCP servers define the tools, dexto uses them.
 
-### Examples of Tools in Saiki
+### Examples of Tools in Dexto
 
 - **Filesystem Tool:** Read, write, or search files on your computer.
 - **Web Browser Tool:** Automate web browsing, scraping, or form submissions.
@@ -26,16 +26,16 @@ Saiki agents use tools from MCP servers - MCP servers define the tools, saiki us
 
 ### How Tools Work
 
-- Tools are registered with Saiki agents via MCP configuration (see the Configuration docs).
+- Tools are registered with Dexto agents via MCP configuration (see the Configuration docs).
 - When you give a natural language command, the agent decides which tools to use and in what order.
 - The agent can chain multiple tools together to accomplish complex tasks.
 
 **Example:**
 > "Find all PDF files in my Downloads folder and email them to me."
 
-- The Saiki agent uses the Filesystem Tool to search for PDFs.
+- The Dexto agent uses the Filesystem Tool to search for PDFs.
 - Then uses the Email Tool to send them—all automatically.
 
 ### Extending with Your Own Tools
 
-Saiki agents are extensible: you can add your own tools by implementing an MCP server or connecting to existing APIs. This lets you automate anything you can describe and connect. 
+Dexto agents are extensible: you can add your own tools by implementing an MCP server or connecting to existing APIs. This lets you automate anything you can describe and connect. 

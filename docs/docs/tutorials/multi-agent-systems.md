@@ -4,12 +4,12 @@ sidebar_position: 3
 
 # Building Multi-Agent Systems
 
-Learn how to build multi-agent systems where Saiki agents can communicate with each other using the Model Context Protocol (MCP). This powerful pattern enables specialized agents to collaborate and delegate tasks to each other.
+Learn how to build multi-agent systems where Dexto agents can communicate with each other using the Model Context Protocol (MCP). This powerful pattern enables specialized agents to collaborate and delegate tasks to each other.
 
 ## Overview
 
 In this guide, you'll learn how to:
-- Set up multiple Saiki agents running on different ports
+- Set up multiple Dexto agents running on different ports
 - Configure one agent to use another as an MCP server
 - Enable inter-agent communication through tool calls
 - Build collaborative agent workflows
@@ -162,16 +162,16 @@ COHERE_API_KEY=your_cohere_key
 
 ## Step 5: Run the Multi-Agent System
 
-That's it! No custom code needed. Just run Saiki with different configs and ports:
+That's it! No custom code needed. Just run Dexto with different configs and ports:
 
 ### Terminal 1: Start the Researcher Agent
 ```bash
-saiki --mode mcp --web-port 3001 --agent researcher.yml
+dexto --mode mcp --web-port 3001 --agent researcher.yml
 ```
 
 ### Terminal 2: Start the Writer Agent  
 ```bash
-saiki --mode web --web-port 3002 --agent writer.yml
+dexto --mode web --web-port 3002 --agent writer.yml
 ```
 
 ### Terminal 3: Test the System
@@ -214,11 +214,11 @@ researcher:
   timeout: 30000                       # 30-second timeout
 ```
 
-When Saiki runs in `mcp` or `web` mode, it automatically exposes an MCP endpoint at `/mcp` that other agents can connect to. The `mcp` mode is specifically designed for agents that primarily serve as MCP servers for other agents.
+When Dexto runs in `mcp` or `web` mode, it automatically exposes an MCP endpoint at `/mcp` that other agents can connect to. The `mcp` mode is specifically designed for agents that primarily serve as MCP servers for other agents.
 
 ### The Power of Configuration-First
 
-This example demonstrates Saiki's core philosophy:
+This example demonstrates Dexto's core philosophy:
 - **No custom code** - just YAML configuration
 - **Built-in web server** - automatic API and UI
 - **Automatic MCP endpoints** - no need to implement protocols
@@ -247,16 +247,16 @@ mcpServers:
 Then run:
 ```bash
 # Terminal 1: Researcher (MCP server mode)
-saiki --mode mcp --web-port 3001 --agent researcher.yml
+dexto --mode mcp --web-port 3001 --agent researcher.yml
 
 # Terminal 2: Fact-checker (MCP server mode)
-saiki --mode mcp --web-port 3003 --agent fact-checker.yml
+dexto --mode mcp --web-port 3003 --agent fact-checker.yml
 
 # Terminal 3: Editor (MCP server mode)
-saiki --mode mcp --web-port 3004 --agent editor.yml
+dexto --mode mcp --web-port 3004 --agent editor.yml
 
 # Terminal 4: Writer (Web UI for user interaction)
-saiki --mode web --web-port 3002 --agent writer.yml
+dexto --mode web --web-port 3002 --agent writer.yml
 ```
 
 ### 2. Bidirectional Communication
@@ -315,12 +315,12 @@ llm:
 Run the system:
 ```bash
 # Start specialized agents (MCP servers)
-saiki --mode mcp --web-port 3001 --agent researcher.yml
-saiki --mode mcp --web-port 3002 --agent writer.yml  
-saiki --mode mcp --web-port 3003 --agent reviewer.yml
+dexto --mode mcp --web-port 3001 --agent researcher.yml
+dexto --mode mcp --web-port 3002 --agent writer.yml  
+dexto --mode mcp --web-port 3003 --agent reviewer.yml
 
 # Start coordinator (Web UI for user interaction)
-saiki --mode web --web-port 3000 --agent coordinator.yml
+dexto --mode web --web-port 3000 --agent coordinator.yml
 ```
 
 ## Production Considerations
@@ -338,12 +338,12 @@ module.exports = {
   apps: [
     {
       name: 'researcher-agent',
-      script: 'saiki',
+      script: 'dexto',
       args: '--mode mcp --web-port 3001 --agent researcher.yml'
     },
     {
       name: 'writer-agent', 
-      script: 'saiki',
+      script: 'dexto',
       args: '--mode web --web-port 3002 --agent writer.yml'
     }
   ]
@@ -361,9 +361,9 @@ pm2 start ecosystem.config.js
 FROM node:18-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm install -g @truffle-ai/saiki
+RUN npm install -g dexto
 COPY . .
-CMD ["saiki", "--mode", "web", "--web-port", "3000"]
+CMD ["dexto", "--mode", "web", "--web-port", "3000"]
 ```
 
 ```yaml
@@ -377,7 +377,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
-    command: saiki --mode mcp --web-port 3000 --agent researcher.yml
+    command: dexto --mode mcp --web-port 3000 --agent researcher.yml
     
   writer:
     build: .
@@ -385,7 +385,7 @@ services:
       - "3002:3000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    command: saiki --mode web --web-port 3000 --agent writer.yml
+    command: dexto --mode web --web-port 3000 --agent writer.yml
     depends_on:
       - researcher
 ```
@@ -439,4 +439,4 @@ server {
 - **Integration**: Connect to external services and APIs
 - **Monitoring**: Add health checks and logging
 
-The beauty of Saiki's multi-agent systems is their simplicity - just configuration files and command-line arguments. No custom code, no complex deployments, just pure agent collaboration! 🤖✨ 
+The beauty of Dexto's multi-agent systems is their simplicity - just configuration files and command-line arguments. No custom code, no complex deployments, just pure agent collaboration! 🤖✨ 

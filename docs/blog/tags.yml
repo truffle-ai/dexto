@@ -18,7 +18,7 @@ autonomous-ai:
   permalink: /autonomous-ai
   description: Posts about autonomous AI systems and automation
 
-saiki:
-  label: Saiki
-  permalink: /saiki
-  description: Posts about the Saiki open-source AI agent runtime
+dexto:
+  label: Dexto
+  permalink: /dexto
+  description: Posts about the Dexto open-source AI agent runtime

@@ -132,7 +132,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         );
 
         eventBus.on(
-            'saiki:conversationReset',
+            'dexto:conversationReset',
             (payload) => {
                 this.broadcast({
                     event: 'conversationReset',
@@ -145,7 +145,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         );
 
         eventBus.on(
-            'saiki:mcpServerConnected',
+            'dexto:mcpServerConnected',
             (payload) => {
                 this.broadcast({
                     event: 'mcpServerConnected',
@@ -160,7 +160,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         );
 
         eventBus.on(
-            'saiki:availableToolsUpdated',
+            'dexto:availableToolsUpdated',
             (payload) => {
                 this.broadcast({
                     event: 'availableToolsUpdated',
@@ -175,7 +175,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
 
         // Forward pre-execution tool confirmation events
         eventBus.on(
-            'saiki:toolConfirmationRequest',
+            'dexto:toolConfirmationRequest',
             (payload) => {
                 this.broadcast({
                     event: 'toolConfirmationRequest',

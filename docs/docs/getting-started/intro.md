@@ -4,13 +4,13 @@ sidebar_position: 1
 
 # Introduction
 
-Saiki is an **AI Agent Runtime** that orchestrates intelligent, stateful agents capable of reasoning, executing tools, and completing complex tasks. Instead of building agents from scratch—setting up LLM clients, managing state, implementing tool calling, handling sessions—you simply configure them declaratively and let Saiki handle the orchestration.
+Dexto is an **AI Agent Runtime** that orchestrates intelligent, stateful agents capable of reasoning, executing tools, and completing complex tasks. Instead of building agents from scratch—setting up LLM clients, managing state, implementing tool calling, handling sessions—you simply configure them declaratively and let Dexto handle the orchestration.
 
-## Why Saiki?
+## Why Dexto?
 
 Traditional AI applications are stateless and limited to single interactions. Your agent forgets context, loses track of ongoing tasks, and can't coordinate multiple tools effectively.
 
-**Saiki changes this** by providing a runtime that maintains persistent agent state, handles complex reasoning loops, and manages tool execution—giving you agents that can:
+**Dexto changes this** by providing a runtime that maintains persistent agent state, handles complex reasoning loops, and manages tool execution—giving you agents that can:
 
 - 🧠 **Remember everything** across conversations and sessions  
 - 🔄 **Work on long-running tasks** without losing progress
@@ -53,7 +53,7 @@ flowchart TD
 
 ## What You Get
 
-Saiki provides everything you need to build sophisticated AI agents:
+Dexto provides everything you need to build sophisticated AI agents:
 
 - **Persistent Conversations** - Maintain context across sessions with configurable storage backends (Redis, PostgreSQL, SQLite, in-memory)
 - **Multi-Session Support** - Run concurrent conversations with isolation, limits, and automatic cleanup
@@ -68,14 +68,14 @@ Saiki provides everything you need to build sophisticated AI agents:
 
 :::tip Quick Start
 1. **📝 Configure Your Agent**: Create an `agent.yml` file defining your agent's purpose and capabilities
-2. **🚀 Start the Runtime**: Launch Saiki to orchestrate your agent with persistent state and tool access  
+2. **🚀 Start the Runtime**: Launch Dexto to orchestrate your agent with persistent state and tool access  
 3. **💬 Interact**: Use CLI, Web UI, API, or embed directly using the SDK
 :::
 
 ## Ready to Build Your First Agent?
 
-**[Install Saiki →](./installation.md)**
+**[Install Dexto →](./installation.md)**
 
 ---
 
-*Saiki is built by the team at Truffle AI. Join our community and help shape the future of intelligent agent orchestration!* 
+*Dexto is built by the team at Truffle AI. Join our community and help shape the future of intelligent agent orchestration!* 

@@ -6,30 +6,30 @@ sidebar_position: 2
 
 ## Overview
 
-Saiki web playground is the easiest way to test out different LLMs, MCP servers, prompts, and more!
+Dexto web playground is the easiest way to test out different LLMs, MCP servers, prompts, and more!
 
-Once you're satisfied with a specific combination, save it as a **Re-usable** AI agent built with Saiki, and deploy the agent anywhere.
+Once you're satisfied with a specific combination, save it as a **Re-usable** AI agent built with Dexto, and deploy the agent anywhere.
 
-All this is possible because Saiki sees any valid config file as a re-usable AI agent.
+All this is possible because Dexto sees any valid config file as a re-usable AI agent.
 
-Saiki web playground also stores your conversation history locally so it remembers your past conversations!
+Dexto web playground also stores your conversation history locally so it remembers your past conversations!
 
 ## Get started
-**Start saiki web playground:**
+**Start dexto web playground:**
 
 ```bash
-saiki --mode web
+dexto --mode web
 ```
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Or open saiki web playground in a different port:
+Or open dexto web playground in a different port:
 
 ```bash
-saiki --mode web --web-port 3333
+dexto --mode web --web-port 3333
 ```
 
 ## Conversation storage
 
-When installed as a global CLI, saiki stores conversation history in `~/.saiki` folder by default
+When installed as a global CLI, dexto stores conversation history in `~/.dexto` folder by default
 
-In development mode, storage location defaults to`<path_to_saiki_project_dir>/.saiki`
+In development mode, storage location defaults to`<path_to_dexto_project_dir>/.dexto`

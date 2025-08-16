@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # MCP Manager
 
-The MCPManager is Saiki's powerful standalone utility for managing Model Context Protocol (MCP) servers. Use it in your own applications to connect, manage, and interact with multiple MCP servers without needing the full Saiki agent framework.
+The MCPManager is Dexto's powerful standalone utility for managing Model Context Protocol (MCP) servers. Use it in your own applications to connect, manage, and interact with multiple MCP servers without needing the full Dexto agent framework.
 
 ## Overview
 
@@ -18,13 +18,13 @@ The MCPManager provides:
 ## Installation
 
 ```bash
-npm install @truffle-ai/saiki
+npm install dexto
 ```
 
 ## Quick Start
 
 ```typescript
-import { MCPManager } from '@truffle-ai/saiki';
+import { MCPManager } from 'dexto';
 
 // Create manager instance
 const manager = new MCPManager();
@@ -179,7 +179,7 @@ Create an API that exposes MCP tools:
 
 ```typescript
 import express from 'express';
-import { MCPManager } from '@truffle-ai/saiki';
+import { MCPManager } from 'dexto';
 
 const app = express();
 app.use(express.json());

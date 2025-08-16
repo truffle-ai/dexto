@@ -13,6 +13,6 @@ AI agents operate by understanding your natural language instructions, reasoning
 
 A key part of this process is the use of **tools** — external services, APIs, or modules that enable the agent to take real actions in the world. Tools are the bridge between the agent's reasoning and real-world effects.
 
-Saiki CLI is an AI Agent that does all this for you - you just setup Saiki CLI the way you want to, and tell it what to do - Saiki CLI does the rest!
+Dexto CLI is an AI Agent that does all this for you - you just setup Dexto CLI the way you want to, and tell it what to do - Dexto CLI does the rest!
 
-To learn more about tools and their role in Saiki, continue to the next section: [Tools](./tools.md). 
+To learn more about tools and their role in Dexto, continue to the next section: [Tools](./tools.md). 

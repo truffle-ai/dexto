@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { logger } from '@core/index.js';
 import { getSupportedProviders } from '@core/index.js';
+import chalk from 'chalk';
 
 /**
  * Validates the command-line options.
@@ -8,13 +8,11 @@ import { getSupportedProviders } from '@core/index.js';
  * @throws {z.ZodError} If validation fails.
  */
 export function validateCliOptions(opts: any): void {
-    logger.debug('Validating command-line options', 'cyanBright');
-
     const supportedProviders = getSupportedProviders().map((p) => p.toLowerCase());
 
     // Base schema for primitive shape
     const cliOptionShape = z.object({
-        agent: z.string().nonempty('Agent config file path must not be empty'),
+        agent: z.string().min(1, 'Agent config file path must not be empty').optional(),
         strict: z.boolean().optional().default(false),
         verbose: z.boolean().optional().default(true),
         mode: z.enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'], {
@@ -33,6 +31,11 @@ export function validateCliOptions(opts: any): void {
         provider: z.string().optional(),
         model: z.string().optional(),
         router: z.enum(['vercel', 'in-built']).optional(),
+        skipInteractive: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe('Skip interactive prompts and fail instead'),
     });
 
     // Basic semantic validation
@@ -84,24 +87,27 @@ export function validateCliOptions(opts: any): void {
         provider: opts.provider,
         model: opts.model,
         router: opts.router,
+        skipInteractive: opts.skipInteractive,
     });
-
-    logger.debug('Command-line options validated successfully', 'green');
 }
 
 export function handleCliOptionsError(error: unknown): never {
     if (error instanceof z.ZodError) {
-        logger.error('Invalid command-line options detected:');
+        console.error(chalk.red('❌ Invalid command-line options detected:'));
         error.errors.forEach((err) => {
             const fieldName = err.path.join('.') || 'Unknown Option';
-            logger.error(`- Option '${fieldName}': ${err.message}`);
+            console.error(chalk.red(`   • Option '${fieldName}': ${err.message}`));
         });
-        logger.error(
-            'Please check your command-line arguments or run with --help for usage details.'
+        console.error(
+            chalk.dim(
+                '\nPlease check your command-line arguments or run with --help for usage details.'
+            )
         );
     } else {
-        logger.error(
-            `Validation error: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+        console.error(
+            chalk.red(
+                `❌ Validation error: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+            )
         );
     }
     process.exit(1);

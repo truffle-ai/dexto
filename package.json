@@ -1,6 +1,6 @@
 {
-    "name": "@truffle-ai/saiki",
-    "version": "0.3.6",
+    "name": "dexto",
+    "version": "1.0.2",
     "engines": {
         "node": ">=20.0.0",
         "npm": ">=8.3.0"
@@ -11,7 +11,7 @@
     "module": "dist/src/core/index.js",
     "types": "dist/src/core/index.d.ts",
     "bin": {
-        "saiki": "./dist/src/app/index.js"
+        "dexto": "./dist/src/app/index.js"
     },
     "exports": {
         ".": {
@@ -23,7 +23,7 @@
     },
     "scripts": {
         "clean": "npx rimraf dist build public coverage logs .eslintcache test-temp && npm run clean:storage && npx tsx scripts/clean-build-files.ts",
-        "clean:storage": "npx rimraf .saiki",
+        "clean:storage": "npx rimraf .dexto",
         "prebuild": "",
         "build": "npm run clean && npm run build-webui && tsup && npm run copy-webui-dist",
         "build:check": "npm run typecheck && npm run build",
@@ -56,13 +56,15 @@
         "cli",
         "natural-language",
         "openai",
-        "truffle-ai"
+        "truffle-ai",
+        "dexto"
     ],
     "author": "",
     "license": "Elastic-2.0",
     "files": [
         "dist/",
         "agents/agent.yml",
+        "agents/agent-template.yml",
         "public/"
     ],
     "dependencies": {
@@ -98,7 +100,8 @@
         "winston": "^3.17.0",
         "ws": "^8.18.1",
         "yaml": "^2.7.1",
-        "zod": "^3.24.3"
+        "zod": "^3.24.3",
+        "zod-to-json-schema": "^3.24.6"
     },
     "devDependencies": {
         "@eslint/js": "^9.23.0",

@@ -1,4 +1,4 @@
-# Saiki Playground
+# Dexto Playground
 
 This project is an interactive playground for testing MCP tools/servers tools and building your own AI agents.
 
@@ -14,7 +14,7 @@ This project is an interactive playground for testing MCP tools/servers tools an
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) allows AI models to securely connect to external tools and data sources. Saiki provides a simple interface to:
+The Model Context Protocol (MCP) allows AI models to securely connect to external tools and data sources. Dexto provides a simple interface to:
 
 - Connect to MCP servers
 - Test tool functionality
@@ -39,17 +39,17 @@ lsof -ti:3000-3001 | xargs kill -9
 
 Start one server for the API at the root directory of this project [port 3001]:
 ```bash
-[  2:29PM ]  [ ~/Projects/saiki(storage✗) ]
- $ npm run build && npm link && saiki --mode server
+[  2:29PM ]  [ ~/Projects/dexto(storage✗) ]
+ $ npm run build && npm link && dexto --mode server
  ```
 
 then start the npm dev server [port 3000]
 
 ```bash
-[  2:31PM ]  [ karaj@MacBook-Pro:~/Projects/saiki/src/app/webui(storage✗) ]
+[  2:31PM ]  [ karaj@MacBook-Pro:~/Projects/dexto/src/app/webui(storage✗) ]
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to start testing your tools.
 
-This is temporary because the application functionality uses Saiki APIs built in the same project
+This is temporary because the application functionality uses Dexto APIs built in the same project

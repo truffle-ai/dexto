@@ -11,6 +11,7 @@ services:
   server:
     build:
       context: .
+
     env_file:
       - .env
     environment:

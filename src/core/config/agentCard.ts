@@ -1,5 +1,5 @@
 import type { AgentCard } from './types.js';
-import { AgentCardSchema } from './schemas.js';
+import { AgentCardSchema } from '@core/agent/schemas.js';
 
 /**
  * Minimal runtime context needed to establish defaults

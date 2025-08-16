@@ -104,12 +104,12 @@ export default function SessionPanel({
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('saiki:message', handleMessage);
-      window.addEventListener('saiki:response', handleResponse);
+      window.addEventListener('dexto:message', handleMessage);
+      window.addEventListener('dexto:response', handleResponse);
       
       return () => {
-        window.removeEventListener('saiki:message', handleMessage);
-        window.removeEventListener('saiki:response', handleResponse);
+        window.removeEventListener('dexto:message', handleMessage);
+        window.removeEventListener('dexto:response', handleResponse);
       };
     }
   }, [isOpen, fetchSessions]);

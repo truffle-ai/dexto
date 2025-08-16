@@ -5,20 +5,19 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-    title: 'Saiki',
+    title: 'Dexto',
     tagline: 'Build AI Agents with ease',
-    favicon: 'img/favicon.ico',
+    favicon: 'img/logo_no_text.png',
 
     // Set the production url of your site here
-    url: 'https://truffle-ai.github.io',
+    url: 'https://docs.dexto.ai',
     // Set the /<baseUrl>/ pathname under which your site is served
-    // For GitHub pages deployment, it is often '/<projectName>/'
-    baseUrl: '/saiki/',
+    baseUrl: '/',
 
     // GitHub pages deployment config.
     // If you aren't using GitHub pages, you don't need these.
     organizationName: 'truffle-ai', // Usually your GitHub org/user name.
-    projectName: 'saiki', // Usually your repo name.
+    projectName: 'dexto', // Usually your repo name.
 
     onBrokenLinks: 'throw',
     onBrokenMarkdownLinks: 'warn',
@@ -42,12 +41,12 @@ const config: Config = {
                         type: ['rss', 'atom'],
                         xslt: true,
                     },
-                    editUrl: 'https://github.com/truffle-ai/saiki/tree/main/docs/',
+                    editUrl: 'https://github.com/truffle-ai/dexto/tree/main/docs/',
                     onInlineTags: 'warn',
                     onInlineAuthors: 'warn',
                     onUntruncatedBlogPosts: 'warn',
-                    blogTitle: 'Saiki Blog',
-                    blogDescription: 'The official blog for AI agents using Saiki',
+                    blogTitle: 'Dexto Blog',
+                    blogDescription: 'The official blog for AI agents using Dexto',
                     blogSidebarCount: 'ALL',
                 },
                 theme: {
@@ -65,25 +64,22 @@ const config: Config = {
 
     themeConfig: {
         // Replace with your project's social card
-        image: 'img/saiki-social-card.jpg',
+        image: 'img/dexto-social-card.jpg',
         docs: {
             sidebar: {
                 hideable: true,
-                autoCollapseCategories: true,
+                autoCollapseCategories: false,
             },
         },
         colorMode: {
-            defaultMode: 'light',
+            defaultMode: 'dark',
             disableSwitch: false,
             respectPrefersColorScheme: true,
         },
         navbar: {
-            title: 'Saiki',
             logo: {
-                alt: 'Saiki Logo',
-                src: 'img/favicon.ico',
-                width: 32,
-                height: 32,
+                alt: 'Dexto Logo',
+                src: 'img/logo.svg',
             },
             hideOnScroll: true,
             items: [
@@ -111,7 +107,7 @@ const config: Config = {
                     'aria-label': 'Discord community',
                 },
                 {
-                    href: 'https://github.com/truffle-ai/saiki',
+                    href: 'https://github.com/truffle-ai/dexto',
                     position: 'right',
                     className: 'header-github-link',
                     'aria-label': 'GitHub repository',
@@ -123,7 +119,7 @@ const config: Config = {
                     className: 'mobile-social-links',
                     value: `
                         <a href="https://discord.gg/GFzWFAAZcm" aria-label="Discord community" class="header-discord-link"></a>
-                        <a href="https://github.com/truffle-ai/saiki" aria-label="GitHub repository" class="header-github-link"></a>
+                        <a href="https://github.com/truffle-ai/dexto" aria-label="GitHub repository" class="header-github-link"></a>
                     `,
                 },
             ],
@@ -157,11 +153,11 @@ const config: Config = {
                         },
                         {
                             label: 'GitHub Discussions',
-                            href: 'https://github.com/truffle-ai/saiki/discussions',
+                            href: 'https://github.com/truffle-ai/dexto/discussions',
                         },
                         {
                             label: 'GitHub Issues',
-                            href: 'https://github.com/truffle-ai/saiki/issues',
+                            href: 'https://github.com/truffle-ai/dexto/issues',
                         },
                         {
                             label: 'X (Twitter)',
@@ -182,11 +178,11 @@ const config: Config = {
                         },
                         {
                             label: 'Contributing',
-                            href: 'https://github.com/truffle-ai/saiki/blob/main/CONTRIBUTING.md',
+                            href: 'https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md',
                         },
                         {
                             label: 'Changelog',
-                            href: 'https://github.com/truffle-ai/saiki/releases',
+                            href: 'https://github.com/truffle-ai/dexto/releases',
                         },
                     ],
                 },
@@ -228,7 +224,7 @@ const config: Config = {
         announcementBar: {
             id: 'support_us',
             content:
-                '⭐️ If you like Saiki, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/truffle-ai/saiki">GitHub</a> and join our <a target="_blank" rel="noopener noreferrer" href="https://discord.gg/GFzWFAAZcm">Discord</a>! ⭐️',
+                '⭐️ If you like Dexto, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/truffle-ai/dexto">GitHub</a> and join our <a target="_blank" rel="noopener noreferrer" href="https://discord.gg/GFzWFAAZcm">Discord</a>! ⭐️',
             backgroundColor: '#14b8a6',
             textColor: '#ffffff',
             isCloseable: true,
@@ -243,7 +239,7 @@ const config: Config = {
                 path: 'docs',
                 routeBasePath: 'docs',
                 sidebarPath: './sidebars.ts',
-                editUrl: 'https://github.com/truffle-ai/saiki/tree/main/docs/',
+                editUrl: 'https://github.com/truffle-ai/dexto/tree/main/docs/',
                 showLastUpdateAuthor: true,
                 showLastUpdateTime: true,
                 breadcrumbs: true,
@@ -256,7 +252,7 @@ const config: Config = {
                 path: 'api',
                 routeBasePath: 'api',
                 sidebarPath: './api-sidebars.ts',
-                editUrl: 'https://github.com/truffle-ai/saiki/tree/main/docs/',
+                editUrl: 'https://github.com/truffle-ai/dexto/tree/main/docs/',
                 showLastUpdateAuthor: true,
                 showLastUpdateTime: true,
                 breadcrumbs: true,
@@ -284,7 +280,7 @@ const config: Config = {
 
     stylesheets: [
         {
-            href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap',
+            href: 'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600&display=swap',
             type: 'text/css',
         },
     ],

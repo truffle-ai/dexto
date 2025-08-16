@@ -3,7 +3,7 @@
   "position": 3,
   "link": {
     "type": "generated-index",
-    "title": "Saiki API Reference",
-    "description": "Welcome to the Saiki API documentation. Here you will find detailed information about using Saiki as a Library, and about our REST and WebSocket APIs. To use the REST or Websocket API, you must first start the Saiki server by running the following command in your terminal:\n\n```bash\nsaiki --mode server\n```\n\nBy default, the server will start on `http://localhost:3001`."
+    "title": "Dexto API Reference",
+    "description": "Welcome to the Dexto API documentation. Here you will find detailed information about using Dexto as a Library, and about our REST and WebSocket APIs. To use the REST or Websocket API, you must first start the Dexto server by running the following command in your terminal:\n\n```bash\ndexto --mode server\n```\n\nBy default, the server will start on `http://localhost:3001`."
   }
 }
