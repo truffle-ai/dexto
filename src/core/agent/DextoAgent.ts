@@ -377,16 +377,11 @@ export class DextoAgent {
                         `Expanded ${expansion.expandedReferences.length} resource references`
                     );
                 }
-
-                if (expansion.unresolvedReferences.length > 0) {
-                    logger.warn(
-                        `Could not resolve ${expansion.unresolvedReferences.length} resource references: ${expansion.unresolvedReferences.map((r) => r.originalRef).join(', ')}`
-                    );
-                }
             } catch (error) {
                 // Log error but don't fail the entire message processing
                 logger.error(
-                    `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}`
+                    `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}`,
+                    {}
                 );
             }
 
@@ -1013,6 +1008,35 @@ export class DextoAgent {
     ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
         this.ensureStarted();
         return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     * @param serverId The MCP server ID to list resources for
+     * @returns Promise resolving to an array of resources for the server
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+
+        // Filter resources by server name and map to API format
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => ({
+                uri: (resource.metadata?.originalUri as string) || resource.uri,
+                name: resource.name || resource.uri.split('/').pop() || resource.uri,
+                originalUri: (resource.metadata?.originalUri as string) || resource.uri,
+                serverName: resource.serverName || serverId,
+            }));
+
+        return serverResources;
     }
 
     /**

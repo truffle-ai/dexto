@@ -403,21 +403,8 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // List resources for a specific MCP server
     app.get('/api/mcp/servers/:serverId/resources', async (req, res) => {
         const serverId = req.params.serverId;
-        const client = agent.getMcpClients().get(serverId);
-        if (!client) {
-            return res.status(404).json({
-                ok: false,
-                error: `Server '${serverId}' not found`,
-            });
-        }
         try {
-            const resourceUris = await client.listResources();
-            const resources = resourceUris.map((uri) => ({
-                uri,
-                name: uri.split('/').pop() || uri,
-                originalUri: uri,
-                serverName: serverId,
-            }));
+            const resources = await agent.listResourcesForServer(serverId);
             return res.status(200).json({ ok: true, resources });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -433,21 +420,36 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Read resource content from specific MCP server
     app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res) => {
         const serverId = req.params.serverId;
-        const resourceId = decodeURIComponent(req.params.resourceId);
-        const client = agent.getMcpClients().get(serverId);
-        if (!client) {
-            return res.status(404).json({
+        const resourceIdParam = req.params.resourceId;
+
+        // Validate parameters exist
+        if (!serverId || !resourceIdParam) {
+            return res.status(400).json({
                 ok: false,
-                error: `Server '${serverId}' not found`,
+                error: 'Missing serverId or resourceId parameters',
             });
         }
+
+        // Safely decode resourceId
+        let decodedResourceId: string;
         try {
-            const content = await client.readResource(resourceId);
+            decodedResourceId = decodeURIComponent(resourceIdParam);
+        } catch (_error) {
+            return res.status(400).json({
+                ok: false,
+                error: 'Invalid resourceId parameter - failed to decode URI component',
+            });
+        }
+
+        try {
+            // Build qualified URI for agent.readResource
+            const qualifiedUri = `mcp--${serverId}--${decodedResourceId}`;
+            const content = await agent.readResource(qualifiedUri);
             return res.status(200).json({ ok: true, content });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(
-                `Error reading resource '${resourceId}' from server '${serverId}': ${errorMessage}`
+                `Error reading resource '${decodedResourceId}' from server '${serverId}': ${errorMessage}`
             );
             return res.status(500).json({
                 ok: false,

@@ -38,7 +38,7 @@ describe('Resource Reference Parser - Unit Tests', () => {
             uri: 'custom--provider1--custom://resource',
             name: 'custom-resource',
             description: 'Custom resource',
-            source: 'mcp',
+            source: 'custom',
             metadata: {
                 originalUri: 'custom://resource',
                 providerName: 'provider1',

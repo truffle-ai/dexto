@@ -264,6 +264,7 @@ export async function expandMessageReferences(
 
     // Expand message by replacing references with content
     let expandedMessage = message;
+    const failedRefs: ResourceReference[] = [];
 
     for (const ref of expandedReferences) {
         try {
@@ -285,19 +286,23 @@ export async function expandMessageReferences(
             logger.error(
                 `Failed to read resource ${ref.resourceUri}: ${error instanceof Error ? error.message : String(error)}`
             );
-            // Move to unresolved references
-            unresolvedReferences.push(ref);
-            expandedReferences.splice(expandedReferences.indexOf(ref), 1);
+            // Collect failed refs to move to unresolved references
+            failedRefs.push(ref);
         }
     }
 
+    // Remove failed references from expandedReferences and add to unresolvedReferences
+    const failedRefSet = new Set(failedRefs);
+    const finalExpandedReferences = expandedReferences.filter((ref) => !failedRefSet.has(ref));
+    unresolvedReferences.push(...failedRefs);
+
     logger.info(
-        `Expanded ${expandedReferences.length} resource references, ${unresolvedReferences.length} unresolved`
+        `Expanded ${finalExpandedReferences.length} resource references, ${unresolvedReferences.length} unresolved`
     );
 
     return {
         expandedMessage,
-        expandedReferences,
+        expandedReferences: finalExpandedReferences,
         unresolvedReferences,
     };
 }
