@@ -8,17 +8,6 @@
 # database or a cache. For examples, see the Awesome Compose repository:
 # https://github.com/docker/awesome-compose
 services:
-  server:
-    build:
-      context: .
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: production
-    ports:
-      - "3001:3001"
-      - "9464:9464"
-
   prometheus:
     image: prom/prometheus:v2.47.0
     ports:
@@ -35,7 +24,7 @@ services:
   grafana:
     image: grafana/grafana:10.0.0
     ports:
-      - "3000:3000"
+      - "3002:3000"
     volumes:
       - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - ./grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/provider.yml

@@ -64,7 +64,7 @@ telemetry:
     port: 9464
   jaeger:
     enabled: true
-    endpoint: http://jaeger:14268/api/traces
+    endpoint: http://localhost:14268/api/traces
 
 
 # Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
