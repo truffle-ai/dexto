@@ -330,7 +330,7 @@ export class DextoAgent {
                 const targetSessionId = sessionId || this.currentDefaultSessionId;
                 span.setAttributes({
                     'dexto.session_id': targetSessionId,
-                    'dexto.input.text': textInput,
+                    'dexto.input.length': textInput.length,
                     'dexto.input.has_image': !!imageDataInput,
                     'dexto.input.has_file': !!fileDataInput,
                 });
@@ -385,7 +385,7 @@ export class DextoAgent {
                 }
 
                 logger.debug(
-                    `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
+                    `DextoAgent.run: inputLength: ${textInput.length}, hasImage: ${!!imageDataInput}, hasFile: ${!!fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
                 );
                 const response = await session.run(
                     textInput,
@@ -397,7 +397,7 @@ export class DextoAgent {
                 await this.sessionManager.incrementMessageCount(session.id);
 
                 if (response && response.trim() !== '') {
-                    span.setAttribute('dexto.output.text', response);
+                    span.setAttribute('dexto.output.length', response.length);
                     span.setStatus({ code: SpanStatusCode.OK });
                     return response;
                 }
@@ -683,8 +683,14 @@ export class DextoAgent {
         return this.tracer.startActiveSpan('DextoAgent.switchLLM', async (span) => {
             try {
                 this.ensureStarted();
+                const SENSITIVE_LLM_KEYS_REGEX =
+                    /apiKey|apikey|token|access_token|secret|password/i;
+                const nonSensitiveUpdateKeys = Object.keys(llmUpdates || {}).filter(
+                    (key) => !SENSITIVE_LLM_KEYS_REGEX.test(key)
+                );
+
                 span.setAttributes({
-                    'dexto.llm.updates': JSON.stringify(llmUpdates),
+                    'dexto.llm.update_fields': JSON.stringify(nonSensitiveUpdateKeys),
                     'dexto.session_id': sessionId || 'default',
                 });
 
@@ -997,11 +1003,10 @@ export class DextoAgent {
                 this.ensureStarted();
                 span.setAttributes({
                     'dexto.tool.name': toolName,
-                    'dexto.tool.args': JSON.stringify(args),
+                    'dexto.tool.has_args': Object.keys(args || {}).length > 0,
                 });
                 const result = await this.toolManager.executeTool(toolName, args);
                 span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
                 return result;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
