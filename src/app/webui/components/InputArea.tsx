@@ -406,7 +406,7 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
   return (
     <div
       id="input-area"
-      className="flex flex-col gap-2 w-full"
+      className="flex flex-col gap-2 w-full relative"
     >
       {/* Model Switch Error Alert */}
       {modelSwitchError && (

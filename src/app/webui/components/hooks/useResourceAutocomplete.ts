@@ -2,6 +2,14 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { ResourceMetadata } from './useResources';
 
+// Add DOM types for browser environment
+declare global {
+    interface Window {
+        HTMLTextAreaElement: typeof HTMLTextAreaElement;
+        Event: typeof Event;
+    }
+}
+
 interface AutocompleteState {
     isOpen: boolean;
     query: string;
@@ -23,24 +31,45 @@ export function useResourceAutocomplete(textareaRef: React.RefObject<HTMLTextAre
 
     // Calculate position for dropdown placement above the textarea
     const calculateDropdownPosition = useCallback(
-        (textarea: HTMLTextAreaElement, cursorPosition: number): { top: number; left: number } => {
-            // Get relative position within the textarea's parent
+        (textarea: HTMLTextAreaElement, _cursorPosition: number): { top: number; left: number } => {
+            // Find the input area container (the main wrapper)
+            const inputAreaContainer = textarea.closest('#input-area');
+            if (!inputAreaContainer) {
+                // Fallback to textarea's parent if input area not found
+                const textareaRect = textarea.getBoundingClientRect();
+                const parentElement = textarea.closest('.relative');
+                const parentRect = parentElement
+                    ? parentElement.getBoundingClientRect()
+                    : textareaRect;
+
+                const styles = window.getComputedStyle(textarea);
+                const paddingLeft = parseInt(styles.paddingLeft, 10) || 0;
+                const dropdownHeight = 200;
+                const textareaRelativeTop = textareaRect.top - parentRect.top;
+
+                return {
+                    top: textareaRelativeTop - dropdownHeight - 8,
+                    left: textareaRect.left - parentRect.left + paddingLeft,
+                };
+            }
+
+            // Get the input area container's position
+            const inputAreaRect = inputAreaContainer.getBoundingClientRect();
             const textareaRect = textarea.getBoundingClientRect();
-            const parentElement = textarea.closest('.relative');
-            const parentRect = parentElement ? parentElement.getBoundingClientRect() : textareaRect;
 
             // Get textarea's computed styles to account for padding
             const styles = window.getComputedStyle(textarea);
             const paddingLeft = parseInt(styles.paddingLeft, 10) || 0;
 
-            // Position dropdown above the entire textarea with some padding
-            const dropdownHeight = 200; // updated to match new max height
-            const textareaRelativeTop = textareaRect.top - parentRect.top;
+            // Calculate position relative to the input area container
+            const dropdownHeight = 200;
+            const textareaRelativeTop = textareaRect.top - inputAreaRect.top;
+            const textareaRelativeLeft = textareaRect.left - inputAreaRect.left;
 
-            // Position above the textarea with padding
+            // Position above the textarea with padding, aligned with the input area
             const top = textareaRelativeTop - dropdownHeight - 8;
             // Align with left edge of textarea content (accounting for padding)
-            const left = textareaRect.left - parentRect.left + paddingLeft;
+            const left = textareaRelativeLeft + paddingLeft;
 
             return { top, left };
         },
@@ -80,7 +109,7 @@ export function useResourceAutocomplete(textareaRef: React.RefObject<HTMLTextAre
             const query = '@' + textAfterAt;
             const position = calculateDropdownPosition(textareaRef.current, cursorPosition);
 
-            setState((prev) => ({
+            setState((_prev) => ({
                 isOpen: true,
                 query,
                 position,
@@ -195,7 +224,7 @@ export function useResourceAutocomplete(textareaRef: React.RefObject<HTMLTextAre
     );
 
     const closeAutocomplete = useCallback(() => {
-        setState((prev) => ({ ...prev, isOpen: false }));
+        setState((_prev) => ({ ..._prev, isOpen: false }));
     }, []);
 
     return {
