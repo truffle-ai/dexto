@@ -97,7 +97,7 @@ export const TelemetryConfigSchema = z
         jaeger: z
             .object({
                 enabled: z.boolean().default(true),
-                endpoint: z.string().url().default('http://localhost:6832'),
+                endpoint: z.string().url().default('http://localhost:4318/v1/traces'),
             })
             .strict()
             .default({}),

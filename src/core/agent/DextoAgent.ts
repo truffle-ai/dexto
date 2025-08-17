@@ -155,7 +155,7 @@ export class DextoAgent {
         try {
             logger.info('Starting DextoAgent...');
 
-            this.telemetryService.start();
+            await this.telemetryService.start();
 
             // Initialize all services asynchronously
             const services = await createAgentServices(this.config, this.configPath);

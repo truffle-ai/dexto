@@ -91,7 +91,17 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // Middleware to count all API requests for telemetry
     app.use((req, res, next) => {
-        apiRequestsCounter.add(1, { method: req.method, path: req.path });
+        // Guard against apiRequestsCounter not being initialized yet (race condition during startup)
+        if (apiRequestsCounter) {
+            // Record metrics only after the response has finished, so statusCode is available
+            res.on('finish', () => {
+                apiRequestsCounter?.add(1, {
+                    method: req.method,
+                    route: req.route?.path ?? 'unknown', // Use low-cardinality route path
+                    status: String(res.statusCode),
+                });
+            });
+        }
         next();
     });
 

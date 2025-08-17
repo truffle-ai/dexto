@@ -21,7 +21,7 @@ export class TelemetryService {
         this.agentName = config.agentCard?.name ?? 'dexto-agent';
     }
 
-    public start() {
+    public async start(): Promise<void> {
         if (!this.config.enabled) {
             logger.debug('Telemetry service is disabled in the configuration.');
             return;
@@ -51,7 +51,7 @@ export class TelemetryService {
             instrumentations: [getNodeAutoInstrumentations()],
         });
 
-        this.sdk.start();
+        await this.sdk.start();
         initializeMetrics(); // Initialize metrics AFTER the SDK has started
         logger.info('Telemetry service started.');
         if (this.config.prometheus.enabled) {
@@ -66,17 +66,19 @@ export class TelemetryService {
         }
     }
 
-    public shutdown(): Promise<void> {
+    public async shutdown(): Promise<void> {
         if (!this.sdk) {
             return Promise.resolve();
         }
         logger.info('Shutting down telemetry service...');
-        return this.sdk.shutdown().then(
+        await this.sdk.shutdown().then(
             () => {
                 logger.info('Telemetry service shut down successfully.');
             },
             (err) => {
-                logger.error('Error shutting down telemetry service:', err);
+                logger.error(
+                    `Error shutting down telemetry service: ${err instanceof Error ? err.stack : String(err)}`
+                );
             }
         );
     }

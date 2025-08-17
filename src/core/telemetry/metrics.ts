@@ -1,7 +1,7 @@
 import { metrics, Counter } from '@opentelemetry/api';
 
 // Declare the counter, but don't initialize it yet.
-export let apiRequestsCounter: Counter;
+export let apiRequestsCounter: Counter | undefined;
 
 export function initializeMetrics() {
     const meter = metrics.getMeter('dexto-agent');
