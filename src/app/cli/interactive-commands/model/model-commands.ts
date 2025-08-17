@@ -14,7 +14,7 @@
 
 import chalk from 'chalk';
 import { logger } from '@core/index.js';
-import { DextoAgent, DextoLLMError } from '@core/index.js';
+import { DextoAgent, DextoRuntimeError, DextoValidationError } from '@core/index.js';
 import { CommandDefinition } from '../command-parser.js';
 
 /**
@@ -124,22 +124,25 @@ export const modelCommands: CommandDefinition = {
                     await agent.switchLLM(llmConfig);
 
                     console.log(chalk.green(`✅ Successfully switched to ${model} (${provider})`));
-                } catch (error) {
-                    if (error instanceof DextoLLMError) {
+                } catch (error: unknown) {
+                    if (error instanceof DextoRuntimeError) {
                         console.log(chalk.red('❌ Failed to switch model:'));
-                        const errors = error.issues.filter((issue) => issue.severity === 'error');
-                        for (const err of errors) {
-                            console.log(chalk.red(`   ${err.message}`));
-                        }
-                        // Show warnings if any
-                        const warnings = error.issues.filter(
-                            (issue) => issue.severity === 'warning'
-                        );
-                        if (warnings.length > 0) {
-                            for (const warning of warnings) {
-                                console.log(chalk.yellow(`⚠️  ${warning.message}`));
+                        console.log(chalk.red(`   ${error.message}`));
+                        // Show error details
+                        console.log(chalk.dim(`   Code: ${error.code}`));
+                        if (error.recovery) {
+                            const recoverySteps = Array.isArray(error.recovery)
+                                ? error.recovery
+                                : [error.recovery];
+                            for (const step of recoverySteps) {
+                                console.log(chalk.blue(`💡 ${step}`));
                             }
                         }
+                    } else if (error instanceof DextoValidationError) {
+                        console.log(chalk.red('❌ Validation failed:'));
+                        error.errors.forEach((err) => {
+                            console.log(chalk.red(`   - ${err.message}`));
+                        });
                     } else {
                         logger.error(
                             `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`

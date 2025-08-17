@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
-import type { WebhookRegistrationRequest, WebhookConfig } from './webhook-types.js';
+import type { WebhookConfig } from './webhook-types.js';
 import { logger } from '@core/index.js';
 import type { AgentCard } from '@core/index.js';
 import { setupA2ARoutes } from './a2a.js';
@@ -16,7 +16,7 @@ import {
     type McpTransportType,
 } from './mcp/mcp_handler.js';
 import { createAgentCard } from '@core/index.js';
-import { DextoAgent, DextoValidationError } from '@core/index.js';
+import { DextoAgent } from '@core/index.js';
 import { stringify as yamlStringify } from 'yaml';
 import os from 'os';
 import { resolveBundledScript } from '@core/index.js';
@@ -31,6 +31,9 @@ import {
     getSupportedRoutersForProvider,
     supportsBaseURL,
 } from '@core/llm/registry.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { McpServerConfigSchema } from '@core/mcp/schemas.js';
+import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -54,34 +57,69 @@ const LLMSwitchRequestSchema = z
     .object({
         sessionId: z.string().optional(),
     })
-    .merge(LLMUpdatesSchema);
+    .and(LLMUpdatesSchema);
 
 /**
- * Helper function to validate request body and handle validation errors
+ * API request validation schemas based on actual usage
  */
-function validateBody<T>(
-    schema: z.ZodType<T>,
-    body: unknown
-): { success: true; data: T } | { success: false; response: any } {
-    const result = schema.safeParse(body);
+const MessageRequestSchema = z
+    .object({
+        message: z.string().optional(),
+        sessionId: z.string().optional(),
+        stream: z.boolean().optional(),
+        imageData: z
+            .object({
+                base64: z.string(),
+                mimeType: z.string(),
+            })
+            .optional(),
+        fileData: z
+            .object({
+                base64: z.string(),
+                mimeType: z.string(),
+                filename: z.string().optional(),
+            })
+            .optional(),
+    })
+    .refine(
+        (data) => {
+            const msg = (data.message ?? '').trim();
+            // Must have either message text, image data, or file data
+            return msg.length > 0 || !!data.imageData || !!data.fileData;
+        },
+        { message: 'Must provide either message text, image data, or file data' }
+    );
 
-    if (!result.success) {
-        return {
-            success: false,
-            response: {
-                ok: false,
-                issues: result.error.errors.map((err) => ({
-                    code: 'schema_validation',
-                    message: err.message,
-                    path: err.path,
-                    severity: 'error',
-                    context: { field: err.path.join('.') },
-                })),
-            },
-        };
-    }
+// Reuse existing MCP server config schema
+const McpServerRequestSchema = z.object({
+    name: z.string().min(1, 'Server name is required'),
+    config: McpServerConfigSchema,
+});
 
-    return { success: true, data: result.data };
+// Based on existing WebhookRegistrationRequest interface
+const WebhookRequestSchema = z.object({
+    url: z.string().url('Invalid URL format'),
+    secret: z.string().optional(),
+    description: z.string().optional(),
+});
+
+// Schema for search query parameters
+const SearchQuerySchema = z.object({
+    q: z.string().min(1, 'Search query is required'),
+    limit: z.coerce.number().min(1).max(100).optional(),
+    offset: z.coerce.number().min(0).optional(),
+    sessionId: z.string().optional(),
+    role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
+});
+
+// Helper to parse and validate request body
+function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
+    return schema.parse(body); // ZodError handled by error middleware
+}
+
+// Helper to parse and validate query parameters
+function parseQuery<T>(schema: z.ZodSchema<T>, query: unknown): T {
+    return schema.parse(query); // ZodError handled by error middleware
 }
 
 // TODO: API endpoint names are work in progress and might be refactored/renamed in future versions
@@ -109,24 +147,24 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         res.status(200).send('OK');
     });
 
-    app.post('/api/message', express.json(), async (req, res) => {
+    app.post('/api/message', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message');
-        if (!req.body || !req.body.message) {
-            return res.status(400).send({ error: 'Missing message content' });
-        }
         try {
-            const sessionId = req.body.sessionId as string | undefined;
-            const stream = req.body.stream === true; // Extract stream preference, default to false
-            const imageDataInput = req.body.imageData
-                ? { image: req.body.imageData.base64, mimeType: req.body.imageData.mimeType }
+            const { message, sessionId, stream, imageData, fileData } = parseBody(
+                MessageRequestSchema,
+                req.body
+            );
+
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
                 : undefined;
 
             // Process file data
-            const fileDataInput = req.body.fileData
+            const fileDataInput = fileData
                 ? {
-                      data: req.body.fileData.base64,
-                      mimeType: req.body.fileData.mimeType,
-                      filename: req.body.fileData.filename,
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      ...(fileData.filename && { filename: fileData.filename }),
                   }
                 : undefined;
 
@@ -134,159 +172,97 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             if (fileDataInput) logger.info('File data included in message.');
             if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            // Comprehensive input validation
-            const currentConfig = agent.getEffectiveConfig(sessionId);
-            const validation = validateInputForLLM(
-                {
-                    text: req.body.message,
-                    ...(imageDataInput && { imageData: imageDataInput }),
-                    ...(fileDataInput && { fileData: fileDataInput }),
-                },
-                {
-                    provider: currentConfig.llm.provider,
-                    model: currentConfig.llm.model,
-                }
+            const response = await agent.run(
+                message || '',
+                imageDataInput,
+                fileDataInput,
+                sessionId,
+                stream || false
             );
-
-            if (!validation.ok) {
-                const errorMessages = validation.issues
-                    .filter((issue) => issue.severity === 'error')
-                    .map((issue) => issue.message);
-
-                return res.status(400).send({
-                    error: errorMessages.join('; '),
-                    provider: currentConfig.llm.provider,
-                    model: currentConfig.llm.model,
-                    issues: validation.issues,
-                });
-            }
-
-            await agent.run(req.body.message, imageDataInput, fileDataInput, sessionId, stream);
-            return res.status(202).send({ status: 'processing', sessionId });
+            return res.status(202).send({ response, sessionId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error handling POST /api/message: ${errorMessage}`);
-            return res.status(500).send({ error: 'Internal server error' });
+            return next(error);
         }
     });
 
     // Synchronous endpoint: await the full AI response and return it in one go
-    app.post('/api/message-sync', express.json(), async (req, res) => {
+    app.post('/api/message-sync', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message-sync');
-        if (!req.body || !req.body.message) {
-            return res.status(400).send({ error: 'Missing message content' });
-        }
         try {
+            const { message, sessionId, imageData, fileData } = parseBody(
+                MessageRequestSchema,
+                req.body
+            );
+
             // Extract optional image and file data
-            const imageDataInput = req.body.imageData
-                ? { image: req.body.imageData.base64, mimeType: req.body.imageData.mimeType }
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
                 : undefined;
 
             // Process file data
-            const fileDataInput = req.body.fileData
+            const fileDataInput = fileData
                 ? {
-                      data: req.body.fileData.base64,
-                      mimeType: req.body.fileData.mimeType,
-                      filename: req.body.fileData.filename,
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      ...(fileData.filename && { filename: fileData.filename }),
                   }
                 : undefined;
-
-            const sessionId = req.body.sessionId as string | undefined;
-            const stream = req.body.stream === true; // Extract stream preference, default to false
             if (imageDataInput) logger.info('Image data included in message.');
             if (fileDataInput) logger.info('File data included in message.');
             if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            // Comprehensive input validation
-            const currentConfig = agent.getEffectiveConfig(sessionId);
-            const validation = validateInputForLLM(
-                {
-                    text: req.body.message,
-                    ...(imageDataInput && { imageData: imageDataInput }),
-                    ...(fileDataInput && { fileData: fileDataInput }),
-                },
-                {
-                    provider: currentConfig.llm.provider,
-                    model: currentConfig.llm.model,
-                }
+            const response = await agent.run(
+                message || '',
+                imageDataInput,
+                fileDataInput,
+                sessionId,
+                false // Force non-streaming for sync endpoint
             );
-
-            if (!validation.ok) {
-                const errorMessages = validation.issues
-                    .filter((issue) => issue.severity === 'error')
-                    .map((issue) => issue.message);
-
-                return res.status(400).send({
-                    error: errorMessages.join('; '),
-                    provider: currentConfig.llm.provider,
-                    model: currentConfig.llm.model,
-                    issues: validation.issues,
-                });
-            }
-
-            await agent.run(req.body.message, imageDataInput, fileDataInput, sessionId, stream);
-            return res.status(202).send({ status: 'processing', sessionId });
+            return res.status(200).json({ response, sessionId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error handling POST /api/message-sync: ${errorMessage}`);
-            return res.status(500).send({ error: 'Internal server error' });
+            return next(error);
         }
     });
 
-    app.post('/api/reset', express.json(), async (req, res) => {
+    app.post('/api/reset', express.json(), async (req, res, next) => {
         logger.info('Received request via POST /api/reset');
         try {
-            const sessionId = req.body.sessionId as string | undefined;
+            const { sessionId } = parseBody(
+                z.object({ sessionId: z.string().optional() }),
+                req.body
+            );
             await agent.resetConversation(sessionId);
             return res.status(200).send({ status: 'reset initiated', sessionId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error handling POST /api/reset: ${errorMessage}`);
-            return res.status(500).send({ error: 'Internal server error' });
+            return next(error);
         }
     });
 
     // Dynamic MCP server connection endpoint (legacy)
-    app.post('/api/connect-server', express.json(), async (req, res) => {
-        const { name, config } = req.body;
-        if (!name || typeof name !== 'string' || name.trim() === '') {
-            return res.status(400).send({ error: 'Missing or invalid server name' });
-        }
-        if (!config || typeof config !== 'object') {
-            return res.status(400).send({ error: 'Missing or invalid server config object' });
-        }
+    app.post('/api/connect-server', express.json(), async (req, res, next) => {
         try {
+            const { name, config } = parseBody(McpServerRequestSchema, req.body);
             await agent.connectMcpServer(name, config);
             logger.info(`Successfully connected to new server '${name}' via API request.`);
             return res.status(200).send({ status: 'connected', name });
         } catch (error) {
-            const errorMessage =
-                error instanceof Error ? error.message : 'Unknown error during connection';
-            logger.error(`Error handling POST /api/connect-server for '${name}': ${errorMessage}`);
-            return res.status(500).send({
-                error: `Failed to connect to server '${name}': ${errorMessage}`,
-            });
+            return next(error);
         }
     });
 
     // Add a new MCP server
-    app.post('/api/mcp/servers', express.json(), async (req, res) => {
-        const { name, config } = req.body;
-        if (!name || !config) {
-            return res.status(400).json({ error: 'Missing name or config' });
-        }
+    app.post('/api/mcp/servers', express.json(), async (req, res, next) => {
         try {
+            const { name, config } = parseBody(McpServerRequestSchema, req.body);
             await agent.connectMcpServer(name, config);
             return res.status(201).json({ status: 'connected', name });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error connecting MCP server '${name}': ${errorMessage}`);
-            return res.status(500).json({ error: `Failed to connect server: ${errorMessage}` });
+            return next(error);
         }
     });
 
     // Add MCP servers listing endpoint
-    app.get('/api/mcp/servers', async (req, res) => {
+    app.get('/api/mcp/servers', async (req, res, next) => {
         try {
             const clientsMap = agent.getMcpClients();
             const failedConnections = agent.getMcpFailedConnections();
@@ -299,14 +275,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             }
             return res.status(200).json({ servers });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error listing MCP servers: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to list servers' });
+            return next(error);
         }
     });
 
     // Add MCP server tools listing endpoint
-    app.get('/api/mcp/servers/:serverId/tools', async (req, res) => {
+    app.get('/api/mcp/servers/:serverId/tools', async (req, res, next) => {
         const serverId = req.params.serverId;
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
@@ -322,14 +296,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             }));
             return res.status(200).json({ tools });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error fetching tools for server '${serverId}': ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to fetch tools for server' });
+            return next(error);
         }
     });
 
     // Endpoint to remove/disconnect an MCP server
-    app.delete('/api/mcp/servers/:serverId', async (req, res) => {
+    app.delete('/api/mcp/servers/:serverId', async (req, res, next) => {
         const { serverId } = req.params;
         logger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
 
@@ -345,11 +317,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             await agent.removeMcpServer(serverId);
             return res.status(200).json({ status: 'disconnected', id: serverId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error deleting server '${serverId}': ${errorMessage}`);
-            return res.status(500).json({
-                error: `Failed to delete server '${serverId}': ${errorMessage}`,
-            });
+            return next(error);
         }
     });
 
@@ -357,7 +325,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     app.post(
         '/api/mcp/servers/:serverId/tools/:toolName/execute',
         express.json(),
-        async (req, res) => {
+        async (req, res, next) => {
             const { serverId, toolName } = req.params;
             // Verify server exists
             const client = agent.getMcpClients().get(serverId);
@@ -372,11 +340,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 // Return standardized result shape
                 return res.json({ success: true, data: rawResult });
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                logger.error(
-                    `Error executing tool '${toolName}' on server '${serverId}': ${errorMessage}`
-                );
-                return res.status(500).json({ success: false, error: errorMessage });
+                return next(error);
             }
         }
     );
@@ -512,7 +476,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     (data.content || data.imageData || data.fileData)
                 ) {
                     logger.info(
-                        `Processing message from WebSocket: ${data.content.substring(0, 50)}...`
+                        `Processing message from WebSocket: ${data.content ? data.content.substring(0, 50) + '...' : '[image/file only]'}`
                     );
                     const imageDataInput = data.imageData
                         ? { image: data.imageData.base64, mimeType: data.imageData.mimeType }
@@ -523,7 +487,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         ? {
                               data: data.fileData.base64,
                               mimeType: data.fileData.mimeType,
-                              filename: data.fileData.filename,
+                              ...(data.fileData.filename && { filename: data.fileData.filename }),
                           }
                         : undefined;
 
@@ -548,22 +512,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     );
 
                     if (!validation.ok) {
-                        const errorMessages = validation.issues
-                            .filter((issue) => issue.severity === 'error')
-                            .map((issue) => issue.message);
-
-                        const errorDetails = {
-                            error: errorMessages.join('; '),
-                            provider: currentConfig.llm.provider,
-                            model: currentConfig.llm.model,
-                            issues: validation.issues,
-                        };
-
-                        ws.send(
-                            JSON.stringify({
-                                event: 'error',
-                                data: errorDetails,
-                            })
+                        sendWebSocketValidationError(
+                            ws,
+                            'Invalid input for current LLM configuration',
+                            {
+                                provider: currentConfig.llm.provider,
+                                model: currentConfig.llm.model,
+                                issues: validation.issues,
+                            }
                         );
                         return;
                     }
@@ -577,22 +533,15 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     await agent.resetConversation(sessionId);
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
-                    ws.send(
-                        JSON.stringify({
-                            event: 'error',
-                            data: { message: 'Unknown message type' },
-                        })
-                    );
+                    sendWebSocketValidationError(ws, 'Unknown message type', {
+                        messageType: data.type,
+                    });
                 }
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                logger.error(`Error processing WebSocket message: ${errorMessage}`);
-                ws.send(
-                    JSON.stringify({
-                        event: 'error',
-                        data: { message: 'Failed to process message' },
-                    })
+                logger.error(
+                    `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
+                sendWebSocketError(ws, error);
             }
         });
         ws.on('close', () => {
@@ -690,7 +639,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         return redactedServers;
     }
 
-    app.get('/api/config.yaml', async (req, res) => {
+    app.get('/api/config.yaml', async (req, res, next) => {
         try {
             const sessionId = req.query.sessionId as string | undefined;
             const config = agent.getEffectiveConfig(sessionId);
@@ -708,14 +657,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const yamlStr = yamlStringify(maskedConfig);
             res.set('Content-Type', 'application/x-yaml');
             res.send(yamlStr);
-        } catch (error: any) {
-            logger.error(`Error exporting config: ${error.message}`);
-            res.status(500).json({ error: 'Failed to export configuration' });
+        } catch (error) {
+            return next(error);
         }
     });
 
     // Get current LLM configuration
-    app.get('/api/llm/current', async (req, res) => {
+    app.get('/api/llm/current', async (req, res, next) => {
         try {
             const { sessionId } = req.query;
 
@@ -725,14 +673,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 : agent.getCurrentLLMConfig();
 
             res.json({ config: currentConfig });
-        } catch (error: any) {
-            logger.error(`Error getting current LLM config: ${error.message}`);
-            res.status(500).json({ error: 'Failed to get current LLM configuration' });
+        } catch (error) {
+            return next(error);
         }
     });
 
     // Get available LLM providers and models
-    app.get('/api/llm/providers', async (req, res) => {
+    app.get('/api/llm/providers', async (req, res, next) => {
         try {
             // Build providers object from the LLM registry
             const providers: Record<
@@ -760,82 +707,56 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
             res.json({ providers });
         } catch (error: any) {
-            logger.error(`Error getting LLM providers: ${error.message}`);
-            res.status(500).json({ error: 'Failed to get LLM providers' });
+            return next(error);
         }
     });
 
     // Switch LLM configuration
-    app.post('/api/llm/switch', express.json(), async (req, res) => {
-        // Validate request body
-        const validation = validateBody(LLMSwitchRequestSchema, req.body);
-        if (!validation.success) {
-            return res.status(400).json(validation.response);
-        }
-
-        const { sessionId, ...llmConfig } = validation.data;
-
+    app.post('/api/llm/switch', express.json(), async (req, res, next) => {
         try {
+            const { sessionId, ...llmConfig } = LLMSwitchRequestSchema.parse(req.body);
             const config = await agent.switchLLM(llmConfig, sessionId);
-
-            return res.status(200).json({
-                ok: true,
-                data: config,
-                issues: [],
-            });
-            // TODO: move this check to middleware
+            return res.status(200).json({ config, sessionId });
         } catch (error) {
-            if (error instanceof DextoValidationError) {
-                // User/validation errors -> 400
-                return res.status(400).json({
-                    ok: false,
-                    issues: error.issues,
-                });
-            } else {
-                // Infrastructure errors -> 500
-                logger.error('LLM switch failed:', error);
-                return res.status(500).json({
-                    ok: false,
-                    issues: [
-                        {
-                            code: 'internal_server_error',
-                            message: 'Internal server error during LLM switch',
-                            severity: 'error',
-                            context: {},
-                        },
-                    ],
-                });
-            }
+            return next(error);
         }
     });
 
     // Session Management APIs
 
     // List all active sessions
-    app.get('/api/sessions', async (req, res) => {
+    app.get('/api/sessions', async (req, res, next) => {
         try {
             const sessionIds = await agent.listSessions();
             const sessions = await Promise.all(
                 sessionIds.map(async (id) => {
-                    const metadata = await agent.getSessionMetadata(id);
-                    return {
-                        id,
-                        createdAt: metadata?.createdAt || null,
-                        lastActivity: metadata?.lastActivity || null,
-                        messageCount: metadata?.messageCount || 0,
-                    };
+                    try {
+                        const metadata = await agent.getSessionMetadata(id);
+                        return {
+                            id,
+                            createdAt: metadata?.createdAt || null,
+                            lastActivity: metadata?.lastActivity || null,
+                            messageCount: metadata?.messageCount || 0,
+                        };
+                    } catch (_error) {
+                        // Skip sessions that no longer exist
+                        return {
+                            id,
+                            createdAt: null,
+                            lastActivity: null,
+                            messageCount: 0,
+                        };
+                    }
                 })
             );
             return res.json({ sessions });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error listing sessions: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to list sessions' });
+            return next(error);
         }
     });
 
     // Create a new session
-    app.post('/api/sessions', express.json(), async (req, res) => {
+    app.post('/api/sessions', express.json(), async (req, res, next) => {
         try {
             const { sessionId } = req.body;
             const session = await agent.createSession(sessionId);
@@ -843,27 +764,30 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return res.status(201).json({
                 session: {
                     id: session.id,
-                    createdAt: metadata?.createdAt || null,
-                    lastActivity: metadata?.lastActivity || null,
+                    createdAt: metadata?.createdAt || Date.now(),
+                    lastActivity: metadata?.lastActivity || Date.now(),
                     messageCount: metadata?.messageCount || 0,
                 },
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error creating session: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to create session' });
+            return next(error);
+        }
+    });
+
+    // Get current working session (must come before parameterized route)
+    app.get('/api/sessions/current', async (req, res, next) => {
+        try {
+            const currentSessionId = agent.getCurrentSessionId();
+            return res.json({ currentSessionId });
+        } catch (error) {
+            return next(error);
         }
     });
 
     // Get session details
-    app.get('/api/sessions/:sessionId', async (req, res) => {
+    app.get('/api/sessions/:sessionId', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
             const metadata = await agent.getSessionMetadata(sessionId);
             const history = await agent.getSessionHistory(sessionId);
 
@@ -877,106 +801,75 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 },
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error getting session ${req.params.sessionId}: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to get session details' });
+            return next(error);
         }
     });
 
     // Get session conversation history
-    app.get('/api/sessions/:sessionId/history', async (req, res) => {
+    app.get('/api/sessions/:sessionId/history', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
+            // getSessionHistory already checks existence via getSession
             const history = await agent.getSessionHistory(sessionId);
             return res.json({ history });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(
-                `Error getting session history for ${req.params.sessionId}: ${errorMessage}`
-            );
-            return res.status(500).json({ error: 'Failed to get session history' });
+            return next(error);
         }
     });
 
     // Search messages across all sessions or within a specific session
-    app.get('/api/search/messages', async (req, res) => {
+    app.get('/api/search/messages', async (req, res, next) => {
         try {
-            const query = req.query.q as string;
-            if (!query) {
-                return res.status(400).json({ error: 'Search query is required' });
-            }
+            const {
+                q: query,
+                limit,
+                offset,
+                sessionId,
+                role,
+            } = parseQuery(SearchQuerySchema, req.query);
 
-            const options: {
-                limit: number;
-                offset: number;
-                sessionId?: string;
-                role?: 'user' | 'assistant' | 'system' | 'tool';
-            } = {
-                limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
-                offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
+            const options = {
+                limit: limit || 20,
+                offset: offset || 0,
+                ...(sessionId && { sessionId }),
+                ...(role && { role }),
             };
-
-            const sessionId = req.query.sessionId as string | undefined;
-            const role = req.query.role as 'user' | 'assistant' | 'system' | 'tool' | undefined;
-
-            if (sessionId) {
-                options.sessionId = sessionId;
-            }
-            if (role) {
-                options.role = role;
-            }
 
             const searchResults = await agent.searchMessages(query, options);
             return sendJsonResponse(res, searchResults);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error searching messages: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to search messages' });
+            return next(error);
         }
     });
 
     // Search sessions that contain the query
-    app.get('/api/search/sessions', async (req, res) => {
+    app.get('/api/search/sessions', async (req, res, next) => {
         try {
-            const query = req.query.q as string;
-            if (!query) {
-                return res.status(400).json({ error: 'Search query is required' });
-            }
-
+            const { q: query } = parseQuery(
+                z.object({ q: z.string().min(1, 'Search query is required') }),
+                req.query
+            );
             const searchResults = await agent.searchSessions(query);
             return sendJsonResponse(res, searchResults);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error searching sessions: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to search sessions' });
+            return next(error);
         }
     });
 
     // Delete a session
-    app.delete('/api/sessions/:sessionId', async (req, res) => {
+    app.delete('/api/sessions/:sessionId', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
+            // deleteSession already checks existence internally
             await agent.deleteSession(sessionId);
             return res.json({ status: 'deleted', sessionId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error deleting session ${req.params.sessionId}: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to delete session' });
+            return next(error);
         }
     });
 
     // Load session as current working session
-    app.post('/api/sessions/:sessionId/load', async (req, res) => {
+    app.post('/api/sessions/:sessionId/load', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
 
@@ -991,11 +884,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 return;
             }
 
-            const session = await agent.getSession(sessionId);
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
+            // loadSession already checks session existence
             await agent.loadSession(sessionId);
             return res.json({
                 status: 'loaded',
@@ -1003,21 +892,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 currentSession: agent.getCurrentSessionId(),
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error loading session ${req.params.sessionId}: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to load session' });
-        }
-    });
-
-    // Get current working session
-    app.get('/api/sessions/current', async (req, res) => {
-        try {
-            const currentSessionId = agent.getCurrentSessionId();
-            return res.json({ currentSessionId });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error getting current session: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to get current session' });
+            return next(error);
         }
     });
 
@@ -1029,20 +904,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     webhookSubscriber.subscribe(agent.agentEventBus);
 
     // Register a new webhook endpoint
-    app.post('/api/webhooks', express.json(), async (req, res) => {
+    app.post('/api/webhooks', express.json(), async (req, res, next) => {
         try {
-            const { url, secret, description }: WebhookRegistrationRequest = req.body;
-
-            if (!url || typeof url !== 'string') {
-                return res.status(400).json({ error: 'Invalid or missing webhook URL' });
-            }
-
-            // Validate URL format
-            try {
-                new URL(url);
-            } catch {
-                return res.status(400).json({ error: 'Invalid URL format' });
-            }
+            const { url, secret, description } = parseBody(WebhookRequestSchema, req.body);
 
             // Generate unique webhook ID
             const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -1072,14 +936,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 201
             );
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error registering webhook: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to register webhook' });
+            return next(error);
         }
     });
 
     // List all registered webhooks
-    app.get('/api/webhooks', async (req, res) => {
+    app.get('/api/webhooks', async (req, res, next) => {
         try {
             const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
                 id: webhook.id,
@@ -1090,14 +952,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
             return sendJsonResponse(res, { webhooks });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error listing webhooks: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to list webhooks' });
+            return next(error);
         }
     });
 
     // Get a specific webhook
-    app.get('/api/webhooks/:webhookId', async (req, res) => {
+    app.get('/api/webhooks/:webhookId', async (req, res, next) => {
         try {
             const { webhookId } = req.params;
             const webhook = webhookSubscriber.getWebhook(webhookId);
@@ -1115,14 +975,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 },
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error getting webhook ${req.params.webhookId}: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to get webhook' });
+            return next(error);
         }
     });
 
     // Remove a webhook endpoint
-    app.delete('/api/webhooks/:webhookId', async (req, res) => {
+    app.delete('/api/webhooks/:webhookId', async (req, res, next) => {
         try {
             const { webhookId } = req.params;
             const removed = webhookSubscriber.removeWebhook(webhookId);
@@ -1134,14 +992,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             logger.info(`Webhook removed: ${webhookId}`);
             return res.json({ status: 'removed', webhookId });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error removing webhook ${req.params.webhookId}: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to remove webhook' });
+            return next(error);
         }
     });
 
     // Test a webhook endpoint
-    app.post('/api/webhooks/:webhookId/test', async (req, res) => {
+    app.post('/api/webhooks/:webhookId/test', async (req, res, next) => {
         try {
             const { webhookId } = req.params;
             const webhook = webhookSubscriber.getWebhook(webhookId);
@@ -1163,11 +1019,11 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 },
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error testing webhook ${req.params.webhookId}: ${errorMessage}`);
-            return res.status(500).json({ error: 'Failed to test webhook' });
+            return next(error);
         }
     });
+    // Centralized error handling (must be registered after routes)
+    app.use(errorHandler);
 
     return { app, server, wss, webSubscriber, webhookSubscriber };
 }

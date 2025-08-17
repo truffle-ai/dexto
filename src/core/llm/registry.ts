@@ -1,10 +1,8 @@
 import { logger } from '../logger/index.js';
 import { LLMConfig } from './schemas.js';
-import {
-    CantInferProviderError,
-    EffectiveMaxInputTokensError,
-    UnknownModelError,
-} from './errors.js';
+import { LLMError } from './errors.js';
+import { LLMErrorCode } from './error-codes.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 export interface ModelInfo {
     name: string;
@@ -229,8 +227,8 @@ export function getDefaultModelForProvider(provider: LLMProvider): string | null
  * Gets the list of supported providers.
  * @returns An array of supported provider names.
  */
-export function getSupportedProviders(): string[] {
-    return Object.keys(LLM_REGISTRY);
+export function getSupportedProviders(): LLMProvider[] {
+    return [...LLM_PROVIDERS];
 }
 
 /**
@@ -248,7 +246,7 @@ export function getSupportedModels(provider: LLMProvider): string[] {
  * @param provider The name of the provider (e.g., 'openai', 'anthropic', 'google').
  * @param model The specific model name.
  * @returns The maximum input token limit for the model.
- * @throws {UnknownModelError} If the model is not found in the registry.
+ * @throws {LLMError} If the model is not found in the registry.
  */
 export function getMaxInputTokensForModel(provider: LLMProvider, model: string): number {
     const providerInfo = LLM_REGISTRY[provider];
@@ -259,7 +257,7 @@ export function getMaxInputTokensForModel(provider: LLMProvider, model: string):
         logger.error(
             `Model '${model}' not found for provider '${provider}' in LLM registry. Supported models: ${supportedModels}`
         );
-        throw new UnknownModelError(provider, model);
+        throw LLMError.unknownModel(provider, model);
     }
 
     logger.debug(`Found max tokens for ${provider}/${model}: ${modelInfo.maxInputTokens}`);
@@ -294,7 +292,7 @@ export function getProviderFromModel(model: string): LLMProvider {
             return provider;
         }
     }
-    throw new CantInferProviderError(model);
+    throw LLMError.modelProviderUnknown(model);
 }
 
 /**
@@ -365,7 +363,7 @@ export function getSupportedFileTypesForModel(
     // Find the specific model
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
     if (!modelInfo) {
-        throw new UnknownModelError(provider, model);
+        throw LLMError.unknownModel(provider, model);
     }
 
     return modelInfo.supportedFileTypes;
@@ -490,7 +488,7 @@ export function getEffectiveMaxInputTokens(config: LLMConfig): number {
             }
         } catch (error: any) {
             // Handle registry lookup failures during override check
-            if (error instanceof UnknownModelError) {
+            if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 logger.warn(
                     `Registry lookup failed during maxInputTokens override check for ${config.provider}/${config.model}: ${error.message}. ` +
                         `Proceeding with the provided maxInputTokens value (${configuredMaxInputTokens}), but it might be invalid.`
@@ -533,13 +531,13 @@ export function getEffectiveMaxInputTokens(config: LLMConfig): number {
         return registryMaxInputTokens;
     } catch (error: any) {
         // Handle registry lookup failures gracefully (e.g., typo in validated config)
-        if (error instanceof UnknownModelError) {
+        if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
             // Log as error and throw a specific fatal error
             logger.error(
                 `Registry lookup failed for ${config.provider}/${config.model}: ${error.message}. ` +
                     `Effective maxInputTokens cannot be determined.`
             );
-            throw new EffectiveMaxInputTokensError(config.provider, config.model);
+            throw LLMError.unknownModel(config.provider, config.model);
         } else {
             // Re-throw unexpected errors during registry lookup
             logger.error(`Unexpected error during registry lookup for maxInputTokens: ${error}`);

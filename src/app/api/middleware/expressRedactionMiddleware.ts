@@ -1,4 +1,4 @@
-import { redactSensitiveData } from './redactor.js';
+import { redactSensitiveData } from '@core/utils/redactor.js';
 import type { Request, Response, NextFunction } from 'express';
 
 /**

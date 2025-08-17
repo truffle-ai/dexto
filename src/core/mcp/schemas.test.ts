@@ -12,7 +12,7 @@ import {
     type McpServerConfig,
     type ServerConfigs,
 } from './schemas.js';
-import { DextoErrorCode } from '@core/schemas/errors.js';
+import { MCPErrorCode } from './error-codes.js';
 
 describe('MCP Schemas', () => {
     describe('StdioServerConfigSchema', () => {
@@ -82,7 +82,7 @@ describe('MCP Schemas', () => {
                 expect(result.success).toBe(false);
                 expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.custom);
                 expect((result.error?.issues[0] as any)?.params?.code).toBe(
-                    DextoErrorCode.MCP_MISSING_COMMAND
+                    MCPErrorCode.COMMAND_MISSING
                 );
             });
 

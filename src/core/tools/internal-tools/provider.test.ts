@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { z } from 'zod';
 import { InternalToolsProvider } from './provider.js';
 import { NoOpConfirmationProvider } from '../confirmation/noop-confirmation-provider.js';
 import type { InternalToolsServices } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
 import type { InternalTool } from '../types.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from '../error-codes.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 
 // Mock logger
 vi.mock('../../logger/index.js', () => ({
@@ -189,8 +193,9 @@ describe('InternalToolsProvider', () => {
             expect(mockServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test query',
                 expect.objectContaining({
-                    sessionId: undefined, // Note: current implementation doesn't use sessionId from context
-                    role: undefined,
+                    limit: 20, // Default from Zod schema
+                    offset: 0, // Default from Zod schema
+                    // sessionId and role are undefined, so not included in the object
                 })
             );
             expect(result).toEqual([{ id: '1', content: 'test message', role: 'user' }]);
@@ -206,9 +211,13 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should throw error for nonexistent tool', async () => {
-            await expect(provider.executeTool('nonexistent_tool', {})).rejects.toThrow(
-                'Internal tool not found: nonexistent_tool'
-            );
+            const error = (await provider
+                .executeTool('nonexistent_tool', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.NOT_FOUND);
         });
 
         it('should propagate tool execution errors', async () => {
@@ -248,12 +257,41 @@ describe('InternalToolsProvider', () => {
             );
         });
 
+        it('should validate input against tool schema', async () => {
+            const mockTool: InternalTool = {
+                id: 'test_tool',
+                description: 'Test tool',
+                inputSchema: z.object({
+                    required_param: z.string(),
+                    optional_param: z.number().optional(),
+                }),
+                execute: vi.fn().mockResolvedValue('test result'),
+            };
+
+            // Manually add the mock tool to the provider
+            (provider as any).tools.set('test_tool', mockTool);
+
+            // Test with invalid input - missing required field
+            const error = (await provider
+                .executeTool('test_tool', { optional_param: 42 })
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.USER);
+
+            // Tool should not have been called
+            expect(mockTool.execute).not.toHaveBeenCalled();
+        });
+
         it('should provide correct tool execution context', async () => {
             // Create a mock tool to verify context is passed correctly
             const mockTool: InternalTool = {
                 id: 'test_tool',
                 description: 'Test tool',
-                inputSchema: {} as any,
+                inputSchema: z.object({
+                    param: z.string(),
+                }),
                 execute: vi.fn().mockResolvedValue('test result'),
             };
 

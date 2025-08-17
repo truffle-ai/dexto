@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { useLocation } from '@docusaurus/router';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 
 interface CopyMarkdownProps {
   className?: string;
@@ -7,7 +6,7 @@ interface CopyMarkdownProps {
 
 export default function CopyMarkdown({ className }: CopyMarkdownProps) {
   const [copied, setCopied] = useState(false);
-  const location = useLocation();
+  const timeoutRef = useRef<number | null>(null);
 
   const extractMarkdownFromPage = useCallback((): string => {
     // Get the main content area
@@ -85,21 +84,23 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
             return `\`${children}\``;
           }
           return children;
-        case 'pre':
+        case 'pre': {
           // Try to get the language from class
           const codeEl = el.querySelector('code');
           const className = codeEl?.className || '';
           const languageMatch = className.match(/language-(\w+)/);
           const language = languageMatch ? languageMatch[1] : '';
           return `\`\`\`${language}\n${children}\n\`\`\`\n\n`;
-        case 'a':
+        }
+        case 'a': {
           const href = el.getAttribute('href') || '';
           return `[${children}](${href})`;
+        }
         case 'ul':
           return `${children}\n`;
         case 'ol':
           return `${children}\n`;
-        case 'li':
+        case 'li': {
           // Check if parent is ol or ul
           const parent = el.parentElement;
           if (parent?.tagName.toLowerCase() === 'ol') {
@@ -108,16 +109,18 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
           } else {
             return `- ${children}\n`;
           }
+        }
         case 'blockquote':
           return `> ${children}\n\n`;
         case 'hr':
           return `---\n\n`;
         case 'br':
           return '\n';
-        case 'img':
+        case 'img': {
           const src = el.getAttribute('src') || '';
           const alt = el.getAttribute('alt') || '';
           return `![${alt}](${src})`;
+        }
         case 'table':
           return convertTable(el) + '\n\n';
         case 'div':
@@ -126,10 +129,11 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
             return handleAdmonition(el);
           }
           return children;
-        case 'details':
+        case 'details': {
           const summary = el.querySelector('summary');
           const summaryText = summary ? summary.textContent : 'Details';
           return `<details>\n<summary>${summaryText}</summary>\n\n${children}\n</details>\n\n`;
+        }
         case 'summary':
           return ''; // Handled in details
         default:
@@ -174,9 +178,10 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
       const markdown = extractMarkdownFromPage();
       await navigator.clipboard.writeText(markdown);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Error in handleCopy (clipboard API): ${message}`);
       // Fallback for older browsers
       const textarea = document.createElement('textarea');
       textarea.value = extractMarkdownFromPage();
@@ -185,13 +190,22 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
       try {
         document.execCommand('copy');
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
       } catch (fallbackErr) {
-        console.error('Fallback copy failed:', fallbackErr);
+        const fbMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        console.error(`Error in handleCopy (fallback copy): ${fbMessage}`);
       }
       document.body.removeChild(textarea);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <button

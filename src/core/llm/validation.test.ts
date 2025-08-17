@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { validateInputForLLM } from './validation.js';
+import { LLMErrorCode } from './error-codes.js';
 
 describe('validateInputForLLM', () => {
     describe('text validation', () => {
@@ -87,7 +88,9 @@ describe('validateInputForLLM', () => {
 
             expect(result.ok).toBe(false);
             expect(result.issues.filter((i) => i.severity === 'error').length).toBeGreaterThan(0);
-            expect(result.issues.some((i) => i.code === 'file_validation')).toBe(true);
+            expect(result.issues.some((i) => i.code === LLMErrorCode.INPUT_FILE_UNSUPPORTED)).toBe(
+                true
+            );
         });
 
         test('should fail validation for file not in allowed MIME types', () => {
@@ -107,7 +110,9 @@ describe('validateInputForLLM', () => {
             expect(
                 result.issues.filter((i) => i.severity === 'error').map((i) => i.message)
             ).toContain('Unsupported file type');
-            expect(result.issues.some((i) => i.code === 'file_validation')).toBe(true);
+            expect(result.issues.some((i) => i.code === LLMErrorCode.INPUT_FILE_UNSUPPORTED)).toBe(
+                true
+            );
         });
 
         test('should fail validation for oversized file', () => {
@@ -183,7 +188,9 @@ describe('validateInputForLLM', () => {
             );
 
             expect(result.ok).toBe(false);
-            expect(result.issues.some((i) => i.code === 'file_validation')).toBe(true);
+            expect(result.issues.some((i) => i.code === LLMErrorCode.INPUT_FILE_UNSUPPORTED)).toBe(
+                true
+            );
             expect(
                 result.issues.filter((i) => i.severity === 'error').map((i) => i.message)
             ).toContain('Unsupported file type');
@@ -268,7 +275,9 @@ describe('validateInputForLLM', () => {
 
             expect(result.ok).toBe(false);
             expect(result.issues.filter((i) => i.severity === 'error').length).toBeGreaterThan(0);
-            expect(result.issues.some((i) => i.code === 'file_validation')).toBe(true);
+            expect(result.issues.some((i) => i.code === LLMErrorCode.INPUT_FILE_UNSUPPORTED)).toBe(
+                true
+            );
         });
     });
 
@@ -305,7 +314,9 @@ describe('validateInputForLLM', () => {
 
             // Fixed behavior: unknown models should fail validation
             expect(result.ok).toBe(false);
-            expect(result.issues.some((i) => i.code === 'file_validation')).toBe(true);
+            expect(result.issues.some((i) => i.code === LLMErrorCode.INPUT_FILE_UNSUPPORTED)).toBe(
+                true
+            );
             expect(result.issues.filter((i) => i.severity === 'error').length).toBeGreaterThan(0);
         });
     });

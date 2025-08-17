@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
 import { NoOpConfirmationProvider } from './confirmation/noop-confirmation-provider.js';
-import { ToolExecutionDeniedError } from './confirmation/errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { InternalToolsServices } from './internal-tools/registry.js';
 import type { InternalToolsConfig } from './schemas.js';
 import type { IMCPClient } from '../mcp/types.js';
@@ -95,8 +97,8 @@ describe('ToolManager Integration Tests', () => {
             expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test query',
                 expect.objectContaining({
-                    sessionId: undefined,
-                    role: undefined,
+                    limit: 20, // Default from Zod schema
+                    offset: 0, // Default from Zod schema
                 })
             );
             expect(result).toEqual([{ id: '1', content: 'test message', role: 'user' }]);
@@ -195,9 +197,13 @@ describe('ToolManager Integration Tests', () => {
 
             const toolManager = new ToolManager(mcpMgr, autoDenyProvider);
 
-            await expect(toolManager.executeTool('mcp--test_tool', {})).rejects.toThrow(
-                ToolExecutionDeniedError
-            );
+            const error = (await toolManager
+                .executeTool('mcp--test_tool', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.FORBIDDEN);
 
             expect(mockClient.callTool).not.toHaveBeenCalled();
         });
@@ -413,12 +419,12 @@ describe('ToolManager Integration Tests', () => {
             // Verify MCP tool received sessionId (note: MCPManager doesn't use sessionId in callTool currently)
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
 
-            // Verify internal tool received sessionId in context
+            // Verify internal tool was called with proper defaults
             expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
                 'test',
                 expect.objectContaining({
-                    sessionId: undefined, // Note: search_history tool doesn't use sessionId from context yet
-                    role: undefined,
+                    limit: 20, // Default from Zod schema
+                    offset: 0, // Default from Zod schema
                 })
             );
         });

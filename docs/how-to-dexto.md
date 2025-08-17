@@ -140,7 +140,9 @@ The `dexto` command can run one-shot prompts or start in different modes.
 **One-shot prompt:**
 Execute a task directly from the command line.
 ```bash
-dexto "create a new file named 'test.txt' with the content 'hello world'"
+dexto "create a new file named test.txt with hello world content"
+# or use explicit -p flag
+dexto -p "create a new file named test.txt with hello world content"
 ```
 
 **Interactive CLI:**

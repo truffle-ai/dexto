@@ -4,10 +4,10 @@ import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 
 // Mock all dependencies
-vi.mock('../llm/messages/history/factory.js', () => ({
+vi.mock('./history/factory.js', () => ({
     createDatabaseHistoryProvider: vi.fn(),
 }));
-vi.mock('../llm/messages/factory.js', () => ({
+vi.mock('../context/factory.js', () => ({
     createContextManager: vi.fn(),
 }));
 vi.mock('../llm/services/factory.js', () => ({
@@ -16,7 +16,7 @@ vi.mock('../llm/services/factory.js', () => ({
 vi.mock('../llm/tokenizer/factory.js', () => ({
     createTokenizer: vi.fn(),
 }));
-vi.mock('../llm/messages/formatters/factory.js', () => ({
+vi.mock('../llm/formatters/factory.js', () => ({
     createMessageFormatter: vi.fn(),
 }));
 vi.mock('../llm/registry.js', async (importOriginal) => {
@@ -36,11 +36,11 @@ vi.mock('../logger/index.js', () => ({
     },
 }));
 
-import { createDatabaseHistoryProvider } from '../llm/messages/history/factory.js';
-import { createContextManager } from '../llm/messages/factory.js';
+import { createDatabaseHistoryProvider } from './history/factory.js';
+import { createContextManager } from '../context/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { createTokenizer } from '../llm/tokenizer/factory.js';
-import { createMessageFormatter } from '../llm/messages/formatters/factory.js';
+import { createMessageFormatter } from '../llm/formatters/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
@@ -234,8 +234,8 @@ describe('ChatSession', () => {
 
             await chatSession.reset();
 
-            // Should call resetConversation on message manager
-            expect(mockContextManager.resetConversation).toHaveBeenCalled();
+            // Should call clearHistory on history provider
+            expect(mockHistoryProvider.clearHistory).toHaveBeenCalled();
 
             // Should emit dexto:conversationReset event with session context
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
@@ -250,58 +250,50 @@ describe('ChatSession', () => {
             await chatSession.init();
         });
 
-        test('should optimize LLM switching by only creating new components when necessary', async () => {
+        test('should create new LLM service when configuration changes', async () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
-                maxInputTokens: 256000, // Only change maxInputTokens
+                maxInputTokens: 256000, // Change maxInputTokens
             };
+
+            // Clear previous calls
+            mockCreateLLMService.mockClear();
 
             await chatSession.switchLLM(newConfig);
 
-            // Should call updateConfig with effective maxInputTokens (from getEffectiveMaxInputTokens mock)
-            expect(mockContextManager.updateConfig).toHaveBeenCalledWith(
-                128000, // effective maxInputTokens (mocked return value)
-                undefined, // newTokenizer (no provider change)
-                undefined // newFormatter (no router change)
+            // Should create a new LLM service with updated config
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                newConfig,
+                newConfig.router,
+                mockServices.toolManager,
+                mockServices.promptManager,
+                mockHistoryProvider,
+                chatSession.eventBus,
+                sessionId
             );
         });
 
-        test('should create new tokenizer when provider changes', async () => {
+        test('should create new LLM service during LLM switch', async () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
                 model: 'claude-3-opus',
             };
 
-            await chatSession.switchLLM(newConfig);
-
-            expect(mockCreateTokenizer).toHaveBeenCalledWith('anthropic', 'claude-3-opus');
-        });
-
-        test('should create new formatter when router changes', async () => {
-            const newConfig: ValidatedLLMConfig = {
-                ...mockLLMConfig,
-                router: 'vercel',
-            };
+            // Clear previous calls to createLLMService
+            mockCreateLLMService.mockClear();
 
             await chatSession.switchLLM(newConfig);
 
-            expect(mockCreateFormatter).toHaveBeenCalledWith('openai', 'vercel');
-        });
-
-        test('should update message manager configuration during LLM switch', async () => {
-            const newConfig: ValidatedLLMConfig = {
-                ...mockLLMConfig,
-                provider: 'anthropic',
-                model: 'claude-3-opus',
-            };
-
-            await chatSession.switchLLM(newConfig);
-
-            expect(mockContextManager.updateConfig).toHaveBeenCalledWith(
-                128000, // newMaxInputTokens
-                expect.any(Object), // newTokenizer
-                expect.any(Object) // newFormatter
+            // Should create a new LLM service with the new config
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                newConfig,
+                newConfig.router,
+                mockServices.toolManager,
+                mockServices.promptManager,
+                mockHistoryProvider,
+                chatSession.eventBus,
+                sessionId
             );
         });
 
@@ -335,14 +327,6 @@ describe('ChatSession', () => {
 
             // The init method should throw the error since it doesn't catch it
             await expect(chatSession.init()).rejects.toThrow('Storage initialization failed');
-        });
-
-        test('should handle message manager creation failures', async () => {
-            mockCreateContextManager.mockImplementation(() => {
-                throw new Error('Message manager creation failed');
-            });
-
-            await expect(chatSession.init()).rejects.toThrow('Message manager creation failed');
         });
 
         test('should handle LLM service creation failures', async () => {
@@ -399,18 +383,19 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should delegate history operations to message manager', async () => {
+        test('should delegate history operations to history provider', async () => {
             const mockHistory = [
                 { role: 'user', content: 'Hello' },
                 { role: 'assistant', content: 'Hi there!' },
             ];
 
-            mockContextManager.getHistory.mockResolvedValue(mockHistory);
+            mockHistoryProvider.getHistory = vi.fn().mockResolvedValue(mockHistory);
 
+            await chatSession.init();
             const history = await chatSession.getHistory();
 
             expect(history).toEqual(mockHistory);
-            expect(mockContextManager.getHistory).toHaveBeenCalled();
+            expect(mockHistoryProvider.getHistory).toHaveBeenCalled();
         });
     });
 
@@ -418,23 +403,17 @@ describe('ChatSession', () => {
         test('should create session-specific services with proper isolation', async () => {
             await chatSession.init();
 
-            // Verify session-specific message manager creation
-            expect(mockCreateContextManager).toHaveBeenCalledWith(
-                mockLLMConfig,
-                mockLLMConfig.router,
-                mockServices.promptManager,
-                chatSession.eventBus, // Session-specific event bus
-                mockHistoryProvider,
-                sessionId
-            );
+            // Context managers are now created internally by services
+            // so we don't need to verify createContextManager calls
 
-            // Verify session-specific LLM service creation
+            // Verify session-specific LLM service creation with new signature
             expect(mockCreateLLMService).toHaveBeenCalledWith(
                 mockLLMConfig,
                 mockLLMConfig.router,
                 mockServices.toolManager,
+                mockServices.promptManager,
+                mockHistoryProvider,
                 chatSession.eventBus, // Session-specific event bus
-                mockContextManager,
                 sessionId
             );
 

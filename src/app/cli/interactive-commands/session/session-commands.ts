@@ -88,13 +88,32 @@ export const sessionCommand: CommandDefinition = {
                         return true;
                     }
 
-                    for (const sessionId of sessionIds) {
-                        const metadata = await agent.getSessionMetadata(sessionId);
-                        const isCurrent = sessionId === current.id;
-                        console.log('  ' + formatSessionInfo(sessionId, metadata, isCurrent));
+                    // Fetch metadata concurrently; errors do not abort listing
+                    const entries = await Promise.all(
+                        sessionIds.map(async (id) => {
+                            try {
+                                const metadata = await agent.getSessionMetadata(id);
+                                return { id, metadata };
+                            } catch (e) {
+                                logger.error(
+                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`
+                                );
+                                return { id, metadata: undefined as SessionMetadata | undefined };
+                            }
+                        })
+                    );
+
+                    let displayed = 0;
+                    for (const { id, metadata } of entries) {
+                        if (!metadata) continue;
+                        const isCurrent = id === current.id;
+                        console.log(`  ${formatSessionInfo(id, metadata, isCurrent)}`);
+                        displayed++;
                     }
 
-                    console.log(chalk.dim(`\n  Total: ${sessionIds.length} sessions`));
+                    console.log(
+                        chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`)
+                    );
                     console.log(chalk.dim('  💡 Use /session switch <id> to change sessions\n'));
                 } catch (error) {
                     logger.error(

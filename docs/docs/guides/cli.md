@@ -69,13 +69,17 @@ This overrides any individual `connectionMode` settings in your MCP server confi
 #### **Run a specific command with Dexto CLI:**
 
 ```bash
-dexto find all .sh files in this directory
+dexto "find all .sh files in this directory"
+# or use explicit -p flag
+dexto -p "find all .sh files in this directory"
 ```
 
 or do the same with gemini:
 
 ```bash
-dexto -m gemini-2.0-flash find all files in this directory
+dexto -m gemini-2.0-flash "find all files in this directory"
+# or with explicit -p flag
+dexto -m gemini-2.0-flash -p "find all files in this directory"
 ```
 
 Dexto CLI can accept __any__ command - if it doesn't see it as an in-built command, it will fire a single run CLI with that request

@@ -1,4 +1,5 @@
-import { DextoErrorCode } from '@core/schemas/errors.js';
+import { MCPErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { EnvExpandedString, RequiredEnvURL } from '@core/utils/result.js';
 import { z } from 'zod';
 
@@ -13,7 +14,11 @@ export const StdioServerConfigSchema = z
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message: 'Stdio server requires a non-empty command',
-                    params: { code: DextoErrorCode.MCP_MISSING_COMMAND },
+                    params: {
+                        code: MCPErrorCode.COMMAND_MISSING,
+                        scope: ErrorScope.MCP,
+                        type: ErrorType.USER,
+                    },
                     path: ['command'],
                 });
             }

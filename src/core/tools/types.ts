@@ -28,10 +28,10 @@ export interface InternalTool {
     description: string;
 
     /** Zod schema defining the input parameters */
-    inputSchema: ZodSchema; // Proper Zod schema typing
+    inputSchema: ZodSchema;
 
-    /** The actual function that executes the tool */
-    execute: (input: any, context?: ToolExecutionContext) => Promise<any> | any;
+    /** The actual function that executes the tool - input is validated by Zod before execution */
+    execute: (input: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown;
 }
 
 /**

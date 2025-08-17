@@ -3,6 +3,9 @@ import { PromptManager } from './manager.js';
 import { SystemPromptConfigSchema } from './schemas.js';
 import type { DynamicContributorContext } from './types.js';
 import * as registry from './registry.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { SystemPromptErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
@@ -212,9 +215,18 @@ You can help with:
                 ],
             });
 
-            expect(() => new PromptManager(config)).toThrow(
-                'No generator registered for dynamic contributor source: memorySummary'
-            );
+            const error = (() => {
+                try {
+                    new PromptManager(config);
+                    return null;
+                } catch (e) {
+                    return e;
+                }
+            })() as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(SystemPromptErrorCode.CONTRIBUTOR_SOURCE_UNKNOWN);
+            expect(error.scope).toBe(ErrorScope.SYSTEM_PROMPT);
+            expect(error.type).toBe(ErrorType.USER);
         });
 
         it('should handle multiple dynamic contributors', async () => {

@@ -4,10 +4,19 @@ import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { SessionErrorCode } from './error-codes.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
-vi.mock('../logger/index.js');
+vi.mock('../logger/index.js', () => ({
+    logger: {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+    },
+}));
 vi.mock('crypto', () => ({
     randomUUID: vi.fn(() => 'mock-uuid-123'),
 }));
@@ -18,15 +27,7 @@ describe('SessionManager', () => {
     let sessionManager: SessionManager;
     let mockServices: any;
     let mockStorageManager: any;
-
-    const mockLLMConfig = LLMConfigSchema.parse({
-        provider: 'openai',
-        model: 'gpt-4o',
-        apiKey: 'test-key',
-        router: 'in-built',
-        maxIterations: 50,
-        maxInputTokens: 128000,
-    });
+    let mockLLMConfig: ValidatedLLMConfig;
 
     const mockSessionData = {
         id: 'test-session',
@@ -84,6 +85,16 @@ describe('SessionManager', () => {
             },
             storage: mockStorageManager,
         };
+
+        // Parse LLM config now that mocks are set up
+        mockLLMConfig = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-4o',
+            apiKey: 'test-key',
+            router: 'in-built',
+            maxIterations: 50,
+            maxInputTokens: 128000,
+        });
 
         // Create SessionManager instance
         sessionManager = new SessionManager(mockServices, {
@@ -251,9 +262,11 @@ describe('SessionManager', () => {
                 'session:session-2',
             ]);
 
-            await expect(limitedManager.createSession()).rejects.toThrow(
-                'Maximum sessions (2) reached'
-            );
+            await expect(limitedManager.createSession()).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.USER,
+            });
         });
 
         test('should clean up expired sessions before enforcing limits', async () => {
@@ -319,9 +332,8 @@ describe('SessionManager', () => {
         });
 
         test('should return undefined for non-existent sessions', async () => {
-            const session = await sessionManager.getSession('non-existent');
-
-            expect(session).toBeUndefined();
+            const result = await sessionManager.getSession('non-existent');
+            expect(result).toBeUndefined();
         });
 
         test('should update session activity timestamps on access', async () => {
@@ -530,7 +542,11 @@ describe('SessionManager', () => {
 
             await expect(
                 sessionManager.switchLLMForSpecificSession(newLLMConfig, 'non-existent')
-            ).rejects.toThrow('Session non-existent not found');
+            ).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_NOT_FOUND,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.NOT_FOUND,
+            });
         });
 
         test('should handle partial failures when switching LLM for all sessions', async () => {
@@ -676,9 +692,10 @@ describe('SessionManager', () => {
 
             // All failures should be due to session limit
             failures.forEach((failure) => {
-                expect((failure as PromiseRejectedResult).reason.message).toContain(
-                    'Maximum sessions (2) reached'
-                );
+                const err = (failure as PromiseRejectedResult).reason as any;
+                expect(err.code).toBe(SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED);
+                expect(err.scope).toBe(ErrorScope.SESSION);
+                expect(err.type).toBe(ErrorType.USER);
             });
 
             // Clean up

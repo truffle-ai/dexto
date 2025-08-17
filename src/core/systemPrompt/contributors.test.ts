@@ -3,6 +3,9 @@ import { FileContributor } from './contributors.js';
 import { writeFile, mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { DynamicContributorContext } from './types.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { SystemPromptErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
 describe('FileContributor', () => {
     const testDir = join(process.cwd(), 'test-files');
@@ -81,7 +84,13 @@ describe('FileContributor', () => {
             }
         );
 
-        await expect(contributor.getContent(mockContext)).rejects.toThrow('Failed to read file');
+        const error = (await contributor
+            .getContent(mockContext)
+            .catch((e) => e)) as DextoRuntimeError;
+        expect(error).toBeInstanceOf(DextoRuntimeError);
+        expect(error.code).toBe(SystemPromptErrorCode.FILE_READ_FAILED);
+        expect(error.scope).toBe(ErrorScope.SYSTEM_PROMPT);
+        expect(error.type).toBe(ErrorType.SYSTEM);
     });
 
     test('should throw error for missing files with single file error mode', async () => {
@@ -89,7 +98,13 @@ describe('FileContributor', () => {
             errorHandling: 'error',
         });
 
-        await expect(contributor.getContent(mockContext)).rejects.toThrow('Failed to read file');
+        const error = (await contributor
+            .getContent(mockContext)
+            .catch((e) => e)) as DextoRuntimeError;
+        expect(error).toBeInstanceOf(DextoRuntimeError);
+        expect(error.code).toBe(SystemPromptErrorCode.FILE_READ_FAILED);
+        expect(error.scope).toBe(ErrorScope.SYSTEM_PROMPT);
+        expect(error.type).toBe(ErrorType.SYSTEM);
     });
 
     test('should skip large files with skip mode', async () => {
