@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'dexto'
+    static_configs:
+      - targets: ['server:9464']

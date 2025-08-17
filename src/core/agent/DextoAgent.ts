@@ -1,4 +1,7 @@
 // src/agent/DextoAgent.ts
+
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { TelemetryService } from '../telemetry/index.js';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
@@ -108,6 +111,8 @@ export class DextoAgent {
 
     // Search service for conversation search
     private searchService!: SearchService;
+    private telemetryService!: TelemetryService;
+    private tracer = trace.getTracer('dexto-agent');
 
     // Default session for backward compatibility
     private defaultSession: ChatSession | null = null;
@@ -129,6 +134,8 @@ export class DextoAgent {
         // Validate and transform the input config
         this.config = AgentConfigSchema.parse(config);
 
+        this.telemetryService = new TelemetryService(this.config);
+
         // call start() to initialize services
         logger.info('DextoAgent created.');
     }
@@ -147,6 +154,8 @@ export class DextoAgent {
 
         try {
             logger.info('Starting DextoAgent...');
+
+            this.telemetryService.start();
 
             // Initialize all services asynchronously
             const services = await createAgentServices(this.config, this.configPath);
@@ -239,6 +248,17 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
             }
 
+            // 4. Shutdown telemetry service
+            try {
+                if (this.telemetryService) {
+                    await this.telemetryService.shutdown();
+                    logger.debug('TelemetryService shutdown successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`Telemetry shutdown failed: ${err.message}`));
+            }
+
             this._isStopped = true;
             this._isStarted = false;
 
@@ -304,90 +324,95 @@ export class DextoAgent {
         sessionId?: string,
         stream: boolean = false
     ): Promise<string | null> {
-        this.ensureStarted();
-        try {
-            // Determine target session ID for validation
-            const targetSessionId = sessionId || this.currentDefaultSessionId;
-
-            // Get session-specific LLM config for validation
-            const llmConfig = this.stateManager.getLLMConfig(targetSessionId);
-
-            // Validate inputs early using session-specific config
-            const validation = validateInputForLLM(
-                {
-                    text: textInput,
-                    ...(imageDataInput && { imageData: imageDataInput }),
-                    ...(fileDataInput && { fileData: fileDataInput }),
-                },
-                {
-                    provider: llmConfig.provider,
-                    model: llmConfig.model,
-                }
-            );
-
-            if (!validation.ok) {
-                // Extract error messages from validation issues
-                const errorMessages = validation.issues
-                    .filter((issue) => issue.severity === 'error')
-                    .map((issue) => issue.message);
-
-                // Emit event for monitoring/webhooks
-                this.agentEventBus.emit('dexto:inputValidationFailed', {
-                    sessionId: targetSessionId,
-                    issues: validation.issues,
-                    provider: llmConfig.provider,
-                    model: llmConfig.model,
+        return this.tracer.startActiveSpan('DextoAgent.run', async (span) => {
+            try {
+                this.ensureStarted();
+                const targetSessionId = sessionId || this.currentDefaultSessionId;
+                span.setAttributes({
+                    'dexto.session_id': targetSessionId,
+                    'dexto.input.text': textInput,
+                    'dexto.input.has_image': !!imageDataInput,
+                    'dexto.input.has_file': !!fileDataInput,
                 });
 
-                throw new DextoInputError(
-                    `Input validation failed: ${errorMessages.join('; ')}`,
-                    validation.issues
+                const llmConfig = this.stateManager.getLLMConfig(targetSessionId);
+                const validation = validateInputForLLM(
+                    {
+                        text: textInput,
+                        ...(imageDataInput && { imageData: imageDataInput }),
+                        ...(fileDataInput && { fileData: fileDataInput }),
+                    },
+                    {
+                        provider: llmConfig.provider,
+                        model: llmConfig.model,
+                    }
                 );
-            }
 
-            let session: ChatSession;
-
-            if (sessionId) {
-                // Use specific session or create it if it doesn't exist
-                session =
-                    (await this.sessionManager.getSession(sessionId)) ??
-                    (await this.sessionManager.createSession(sessionId));
-            } else {
-                // Use loaded default session for backward compatibility
-                if (
-                    !this.defaultSession ||
-                    this.defaultSession.id !== this.currentDefaultSessionId
-                ) {
-                    this.defaultSession = await this.sessionManager.createSession(
-                        this.currentDefaultSessionId
-                    );
-                    logger.debug(
-                        `DextoAgent.run: created/loaded default session ${this.defaultSession.id}`
+                if (!validation.ok) {
+                    const errorMessages = validation.issues
+                        .filter((issue) => issue.severity === 'error')
+                        .map((issue) => issue.message);
+                    this.agentEventBus.emit('dexto:inputValidationFailed', {
+                        sessionId: targetSessionId,
+                        issues: validation.issues,
+                        provider: llmConfig.provider,
+                        model: llmConfig.model,
+                    });
+                    throw new DextoInputError(
+                        `Input validation failed: ${errorMessages.join('; ')}`,
+                        validation.issues
                     );
                 }
-                session = this.defaultSession;
+
+                let session: ChatSession;
+                if (sessionId) {
+                    session =
+                        (await this.sessionManager.getSession(sessionId)) ??
+                        (await this.sessionManager.createSession(sessionId));
+                } else {
+                    if (
+                        !this.defaultSession ||
+                        this.defaultSession.id !== this.currentDefaultSessionId
+                    ) {
+                        this.defaultSession = await this.sessionManager.createSession(
+                            this.currentDefaultSessionId
+                        );
+                        logger.debug(
+                            `DextoAgent.run: created/loaded default session ${this.defaultSession.id}`
+                        );
+                    }
+                    session = this.defaultSession;
+                }
+
+                logger.debug(
+                    `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
+                );
+                const response = await session.run(
+                    textInput,
+                    imageDataInput,
+                    fileDataInput,
+                    stream
+                );
+
+                await this.sessionManager.incrementMessageCount(session.id);
+
+                if (response && response.trim() !== '') {
+                    span.setAttribute('dexto.output.text', response);
+                    span.setStatus({ code: SpanStatusCode.OK });
+                    return response;
+                }
+                span.setStatus({ code: SpanStatusCode.OK });
+                return null;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+                span.recordException(error instanceof Error ? error : new Error(String(error)));
+                logger.error(`Error during DextoAgent.run: ${errorMessage}`);
+                throw error;
+            } finally {
+                span.end();
             }
-
-            logger.debug(
-                `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
-            );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
-
-            // Increment message count for this session (counts each)
-            await this.sessionManager.incrementMessageCount(session.id);
-
-            // If response is an empty string, treat it as no significant response.
-            if (response && response.trim() !== '') {
-                return response;
-            }
-            // Return null if the response is empty or just whitespace.
-            return null;
-        } catch (error) {
-            logger.error(
-                `Error during DextoAgent.run: ${error instanceof Error ? error.message : String(error)}`
-            );
-            throw error;
-        }
+        });
     }
 
     // ============= SESSION MANAGEMENT =============
@@ -655,55 +680,63 @@ export class DextoAgent {
         llmUpdates: LLMUpdates,
         sessionId?: string
     ): Promise<ValidatedLLMConfig> {
-        this.ensureStarted();
+        return this.tracer.startActiveSpan('DextoAgent.switchLLM', async (span) => {
+            try {
+                this.ensureStarted();
+                span.setAttributes({
+                    'dexto.llm.updates': JSON.stringify(llmUpdates),
+                    'dexto.session_id': sessionId || 'default',
+                });
 
-        // Basic validation
-        if (!llmUpdates.model && !llmUpdates.provider) {
-            throw new DextoLLMError('At least model or provider must be specified', [
-                {
-                    code: DextoErrorCode.AGENT_MISSING_LLM_INPUT,
-                    message: 'At least model or provider must be specified',
-                    severity: 'error',
-                    context: {},
-                },
-            ]);
-        }
+                if (!llmUpdates.model && !llmUpdates.provider) {
+                    throw new DextoLLMError('At least model or provider must be specified', [
+                        {
+                            code: DextoErrorCode.AGENT_MISSING_LLM_INPUT,
+                            message: 'At least model or provider must be specified',
+                            severity: 'error',
+                            context: {},
+                        },
+                    ]);
+                }
 
-        // Get current config for the session
-        const currentLLMConfig = sessionId
-            ? this.stateManager.getRuntimeConfig(sessionId).llm
-            : this.stateManager.getRuntimeConfig().llm;
+                const currentLLMConfig = sessionId
+                    ? this.stateManager.getRuntimeConfig(sessionId).llm
+                    : this.stateManager.getRuntimeConfig().llm;
 
-        // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, llmUpdates);
+                const result = resolveAndValidateLLMConfig(currentLLMConfig, llmUpdates);
 
-        if (!result.ok) {
-            // Convert Result to exception
-            const errorMessages = result.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoLLMError(errorMessages.join('; '), result.issues);
-        }
+                if (!result.ok) {
+                    const errorMessages = result.issues
+                        .filter((i) => i.severity === 'error')
+                        .map((i) => i.message);
+                    throw new DextoLLMError(errorMessages.join('; '), result.issues);
+                }
 
-        // Perform the actual LLM switch with validated config
-        const switchResult = await this.performLLMSwitch(result.data, sessionId);
-        if (!switchResult.ok) {
-            const errorMessages = switchResult.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoLLMError(errorMessages.join('; '), switchResult.issues);
-        }
+                const switchResult = await this.performLLMSwitch(result.data, sessionId);
+                if (!switchResult.ok) {
+                    const errorMessages = switchResult.issues
+                        .filter((i) => i.severity === 'error')
+                        .map((i) => i.message);
+                    throw new DextoLLMError(errorMessages.join('; '), switchResult.issues);
+                }
 
-        // Log warnings if present
-        const warnings = result.issues.filter((issue) => issue.severity === 'warning');
-        if (warnings.length > 0) {
-            logger.warn(
-                `LLM switch completed with warnings: ${warnings.map((w) => w.message).join(', ')}`
-            );
-        }
-
-        // Return the validated config directly
-        return result.data;
+                const warnings = result.issues.filter((issue) => issue.severity === 'warning');
+                if (warnings.length > 0) {
+                    logger.warn(
+                        `LLM switch completed with warnings: ${warnings.map((w) => w.message).join(', ')}`
+                    );
+                }
+                span.setStatus({ code: SpanStatusCode.OK });
+                return result.data;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+                span.recordException(error instanceof Error ? error : new Error(String(error)));
+                throw error;
+            } finally {
+                span.end();
+            }
+        });
     }
 
     /**
@@ -959,8 +992,26 @@ export class DextoAgent {
      * @returns The result of the tool execution
      */
     public async executeTool(toolName: string, args: any): Promise<any> {
-        this.ensureStarted();
-        return await this.toolManager.executeTool(toolName, args);
+        return this.tracer.startActiveSpan('DextoAgent.executeTool', async (span) => {
+            try {
+                this.ensureStarted();
+                span.setAttributes({
+                    'dexto.tool.name': toolName,
+                    'dexto.tool.args': JSON.stringify(args),
+                });
+                const result = await this.toolManager.executeTool(toolName, args);
+                span.setStatus({ code: SpanStatusCode.OK });
+                span.end();
+                return result;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+                span.recordException(error instanceof Error ? error : new Error(String(error)));
+                throw error;
+            } finally {
+                span.end();
+            }
+        });
     }
 
     /**

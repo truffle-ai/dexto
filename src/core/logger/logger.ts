@@ -1,3 +1,4 @@
+import { context, trace } from '@opentelemetry/api';
 import * as winston from 'winston';
 import chalk from 'chalk';
 import boxen from 'boxen';
@@ -78,6 +79,16 @@ const maskFormat = winston.format((info) => {
     return info;
 });
 
+const otelFormat = winston.format((info) => {
+    const span = trace.getSpan(context.active());
+    if (span) {
+        const spanContext = span.spanContext();
+        info.trace_id = spanContext.traceId;
+        info.span_id = spanContext.spanId;
+    }
+    return info;
+});
+
 export interface LoggerOptions {
     level?: string;
     silent?: boolean;
@@ -112,6 +123,7 @@ export class Logger {
             level: options.level || getDefaultLogLevel(),
             silent: options.silent || false,
             format: winston.format.combine(
+                otelFormat(),
                 winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
                 maskFormat(),
                 winston.format.errors({ stack: true }),

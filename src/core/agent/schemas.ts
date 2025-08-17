@@ -84,6 +84,27 @@ export type AgentCard = z.input<typeof AgentCardSchema>;
 // Validated type for internal use (post-parsing)
 export type ValidatedAgentCard = z.output<typeof AgentCardSchema>;
 
+export const TelemetryConfigSchema = z
+    .object({
+        enabled: z.boolean().default(false),
+        prometheus: z
+            .object({
+                enabled: z.boolean().default(true),
+                port: z.number().default(9464),
+            })
+            .strict()
+            .default({}),
+        jaeger: z
+            .object({
+                enabled: z.boolean().default(true),
+                endpoint: z.string().url().default('http://localhost:6832'),
+            })
+            .strict()
+            .default({}),
+    })
+    .strict()
+    .describe('Telemetry configuration for OpenTelemetry');
+
 export const AgentConfigSchema = z
     .object({
         agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
@@ -108,6 +129,10 @@ export const AgentConfigSchema = z
 
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
+        ),
+
+        telemetry: TelemetryConfigSchema.default({}).describe(
+            'Telemetry configuration for OpenTelemetry'
         ),
     })
     .strict()

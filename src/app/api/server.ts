@@ -6,6 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookRegistrationRequest, WebhookConfig } from './webhook-types.js';
+import { apiRequestsCounter } from '@core/telemetry/metrics.js';
 import { logger } from '@core/index.js';
 import type { AgentCard } from '@core/index.js';
 import { setupA2ARoutes } from './a2a.js';
@@ -87,6 +88,13 @@ function validateBody<T>(
 // TODO: API endpoint names are work in progress and might be refactored/renamed in future versions
 export async function initializeApi(agent: DextoAgent, agentCardOverride?: Partial<AgentCard>) {
     const app = express();
+
+    // Middleware to count all API requests for telemetry
+    app.use((req, res, next) => {
+        apiRequestsCounter.add(1, { method: req.method, path: req.path });
+        next();
+    });
+
     registerGracefulShutdown(agent);
     // this will apply middleware to all /api/llm/* routes
     app.use('/api/llm', expressRedactionMiddleware);

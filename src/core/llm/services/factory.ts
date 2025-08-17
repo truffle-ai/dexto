@@ -1,5 +1,6 @@
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { ToolManager } from '../../tools/tool-manager.js';
-import { ILLMService } from './types.js';
+import { ILLMService, LLMServiceConfig, ImageData, FileData } from './types.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { logger } from '../../logger/index.js';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -17,6 +18,56 @@ import { ContextManager } from '../messages/manager.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+
+import { ToolSet } from '../../tools/types.js';
+
+class TracedLLMService implements ILLMService {
+    private tracer = trace.getTracer('dexto-llm-service');
+
+    constructor(private decorated: ILLMService) {}
+
+    async completeTask(
+        textInput: string,
+        imageData?: ImageData,
+        fileData?: FileData,
+        stream?: boolean
+    ): Promise<string> {
+        return this.tracer.startActiveSpan('LLMService.completeTask', async (span) => {
+            const config = this.decorated.getConfig();
+            span.setAttributes({
+                'llm.provider': config.provider,
+                'llm.model': typeof config.model === 'string' ? config.model : 'custom',
+                'llm.router': config.router,
+            });
+
+            try {
+                const result = await this.decorated.completeTask(
+                    textInput,
+                    imageData,
+                    fileData,
+                    stream
+                );
+                span.setStatus({ code: SpanStatusCode.OK });
+                return result;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+                span.recordException(error instanceof Error ? error : new Error(String(error)));
+                throw error;
+            } finally {
+                span.end();
+            }
+        });
+    }
+
+    getAllTools(): Promise<ToolSet> {
+        return this.decorated.getAllTools();
+    }
+
+    getConfig(): LLMServiceConfig {
+        return this.decorated.getConfig();
+    }
+}
 
 /**
  * Extract and validate API key from config or environment variables
@@ -186,8 +237,9 @@ export function createLLMService(
     contextManager: ContextManager,
     sessionId: string
 ): ILLMService {
+    let llmService: ILLMService;
     if (router === 'vercel') {
-        return _createVercelLLMService(
+        llmService = _createVercelLLMService(
             config,
             toolManager,
             sessionEventBus,
@@ -195,7 +247,7 @@ export function createLLMService(
             sessionId
         );
     } else {
-        return _createInBuiltLLMService(
+        llmService = _createInBuiltLLMService(
             config,
             toolManager,
             sessionEventBus,
@@ -203,4 +255,5 @@ export function createLLMService(
             sessionId
         );
     }
+    return new TracedLLMService(llmService);
 }

@@ -52,10 +52,20 @@ systemPrompt:
       enabled: true
 
 # # describes the llm configuration
-llm:
-  provider: openai
-  model: gpt-4.1-mini
-  apiKey: $OPENAI_API_KEY
+# llm:
+#   provider: openai
+#   model: gpt-4.1-mini
+#   apiKey: $OPENAI_API_KEY
+
+telemetry:
+  enabled: true
+  prometheus:
+    enabled: true
+    port: 9464
+  jaeger:
+    enabled: true
+    endpoint: http://jaeger:14268/api/traces
+
 
 # Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
 # Memory cache with file-based database (good for development with persistence)
@@ -68,7 +78,7 @@ storage:
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
-# llm:
-#   provider: google
-#   model: gemini-2.0-flash
-#   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+llm:
+  provider: google
+  model: gemini-2.0-flash
+  apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
