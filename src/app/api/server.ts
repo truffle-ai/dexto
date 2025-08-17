@@ -368,13 +368,43 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // Read resource content
     app.get('/api/resources/:resourceId/content', async (req, res) => {
-        const resourceId = decodeURIComponent(req.params.resourceId);
+        const resourceIdParam = req.params.resourceId;
+
+        // Safely decode resourceId
+        let decodedResourceId: string;
         try {
-            const content = await agent.readResource(resourceId);
+            decodedResourceId = decodeURIComponent(resourceIdParam);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
+            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
+            return res.status(400).json({
+                ok: false,
+                error: 'Invalid resourceId',
+                message: errorMessage,
+            });
+        }
+
+        // Validate resourceId with Zod schema
+        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
+        const validation = resourceIdSchema.safeParse(decodedResourceId);
+        if (!validation.success) {
+            const errorMessage = validation.error.issues.map((i) => i.message).join(', ');
+            logger.error(`Invalid resourceId validation: ${errorMessage}`);
+            return res.status(400).json({
+                ok: false,
+                error: 'Invalid resourceId',
+                message: errorMessage,
+            });
+        }
+
+        try {
+            const content = await agent.readResource(validation.data);
             return res.status(200).json({ ok: true, content });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error reading resource content for '${resourceId}': ${errorMessage}`);
+            logger.error(
+                `Error reading resource content for '${validation.data}': ${errorMessage}`
+            );
             return res.status(500).json({
                 ok: false,
                 error: 'Failed to read resource content',
@@ -385,9 +415,29 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // Check if resource exists
     app.head('/api/resources/:resourceId', async (req, res) => {
-        const resourceId = decodeURIComponent(req.params.resourceId);
+        const resourceIdParam = req.params.resourceId;
+
+        // Safely decode resourceId
+        let decodedResourceId: string;
         try {
-            const exists = await agent.hasResource(resourceId);
+            decodedResourceId = decodeURIComponent(resourceIdParam);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
+            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
+            return res.status(400).end();
+        }
+
+        // Validate resourceId with Zod schema
+        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
+        const validation = resourceIdSchema.safeParse(decodedResourceId);
+        if (!validation.success) {
+            const errorMessage = validation.error.issues.map((i) => i.message).join(', ');
+            logger.error(`Invalid resourceId validation: ${errorMessage}`);
+            return res.status(400).end();
+        }
+
+        try {
+            const exists = await agent.hasResource(validation.data);
             if (exists) {
                 return res.status(200).end();
             } else {
@@ -395,7 +445,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error checking resource existence for '${resourceId}': ${errorMessage}`);
+            logger.error(
+                `Error checking resource existence for '${validation.data}': ${errorMessage}`
+            );
             return res.status(500).end();
         }
     });
