@@ -131,6 +131,7 @@ program
 // 1. Check if preferences exist, setup if needed
 // 2. Install agent with preference injection
 // 3. Execute agent
+// Note: this will only happen if agent is not already installed. console logs will make this clear
 ```
 
 ### 3. Registry Constraints (Optional - Later Stage)
@@ -321,6 +322,7 @@ dexto -a ./custom.yml    # → Project file
 ```
 
 #### Resolution Logic Enhancement
+// this is weird and we might need to revisit this
 ```typescript
 loadAgentConfig(nameOrPath) {
   if (!nameOrPath) {
@@ -519,35 +521,52 @@ if (!nameOrPath) {
 - Migration guide with before/after examples
 - Automatic migration on first run of new version
 
-## Code Organization
+## Code Organization & Module Structure
 
-### New Modules
+### Core Business Logic (Reusable Across Modes)
 ```
-src/core/preferences/
-├── schemas.ts           # Preference validation schemas
-├── loader.ts           # Load/save preferences.yml  
-├── injection.ts        # Apply preferences to agent configs
+src/core/agent/
+├── registry.ts              # Agent resolution (move from agent-registry/)
+├── installation.ts          # Atomic installation logic with preference injection
+├── preferences.ts           # Preference injection during installation
+└── existing files...        # schemas.ts, DextoAgent.ts, etc.
+
+src/core/preferences/        # Global preference management
+├── schemas.ts              # Zod validation for preferences.yml
+├── loader.ts              # Load/save/validate preferences.yml
 └── index.ts
 
-src/core/setup/
-├── provider-selection.ts  # Reusable provider/model pickers
-├── api-key-setup.ts      # Reusable API key configuration
-├── orchestrator.ts       # Setup flow coordination
-└── index.ts
-
-src/app/commands/
-├── setup.ts            # dexto setup command
-├── install.ts          # dexto install command (future)
+src/core/setup/             # Reusable setup utilities (Web UI could use later)
+├── provider-selection.ts   # Provider/model picker logic (extracted from existing)
+├── api-key-setup.ts       # API key configuration logic (extracted from existing)
+├── orchestrator.ts        # Setup flow coordination
 └── index.ts
 ```
 
-### Enhanced Modules
+### Application Layer (CLI-Specific Orchestration)
 ```
-src/core/agent-registry/
-├── installation.ts     # Enhanced with preference injection
-├── registry.ts        # Cleaned up, focused on resolution
-└── ...existing files
+src/app/cli/commands/
+├── setup.ts               # CLI command orchestration + clack prompts
+├── install.ts            # CLI command orchestration (future)
+└── index.ts
+
+src/app/cli/utils/
+└── existing files...      # Gradually migrate reusable parts to core/setup/
 ```
+
+### Migration Strategy
+```
+src/core/agent-registry/    # TEMPORARY - will be merged into core/agent/
+├── types.ts               # Move to core/agent/registry-types.ts
+├── registry.ts           # Move to core/agent/registry.ts  
+└── index.ts              # Remove after migration
+```
+
+**Benefits:**
+- **Domain cohesion**: All agent concerns in `core/agent/`
+- **Reusable utilities**: Setup logic can power future Web UI
+- **Clean separation**: Core = business logic, App = user interaction
+- **Existing patterns**: Follows current `core/` module organization
 
 ## Success Metrics
 
