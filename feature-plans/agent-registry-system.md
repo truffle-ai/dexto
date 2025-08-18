@@ -546,8 +546,8 @@ After every sub-task, commit relevant changes and update task list
 
 ### Phase 3: Installation System
 - [x] **3.1 Implement atomic installation** - Temp directory + rename pattern for safety
-- [ ] **3.2 Handle directory vs single-file agents** - Preserve structure, resolve main entry points  
-- [ ] **3.3 Auto-install on first use** - Trigger from resolution logic when registry agent not found
+- [x] **3.2 Handle directory vs single-file agents** - Preserve structure, resolve main entry points  
+- [x] **3.3 Auto-install on first use** - Trigger from resolution logic when registry agent not found
 - [ ] **3.4 Update remaining bundled agents** - Apply template variables to all agents
 
 ### Phase 4: CLI Integration

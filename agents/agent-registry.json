@@ -42,6 +42,12 @@
       "tags": ["support", "triage", "routing", "multi-agent"],
       "source": "triage-demo/",
       "main": "triage-agent.yml"
+    },
+    "default-agent": {
+      "description": "Default Dexto agent with filesystem and puppeteer tools",
+      "author": "Truffle AI", 
+      "tags": ["default", "filesystem", "puppeteer"],
+      "source": "agent.yml"
     }
   }
 }

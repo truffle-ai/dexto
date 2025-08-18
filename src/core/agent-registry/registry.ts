@@ -58,24 +58,38 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
-     * Resolve main config file for directory agent
+     * Resolve main config file for installed agent
+     * Handles both directory agents (with main field) and single-file agents
      */
     private resolveMainConfig(agentDir: string, agentName: string): string {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
-        if (!agentData?.main) {
-            throw new Error(
-                `Registry entry for '${agentName}' specifies directory but missing 'main' field`
-            );
-        }
+        if (agentData?.source.endsWith('/')) {
+            // Directory agent - main field is required
+            if (!agentData.main) {
+                throw new Error(
+                    `Registry entry for '${agentName}' specifies directory but missing 'main' field`
+                );
+            }
 
-        const mainConfigPath = path.join(agentDir, agentData.main);
-        if (!existsSync(mainConfigPath)) {
-            throw new Error(`Main config file not found: ${mainConfigPath}`);
-        }
+            const mainConfigPath = path.join(agentDir, agentData.main);
+            if (!existsSync(mainConfigPath)) {
+                throw new Error(`Main config file not found: ${mainConfigPath}`);
+            }
 
-        return mainConfigPath;
+            return mainConfigPath;
+        } else {
+            // Single file agent - use the source filename
+            const filename = path.basename(agentData.source);
+            const configPath = path.join(agentDir, filename);
+
+            if (!existsSync(configPath)) {
+                throw new Error(`Config file not found: ${configPath}`);
+            }
+
+            return configPath;
+        }
     }
 
     /**
