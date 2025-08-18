@@ -282,7 +282,7 @@ const config = await loadAgentConfig(opts.agent);
 // New: loadAgentConfig() when no -a flag (global context)
 // 1. Load preferences, get defaults.defaultAgent (fallback: 'default-agent')
 // 2. Auto-install specified default agent with preferences (if needed)
-// 3. Use ~/.dexto/agents/{defaultAgent}/agent.yml
+// 3. Use ~/.dexto/agents/{defaultAgent}/ or ~/.dexto/agents/{defaultAgent}.yml
 // 4. No more legacy ~/.dexto/agent.yml
 ```
 
@@ -315,7 +315,7 @@ cd my-dexto-project
 dexto                    # → ./src/dexto/agents/default-agent.yml (NEW: consistent naming)
 
 # Registry agents still available (with global preferences)
-dexto -a database-agent  # → ~/.dexto/agents/database-agent/ 
+dexto -a database-agent  # → ~/.dexto/agents/database-agent/ or ~/.dexto/agents/database-agent.yml 
 
 # Local files work (unchanged)
 dexto -a ./custom.yml    # → Project file
