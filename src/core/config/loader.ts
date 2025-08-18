@@ -1,9 +1,71 @@
 import { promises as fs } from 'fs';
+import path from 'path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
 import { resolveConfigPath } from '../utils/path.js';
 import { ConfigError } from './errors.js';
+
+/**
+ * Expand template variables in agent configuration
+ * Replaces ${{dexto.agent_dir}} with the agent's directory path
+ */
+function expandTemplateVars(config: unknown, agentDir: string): unknown {
+    // Deep clone to avoid mutations
+    const result = JSON.parse(JSON.stringify(config));
+
+    // Walk the config recursively
+    function walk(obj: unknown): unknown {
+        if (typeof obj === 'string') {
+            return expandString(obj, agentDir);
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(walk);
+        }
+        if (obj !== null && typeof obj === 'object') {
+            const result: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(obj)) {
+                result[key] = walk(value);
+            }
+            return result;
+        }
+        return obj;
+    }
+
+    return walk(result);
+}
+
+/**
+ * Expand template variables in a string value
+ */
+function expandString(str: string, agentDir: string): string {
+    // Replace ${{dexto.agent_dir}} with absolute path
+    const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, agentDir);
+
+    // Security: Validate no path traversal for expanded paths
+    if (result !== str && result.includes('..')) {
+        validateExpandedPath(str, result, agentDir);
+    }
+
+    return result;
+}
+
+/**
+ * Validate that template expansion doesn't allow path traversal
+ */
+function validateExpandedPath(original: string, expanded: string, agentDir: string): void {
+    const resolved = path.resolve(expanded);
+    const agentRoot = path.resolve(agentDir);
+
+    if (!resolved.startsWith(agentRoot)) {
+        throw new Error(
+            `Security: Template expansion attempted to escape agent directory.\n` +
+                `Original: ${original}\n` +
+                `Expanded: ${expanded}\n` +
+                `Agent root: ${agentRoot}`
+        );
+    }
+}
 
 /**
  * Load the complete agent configuration
@@ -70,7 +132,19 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
         );
     }
 
-    // Return raw config - environment variable expansion handled by Zod schema
+    // --- Step 4: Expand template variables ---
+    try {
+        const agentDir = path.dirname(absolutePath);
+        config = expandTemplateVars(config, agentDir);
+        logger.debug(`Expanded template variables for agent in: ${agentDir}`);
+    } catch (error) {
+        throw ConfigError.parseError(
+            absolutePath,
+            `Template expansion failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    // Return expanded config - environment variable expansion handled by Zod schema
     return config as AgentConfig;
 }
 
