@@ -7,12 +7,7 @@ import { ConfigError } from '@core/config/errors.js';
 /**
  * Default config file path (relative to package root)
  */
-export const DEFAULT_CONFIG_PATH = 'agents/agent.yml';
-
-/**
- * User's global config path (relative to home directory)
- */
-export const USER_CONFIG_PATH = '.dexto/agent.yml';
+export const DEFAULT_CONFIG_PATH = 'agents/default-agent.yml';
 
 /**
  * Generic directory walker that searches up the directory tree
@@ -183,23 +178,47 @@ export function isPath(str: string): boolean {
 }
 
 export async function resolveConfigPath(nameOrPath?: string): Promise<string> {
-    // Default case: no name/path specified - use registry default-agent
-    if (!nameOrPath) {
+    // Handle explicit file paths first
+    if (nameOrPath && isPath(nameOrPath)) {
+        return path.resolve(nameOrPath);
+    }
+
+    // Handle registry names
+    if (nameOrPath) {
+        const { getAgentRegistry } = await import('../agent-registry/registry.js');
+        const registry = getAgentRegistry();
+        return await registry.resolveAgent(nameOrPath);
+    }
+
+    // Default case: no name/path specified
+    // Check if we're in a dexto project first
+    const projectRoot = getDextoProjectRoot();
+    if (projectRoot) {
+        // TODO: Make this logic more robust and less hardcoded
+        // In dexto project: Look for config in project (multiple possible locations)
+        const configPaths = [
+            path.join(projectRoot, DEFAULT_CONFIG_PATH), // Standard: agents/default-agent.yml
+            path.join(projectRoot, 'src', DEFAULT_CONFIG_PATH), // Common: src/agents/default-agent.yml
+            path.join(projectRoot, 'src', 'dexto', DEFAULT_CONFIG_PATH), // Test app: src/dexto/agents/default-agent.yml
+            path.join(projectRoot, '.dexto', 'default-agent.yml'), // Hidden: .dexto/default-agent.yml
+            path.join(projectRoot, 'default-agent.yml'), // Root: default-agent.yml
+        ];
+
+        for (const configPath of configPaths) {
+            if (existsSync(configPath)) {
+                return configPath;
+            }
+        }
+
+        throw ConfigError.fileNotFound(
+            `No default-agent.yml found in project. Searched: ${configPaths.join(', ')}`
+        );
+    } else {
+        // Global CLI mode: use registry default-agent
         const { getAgentRegistry } = await import('../agent-registry/registry.js');
         const registry = getAgentRegistry();
         return await registry.resolveAgent('default-agent');
     }
-
-    // Check if it looks like a file path
-    if (isPath(nameOrPath)) {
-        // File path - resolve directly
-        return path.resolve(nameOrPath);
-    }
-
-    // Registry name - use agent registry
-    const { getAgentRegistry } = await import('../agent-registry/registry.js');
-    const registry = getAgentRegistry();
-    return await registry.resolveAgent(nameOrPath);
 }
 
 /**
@@ -271,11 +290,11 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
 }
 
 /**
- * Get the user's global config path
- * @returns Absolute path to ~/.dexto/agent.yml
+ * Get the user's global config path (legacy)
+ * TODO: Remove in enhanced preference system - replaced by ~/.dexto/agents/default-agent/
  */
 export function getUserConfigPath(): string {
-    return path.join(homedir(), USER_CONFIG_PATH);
+    return path.join(homedir(), '.dexto', 'agent.yml');
 }
 
 /**

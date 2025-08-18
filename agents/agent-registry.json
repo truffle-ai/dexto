@@ -47,8 +47,7 @@
       "description": "Default Dexto agent with filesystem and puppeteer tools",
       "author": "Truffle AI", 
       "tags": ["default", "filesystem", "puppeteer"],
-      "source": "default-agent/",
-      "main": "default-agent.yml"
+      "source": "default-agent.yml"
     }
   }
 }

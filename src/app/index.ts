@@ -301,12 +301,13 @@ program
         let validatedConfig: AgentConfig;
         try {
             // Check for first-time user scenario BEFORE loading config
-            // TODO: First-time setup detection is currently broken since we use registry
-            // default-agent instead of bundled config. This will be fixed in enhanced
-            // preference system (agent-registry-system-2.md) which uses preferences.yml
-            // existence instead of bundled config detection.
+            // TODO: First-time setup detection will be replaced in enhanced preference system
+            // (agent-registry-system-2.md Phase 2) which uses preferences.yml existence
+            // instead of bundled config detection. Current logic is broken with registry system.
+            //
+            // For now, first-time setup is disabled until preference system is implemented.
             const resolvedPath = await resolveConfigPath(opts.agent);
-            if (isFirstTimeUserScenario(resolvedPath)) {
+            if (false && isFirstTimeUserScenario(resolvedPath)) {
                 if (opts.skipInteractive) {
                     console.error(
                         chalk.red(

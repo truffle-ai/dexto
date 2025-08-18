@@ -67,22 +67,20 @@ function validateExpandedPath(original: string, expanded: string, agentDir: stri
 }
 
 /**
- * Asynchronously loads and processes an agent configuration file from an absolute path.
+ * Asynchronously loads and processes an agent configuration file.
  * This function handles file reading, YAML parsing, and template variable expansion.
  * Environment variable expansion is handled by the Zod schema during validation.
  *
  * Note: Path resolution should be done before calling this function using resolveConfigPath().
  *
- * @param absolutePath - Absolute path to the configuration file
+ * @param configPath - Path to the configuration file (absolute or relative)
  * @returns A Promise that resolves to the parsed `AgentConfig` object with template variables expanded
  * @throws {ConfigError} with FILE_NOT_FOUND if the configuration file does not exist
  * @throws {ConfigError} with FILE_READ_ERROR if file read fails (e.g., permissions issues)
  * @throws {ConfigError} with PARSE_ERROR if the content is not valid YAML or template expansion fails
  */
-export async function loadAgentConfig(absolutePath: string): Promise<AgentConfig> {
-    if (!path.isAbsolute(absolutePath)) {
-        throw new Error(`loadAgentConfig requires an absolute path, got: ${absolutePath}`);
-    }
+export async function loadAgentConfig(configPath: string): Promise<AgentConfig> {
+    const absolutePath = path.resolve(configPath);
 
     // --- Step 1: Verify the configuration file exists and is accessible ---
     try {
@@ -143,15 +141,13 @@ export async function loadAgentConfig(absolutePath: string): Promise<AgentConfig
  * This function handles the serialization of the config object to YAML format
  * and writes it to the specified file path.
  *
- * @param absolutePath - Absolute path where the configuration file should be written
+ * @param configPath - Path where the configuration file should be written (absolute or relative)
  * @param config - The `AgentConfig` object to be written to the file
  * @returns A Promise that resolves when the file has been successfully written
  * @throws {ConfigError} with FILE_WRITE_ERROR if an error occurs during YAML stringification or file writing
  */
-export async function writeConfigFile(absolutePath: string, config: AgentConfig): Promise<void> {
-    if (!path.isAbsolute(absolutePath)) {
-        throw new Error(`writeConfigFile requires an absolute path, got: ${absolutePath}`);
-    }
+export async function writeConfigFile(configPath: string, config: AgentConfig): Promise<void> {
+    const absolutePath = path.resolve(configPath);
 
     try {
         // Convert the AgentConfig object into a YAML string.
