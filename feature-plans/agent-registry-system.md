@@ -552,17 +552,19 @@ After every sub-task, commit relevant changes and update task list
 
 ### Phase 4: CLI Integration
 - [ ] **4.0 Migrate default agent to registry** - Change default from ~/.dexto/agent.yml to registry-based default-agent
-- [ ] **4.1 Update -a/--agent flag behavior** - Accept names or paths transparently
-- [ ] **4.2 Verify list-agents command** - Ensure it uses getDextoGlobalPath, shows installed vs available
-- [ ] **4.3 Add which command** - For debugging resolution: `dexto which database-agent`
-- [ ] **4.4 Enhance first-time setup** - Add tips about available agents after setup completes
+- [x] **4.1 Update -a/--agent flag behavior** - Accept names or paths transparently
+- [ ] **4.2 Verify list-agents command** - **MOVED TO agent-registry-system-2.md Phase 5**
+- [ ] **4.3 Add which command** - **MOVED TO agent-registry-system-2.md Phase 5**
+- [ ] **4.4 Enhance first-time setup** - **SUPERSEDED BY preference system in agent-registry-system-2.md**
 
 ### Phase 5: Testing & Polish
-- [ ] **5.1 Cross-platform testing** - Windows, Mac, Linux path handling
-- [ ] **5.2 Multi-agent system testing** - triage-demo with sub-agents and shared resources
-- [ ] **5.3 Edge case testing** - All scenarios from E1-E11 in feature plan
-- [ ] **5.4 Error message polish** - Clear, helpful messages with suggestions
-- [ ] **5.5 Documentation updates** - User-facing docs about registry system
+- [ ] **5.1 Cross-platform testing** - **MOVED TO agent-registry-system-2.md Phase 6**
+- [ ] **5.2 Multi-agent system testing** - **MOVED TO agent-registry-system-2.md Phase 6**
+- [ ] **5.3 Edge case testing** - **MOVED TO agent-registry-system-2.md Phase 6**
+- [ ] **5.4 Error message polish** - **MOVED TO agent-registry-system-2.md Phase 6**
+- [ ] **5.5 Documentation updates** - **MOVED TO agent-registry-system-2.md Phase 6**
+
+**NOTE**: The remaining tasks in Phase 4-5 have been moved to `agent-registry-system-2.md` where they are enhanced with preference management and improved user experience. Continue development using the new feature plan.
 
 ### Priority Dependencies
 - Everything depends on **1.1** (getDextoGlobalPath)
