@@ -89,7 +89,7 @@ systemPrompt:
       type: file
       priority: 10
       files:
-        - docs/company-overview.md
+        - "${{dexto.agent_dir}}/docs/company-overview.md"
       options:
         includeFilenames: true
         errorHandling: skip
@@ -130,7 +130,7 @@ mcpServers:
       - --mode
       - mcp
       - --agent
-      - agents/triage-demo/technical-support-agent.yml
+      - "${{dexto.agent_dir}}/technical-support-agent.yml"
     connectionMode: lenient
   
   billing_support:
@@ -141,7 +141,7 @@ mcpServers:
       - --mode
       - mcp
       - --agent
-      - agents/triage-demo/billing-agent.yml
+      - "${{dexto.agent_dir}}/billing-agent.yml"
     connectionMode: lenient
   
   product_info:
@@ -152,7 +152,7 @@ mcpServers:
       - --mode
       - mcp
       - --agent
-      - agents/triage-demo/product-info-agent.yml
+      - "${{dexto.agent_dir}}/product-info-agent.yml"
     connectionMode: lenient
   
   escalation:
@@ -163,7 +163,7 @@ mcpServers:
       - --mode
       - mcp
       - --agent
-      - agents/triage-demo/escalation-agent.yml
+      - "${{dexto.agent_dir}}/escalation-agent.yml"
     connectionMode: lenient
 
 llm:

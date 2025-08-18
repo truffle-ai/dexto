@@ -548,9 +548,10 @@ After every sub-task, commit relevant changes and update task list
 - [x] **3.1 Implement atomic installation** - Temp directory + rename pattern for safety
 - [x] **3.2 Handle directory vs single-file agents** - Preserve structure, resolve main entry points  
 - [x] **3.3 Auto-install on first use** - Trigger from resolution logic when registry agent not found
-- [ ] **3.4 Update remaining bundled agents** - Apply template variables to all agents
+- [x] **3.4 Update remaining bundled agents** - Apply template variables to all agents
 
 ### Phase 4: CLI Integration
+- [ ] **4.0 Migrate default agent to registry** - Change default from ~/.dexto/agent.yml to registry-based default-agent
 - [ ] **4.1 Update -a/--agent flag behavior** - Accept names or paths transparently
 - [ ] **4.2 Verify list-agents command** - Ensure it uses getDextoGlobalPath, shows installed vs available
 - [ ] **4.3 Add which command** - For debugging resolution: `dexto which database-agent`
