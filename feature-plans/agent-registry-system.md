@@ -542,7 +542,7 @@ After every sub-task, commit relevant changes and update task list
 - [x] **2.1 Implement agent resolution logic** - Name vs path detection, registry lookups
 - [x] **2.2 Template variable expansion system** - Insert into config loading pipeline after YAML, before Zod
 - [x] **2.3 Update loadAgentConfig integration** - Detect registry names vs file paths, handle each appropriately
-- [ ] **2.4 Test with database-agent** - First agent to get template variables, verify data files work
+- [x] **2.4 Test with database-agent** - First agent to get template variables, verify data files work
 
 ### Phase 3: Installation System
 - [ ] **3.1 Implement atomic installation** - Temp directory + rename pattern for safety
