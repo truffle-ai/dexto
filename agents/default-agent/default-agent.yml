@@ -1,0 +1,74 @@
+# describes the mcp servers to use
+mcpServers:
+  filesystem:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
+  puppeteer:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@truffle-ai/puppeteer-server"
+  # hf:
+  #   type: stdio
+  #   command: npx
+  #   args:
+  #     - -y
+  #     - "@llmindset/mcp-hfspace"
+
+# System prompt configuration - defines the agent's behavior and instructions
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a helpful AI assistant with access to tools.
+        Use these tools when appropriate to answer user queries.
+        You can use multiple tools in sequence to solve complex problems.
+        After each tool result, determine if you need more information or can provide a final answer.
+
+        When using Puppeteer tools for web interaction:
+        1. Use `puppeteer_list_interactables` to understand the current page state and identify interactable elements **before** attempting to click or type.
+        2. Examine the returned list. Identify the desired element based on its text and attributes.
+        3. **Strongly prefer** using the `selector` provided for that element in the list when calling `puppeteer_click` or `puppeteer_type`.
+        4. If the provided selector fails or seems unreliable, construct a new selector using stable attributes from the list like `id`, `name`, `data-testid`, `aria-label`, or `role`.
+        5. **Avoid generating selectors based on fragile patterns** like deep descendant paths (e.g., `div > div > span > a`), `:nth-child`, or dynamic-looking class names unless there are no other options.
+        6. **Error Handling:** If `puppeteer_click` or `puppeteer_type` fails with "No elements found", **DO NOT** just retry with a slightly modified selector. Instead:
+            a. Call `puppeteer_list_interactables` **again** to get the fresh page state.
+            b. Re-identify the target element in the **new** list.
+            c. Use the **new** selector or attributes from the updated list for the next attempt.
+        7. Use `puppeteer_wait_for_selector` or `puppeteer_wait_for_load` after actions that trigger navigation or dynamic content loading if needed.
+        8. **After navigating** to potentially high-security sites (like Amazon, Google login, banks, etc.), **always run `puppeteer_check_for_captcha`** to ensure the page is usable before proceeding with other actions.
+        9. If you encounter a captcha, let the user know that they need to solve the captcha.
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+
+# # describes the llm configuration
+llm:
+  provider: openai
+  model: gpt-4.1-mini
+  apiKey: $OPENAI_API_KEY
+
+# Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
+# Memory cache with file-based database (good for development with persistence)
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+    # path: ./data/dexto.db
+
+## To use Google Gemini, replace the LLM section with Google Gemini configuration below
+## Similar for anthropic/groq/etc.
+# llm:
+#   provider: google
+#   model: gemini-2.0-flash
+#   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY

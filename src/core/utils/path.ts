@@ -160,61 +160,46 @@ export async function copyDirectory(src: string, dest: string): Promise<void> {
 }
 
 /**
- * Resolve config path with context awareness
- * @param configPath Optional explicit config path
- * @param startPath Starting directory for project detection
+ * Resolve config path with registry and context awareness
+ * @param nameOrPath Optional agent name or config path
  * @returns Absolute path to config file
  */
-export function resolveConfigPath(configPath?: string, startPath?: string): string {
-    if (configPath) {
-        // Explicit path provided
-        return path.resolve(configPath);
+/**
+ * Check if string looks like a file path vs registry name
+ * @param str String to check
+ * @returns True if looks like a path, false if looks like a registry name
+ */
+export function isPath(str: string): boolean {
+    // Absolute paths
+    if (path.isAbsolute(str)) return true;
+
+    // Relative paths with separators
+    if (/[\\/]/.test(str)) return true;
+
+    // File extensions
+    if (/\.(ya?ml|json)$/i.test(str)) return true;
+
+    return false;
+}
+
+export async function resolveConfigPath(nameOrPath?: string): Promise<string> {
+    // Default case: no name/path specified - use registry default-agent
+    if (!nameOrPath) {
+        const { getAgentRegistry } = await import('../agent-registry/registry.js');
+        const registry = getAgentRegistry();
+        return await registry.resolveAgent('default-agent');
     }
 
-    const projectRoot = getDextoProjectRoot(startPath);
-
-    if (projectRoot) {
-        // In dexto project: Look for config in project (multiple possible locations)
-        const configPaths = [
-            path.join(projectRoot, DEFAULT_CONFIG_PATH), // Standard
-            path.join(projectRoot, 'src', DEFAULT_CONFIG_PATH), // Common
-            path.join(projectRoot, 'src', 'dexto', DEFAULT_CONFIG_PATH), // Test app structure
-            path.join(projectRoot, '.dexto', 'agent.yml'), // Hidden
-            path.join(projectRoot, 'agent.yml'), // Root
-        ];
-
-        for (const configPath of configPaths) {
-            if (existsSync(configPath)) {
-                return configPath;
-            }
-        }
-
-        throw ConfigError.fileNotFound(
-            `No agent.yml found in project. Searched: ${configPaths.join(', ')}`
-        );
-    } else {
-        // Global CLI mode
-
-        // Check for user's global config first
-        const userConfigPath = getUserConfigPath();
-        if (existsSync(userConfigPath)) {
-            return userConfigPath;
-        }
-
-        // Fall back to bundled default config
-        try {
-            const bundledConfigPath = getBundledConfigPath();
-            if (existsSync(bundledConfigPath)) {
-                return bundledConfigPath;
-            }
-        } catch {
-            // Fallback if bundled script resolution fails
-        }
-
-        throw ConfigError.fileNotFound(
-            'Global CLI: No bundled config found and no explicit config provided'
-        );
+    // Check if it looks like a file path
+    if (isPath(nameOrPath)) {
+        // File path - resolve directly
+        return path.resolve(nameOrPath);
     }
+
+    // Registry name - use agent registry
+    const { getAgentRegistry } = await import('../agent-registry/registry.js');
+    const registry = getAgentRegistry();
+    return await registry.resolveAgent(nameOrPath);
 }
 
 /**

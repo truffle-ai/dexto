@@ -3,8 +3,6 @@ import path from 'path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
-import { resolveConfigPath } from '../utils/path.js';
-import { LocalAgentRegistry } from '../agent-registry/registry.js';
 import { ConfigError } from './errors.js';
 
 /**
@@ -69,57 +67,21 @@ function validateExpandedPath(original: string, expanded: string, agentDir: stri
 }
 
 /**
- * Load the complete agent configuration
- * @param configPath Path to the configuration file
- * @returns Complete agent configuration
- */
-
-/**
- * Asynchronously loads and processes an agent configuration file.
- * This function orchestrates the steps of resolving the file path, checking its existence,
- * reading its content, and parsing it as YAML. Environment variable expansion is handled
- * by the Zod schema during validation.
- * Each step is wrapped in a try-catch block to gracefully handle errors and throw specific,
- * custom error types for better error identification and handling by the caller.
+ * Asynchronously loads and processes an agent configuration file from an absolute path.
+ * This function handles file reading, YAML parsing, and template variable expansion.
+ * Environment variable expansion is handled by the Zod schema during validation.
  *
- * @param configPath - An optional string representing the path to the configuration file.
- * If not provided, a default path will be resolved internally.
- * @returns A Promise that resolves to the raw parsed `AgentConfig` object.
- * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_NOT_FOUND if the configuration file does not exist.
- * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_READ_ERROR if file read fails (e.g., permissions issues).
- * @throws {DextoRuntimeError} with ConfigErrorCode.PARSE_ERROR if the content is not valid YAML.
+ * Note: Path resolution should be done before calling this function using resolveConfigPath().
+ *
+ * @param absolutePath - Absolute path to the configuration file
+ * @returns A Promise that resolves to the parsed `AgentConfig` object with template variables expanded
+ * @throws {ConfigError} with FILE_NOT_FOUND if the configuration file does not exist
+ * @throws {ConfigError} with FILE_READ_ERROR if file read fails (e.g., permissions issues)
+ * @throws {ConfigError} with PARSE_ERROR if the content is not valid YAML or template expansion fails
  */
-/**
- * Check if string looks like a file path vs registry name
- */
-function isPath(str: string): boolean {
-    // Absolute paths
-    if (path.isAbsolute(str)) return true;
-
-    // Relative paths with separators
-    if (/[\\/]/.test(str)) return true;
-
-    // File extensions
-    if (/\.(ya?ml|json)$/i.test(str)) return true;
-
-    return false;
-}
-
-export async function loadAgentConfig(nameOrPath?: string): Promise<AgentConfig> {
-    let absolutePath: string;
-
-    // Default case: no name/path specified
-    if (!nameOrPath) {
-        absolutePath = resolveConfigPath(nameOrPath);
-    } else if (isPath(nameOrPath)) {
-        // File path - use standard resolution
-        absolutePath = resolveConfigPath(nameOrPath);
-        logger.debug(`Resolved file path: ${nameOrPath} → ${absolutePath}`);
-    } else {
-        // Registry name - use agent registry
-        const registry = new LocalAgentRegistry();
-        absolutePath = await registry.resolveAgent(nameOrPath);
-        logger.debug(`Resolved registry agent: ${nameOrPath} → ${absolutePath}`);
+export async function loadAgentConfig(absolutePath: string): Promise<AgentConfig> {
+    if (!path.isAbsolute(absolutePath)) {
+        throw new Error(`loadAgentConfig requires an absolute path, got: ${absolutePath}`);
     }
 
     // --- Step 1: Verify the configuration file exists and is accessible ---
@@ -179,21 +141,17 @@ export async function loadAgentConfig(nameOrPath?: string): Promise<AgentConfig>
 /**
  * Asynchronously writes the given agent configuration object to a YAML file.
  * This function handles the serialization of the config object to YAML format
- * and then writes it to the specified file path, logging the action.
- * It uses custom error classes for robust error handling.
+ * and writes it to the specified file path.
  *
- * @param configPath - Optional. The path where the configuration file should be written.
- * If undefined, `resolveConfigPath` will determine the default path.
- * @param config - The `AgentConfig` object to be written to the file.
- * @returns A Promise that resolves when the file has been successfully written.
- * @throws {ConfigFileWriteError} If an error occurs during the YAML stringification or file writing process.
+ * @param absolutePath - Absolute path where the configuration file should be written
+ * @param config - The `AgentConfig` object to be written to the file
+ * @returns A Promise that resolves when the file has been successfully written
+ * @throws {ConfigError} with FILE_WRITE_ERROR if an error occurs during YAML stringification or file writing
  */
-export async function writeConfigFile(
-    configPath: string | undefined,
-    config: AgentConfig
-): Promise<void> {
-    // Resolve the absolute path where the configuration file will be written.
-    const absolutePath = resolveConfigPath(configPath);
+export async function writeConfigFile(absolutePath: string, config: AgentConfig): Promise<void> {
+    if (!path.isAbsolute(absolutePath)) {
+        throw new Error(`writeConfigFile requires an absolute path, got: ${absolutePath}`);
+    }
 
     try {
         // Convert the AgentConfig object into a YAML string.

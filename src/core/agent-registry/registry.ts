@@ -5,6 +5,9 @@ import { logger } from '@core/logger/index.js';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
 import { Registry, RegistrySchema, AgentRegistry } from './types.js';
 
+// Cached registry instance
+let cachedRegistry: LocalAgentRegistry | null = null;
+
 /**
  * Local agent registry implementation
  */
@@ -192,4 +195,14 @@ export class LocalAgentRegistry implements AgentRegistry {
                 `Use a file path for custom agents.`
         );
     }
+}
+
+/**
+ * Get cached registry instance (singleton pattern)
+ */
+export function getAgentRegistry(): LocalAgentRegistry {
+    if (cachedRegistry === null) {
+        cachedRegistry = new LocalAgentRegistry();
+    }
+    return cachedRegistry;
 }

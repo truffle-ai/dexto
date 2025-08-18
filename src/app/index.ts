@@ -172,10 +172,11 @@ program
             // Load and resolve config
             // Get the global agent option from the main program
             const globalOpts = program.opts();
-            const configPath = globalOpts.agent;
+            const nameOrPath = globalOpts.agent;
 
+            const configPath = await resolveConfigPath(nameOrPath);
             const config = await loadAgentConfig(configPath);
-            console.log(`📄 Loading Dexto config from: ${resolveConfigPath(configPath)}`);
+            console.log(`📄 Loading Dexto config from: ${configPath}`);
 
             // Validate that MCP servers are configured
             if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
@@ -300,7 +301,11 @@ program
         let validatedConfig: AgentConfig;
         try {
             // Check for first-time user scenario BEFORE loading config
-            const resolvedPath = resolveConfigPath(opts.agent);
+            // TODO: First-time setup detection is currently broken since we use registry
+            // default-agent instead of bundled config. This will be fixed in enhanced
+            // preference system (agent-registry-system-2.md) which uses preferences.yml
+            // existence instead of bundled config detection.
+            const resolvedPath = await resolveConfigPath(opts.agent);
             if (isFirstTimeUserScenario(resolvedPath)) {
                 if (opts.skipInteractive) {
                     console.error(
@@ -325,7 +330,8 @@ program
             }
 
             // Load raw config and apply CLI overrides
-            const rawConfig = await loadAgentConfig(opts.agent);
+            const configPath = await resolveConfigPath(opts.agent);
+            const rawConfig = await loadAgentConfig(configPath);
             const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
             // Validate with interactive setup if needed (for API key issues)
@@ -339,7 +345,8 @@ program
         // ——— CREATE AGENT ———
         let agent: DextoAgent;
         try {
-            console.log(`🚀 Initializing Dexto with config: ${resolveConfigPath(opts.agent)}`);
+            const agentConfigPath = await resolveConfigPath(opts.agent);
+            console.log(`🚀 Initializing Dexto with config: ${agentConfigPath}`);
 
             // Set run mode for tool confirmation provider
             process.env.DEXTO_RUN_MODE = opts.mode;
