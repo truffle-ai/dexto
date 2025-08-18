@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
+import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@core/logger/index.js';
-import { resolveBundledScript, getDextoGlobalPath } from '@core/utils/path.js';
+import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
 import { Registry, RegistrySchema, AgentRegistry } from './types.js';
 
 /**
@@ -49,22 +50,6 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
-     * Check if string looks like a path vs registry name
-     */
-    private isPath(str: string): boolean {
-        // Absolute paths
-        if (path.isAbsolute(str)) return true;
-
-        // Relative paths with separators
-        if (/[\\/]/.test(str)) return true;
-
-        // File extensions
-        if (/\.(ya?ml|json)$/i.test(str)) return true;
-
-        return false;
-    }
-
-    /**
      * Check if agent exists in registry
      */
     private hasRegistryAgent(name: string): boolean {
@@ -94,43 +79,101 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
-     * Resolve an agent name/path to a config path
+     * Install agent atomically using temp + rename pattern
      */
-    async resolveAgent(nameOrPath: string): Promise<string> {
-        logger.debug(`Resolving agent: ${nameOrPath}`);
+    private async installAgent(agentName: string): Promise<string> {
+        const registry = this.getRegistry();
+        const agentData = registry.agents[agentName];
 
-        // 1. Check if it's a path - resolve directly
-        if (this.isPath(nameOrPath)) {
-            const resolved = path.resolve(nameOrPath);
-            if (!existsSync(resolved)) {
-                throw new Error(`Agent config not found: ${resolved}`);
-            }
-            logger.debug(`Resolved path '${nameOrPath}' to: ${resolved}`);
-            return resolved;
+        if (!agentData) {
+            throw new Error(`Agent '${agentName}' not found in registry`);
         }
 
-        // 2. Must be a registry name - check if installed
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const installedPath = path.join(globalAgentsDir, nameOrPath);
+        const targetDir = path.join(globalAgentsDir, agentName);
+
+        // Check if already installed
+        if (existsSync(targetDir)) {
+            logger.debug(`Agent '${agentName}' already installed`);
+            return this.resolveMainConfig(targetDir, agentName);
+        }
+
+        // Ensure agents directory exists
+        await fs.mkdir(globalAgentsDir, { recursive: true });
+
+        // Determine source path
+        const sourcePath = resolveBundledScript(`agents/${agentData.source}`);
+
+        // Create temp directory for atomic operation
+        const tempDir = `${targetDir}.tmp.${Date.now()}`;
+
+        try {
+            // Copy to temp directory first
+            if (agentData.source.endsWith('/')) {
+                // Directory agent - copy entire directory
+                await copyDirectory(sourcePath, tempDir);
+            } else {
+                // Single file agent - create directory and copy file
+                await fs.mkdir(tempDir, { recursive: true });
+                const targetFile = path.join(tempDir, path.basename(sourcePath));
+                await fs.copyFile(sourcePath, targetFile);
+            }
+
+            // Validate installation
+            const mainConfigPath = this.resolveMainConfig(tempDir, agentName);
+            if (!existsSync(mainConfigPath)) {
+                throw new Error(`Installation validation failed: missing main config`);
+            }
+
+            // Atomic rename
+            await fs.rename(tempDir, targetDir);
+
+            logger.info(`✓ Installed agent '${agentName}' to ${targetDir}`);
+            return this.resolveMainConfig(targetDir, agentName);
+        } catch (error) {
+            // Clean up temp directory on failure
+            try {
+                if (existsSync(tempDir)) {
+                    await fs.rm(tempDir, { recursive: true, force: true });
+                }
+            } catch (cleanupError) {
+                logger.debug(`Failed to clean up temp directory: ${cleanupError}`);
+            }
+
+            throw new Error(
+                `Failed to install agent '${agentName}': ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    /**
+     * Resolve a registry agent name to a config path
+     * NOTE: Only handles registry names, not file paths (routing done in loadAgentConfig)
+     */
+    async resolveAgent(agentName: string): Promise<string> {
+        logger.debug(`Resolving registry agent: ${agentName}`);
+
+        // 1. Check if installed
+        const globalAgentsDir = getDextoGlobalPath('agents');
+        const installedPath = path.join(globalAgentsDir, agentName);
 
         if (existsSync(installedPath)) {
-            const mainConfig = this.resolveMainConfig(installedPath, nameOrPath);
-            logger.debug(`Resolved installed agent '${nameOrPath}' to: ${mainConfig}`);
+            const mainConfig = this.resolveMainConfig(installedPath, agentName);
+            logger.debug(`Resolved installed agent '${agentName}' to: ${mainConfig}`);
             return mainConfig;
         }
 
-        // 3. Check if available in registry (will need installation next)
-        if (this.hasRegistryAgent(nameOrPath)) {
-            throw new Error(
-                `Agent '${nameOrPath}' not installed yet - installation not implemented`
-            );
+        // 2. Check if available in registry - install if needed
+        if (this.hasRegistryAgent(agentName)) {
+            logger.info(`Installing agent '${agentName}' from registry...`);
+            return await this.installAgent(agentName);
         }
 
-        // 4. Not found anywhere
+        // 3. Not found in registry
         const registry = this.getRegistry();
         const available = Object.keys(registry.agents);
         throw new Error(
-            `Agent '${nameOrPath}' not found. ` +
+            `Agent '${agentName}' not found. ` +
                 `Available agents: ${available.join(', ')}. ` +
                 `Use a file path for custom agents.`
         );

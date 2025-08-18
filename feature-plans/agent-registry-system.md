@@ -545,7 +545,7 @@ After every sub-task, commit relevant changes and update task list
 - [x] **2.4 Test with database-agent** - First agent to get template variables, verify data files work
 
 ### Phase 3: Installation System
-- [ ] **3.1 Implement atomic installation** - Temp directory + rename pattern for safety
+- [x] **3.1 Implement atomic installation** - Temp directory + rename pattern for safety
 - [ ] **3.2 Handle directory vs single-file agents** - Preserve structure, resolve main entry points  
 - [ ] **3.3 Auto-install on first use** - Trigger from resolution logic when registry agent not found
 - [ ] **3.4 Update remaining bundled agents** - Apply template variables to all agents
