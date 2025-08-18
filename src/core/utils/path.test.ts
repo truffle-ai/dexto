@@ -7,6 +7,7 @@ import {
     isDextoSourceCode,
     getDextoProjectRoot,
     getDextoPath,
+    getDextoGlobalPath,
     resolveConfigPath,
     findPackageRoot,
     resolveBundledScript,
@@ -276,6 +277,88 @@ describe('getDextoPath', () => {
             } finally {
                 process.chdir(originalCwd);
             }
+        });
+    });
+});
+
+describe('getDextoGlobalPath', () => {
+    let tempDir: string;
+
+    afterEach(() => {
+        if (tempDir) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
+
+    describe('basic functionality', () => {
+        it('returns global agents directory', () => {
+            const result = getDextoGlobalPath('agents');
+            expect(result).toContain('.dexto');
+            expect(result).toContain('agents');
+            expect(path.isAbsolute(result)).toBe(true);
+        });
+
+        it('returns global path with filename', () => {
+            const result = getDextoGlobalPath('agents', 'database-agent');
+            expect(result).toContain('.dexto');
+            expect(result).toContain('agents');
+            expect(result).toContain('database-agent');
+            expect(path.isAbsolute(result)).toBe(true);
+        });
+
+        it('handles different types correctly', () => {
+            const agents = getDextoGlobalPath('agents');
+            const logs = getDextoGlobalPath('logs');
+            const cache = getDextoGlobalPath('cache');
+
+            expect(agents).toContain('agents');
+            expect(logs).toContain('logs');
+            expect(cache).toContain('cache');
+        });
+    });
+
+    describe('in dexto project context', () => {
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'test-project',
+                    dependencies: { dexto: '^1.0.0' },
+                },
+            });
+        });
+
+        it('always returns global path, never project-relative', () => {
+            // getDextoPath returns project-relative
+            const projectPath = getDextoPath('agents', 'test-agent', tempDir);
+            expect(projectPath).toBe(path.join(tempDir, '.dexto', 'agents', 'test-agent'));
+
+            // getDextoGlobalPath should ALWAYS return global, never project-relative
+            const globalPath = getDextoGlobalPath('agents', 'test-agent');
+            expect(globalPath).toContain('.dexto');
+            expect(globalPath).toContain('agents');
+            expect(globalPath).toContain('test-agent');
+            expect(globalPath).not.toContain(tempDir); // Key difference!
+            expect(path.isAbsolute(globalPath)).toBe(true);
+        });
+    });
+
+    describe('outside dexto project context', () => {
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'regular-project',
+                    dependencies: { express: '^4.0.0' },
+                },
+            });
+        });
+
+        it('returns global path (same as in project context)', () => {
+            const globalPath = getDextoGlobalPath('agents', 'test-agent');
+            expect(globalPath).toContain('.dexto');
+            expect(globalPath).toContain('agents');
+            expect(globalPath).toContain('test-agent');
+            expect(globalPath).not.toContain(tempDir);
+            expect(path.isAbsolute(globalPath)).toBe(true);
         });
     });
 });

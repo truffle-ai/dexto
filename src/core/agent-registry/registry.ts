@@ -79,17 +79,18 @@ export class LocalAgentRegistry implements AgentRegistry {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
-        if (agentData?.main) {
-            return path.join(agentDir, agentData.main);
+        if (!agentData?.main) {
+            throw new Error(
+                `Registry entry for '${agentName}' specifies directory but missing 'main' field`
+            );
         }
 
-        // Fallback: look for agent.yml or first .yml file
-        const defaultPath = path.join(agentDir, 'agent.yml');
-        if (existsSync(defaultPath)) {
-            return defaultPath;
+        const mainConfigPath = path.join(agentDir, agentData.main);
+        if (!existsSync(mainConfigPath)) {
+            throw new Error(`Main config file not found: ${mainConfigPath}`);
         }
 
-        throw new Error(`No config file found in agent directory: ${agentDir}`);
+        return mainConfigPath;
     }
 
     /**
