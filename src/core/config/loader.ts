@@ -4,6 +4,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
 import { resolveConfigPath } from '../utils/path.js';
+import { LocalAgentRegistry } from '../agent-registry/registry.js';
 import { ConfigError } from './errors.js';
 
 /**
@@ -88,11 +89,38 @@ function validateExpandedPath(original: string, expanded: string, agentDir: stri
  * @throws {DextoRuntimeError} with ConfigErrorCode.FILE_READ_ERROR if file read fails (e.g., permissions issues).
  * @throws {DextoRuntimeError} with ConfigErrorCode.PARSE_ERROR if the content is not valid YAML.
  */
-export async function loadAgentConfig(configPath?: string): Promise<AgentConfig> {
-    // Resolve the absolute path of the configuration file.
-    // This utility function should handle cases where `configPath` is undefined,
-    // determining a default or conventional location for the config.
-    const absolutePath = resolveConfigPath(configPath);
+/**
+ * Check if string looks like a file path vs registry name
+ */
+function isPath(str: string): boolean {
+    // Absolute paths
+    if (path.isAbsolute(str)) return true;
+
+    // Relative paths with separators
+    if (/[\\/]/.test(str)) return true;
+
+    // File extensions
+    if (/\.(ya?ml|json)$/i.test(str)) return true;
+
+    return false;
+}
+
+export async function loadAgentConfig(nameOrPath?: string): Promise<AgentConfig> {
+    let absolutePath: string;
+
+    // Default case: no name/path specified
+    if (!nameOrPath) {
+        absolutePath = resolveConfigPath(nameOrPath);
+    } else if (isPath(nameOrPath)) {
+        // File path - use standard resolution
+        absolutePath = resolveConfigPath(nameOrPath);
+        logger.debug(`Resolved file path: ${nameOrPath} → ${absolutePath}`);
+    } else {
+        // Registry name - use agent registry
+        const registry = new LocalAgentRegistry();
+        absolutePath = await registry.resolveAgent(nameOrPath);
+        logger.debug(`Resolved registry agent: ${nameOrPath} → ${absolutePath}`);
+    }
 
     // --- Step 1: Verify the configuration file exists and is accessible ---
     try {
