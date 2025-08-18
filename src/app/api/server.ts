@@ -6,6 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookRegistrationRequest, WebhookConfig } from './webhook-types.js';
+import { telemetryRequestCounter } from './middleware/telemetryRequestCounter.js';
 import { apiRequestsCounter } from '@core/telemetry/metrics.js';
 import { logger } from '@core/index.js';
 import type { AgentCard } from '@core/index.js';
@@ -89,21 +90,8 @@ function validateBody<T>(
 export async function initializeApi(agent: DextoAgent, agentCardOverride?: Partial<AgentCard>) {
     const app = express();
 
-    // Middleware to count all API requests for telemetry
-    app.use((req, res, next) => {
-        // Guard against apiRequestsCounter not being initialized yet (race condition during startup)
-        if (apiRequestsCounter) {
-            // Record metrics only after the response has finished, so statusCode is available
-            res.on('finish', () => {
-                apiRequestsCounter?.add(1, {
-                    method: req.method,
-                    route: req.route?.path ?? 'unknown', // Use low-cardinality route path
-                    status: String(res.statusCode),
-                });
-            });
-        }
-        next();
-    });
+    // Apply telemetry request counter middleware
+    app.use(telemetryRequestCounter);
 
     registerGracefulShutdown(agent);
     // this will apply middleware to all /api/llm/* routes

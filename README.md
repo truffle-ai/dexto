@@ -203,6 +203,18 @@ More ready-to-run recipes live in [`agents/examples`](agents/examples) and the [
 
 ---
 
+## Observability and Telemetry
+
+Dexto now includes built-in observability features powered by OpenTelemetry, allowing you to monitor your agent's performance, track requests, and debug issues with ease. This includes:
+
+*   **Metrics**: Collect key application metrics (e.g., API request rates, LLM usage).
+*   **Traces**: Distributed tracing to follow requests across different components.
+*   **Logs**: Enriched logs with trace and span IDs for better correlation.
+
+For detailed setup and usage instructions, refer to the [Observability Guide](https://docs.dexto.ai/docs/observability) in our documentation.
+
+---
+
 ## LLM Providers
 
 Dexto supports multiple LLM providers out-of-the-box, plus any OpenAI SDK-compatible provider.
