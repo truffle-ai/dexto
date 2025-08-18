@@ -270,6 +270,8 @@ const preferences = result.data;
 
 ## Error Handling Strategy
 
+**TODO: Revisit error pattern - consider using PreferenceError factory (like ConfigError) instead of Result pattern for single errors. Result pattern may be overkill for file operations.**
+
 ### File System Errors
 - **File not found**: Return specific error code (triggers first-time setup)
 - **Permission errors**: Return read/write error with context
