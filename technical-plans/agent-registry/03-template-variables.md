@@ -6,32 +6,29 @@ Implement template variable substitution for dynamic path resolution in agent co
 ## Template Variables (Per Feature Plan)
 
 ### Available Variables
-- **`@agent_dir`**: The directory containing the current agent
-  - Resolves to absolute path of agent's directory
-  - Example: `@agent_dir/data/example.db` → `~/.dexto/agents/database-agent/data/example.db`
-  
-- **`@agent_name`**: The name of the current agent  
-  - The registry name or basename of agent directory
-  - Example: `database-agent`, `triage-agent`
+- **`${{dexto.agent_dir}}`**: The directory containing the current agent config file
+  - Always resolves to `path.dirname(configPath)` regardless of how config was resolved
+  - Registry agents: `${{dexto.agent_dir}}/data/example.db` → `~/.dexto/agents/database-agent/data/example.db`
+  - Custom agents: `${{dexto.agent_dir}}/data/example.db` → `/path/to/custom/agent/data/example.db`
+  - Project agents: `${{dexto.agent_dir}}/data/example.db` → `/project/agents/data/example.db`
 
 ### Key Design Decisions
-1. **NOT environment variables**: Use `@` prefix to distinguish from env vars (`$VAR`)
-2. **Resolution timing**: After YAML parsing, before Zod validation
-3. **Scope**: Applied to string fields representing file paths or process arguments
-4. **Security**: No path traversal allowed beyond agent root
+1. **CI-style convention**: Use `${{dexto.*}}` format familiar from GitHub Actions
+2. **Namespacing**: `dexto.` prefix prevents conflicts with user variables  
+3. **Resolution timing**: After YAML parsing, before Zod validation
+4. **Scope**: Applied to string values in parsed YAML object
+5. **Security**: No path traversal allowed beyond agent root
+6. **Extensible**: Ready for future defaults and expressions
+7. **Universal**: Works for any agent config file (registry, custom, project)
+8. **Simple context**: Only need `path.dirname(configPath)` - no complex registry lookups
 
 ## Implementation Architecture
 
 ### 1. Template Expansion Function
 ```typescript
-interface TemplateContext {
-  agentDir: string;   // Absolute path to agent directory
-  agentName: string;  // Name of the agent
-}
-
 function expandTemplateVars(
   config: any, 
-  context: TemplateContext
+  agentDir: string
 ): any {
   // Deep clone to avoid mutations
   const result = JSON.parse(JSON.stringify(config));
@@ -39,7 +36,7 @@ function expandTemplateVars(
   // Walk the config recursively
   function walk(obj: any): any {
     if (typeof obj === 'string') {
-      return expandString(obj, context);
+      return expandString(obj, agentDir);
     }
     if (Array.isArray(obj)) {
       return obj.map(walk);
@@ -57,21 +54,15 @@ function expandTemplateVars(
   return walk(result);
 }
 
-function expandString(str: string, context: TemplateContext): string {
-  // Replace template variables
-  let result = str;
-  
-  // Replace @agent_dir with absolute path
-  result = result.replace(/@agent_dir/g, context.agentDir);
-  
-  // Replace @agent_name with agent name
-  result = result.replace(/@agent_name/g, context.agentName);
+function expandString(str: string, agentDir: string): string {
+  // Replace ${{dexto.agent_dir}} with absolute path
+  const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, agentDir);
   
   // Security: Validate no path traversal
   if (result.includes('..')) {
     // Check if resolved path escapes agent directory
-    const resolved = path.resolve(context.agentDir, result);
-    if (!resolved.startsWith(context.agentDir)) {
+    const resolved = path.resolve(agentDir, result);
+    if (!resolved.startsWith(agentDir)) {
       throw new Error(
         `Security violation: Path traversal detected in template variable expansion: ${str}`
       );
@@ -101,47 +92,32 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
   const fileContent = await fs.readFile(absolutePath, 'utf-8');
   const rawConfig = parseYaml(fileContent);
   
-  // 3. NEW: Determine template context
-  const context = getTemplateContext(absolutePath);
+  // 3. NEW: Determine template context (simple!)
+  const agentDir = path.dirname(absolutePath);
   
   // 4. NEW: Expand template variables
-  const expandedConfig = expandTemplateVars(rawConfig, context);
+  const expandedConfig = expandTemplateVars(rawConfig, agentDir);
   
   // 5. Return expanded config (Zod will handle env vars later)
   return expandedConfig;
 }
 ```
 
-### 3. Using Existing Dexto Utilities
+### 3. Simple Template Context
+
+Template context is now extremely simple - just the directory containing the config file:
 
 ```typescript
-import { getDextoGlobalPath, homedir } from '@core/utils/path.js';
-
-function getTemplateContext(configPath: string): TemplateContext {
-  // Use getDextoGlobalPath to ensure we always check global agents directory
-  const globalAgentsDir = getDextoGlobalPath('agents'); // Always ~/.dexto/agents
-  
-  const configDir = path.dirname(configPath);
-  
-  // Check if this is an installed registry agent
-  if (configDir.startsWith(globalAgentsDir)) {
-    // Extract agent name from path
-    const relativePath = path.relative(globalAgentsDir, configDir);
-    const agentName = relativePath.split(path.sep)[0];
-    
-    return {
-      agentDir: path.join(globalAgentsDir, agentName),
-      agentName: agentName
-    };
-  }
-  
-  // For other locations, use directory name as agent name
-  return {
-    agentDir: configDir,
-    agentName: path.basename(configDir)
-  };
-}
+// In src/core/config/loader.ts integration
+const agentDir = path.dirname(absolutePath);
+const expandedConfig = expandTemplateVars(rawConfig, agentDir);
 ```
+
+This works universally for:
+- **Registry agents**: `agentDir = ~/.dexto/agents/database-agent/`
+- **Custom agents**: `agentDir = /path/to/custom/agent/` 
+- **Project agents**: `agentDir = /project/agents/`
+- **Any agent**: `agentDir = path.dirname(configPath)`
 
 ## Zod Schema Integration
 
@@ -155,12 +131,12 @@ The `AgentConfigSchema` in `src/core/agent/schemas.ts` currently:
 ```typescript
 // Order of operations:
 // 1. YAML parsing → raw object
-// 2. Template variable expansion (@agent_dir, @agent_name)
+// 2. Template variable expansion (${{dexto.agent_dir}})
 // 3. Zod validation & env var expansion ($ENV_VAR)
 
 // Example transformation:
 // Original YAML:
-"@agent_dir/data/$DB_NAME.db"
+"${{dexto.agent_dir}}/data/$DB_NAME.db"
 
 // After template expansion:
 "/Users/x/.dexto/agents/database-agent/data/$DB_NAME.db"
@@ -185,7 +161,7 @@ mcpServers:
     args:
       - -y
       - "@executeautomation/database-server"
-      - "@agent_dir/data/example.db"  # Becomes absolute path
+      - "${{dexto.agent_dir}}/data/example.db"  # Becomes absolute path
 ```
 
 ### Triage Demo Multi-Agent
@@ -197,28 +173,24 @@ mcpServers:
     args:
       - dexto
       - --agent
-      - "@agent_dir/technical-support-agent.yml"
+      - "${{dexto.agent_dir}}/technical-support-agent.yml"
 
 systemPrompt:
   contributors:
     - type: file
       files:
-        - "@agent_dir/docs/company-overview.md"
+        - "${{dexto.agent_dir}}/docs/company-overview.md"
 ```
 
 ## Cross-Platform Handling
 
 ### Path Separator Normalization
 ```typescript
-function expandString(str: string, context: TemplateContext): string {
-  let result = str;
-  
+function expandString(str: string, agentDir: string): string {
   // Use Node.js path utilities for platform-appropriate separators
-  // @agent_dir always expands to platform-appropriate path
-  result = result.replace(/@agent_dir/g, 
-    path.normalize(context.agentDir));
-  
-  result = result.replace(/@agent_name/g, context.agentName);
+  // ${{dexto.agent_dir}} always expands to platform-appropriate path
+  const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, 
+    path.normalize(agentDir));
   
   return result;
 }
@@ -238,8 +210,8 @@ function validateExpandedPath(
   expanded: string, 
   agentDir: string
 ): void {
-  // Only validate paths that used @agent_dir
-  if (!original.includes('@agent_dir')) {
+  // Only validate paths that used ${{dexto.agent_dir}}
+  if (!original.includes('${{dexto.agent_dir}}')) {
     return;
   }
   

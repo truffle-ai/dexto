@@ -79,7 +79,7 @@ The existing `agent-registry.json` maps agent names to their configuration paths
 - **R2.4**: Maintain resource files (data/, docs/, etc.)
 
 #### R3: Path Resolution
-- **R3.1**: Template variable substitution in configs (`@agent_dir`, `@agent_name`)
+- **R3.1**: Template variable substitution in configs (`${{dexto.agent_dir}}`)
   - Not environment variables - internal template variables only
   - Prevents conflicts with user environment
 - **R3.2**: Simple path resolution - no magic references
@@ -115,7 +115,7 @@ dexto -a database-agent
 # 1. Agent not found in ~/.dexto/agents/
 # 2. Found in bundled agents
 # 3. Copied to ~/.dexto/agents/database-agent/
-# 4. Executed with correct paths
+# 4. Template variables expanded and executed with correct paths
 ```
 
 #### E2: Multi-Agent System Usage
@@ -177,7 +177,7 @@ dexto -a database-agent
 dexto -a broken-agent
 
 # Expected: Clear error message about missing resource
-# "Missing required file: @agent_dir/data/required.db at /Users/x/.dexto/agents/broken-agent/data/required.db"
+# "Missing required file: ${{dexto.agent_dir}}/data/required.db at /Users/x/.dexto/agents/broken-agent/data/required.db"
 ```
 
 #### E7: [Removed - Out of Scope]
@@ -203,9 +203,9 @@ mcpServers:
     args:
       - dexto
       - --agent
-      - "@agent_dir/technical-support-agent.yml"  # Template variable
+      - "${{dexto.agent_dir}}/technical-support-agent.yml"  # Template variable
 
-# Expected: @agent_dir resolves to ~/.dexto/agents/triage-demo/
+# Expected: ${{dexto.agent_dir}} resolves to ~/.dexto/agents/triage-demo/
 # Full path: ~/.dexto/agents/triage-demo/technical-support-agent.yml
 ```
 
@@ -216,14 +216,14 @@ systemPrompt:
   contributors:
     - type: file
       files:
-        - "@agent_dir/docs/overview.md"  # Always forward slashes
+        - "${{dexto.agent_dir}}/docs/overview.md"  # Always forward slashes
 
 # Expected: 
 # 1. Configs always use forward slashes
-# 2. Template substitution replaces @agent_dir with platform-appropriate path
+# 2. Template substitution replaces ${{dexto.agent_dir}} with platform-appropriate path
 # 3. Node.js path utilities handle separator conversion automatically
-# 4. @agent_dir becomes C:\Users\x\.dexto\agents\my-agent on Windows
-# 5. @agent_dir becomes /Users/x/.dexto/agents/my-agent on Mac/Linux
+# 4. ${{dexto.agent_dir}} becomes C:\Users\x\.dexto\agents\my-agent on Windows
+# 5. ${{dexto.agent_dir}} becomes /Users/x/.dexto/agents/my-agent on Mac/Linux
 ```
 
 #### E11: First-Time User Setup Integration
@@ -264,16 +264,18 @@ dexto
 ### Available Variables
 Dexto provides internal template variables for agent configs to resolve paths dynamically:
 
-- **`@agent_dir`**: The directory containing the current agent
-  - Example: `@agent_dir/data/example.db` → `~/.dexto/agents/database-agent/data/example.db`
-- **`@agent_name`**: The name of the current agent
-  - Example: `database-agent` or `triage-agent`
+- **`${{dexto.agent_dir}}`**: The directory containing the current agent config file
+  - Registry agents: `${{dexto.agent_dir}}/data/example.db` → `~/.dexto/agents/database-agent/data/example.db`
+  - Custom agents: `${{dexto.agent_dir}}/data/example.db` → `/path/to/custom/agent/data/example.db`
+  - Project agents: `${{dexto.agent_dir}}/data/example.db` → `/project/agents/data/example.db`
+  - Always resolves to `path.dirname(configPath)` regardless of how config was resolved
 
 ### Resolution Timing
 Template variables are resolved **at config load time**, after YAML parsing but before validation. This ensures:
 - Child processes receive absolute paths, not template variables
 - No need to pass template context to spawned agents
 - Clear separation between registry agents (names) and file paths
+- Clean integration with existing Zod validation pipeline
 
 ### Usage Examples
 ```yaml
@@ -285,7 +287,7 @@ mcpServers:
     args:
       - -y
       - "@executeautomation/database-server"
-      - "@agent_dir/data/example.db"  # Resolves to agent's data directory
+      - "${{dexto.agent_dir}}/data/example.db"  # Resolves to agent's data directory
 
 # triage-demo/triage-agent.yml
 mcpServers:
@@ -295,32 +297,36 @@ mcpServers:
     args:
       - dexto
       - --agent
-      - "@agent_dir/technical-support-agent.yml"  # Resolves to sibling agent
+      - "${{dexto.agent_dir}}/technical-support-agent.yml"  # Resolves to sibling agent
 
 systemPrompt:
   contributors:
     - type: file
       files:
-        - "@agent_dir/docs/company-overview.md"  # Resolves to agent's docs
+        - "${{dexto.agent_dir}}/docs/company-overview.md"  # Resolves to agent's docs
 ```
 
 ### Template Variable Rules
-- **Scope**: Applied only to string fields that represent file paths or process arguments
-- **Syntax**: `@agent_dir` and `@agent_name` (distinct from env vars `$VAR` or `${VAR}`)
-- **Order**: Template variables → environment variables → path normalization
+- **Scope**: Applied only to string values in parsed YAML object
+- **Syntax**: `${{dexto.agent_dir}}` (CI-style convention, distinct from env vars `$VAR` or `${VAR}`)
+- **Namespacing**: `dexto.` prefix prevents conflicts with user variables
+- **Order**: YAML parsing → Template variables → Zod validation (with env vars)
 - **Security**: No path traversal (`../`) allowed beyond agent root
 - **Platform**: Use forward slashes in configs; Node.js path utilities handle platform differences
 - **Not environment variables**: Cannot be overridden by users
+- **Universal**: Works for any agent config file (registry, custom, project)
+- **Simple context**: `agent_dir = path.dirname(configPath)` always
+- **Extensible**: Future support for defaults (`${{dexto.agent_dir|./fallback}}`) and expressions
 
 ### Implementation Approach
-Template substitution should be implemented as a post-processing step:
+Template substitution implemented as object post-processing:
 ```typescript
 // After YAML parsing, before Zod validation
 function expandTemplateVars(config: any, agentDir: string): any {
-  // Recursively walk config object
-  // Replace @agent_dir with absolute path
-  // Replace @agent_name with basename of agentDir
-  // Return modified config for validation
+  // Recursively walk parsed config object
+  // Use regex: /\${{\s*dexto\.agent_dir\s*}}/g
+  // Replace with agentDir absolute path
+  // Return modified config for Zod validation
 }
 ```
 This keeps template expansion separate from environment variable expansion in Zod schemas.
@@ -393,7 +399,7 @@ This keeps template expansion separate from environment variable expansion in Zo
    - Single files are simpler for standalone agents
 2. **No special types**: All agents are equal, some just use other agents as MCP servers
 3. **Simple resolution**: The `main` field points to entry point for directories
-4. **Template variables**: `@agent_dir` and `@agent_name` for path resolution (not environment variables)
+4. **Template variables**: `${{dexto.agent_dir}}` for path resolution (not environment variables)
 5. **Minimal metadata**: Only essential fields kept (no per-agent versions, timestamps, or display names)
 6. **Installation precedence**: Once installed to `~/.dexto/agents/`, always use installed version
    - Simplifies behavior and prevents unexpected updates
@@ -413,7 +419,7 @@ This keeps template expansion separate from environment variable expansion in Zo
 ## Migration Impact
 
 ### What Changes
-1. **Bundled agents** get `@agent_dir` template variables instead of hardcoded paths
+1. **Bundled agents** get `${{dexto.agent_dir}}` template variables instead of hardcoded paths
 2. **Registry location** standardized to `~/.dexto/agents/`
 3. **Resolution logic** uses new registry system
 4. **Template processing** runs before environment variable expansion

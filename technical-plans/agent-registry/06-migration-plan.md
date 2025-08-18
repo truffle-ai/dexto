@@ -52,7 +52,7 @@ mcpServers:
 mcpServers:
   sqlite:
     args:
-      - "@agent_dir/data/example.db"
+      - "${{dexto.agent_dir}}/data/example.db"
 ```
 
 ### 2.3 Update Multi-Agent Systems
@@ -64,7 +64,7 @@ mcpServers:
     args:
       - dexto
       - --agent
-      - "@agent_dir/technical-support-agent.yml"  # Not a registry name!
+      - "${{dexto.agent_dir}}/technical-support-agent.yml"  # Not a registry name!
 ```
 
 ## Phase 3: Installation System
@@ -129,7 +129,7 @@ These need to be checked if they're actually single files or directories:
 
 ### 3. Path Updates Required
 For each agent, replace:
-- Relative paths → `@agent_dir/...`
+- Relative paths → `${{dexto.agent_dir}}/...`
 - Hardcoded paths → Template variables
 - Test thoroughly after changes
 
