@@ -77,7 +77,7 @@ program
         'cli'
     )
     .option('--web-port <port>', 'optional port for the web UI', '3000')
-    .option('--skip-interactive', 'Disable interactive prompts (fail instead of prompting)');
+    .option('--no-interactive', 'Disable interactive prompts (fail instead of prompting)');
 
 // 2) `create-app` SUB-COMMAND
 program
@@ -156,7 +156,6 @@ program
     .option('--llm-provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
     .option('--model <model>', 'Model name (uses provider default if not specified)')
     .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
-    .option('--no-interactive', 'Run in non-interactive mode')
     .action(async (options: CLISetupOptions) => {
         try {
             await handleSetupCommand(options);
@@ -352,8 +351,8 @@ program
 
                 // Check setup state and auto-trigger if needed
                 if (await requiresSetup()) {
-                    if (opts.skipInteractive) {
-                        console.error('❌ Setup required but --skip-interactive flag is set.');
+                    if (!opts.interactive) {
+                        console.error('❌ Setup required but --no-interactive flag is set.');
                         console.error('💡 Run `dexto setup` to configure preferences first.');
                         process.exit(1);
                     }
@@ -372,7 +371,7 @@ program
             const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
             // Validate with interactive setup if needed (for API key issues)
-            validatedConfig = await validateAgentConfig(mergedConfig, !opts.skipInteractive);
+            validatedConfig = await validateAgentConfig(mergedConfig, opts.interactive !== false);
         } catch (err) {
             // Config loading failed completely
             console.error(`❌ Failed to load configuration: ${err}`);

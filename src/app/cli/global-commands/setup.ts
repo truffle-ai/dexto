@@ -12,16 +12,17 @@ export interface CLISetupOptions {
     llmProvider?: LLMProvider;
     model?: string;
     defaultAgent?: string;
-    noInteractive?: boolean;
+    interactive?: boolean;
 }
 
 export async function handleSetupCommand(options: CLISetupOptions): Promise<void> {
     console.log(chalk.cyan('\n🎉 Setting up Dexto preferences...\n'));
+    console.log('options', options);
 
     // Determine provider (interactive or from options)
     let provider = options.llmProvider;
     if (!provider) {
-        if (options.noInteractive) {
+        if (!options.interactive) {
             throw new Error(
                 'Provider required in non-interactive mode. Use --llm-provider option.'
             );
@@ -45,12 +46,17 @@ export async function handleSetupCommand(options: CLISetupOptions): Promise<void
     const defaultAgent = options.defaultAgent || 'default-agent';
 
     // Create and save preferences
+    console.log('Creating initial preferences...');
     const preferences = createInitialPreferences(provider, model, apiKeyVar, defaultAgent);
     await saveGlobalPreferences(preferences);
+    console.log('Preferences saved');
 
-    // Setup API key interactively
-    if (!options.noInteractive) {
+    // Setup API key interactively (only if interactive mode enabled)
+    if (options.interactive) {
         await interactiveApiKeySetup(provider);
+    } else {
+        console.log('Skipping API key setup (non-interactive mode)');
+        console.log(`Set your API key: export ${apiKeyVar}=your_api_key_here`);
     }
 
     console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));

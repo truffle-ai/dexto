@@ -313,7 +313,7 @@ loadAgentConfig(nameOrPath) {
 ### Phase 2: Command Implementation
 - [x] **2.1 Create dexto setup command** - Interactive and non-interactive modes
 - [x] **2.2 Add auto-setup trigger** - Run setup on first command if needed
-- [x] **2.3 Enhance auto-installation** - Apply preferences during installation
+- [ ] **2.3 Enhance auto-installation** - Apply preferences during installation (NEEDS IMPLEMENTATION)
 - [x] **2.4 Update default agent resolution** - Use default-agent from registry
 - [x] **2.5 Path resolution cleanup** - Remove legacy resolveConfigPath, consolidate execution context detection, update all imports and tests
 
