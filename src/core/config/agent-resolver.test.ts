@@ -4,6 +4,9 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { resolveAgentPath, updateDefaultAgentPreference } from './agent-resolver.js';
 import { ConfigError } from './errors.js';
+import { DextoRuntimeError } from '@core/errors/index.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ConfigErrorCode } from './error-codes.js';
 
 // Mock dependencies
 vi.mock('@core/utils/execution-context.js');
@@ -89,10 +92,16 @@ describe('Agent Resolver', () => {
             }
         });
 
-        it('throws error for non-existent file path', async () => {
+        it('throws ConfigError.fileNotFound for non-existent file path', async () => {
             const nonExistentFile = path.join(tempDir, 'missing.yml');
 
-            await expect(resolveAgentPath(nonExistentFile)).rejects.toThrow();
+            await expect(resolveAgentPath(nonExistentFile)).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.FILE_NOT_FOUND,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.USER,
+                })
+            );
         });
 
         it('recognizes .yml extension as file path', async () => {
@@ -146,11 +155,17 @@ describe('Agent Resolver', () => {
             expect(result).toBe(bundledPath);
         });
 
-        it('throws error when bundled agent missing', async () => {
+        it('throws ConfigError.bundledNotFound when bundled agent missing', async () => {
             // Mock fs.access to fail
             vi.spyOn(fs, 'access').mockRejectedValue(new Error('File not found'));
 
-            await expect(resolveAgentPath()).rejects.toThrow();
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.BUNDLED_NOT_FOUND,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.NOT_FOUND,
+                })
+            );
         });
     });
 
@@ -193,14 +208,18 @@ describe('Agent Resolver', () => {
             expect(result).toBe('/path/to/my-agent.yml');
         });
 
-        it('throws error when no project default and no preferences', async () => {
+        it('throws ConfigError.noProjectDefault when no project default and no preferences', async () => {
             // No project default file
             mockGlobalPreferencesExist.mockReturnValue(false);
 
-            await expect(resolveAgentPath()).rejects.toThrow();
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.NO_PROJECT_DEFAULT,
+                })
+            );
         });
 
-        it('throws error when preferences setup incomplete', async () => {
+        it('throws ConfigError.setupIncomplete when preferences setup incomplete', async () => {
             // No project default file
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
@@ -208,7 +227,13 @@ describe('Agent Resolver', () => {
                 defaults: { defaultAgent: 'my-agent' },
             });
 
-            await expect(resolveAgentPath()).rejects.toThrow();
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.SETUP_INCOMPLETE,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.USER,
+                })
+            );
         });
     });
 
@@ -231,28 +256,46 @@ describe('Agent Resolver', () => {
             expect(result).toBe('/path/to/my-default.yml');
         });
 
-        it('throws error when no preferences exist', async () => {
+        it('throws ConfigError.noGlobalPreferences when no preferences exist', async () => {
             mockGlobalPreferencesExist.mockReturnValue(false);
 
-            await expect(resolveAgentPath()).rejects.toThrow();
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.NO_GLOBAL_PREFERENCES,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.USER,
+                })
+            );
         });
 
-        it('throws error when setup incomplete', async () => {
+        it('throws ConfigError.setupIncomplete when setup incomplete', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: false },
                 defaults: { defaultAgent: 'my-agent' },
             });
 
-            await expect(resolveAgentPath()).rejects.toThrow();
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.SETUP_INCOMPLETE,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.USER,
+                })
+            );
         });
     });
 
     describe('resolveAgentPath - Unknown Execution Context', () => {
-        it('throws error for unknown execution context', async () => {
+        it('throws ConfigError.unknownContext for unknown execution context', async () => {
             mockGetExecutionContext.mockReturnValue('unknown-context');
 
-            await expect(resolveAgentPath()).rejects.toThrow();
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.UNKNOWN_CONTEXT,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.SYSTEM,
+                })
+            );
         });
     });
 
