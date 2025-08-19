@@ -318,7 +318,7 @@ loadAgentConfig(nameOrPath) {
 - [x] **2.5 Path resolution cleanup** - Remove legacy resolveConfigPath, consolidate execution context detection, update all imports and tests
 
 ### Phase 3: Integration & Polish
-- [ ] **3.1 Add bulk installation support** - Multiple agents in single command
+- [x] **3.1 Add bulk installation support** - Multiple agents in single command
 - [ ] **3.2 Enhance error handling** - Clear messages for missing preferences
 - [ ] **3.3 Add validation and recovery** - Handle corrupted preferences
 - [ ] **3.4 Update first-time setup integration** - Use new preference system
