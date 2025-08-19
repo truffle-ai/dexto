@@ -1,8 +1,8 @@
-# Technical Plan: Enhanced Default Agent Resolution
+# Technical Plan: Preference-Aware Default Resolution
 
-## Overview
+## Overview  
 
-Replace the existing `resolveConfigPath()` function with a new preference-aware default resolution system. The new system fails fast with clear errors instead of silent fallbacks, uses existing Dexto error classes, and provides deterministic behavior across execution contexts.
+Enhance the CLI layer to check global preferences before calling existing `resolveConfigPath()` function. Keep the existing resolver intact - just add preference-aware logic at the CLI entry point for clean separation of concerns.
 
 
 ## Core Resolution Logic
@@ -177,21 +177,29 @@ async function resolveForGlobalCLI(): Promise<string> {
 }
 ```
 
-## Context Detection (Simplified)
+## Standardized Execution Context System
 
+### Core Context Detection Utility
 ```typescript
+// src/core/utils/execution-context.ts
+
+import { getDextoProjectRoot, isDextoSourceCode } from './path.js';
+
+export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
+
 /**
- * Detect execution context - deterministic, no guessing
+ * Detect current execution context - standardized across codebase
+ * @param startPath Starting directory path (defaults to process.cwd())
+ * @returns Execution context
  */
-function detectExecutionContext(): 'dexto-source' | 'dexto-project' | 'global-cli' {
-  // Check for Dexto source context
-  const dextoSourceRoot = getDextoSourceRoot();
-  if (dextoSourceRoot && process.cwd().startsWith(dextoSourceRoot)) {
+export function getExecutionContext(startPath: string = process.cwd()): ExecutionContext {
+  // Check for Dexto source context first (most specific)
+  if (isDextoSourceCode(startPath)) {
     return 'dexto-source';
   }
   
   // Check for Dexto project context
-  if (getDextoProjectRoot()) {
+  if (getDextoProjectRoot(startPath)) {
     return 'dexto-project';
   }
   
@@ -199,25 +207,100 @@ function detectExecutionContext(): 'dexto-source' | 'dexto-project' | 'global-cl
   return 'global-cli';
 }
 
-function getDextoSourceRoot(): string | null {
-  try {
-    const packageJsonPath = findUp('package.json', { cwd: process.cwd() });
-    if (packageJsonPath) {
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      if (packageJson.name === 'dexto') {
-        return path.dirname(packageJsonPath);
-      }
-    }
-  } catch {
-    // Ignore detection errors
+/**
+ * Check if running in global CLI context (outside any dexto project)
+ */
+export function isGlobalCLI(startPath?: string): boolean {
+  return getExecutionContext(startPath) === 'global-cli';
+}
+
+/**
+ * Check if running in a dexto project context (not source code)
+ */  
+export function isDextoProject(startPath?: string): boolean {
+  return getExecutionContext(startPath) === 'dexto-project';
+}
+
+/**
+ * Check if running in dexto source code context
+ */
+export function isInDextoSource(startPath?: string): boolean {
+  return getExecutionContext(startPath) === 'dexto-source';
+}
+
+/**
+ * Get human-readable context description for logging/debugging
+ */
+export function getContextDescription(context: ExecutionContext): string {
+  switch (context) {
+    case 'dexto-source':
+      return 'Dexto source code development';
+    case 'dexto-project': 
+      return 'Dexto project';
+    case 'global-cli':
+      return 'Global CLI usage';
   }
-  return null;
 }
 ```
 
-## Preference Integration (Simple)
+### Usage Throughout Codebase
 
 ```typescript
+// src/core/utils/env.ts - Environment loading
+import { getExecutionContext } from './execution-context.js';
+
+export async function applyLayeredEnvironmentLoading(startPath?: string): Promise<void> {
+  const context = getExecutionContext(startPath);
+  
+  switch (context) {
+    case 'global-cli':
+      await loadEnvironmentFiles(['~/.dexto/.env']);
+      break;
+    case 'dexto-project':
+      const projectRoot = getDextoProjectRoot(startPath);
+      await loadEnvironmentFiles([
+        `${projectRoot}/.env`,
+        '~/.dexto/.env'
+      ]);
+      break;
+    case 'dexto-source':
+      await loadEnvironmentFiles(['.env', '~/.dexto/.env']);
+      break;
+  }
+}
+```
+
+```typescript
+// src/core/config/loader.ts - Context-aware config loading
+import { getExecutionContext, getContextDescription } from '@core/utils/execution-context.js';
+
+export async function loadAgentConfig(configPath: string): Promise<AgentConfig> {
+  const context = getExecutionContext();
+  logger.debug(`Loading agent config in ${getContextDescription(context)}: ${configPath}`);
+  
+  // ... existing loading logic ...
+}
+```
+
+```typescript
+// src/core/agent/DextoAgent.ts - Context-aware storage paths
+import { getExecutionContext } from '@core/utils/execution-context.js';
+
+private getStorageBasePath(): string {
+  const context = getExecutionContext();
+  
+  switch (context) {
+    case 'global-cli':
+      return getDextoGlobalPath('');
+    case 'dexto-project':
+      return path.join(getDextoProjectRoot()!, '.dexto');
+    case 'dexto-source':
+      return path.join(process.cwd(), '.dexto');
+  }
+}
+```
+
+## Enhanced Default Resolution
 /**
  * Update default agent preference
  */

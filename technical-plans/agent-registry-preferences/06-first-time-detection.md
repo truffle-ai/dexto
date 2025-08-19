@@ -32,14 +32,14 @@ import { getDextoGlobalPath } from '@core/utils/path.js';
 import { logger } from '@core/logger/index.js';
 
 /**
- * Check if this is a first-time user based on preferences.yml existence
- * @returns true if global preferences don't exist (first-time user)
+ * Check if setup is needed (first-time user or invalid preferences)
+ * @returns true if setup should be triggered
  */
-export function isFirstTimeUser(): boolean {
+export function needsSetup(): boolean {
   const hasPreferences = globalPreferencesExist();
   
   if (!hasPreferences) {
-    logger.debug('First-time user detected: no global preferences found');
+    logger.debug('Setup needed: no global preferences found');
     return true;
   }
   
@@ -47,36 +47,44 @@ export function isFirstTimeUser(): boolean {
 }
 
 /**
- * Check if user needs setup guidance (no preferences or incomplete setup)
+ * Check if user needs setup (including validation of existing preferences)
  * @returns true if setup is needed
  */
 export async function needsSetupGuidance(): Promise<boolean> {
   // No preferences at all - definitely needs setup
-  if (isFirstTimeUser()) {
+  if (needsSetup()) {
     return true;
   }
   
-  // Check if setup was completed successfully
-  const preferencesResult = await loadGlobalPreferences();
-  if (!preferencesResult.ok) {
-    logger.debug('Setup guidance needed: preferences file is corrupted');
+  // Check if preferences are valid and complete
+  try {
+    const preferences = await loadGlobalPreferences();
+    
+    // Check setup completion flag
+    if (!preferences.setup.completed) {
+      logger.debug('Setup needed: setup not marked as completed');
+      return true;
+    }
+    
+    // Check required fields (will throw if missing due to schema)
+    if (!preferences.defaults.defaultAgent) {
+      logger.debug('Setup needed: defaults.defaultAgent missing');
+      return true;
+    }
+    
+    return false;
+    
+  } catch (error) {
+    logger.debug('Setup needed: preferences file is corrupted or invalid');
     return true;
   }
-  
-  // Check setup completion flag
-  if (!preferencesResult.data.setup.completed) {
-    logger.debug('Setup guidance needed: setup not marked as completed');
-    return true;
-  }
-  
-  return false;
 }
 
 /**
  * Get appropriate guidance message based on user state
  */
 export async function getSetupGuidanceMessage(): Promise<string> {
-  if (isFirstTimeUser()) {
+  if (needsSetup()) {
     return [
       '👋 Welcome to Dexto! Let\'s get you set up...',
       '',
@@ -89,7 +97,7 @@ export async function getSetupGuidanceMessage(): Promise<string> {
     ].join('\n');
   }
   
-  // Incomplete or corrupted setup
+  // Invalid, incomplete, or corrupted preferences
   return [
     '⚠️  Your Dexto preferences need attention',
     '',

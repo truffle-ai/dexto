@@ -202,3 +202,45 @@ async function findAgentConfigFiles(dir: string): Promise<string[]> {
 - **Consistent preferences**: All configs in the system use the same LLM preferences
 
 This approach is much simpler and more reliable than trying to track registry vs file-based sub-agents!
+
+## Standardized Logging Patterns
+
+### Preference Injection Logging
+```typescript
+// Single agent injection
+logger.info(`✓ Applied preferences to: ${path.basename(configPath)} (${oldProvider}→${newProvider}, ${oldModel}→${newModel})`);
+
+// Multi-agent injection success
+logger.info(`✓ Applied preferences to 3/4 config files (${oldProvider}→${newProvider}, ${oldModel}→${newModel})`);
+logger.debug(`Updated files: triage-agent.yml, billing-agent.yml, support-agent.yml`);
+logger.warn(`⚠ Skipped 1 file (invalid YAML): escalation-agent.yml`);
+
+// No changes needed
+logger.debug(`✓ Preferences already applied to: ${path.basename(configPath)} (${provider}/${model})`);
+
+// Injection skipped
+logger.info(`⚠ Skipped preference injection for: ${path.basename(configPath)} (use --no-preferences to suppress this message)`);
+```
+
+### Setup Command Logging
+```typescript
+logger.info(`✓ Setup completed with ${provider}/${model}`);
+logger.info(`✓ Default agent set to: ${defaultAgent}`);
+logger.info(`✓ API key configured for ${provider}`);
+```
+
+### Installation Logging  
+```typescript
+logger.info(`Installing agent: ${agentName}`);
+logger.info(`✓ Agent installed to: ${relativePath}`);
+logger.info(`✓ Applied preferences to ${count} config files`);
+logger.info(`🎉 Agent "${agentName}" is ready to use!`);
+```
+
+### Consistent Patterns:
+- **✓** for successful operations
+- **⚠** for warnings/skipped items  
+- **🎉** for completion celebrations
+- **Relative paths** in user-facing messages
+- **Provider transitions** show old→new format
+- **Counts** for multi-file operations

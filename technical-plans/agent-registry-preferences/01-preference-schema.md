@@ -50,8 +50,7 @@ export const PreferenceLLMSchema = z.object({
 export const PreferenceDefaultsSchema = z.object({
   defaultAgent: z.string()
     .min(1)
-    .default('default-agent')
-    .describe('Default agent name for global CLI usage')
+    .describe('Default agent name for global CLI usage (required)')
 }).strict();
 
 export const PreferenceSetupSchema = z.object({
@@ -65,8 +64,7 @@ export const GlobalPreferencesSchema = z.object({
     .describe('LLM configuration preferences'),
   
   defaults: PreferenceDefaultsSchema
-    .default({ defaultAgent: 'default-agent' })
-    .describe('Default behavior preferences'),
+    .describe('Default behavior preferences (required)'),
   
   setup: PreferenceSetupSchema
     .default({ completed: false })
@@ -123,23 +121,23 @@ function validatePreferences(raw: unknown): Result<GlobalPreferences, Preference
 
 ## Default Values Strategy
 
-### Sensible Defaults
+### Required vs Optional Fields
 ```typescript
-// Built-in defaults for missing sections
+// Required sections (no defaults):
+llm: { ... }        // User must choose provider/model
 defaults: {
-  defaultAgent: 'default-agent'  // Always available in registry
+  defaultAgent: '...' // User must specify (setup will set to 'default-agent')
 }
 
+// Optional sections with defaults:
 setup: {
-  completed: false  // Triggers first-time setup
+  completed: false    // Triggers first-time setup if missing
 }
-
-// llm section is required (no defaults)
 ```
 
 ### Minimal Configuration
-- **Required**: Only `llm` section (provider, model, apiKey)
-- **Optional**: `defaults` and `setup` have sensible defaults
+- **Required**: `llm` section (provider, model, apiKey) and `defaults.defaultAgent`
+- **Optional**: `setup` section has sensible defaults
 - **Extensible**: Easy to add new preference categories
 
 ## Integration Points
