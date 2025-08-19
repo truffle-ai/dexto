@@ -178,6 +178,9 @@ llm:
 - Direct control over LLM communication
 - Custom provider configurations
 - Debugging provider issues
+- **Required for GPT-5 models** (gpt-5, gpt-5-mini, gpt-5-nano)
+
+> **Model-Specific Restrictions**: Some models have router restrictions. For example, GPT-5 models only support the `in-built` router. The system will automatically validate router compatibility and provide clear error messages if an incompatible router is selected.
 
 ## Complete Configuration Examples
 

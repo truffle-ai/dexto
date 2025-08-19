@@ -5,13 +5,13 @@ import { LLMErrorCode } from './error-codes.js';
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
 import { LLMConfigSchema } from './schemas.js';
 import {
-    getProviderFromModel,
-    getSupportedRoutersForProvider,
-    isRouterSupportedForProvider,
     getDefaultModelForProvider,
-    getEffectiveMaxInputTokens,
     acceptsAnyModel,
+    isRouterSupportedForModel,
+    getSupportedRoutersForModel,
+    getProviderFromModel,
     isValidProviderModel,
+    getEffectiveMaxInputTokens,
 } from './registry.js';
 import type { LLMUpdateContext } from './types.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
@@ -85,44 +85,6 @@ export function resolveLLMConfig(
         });
     }
 
-    // Router fallback
-    // if new provider doesn't support the previous router, use the first supported router
-    // if no supported routers, throw error
-    let router = updates.router;
-    if (!router) {
-        // if new provider is different from previous provider, and previous router is not supported
-        if (
-            provider !== previous.provider &&
-            !isRouterSupportedForProvider(provider, previous.router)
-        ) {
-            const supported = getSupportedRoutersForProvider(provider);
-            // if no routers supported, throw error
-            if (supported.length === 0) {
-                warnings.push({
-                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
-                    message: `No routers supported for provider '${provider}'`,
-                    severity: 'error',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                    context: router ? { provider, router } : { provider },
-                });
-                // if routers supported, use the first supported router
-            } else {
-                router = supported.includes('vercel') ? 'vercel' : supported[0]!;
-                warnings.push({
-                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
-                    message: `Router changed to '${router}' for provider '${provider}'`,
-                    severity: 'warning',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                    context: { provider, router },
-                });
-            }
-        } else {
-            router = previous.router;
-        }
-    }
-
     // Model fallback
     // if new provider doesn't support the new model, use the default model
     let model = updates.model ?? previous.model;
@@ -140,6 +102,44 @@ export function resolveLLMConfig(
             type: ErrorType.USER,
             context: { provider, model },
         });
+    }
+
+    // Router fallback
+    // if new provider doesn't support the previous router, use the first supported router
+    // if no supported routers, throw error
+    let router = updates.router;
+    if (!router) {
+        // if new provider is different from previous provider, and previous router is not supported
+        if (
+            provider !== previous.provider &&
+            !isRouterSupportedForModel(provider, model, previous.router)
+        ) {
+            const supported = getSupportedRoutersForModel(provider, model);
+            // if no routers supported, throw error
+            if (supported.length === 0) {
+                warnings.push({
+                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
+                    message: `No routers supported for model '${model}' (${provider})`,
+                    severity: 'error',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                    context: router ? { provider, model, router } : { provider, model },
+                });
+                // if routers supported, use the first supported router
+            } else {
+                router = supported.includes('vercel') ? 'vercel' : supported[0]!;
+                warnings.push({
+                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
+                    message: `Router changed to '${router}' for model '${model}' (${provider})`,
+                    severity: 'warning',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                    context: { provider, model, router },
+                });
+            }
+        } else {
+            router = previous.router;
+        }
     }
 
     // Token defaults - always use model's effective max unless explicitly provided
