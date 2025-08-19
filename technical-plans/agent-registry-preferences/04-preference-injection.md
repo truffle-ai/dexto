@@ -4,8 +4,6 @@
 
 Implement install-time preference injection that applies global LLM preferences to agent configurations during registry agent installation. The system preserves agent-specific settings while injecting user's provider, model, and API key preferences.
 
-**TODO: Revisit error pattern - consider using PreferenceError factory instead of Result pattern for single injection errors.**
-
 ## Core Injection Logic
 
 ### Injection Function
@@ -30,6 +28,7 @@ export interface LLMOverrides {
  * @param configPath Absolute path to agent configuration file
  * @param preferences Global preferences to inject
  * @param overrides Optional CLI overrides
+ * @throws DextoRuntimeError for injection failures
  */
 export async function injectLLMPreferences(
   configPath: string,
@@ -48,7 +47,13 @@ export async function injectLLMPreferences(
   
   // Validate provider+model compatibility
   if (!validateModelForProvider(provider, model)) {
-    throw new Error(`Model '${model}' is not supported by provider '${provider}'`);
+    throw new DextoRuntimeError(
+      'PREFERENCE_MODEL_INCOMPATIBLE',
+      ErrorScope.PREFERENCE,
+      ErrorType.USER,
+      `Model '${model}' is not supported by provider '${provider}'`,
+      { provider, model, configPath }
+    );
   }
   
   // Inject only core LLM fields, preserve agent-specific settings

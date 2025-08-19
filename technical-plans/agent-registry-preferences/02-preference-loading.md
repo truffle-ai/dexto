@@ -33,19 +33,16 @@ import { PREFERENCES_FILE } from './constants.js';
 
 /**
  * Load global preferences from ~/.dexto/preferences.yml
- * @returns Result with preferences or validation errors
+ * @returns Global preferences object
+ * @throws DextoRuntimeError if file not found or corrupted
+ * @throws DextoValidationError if preferences are invalid
  */
-export async function loadGlobalPreferences(): Promise<Result<GlobalPreferences, PreferenceContext>> {
+export async function loadGlobalPreferences(): Promise<GlobalPreferences> {
   const preferencesPath = getDextoGlobalPath(PREFERENCES_FILE);
   
   // Check if preferences file exists
   if (!existsSync(preferencesPath)) {
-    return fail([{
-      code: DextoErrorCode.PREFERENCE_FILE_NOT_FOUND,
-      message: `Preferences file not found: ${preferencesPath}`,
-      severity: 'error',
-      context: { path: preferencesPath }
-    }]);
+    throw PreferenceError.fileNotFound(preferencesPath);
   }
 
   try {
@@ -56,27 +53,27 @@ export async function loadGlobalPreferences(): Promise<Result<GlobalPreferences,
     // Validate with schema
     const validation = GlobalPreferencesSchema.safeParse(rawPreferences);
     if (!validation.success) {
-      return fail(zodToIssues(validation.error, 'error'));
+      throw PreferenceError.validationFailed(validation.error);
     }
     
     logger.debug(`Loaded global preferences from: ${preferencesPath}`);
-    return ok(validation.data);
+    return validation.data;
     
   } catch (error) {
-    return fail([{
-      code: DextoErrorCode.PREFERENCE_FILE_READ_ERROR,
-      message: `Failed to read preferences: ${error instanceof Error ? error.message : String(error)}`,
-      severity: 'error',
-      context: { path: preferencesPath, error: String(error) }
-    }]);
+    if (error instanceof DextoValidationError || error instanceof DextoRuntimeError) {
+      throw error; // Re-throw our own errors
+    }
+    
+    throw PreferenceError.fileReadError(preferencesPath, error instanceof Error ? error.message : String(error));
   }
 }
 
 /**
  * Save global preferences to ~/.dexto/preferences.yml
  * @param preferences Validated preferences object
+ * @throws DextoRuntimeError if write fails
  */
-export async function saveGlobalPreferences(preferences: GlobalPreferences): Promise<Result<void, PreferenceContext>> {
+export async function saveGlobalPreferences(preferences: GlobalPreferences): Promise<void> {
   const preferencesPath = getDextoGlobalPath(PREFERENCES_FILE);
   
   try {
@@ -95,15 +92,9 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
     await fs.writeFile(preferencesPath, yamlContent, 'utf-8');
     
     logger.info(`✓ Saved global preferences to: ${preferencesPath}`);
-    return ok(undefined);
     
   } catch (error) {
-    return fail([{
-      code: DextoErrorCode.PREFERENCE_FILE_WRITE_ERROR,
-      message: `Failed to save preferences: ${error instanceof Error ? error.message : String(error)}`,
-      severity: 'error',
-      context: { path: preferencesPath, error: String(error) }
-    }]);
+    throw PreferenceError.fileWriteError(preferencesPath, error instanceof Error ? error.message : String(error));
   }
 }
 ```
@@ -166,69 +157,98 @@ export function createInitialPreferences(
 /**
  * Update specific preference sections
  * @param updates Partial preference updates
+ * @returns Updated preferences object
+ * @throws DextoRuntimeError if load/save fails
+ * @throws DextoValidationError if merged preferences are invalid
  */
 export async function updateGlobalPreferences(
   updates: Partial<GlobalPreferences>
-): Promise<Result<GlobalPreferences, PreferenceContext>> {
+): Promise<GlobalPreferences> {
   // Load existing preferences
-  const existingResult = await loadGlobalPreferences();
-  if (!existingResult.ok) {
-    return existingResult;
-  }
+  const existing = await loadGlobalPreferences();
   
   // Merge updates
   const merged = {
-    ...existingResult.data,
+    ...existing,
     ...updates,
     // Deep merge for nested objects
-    llm: { ...existingResult.data.llm, ...updates.llm },
-    defaults: { ...existingResult.data.defaults, ...updates.defaults },
-    setup: { ...existingResult.data.setup, ...updates.setup }
+    llm: { ...existing.llm, ...updates.llm },
+    defaults: { ...existing.defaults, ...updates.defaults },
+    setup: { ...existing.setup, ...updates.setup }
   };
   
   // Validate merged result
   const validation = GlobalPreferencesSchema.safeParse(merged);
   if (!validation.success) {
-    return fail(zodToIssues(validation.error, 'error'));
+    throw PreferenceError.validationFailed(validation.error);
   }
   
   // Save updated preferences
-  const saveResult = await saveGlobalPreferences(validation.data);
-  if (!saveResult.ok) {
-    return saveResult;
+  await saveGlobalPreferences(validation.data);
+  
+  return validation.data;
+}
+```
+
+## Error Factory
+
+```typescript
+// src/core/preferences/errors.ts
+
+import { DextoRuntimeError, DextoValidationError } from '@core/errors/index.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { type ZodError } from 'zod';
+
+export enum PreferenceErrorCode {
+  FILE_NOT_FOUND = 'preference_file_not_found',
+  FILE_READ_ERROR = 'preference_file_read_error', 
+  FILE_WRITE_ERROR = 'preference_file_write_error',
+  VALIDATION_ERROR = 'preference_validation_error'
+}
+
+export class PreferenceError {
+  static fileNotFound(preferencesPath: string) {
+    return new DextoRuntimeError(
+      PreferenceErrorCode.FILE_NOT_FOUND,
+      ErrorScope.PREFERENCE,
+      ErrorType.USER,
+      `Preferences file not found: ${preferencesPath}`,
+      { preferencesPath },
+      'Run `dexto setup` to create preferences'
+    );
   }
-  
-  return ok(validation.data);
-}
-```
 
-## Error Codes and Context
+  static fileReadError(preferencesPath: string, cause: string) {
+    return new DextoRuntimeError(
+      PreferenceErrorCode.FILE_READ_ERROR,
+      ErrorScope.PREFERENCE,
+      ErrorType.SYSTEM,
+      `Failed to read preferences: ${cause}`,
+      { preferencesPath, cause },
+      'Check file permissions and ensure the file is not corrupted'
+    );
+  }
 
-### New Error Codes
-```typescript
-// Add to existing DextoErrorCode enum
-export enum DextoErrorCode {
-  // ... existing codes ...
-  
-  // Preference system errors
-  PREFERENCE_FILE_NOT_FOUND = 'preference_file_not_found',
-  PREFERENCE_FILE_READ_ERROR = 'preference_file_read_error', 
-  PREFERENCE_FILE_WRITE_ERROR = 'preference_file_write_error',
-  PREFERENCE_VALIDATION_ERROR = 'preference_validation_error',
-  PREFERENCE_PROVIDER_MISMATCH = 'preference_provider_mismatch',
-}
-```
+  static fileWriteError(preferencesPath: string, cause: string) {
+    return new DextoRuntimeError(
+      PreferenceErrorCode.FILE_WRITE_ERROR,
+      ErrorScope.PREFERENCE,
+      ErrorType.SYSTEM,
+      `Failed to save preferences: ${cause}`,
+      { preferencesPath, cause },
+      'Check file permissions and available disk space'
+    );
+  }
 
-### Context Type
-```typescript
-// Context for preference-related errors
-export interface PreferenceContext {
-  path?: string;
-  provider?: string;
-  model?: string;
-  agentName?: string;
-  error?: string;
-  zodError?: ZodError;
+  static validationFailed(zodError: ZodError) {
+    const issues = zodError.issues.map(issue => ({
+      code: PreferenceErrorCode.VALIDATION_ERROR,
+      message: `${issue.path.join('.')}: ${issue.message}`,
+      severity: 'error' as const
+    }));
+    
+    return new DextoValidationError(issues);
+  }
 }
 ```
 
@@ -253,53 +273,32 @@ agentConfig.llm.apiKey = preferences.llm.apiKey;  // Still '$OPENAI_API_KEY'
 const config = await loadAgentConfig(configPath);  // EnvExpandedString() expands to actual key
 ```
 
-### Result Pattern Integration
+### Direct Exception Integration  
 ```typescript
-// Follow existing Result<T,C> pattern
-const result = await loadGlobalPreferences();
-if (!result.ok) {
-  // Handle error cases - use existing DextoValidationError
-  throw new DextoValidationError(result.issues);
+// Simple exception handling
+try {
+  const preferences = await loadGlobalPreferences();
+  // Use preferences directly
+} catch (error) {
+  if (error instanceof DextoRuntimeError) {
+    // Handle runtime errors (file not found, permissions, etc.)
+  } else if (error instanceof DextoValidationError) {
+    // Handle validation errors (invalid YAML structure)
+  }
 }
-
-// Use the data
-const preferences = result.data;
 ```
 
 ## Error Handling Strategy
 
-**TODO: Revisit error pattern - consider using PreferenceError factory (like ConfigError) instead of Result pattern for single errors. Result pattern may be overkill for file operations.**
-
 ### File System Errors
-- **File not found**: Return specific error code (triggers first-time setup)
-- **Permission errors**: Return read/write error with context
+- **File not found**: Throw PreferenceError.fileNotFound() (triggers first-time setup)
+- **Permission errors**: Throw PreferenceError.fileReadError()/fileWriteError() with context
 - **Directory creation**: Auto-create `~/.dexto/` if missing
 
-### Validation Errors
-- **Schema validation**: Convert Zod errors to Issue format
-- **Provider validation**: Validate against LLM_PROVIDERS enum
+### Validation Errors  
+- **Schema validation**: Throw PreferenceError.validationFailed() with Zod error details
+- **Provider validation**: Validate against LLM_PROVIDERS enum (built into schema)
 - **Model validation**: Basic string validation (detailed validation during injection)
-
-### Recovery Strategies
-```typescript
-// Graceful degradation for corrupted preferences
-export async function loadGlobalPreferencesWithRecovery(): Promise<Result<GlobalPreferences, PreferenceContext>> {
-  const result = await loadGlobalPreferences();
-  
-  if (!result.ok) {
-    const isCorrupted = result.issues.some(issue => 
-      issue.code === DextoErrorCode.PREFERENCE_VALIDATION_ERROR
-    );
-    
-    if (isCorrupted) {
-      logger.warn('Corrupted preferences detected, backing up and prompting for reset');
-      // TODO: Backup corrupted file and trigger fresh setup
-    }
-  }
-  
-  return result;
-}
-```
 
 ## Usage Examples
 
@@ -307,14 +306,13 @@ export async function loadGlobalPreferencesWithRecovery(): Promise<Result<Global
 ```typescript
 import { loadGlobalPreferences } from '@core/preferences/loader.js';
 
-const result = await loadGlobalPreferences();
-if (!result.ok) {
-  console.error('Failed to load preferences:', result.issues);
-  return;
+try {
+  const preferences = await loadGlobalPreferences();
+  const { provider, model, apiKey } = preferences.llm;
+  console.log(`Using ${provider}/${model} with key ${apiKey}`);
+} catch (error) {
+  console.error('Failed to load preferences:', error.message);
 }
-
-const { provider, model, apiKey } = result.data.llm;
-console.log(`Using ${provider}/${model} with key ${apiKey}`);
 ```
 
 ### First-Time Detection
@@ -333,11 +331,8 @@ import { createInitialPreferences, saveGlobalPreferences } from '@core/preferenc
 
 // During first-time setup
 const preferences = createInitialPreferences('openai', 'gpt-4o-mini', 'OPENAI_API_KEY');
-const result = await saveGlobalPreferences(preferences);
-
-if (!result.ok) {
-  throw new Error(`Setup failed: ${result.issues[0].message}`);
-}
+await saveGlobalPreferences(preferences);
+console.log('Setup complete!');
 ```
 
 ## Testing Requirements

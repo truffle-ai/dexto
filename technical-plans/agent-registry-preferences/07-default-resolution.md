@@ -4,7 +4,6 @@
 
 Replace the existing `resolveConfigPath()` function with a new preference-aware default resolution system. The new system fails fast with clear errors instead of silent fallbacks, uses existing Dexto error classes, and provides deterministic behavior across execution contexts.
 
-**TODO: Fix error management patterns - this plan needs review of existing codebase error handling and standardization of approach before implementation.**
 
 ## Core Resolution Logic
 
