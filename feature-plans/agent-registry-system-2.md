@@ -319,7 +319,7 @@ loadAgentConfig(nameOrPath) {
 
 ### Phase 3: Integration & Polish
 - [x] **3.1 Add bulk installation support** - Multiple agents in single command
-- [ ] **3.2 Enhance error handling** - Clear messages for missing preferences/registry stuff
+- [x] **3.2 Enhance error handling** - Clear messages for missing preferences/registry stuff
 - [ ] **3.3 Add validation and recovery** - Handle corrupted preferences
 - [ ] **3.4 Update first-time setup integration** - Use new preference system
 
