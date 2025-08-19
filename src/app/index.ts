@@ -358,7 +358,7 @@ program
                     }
 
                     console.log('🚀 Setting up Dexto for first use...');
-                    await handleSetupCommand({ noInteractive: false });
+                    await handleSetupCommand({ interactive: true });
                     console.log('✨ Setup complete! Continuing with agent...');
                 }
 

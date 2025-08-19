@@ -3,6 +3,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@core/logger/index.js';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
+import { loadGlobalPreferences } from '@core/preferences/loader.js';
+import { injectPreferencesToAgent } from '@core/preferences/injection.js';
 import { Registry, RegistrySchema, AgentRegistry } from './types.js';
 
 // Cached registry instance
@@ -109,8 +111,13 @@ export class LocalAgentRegistry implements AgentRegistry {
 
     /**
      * Install agent atomically using temp + rename pattern
+     * @param agentName Name of the agent to install
+     * @param injectPreferences Whether to inject global preferences into installed agent (default: true)
      */
-    private async installAgent(agentName: string): Promise<string> {
+    private async installAgent(
+        agentName: string,
+        injectPreferences: boolean = true
+    ): Promise<string> {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
@@ -160,6 +167,29 @@ export class LocalAgentRegistry implements AgentRegistry {
             logger.info(`✓ Installed agent '${agentName}' to ${targetDir}`);
             // console.log for CLI visibility temporarily
             console.log(`✓ Installed agent '${agentName}' to ${targetDir}`);
+
+            // Inject global preferences if requested
+            if (injectPreferences) {
+                try {
+                    const preferences = await loadGlobalPreferences();
+                    await injectPreferencesToAgent(targetDir, preferences);
+                    logger.info(`✓ Applied global preferences to installed agent '${agentName}'`);
+                    console.log(`✓ Applied global preferences to installed agent '${agentName}'`);
+                } catch (error) {
+                    // Log warning but don't fail installation if preference injection fails
+                    logger.warn(
+                        `Failed to inject preferences to '${agentName}': ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    console.log(
+                        `⚠️  Warning: Could not apply preferences to '${agentName}' - agent will use bundled settings`
+                    );
+                }
+            } else {
+                logger.debug(
+                    `Skipped preference injection for '${agentName}' (injectPreferences=false)`
+                );
+            }
+
             return this.resolveMainConfig(targetDir, agentName);
         } catch (error) {
             // Clean up temp directory on failure
@@ -180,8 +210,10 @@ export class LocalAgentRegistry implements AgentRegistry {
     /**
      * Resolve a registry agent name to a config path
      * NOTE: Only handles registry names, not file paths (routing done in loadAgentConfig)
+     * @param agentName Name of the agent to resolve
+     * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
      */
-    async resolveAgent(agentName: string): Promise<string> {
+    async resolveAgent(agentName: string, injectPreferences: boolean = true): Promise<string> {
         logger.debug(`Resolving registry agent: ${agentName}`);
 
         // 1. Check if installed
@@ -202,7 +234,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         if (this.hasAgent(agentName)) {
             console.log(`Agent '${agentName}' found in registry, installing...`);
             logger.info(`Installing agent '${agentName}' from registry...`);
-            return await this.installAgent(agentName);
+            return await this.installAgent(agentName, injectPreferences);
         }
 
         // 3. Not found in registry

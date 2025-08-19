@@ -129,7 +129,7 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath('database-agent');
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('database-agent');
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('database-agent', true);
             expect(result).toBe(expectedPath);
         });
 
@@ -204,7 +204,7 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath();
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent');
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent', true);
             expect(result).toBe('/path/to/my-agent.yml');
         });
 
@@ -252,7 +252,7 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath();
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-default');
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-default', true);
             expect(result).toBe('/path/to/my-default.yml');
         });
 
@@ -306,7 +306,7 @@ describe('Agent Resolver', () => {
 
             await updateDefaultAgentPreference('my-agent');
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent');
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent', false);
             expect(mockUpdateGlobalPreferences).toHaveBeenCalledWith({
                 defaults: { defaultAgent: 'my-agent' },
             });

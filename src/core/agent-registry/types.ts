@@ -31,5 +31,5 @@ export type Registry = z.output<typeof RegistrySchema>;
  * Agent registry interface
  */
 export interface AgentRegistry {
-    resolveAgent(nameOrPath: string): Promise<string>;
+    resolveAgent(nameOrPath: string, injectPreferences?: boolean): Promise<string>;
 }
