@@ -1,13 +1,9 @@
 import * as path from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
-import { ConfigError } from '@core/config/errors.js';
-/**
- * Default config file path (relative to package root)
- */
-export const DEFAULT_CONFIG_PATH = 'agents/default-agent.yml';
+import { getDextoProjectRoot } from './execution-context.js';
 
 /**
  * Generic directory walker that searches up the directory tree
@@ -30,70 +26,6 @@ export function walkUpDirectories(
     }
 
     return null;
-}
-
-/**
- * Check if directory has dexto as dependency (MOST RELIABLE)
- * @param dirPath Directory to check
- * @returns True if directory contains dexto as dependency
- */
-function hasDextoDependency(dirPath: string): boolean {
-    const packageJsonPath = path.join(dirPath, 'package.json');
-
-    try {
-        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-        // Case 1: This IS the dexto package itself (local testing)
-        if (pkg.name === 'dexto') {
-            return true;
-        }
-
-        // Case 2: Project using dexto as dependency (SDK/CLI in project)
-        const allDeps = {
-            ...pkg.dependencies,
-            ...pkg.devDependencies,
-            ...pkg.peerDependencies,
-        };
-
-        return 'dexto' in allDeps;
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Check if we're currently in a dexto project
- * @param startPath Starting directory path
- * @returns True if in a dexto project
- */
-export function isDextoProject(startPath: string = process.cwd()): boolean {
-    return getDextoProjectRoot(startPath) !== null;
-}
-
-/**
- * Check if we're currently in the dexto source code itself
- * @param startPath Starting directory path
- * @returns True if in dexto source code (package.name === 'dexto')
- */
-export function isDextoSourceCode(startPath: string = process.cwd()): boolean {
-    const projectRoot = getDextoProjectRoot(startPath);
-    if (!projectRoot) return false;
-
-    try {
-        const pkg = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf-8'));
-        return pkg.name === 'dexto';
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Get dexto project root (or null if not in project)
- * @param startPath Starting directory path
- * @returns Project root directory or null
- */
-export function getDextoProjectRoot(startPath: string = process.cwd()): string | null {
-    return walkUpDirectories(startPath, hasDextoDependency);
 }
 
 /**
@@ -155,11 +87,6 @@ export async function copyDirectory(src: string, dest: string): Promise<void> {
 }
 
 /**
- * Resolve config path with registry and context awareness
- * @param nameOrPath Optional agent name or config path
- * @returns Absolute path to config file
- */
-/**
  * Check if string looks like a file path vs registry name
  * @param str String to check
  * @returns True if looks like a path, false if looks like a registry name
@@ -175,50 +102,6 @@ export function isPath(str: string): boolean {
     if (/\.(ya?ml|json)$/i.test(str)) return true;
 
     return false;
-}
-
-export async function resolveConfigPath(nameOrPath?: string): Promise<string> {
-    // Handle explicit file paths first
-    if (nameOrPath && isPath(nameOrPath)) {
-        return path.resolve(nameOrPath);
-    }
-
-    // Handle registry names
-    if (nameOrPath) {
-        const { getAgentRegistry } = await import('../agent-registry/registry.js');
-        const registry = getAgentRegistry();
-        return await registry.resolveAgent(nameOrPath);
-    }
-
-    // Default case: no name/path specified
-    // Check if we're in a dexto project first
-    const projectRoot = getDextoProjectRoot();
-    if (projectRoot) {
-        // TODO: Make this logic more robust and less hardcoded
-        // In dexto project: Look for config in project (multiple possible locations)
-        const configPaths = [
-            path.join(projectRoot, DEFAULT_CONFIG_PATH), // Standard: agents/default-agent.yml
-            path.join(projectRoot, 'src', DEFAULT_CONFIG_PATH), // Common: src/agents/default-agent.yml
-            path.join(projectRoot, 'src', 'dexto', DEFAULT_CONFIG_PATH), // Test app: src/dexto/agents/default-agent.yml
-            path.join(projectRoot, '.dexto', 'default-agent.yml'), // Hidden: .dexto/default-agent.yml
-            path.join(projectRoot, 'default-agent.yml'), // Root: default-agent.yml
-        ];
-
-        for (const configPath of configPaths) {
-            if (existsSync(configPath)) {
-                return configPath;
-            }
-        }
-
-        throw ConfigError.fileNotFound(
-            `No default-agent.yml found in project. Searched: ${configPaths.join(', ')}`
-        );
-    } else {
-        // Global CLI mode: use registry default-agent
-        const { getAgentRegistry } = await import('../agent-registry/registry.js');
-        const registry = getAgentRegistry();
-        return await registry.resolveAgent('default-agent');
-    }
 }
 
 /**
@@ -286,34 +169,5 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
     } else {
         // Global usage: save to ~/.dexto/.env
         return path.join(homedir(), '.dexto', '.env');
-    }
-}
-
-/**
- * Get the user's global config path (legacy)
- * TODO: Remove in enhanced preference system - replaced by ~/.dexto/agents/default-agent/
- */
-export function getUserConfigPath(): string {
-    return path.join(homedir(), '.dexto', 'agent.yml');
-}
-
-/**
- * Get the bundled config path
- * @returns Absolute path to bundled agent.yml
- */
-export function getBundledConfigPath(): string {
-    return resolveBundledScript(DEFAULT_CONFIG_PATH);
-}
-
-/**
- * Check if a config path is the bundled config
- * @param configPath Path to check
- * @returns True if this is the bundled config
- */
-export function isUsingBundledConfig(configPath: string): boolean {
-    try {
-        return configPath === getBundledConfigPath();
-    } catch {
-        return false;
     }
 }

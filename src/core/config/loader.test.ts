@@ -155,8 +155,10 @@ systemPrompt:
         const expectedDir = path.dirname(tmpFile);
 
         // Template variables should be expanded
-        expect(config.mcpServers?.testServer?.args?.[1]).toBe(`${expectedDir}/data/file.txt`);
-        expect(config.systemPrompt?.contributors?.[0]?.files?.[0]).toBe(
+        expect((config.mcpServers?.testServer as any)?.args?.[1]).toBe(
+            `${expectedDir}/data/file.txt`
+        );
+        expect((config.systemPrompt as any)?.contributors?.[0]?.files?.[0]).toBe(
             `${expectedDir}/docs/prompt.md`
         );
     });
@@ -177,7 +179,7 @@ mcpServers:
         const config = await loadAgentConfig(tmpFile);
 
         // Regular config should work normally
-        expect(config.mcpServers?.testServer?.args).toEqual(['hello', 'world']);
+        expect((config.mcpServers?.testServer as any)?.args).toEqual(['hello', 'world']);
     });
 
     it('throws error on path traversal in template expansion', async () => {

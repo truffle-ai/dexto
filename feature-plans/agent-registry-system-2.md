@@ -315,6 +315,7 @@ loadAgentConfig(nameOrPath) {
 - [x] **2.2 Add auto-setup trigger** - Run setup on first command if needed
 - [x] **2.3 Enhance auto-installation** - Apply preferences during installation
 - [x] **2.4 Update default agent resolution** - Use default-agent from registry
+- [x] **2.5 Path resolution cleanup** - Remove legacy resolveConfigPath, consolidate execution context detection, update all imports and tests
 
 ### Phase 3: Integration & Polish
 - [ ] **3.1 Add bulk installation support** - Multiple agents in single command
