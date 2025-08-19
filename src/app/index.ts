@@ -40,6 +40,7 @@ import {
     postInitDexto,
     getUserInputToInitDextoApp,
 } from './cli/project-commands/index.js';
+import { handleSetupCommand, type CLISetupOptions } from './cli/global-commands/index.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
@@ -142,7 +143,25 @@ program
         }
     });
 
-// 4) `mcp` SUB-COMMAND
+// 4) `setup` SUB-COMMAND
+program
+    .command('setup')
+    .description('Configure global Dexto preferences')
+    .option('--llm-provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
+    .option('--model <model>', 'Model name (uses provider default if not specified)')
+    .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
+    .option('--no-interactive', 'Run in non-interactive mode')
+    .action(async (options: CLISetupOptions) => {
+        try {
+            await handleSetupCommand(options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto setup command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 5) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -215,7 +234,7 @@ program
         }
     });
 
-// 5) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 6) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -517,5 +536,5 @@ program
         }
     });
 
-// 6) PARSE & EXECUTE
+// 7) PARSE & EXECUTE
 program.parseAsync(process.argv);

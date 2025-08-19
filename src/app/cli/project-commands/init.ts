@@ -7,7 +7,8 @@ import { getPackageManager, getPackageManagerInstallCommand } from '../utils/pac
 import { executeWithTimeout } from '../utils/execute.js';
 import { createRequire } from 'module';
 import { LLMProvider, logger } from '@core/index.js';
-import { updateDextoConfigFile, updateEnvFileWithLLMKeys } from '../utils/api-key-utils.js';
+import { updateDextoConfigFile } from '../utils/project-utils.js';
+import { updateEnvFileWithLLMKeys } from '../utils/env-utils.js';
 
 const require = createRequire(import.meta.url);
 

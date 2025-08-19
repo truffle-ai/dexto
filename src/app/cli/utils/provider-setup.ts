@@ -1,10 +1,51 @@
-import fs from 'node:fs/promises';
-import { parseDocument } from 'yaml';
+// src/app/cli/utils/provider-setup.ts
+
+import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { LLMProvider, getDefaultModelForProvider } from '@core/index.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
-import { updateEnvFile } from '@core/utils/env.js';
-import { logger } from '@core/logger/index.js';
+import { type LLMProvider } from '@core/llm/registry.js';
+
+/**
+ * Standardized provider options used across all setup flows
+ */
+export const PROVIDER_OPTIONS = [
+    {
+        value: 'google',
+        label: '🟢 Google Gemini',
+        hint: 'Free tier available - Recommended for beginners',
+    },
+    {
+        value: 'groq',
+        label: '🟢 Groq',
+        hint: 'Free tier available - Very fast responses',
+    },
+    {
+        value: 'openai',
+        label: '🟡 OpenAI',
+        hint: 'Most popular, requires payment',
+    },
+    {
+        value: 'anthropic',
+        label: '🟡 Anthropic',
+        hint: 'High quality models, requires payment',
+    },
+] as const;
+
+/**
+ * Interactive provider selection using standardized options
+ * @returns Selected provider or null if cancelled
+ */
+export async function selectProvider(): Promise<LLMProvider | null> {
+    const choice = await p.select({
+        message: 'Choose your AI provider',
+        options: PROVIDER_OPTIONS,
+    });
+
+    if (p.isCancel(choice)) {
+        return null;
+    }
+
+    return choice as LLMProvider;
+}
 
 /**
  * Gets display name for a provider
@@ -109,47 +150,5 @@ export function getProviderInstructions(
             };
         default:
             return null;
-    }
-}
-
-/**
- * Updates the LLM provider information in the dexto config file
- * Based on the LLM provider, the config file is updated with the correct API key and default model configured in registry
- */
-export async function updateDextoConfigFile(
-    filepath: string,
-    llmProvider: LLMProvider
-): Promise<void> {
-    const fileContent = await fs.readFile(filepath, 'utf8');
-    const doc = parseDocument(fileContent);
-    doc.setIn(['llm', 'provider'], llmProvider);
-    doc.setIn(['llm', 'apiKey'], '$' + getPrimaryApiKeyEnvVar(llmProvider));
-    doc.setIn(['llm', 'model'], getDefaultModelForProvider(llmProvider));
-    await fs.writeFile(filepath, doc.toString(), 'utf8');
-}
-
-/**
- * Helper to build environment variable updates for API key providers
- */
-export async function updateEnvFileWithLLMKeys(
-    envFilePath: string,
-    llmProvider?: LLMProvider,
-    llmApiKey?: string
-): Promise<void> {
-    logger.debug(`Updating .env file with dexto env variables: envFilePath ${envFilePath}`);
-
-    // Build updates object for the specific provider
-    const updates: Record<string, string> = {};
-    if (llmProvider && llmApiKey) {
-        const envVar = getPrimaryApiKeyEnvVar(llmProvider);
-        updates[envVar] = llmApiKey;
-    }
-
-    // Use the generic env file writer
-    await updateEnvFile(envFilePath, updates);
-
-    // Log where the API key was written for visibility
-    if (llmProvider && llmApiKey) {
-        console.log(chalk.green(`✓ Wrote ${llmProvider.toUpperCase()} API key to: ${envFilePath}`));
     }
 }

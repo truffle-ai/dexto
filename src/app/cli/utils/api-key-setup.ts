@@ -1,15 +1,17 @@
+// src/app/cli/utils/api-key-setup.ts
+
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { LLMProvider, logger } from '@core/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { getDextoEnvPath } from '@core/utils/path.js';
+import { updateEnvFileWithLLMKeys } from './env-utils.js';
 import {
-    updateEnvFileWithLLMKeys,
     getProviderDisplayName,
     getApiKeyPlaceholder,
     isValidApiKeyFormat,
     getProviderInstructions,
-} from './api-key-utils.js';
-import { getDextoEnvPath } from '@core/utils/path.js';
+} from './provider-setup.js';
 
 /**
  * Interactively prompts the user to set up an API key for a specific provider.
@@ -63,8 +65,6 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
             return false;
         }
 
-        // Provider is already determined from config validation
-
         const apiKey = await p.text({
             message: `Enter your ${getProviderDisplayName(provider)} API key`,
             placeholder: getApiKeyPlaceholder(provider),
@@ -84,9 +84,9 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
             return false;
         }
 
-        // Update .env file and agent configuration
+        // Update .env file
         const spinner = p.spinner();
-        spinner.start('Saving API key and updating configuration...');
+        spinner.start('Saving API key...');
 
         try {
             // Update .env file with the API key using smart path detection
@@ -94,7 +94,6 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
             await updateEnvFileWithLLMKeys(envFilePath, provider, apiKey.trim());
             spinner.stop('API key saved successfully! ✨');
 
-            // Can append this with information about where the API key was saved if needed later
             p.outro(
                 chalk.green(
                     '🎉 API Key Setup complete for ' + getProviderDisplayName(provider) + '!'
@@ -110,9 +109,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
                 `Manual setup required:\n\n` +
                     `1. Create a .env file in your project root\n` +
                     `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
-                    `3. Update your agent.yml llm.provider to "${provider}"\n` +
-                    `4. Update your agent.yml llm.apiKey to "$${getPrimaryApiKeyEnvVar(provider)}"\n` +
-                    `5. Run dexto again`,
+                    `3. Run dexto again`,
                 chalk.yellow('Save this API key manually')
             );
             console.error(chalk.red('\n❌ API key setup required to continue.'));

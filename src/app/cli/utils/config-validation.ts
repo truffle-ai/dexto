@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import chalk from 'chalk';
 import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
-import { interactiveApiKeySetup } from './interactive-api-key-setup.js';
+import { interactiveApiKeySetup } from './api-key-setup.js';
 import { LLMErrorCode } from '@core/llm/error-codes.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import type { LLMProvider } from '@core/index.js';
