@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { parse as parseYaml } from 'yaml';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
 import { ConfigError } from './errors.js';
@@ -134,37 +134,4 @@ export async function loadAgentConfig(configPath: string): Promise<AgentConfig> 
 
     // Return expanded config - environment variable expansion handled by Zod schema
     return config as AgentConfig;
-}
-
-/**
- * Asynchronously writes the given agent configuration object to a YAML file.
- * This function handles the serialization of the config object to YAML format
- * and writes it to the specified file path.
- *
- * @param configPath - Path where the configuration file should be written (absolute or relative)
- * @param config - The `AgentConfig` object to be written to the file
- * @returns A Promise that resolves when the file has been successfully written
- * @throws {ConfigError} with FILE_WRITE_ERROR if an error occurs during YAML stringification or file writing
- */
-export async function writeConfigFile(configPath: string, config: AgentConfig): Promise<void> {
-    const absolutePath = path.resolve(configPath);
-
-    try {
-        // Convert the AgentConfig object into a YAML string.
-        const yamlContent = stringifyYaml(config);
-
-        // Write the YAML content to the specified file.
-        // The 'utf-8' encoding ensures proper character handling.
-        await fs.writeFile(absolutePath, yamlContent, 'utf-8');
-
-        // Log a debug message indicating successful file write.
-        logger.debug(`Wrote dexto config to: ${absolutePath}`);
-    } catch (error: unknown) {
-        // Catch any errors that occur during YAML stringification or file writing.
-        // Throw a specific `ConfigFileWriteError` for better error categorization.
-        throw ConfigError.fileWriteError(
-            absolutePath,
-            error instanceof Error ? error.message : String(error)
-        );
-    }
 }

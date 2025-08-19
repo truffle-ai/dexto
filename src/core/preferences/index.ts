@@ -16,8 +16,6 @@ export {
 
 export { PREFERENCES_FILE } from './constants.js';
 
-export { injectLLMPreferences, injectPreferencesToAgent, type LLMOverrides } from './injection.js';
-
 export {
     loadGlobalPreferences,
     saveGlobalPreferences,

@@ -21,7 +21,7 @@ import {
     LLMProvider,
 } from '@core/index.js';
 import { resolveAgentPath } from '@core/config/agent-resolver.js';
-import { getAgentRegistry } from '@core/agent-registry/registry.js';
+import { getAgentRegistry } from '@core/agent/registry/registry.js';
 import { isPath } from '@core/utils/path.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
@@ -52,7 +52,7 @@ import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
-import { createAgentCard } from '@core/config/agentCard.js';
+import { createAgentCard } from '@core/agent/agentCard.js';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
 

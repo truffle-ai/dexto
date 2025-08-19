@@ -11,7 +11,7 @@ import { ConfigErrorCode } from './error-codes.js';
 // Mock dependencies
 vi.mock('@core/utils/execution-context.js');
 vi.mock('@core/preferences/loader.js');
-vi.mock('@core/agent-registry/registry.js');
+vi.mock('@core/agent/registry/registry.js');
 vi.mock('@core/logger/index.js', () => ({
     logger: {
         debug: vi.fn(),
@@ -38,7 +38,7 @@ vi.mocked(await import('@core/preferences/loader.js')).loadGlobalPreferences =
     mockLoadGlobalPreferences;
 vi.mocked(await import('@core/preferences/loader.js')).updateGlobalPreferences =
     mockUpdateGlobalPreferences;
-vi.mocked(await import('@core/agent-registry/registry.js')).getAgentRegistry = mockGetAgentRegistry;
+vi.mocked(await import('@core/agent/registry/registry.js')).getAgentRegistry = mockGetAgentRegistry;
 
 function createTempDir() {
     return mkdtempSync(path.join(tmpdir(), 'agent-resolver-test-'));

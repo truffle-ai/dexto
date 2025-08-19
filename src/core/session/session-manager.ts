@@ -4,7 +4,7 @@ import { PromptManager } from '../systemPrompt/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { AgentEventBus } from '../events/index.js';
 import { logger } from '../logger/index.js';
-import type { AgentStateManager } from '../config/agent-state-manager.js';
+import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageBackends } from '../storage/index.js';
 import { SessionError } from './errors.js';

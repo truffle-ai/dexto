@@ -1,13 +1,15 @@
-// src/core/preferences/injection.ts
+// src/core/config/writer.ts
 
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import path from 'path';
 import { type LLMProvider, isValidProviderModel } from '@core/llm/registry.js';
-import { type GlobalPreferences } from './schemas.js';
-import { PreferenceErrorCode } from './error-codes.js';
+import { type GlobalPreferences } from '@core/preferences/schemas.js';
+import { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import { logger } from '@core/logger/index.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@core/errors/index.js';
+import { type AgentConfig } from '@core/agent/schemas.js';
+import { ConfigError } from './errors.js';
 
 export interface LLMOverrides {
     provider?: LLMProvider;
@@ -16,13 +18,46 @@ export interface LLMOverrides {
 }
 
 /**
- * Inject global LLM preferences into an agent config file
- * @param configPath Absolute path to agent configuration file
- * @param preferences Global preferences to inject
- * @param overrides Optional CLI overrides
- * @throws DextoRuntimeError for injection failures
+ * Asynchronously writes the given agent configuration object to a YAML file.
+ * This function handles the serialization of the config object to YAML format
+ * and writes it to the specified file path.
+ *
+ * @param configPath - Path where the configuration file should be written (absolute or relative)
+ * @param config - The `AgentConfig` object to be written to the file
+ * @returns A Promise that resolves when the file has been successfully written
+ * @throws {ConfigError} with FILE_WRITE_ERROR if an error occurs during YAML stringification or file writing
  */
-export async function injectLLMPreferences(
+export async function writeConfigFile(configPath: string, config: AgentConfig): Promise<void> {
+    const absolutePath = path.resolve(configPath);
+
+    try {
+        // Convert the AgentConfig object into a YAML string.
+        const yamlContent = stringifyYaml(config, { indent: 2 });
+
+        // Write the YAML content to the specified file.
+        // The 'utf-8' encoding ensures proper character handling.
+        await fs.writeFile(absolutePath, yamlContent, 'utf-8');
+
+        // Log a debug message indicating successful file write.
+        logger.debug(`Wrote dexto config to: ${absolutePath}`);
+    } catch (error: unknown) {
+        // Catch any errors that occur during YAML stringification or file writing.
+        // Throw a specific `ConfigFileWriteError` for better error categorization.
+        throw ConfigError.fileWriteError(
+            absolutePath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+}
+
+/**
+ * Write global LLM preferences to an agent config file
+ * @param configPath Absolute path to agent configuration file
+ * @param preferences Global preferences to write
+ * @param overrides Optional CLI overrides
+ * @throws DextoRuntimeError for write failures
+ */
+export async function writeLLMPreferences(
     configPath: string,
     preferences: GlobalPreferences,
     overrides?: LLMOverrides
@@ -47,32 +82,32 @@ export async function injectLLMPreferences(
         );
     }
 
-    // Inject only core LLM fields, preserve agent-specific settings
+    // Write only core LLM fields, preserve agent-specific settings
     if (!config.llm) {
         config.llm = {};
     }
 
     config.llm = {
         ...config.llm, // Preserve temperature, router, maxTokens, etc.
-        provider, // Inject user preference
-        model, // Inject user preference
-        apiKey, // Inject user preference
+        provider, // Write user preference
+        model, // Write user preference
+        apiKey, // Write user preference
     };
 
-    // Write back to file
-    const yamlContent = stringifyYaml(config, { indent: 2 });
-    await fs.writeFile(configPath, yamlContent, 'utf-8');
+    // Write back to file using the shared writeConfigFile function
+    // Type assertion is safe: we read a valid config and only modified the LLM section
+    await writeConfigFile(configPath, config as AgentConfig);
 
     logger.info(`✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${model})`);
 }
 
 /**
- * Apply preferences to an installed agent (file or directory)
+ * Write preferences to an installed agent (file or directory)
  * @param installedPath Path to installed agent file or directory
- * @param preferences Global preferences to inject
+ * @param preferences Global preferences to write
  * @param overrides Optional CLI overrides
  */
-export async function injectPreferencesToAgent(
+export async function writePreferencesToAgent(
     installedPath: string,
     preferences: GlobalPreferences,
     overrides?: LLMOverrides
@@ -80,28 +115,28 @@ export async function injectPreferencesToAgent(
     const stat = await fs.stat(installedPath);
 
     if (stat.isFile()) {
-        // Single file agent - inject directly
+        // Single file agent - write directly
         if (installedPath.endsWith('.yml') || installedPath.endsWith('.yaml')) {
-            await injectLLMPreferences(installedPath, preferences, overrides);
+            await writeLLMPreferences(installedPath, preferences, overrides);
             logger.info(`✓ Applied preferences to: ${path.basename(installedPath)}`);
         } else {
             logger.warn(`Skipping non-YAML file: ${installedPath}`);
         }
     } else if (stat.isDirectory()) {
-        // Directory-based agent - inject to all .yml files
-        await injectPreferencesToDirectory(installedPath, preferences, overrides);
+        // Directory-based agent - write to all .yml files
+        await writePreferencesToDirectory(installedPath, preferences, overrides);
     } else {
         throw new Error(`Invalid agent path: ${installedPath} (not file or directory)`);
     }
 }
 
 /**
- * Apply preferences to all agent configs in a directory
+ * Write preferences to all agent configs in a directory
  * @param installedDir Directory containing agent configs
- * @param preferences Global preferences to inject
+ * @param preferences Global preferences to write
  * @param overrides Optional CLI overrides
  */
-async function injectPreferencesToDirectory(
+async function writePreferencesToDirectory(
     installedDir: string,
     preferences: GlobalPreferences,
     overrides?: LLMOverrides
@@ -123,12 +158,12 @@ async function injectPreferencesToDirectory(
 
     for (const configPath of configFiles) {
         try {
-            await injectLLMPreferences(configPath, preferences, overrides);
+            await writeLLMPreferences(configPath, preferences, overrides);
             logger.debug(`Applied preferences to: ${path.relative(installedDir, configPath)}`);
             successCount++;
         } catch (error) {
             logger.warn(
-                `Failed to inject preferences to ${configPath}: ${error instanceof Error ? error.message : String(error)}`
+                `Failed to write preferences to ${configPath}: ${error instanceof Error ? error.message : String(error)}`
             );
             // Continue with other files
         }

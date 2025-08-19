@@ -4,7 +4,7 @@ import path from 'path';
 import { logger } from '@core/logger/index.js';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
 import { loadGlobalPreferences } from '@core/preferences/loader.js';
-import { injectPreferencesToAgent } from '@core/preferences/injection.js';
+import { writePreferencesToAgent } from '@core/config/writer.js';
 import { Registry, RegistrySchema, AgentRegistry } from './types.js';
 
 // Cached registry instance
@@ -172,7 +172,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             if (injectPreferences) {
                 try {
                     const preferences = await loadGlobalPreferences();
-                    await injectPreferencesToAgent(targetDir, preferences);
+                    await writePreferencesToAgent(targetDir, preferences);
                     logger.info(`✓ Applied global preferences to installed agent '${agentName}'`);
                     console.log(`✓ Applied global preferences to installed agent '${agentName}'`);
                 } catch (error) {
