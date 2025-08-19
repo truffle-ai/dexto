@@ -321,10 +321,10 @@ loadAgentConfig(nameOrPath) {
 - [x] **3.1 Add bulk installation support** - Multiple agents in single command
 - [x] **3.2 Enhance error handling** - Clear messages for missing preferences/registry stuff
 - [ ] **3.3 Add validation and recovery** - Handle corrupted preferences
-- [ ] **3.4 Update first-time setup integration** - Use new preference system
+- [ ] **3.4 Update first-time setup integration** - Use new preference system. mostly done
 
 ### Phase 4: Project Integration
-- [ ] **4.1 Update dexto create-app** - Generate `src/dexto/agents/default-agent.yml` instead of `agent.yml`
+- [ ] **4.1 Update dexto create-app** - Generate `src/dexto/agents/default-agent.yml` instead of `agent.yml`. search for `agent.yml` and `agents/agent.yml` in the repo and update references because we are now using `agents/default-agent.yml`
 - [ ] **4.2 Update path resolution** - Look for `default-agent.yml` in project search paths
 - [ ] **4.3 Test project workflows** - Ensure consistent naming doesn't break development
 
@@ -342,7 +342,7 @@ loadAgentConfig(nameOrPath) {
 - [ ] **6.5 Migration utilities** - Convert existing ~/.dexto/agent.yml to preferences
 - [ ] **6.6 Documentation updates** - User guides for new preference workflow
 - [ ] **6.7 Breaking change communication** - Clear migration guide
-- [ ] **6.8 Rename preferences to settings** - Rename module, file, and all references from "preferences" to "settings" for industry standard terminology
+- [ ] **6.8 Rename preferences to settings** - Rename module, file, and all references from "preferences" to "settings" for industry standard terminology. May not do this.
 
 ## Enhanced CLI Command Examples
 
