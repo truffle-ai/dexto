@@ -107,7 +107,27 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
 });
 ```
 
-### Error handling
+### Error Handling
+
+**Core Error Classes:**
+- **`DextoRuntimeError`** - Single-issue errors (file not found, API failures, system errors)
+- **`DextoValidationError`** - Multiple validation issues (schema failures, input validation)
+
+**When to Use Each:**
+- **Runtime errors**: File operations, network calls, system failures, business logic violations
+  - Examples: `src/core/config/loader.ts`, `src/core/llm/services/vercel.ts`
+- **Validation errors**: Schema validation, input parsing, configuration validation with multiple issues  
+  - Examples: `src/core/agent/DextoAgent.ts` (switchLLM validation)
+
+**Error Factory Pattern (REQUIRED):**
+Each module should have an error factory class that creates properly typed errors.
+- **Reference example**: `src/core/config/errors.ts` - Follow this pattern for new modules
+
+**API Integration:**
+The error middleware (`src/app/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
+
+**❌ DON'T**: Use plain `Error` or `throw new Error()`  
+**✅ DO**: Create module-specific error factories and use typed error classes
 
 ## Code Standards
 

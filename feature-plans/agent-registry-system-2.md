@@ -467,57 +467,32 @@ if (!nameOrPath) {
 3. **Installation**: Install default-agent with extracted preferences
 4. **Cleanup**: Remove old agent.yml (optional)
 
-### Communication
-- Clear breaking change notice in release notes
-- Migration guide with before/after examples
-- Automatic migration on first run of new version
-
 ## Code Organization & Module Structure
 
-### Core Business Logic (Reusable Across Modes)
+### Simplified Module Structure
 ```
-src/core/agent/
-├── registry.ts              # Agent resolution (move from agent-registry/)
-├── installation.ts          # Atomic installation logic with preference injection
-├── preferences.ts           # Preference injection during installation
-└── existing files...        # schemas.ts, DextoAgent.ts, etc.
-
-src/core/preferences/        # Global preference management
-├── schemas.ts              # Zod validation for preferences.yml
-├── loader.ts              # Load/save/validate preferences.yml
+src/core/preferences/       # Simple preference management
+├── schemas.ts             # Zod validation for preferences.yml
+├── loader.ts             # Load/save/validate preferences.yml
+├── injection.ts          # Apply preferences to agent configs during install
 └── index.ts
 
-src/core/setup/             # Reusable setup utilities (Web UI could use later)
-├── provider-selection.ts   # Provider/model picker logic (extracted from existing)
-├── api-key-setup.ts       # API key configuration logic (extracted from existing)
-├── orchestrator.ts        # Setup flow coordination
-└── index.ts
-```
-
-### Application Layer (CLI-Specific Orchestration)
-```
-src/app/cli/commands/
-├── setup.ts               # CLI command orchestration + clack prompts
-├── install.ts            # CLI command orchestration (future)
+src/core/agent-registry/    # Agent registry functionality
+├── registry.ts           # Agent resolution and installation
+├── types.ts             # Registry types
 └── index.ts
 
-src/app/cli/utils/
-└── existing files...      # Gradually migrate reusable parts to core/setup/
-```
-
-### Migration Strategy
-```
-src/core/agent-registry/    # TEMPORARY - will be merged into core/agent/
-├── types.ts               # Move to core/agent/registry-types.ts
-├── registry.ts           # Move to core/agent/registry.ts  
-└── index.ts              # Remove after migration
+src/app/cli/commands/       # CLI commands with full setup logic
+├── setup.ts             # Interactive setup + provider selection + API keys
+├── install.ts          # Install agents with preference injection
+└── index.ts
 ```
 
 **Benefits:**
-- **Domain cohesion**: All agent concerns in `core/agent/`
-- **Reusable utilities**: Setup logic can power future Web UI
-- **Clean separation**: Core = business logic, App = user interaction
-- **Existing patterns**: Follows current `core/` module organization
+- **Simple boundaries**: Core handles data, CLI handles interaction
+- **No premature abstraction**: No "reusable" setup utilities until needed
+- **Clear responsibilities**: Preferences = data management, Commands = user workflows
+- **YAGNI principle**: Don't build Web UI abstractions until required
 
 ## Success Metrics
 
