@@ -46,7 +46,6 @@
 
 2. **Result<T,C> for Validation Layers** - Internal validation helpers return Result<T,C>; DextoAgent converts failures into typed exceptions (e.g. DextoLLMError) before exposing them
 
-
 3. **API Layer Error Mapping** - Centralised Express error middleware  
    - `DextoValidationError` (or any subclass) → 400  
    - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
@@ -246,11 +245,6 @@ User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
 - **Add regression tests** - When fixing bugs, add tests to prevent recurrence
 - **Tests before style** - Ensure tests pass before fixing style checks
 
-## Error Handling Patterns
-- Use proper type guards for error checking
-- Include context in error messages with template literals
-- Handle async operations with try/catch
-- Return consistent error responses from APIs
 
 ## Maintaining This File
 **Important**: Keep this CLAUDE.md file updated when you discover:
