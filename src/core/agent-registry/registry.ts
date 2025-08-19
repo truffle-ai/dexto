@@ -55,9 +55,17 @@ export class LocalAgentRegistry implements AgentRegistry {
     /**
      * Check if agent exists in registry
      */
-    private hasRegistryAgent(name: string): boolean {
+    hasAgent(name: string): boolean {
         const registry = this.getRegistry();
         return name in registry.agents;
+    }
+
+    /**
+     * Get list of available agent names in registry
+     */
+    getAvailableAgents(): string[] {
+        const registry = this.getRegistry();
+        return Object.keys(registry.agents);
     }
 
     /**
@@ -185,7 +193,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
 
         // 2. Check if available in registry - install if needed
-        if (this.hasRegistryAgent(agentName)) {
+        if (this.hasAgent(agentName)) {
             logger.info(`Installing agent '${agentName}' from registry...`);
             return await this.installAgent(agentName);
         }

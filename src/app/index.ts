@@ -13,13 +13,15 @@ import pkg from '../../package.json' with { type: 'json' };
 
 import {
     logger,
-    resolveConfigPath,
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
     loadAgentConfig,
     LLMProvider,
 } from '@core/index.js';
+import { resolveAgentPath } from '@core/config/default-resolution.js';
+import { getAgentRegistry } from '@core/agent-registry/registry.js';
+import { isPath } from '@core/utils/path.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import { startAiCli, startHeadlessCli } from './cli/cli.js';
@@ -40,6 +42,11 @@ import {
     getUserInputToInitDextoApp,
 } from './cli/project-commands/index.js';
 import { handleSetupCommand, type CLISetupOptions } from './cli/global-commands/index.js';
+import {
+    requiresSetup,
+    getSetupGuidanceMessage,
+    isFirstTimeUser,
+} from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
@@ -192,7 +199,7 @@ program
             const globalOpts = program.opts();
             const nameOrPath = globalOpts.agent;
 
-            const configPath = await resolveConfigPath(nameOrPath);
+            const configPath = await resolveAgentPath(nameOrPath);
             const config = await loadAgentConfig(configPath);
             console.log(`📄 Loading Dexto config from: ${configPath}`);
 
@@ -315,35 +322,53 @@ program
             handleCliOptionsError(err);
         }
 
-        // ——— LOAD AND PREPARE CONFIG ———
+        // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
         let validatedConfig: AgentConfig;
+        let resolvedPath: string;
+
         try {
-            // TODO: Implement new first-time detection based on preferences.yml existence
-            // See technical-plans/agent-registry-preferences/06-first-time-detection.md
-            // New approach: check globalPreferencesExist() instead of bundled config detection
-            // Will be implemented in upcoming commits along with preference-based default resolution
-
-            // Legacy first-time setup commented out (will be replaced)
-            /*
-            if (isFirstTimeUserScenario(resolvedPath)) {
-                if (opts.skipInteractive) {
-                    console.error('❌ First-time setup required but --skip-interactive flag is set.');
-                    process.exit(1);
-                }
-                const setupComplete = await handleFirstTimeSetup();
-                if (!setupComplete) {
-                    console.log('👋 Run dexto again when ready!');
-                    process.exit(0);
-                }
+            // Case 3: File path - skip all validation and setup
+            if (opts.agent && isPath(opts.agent)) {
+                resolvedPath = await resolveAgentPath(opts.agent);
             }
-            */
+            // Cases 1 & 2: Default agent or registry agent
+            else {
+                // Early registry validation for named agents (Case 2d)
+                if (opts.agent) {
+                    const registry = getAgentRegistry();
+                    if (!registry.hasAgent(opts.agent)) {
+                        console.error(`❌ Agent '${opts.agent}' not found in registry`);
 
-            // Load agent config
-            const resolvedPath = await resolveConfigPath(opts.agent);
+                        // Show available agents
+                        const available = registry.getAvailableAgents();
+                        if (available.length > 0) {
+                            console.log(`📋 Available agents: ${available.join(', ')}`);
+                        } else {
+                            console.log('📋 No agents available in registry');
+                        }
+                        process.exit(1);
+                    }
+                }
+
+                // Check setup state and auto-trigger if needed
+                if (await requiresSetup()) {
+                    if (opts.skipInteractive) {
+                        console.error('❌ Setup required but --skip-interactive flag is set.');
+                        console.error('💡 Run `dexto setup` to configure preferences first.');
+                        process.exit(1);
+                    }
+
+                    console.log('🚀 Setting up Dexto for first use...');
+                    await handleSetupCommand({ noInteractive: false });
+                    console.log('✨ Setup complete! Continuing with agent...');
+                }
+
+                // Now resolve agent (will auto-install with preferences since setup is complete)
+                resolvedPath = await resolveAgentPath(opts.agent);
+            }
 
             // Load raw config and apply CLI overrides
-            const configPath = await resolveConfigPath(opts.agent);
-            const rawConfig = await loadAgentConfig(configPath);
+            const rawConfig = await loadAgentConfig(resolvedPath);
             const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
             // Validate with interactive setup if needed (for API key issues)
@@ -357,8 +382,7 @@ program
         // ——— CREATE AGENT ———
         let agent: DextoAgent;
         try {
-            const agentConfigPath = await resolveConfigPath(opts.agent);
-            console.log(`🚀 Initializing Dexto with config: ${agentConfigPath}`);
+            console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
 
             // Set run mode for tool confirmation provider
             process.env.DEXTO_RUN_MODE = opts.mode;
