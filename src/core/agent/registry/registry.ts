@@ -75,7 +75,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * Resolve main config file for installed agent
      * Handles both directory agents (with main field) and single-file agents
      */
-    private resolveMainConfig(agentDir: string, agentName: string): string {
+    public resolveMainConfig(agentDir: string, agentName: string): string {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 

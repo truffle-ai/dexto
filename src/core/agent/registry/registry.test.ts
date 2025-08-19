@@ -1,244 +1,204 @@
-// TODO: Re-enable these tests after implementing agent installation system
-// Currently the registry resolution logic assumes agents are already installed
-// but we haven't implemented the installation step that copies agents from
-// bundle to ~/.dexto/agents/. These tests will be valuable once installation
-// is implemented in phase 3.
-
-/*
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { LocalAgentRegistry } from './registry.js';
+import { RegistryErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
-// Mock the bundled script resolver and fs functions
-vi.mock('@core/utils/path.js', async () => {
-    const actual = await vi.importActual('@core/utils/path.js');
-    return {
-        ...actual,
-        resolveBundledScript: vi.fn(),
-        getDextoGlobalPath: vi.fn(),
-    };
-});
-
-vi.mock('fs', async () => {
-    const actual = await vi.importActual('fs');
-    return {
-        ...actual,
-        existsSync: vi.fn(),
-        readFileSync: vi.fn(),
-    };
-});
+// Mock dependencies
+vi.mock('@core/utils/path.js');
+vi.mock('@core/preferences/loader.js');
+vi.mock('@core/config/writer.js');
+vi.mock('@core/logger/index.js', () => ({
+    logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
+}));
 
 describe('LocalAgentRegistry', () => {
+    let tempDir: string;
     let registry: LocalAgentRegistry;
-    
-    const mockExistsSync = vi.mocked(fs.existsSync);
-    const mockReadFileSync = vi.mocked(fs.readFileSync);
+    let mockResolveBundledScript: any;
+    let mockGetDextoGlobalPath: any;
+    let mockLoadGlobalPreferences: any;
+    let mockWritePreferencesToAgent: any;
+
+    function createTempDir() {
+        return fs.mkdtempSync(path.join(tmpdir(), 'registry-test-'));
+    }
+
+    function createRegistryFile(registryPath: string, agents: Record<string, any>) {
+        fs.writeFileSync(
+            registryPath,
+            JSON.stringify({
+                version: '1.0.0',
+                agents,
+            })
+        );
+    }
 
     beforeEach(async () => {
         vi.clearAllMocks();
+        tempDir = createTempDir();
+
+        // Import and mock path utilities
+        const pathUtils = await import('@core/utils/path.js');
+        const prefUtils = await import('@core/preferences/loader.js');
+        const writerUtils = await import('@core/config/writer.js');
+
+        mockResolveBundledScript = vi.mocked(pathUtils.resolveBundledScript);
+        mockGetDextoGlobalPath = vi.mocked(pathUtils.getDextoGlobalPath);
+        mockLoadGlobalPreferences = vi.mocked(prefUtils.loadGlobalPreferences);
+        mockWritePreferencesToAgent = vi.mocked(writerUtils.writePreferencesToAgent);
+
+        // Setup registry file
+        const registryPath = path.join(tempDir, 'agent-registry.json');
+        createRegistryFile(registryPath, {
+            'test-agent': {
+                description: 'Test agent',
+                author: 'Test',
+                tags: ['test'],
+                source: 'test-agent.yml',
+            },
+            'dir-agent': {
+                description: 'Directory agent',
+                author: 'Test',
+                tags: ['test'],
+                source: 'dir-agent/',
+                main: 'main.yml',
+            },
+        });
+
+        // Mock path functions
+        mockResolveBundledScript.mockReturnValue(registryPath);
+        mockGetDextoGlobalPath.mockImplementation((subpath: string) =>
+            path.join(tempDir, 'global', subpath)
+        );
+
+        // Mock preferences
+        mockLoadGlobalPreferences.mockResolvedValue({
+            llm: { provider: 'openai', model: 'gpt-4o', apiKey: '$OPENAI_API_KEY' },
+        });
+        mockWritePreferencesToAgent.mockResolvedValue(undefined);
+
         registry = new LocalAgentRegistry();
-        
-        // Get mocks after imports are resolved
-        const { resolveBundledScript, getDextoGlobalPath } = await import('@core/utils/path.js');
-        const mockResolveBundledScript = vi.mocked(resolveBundledScript);
-        const mockGetDextoGlobalPath = vi.mocked(getDextoGlobalPath);
-        
-        // Default setup - registry file exists and has test data
-        mockResolveBundledScript.mockReturnValue('/mock/agents/agent-registry.json');
-        mockGetDextoGlobalPath.mockReturnValue('/home/user/.dexto/agents');
-        mockExistsSync.mockImplementation((path) => {
-            if (path === '/mock/agents/agent-registry.json') return true;
-            return false; // Default to not existing
+    });
+
+    afterEach(() => {
+        // Clean up temp directory
+        if (fs.existsSync(tempDir)) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
+
+    describe('hasAgent', () => {
+        it('returns true for agents in registry', () => {
+            expect(registry.hasAgent('test-agent')).toBe(true);
+            expect(registry.hasAgent('dir-agent')).toBe(true);
         });
-        mockReadFileSync.mockImplementation((path) => {
-            if (path === '/mock/agents/agent-registry.json') {
-                return JSON.stringify({
-                    version: '1.0.0',
-                    agents: {
-                        'test-agent': {
-                            description: 'Test agent',
-                            author: 'Test',
-                            tags: ['test'],
-                            source: 'test-agent/',
-                            main: 'test-agent.yml'
-                        }
-                    }
-                });
-            }
-            return '';
+
+        it('returns false for agents not in registry', () => {
+            expect(registry.hasAgent('nonexistent-agent')).toBe(false);
         });
     });
 
-    describe('path detection', () => {
-        it('identifies absolute paths correctly', async () => {
-            mockExistsSync.mockReturnValue(false);
-            
-            await expect(registry.resolveAgent('/absolute/path/config.yml'))
-                .rejects.toThrow();
-        });
-
-        it('identifies relative paths correctly', async () => {
-            mockExistsSync.mockReturnValue(false);
-            
-            await expect(registry.resolveAgent('./relative/config.yml'))
-                .rejects.toThrow();
-            await expect(registry.resolveAgent('folder/config.yml'))
-                .rejects.toThrow();
-        });
-
-        it('identifies file extensions correctly', async () => {
-            mockExistsSync.mockReturnValue(false);
-            
-            await expect(registry.resolveAgent('config.yml'))
-                .rejects.toThrow();
-            await expect(registry.resolveAgent('config.yaml'))
-                .rejects.toThrow();
-        });
-
-        it('identifies registry names correctly', async () => {
-            // Known registry name that isn't installed
-            await expect(registry.resolveAgent('test-agent'))
-                .rejects.toThrow('not installed yet');
-            
-            // Unknown registry name
-            await expect(registry.resolveAgent('unknown-agent'))
-                .rejects.toThrow();
+    describe('getAvailableAgents', () => {
+        it('returns list of agent names from registry', () => {
+            const agents = registry.getAvailableAgents();
+            expect(agents).toEqual(expect.arrayContaining(['test-agent', 'dir-agent']));
+            expect(agents).toHaveLength(2);
         });
     });
 
-    describe('file path resolution', () => {
-        it('resolves existing absolute paths', async () => {
-            const testPath = '/test/config.yml';
-            mockExistsSync.mockImplementation((path) => path === testPath);
-            
-            const result = await registry.resolveAgent(testPath);
-            expect(result).toBe(testPath);
-        });
-
-        it('resolves existing relative paths', async () => {
-            const testPath = './config.yml';
-            const resolvedPath = path.resolve(testPath);
-            mockExistsSync.mockImplementation((path) => path === resolvedPath);
-            
-            const result = await registry.resolveAgent(testPath);
-            expect(result).toBe(resolvedPath);
-        });
-
-        it('throws for non-existent file paths', async () => {
-            mockExistsSync.mockReturnValue(false);
-            
-            await expect(registry.resolveAgent('/non/existent/config.yml'))
-                .rejects.toThrow();
-        });
-    });
-
-    describe('registry name resolution', () => {
-        it('handles known registry agents that are not installed', async () => {
-            // test-agent exists in registry but not installed in ~/.dexto/agents/
-            await expect(registry.resolveAgent('test-agent'))
-                .rejects.toThrow('not installed yet');
-        });
-
-        it('handles unknown registry agents', async () => {
-            await expect(registry.resolveAgent('unknown-agent'))
-                .rejects.toThrow();
-        });
-
-        it('handles empty registry', async () => {
-            mockReadFileSync.mockReturnValue(JSON.stringify({
-                version: '1.0.0',
-                agents: {}
-            }));
-            
-            const emptyRegistry = new LocalAgentRegistry();
-            await expect(emptyRegistry.resolveAgent('any-agent'))
-                .rejects.toThrow();
-        });
-
-        it('handles missing registry file', async () => {
-            mockExistsSync.mockReturnValue(false);
-            
-            const noRegistryAgent = new LocalAgentRegistry();
-            await expect(noRegistryAgent.resolveAgent('any-agent'))
-                .rejects.toThrow();
-        });
-
-        it('handles corrupted registry file', async () => {
-            mockReadFileSync.mockReturnValue('invalid json');
-            
-            const corruptedRegistry = new LocalAgentRegistry();
-            await expect(corruptedRegistry.resolveAgent('any-agent'))
-                .rejects.toThrow();
-        });
-    });
-
-    describe('installed agent resolution', () => {
-        it('resolves installed registry agents', async () => {
-            const installedPath = '/home/user/.dexto/agents/test-agent';
-            const configPath = '/home/user/.dexto/agents/test-agent/test-agent.yml';
-            
-            mockExistsSync.mockImplementation((path) => {
-                if (path === '/mock/agents/agent-registry.json') return true;
-                if (path === installedPath) return true;
-                if (path === configPath) return true;
-                return false;
+    describe('resolveAgent', () => {
+        it('throws structured RegistryError for unknown agent with complete error properties', async () => {
+            await expect(registry.resolveAgent('unknown-agent')).rejects.toMatchObject({
+                code: RegistryErrorCode.AGENT_NOT_FOUND,
+                scope: ErrorScope.AGENT_REGISTRY,
+                type: ErrorType.USER,
+                context: {
+                    agentName: 'unknown-agent',
+                    availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
+                },
+                recovery: expect.stringContaining('Available agents:'),
             });
-            
+        });
+
+        it('resolves already installed single-file agent', async () => {
+            // Create installed agent file structure
+            const agentsDir = path.join(tempDir, 'global', 'agents');
+            const agentPath = path.join(agentsDir, 'test-agent');
+            fs.mkdirSync(agentPath, { recursive: true });
+            fs.writeFileSync(path.join(agentPath, 'test-agent.yml'), 'test: config');
+
             const result = await registry.resolveAgent('test-agent');
-            expect(result).toBe(configPath);
+            expect(result).toBe(path.join(agentPath, 'test-agent.yml'));
         });
 
-        it('throws error when main file not specified for directory', async () => {
-            // Registry entry without main field
-            mockReadFileSync.mockImplementation((path) => {
-                if (path === '/mock/agents/agent-registry.json') {
-                    return JSON.stringify({
-                        version: '1.0.0',
-                        agents: {
-                            'test-agent': {
-                                description: 'Test agent',
-                                author: 'Test',
-                                tags: ['test'],
-                                source: 'test-agent/'
-                                // No main field
-                            }
-                        }
-                    });
-                }
-                return '';
-            });
-            
-            const installedPath = '/home/user/.dexto/agents/test-agent';
-            
-            mockExistsSync.mockImplementation((path) => {
-                if (path === '/mock/agents/agent-registry.json') return true;
-                if (path === installedPath) return true;
-                return false;
-            });
-            
-            await expect(registry.resolveAgent('test-agent')).rejects.toThrow(
-                "Registry entry for 'test-agent' specifies directory but missing 'main' field"
-            );
+        it('resolves already installed directory agent with main config', async () => {
+            // Create installed directory agent structure
+            const agentsDir = path.join(tempDir, 'global', 'agents');
+            const agentPath = path.join(agentsDir, 'dir-agent');
+            fs.mkdirSync(agentPath, { recursive: true });
+            fs.writeFileSync(path.join(agentPath, 'main.yml'), 'test: config');
+
+            const result = await registry.resolveAgent('dir-agent');
+            expect(result).toBe(path.join(agentPath, 'main.yml'));
+        });
+    });
+
+    describe('resolveMainConfig', () => {
+        it('handles single-file agents correctly', () => {
+            // Create the expected file structure
+            const agentDir = path.join(tempDir, 'test-agent-dir');
+            fs.mkdirSync(agentDir, { recursive: true });
+            fs.writeFileSync(path.join(agentDir, 'test-agent.yml'), 'test: config');
+
+            const result = registry.resolveMainConfig(agentDir, 'test-agent');
+            expect(result).toBe(path.join(agentDir, 'test-agent.yml'));
         });
 
-        it('throws error when main file is missing', async () => {
-            const installedPath = '/home/user/.dexto/agents/test-agent';
-            const missingConfigPath = '/home/user/.dexto/agents/test-agent/test-agent.yml';
-            
-            mockExistsSync.mockImplementation((path) => {
-                if (path === '/mock/agents/agent-registry.json') return true;
-                if (path === installedPath) return true;
-                // Main config file doesn't exist
-                if (path === missingConfigPath) return false;
-                return false;
+        it('handles directory agents with main field', () => {
+            // Create the expected file structure
+            const agentDir = path.join(tempDir, 'dir-agent-dir');
+            fs.mkdirSync(agentDir, { recursive: true });
+            fs.writeFileSync(path.join(agentDir, 'main.yml'), 'test: config');
+
+            const result = registry.resolveMainConfig(agentDir, 'dir-agent');
+            expect(result).toBe(path.join(agentDir, 'main.yml'));
+        });
+
+        it('throws structured error for directory agent missing main field', () => {
+            // Create registry with bad entry and mock it
+            const badRegistryPath = path.join(tempDir, 'bad-registry.json');
+            createRegistryFile(badRegistryPath, {
+                'bad-dir-agent': {
+                    description: 'Bad directory agent',
+                    author: 'Test',
+                    tags: ['test'],
+                    source: 'bad-dir-agent/',
+                    // missing main field
+                },
             });
-            
-            await expect(registry.resolveAgent('test-agent')).rejects.toThrow(
-                `Main config file not found: ${missingConfigPath}`
+
+            mockResolveBundledScript.mockReturnValue(badRegistryPath);
+            const badRegistry = new LocalAgentRegistry();
+
+            expect(() => badRegistry.resolveMainConfig('/path', 'bad-dir-agent')).toThrow(
+                expect.objectContaining({
+                    code: RegistryErrorCode.AGENT_INVALID_ENTRY,
+                    scope: ErrorScope.AGENT_REGISTRY,
+                    type: ErrorType.SYSTEM,
+                    context: {
+                        agentName: 'bad-dir-agent',
+                        reason: 'directory entry missing main field',
+                    },
+                })
             );
         });
     });
 });
-*/
