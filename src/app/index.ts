@@ -6,6 +6,7 @@ import { applyLayeredEnvironmentLoading } from '../core/utils/env.js';
 await applyLayeredEnvironmentLoading();
 
 import { existsSync } from 'fs';
+import path from 'path';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
@@ -40,13 +41,14 @@ import {
     initDexto,
     postInitDexto,
     getUserInputToInitDextoApp,
-} from './cli/project-commands/index.js';
-import { handleSetupCommand, type CLISetupOptions } from './cli/global-commands/index.js';
+} from './cli/commands/index.js';
 import {
-    requiresSetup,
-    getSetupGuidanceMessage,
-    isFirstTimeUser,
-} from './cli/utils/setup-utils.js';
+    handleSetupCommand,
+    type CLISetupOptions,
+    handleInstallCommand,
+    type InstallCommandOptions,
+} from './cli/commands/index.js';
+import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
@@ -61,11 +63,7 @@ program
     .name('dexto')
     .description('AI-powered CLI and WebUI for interacting with MCP servers')
     .version(pkg.version, '-v, --version', 'output the current version')
-    .option('-a, --agent <path>', 'Path to agent config file')
-    .option(
-        '-p, --prompt <text>',
-        'One-shot prompt text. Alternatively provide a single quoted string as positional argument.'
-    )
+    .option('-a, --agent <name|path>', 'Agent name or path to agent config file')
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('-m, --model <model>', 'Specify the LLM model to use. ')
@@ -166,7 +164,24 @@ program
         }
     });
 
-// 5) `mcp` SUB-COMMAND
+// 5) `install` SUB-COMMAND
+program
+    .command('install [agents...]')
+    .description('Install agents from the registry')
+    .option('--all', 'Install all available agents from registry')
+    .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
+    .option('--force', 'Force reinstall even if agent is already installed')
+    .action(async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
+        try {
+            await handleInstallCommand(agents, options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto install command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 6) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -239,7 +254,7 @@ program
         }
     });
 
-// 6) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 7) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -551,5 +566,5 @@ program
         }
     });
 
-// 7) PARSE & EXECUTE
+// 8) PARSE & EXECUTE
 program.parseAsync(process.argv);

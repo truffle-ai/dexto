@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { createDextoDirectories, createDextoExampleFile, postInitDexto } from './init.js';
+import { createDextoDirectories, createDextoExampleFile, postInitDexto } from './init-app.js';
 
 describe('Init Module', () => {
     let tempDir: string;
