@@ -6,7 +6,6 @@ import { applyLayeredEnvironmentLoading } from '../core/utils/env.js';
 await applyLayeredEnvironmentLoading();
 
 import { existsSync } from 'fs';
-import path from 'path';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';

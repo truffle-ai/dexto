@@ -29,10 +29,8 @@ function validateInstallCommand(
 
     // Basic structure validation
     const validated = InstallCommandSchema.parse({
+        ...options,
         agents,
-        all: options.all ?? false,
-        injectPreferences: options.injectPreferences !== false, // default true, false only if explicitly set
-        force: options.force ?? false,
     });
 
     // Business logic validation

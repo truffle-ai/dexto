@@ -8,7 +8,6 @@ import {
     findPackageRoot,
     resolveBundledScript,
 } from './path.js';
-import { getDextoProjectRoot } from './execution-context.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 function createTempDir() {

@@ -1,6 +1,5 @@
 // src/app/cli/commands/setup.ts
 
-import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { z } from 'zod';
 import { getDefaultModelForProvider, LLM_PROVIDERS } from '@core/llm/registry.js';
@@ -29,12 +28,7 @@ export type CLISetupOptions = z.infer<typeof SetupCommandSchema>;
  */
 function validateSetupCommand(options: Partial<CLISetupOptions>): CLISetupOptions {
     // Basic structure validation
-    const validated = SetupCommandSchema.parse({
-        llmProvider: options.llmProvider,
-        model: options.model,
-        defaultAgent: options.defaultAgent ?? 'default-agent',
-        interactive: options.interactive !== false, // default true, false only if explicitly set
-    });
+    const validated = SetupCommandSchema.parse(options);
 
     // Business logic validation
     if (!validated.interactive && !validated.llmProvider) {

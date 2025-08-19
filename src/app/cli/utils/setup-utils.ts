@@ -42,7 +42,7 @@ export async function requiresSetup(): Promise<boolean> {
         }
 
         return false; // Valid preferences - no setup required
-    } catch (error) {
+    } catch (_error) {
         // Corrupted or invalid preferences - requires setup
         return true;
     }

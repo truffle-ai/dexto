@@ -3,8 +3,6 @@ import { promises as fs, mkdtempSync } from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { resolveAgentPath, updateDefaultAgentPreference } from './agent-resolver.js';
-import { ConfigError } from './errors.js';
-import { DextoRuntimeError } from '@core/errors/index.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { ConfigErrorCode } from './error-codes.js';
 
