@@ -342,6 +342,7 @@ loadAgentConfig(nameOrPath) {
 - [ ] **6.5 Migration utilities** - Convert existing ~/.dexto/agent.yml to preferences
 - [ ] **6.6 Documentation updates** - User guides for new preference workflow
 - [ ] **6.7 Breaking change communication** - Clear migration guide
+- [ ] **6.8 Rename preferences to settings** - Rename module, file, and all references from "preferences" to "settings" for industry standard terminology
 
 ## Enhanced CLI Command Examples
 
