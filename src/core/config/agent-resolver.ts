@@ -1,4 +1,4 @@
-// src/core/config/default-resolution.ts
+// src/core/config/agent-resolver.ts
 
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -10,7 +10,7 @@ import { logger } from '@core/logger/index.js';
 import { ConfigError } from './errors.js';
 
 /**
- * Resolve agent path with preference integration - REPLACES resolveConfigPath()
+ * Resolve agent path with preference integration
  * @param nameOrPath Optional agent name or explicit path
  * @returns Resolved absolute path to agent config
  * @throws DextoRuntimeError for any resolution failures

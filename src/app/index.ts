@@ -19,7 +19,7 @@ import {
     loadAgentConfig,
     LLMProvider,
 } from '@core/index.js';
-import { resolveAgentPath } from '@core/config/default-resolution.js';
+import { resolveAgentPath } from '@core/config/agent-resolver.js';
 import { getAgentRegistry } from '@core/agent-registry/registry.js';
 import { isPath } from '@core/utils/path.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
