@@ -4,7 +4,7 @@ import { InternalToolsServices } from './internal-tools/registry.js';
 import type { InternalToolsConfig } from './schemas.js';
 import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
-import { ToolExecutionDeniedError } from './confirmation/errors.js';
+import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
 
 /**
@@ -191,7 +191,7 @@ export class ToolManager {
 
         if (!approved) {
             logger.debug(`🚫 Tool execution denied: ${toolName}`);
-            throw new ToolExecutionDeniedError(toolName, sessionId);
+            throw ToolError.executionDenied(toolName, sessionId);
         }
 
         logger.debug(`✅ Tool execution approved: ${toolName}`);
@@ -209,9 +209,7 @@ export class ToolManager {
                 logger.debug(`🔧 Detected MCP tool: '${toolName}'`);
                 const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
-                    throw new Error(
-                        `Invalid tool name: '${toolName}' - tool name cannot be empty after prefix`
-                    );
+                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
                 }
                 logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
                 result = await this.mcpManager.executeTool(actualToolName, args, sessionId);
@@ -221,12 +219,10 @@ export class ToolManager {
                 logger.debug(`🔧 Detected internal tool: '${toolName}'`);
                 const actualToolName = toolName.substring(ToolManager.INTERNAL_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
-                    throw new Error(
-                        `Invalid tool name: '${toolName}' - tool name cannot be empty after prefix`
-                    );
+                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
                 }
                 if (!this.internalToolsProvider) {
-                    throw new Error(`Internal tools not initialized, cannot execute: ${toolName}`);
+                    throw ToolError.internalToolsNotInitialized(toolName);
                 }
                 logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
                 result = await this.internalToolsProvider.executeTool(
@@ -244,7 +240,7 @@ export class ToolManager {
                     `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*' or '${ToolManager.INTERNAL_TOOL_PREFIX}*')`
                 );
                 logger.debug(`Available: ${stats.mcp} MCP tools, ${stats.internal} internal tools`);
-                throw new Error(`Tool not found or missing source prefix: ${toolName}`);
+                throw ToolError.notFound(toolName);
             }
 
             const duration = Date.now() - startTime;

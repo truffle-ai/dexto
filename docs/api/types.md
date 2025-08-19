@@ -2,9 +2,9 @@
 sidebar_position: 4
 ---
 
-# TypeScript Types
+# SDK Types for TypeScript
 
-Type definitions and interfaces for the Dexto TypeScript/JavaScript SDK.
+Type definitions and interfaces for the Dexto SDK for TypeScript.
 
 ## Core Imports
 
@@ -33,7 +33,7 @@ import {
   ConversationHistory,
   
   // Result types
-  SwitchLLMResult,
+  ValidatedLLMConfig,
   
   // Event types
   AgentEventMap,
@@ -185,24 +185,15 @@ interface ConversationMessage {
 
 ## Result Types
 
-### `SwitchLLMResult`
+### `ValidatedLLMConfig`
 
-Result object returned by LLM switching operations.
+Validated LLM configuration returned by `switchLLM`.
 
 ```typescript
-interface SwitchLLMResult {
-  success: boolean;
-  config?: LLMConfig;
-  message?: string;
-  warnings?: string[];
-  errors?: LLMInputValidationError[];
-}
-
-interface LLMInputValidationError {
-  field: string;
-  message: string;
-  code: string;
-}
+type ValidatedLLMConfig = LLMConfig & {
+  router: 'vercel' | 'in-built';
+  maxInputTokens?: number;
+};
 ```
 
 ---
@@ -248,8 +239,8 @@ interface AgentEventMap {
   
   // Configuration events
   'dexto:llmSwitched': {
-    newConfig: LLMConfig;
-    router?: string;
+    newConfig: ValidatedLLMConfig;
+    router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
     sessionIds: string[];
   };
@@ -277,6 +268,23 @@ interface AgentEventMap {
   
   'dexto:sessionOverrideCleared': {
     sessionId: string;
+  };
+  
+  // Tool confirmation events
+  'dexto:toolConfirmationRequest': {
+    toolName: string;
+    args: Record<string, any>;
+    description?: string;
+    executionId: string;
+    timestamp: string; // ISO 8601 timestamp
+    sessionId?: string;
+  };
+  
+  'dexto:toolConfirmationResponse': {
+    executionId: string;
+    approved: boolean;
+    rememberChoice?: boolean;
+    sessionId?: string;
   };
   
   // LLM service events (forwarded from sessions)
@@ -320,8 +328,8 @@ interface AgentEventMap {
   };
   
   'llmservice:switched': {
-    newConfig: LLMConfig;
-    router?: string;
+    newConfig: ValidatedLLMConfig;
+    router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
     sessionId: string;
   };
@@ -367,8 +375,8 @@ interface SessionEventMap {
   };
   
   'llmservice:switched': {
-    newConfig: LLMConfig;
-    router?: string;
+    newConfig: ValidatedLLMConfig;
+    router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
   };
 }
@@ -495,7 +503,7 @@ Type for image data in conversations.
 
 ```typescript
 interface ImageData {
-  image: string; // Base64 encoded image
+  base64: string; // Base64 encoded image
   mimeType: string; // e.g., 'image/jpeg', 'image/png'
 }
 ```
@@ -506,7 +514,7 @@ Type for file data in conversations.
 
 ```typescript
 interface FileData {
-  data: string; // Base64 encoded file data
+  base64: string; // Base64 encoded file data
   mimeType: string; // e.g., 'application/pdf', 'audio/wav'
   filename?: string; // Optional filename
 }

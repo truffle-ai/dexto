@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { StorageErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 // ==== STORAGE CONFIGURATION ====
 // Base schema for common connection pool options
@@ -86,6 +88,11 @@ const BackendConfigSchema = z
                     code: z.ZodIssueCode.custom,
                     message: "Redis backend requires either 'url' or 'host' to be specified",
                     path: ['url'],
+                    params: {
+                        code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
+                        scope: ErrorScope.STORAGE,
+                        type: ErrorType.USER,
+                    },
                 });
             }
         }
@@ -98,6 +105,11 @@ const BackendConfigSchema = z
                     message:
                         "PostgreSQL backend requires one of 'url', 'connectionString', or 'host' to be specified",
                     path: ['url'],
+                    params: {
+                        code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
+                        scope: ErrorScope.STORAGE,
+                        type: ErrorType.USER,
+                    },
                 });
             }
         }

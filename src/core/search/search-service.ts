@@ -1,6 +1,6 @@
 import { logger } from '../logger/index.js';
-import type { DatabaseBackend } from '../storage/backend/database-backend.js';
-import type { InternalMessage } from '../llm/messages/types.js';
+import type { DatabaseBackend } from '@core/storage/types.js';
+import type { InternalMessage } from '../context/types.js';
 import type {
     SearchOptions,
     SearchResult,
@@ -11,6 +11,7 @@ import type {
 
 /**
  * Service for searching through conversation history
+ * TODO: remove duplicate stuff related to session manager instead of directly using DB
  */
 export class SearchService {
     constructor(private database: DatabaseBackend) {}
@@ -102,14 +103,16 @@ export class SearchService {
 
                 if (messageResults.length > 0) {
                     const sessionMetadata = await this.getSessionMetadata(sessionId);
-                    const firstMatch = messageResults[0];
-                    if (sessionMetadata && firstMatch) {
-                        sessionResults.push({
-                            sessionId,
-                            matchCount: messageResults.length,
-                            firstMatch,
-                            metadata: sessionMetadata,
-                        });
+                    if (sessionMetadata) {
+                        const firstMatch = messageResults[0];
+                        if (firstMatch) {
+                            sessionResults.push({
+                                sessionId,
+                                matchCount: messageResults.length,
+                                firstMatch,
+                                metadata: sessionMetadata,
+                            });
+                        }
                     }
                 }
             }
@@ -290,7 +293,7 @@ export class SearchService {
         createdAt: number;
         lastActivity: number;
         messageCount: number;
-    } | null> {
+    }> {
         const sessionKey = `session:${sessionId}`;
         const sessionData = await this.database.get<{
             createdAt: number;
@@ -298,6 +301,9 @@ export class SearchService {
             messageCount: number;
         }>(sessionKey);
 
-        return sessionData || null;
+        if (!sessionData) {
+            throw new Error(`Session metadata not found: ${sessionId}`);
+        }
+        return sessionData;
     }
 }

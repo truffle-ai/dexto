@@ -1,78 +1,62 @@
 /**
  * ToolConfirmationProvider Factory
  *
- * Creates ToolConfirmationProvider instances with configurable confirmation behavior.
- * No longer depends on run mode - instead provides flexible options for confirmation logic.
+ * Creates ToolConfirmationProvider instances with all required configuration.
+ * All fields are mandatory - no defaults or fallbacks.
  *
  * Usage:
  *   import { createToolConfirmationProvider } from './factory.js';
  *   const provider = createToolConfirmationProvider({
  *     mode: 'event-based',
- *     allowedToolsProvider
+ *     allowedToolsProvider,
+ *     confirmationTimeout: 30000,
+ *     agentEventBus
  *   });
- *
- * This decouples tool confirmation from application run modes, allowing for
- * flexible confirmation strategies that can be configured per-instance.
  */
 
 import { ToolConfirmationProvider } from './types.js';
 import { EventBasedConfirmationProvider } from './event-based-confirmation-provider.js';
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
-import {
-    createAllowedToolsProvider,
-    type AllowedToolsConfig,
-} from './allowed-tools-provider/factory.js';
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
 import { AgentEventBus } from '../../events/index.js';
+import { ToolError } from '../errors.js';
 
 export type ToolConfirmationMode = 'event-based' | 'auto-approve' | 'auto-deny';
 
-export interface ToolConfirmationOptions {
-    mode?: ToolConfirmationMode | undefined;
-    allowedToolsProvider?: IAllowedToolsProvider | undefined;
-    allowedToolsConfig?: AllowedToolsConfig | undefined;
-    confirmationTimeout?: number | undefined;
-    agentEventBus?: AgentEventBus | undefined;
-}
+export type ToolConfirmationOptions =
+    | {
+          mode: 'event-based';
+          allowedToolsProvider: IAllowedToolsProvider;
+          confirmationTimeout: number;
+          agentEventBus: AgentEventBus;
+      }
+    | {
+          mode: 'auto-approve' | 'auto-deny';
+          allowedToolsProvider: IAllowedToolsProvider;
+      };
 
 export function createToolConfirmationProvider(
-    options: ToolConfirmationOptions = {}
+    options: ToolConfirmationOptions
 ): ToolConfirmationProvider {
-    const {
-        mode = 'event-based',
-        allowedToolsProvider,
-        allowedToolsConfig,
-        confirmationTimeout,
-        agentEventBus,
-    } = options;
-
-    // Build allowedToolsProvider if config is provided and provider isn't
-    let toolsProvider = allowedToolsProvider;
-    if (!toolsProvider && allowedToolsConfig) {
-        toolsProvider = createAllowedToolsProvider(allowedToolsConfig);
-    }
-
-    // Default to memory-based allowed tools provider if none provided
-    if (!toolsProvider) {
-        toolsProvider = createAllowedToolsProvider({ type: 'memory' });
-    }
-
-    switch (mode) {
+    switch (options.mode) {
         case 'event-based':
-            if (!agentEventBus) {
-                throw new Error('AgentEventBus is required for event-based tool confirmation mode');
-            }
             return new EventBasedConfirmationProvider(
-                toolsProvider,
-                agentEventBus,
-                confirmationTimeout ? { confirmationTimeout } : {}
+                options.allowedToolsProvider,
+                options.agentEventBus,
+                {
+                    confirmationTimeout: options.confirmationTimeout,
+                }
             );
         case 'auto-approve':
-            return new NoOpConfirmationProvider(toolsProvider);
+            return new NoOpConfirmationProvider(options.allowedToolsProvider);
         case 'auto-deny':
-            // Create a provider that always denies (useful for security-critical scenarios)
-            return new NoOpConfirmationProvider(toolsProvider, false);
-        default:
-            throw new Error(`Unknown tool confirmation mode: ${mode}`);
+            return new NoOpConfirmationProvider(options.allowedToolsProvider, false);
+        default: {
+            // Exhaustive check; at runtime this guards malformed config
+            const _exhaustive: never = options;
+            throw ToolError.configInvalid(
+                `Unsupported ToolConfirmationMode: ${(options as any)?.mode}`
+            );
+        }
     }
 }

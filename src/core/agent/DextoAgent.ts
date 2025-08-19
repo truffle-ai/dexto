@@ -3,16 +3,16 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../config/agent-state-manager.js';
-import { SessionManager, SessionMetadata, ChatSession } from '../session/index.js';
+import { SessionManager, SessionMetadata, ChatSession, SessionError } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
-import { ValidatedLLMConfig, LLMConfig, LLMUpdates } from '@core/llm/schemas.js';
+import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
-import { Result, ok, fail } from '../utils/result.js';
-import type { LLMUpdateContext } from '../llm/types.js';
-import { DextoErrorCode } from '../schemas/errors.js';
 import { validateInputForLLM } from '../llm/validation.js';
-import { DextoLLMError, DextoMCPError, DextoInputError } from './errors.js';
+import { AgentError } from './errors.js';
+import { MCPError } from '../mcp/errors.js';
+import { ensureOk } from '@core/errors/result-bridge.js';
+import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -40,6 +40,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'agentEventBus',
     'stateManager',
     'sessionManager',
+    'searchService',
 ];
 
 /**
@@ -142,7 +143,7 @@ export class DextoAgent {
      */
     public async start(): Promise<void> {
         if (this._isStarted) {
-            throw new Error('Agent is already started');
+            throw AgentError.alreadyStarted();
         }
 
         try {
@@ -154,7 +155,9 @@ export class DextoAgent {
             // Validate all required services are provided
             for (const service of requiredServices) {
                 if (!services[service]) {
-                    throw new Error(`Required service ${service} is missing during agent start`);
+                    throw AgentError.initializationFailed(
+                        `Required service ${service} is missing during agent start`
+                    );
                 }
             }
 
@@ -198,7 +201,7 @@ export class DextoAgent {
         }
 
         if (!this._isStarted) {
-            throw new Error('Agent must be started before it can be stopped');
+            throw AgentError.notStarted();
         }
 
         try {
@@ -277,10 +280,10 @@ export class DextoAgent {
      */
     private ensureStarted(): void {
         if (this._isStopped) {
-            throw new Error('Agent has been stopped and cannot be used');
+            throw AgentError.stopped();
         }
         if (!this._isStarted) {
-            throw new Error('Agent must be started before use. Call agent.start() first.');
+            throw AgentError.notStarted();
         }
     }
 
@@ -303,7 +306,7 @@ export class DextoAgent {
         fileDataInput?: { data: string; mimeType: string; filename?: string },
         sessionId?: string,
         stream: boolean = false
-    ): Promise<string | null> {
+    ): Promise<string> {
         this.ensureStarted();
         try {
             // Determine target session ID for validation
@@ -325,33 +328,15 @@ export class DextoAgent {
                 }
             );
 
-            if (!validation.ok) {
-                // Extract error messages from validation issues
-                const errorMessages = validation.issues
-                    .filter((issue) => issue.severity === 'error')
-                    .map((issue) => issue.message);
-
-                // Emit event for monitoring/webhooks
-                this.agentEventBus.emit('dexto:inputValidationFailed', {
-                    sessionId: targetSessionId,
-                    issues: validation.issues,
-                    provider: llmConfig.provider,
-                    model: llmConfig.model,
-                });
-
-                throw new DextoInputError(
-                    `Input validation failed: ${errorMessages.join('; ')}`,
-                    validation.issues
-                );
-            }
+            // Validate input and throw if invalid
+            ensureOk(validation);
 
             let session: ChatSession;
 
             if (sessionId) {
                 // Use specific session or create it if it doesn't exist
-                session =
-                    (await this.sessionManager.getSession(sessionId)) ??
-                    (await this.sessionManager.createSession(sessionId));
+                const existingSession = await this.sessionManager.getSession(sessionId);
+                session = existingSession || (await this.sessionManager.createSession(sessionId));
             } else {
                 // Use loaded default session for backward compatibility
                 if (
@@ -374,14 +359,16 @@ export class DextoAgent {
             const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
-            await this.sessionManager.incrementMessageCount(session.id);
+            // Fire-and-forget to avoid race conditions during shutdown
+            this.sessionManager
+                .incrementMessageCount(session.id)
+                .catch((error) =>
+                    logger.warn(
+                        `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
+                    )
+                );
 
-            // If response is an empty string, treat it as no significant response.
-            if (response && response.trim() !== '') {
-                return response;
-            }
-            // Return null if the response is empty or just whitespace.
-            return null;
+            return response;
         } catch (error) {
             logger.error(
                 `Error during DextoAgent.run: ${error instanceof Error ? error.message : String(error)}`
@@ -452,7 +439,7 @@ export class DextoAgent {
     /**
      * Gets metadata for a specific session.
      * @param sessionId The session ID
-     * @returns The session metadata or undefined if session doesn't exist
+     * @returns The session metadata if found, undefined otherwise
      */
     public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
         this.ensureStarted();
@@ -469,7 +456,7 @@ export class DextoAgent {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
-            throw new Error(`Session '${sessionId}' not found`);
+            throw SessionError.notFound(sessionId);
         }
         return await session.getHistory();
     }
@@ -531,7 +518,7 @@ export class DextoAgent {
         // Verify session exists before loading it
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
-            throw new Error(`Session '${sessionId}' not found`);
+            throw SessionError.notFound(sessionId);
         }
 
         this.currentDefaultSessionId = sessionId;
@@ -546,6 +533,7 @@ export class DextoAgent {
      * @returns The current default session ID
      */
     public getCurrentSessionId(): string {
+        this.ensureStarted();
         return this.currentDefaultSessionId;
     }
 
@@ -657,17 +645,14 @@ export class DextoAgent {
     ): Promise<ValidatedLLMConfig> {
         this.ensureStarted();
 
-        // Basic validation
-        if (!llmUpdates.model && !llmUpdates.provider) {
-            throw new DextoLLMError('At least model or provider must be specified', [
-                {
-                    code: DextoErrorCode.AGENT_MISSING_LLM_INPUT,
-                    message: 'At least model or provider must be specified',
-                    severity: 'error',
-                    context: {},
-                },
-            ]);
+        // Validate input using schema (single source of truth)
+        const parseResult = LLMUpdatesSchema.safeParse(llmUpdates);
+        if (!parseResult.success) {
+            const validation = fail(zodToIssues(parseResult.error, 'error'));
+            ensureOk(validation); // This will throw DextoValidationError
+            throw new Error('Unreachable'); // For TypeScript
         }
+        const validatedUpdates = parseResult.data;
 
         // Get current config for the session
         const currentLLMConfig = sessionId
@@ -675,24 +660,11 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, llmUpdates);
-
-        if (!result.ok) {
-            // Convert Result to exception
-            const errorMessages = result.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoLLMError(errorMessages.join('; '), result.issues);
-        }
+        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates);
+        const validatedConfig = ensureOk(result);
 
         // Perform the actual LLM switch with validated config
-        const switchResult = await this.performLLMSwitch(result.data, sessionId);
-        if (!switchResult.ok) {
-            const errorMessages = switchResult.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoLLMError(errorMessages.join('; '), switchResult.issues);
-        }
+        await this.performLLMSwitch(validatedConfig, sessionId);
 
         // Log warnings if present
         const warnings = result.issues.filter((issue) => issue.severity === 'warning');
@@ -703,7 +675,7 @@ export class DextoAgent {
         }
 
         // Return the validated config directly
-        return result.data;
+        return validatedConfig;
     }
 
     /**
@@ -716,7 +688,7 @@ export class DextoAgent {
     private async performLLMSwitch(
         validatedConfig: ValidatedLLMConfig,
         sessionScope?: string
-    ): Promise<Result<void, LLMUpdateContext>> {
+    ): Promise<void> {
         // Update state manager (no validation needed - already validated)
         this.stateManager.updateLLM(validatedConfig, sessionScope);
 
@@ -724,27 +696,15 @@ export class DextoAgent {
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
-            // Verify session exists
+            // Verify session exists before switching LLM
             const session = await this.sessionManager.getSession(sessionScope);
             if (!session) {
-                return fail([
-                    {
-                        code: DextoErrorCode.AGENT_SESSION_NOT_FOUND,
-                        message: `Session ${sessionScope} not found`,
-                        severity: 'error',
-                        context: {
-                            provider: validatedConfig.provider,
-                            model: validatedConfig.model,
-                        },
-                    },
-                ]);
+                throw SessionError.notFound(sessionScope);
             }
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             await this.sessionManager.switchLLMForDefaultSession(validatedConfig);
         }
-
-        return ok(undefined);
     }
 
     /**
@@ -819,13 +779,6 @@ export class DextoAgent {
     public getSupportedModelsForProvider(
         provider: LLMProvider
     ): Array<ModelInfo & { isDefault: boolean }> {
-        const supportedProviders = getSupportedProviders() as LLMProvider[];
-        if (!supportedProviders.includes(provider)) {
-            throw new Error(
-                `Unsupported provider: ${provider}. Supported providers: ${supportedProviders.join(', ')}`
-            );
-        }
-
         const defaultModel = getDefaultModelForProvider(provider);
         const providerInfo = LLM_REGISTRY[provider];
 
@@ -870,7 +823,7 @@ export class DextoAgent {
      *
      * @param name The name of the server to connect.
      * @param config The configuration object for the server.
-     * @throws DextoMCPError if validation fails or connection fails
+     * @throws DextoError if validation fails or connection fails
      */
     public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
         this.ensureStarted();
@@ -878,21 +831,14 @@ export class DextoAgent {
         // Validate the server configuration
         const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
         const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
-
-        if (!validation.ok) {
-            // Convert Result to exception
-            const errorMessages = validation.issues
-                .filter((i) => i.severity === 'error')
-                .map((i) => i.message);
-            throw new DextoMCPError(errorMessages.join('; '), validation.issues);
-        }
+        const validatedConfig = ensureOk(validation);
 
         // Add to runtime state (no validation needed - already validated)
-        this.stateManager.addMcpServer(name, validation.data);
+        this.stateManager.addMcpServer(name, validatedConfig);
 
         try {
             // Connect the server
-            await this.mcpManager.connectServer(name, config);
+            await this.mcpManager.connectServer(name, validatedConfig);
 
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,
@@ -927,14 +873,7 @@ export class DextoAgent {
                 error: errorMessage,
             });
 
-            throw new DextoMCPError(`Failed to connect to MCP server '${name}': ${errorMessage}`, [
-                {
-                    code: DextoErrorCode.AGENT_MCP_CONNECTION_FAILED,
-                    message: errorMessage,
-                    severity: 'error',
-                    context: { serverName: name },
-                },
-            ]);
+            throw MCPError.connectionFailed(name, errorMessage);
         }
     }
 

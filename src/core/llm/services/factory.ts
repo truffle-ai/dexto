@@ -1,7 +1,7 @@
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService } from './types.js';
 import { ValidatedLLMConfig } from '../schemas.js';
-import { logger } from '../../logger/index.js';
+import { LLMError } from '../errors.js';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -13,51 +13,31 @@ import { AnthropicService } from './anthropic.js';
 import { LanguageModelV1 } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { LLMRouter } from '../registry.js';
-import { ContextManager } from '../messages/manager.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-
-/**
- * Extract and validate API key from config or environment variables
- * @param config LLM configuration from the config file
- * @returns Valid API key or throws an error
- */
-function extractApiKey(config: ValidatedLLMConfig): string {
-    const provider = config.provider;
-
-    // Get API key from config (already expanded)
-    let apiKey = config.apiKey || '';
-
-    if (!apiKey) {
-        const errorMsg = `Error: API key for ${provider} not found`;
-        logger.error(errorMsg);
-        logger.error(`Please set your ${provider} API key in the config file or .env file`);
-        throw new Error(errorMsg);
-    }
-
-    logger.debug('Verified API key');
-    return apiKey;
-}
+import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { PromptManager } from '../../systemPrompt/manager.js';
 
 /**
  * Create an instance of one of our in-built LLM services
  * @param config LLM configuration from the config file
  * @param toolManager Unified tool manager instance
+ * @param promptManager Prompt manager for system prompts
+ * @param historyProvider History provider for conversation persistence
  * @param sessionEventBus Session-level event bus for emitting LLM events
- * @param contextManager Message manager instance
  * @param sessionId Session ID
  * @returns ILLMService instance
  */
 function _createInBuiltLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
+    promptManager: PromptManager,
+    historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    contextManager: ContextManager,
     sessionId: string
 ): ILLMService {
-    // Extract and validate API key
-    const apiKey = extractApiKey(config);
+    const apiKey = config.apiKey;
 
     switch (config.provider.toLowerCase()) {
         case 'openai': {
@@ -66,10 +46,10 @@ function _createInBuiltLLMService(
             return new OpenAIService(
                 toolManager,
                 openai,
+                promptManager,
+                historyProvider,
                 sessionEventBus,
-                contextManager,
-                config.model,
-                config.maxIterations,
+                config,
                 sessionId
             );
         }
@@ -80,10 +60,10 @@ function _createInBuiltLLMService(
             return new OpenAIService(
                 toolManager,
                 openai,
+                promptManager,
+                historyProvider,
                 sessionEventBus,
-                contextManager,
-                config.model,
-                config.maxIterations,
+                config,
                 sessionId
             );
         }
@@ -92,22 +72,22 @@ function _createInBuiltLLMService(
             return new AnthropicService(
                 toolManager,
                 anthropic,
+                promptManager,
+                historyProvider,
                 sessionEventBus,
-                contextManager,
-                config.model,
-                config.maxIterations,
+                config,
                 sessionId
             );
         }
         default:
-            throw new Error(`Unsupported LLM provider: ${config.provider}`);
+            throw LLMError.unsupportedRouter('in-built', config.provider);
     }
 }
 
 function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModelV1 {
     const provider = llmConfig.provider;
     const model = llmConfig.model;
-    const apiKey = extractApiKey(llmConfig);
+    const apiKey = llmConfig.apiKey;
 
     switch (provider.toLowerCase()) {
         case 'openai': {
@@ -130,7 +110,7 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModelV1 {
         case 'cohere':
             return createCohere({ apiKey })(model);
         default:
-            throw new Error(`Unsupported LLM provider: ${provider}`);
+            throw LLMError.unsupportedRouter('vercel', provider);
     }
 }
 
@@ -155,8 +135,9 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
 function _createVercelLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
+    promptManager: PromptManager,
+    historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    contextManager: ContextManager,
     sessionId: string
 ): VercelLLMService {
     const model = _createVercelModel(config);
@@ -164,14 +145,11 @@ function _createVercelLLMService(
     return new VercelLLMService(
         toolManager,
         model,
-        config.provider,
+        promptManager,
+        historyProvider,
         sessionEventBus,
-        contextManager,
-        config.maxIterations,
-        sessionId,
-        config.temperature,
-        config.maxOutputTokens,
-        config.baseURL
+        config,
+        sessionId
     );
 }
 
@@ -182,24 +160,27 @@ export function createLLMService(
     config: ValidatedLLMConfig,
     router: LLMRouter,
     toolManager: ToolManager,
+    promptManager: PromptManager,
+    historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    contextManager: ContextManager,
     sessionId: string
 ): ILLMService {
     if (router === 'vercel') {
         return _createVercelLLMService(
             config,
             toolManager,
+            promptManager,
+            historyProvider,
             sessionEventBus,
-            contextManager,
             sessionId
         );
     } else {
         return _createInBuiltLLMService(
             config,
             toolManager,
+            promptManager,
+            historyProvider,
             sessionEventBus,
-            contextManager,
             sessionId
         );
     }

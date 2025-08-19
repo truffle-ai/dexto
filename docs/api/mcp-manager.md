@@ -5,7 +5,7 @@ title: "MCPManager"
 
 # MCPManager
 
-The `MCPManager` is a powerful, standalone utility for managing [Model Context Protocol (MCP)](/docs/guides/mcp-manager) servers. It allows you to connect, manage, and interact with multiple MCP servers in your own applications without needing the full Dexto agent framework.
+The `MCPManager` is a powerful, standalone utility for managing [Model Context Protocol (MCP)](/docs/mcp/overview) servers. It allows you to connect, manage, and interact with multiple MCP servers in your own applications without needing the full Dexto agent framework.
 
 This class provides a unified interface for accessing tools, resources, and prompts from all connected servers, making it an essential component for building complex, multi-server workflows.
 

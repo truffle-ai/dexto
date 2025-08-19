@@ -2,7 +2,7 @@ import { z } from 'zod';
 import chalk from 'chalk';
 import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
 import { interactiveApiKeySetup } from './interactive-api-key-setup.js';
-import { DextoErrorCode } from '@core/schemas/errors.js';
+import { LLMErrorCode } from '@core/llm/error-codes.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import type { LLMProvider } from '@core/index.js';
 
@@ -59,10 +59,7 @@ function findApiKeyError(
 ): { provider: LLMProvider } | null {
     for (const issue of error.issues) {
         // Check for our custom LLM_MISSING_API_KEY error code in params
-        if (
-            issue.code === 'custom' &&
-            hasErrorCode(issue.params, DextoErrorCode.LLM_MISSING_API_KEY)
-        ) {
+        if (issue.code === 'custom' && hasErrorCode(issue.params, LLMErrorCode.API_KEY_MISSING)) {
             // Extract provider from error params (added by our schema)
             const provider = getProviderFromParams(issue.params);
             if (provider) {
@@ -84,7 +81,7 @@ function findApiKeyError(
 /**
  * Type guard to check if params contains the expected error code
  */
-function hasErrorCode(params: unknown, expectedCode: DextoErrorCode): boolean {
+function hasErrorCode(params: unknown, expectedCode: LLMErrorCode): boolean {
     return (
         typeof params === 'object' &&
         params !== null &&

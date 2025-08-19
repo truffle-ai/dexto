@@ -64,18 +64,22 @@ By default, Dexto uses "lenient" mode where individual servers can fail to conne
 dexto --strict
 ```
 
-This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](./configuring-dexto/mcpServers) for more details on connection modes.
+This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers) for more details on connection modes.
 
 #### **Run a specific command with Dexto CLI:**
 
 ```bash
-dexto find all .sh files in this directory
+dexto "find all .sh files in this directory"
+# or use explicit -p flag
+dexto -p "find all .sh files in this directory"
 ```
 
 or do the same with gemini:
 
 ```bash
-dexto -m gemini-2.0-flash find all files in this directory
+dexto -m gemini-2.0-flash "find all files in this directory"
+# or with explicit -p flag
+dexto -m gemini-2.0-flash -p "find all files in this directory"
 ```
 
 Dexto CLI can accept __any__ command - if it doesn't see it as an in-built command, it will fire a single run CLI with that request
@@ -113,7 +117,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Using dexto as an MCP Server](./dexto-as-mcp-server.md) to understand more about MCP servers.
+Check [Using dexto as an MCP Server](../mcp/dexto-as-mcp-server) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash
@@ -127,7 +131,7 @@ To use a specific config file:
 dexto mcp --group-servers -a ./dexto-tools.yml
 ```
 
-Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
+Check [Using Dexto to group MCP servers](../mcp/grouping-servers) to understand more about MCP server aggregation.
 
 
 #### **Change log level for dexto CLI**

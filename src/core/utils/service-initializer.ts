@@ -84,12 +84,19 @@ export async function createAgentServices(
     });
 
     // Create tool confirmation provider with configured mode and timeout
-    const confirmationProvider = createToolConfirmationProvider({
-        mode: config.toolConfirmation.mode,
-        allowedToolsProvider,
-        agentEventBus,
-        confirmationTimeout: config.toolConfirmation.timeout,
-    });
+    const confirmationProvider = createToolConfirmationProvider(
+        config.toolConfirmation.mode === 'event-based'
+            ? {
+                  mode: config.toolConfirmation.mode,
+                  allowedToolsProvider,
+                  agentEventBus,
+                  confirmationTimeout: config.toolConfirmation.timeout,
+              }
+            : {
+                  mode: config.toolConfirmation.mode,
+                  allowedToolsProvider,
+              }
+    );
 
     const mcpManager = new MCPManager(confirmationProvider);
     await mcpManager.initializeFromConfig(config.mcpServers);

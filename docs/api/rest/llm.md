@@ -33,7 +33,7 @@ sidebar_position: 4
     "openai": {
       "name": "Openai",
       "models": ["gpt-4o", "gpt-4-turbo"],
-      "supportedRouters": ["litellm", "vercel"],
+      "supportedRouters": ["in-built", "vercel"],
       "supportsBaseURL": true
     },
     "cohere": {
@@ -52,26 +52,41 @@ sidebar_position: 4
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/llm/switch</code></p>
 
 #### Request Body
-- `provider` (string), `model` (string), `apiKey` (string), etc.
+- `provider` (string, optional)
+- `model` (string, optional)
+- `router` ("vercel" | "in-built", optional)
+- `apiKey` (string, optional)
+- `baseURL` (string, optional)
+- `maxInputTokens` (number, optional)
+- `sessionId` (string, optional)
 
 #### Responses
 
 **Success (200)**
 ```json
 {
-  "success": true,
-  "message": "LLM switched successfully to gpt-4o",
-  "config": {
+  "ok": true,
+  "data": {
     "provider": "openai",
-    "model": "gpt-4o"
-  }
+    "model": "gpt-4o",
+    "router": "vercel"
+  },
+  "issues": []
 }
 ```
 
 **Error (400)**
 ```json
 {
-  "success": false,
-  "error": "Invalid LLM provider: ..."
+  "ok": false,
+  "issues": [
+    {
+      "code": "schema_validation",
+      "message": "...",
+      "path": ["provider"],
+      "severity": "error",
+      "context": {"field": "provider"}
+    }
+  ]
 }
 ```

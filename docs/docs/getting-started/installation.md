@@ -19,18 +19,35 @@ npm install -g dexto
 This adds the `dexto` command to your system, giving you access to the agent runtime.
 
 ### 2. Set Your API Key
-Dexto agents use Large Language Models for reasoning. Set your OpenAI API key as an environment variable:
+Dexto agents use Large Language Models. Set the API key(s) for your chosen provider(s):
 
 ```bash
+# OpenAI
 export OPENAI_API_KEY="sk-..."
+
+# Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Google Gemini
+export GOOGLE_GENERATIVE_AI_API_KEY="AIza..."
+
+# Groq
+export GROQ_API_KEY="gsk_..."
+
+# XAI
+export XAI_API_KEY="xai_..."
+
+# Cohere
+export COHERE_API_KEY="cohere_..."
 ```
-Dexto will automatically detect and use this key.
+
+Dexto auto-detects keys based on provider selection (CLI flag `--model` can infer provider).
 
 ### 3. Verify Your Installation
 Test your installation with a simple command:
 
 ```bash
-dexto "What is the current version of typescript?"
+dexto "What is the meaning of life?"
 ```
 
 If you receive a response, your installation is successful and the runtime is working correctly.

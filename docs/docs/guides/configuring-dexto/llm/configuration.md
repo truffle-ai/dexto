@@ -208,4 +208,4 @@ llm:
 
 - **Learn about providers**: Check the [Providers Guide](./providers) for specific setup instructions
 - **Start building**: Head to [Building with Dexto](../../../tutorials/index.md) to put this configuration to use
-- **Explore MCP**: Learn about [MCP Server Configuration](../mcpServers) to add tools to your agents 
+- **Explore MCP**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers) to add tools to your agents

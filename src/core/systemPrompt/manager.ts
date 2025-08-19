@@ -5,6 +5,7 @@ import { getPromptGenerator } from './registry.js';
 import type { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { DynamicContributor } from './contributors.js';
 import { logger } from '../logger/index.js';
+import { SystemPromptError } from './errors.js';
 
 /**
  * PromptManager orchestrates registration, loading, and composition
@@ -35,9 +36,7 @@ export class PromptManager {
             case 'dynamic': {
                 const promptGenerator = getPromptGenerator(config.source);
                 if (!promptGenerator) {
-                    throw new Error(
-                        `No generator registered for dynamic contributor source: ${config.source}`
-                    );
+                    throw SystemPromptError.unknownContributorSource(config.source);
                 }
                 return new DynamicContributor(config.id, config.priority, promptGenerator);
             }
@@ -58,7 +57,7 @@ export class PromptManager {
             default: {
                 // Exhaustive check - TypeScript will error if we miss a case
                 const _exhaustive: never = config;
-                throw new Error(`Invalid contributor config: ${JSON.stringify(_exhaustive)}`);
+                throw SystemPromptError.invalidContributorConfig(_exhaustive);
             }
         }
     }

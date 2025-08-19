@@ -131,7 +131,7 @@ systemPrompt:
 
 ## 2. Usage Methods
 
-Dexto can be used via its CLI, a TypeScript SDK, or as a server with a REST API.
+Dexto can be used via its CLI, the Dexto SDK for TypeScript, or as a server with a REST API.
 
 ### Method 1: CLI Usage
 
@@ -140,7 +140,9 @@ The `dexto` command can run one-shot prompts or start in different modes.
 **One-shot prompt:**
 Execute a task directly from the command line.
 ```bash
-dexto "create a new file named 'test.txt' with the content 'hello world'"
+dexto "create a new file named test.txt with hello world content"
+# or use explicit -p flag
+dexto -p "create a new file named test.txt with hello world content"
 ```
 
 **Interactive CLI:**

@@ -19,11 +19,8 @@ import {
     getSupportedRoutersForProvider,
     isRouterSupportedForProvider,
 } from './registry.js';
-import {
-    UnknownModelError,
-    EffectiveMaxInputTokensError,
-    CantInferProviderError,
-} from './errors.js';
+import { LLMErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
 describe('LLM Registry Core Functions', () => {
     describe('getSupportedProviders', () => {
@@ -45,9 +42,13 @@ describe('LLM Registry Core Functions', () => {
             expect(getMaxInputTokensForModel('openai', 'o4-mini')).toBe(200000);
         });
 
-        it('throws UnknownModelError for unknown model', () => {
+        it('throws DextoRuntimeError with model unknown code for unknown model', () => {
             expect(() => getMaxInputTokensForModel('openai', 'unknown-model')).toThrow(
-                UnknownModelError
+                expect.objectContaining({
+                    code: LLMErrorCode.MODEL_UNKNOWN,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                })
             );
         });
     });
@@ -68,7 +69,13 @@ describe('LLM Registry Core Functions', () => {
         });
 
         it('throws CantInferProviderError for unknown model', () => {
-            expect(() => getProviderFromModel('unknown-model')).toThrow(CantInferProviderError);
+            expect(() => getProviderFromModel('unknown-model')).toThrow(
+                expect.objectContaining({
+                    code: LLMErrorCode.MODEL_UNKNOWN,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                })
+            );
         });
     });
 
@@ -241,7 +248,13 @@ describe('getEffectiveMaxInputTokens', () => {
 
     it('throws EffectiveMaxInputTokensError when lookup fails without override or baseURL', () => {
         const config = { provider: 'openai', model: 'non-existent-model' } as any;
-        expect(() => getEffectiveMaxInputTokens(config)).toThrow(EffectiveMaxInputTokensError);
+        expect(() => getEffectiveMaxInputTokens(config)).toThrow(
+            expect.objectContaining({
+                code: LLMErrorCode.MODEL_UNKNOWN,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+            })
+        );
     });
 });
 
@@ -263,9 +276,13 @@ describe('File Support Functions', () => {
             expect(getSupportedFileTypesForModel('openai-compatible', 'custom-model')).toEqual([]);
         });
 
-        it('throws UnknownModelError for unknown model', () => {
+        it('throws DextoRuntimeError for unknown model', () => {
             expect(() => getSupportedFileTypesForModel('openai', 'unknown-model')).toThrow(
-                UnknownModelError
+                expect.objectContaining({
+                    code: LLMErrorCode.MODEL_UNKNOWN,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                })
             );
         });
 
@@ -288,7 +305,11 @@ describe('File Support Functions', () => {
 
         it('throws error for unknown model', () => {
             expect(() => modelSupportsFileType('openai', 'unknown-model', 'pdf')).toThrow(
-                UnknownModelError
+                expect.objectContaining({
+                    code: LLMErrorCode.MODEL_UNKNOWN,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                })
             );
         });
     });

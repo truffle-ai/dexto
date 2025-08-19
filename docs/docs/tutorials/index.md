@@ -271,7 +271,7 @@ process.on('SIGTERM', async () => {
 });
 ```
 
-**What you're learning:** The same agent works everywhere - CLI, web, mobile, anywhere TypeScript/JavaScript runs.
+**What you're learning:** The same agent works everywhere—CLI, web, mobile—anywhere TypeScript runs.
 
 ### Testing Your Web Service
 
@@ -378,7 +378,7 @@ You now have three working applications that demonstrate:
 Ready to take it to the next level?
 
 - **Learn advanced patterns**: Check out [Advanced Patterns](./advanced-patterns) for production-ready techniques
-- **Add more tools**: Explore [MCP servers](../guides/configuring-dexto/mcpServers) for additional capabilities
+- **Add more tools**: Explore [MCP servers](../mcp/connecting-servers) for additional capabilities
 - **Deploy your service**: See the [deployment guide](../guides/deployment) for production hosting
 - **Join the community**: Share your creations in our [Discord](https://discord.gg/GFzWFAAZcm)
 

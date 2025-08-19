@@ -1,4 +1,4 @@
-import type { InternalMessage } from '../llm/messages/types.js';
+import type { InternalMessage } from '../context/types.js';
 
 /**
  * Options for searching messages

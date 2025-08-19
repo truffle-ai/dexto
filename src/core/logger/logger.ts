@@ -343,6 +343,87 @@ export class Logger {
     getLevel(): string {
         return this.logger.level;
     }
+
+    // CLI startup information display methods
+    displayStartupInfo(info: {
+        model?: string;
+        provider?: string;
+        connectedServers?: { count: number; names: string[] };
+        failedConnections?: { [key: string]: string };
+        toolStats?: { total: number; mcp: number; internal: number };
+        sessionId?: string;
+        logLevel?: string;
+        logFile?: string;
+    }) {
+        if (this.isSilent) return;
+
+        console.log(''); // Add spacing
+
+        if (info.model && info.provider) {
+            console.log(
+                `🤖 ${chalk.bold('Current Model:')} ${chalk.cyan(info.model)} ${chalk.dim(`(${info.provider})`)}`
+            );
+        }
+
+        if (info.connectedServers) {
+            if (info.connectedServers.count > 0) {
+                const serverNames = info.connectedServers.names.join(', ');
+                console.log(
+                    `🔗 ${chalk.bold('Connected Servers:')} ${chalk.green(info.connectedServers.count)} ${chalk.dim(`(${serverNames})`)}`
+                );
+            } else {
+                console.log(
+                    `🔗 ${chalk.bold('Connected Servers:')} ${chalk.yellow('0')} ${chalk.dim('(no MCP servers connected)')}`
+                );
+            }
+        }
+
+        if (info.failedConnections && Object.keys(info.failedConnections).length > 0) {
+            const failedNames = Object.keys(info.failedConnections);
+            console.log(
+                `❌ ${chalk.bold('Failed Connections:')} ${chalk.red(failedNames.length)} ${chalk.dim(`(${failedNames.join(', ')})`)}`
+            );
+            // Show specific error details
+            for (const [serverName, error] of Object.entries(info.failedConnections)) {
+                console.log(`   ${chalk.red('•')} ${chalk.dim(serverName)}: ${chalk.red(error)}`);
+            }
+        }
+
+        if (info.toolStats) {
+            console.log(
+                `🛠️  ${chalk.bold('Available Tools:')} ${chalk.green(info.toolStats.total)} total ${chalk.dim(`(${info.toolStats.mcp} MCP, ${info.toolStats.internal} internal)`)}`
+            );
+        }
+
+        if (info.sessionId) {
+            console.log(`💬 ${chalk.bold('Session:')} ${chalk.blue(info.sessionId)}`);
+        }
+
+        if (info.logLevel && info.logFile) {
+            console.log(
+                `📋 ${chalk.bold('Log Level:')} ${chalk.cyan(info.logLevel)} ${chalk.dim(`(file: ${info.logFile})`)}`
+            );
+        }
+    }
+
+    displayError(message: string, error?: Error) {
+        if (this.isSilent) return;
+
+        const showStack = this.getLevel() === 'debug';
+        const errorContent =
+            error?.stack && showStack
+                ? `${chalk.red('Error')}: ${chalk.red(message)}\n${chalk.dim(error.stack)}`
+                : `${chalk.red('Error')}: ${chalk.red(message)}`;
+
+        console.log(
+            boxen(errorContent, {
+                padding: 1,
+                borderColor: 'red',
+                title: '❌ Error',
+                titleAlignment: 'center',
+            })
+        );
+    }
 }
 
 // Export a default instance with log level from environment

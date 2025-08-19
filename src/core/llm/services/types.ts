@@ -1,7 +1,8 @@
 import { LanguageModelV1 } from 'ai';
 import { ToolSet } from '../../tools/types.js';
-import { ImageData, FileData } from '../messages/types.js';
+import { ImageData, FileData } from '../../context/types.js';
 import { LLMProvider, LLMRouter } from '../registry.js';
+import type { ContextManager } from '../../context/manager.js';
 
 /**
  * Core interface for LLM service implementations
@@ -29,6 +30,10 @@ export interface ILLMService {
 
     // Get configuration information about the LLM service
     getConfig(): LLMServiceConfig;
+
+    // Get the context manager for external access (e.g., for history retrieval)
+    // Returns ContextManager<unknown> since external users don't need specific type
+    getContextManager(): ContextManager<unknown>;
 }
 
 /**

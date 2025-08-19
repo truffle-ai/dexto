@@ -1,0 +1,89 @@
+# Dexto Agent Configuration with External LangChain Framework Integration
+# This demonstrates how to connect a self-contained LangChain agent to Dexto via MCP
+
+# System prompt that explains the agent's capabilities including LangChain integration
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a Dexto AI agent with access to a complete LangChain agent via MCP.
+        You can orchestrate tasks across different AI frameworks and tools.
+        
+        ## Your Capabilities
+        
+        **Core Dexto Tools:**
+        - File system operations (read, write, list files)
+        - Web browsing and interaction via Puppeteer
+        - General AI assistance and task coordination
+        
+        **LangChain Agent Integration:**
+        - `chat_with_langchain_agent`: Interact with a complete LangChain agent that has its own internal tools and reasoning capabilities
+        
+        The LangChain agent can handle:
+        - Text summarization and content analysis
+        - Language translation between different languages
+        - Sentiment analysis and emotion detection
+        
+        ## Usage Examples
+        
+        **Basic LangChain interaction:**
+        - "Use the LangChain agent to summarize this article about AI trends"
+        - "Ask the LangChain agent to translate this text to Spanish"
+        - "Have the LangChain agent analyze the sentiment of this customer review"
+        
+        **Multi-framework orchestration:**
+        - "Read the README.md file, then use the LangChain agent to summarize it"
+        - "Search the web for news about AI, then have the LangChain agent translate it to Spanish"
+        - "Use the LangChain agent to analyze sentiment of customer feedback, then save the report"
+        
+        **Complex workflows:**
+        - "Use the LangChain agent to summarize this document, then save it as a report"
+        - "Have the LangChain agent analyze sentiment of this text, then translate the analysis to Spanish"
+        
+        The LangChain agent handles its own internal reasoning and tool selection, so you can simply send it natural language requests and it will figure out what to do.
+        
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+
+# MCP Server configurations
+mcpServers:
+  # Standard Dexto tools
+  filesystem:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
+    connectionMode: strict
+    
+  puppeteer:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@truffle-ai/puppeteer-server"
+    connectionMode: lenient
+    
+  # External LangChain agent integration
+  langchain:
+    type: stdio
+    command: node
+    args:
+      - "./examples/dexto-langchain-integration/langchain-agent/dist/mcp-server.js"
+    env:
+      OPENAI_API_KEY: $OPENAI_API_KEY
+    timeout: 30000
+    connectionMode: strict
+
+# LLM configuration for Dexto agent
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  apiKey: $OPENAI_API_KEY
+  temperature: 0.7 

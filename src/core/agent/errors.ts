@@ -1,55 +1,66 @@
-import type { Issue } from '../utils/result.js';
-import { DextoErrorCode } from '../schemas/errors.js';
+import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { AgentErrorCode } from './error-codes.js';
 
 /**
- * Base class for DextoAgent validation errors that occurred during Result->Exception conversion
- * Preserves rich validation context from internal Result pattern for advanced error handling
+ * Agent-specific error factory
+ * Creates properly typed errors for Agent operations
+ * Note: Domain-specific errors (LLM, Session, MCP) have been moved to their respective modules
  */
-export class DextoValidationError extends Error {
-    public readonly issues: Issue[];
-    public readonly code: DextoErrorCode;
-
-    constructor(
-        message: string,
-        issues: Issue[],
-        code: DextoErrorCode = DextoErrorCode.VALIDATION_ERROR
-    ) {
-        super(message);
-        this.name = 'DextoValidationError';
-        this.issues = issues;
-        this.code = code;
+export class AgentError {
+    /**
+     * Agent not started
+     */
+    static notStarted() {
+        return new DextoRuntimeError(
+            AgentErrorCode.NOT_STARTED,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'Agent must be started before use',
+            undefined,
+            'Call agent.start() before using other methods'
+        );
     }
-}
 
-/**
- * LLM configuration and switching errors
- * Thrown by DextoAgent.switchLLM() when validation or switching fails
- */
-export class DextoLLMError extends DextoValidationError {
-    constructor(message: string, issues: Issue[]) {
-        super(message, issues, DextoErrorCode.AGENT_LLM_SWITCH_FAILED);
-        this.name = 'DextoLLMError';
+    /**
+     * Agent already started
+     */
+    static alreadyStarted() {
+        return new DextoRuntimeError(
+            AgentErrorCode.ALREADY_STARTED,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'Agent is already started',
+            undefined,
+            'Call agent.stop() before starting again'
+        );
     }
-}
 
-/**
- * MCP server configuration and connection errors
- * Thrown by DextoAgent.connectMcpServer() when validation or connection fails
- */
-export class DextoMCPError extends DextoValidationError {
-    constructor(message: string, issues: Issue[]) {
-        super(message, issues, DextoErrorCode.AGENT_MCP_CONNECTION_FAILED);
-        this.name = 'DextoMCPError';
+    /**
+     * Agent stopped
+     */
+    static stopped() {
+        return new DextoRuntimeError(
+            AgentErrorCode.STOPPED,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            'Agent has been stopped and cannot be used',
+            undefined,
+            'Create a new agent instance or restart this one'
+        );
     }
-}
 
-/**
- * Input validation errors (text/image/file)
- * Thrown by DextoAgent.run() when input validation fails
- */
-export class DextoInputError extends DextoValidationError {
-    constructor(message: string, issues: Issue[]) {
-        super(message, issues, DextoErrorCode.VALIDATION_ERROR);
-        this.name = 'DextoInputError';
+    /**
+     * Agent initialization failed
+     */
+    static initializationFailed(reason: string, details?: unknown) {
+        return new DextoRuntimeError(
+            AgentErrorCode.INITIALIZATION_FAILED,
+            ErrorScope.AGENT,
+            ErrorType.SYSTEM,
+            `Agent initialization failed: ${reason}`,
+            details,
+            'Check logs for initialization errors'
+        );
     }
 }

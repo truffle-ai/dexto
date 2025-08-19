@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { DextoErrorCode } from '@core/schemas/errors.js';
-import { LLMConfigSchema, type LLMConfig, type ValidatedLLMConfig } from './schemas.js';
+import { LLMErrorCode } from './error-codes.js';
+import {
+    LLMConfigSchema,
+    LLMUpdatesSchema,
+    type LLMConfig,
+    type ValidatedLLMConfig,
+} from './schemas.js';
 import {
     LLM_PROVIDERS,
     LLM_ROUTERS,
@@ -208,7 +213,7 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['model']);
             expect((result.error?.issues[0] as any).params?.code).toBe(
-                DextoErrorCode.LLM_INCOMPATIBLE_MODEL_PROVIDER
+                LLMErrorCode.MODEL_INCOMPATIBLE
             );
         });
     });
@@ -257,7 +262,7 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['router']);
             expect((result.error?.issues[0] as any).params?.code).toBe(
-                DextoErrorCode.LLM_UNSUPPORTED_ROUTER
+                LLMErrorCode.ROUTER_UNSUPPORTED
             );
         });
     });
@@ -312,7 +317,7 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['baseURL']);
             expect((result.error?.issues[0] as any).params?.code).toBe(
-                DextoErrorCode.LLM_MISSING_BASE_URL
+                LLMErrorCode.BASE_URL_MISSING
             );
         });
 
@@ -343,7 +348,7 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['provider']);
             expect((result.error?.issues[0] as any).params?.code).toBe(
-                DextoErrorCode.LLM_INVALID_BASE_URL
+                LLMErrorCode.BASE_URL_INVALID
             );
         });
     });
@@ -390,7 +395,7 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['maxInputTokens']);
             expect((result.error?.issues[0] as any).params?.code).toBe(
-                DextoErrorCode.LLM_MAX_INPUT_TOKENS_EXCEEDED
+                LLMErrorCode.TOKENS_EXCEEDED
             );
         });
 
@@ -505,6 +510,44 @@ describe('LLMConfigSchema', () => {
             expect(typeof result.apiKey).toBe('string');
             expect(typeof result.maxIterations).toBe('number');
             expect(typeof result.router).toBe('string');
+        });
+    });
+
+    describe('LLMUpdatesSchema', () => {
+        describe('Model/Provider Requirement', () => {
+            it('should pass validation when model is provided', () => {
+                const updates = { model: 'gpt-4o' };
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('should pass validation when provider is provided', () => {
+                const updates = { provider: 'openai' };
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('should pass validation when both model and provider are provided', () => {
+                const updates = { model: 'gpt-4o', provider: 'openai' };
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('should reject empty updates object', () => {
+                const updates = {};
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow(
+                    'At least model or provider must be specified for LLM switch'
+                );
+            });
+
+            it('should reject updates with only other fields', () => {
+                const updates = { maxIterations: 10, router: 'vercel' };
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow(
+                    'At least model or provider must be specified for LLM switch'
+                );
+            });
+
+            it('should pass validation when model/provider with other fields', () => {
+                const updates = { model: 'gpt-4o', maxIterations: 10, router: 'vercel' };
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
         });
     });
 });
