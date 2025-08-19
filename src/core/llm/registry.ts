@@ -9,6 +9,7 @@ export interface ModelInfo {
     maxInputTokens: number;
     default?: boolean;
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
+    supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
@@ -64,9 +65,25 @@ export type LLMRouter = (typeof LLM_ROUTERS)[number];
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
-            { name: 'gpt-5', maxInputTokens: 400000, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-5-mini', maxInputTokens: 400000, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-5-nano', maxInputTokens: 400000, supportedFileTypes: ['pdf'] },
+            // TODO: might need to upgrade vercel to v5 to support these models
+            {
+                name: 'gpt-5',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf'],
+                supportedRouters: ['in-built'],
+            },
+            {
+                name: 'gpt-5-mini',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf'],
+                supportedRouters: ['in-built'],
+            },
+            {
+                name: 'gpt-5-nano',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf'],
+                supportedRouters: ['in-built'],
+            },
             { name: 'gpt-4.1', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
             {
                 name: 'gpt-4.1-mini',
@@ -435,6 +452,61 @@ export function validateModelFileSupport(
                     : 'Unknown error validating model file support',
         };
     }
+}
+
+/**
+ * Checks if a specific model supports a specific router.
+ * @param provider The name of the provider.
+ * @param model The name of the model.
+ * @param router The router name to check.
+ * @returns True if the model supports the router, false otherwise.
+ */
+export function isRouterSupportedForModel(
+    provider: LLMProvider,
+    model: string,
+    router: LLMRouter
+): boolean {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    // Find the specific model
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    if (!modelInfo) {
+        // Model not found, fall back to provider-level support
+        return isRouterSupportedForProvider(provider, router);
+    }
+
+    // If model has specific router restrictions, use those
+    if (modelInfo.supportedRouters) {
+        return modelInfo.supportedRouters.includes(router);
+    }
+
+    // Otherwise, fall back to provider-level support
+    return isRouterSupportedForProvider(provider, router);
+}
+
+/**
+ * Gets the supported routers for a specific model.
+ * @param provider The name of the provider.
+ * @param model The name of the model.
+ * @returns An array of supported router names for the model.
+ */
+export function getSupportedRoutersForModel(provider: LLMProvider, model: string): LLMRouter[] {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    // Find the specific model
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    if (!modelInfo) {
+        // Model not found, fall back to provider-level support
+        return getSupportedRoutersForProvider(provider);
+    }
+
+    // If model has specific router restrictions, use those
+    if (modelInfo.supportedRouters) {
+        return modelInfo.supportedRouters;
+    }
+
+    // Otherwise, fall back to provider-level support
+    return getSupportedRoutersForProvider(provider);
 }
 
 /**
