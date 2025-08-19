@@ -1,8 +1,10 @@
 // src/core/preferences/schemas.ts
 
 import { z } from 'zod';
-import { LLM_PROVIDERS } from '@core/llm/registry.js';
+import { LLM_PROVIDERS, isValidProviderModel } from '@core/llm/registry.js';
 import { NonEmptyTrimmed } from '@core/utils/result.js';
+import { PreferenceErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 export const PreferenceLLMSchema = z
     .object({
@@ -18,7 +20,16 @@ export const PreferenceLLMSchema = z
             )
             .describe('Environment variable reference for API key'),
     })
-    .strict();
+    .strict()
+    .refine((data) => isValidProviderModel(data.provider, data.model), {
+        message: 'Model is not compatible with the specified provider',
+        path: ['model'], // Point error to model field
+        params: {
+            code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
+            scope: ErrorScope.PREFERENCE,
+            type: ErrorType.USER,
+        },
+    });
 
 export const PreferenceDefaultsSchema = z
     .object({

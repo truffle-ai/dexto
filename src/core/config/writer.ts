@@ -3,11 +3,9 @@
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import path from 'path';
-import { type LLMProvider, isValidProviderModel } from '@core/llm/registry.js';
+import { type LLMProvider } from '@core/llm/registry.js';
 import { type GlobalPreferences } from '@core/preferences/schemas.js';
-import { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import { logger } from '@core/logger/index.js';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@core/errors/index.js';
 import { type AgentConfig } from '@core/agent/schemas.js';
 import { ConfigError } from './errors.js';
 
@@ -71,16 +69,7 @@ export async function writeLLMPreferences(
     const model = overrides?.model ?? preferences.llm.model;
     const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
 
-    // Validate provider+model compatibility
-    if (!isValidProviderModel(provider, model)) {
-        throw new DextoRuntimeError(
-            PreferenceErrorCode.MODEL_INCOMPATIBLE,
-            ErrorScope.PREFERENCE,
-            ErrorType.USER,
-            `Model '${model}' is not supported by provider '${provider}'`,
-            { provider, model, configPath }
-        );
-    }
+    // Note: provider+model validation already handled in preference schema
 
     // Write only core LLM fields, preserve agent-specific settings
     if (!config.llm) {
@@ -126,7 +115,7 @@ export async function writePreferencesToAgent(
         // Directory-based agent - write to all .yml files
         await writePreferencesToDirectory(installedPath, preferences, overrides);
     } else {
-        throw new Error(`Invalid agent path: ${installedPath} (not file or directory)`);
+        throw ConfigError.fileReadError(installedPath, 'Path is neither a file nor directory');
     }
 }
 

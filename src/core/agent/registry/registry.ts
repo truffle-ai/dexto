@@ -6,6 +6,7 @@ import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/u
 import { loadGlobalPreferences } from '@core/preferences/loader.js';
 import { writePreferencesToAgent } from '@core/config/writer.js';
 import { Registry, RegistrySchema, AgentRegistry } from './types.js';
+import { RegistryError } from './errors.js';
 
 // Cached registry instance
 let cachedRegistry: LocalAgentRegistry | null = null;
@@ -79,20 +80,22 @@ export class LocalAgentRegistry implements AgentRegistry {
         const agentData = registry.agents[agentName];
 
         if (!agentData) {
-            throw new Error(`Agent '${agentName}' not found in registry`);
+            const available = Object.keys(registry.agents);
+            throw RegistryError.agentNotFound(agentName, available);
         }
 
         if (agentData.source.endsWith('/')) {
             // Directory agent - main field is required
             if (!agentData.main) {
-                throw new Error(
-                    `Registry entry for '${agentName}' specifies directory but missing 'main' field`
+                throw RegistryError.agentInvalidEntry(
+                    agentName,
+                    'directory entry missing main field'
                 );
             }
 
             const mainConfigPath = path.join(agentDir, agentData.main);
             if (!existsSync(mainConfigPath)) {
-                throw new Error(`Main config file not found: ${mainConfigPath}`);
+                throw RegistryError.mainConfigMissing(agentName, mainConfigPath);
             }
 
             return mainConfigPath;
@@ -102,7 +105,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             const configPath = path.join(agentDir, filename);
 
             if (!existsSync(configPath)) {
-                throw new Error(`Config file not found: ${configPath}`);
+                throw RegistryError.configNotFound(configPath);
             }
 
             return configPath;
@@ -122,7 +125,8 @@ export class LocalAgentRegistry implements AgentRegistry {
         const agentData = registry.agents[agentName];
 
         if (!agentData) {
-            throw new Error(`Agent '${agentName}' not found in registry`);
+            const available = Object.keys(registry.agents);
+            throw RegistryError.agentNotFound(agentName, available);
         }
 
         const globalAgentsDir = getDextoGlobalPath('agents');
@@ -158,7 +162,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             // Validate installation
             const mainConfigPath = this.resolveMainConfig(tempDir, agentName);
             if (!existsSync(mainConfigPath)) {
-                throw new Error(`Installation validation failed: missing main config`);
+                throw RegistryError.installationValidationFailed(agentName, mainConfigPath);
             }
 
             // Atomic rename
@@ -201,8 +205,9 @@ export class LocalAgentRegistry implements AgentRegistry {
                 logger.debug(`Failed to clean up temp directory: ${cleanupError}`);
             }
 
-            throw new Error(
-                `Failed to install agent '${agentName}': ${error instanceof Error ? error.message : String(error)}`
+            throw RegistryError.installationFailed(
+                agentName,
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -240,11 +245,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         // 3. Not found in registry
         const registry = this.getRegistry();
         const available = Object.keys(registry.agents);
-        throw new Error(
-            `Agent '${agentName}' not found. ` +
-                `Available agents: ${available.join(', ')}. ` +
-                `Use a file path for custom agents.`
-        );
+        throw RegistryError.agentNotFound(agentName, available);
     }
 }
 
