@@ -476,15 +476,17 @@ if (!nameOrPath) {
 src/core/preferences/       # Simple preference management
 ├── schemas.ts             # Zod validation for preferences.yml
 ├── loader.ts             # Load/save/validate preferences.yml
-├── injection.ts          # Apply preferences to agent configs during install
 └── index.ts
 
-src/core/agent-registry/    # Agent registry functionality
+src/core/config/       # Simple preference management
+├── writer.ts            # Handle writing updates to the config file based on preferences
+
+src/core/agent/registry/    # Agent registry functionality
 ├── registry.ts           # Agent resolution and installation
 ├── types.ts             # Registry types
 └── index.ts
 
-src/app/cli/global-commands/       # CLI commands with full setup logic
+src/app/cli/commands/       # CLI commands with full setup logic
 ├── setup.ts             # Interactive setup + provider selection + API keys
 ├── install.ts          # Install agents with preference injection
 └── index.ts
