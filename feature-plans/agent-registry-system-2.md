@@ -308,13 +308,13 @@ loadAgentConfig(nameOrPath) {
 - [x] **1.1 Create preference schema** - Minimal YAML structure with validation
 - [x] **1.2 Add preference loading utilities** - Load/save/validate preferences.yml
 - [x] **1.3 Extract setup utilities** - Reusable provider selection, API key setup
-- [ ] **1.4 Create preference injection utilities** - Apply prefs to agent configs
+- [x] **1.4 Create preference injection utilities** - Apply prefs to agent configs
 
 ### Phase 2: Command Implementation
 - [x] **2.1 Create dexto setup command** - Interactive and non-interactive modes
 - [ ] **2.2 Add auto-setup trigger** - Run setup on first command if needed
 - [ ] **2.3 Enhance auto-installation** - Apply preferences during installation
-- [ ] **2.4 Update default agent resolution** - Use default-agent from registry
+- [x] **2.4 Update default agent resolution** - Use default-agent from registry
 
 ### Phase 3: Integration & Polish
 - [ ] **3.1 Add bulk installation support** - Multiple agents in single command

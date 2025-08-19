@@ -52,4 +52,60 @@ export class ConfigError {
             'Ensure the configuration file contains valid YAML syntax'
         );
     }
+
+    // Resolution errors
+    static noProjectDefault(projectPath: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.NO_PROJECT_DEFAULT,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `No project default-agent.yml found and no global preferences configured.\nEither create ${projectPath} or run \`dexto setup\` to configure preferences.`,
+            { projectPath },
+            'Run `dexto setup` or create a project-specific agent config'
+        );
+    }
+
+    static noGlobalPreferences() {
+        return new DextoRuntimeError(
+            ConfigErrorCode.NO_GLOBAL_PREFERENCES,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `No global preferences found. Run \`dexto setup\` to get started.`,
+            {},
+            'Run `dexto setup` to configure your AI preferences'
+        );
+    }
+
+    static setupIncomplete() {
+        return new DextoRuntimeError(
+            ConfigErrorCode.SETUP_INCOMPLETE,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Global preferences setup is incomplete. Run \`dexto setup\` to complete.`,
+            {},
+            'Run `dexto setup` to complete your configuration'
+        );
+    }
+
+    static bundledNotFound(bundledPath: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.BUNDLED_NOT_FOUND,
+            ErrorScope.CONFIG,
+            ErrorType.NOT_FOUND,
+            `Bundled default agent not found: ${bundledPath}. Run npm run build first.`,
+            { path: bundledPath },
+            'Run `npm run build` to build the bundled agents'
+        );
+    }
+
+    static unknownContext(context: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.UNKNOWN_CONTEXT,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Unknown execution context: ${context}`,
+            { context },
+            'This is an internal error - please report it'
+        );
+    }
 }
