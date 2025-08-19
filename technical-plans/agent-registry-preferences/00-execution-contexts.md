@@ -183,7 +183,6 @@ dexto [options] "message"
 ### What Gets Injected
 - **Core fields only**: `llm.provider`, `llm.model`, `llm.apiKey`
 - **Preserve agent settings**: `llm.temperature`, `llm.router`, `llm.maxTokens`, etc.
-- **Registry constraints**: Honor `supportedProviders`, `lockProvider` from registry.json
 
 ### Injection Precedence
 ```

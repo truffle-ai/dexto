@@ -107,6 +107,8 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
 });
 ```
 
+### Error handling
+
 ## Code Standards
 
 ### Import Requirements

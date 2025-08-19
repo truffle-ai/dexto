@@ -80,31 +80,6 @@ export type PreferenceSetup = z.output<typeof PreferenceSetupSchema>;
 export type GlobalPreferences = z.output<typeof GlobalPreferencesSchema>;
 ```
 
-### Registry Constraints Schema (Extension)
-```typescript
-// Extension to existing registry types
-export const LLMConstraintsSchema = z.object({
-  supportedProviders: z.array(z.nativeEnum(LLMProvider))
-    .optional()
-    .describe('Providers supported by this agent'),
-  
-  lockProvider: z.boolean()
-    .optional()
-    .describe('Whether provider is locked (cannot be overridden by preferences)')
-}).strict().optional();
-
-// Update existing RawAgentDataSchema
-export const RawAgentDataSchema = z.object({
-  description: z.string().describe('User-facing agent description'),
-  author: z.string().describe('Agent author'),
-  tags: z.array(z.string()).describe('Searchable tags'),
-  source: z.string().describe('Source path (file or directory)'),
-  main: z.string().optional().describe('Main entry point for directories'),
-  llmConstraints: LLMConstraintsSchema.describe('LLM compatibility constraints')
-}).strict();
-
-export type LLMConstraints = z.output<typeof LLMConstraintsSchema>;
-```
 
 ## Validation Requirements
 
@@ -171,7 +146,7 @@ setup: {
 
 ### With Existing Systems
 1. **LLM Registry**: Validate provider+model combinations during injection
-2. **Agent Registry**: Reference constraint schema for injection validation
+2. **Agent Registry**: Simple agent resolution without constraints
 3. **Config Loader**: Apply preferences during installation (not loading)
 4. **First-time Setup**: Create preferences.yml instead of agent.yml
 
@@ -274,16 +249,14 @@ export type {
   GlobalPreferences,
   PreferenceLLM,
   PreferenceDefaults,
-  PreferenceSetup,
-  LLMConstraints
+  PreferenceSetup
 } from './schemas.js';
 
 export {
   GlobalPreferencesSchema,
   PreferenceLLMSchema,
   PreferenceDefaultsSchema,
-  PreferenceSetupSchema,
-  LLMConstraintsSchema
+  PreferenceSetupSchema
 } from './schemas.js';
 
 export {

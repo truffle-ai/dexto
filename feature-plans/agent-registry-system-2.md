@@ -134,46 +134,8 @@ program
 // Note: this will only happen if agent is not already installed. console logs will make this clear
 ```
 
-### 3. Registry Constraints (Optional - Later Stage)
 
-```json
-// Enhanced agents/agent-registry.json (optional llmConstraints)
-{
-  "version": "1.0.0",
-  "agents": {
-    "database-agent": {
-      "description": "AI agent for database operations",
-      "author": "Truffle AI",
-      "tags": ["database", "sql"],
-      "source": "database-agent/",
-      "main": "database-agent.yml",
-      "llmConstraints": {
-        "supportedProviders": ["openai", "anthropic"],
-        "lockProvider": false
-      }
-    }
-  }
-}
-```
-
-**Registry Constraint Schema:**
-```typescript
-const LLMConstraintsSchema = z.object({
-  supportedProviders: z.array(z.string()).optional(),
-  lockProvider: z.boolean().optional()
-}).optional();
-
-export const RawAgentDataSchema = z.object({
-  description: z.string(),
-  author: z.string(), 
-  tags: z.array(z.string()),
-  source: z.string(),
-  main: z.string().optional(),
-  llmConstraints: LLMConstraintsSchema  // Optional for initial stages
-}).strict();
-```
-
-### 4. Preference Injection During Installation
+### 3. Preference Injection During Installation
 
 ```typescript
 async function installAgentWithPreferences(
@@ -183,12 +145,11 @@ async function installAgentWithPreferences(
   // 1. Standard atomic installation (existing logic)
   const configPath = await installAgentFiles(agentName);
   
-  // 2. Load global preferences and registry constraints
+  // 2. Load global preferences
   const globalPrefs = await loadGlobalPreferences();
-  const constraints = await getRegistryConstraints(agentName);
   
-  // 3. Apply preference injection with constraint validation
-  await injectLLMPreferences(configPath, globalPrefs, options.overrides, constraints);
+  // 3. Apply preference injection
+  await injectLLMPreferences(configPath, globalPrefs, options.overrides);
   
   return configPath;
 }
@@ -196,21 +157,12 @@ async function installAgentWithPreferences(
 async function injectLLMPreferences(
   configPath: string,
   globalPrefs: GlobalPreferences, 
-  overrides?: LLMOverrides,
-  constraints?: LLMConstraints
+  overrides?: LLMOverrides
 ): Promise<void> {
   const config = await loadRawYAML(configPath);
   
   const provider = overrides?.provider || globalPrefs.llm.provider;
   const model = overrides?.model || globalPrefs.llm.model;
-  
-  // Validate constraints (if present)
-  if (constraints?.supportedProviders && !constraints.supportedProviders.includes(provider)) {
-    throw new Error(`Provider '${provider}' not supported. Supported: ${constraints.supportedProviders.join(', ')}`);
-  }
-  if (constraints?.lockProvider && config.llm?.provider && config.llm.provider !== provider) {
-    throw new Error(`Provider locked to '${config.llm.provider}' for this agent`);
-  }
   
   // Inject ONLY llm core fields, preserve agent-specific settings
   config.llm = {
@@ -396,7 +348,7 @@ loadAgentConfig(nameOrPath) {
 ```bash
 dexto install database-agent music-agent triage-agent  # Bulk install
 dexto install database-agent --llm-provider anthropic  # Override for this agent
-dexto install database-agent --no-interactive          # Fail if constraints/prefs missing
+dexto install database-agent --no-interactive          # Fail if prefs missing
 ```
 
 ### dexto update-agent (Interactive Agent Management)
@@ -412,7 +364,6 @@ dexto which database-agent
 # → Path: ~/.dexto/agents/database-agent/database-agent.yml
 # → LLM: OpenAI gpt-4o-mini (from global preferences)
 # → Installed: 2025-08-18 16:11
-# → Constraints: Supports [openai, anthropic], not locked
 ```
 
 ### dexto list-agents (Enhanced Status)

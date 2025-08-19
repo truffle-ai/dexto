@@ -16,7 +16,6 @@ import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { type LLMProvider } from '@core/llm/registry.js';
 import { type GlobalPreferences } from './schemas.js';
-import { type LLMConstraints } from '@core/agent-registry/types.js';
 import { validateModelForProvider } from '@core/llm/registry.js';
 import { logger } from '@core/logger/index.js';
 
@@ -31,13 +30,11 @@ export interface LLMOverrides {
  * @param configPath Absolute path to agent configuration file
  * @param preferences Global preferences to inject
  * @param overrides Optional CLI overrides
- * @param constraints Optional registry constraints for this agent
  */
 export async function injectLLMPreferences(
   configPath: string,
   preferences: GlobalPreferences,
-  overrides?: LLMOverrides,
-  constraints?: LLMConstraints
+  overrides?: LLMOverrides
 ): Promise<void> {
   
   // Load raw config
@@ -48,11 +45,6 @@ export async function injectLLMPreferences(
   const provider = overrides?.provider ?? preferences.llm.provider;
   const model = overrides?.model ?? preferences.llm.model;
   const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
-  
-  // Validate constraints if present
-  if (constraints) {
-    validateConstraints(provider, config, constraints);
-  }
   
   // Validate provider+model compatibility
   if (!validateModelForProvider(provider, model)) {

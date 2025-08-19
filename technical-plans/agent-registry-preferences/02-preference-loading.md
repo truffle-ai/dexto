@@ -216,7 +216,6 @@ export enum DextoErrorCode {
   PREFERENCE_FILE_WRITE_ERROR = 'preference_file_write_error',
   PREFERENCE_VALIDATION_ERROR = 'preference_validation_error',
   PREFERENCE_PROVIDER_MISMATCH = 'preference_provider_mismatch',
-  PREFERENCE_CONSTRAINT_VIOLATION = 'preference_constraint_violation'
 }
 ```
 
@@ -228,7 +227,6 @@ export interface PreferenceContext {
   provider?: string;
   model?: string;
   agentName?: string;
-  constraint?: string;
   error?: string;
   zodError?: ZodError;
 }
