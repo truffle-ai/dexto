@@ -28,7 +28,7 @@ export const PROVIDER_OPTIONS = [
         label: '🟡 Anthropic',
         hint: 'High quality models, requires payment',
     },
-] as const;
+];
 
 /**
  * Interactive provider selection using standardized options

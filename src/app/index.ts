@@ -29,7 +29,6 @@ import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
-import { isFirstTimeUserScenario, handleFirstTimeSetup } from './cli/utils/first-time-setup.js';
 import { getPort } from '@core/utils/port-utils.js';
 import {
     createDextoProject,
@@ -319,35 +318,28 @@ program
         // ——— LOAD AND PREPARE CONFIG ———
         let validatedConfig: AgentConfig;
         try {
-            // Check for first-time user scenario BEFORE loading config
-            // TODO: First-time setup detection will be replaced in enhanced preference system
-            // (agent-registry-system-2.md Phase 2) which uses preferences.yml existence
-            // instead of bundled config detection. Current logic is broken with registry system.
-            //
-            // For now, first-time setup is disabled until preference system is implemented.
-            const resolvedPath = await resolveConfigPath(opts.agent);
-            if (false && isFirstTimeUserScenario(resolvedPath)) {
+            // TODO: Implement new first-time detection based on preferences.yml existence
+            // See technical-plans/agent-registry-preferences/06-first-time-detection.md
+            // New approach: check globalPreferencesExist() instead of bundled config detection
+            // Will be implemented in upcoming commits along with preference-based default resolution
+
+            // Legacy first-time setup commented out (will be replaced)
+            /*
+            if (isFirstTimeUserScenario(resolvedPath)) {
                 if (opts.skipInteractive) {
-                    console.error(
-                        chalk.red(
-                            '❌ First-time setup required but --skip-interactive flag is set.'
-                        )
-                    );
-                    console.error(
-                        chalk.dim(
-                            'Please run without --skip-interactive to complete setup, or provide a valid config file.'
-                        )
-                    );
+                    console.error('❌ First-time setup required but --skip-interactive flag is set.');
                     process.exit(1);
                 }
-                // Handle first-time setup (provider selection, config creation, API key)
                 const setupComplete = await handleFirstTimeSetup();
                 if (!setupComplete) {
-                    console.log(chalk.dim('\n👋 Run dexto again when ready!'));
+                    console.log('👋 Run dexto again when ready!');
                     process.exit(0);
                 }
-                // Config has been created, continue with normal flow
             }
+            */
+
+            // Load agent config
+            const resolvedPath = await resolveConfigPath(opts.agent);
 
             // Load raw config and apply CLI overrides
             const configPath = await resolveConfigPath(opts.agent);

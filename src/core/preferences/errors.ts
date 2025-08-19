@@ -3,13 +3,7 @@
 import { DextoRuntimeError, DextoValidationError } from '@core/errors/index.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { type ZodError } from 'zod';
-
-export enum PreferenceErrorCode {
-    FILE_NOT_FOUND = 'preference_file_not_found',
-    FILE_READ_ERROR = 'preference_file_read_error',
-    FILE_WRITE_ERROR = 'preference_file_write_error',
-    VALIDATION_ERROR = 'preference_validation_error',
-}
+import { PreferenceErrorCode } from './error-codes.js';
 
 export class PreferenceError {
     static fileNotFound(preferencesPath: string) {
@@ -49,6 +43,8 @@ export class PreferenceError {
         const issues = zodError.issues.map((issue) => ({
             code: PreferenceErrorCode.VALIDATION_ERROR,
             message: `${issue.path.join('.')}: ${issue.message}`,
+            scope: ErrorScope.PREFERENCE,
+            type: ErrorType.USER,
             severity: 'error' as const,
         }));
 

@@ -27,15 +27,20 @@ export async function handleSetupCommand(options: CLISetupOptions): Promise<void
             );
         }
 
-        provider = await selectProvider();
-        if (!provider) {
+        const selectedProvider = await selectProvider();
+        if (!selectedProvider) {
             console.log('Setup cancelled');
             return;
         }
+        provider = selectedProvider;
     }
 
     // Get model and API key details
     const model = options.model || getDefaultModelForProvider(provider);
+    if (!model) {
+        throw new Error(`Provider '${provider}' requires a specific model. Use --model option.`);
+    }
+
     const apiKeyVar = getPrimaryApiKeyEnvVar(provider);
     const defaultAgent = options.defaultAgent || 'default-agent';
 

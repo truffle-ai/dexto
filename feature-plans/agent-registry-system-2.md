@@ -305,13 +305,13 @@ loadAgentConfig(nameOrPath) {
 ## Implementation Plan
 
 ### Phase 1: Preference Infrastructure
-- [ ] **1.1 Create preference schema** - Minimal YAML structure with validation
-- [ ] **1.2 Add preference loading utilities** - Load/save/validate preferences.yml
-- [ ] **1.3 Extract setup utilities** - Reusable provider selection, API key setup
+- [x] **1.1 Create preference schema** - Minimal YAML structure with validation
+- [x] **1.2 Add preference loading utilities** - Load/save/validate preferences.yml
+- [x] **1.3 Extract setup utilities** - Reusable provider selection, API key setup
 - [ ] **1.4 Create preference injection utilities** - Apply prefs to agent configs
 
 ### Phase 2: Command Implementation
-- [ ] **2.1 Create dexto setup command** - Interactive and non-interactive modes
+- [x] **2.1 Create dexto setup command** - Interactive and non-interactive modes
 - [ ] **2.2 Add auto-setup trigger** - Run setup on first command if needed
 - [ ] **2.3 Enhance auto-installation** - Apply preferences during installation
 - [ ] **2.4 Update default agent resolution** - Use default-agent from registry
@@ -482,7 +482,7 @@ src/core/agent-registry/    # Agent registry functionality
 ├── types.ts             # Registry types
 └── index.ts
 
-src/app/cli/commands/       # CLI commands with full setup logic
+src/app/cli/global-commands/       # CLI commands with full setup logic
 ├── setup.ts             # Interactive setup + provider selection + API keys
 ├── install.ts          # Install agents with preference injection
 └── index.ts

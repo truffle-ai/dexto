@@ -68,7 +68,11 @@ export class LocalAgentRegistry implements AgentRegistry {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
-        if (agentData?.source.endsWith('/')) {
+        if (!agentData) {
+            throw new Error(`Agent '${agentName}' not found in registry`);
+        }
+
+        if (agentData.source.endsWith('/')) {
             // Directory agent - main field is required
             if (!agentData.main) {
                 throw new Error(
