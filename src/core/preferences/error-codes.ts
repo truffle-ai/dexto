@@ -5,4 +5,5 @@ export enum PreferenceErrorCode {
     FILE_READ_ERROR = 'preference_file_read_error',
     FILE_WRITE_ERROR = 'preference_file_write_error',
     VALIDATION_ERROR = 'preference_validation_error',
+    MODEL_INCOMPATIBLE = 'preference_model_incompatible',
 }

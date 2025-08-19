@@ -15,3 +15,16 @@ export {
 } from './schemas.js';
 
 export { PREFERENCES_FILE } from './constants.js';
+
+export { injectLLMPreferences, injectPreferencesToAgent, type LLMOverrides } from './injection.js';
+
+export {
+    loadGlobalPreferences,
+    saveGlobalPreferences,
+    globalPreferencesExist,
+    getGlobalPreferencesPath,
+    createInitialPreferences,
+    updateGlobalPreferences,
+} from './loader.js';
+
+export { PreferenceError, PreferenceErrorCode } from './errors.js';

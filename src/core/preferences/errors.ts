@@ -5,6 +5,8 @@ import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { type ZodError } from 'zod';
 import { PreferenceErrorCode } from './error-codes.js';
 
+export { PreferenceErrorCode } from './error-codes.js';
+
 export class PreferenceError {
     static fileNotFound(preferencesPath: string) {
         return new DextoRuntimeError(
