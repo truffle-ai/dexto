@@ -312,8 +312,8 @@ loadAgentConfig(nameOrPath) {
 
 ### Phase 2: Command Implementation
 - [x] **2.1 Create dexto setup command** - Interactive and non-interactive modes
-- [ ] **2.2 Add auto-setup trigger** - Run setup on first command if needed
-- [ ] **2.3 Enhance auto-installation** - Apply preferences during installation
+- [x] **2.2 Add auto-setup trigger** - Run setup on first command if needed
+- [x] **2.3 Enhance auto-installation** - Apply preferences during installation
 - [x] **2.4 Update default agent resolution** - Use default-agent from registry
 
 ### Phase 3: Integration & Polish
