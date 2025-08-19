@@ -1,6 +1,7 @@
 // src/app/cli/utils/setup-utils.ts
 
 import { globalPreferencesExist, loadGlobalPreferences } from '@core/preferences/loader.js';
+import { isDextoSourceCode, isDextoProject } from '@core/utils/execution-context.js';
 
 /**
  * Check if this is a first-time user (no preferences file exists)
@@ -12,9 +13,15 @@ export function isFirstTimeUser(): boolean {
 
 /**
  * Check if user requires setup (missing, corrupted, or incomplete preferences)
+ * Context-aware: only requires setup in global-cli context
  * @returns true if setup is required
  */
 export async function requiresSetup(): Promise<boolean> {
+    // Never require setup in dexto-source or dexto-project context (development environment)
+    if (isDextoSourceCode() || isDextoProject()) {
+        return false;
+    }
+
     // No preferences at all - definitely requires setup
     if (isFirstTimeUser()) {
         return true;

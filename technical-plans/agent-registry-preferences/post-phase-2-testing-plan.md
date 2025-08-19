@@ -44,7 +44,7 @@ cd /Users/karaj/Projects/dexto
 cd ~/Desktop
 /Users/karaj/Projects/dexto/dist/src/app/index.js "what context am I in?"
 ```
-**Expected**: Error message about missing global preferences (setup needed)
+**Expected**: setup flow starts
 
 #### Test 2.3: Dexto Project Context
 ```bash
@@ -108,25 +108,142 @@ cd /tmp/test-dexto-project
 ```
 **Expected**: Clear error about missing project default or global preferences
 
-### 5. Registry Agent Names (Future)
+### 5. Registry Agent Names
 
 #### Test 5.1: Valid Registry Agent
 ```bash
-# This will fail until agent registry is implemented
-./dist/src/app/index.js --agent database-agent "test"
+./dist/src/app/index.js --agent database-agent "test registry resolution"
+./dist/src/app/index.js --agent music-agent "what can you help with?"
+./dist/src/app/index.js --agent triage-agent "test multi-agent system"
 ```
-**Expected**: Error about agent registry not being installed/configured
+**Expected**: Auto-installation, different tools/servers per agent, successful operation
 
 #### Test 5.2: Invalid Registry Agent
 ```bash
-# This will fail until agent registry is implemented  
 ./dist/src/app/index.js --agent non-existent-agent "test"
 ```
-**Expected**: Error about agent not found in registry
+**Expected**: Clear error with list of available agents
+
+### 6. Setup Command Testing
+
+#### Test 6.1: Setup Command Help
+```bash
+./dist/src/app/index.js setup --help
+```
+**Expected**: Shows setup command options and usage
+
+#### Test 6.2: Non-Interactive Setup - Global CLI Context
+```bash
+# Test in global context (outside any dexto project)
+cd ~/Desktop
+/Users/karaj/Projects/dexto/dist/src/app/index.js setup --llm-provider google --model gemini-pro --no-interactive
+```
+**Expected**: Creates ~/.dexto/preferences.yml with specified settings
+
+#### Test 6.3: Setup Command - Dexto Source Context
+```bash
+# Setup should work in source context (for testing registry agents)
+./dist/src/app/index.js setup --llm-provider openai --model gpt-4o-mini --no-interactive
+```
+**Expected**: Creates ~/.dexto/preferences.yml successfully (enables registry testing)
+
+#### Test 6.4: Setup Command - Dexto Project Context
+```bash
+# Setup should work in project context (creates global preferences)
+cd /tmp/test-dexto-project
+/Users/karaj/Projects/dexto/dist/src/app/index.js setup --llm-provider anthropic --model claude-3-5-sonnet --no-interactive
+```
+**Expected**: Creates ~/.dexto/preferences.yml (global, not project-local)
+
+#### Test 6.5: Interactive Setup Testing
+```bash
+# Interactive setup testing (manual only)
+cd ~/Desktop
+/Users/karaj/Projects/dexto/dist/src/app/index.js setup
+```
+**Expected**: Interactive prompts for provider, model, API key setup
+
+### 7. Preference Integration Testing
+
+#### Test 7.1: Verify Preference File Creation
+```bash
+# After running setup, check the created file
+cat ~/.dexto/preferences.yml
+```
+**Expected**: Valid YAML with llm, defaults, and setup sections
+
+#### Test 7.2: Check Agent LLM Settings After Installation
+```bash
+# Verify preference injection worked
+cat ~/.dexto/agents/database-agent/database-agent.yml | head -10
+cat ~/.dexto/agents/music-agent/music-agent.yml | head -10
+```
+**Expected**: Agent configs show injected LLM preferences from setup
+
+#### Test 7.3: Preference Injection During Installation
+```bash
+# Remove an installed agent and reinstall to test injection
+rm -rf ~/.dexto/agents/database-agent
+./dist/src/app/index.js --agent database-agent "test"
+cat ~/.dexto/agents/database-agent/database-agent.yml | head -10
+```
+**Expected**: Newly installed agent has current global preferences applied
+
+#### Test 7.4: Multi-Agent System Preference Injection
+```bash
+# Check if all sub-agents in triage system got preferences
+ls ~/.dexto/agents/triage-agent/
+cat ~/.dexto/agents/triage-agent/technical-support-agent.yml | head -10
+cat ~/.dexto/agents/triage-agent/billing-agent.yml | head -10
+```
+**Expected**: All sub-agent configs have same LLM preferences
+
+### 8. Template Variable Expansion Testing
+
+#### Test 8.1: Agent Directory Template Variables
+```bash
+# Check that ${{dexto.agent_dir}} expands correctly
+grep -r "agent_dir" ~/.dexto/agents/triage-agent/
+```
+**Expected**: Template variables are expanded to actual paths
+
+#### Test 8.2: Template Variable Functionality
+```bash
+# Verify MCP servers can find their data files via template paths
+./dist/src/app/index.js --agent database-agent "list tables"
+```
+**Expected**: Database agent can access its data files via expanded paths
+
+### 9. Storage Context Testing
+
+#### Test 9.1: Dexto Source Context Storage
+```bash
+# Check that dexto-source uses repo storage
+ls -la .dexto/
+```
+**Expected**: Local .dexto directory in repo, not global ~/.dexto
+
+#### Test 9.2: Dexto Project Context Storage
+```bash
+# Create project with agent and check storage location
+cd /tmp/test-dexto-project
+echo 'test: config' > default-agent.yml
+/Users/karaj/Projects/dexto/dist/src/app/index.js "test project storage"
+ls -la .dexto/
+```
+**Expected**: Project-local .dexto directory created
+
+#### Test 9.3: Global CLI Context Storage
+```bash
+# Check global storage usage
+cd ~/Desktop
+ls -la ~/.dexto/
+```
+**Expected**: Uses global ~/.dexto directory
 
 ## Integration Testing
 
-### Test 6.1: Full Test Suite
+### Test 10.1: Full Test Suite
 ```bash
 # Run complete test suite
 npm test

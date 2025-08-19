@@ -158,6 +158,8 @@ export class LocalAgentRegistry implements AgentRegistry {
             await fs.rename(tempDir, targetDir);
 
             logger.info(`✓ Installed agent '${agentName}' to ${targetDir}`);
+            // console.log for CLI visibility temporarily
+            console.log(`✓ Installed agent '${agentName}' to ${targetDir}`);
             return this.resolveMainConfig(targetDir, agentName);
         } catch (error) {
             // Clean up temp directory on failure
@@ -192,8 +194,13 @@ export class LocalAgentRegistry implements AgentRegistry {
             return mainConfig;
         }
 
+        logger.debug(`Agent '${agentName}' not found in installed path: ${installedPath}`);
+        // console.log for CLI visibility temporarily
+        console.log(`Agent '${agentName}' not found in installed path: ${installedPath}`);
+
         // 2. Check if available in registry - install if needed
         if (this.hasAgent(agentName)) {
+            console.log(`Agent '${agentName}' found in registry, installing...`);
             logger.info(`Installing agent '${agentName}' from registry...`);
             return await this.installAgent(agentName);
         }
