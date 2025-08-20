@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { LLMProvider, logger } from '@core/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { getDextoEnvPath } from '@core/utils/path.js';
+import { isGlobalCLI } from '@core/utils/execution-context.js';
 import { updateEnvFileWithLLMKeys } from './env-utils.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import {
@@ -110,11 +111,26 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             spinner.stop('Failed to save API key');
             logger.error(`Failed to update .env file: ${error}`);
 
-            p.note(
-                `Manual setup required:\n\n` +
+            // Provide context-aware manual setup instructions
+            let instructions: string;
+
+            if (isGlobalCLI()) {
+                instructions =
+                    `1. Create ~/.dexto/.env file\n` +
+                    `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
+                    `3. Run dexto again\n\n` +
+                    `Alternatively:\n` +
+                    `• Set environment variable: export ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
+                    `• Or run: dexto setup`;
+            } else {
+                instructions =
                     `1. Create a .env file in your project root\n` +
                     `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
-                    `3. Run dexto again`,
+                    `3. Run dexto again`;
+            }
+
+            p.note(
+                `Manual setup required:\n\n${instructions}`,
                 chalk.yellow('Save this API key manually')
             );
             console.error(chalk.red('\n❌ API key setup required to continue.'));
@@ -134,6 +150,19 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
  * Shows manual setup instructions to the user
  */
 function showManualSetupInstructions(): void {
+    const envInstructions = isGlobalCLI()
+        ? [
+              `${chalk.bold('2. Recommended: Use dexto setup (easiest):')}`,
+              `   dexto setup`,
+              ``,
+              `${chalk.bold('Or manually create ~/.dexto/.env:')}`,
+              `   mkdir -p ~/.dexto && echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > ~/.dexto/.env`,
+          ]
+        : [
+              `${chalk.bold('2. Create a .env file in your project:')}`,
+              `   echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > .env`,
+          ];
+
     const instructions = [
         `${chalk.bold('1. Get an API key:')}`,
         `   • ${chalk.green('Google Gemini (Free)')}:  https://aistudio.google.com/apikey`,
@@ -141,8 +170,7 @@ function showManualSetupInstructions(): void {
         `   • ${chalk.magenta('Anthropic')}:        https://console.anthropic.com/keys`,
         `   • ${chalk.yellow('Groq (Free)')}:      https://console.groq.com/keys`,
         ``,
-        `${chalk.bold('2. Create a .env file in your project:')}`,
-        `   echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > .env`,
+        ...envInstructions,
         `   # OR for other providers:`,
         `   # OPENAI_API_KEY=your_key_here`,
         `   # ANTHROPIC_API_KEY=your_key_here`,

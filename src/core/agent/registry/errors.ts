@@ -110,6 +110,29 @@ export class RegistryError {
         );
     }
 
+    // Registry file errors
+    static registryNotFound(registryPath: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.REGISTRY_NOT_FOUND,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.SYSTEM,
+            `Agent registry not found: ${registryPath}`,
+            { registryPath },
+            'This indicates a problem with the Dexto installation - please reinstall or report this issue'
+        );
+    }
+
+    static registryParseError(registryPath: string, cause: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.REGISTRY_PARSE_ERROR,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.SYSTEM,
+            `Failed to parse agent registry from ${registryPath}: ${cause}`,
+            { registryPath, cause },
+            'This indicates a corrupted registry file - please reinstall Dexto'
+        );
+    }
+
     // Auto-install control errors
     static agentNotInstalledAutoInstallDisabled(agentName: string, availableAgents: string[]) {
         return new DextoRuntimeError(

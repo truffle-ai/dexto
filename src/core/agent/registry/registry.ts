@@ -29,20 +29,21 @@ export class LocalAgentRegistry implements AgentRegistry {
 
     /**
      * Load registry from bundled JSON file
+     * Uses fail-fast approach - throws RegistryError for any loading issues
      */
     private loadRegistry(): Registry {
         let jsonPath: string;
 
         try {
             jsonPath = resolveBundledScript('agents/agent-registry.json');
-        } catch (error) {
-            logger.error(`Failed to resolve agent registry path: ${error}`);
-            return { version: '1.0.0', agents: {} };
+        } catch (_error) {
+            throw RegistryError.registryNotFound(
+                'agents/agent-registry.json (bundle resolution failed)'
+            );
         }
 
         if (!existsSync(jsonPath)) {
-            logger.debug(`Agent registry not found at: ${jsonPath}`);
-            return { version: '1.0.0', agents: {} };
+            throw RegistryError.registryNotFound(jsonPath);
         }
 
         try {
@@ -50,8 +51,10 @@ export class LocalAgentRegistry implements AgentRegistry {
             const rawRegistry = JSON.parse(jsonData);
             return RegistrySchema.parse(rawRegistry);
         } catch (error) {
-            logger.error(`Failed to load registry from ${jsonPath}: ${error}`);
-            return { version: '1.0.0', agents: {} };
+            throw RegistryError.registryParseError(
+                jsonPath,
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 
