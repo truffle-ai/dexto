@@ -53,15 +53,44 @@ The script I'll use: `./scripts/extract-review-comments.sh truffle-ai/dexto [PR_
 /get-gh-comments 123 --help
 ```
 
+## Pagination Examples
+
+```bash
+# Get first 10 unresolved comments (recommended to avoid output truncation)
+/get-gh-comments 123 --unresolved-only --limit 10
+
+# Get next 10 comments (page 2)
+/get-gh-comments 123 --unresolved-only --limit 10 --offset 10
+
+# Get comments 21-25 (page 3 of 5-comment pages)
+/get-gh-comments 123 --unresolved-only --limit 5 --offset 20
+
+# Browse CodeRabbit feedback in small chunks
+/get-gh-comments 123 --reviewer "coderabbitai[bot]" --unresolved-only --limit 5
+```
+
 ## Defaults
 
 If user doesn't specify, prefer unresolved only. No point in looking at resolved comments generally
 If user doesn't specify to use the latest only, run script with both --latest-actionable and without, and consolidate the two to give a meaningful response
 
+## ⚠️ Important: Use Pagination to Avoid Truncation
+
+**Always use `--limit` when there are many comments!** Large PRs with 20+ comments will be truncated in Claude Code's output, causing you to miss important issues. 
+
+Recommended approach:
+1. Start with `--limit 10` to see the first batch
+2. Use the pagination hints provided by the script to navigate
+3. For CodeRabbit reviews, `--limit 5` works well since comments are detailed
+
 ## Available Options
 
 ### Reviewer Filter
 - `--reviewer LOGIN_ID`: Filter by specific reviewer (e.g., `coderabbitai[bot]`, `rahulkarajgikar`, `shaunak99`)
+
+### Pagination Options
+- `--limit NUMBER`: Maximum number of comments to display (default: all)
+- `--offset NUMBER`: Number of comments to skip (default: 0, for pagination)
 
 ### Flags (combinable)
 - `--latest-only`: Latest review by timestamp (most recent)
@@ -70,24 +99,24 @@ If user doesn't specify to use the latest only, run script with both --latest-ac
 
 ## Common Workflows
 
-**Focus on CodeRabbit's current feedback:**
+**Focus on CodeRabbit's current feedback (paginated):**
 ```bash
-/get-gh-comments 456 --reviewer "coderabbitai[bot]" --latest-actionable --unresolved-only
+/get-gh-comments 456 --reviewer "coderabbitai[bot]" --latest-actionable --unresolved-only --limit 5
 ```
 
-**Check all unresolved issues:**
+**Check all unresolved issues in manageable chunks:**
 ```bash  
-/get-gh-comments 456 --unresolved-only
+/get-gh-comments 456 --unresolved-only --limit 10
 ```
 
 **Review human feedback:**
 ```bash
-/get-gh-comments 456 --reviewer username --latest-actionable  
+/get-gh-comments 456 --reviewer username --latest-actionable --limit 10
 ```
 
-**See all feedback from a specific reviewer:**
+**Browse all feedback from a specific reviewer:**
 ```bash
-/get-gh-comments 456 --reviewer "coderabbitai[bot]"
+/get-gh-comments 456 --reviewer "coderabbitai[bot]" --limit 10
 ```
 
 ## Requirements
@@ -101,6 +130,8 @@ If user doesn't specify to use the latest only, run script with both --latest-ac
 - **Actionable Reviews**: Reviews with top-level summaries (body content), typically containing substantial feedback
 - **Resolution Status**: Uses GitHub's review thread resolution system
 - **Reviewer IDs**: Use GitHub login names (bot accounts include `[bot]` suffix)
+- **Comment Sorting**: Comments are automatically sorted by file path and line number for systematic review
+- **Pagination Navigation**: The script provides ready-to-use commands for next/previous pages
 
 
 ## Responding back to user

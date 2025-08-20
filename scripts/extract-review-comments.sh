@@ -11,6 +11,8 @@ show_usage() {
     echo ""
     echo "OPTIONS:"
     echo "  --reviewer LOGIN_ID   Filter comments by specific reviewer (e.g., coderabbitai[bot], rahulkarajgikar)"
+    echo "  --limit NUMBER        Maximum number of comments to display (default: all)"
+    echo "  --offset NUMBER       Number of comments to skip (default: 0, for pagination)"
     echo ""
     echo "FLAGS (can be combined):"
     echo "  --latest-only         Latest review by timestamp"
@@ -23,6 +25,11 @@ show_usage() {
     echo "  $0 truffle-ai/dexto 293 --reviewer rahulkarajgikar --latest-actionable  # Latest actionable human review"
     echo "  $0 truffle-ai/dexto 293 --reviewer coderabbitai[bot] --unresolved-only  # Unresolved CodeRabbit comments"
     echo "  $0 truffle-ai/dexto 293 --latest-actionable --unresolved-only   # Unresolved from any latest actionable review"
+    echo ""
+    echo "Pagination examples:"
+    echo "  $0 truffle-ai/dexto 293 --unresolved-only --limit 10           # First 10 comments"
+    echo "  $0 truffle-ai/dexto 293 --unresolved-only --limit 10 --offset 10  # Next 10 comments (page 2)"
+    echo "  $0 truffle-ai/dexto 293 --unresolved-only --limit 5 --offset 20   # Comments 21-25"
 }
 
 if [ $# -lt 2 ]; then
@@ -39,6 +46,8 @@ LATEST_ONLY=false
 LATEST_ACTIONABLE=false
 UNRESOLVED_ONLY=false
 REVIEWER=""
+LIMIT=""
+OFFSET="0"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -61,6 +70,30 @@ while [[ $# -gt 0 ]]; do
         --unresolved-only)
             UNRESOLVED_ONLY=true
             shift
+            ;;
+        --limit)
+            if [ -z "$2" ]; then
+                echo "❌ Error: --limit requires a number"
+                exit 1
+            fi
+            if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -le 0 ]; then
+                echo "❌ Error: --limit must be a positive integer"
+                exit 1
+            fi
+            LIMIT="$2"
+            shift 2
+            ;;
+        --offset)
+            if [ -z "$2" ]; then
+                echo "❌ Error: --offset requires a number"
+                exit 1
+            fi
+            if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                echo "❌ Error: --offset must be a non-negative integer"
+                exit 1
+            fi
+            OFFSET="$2"
+            shift 2
             ;;
         --help|-h)
             show_usage
@@ -105,6 +138,15 @@ if [ "$UNRESOLVED_ONLY" = true ]; then
         MODE_DESC="$MODE_DESC - unresolved only"
     else
         MODE_DESC="All unresolved $BASE_DESC"
+    fi
+fi
+
+# Add pagination info to mode description
+if [ -n "$LIMIT" ]; then
+    if [ "$OFFSET" != "0" ]; then
+        MODE_DESC="$MODE_DESC (showing $LIMIT comments starting from #$((OFFSET + 1)))"
+    else
+        MODE_DESC="$MODE_DESC (showing first $LIMIT comments)"
     fi
 fi
 
@@ -215,10 +257,22 @@ else
     FILTERED_COMMENTS="$BASE_COMMENTS"
 fi
 
-# Step 4: Count and display results
-COMMENT_COUNT=$(echo "$FILTERED_COMMENTS" | jq length)
+# Step 4: Sort comments by file path and line number
+SORTED_COMMENTS=$(echo "$FILTERED_COMMENTS" | jq 'sort_by([.path, .line // 0])')
 
-if [ "$COMMENT_COUNT" -eq 0 ]; then
+# Step 5: Apply pagination if specified
+if [ -n "$LIMIT" ]; then
+    PAGINATED_COMMENTS=$(echo "$SORTED_COMMENTS" | jq --argjson limit "$LIMIT" --argjson offset "$OFFSET" '
+        .[$offset:$offset + $limit]')
+else
+    PAGINATED_COMMENTS="$SORTED_COMMENTS"
+fi
+
+# Step 6: Count and display results
+TOTAL_COUNT=$(echo "$SORTED_COMMENTS" | jq length)
+DISPLAYED_COUNT=$(echo "$PAGINATED_COMMENTS" | jq length)
+
+if [ "$TOTAL_COUNT" -eq 0 ]; then
     echo "📊 No comments found matching the specified criteria"
     echo ""
     echo "✅ Done! Use 'gh pr view $PR_NUMBER --repo $REPO --web' to view the PR in browser"
@@ -226,7 +280,7 @@ if [ "$COMMENT_COUNT" -eq 0 ]; then
 fi
 
 # Display the comments
-echo "$FILTERED_COMMENTS" | jq -r '.[] |
+echo "$PAGINATED_COMMENTS" | jq -r '.[] |
     "📄 " + .path + ":" + (.line | tostring) + "\n" +
     "🆔 Comment ID: " + (.id | tostring) + "\n" +
     "📅 Created: " + .created_at + "\n" +
@@ -237,7 +291,25 @@ echo "$FILTERED_COMMENTS" | jq -r '.[] |
 '
 
 echo ""
-echo "📊 Summary: Found $COMMENT_COUNT comments matching criteria"
+if [ -n "$LIMIT" ]; then
+    TOTAL_PAGES=$(( (TOTAL_COUNT + LIMIT - 1) / LIMIT ))
+    CURRENT_PAGE=$(( OFFSET / LIMIT + 1 ))
+    echo "📊 Summary: Showing $DISPLAYED_COUNT of $TOTAL_COUNT total comments (Page $CURRENT_PAGE of $TOTAL_PAGES)"
+    
+    # Show pagination hints
+    if [ $CURRENT_PAGE -gt 1 ]; then
+        PREV_OFFSET=$((OFFSET - LIMIT))
+        if [ $PREV_OFFSET -lt 0 ]; then PREV_OFFSET=0; fi
+        echo "⬅️  Previous page: $0 $REPO $PR_NUMBER $(echo "$@" | sed "s/--offset [0-9]*//" | sed "s/$/ --offset $PREV_OFFSET/")"
+    fi
+    
+    if [ $CURRENT_PAGE -lt $TOTAL_PAGES ]; then
+        NEXT_OFFSET=$((OFFSET + LIMIT))
+        echo "➡️  Next page: $0 $REPO $PR_NUMBER $(echo "$@" | sed "s/--offset [0-9]*//" | sed "s/$/ --offset $NEXT_OFFSET/")"
+    fi
+else
+    echo "📊 Summary: Found $TOTAL_COUNT comments matching criteria (sorted by file/line)"
+fi
 
 echo ""
 echo "✅ Done! Use 'gh pr view $PR_NUMBER --repo $REPO --web' to view the PR in browser"
