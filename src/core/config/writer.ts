@@ -2,7 +2,7 @@
 
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import path from 'path';
+import * as path from 'path';
 import { type LLMProvider } from '@core/llm/registry.js';
 import { type GlobalPreferences } from '@core/preferences/schemas.js';
 import { logger } from '@core/logger/index.js';

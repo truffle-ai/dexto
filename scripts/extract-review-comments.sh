@@ -290,10 +290,11 @@ if [ "$TOTAL_COUNT" -eq 0 ]; then
     exit 0
 fi
 
-# Display the comments
-echo "$PAGINATED_COMMENTS" | jq -r '.[] |
+# Display the comments with GitHub links
+echo "$PAGINATED_COMMENTS" | jq -r --arg repo "$REPO" --arg pr "$PR_NUMBER" '.[] |
     "📄 " + .path + ":" + (.line | tostring) + "\n" +
     "🆔 Comment ID: " + (.id | tostring) + "\n" +
+    "🔗 GitHub Link: https://github.com/" + $repo + "/pull/" + $pr + "#discussion_r" + (.id | tostring) + "\n" +
     "📅 Created: " + .created_at + "\n" +
     "👍 Reactions: " + (.reactions.total_count | tostring) + 
     (if .pull_request_review_id then "\n🔗 Review ID: " + (.pull_request_review_id | tostring) else "" end) +

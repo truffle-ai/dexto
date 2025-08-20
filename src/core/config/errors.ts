@@ -59,7 +59,7 @@ export class ConfigError {
             ConfigErrorCode.NO_PROJECT_DEFAULT,
             ErrorScope.CONFIG,
             ErrorType.USER,
-            `No project default-agent.yml found and no global preferences configured.\nEither create ${projectPath} or run \`dexto setup\` to configure preferences.`,
+            `No project default-agent.yml found and no global preferences configured.\nEither create default-agent.yml in your project root (${projectPath}) or run \`dexto setup\` to configure preferences.`,
             { projectPath },
             'Run `dexto setup` or create a project-specific agent config'
         );

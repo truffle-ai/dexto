@@ -153,14 +153,16 @@ systemPrompt:
 
         const config = await loadAgentConfig(tmpFile);
         const expectedDir = path.dirname(tmpFile);
+        const expectedDataFile = path.join(expectedDir, 'data', 'file.txt');
+        const expectedPromptFile = path.join(expectedDir, 'docs', 'prompt.md');
 
-        // Template variables should be expanded
-        expect((config.mcpServers?.testServer as any)?.args?.[1]).toBe(
-            `${expectedDir}/data/file.txt`
+        // Template variables should be expanded (cross-platform)
+        expect(path.normalize((config.mcpServers?.testServer as any)?.args?.[1] as string)).toBe(
+            path.normalize(expectedDataFile)
         );
-        expect((config.systemPrompt as any)?.contributors?.[0]?.files?.[0]).toBe(
-            `${expectedDir}/docs/prompt.md`
-        );
+        expect(
+            path.normalize((config.systemPrompt as any)?.contributors?.[0]?.files?.[0] as string)
+        ).toBe(path.normalize(expectedPromptFile));
     });
 
     it('handles config without template variables', async () => {

@@ -151,7 +151,8 @@ While responding back to the user, mention the following information:
 
 Then for each comment, mention:
 - The number of the comment
-- The line number of the comment
+- The line number of the comment  
+- **The GitHub link** (for easy navigation to the actual comment)
 - High level information about what the comment is
 - Potential fix: keep this short about what needs to be done to fix it
 - Your assessment: whether the fix is actually needed or if current code is correct

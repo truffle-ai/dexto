@@ -430,7 +430,7 @@ program
 
                 // Check setup state and auto-trigger if needed
                 if (await requiresSetup()) {
-                    if (!opts.interactive) {
+                    if (opts.interactive === false) {
                         console.error('❌ Setup required but --no-interactive flag is set.');
                         console.error('💡 Run `dexto setup` to configure preferences first.');
                         process.exit(1);

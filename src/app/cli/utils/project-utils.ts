@@ -18,7 +18,10 @@ export async function updateDextoConfigFile(
     const fileContent = await fs.readFile(filepath, 'utf8');
     const doc = parseDocument(fileContent);
     doc.setIn(['llm', 'provider'], llmProvider);
-    doc.setIn(['llm', 'apiKey'], '$' + getPrimaryApiKeyEnvVar(llmProvider));
-    doc.setIn(['llm', 'model'], getDefaultModelForProvider(llmProvider));
+    doc.setIn(['llm', 'apiKey'], `$${getPrimaryApiKeyEnvVar(llmProvider)}`);
+    const defaultModel = getDefaultModelForProvider(llmProvider);
+    if (defaultModel) {
+        doc.setIn(['llm', 'model'], defaultModel);
+    }
     await fs.writeFile(filepath, doc.toString(), 'utf8');
 }

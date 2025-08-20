@@ -16,7 +16,13 @@ export async function updateEnvFileWithLLMKeys(
     llmProvider?: LLMProvider,
     llmApiKey?: string
 ): Promise<void> {
-    logger.debug(`Updating .env file with dexto env variables: envFilePath ${envFilePath}`);
+    logger.debug(
+        `updateEnvFileWithLLMKeys: ${JSON.stringify({
+            envFilePath,
+            llmProvider,
+            hasApiKey: Boolean(llmApiKey),
+        })}`
+    );
 
     // Build updates object for the specific provider
     const updates: Record<string, string> = {};
@@ -25,6 +31,5 @@ export async function updateEnvFileWithLLMKeys(
         updates[envVar] = llmApiKey;
     }
 
-    // Use the generic env file writer
     await updateEnvFile(envFilePath, updates);
 }

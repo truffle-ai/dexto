@@ -24,7 +24,7 @@ export async function handleWhichCommand(agentName: string): Promise<void> {
     const availableAgents = Object.keys(registry.getAvailableAgents());
 
     try {
-        const resolvedPath = await resolveAgentPath(validated.agentName, false); // Don't inject preferences for inspection
+        const resolvedPath = await resolveAgentPath(validated.agentName, false, false); // Don't auto-install, don't inject preferences
         console.log(resolvedPath);
     } catch (error) {
         console.error(
