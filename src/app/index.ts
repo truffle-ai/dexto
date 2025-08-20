@@ -600,7 +600,6 @@ program
 
                 try {
                     // Logs are already redirected to file by default to prevent interference with stdio transport
-
                     const agentCardData = createAgentCard(
                         {
                             defaultName: agentCardConfig.name ?? 'dexto',
