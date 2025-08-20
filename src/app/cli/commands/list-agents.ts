@@ -19,6 +19,7 @@ const ListAgentsCommandSchema = z
     .strict();
 
 export type ListAgentsCommandOptions = z.output<typeof ListAgentsCommandSchema>;
+export type ListAgentsCommandOptionsInput = z.input<typeof ListAgentsCommandSchema>;
 
 /**
  * Information about an installed agent
@@ -142,7 +143,7 @@ function getAvailableAgents(): AvailableAgentInfo[] {
  * Handle the list-agents command
  */
 export async function handleListAgentsCommand(
-    options: Partial<ListAgentsCommandOptions>
+    options: ListAgentsCommandOptionsInput
 ): Promise<void> {
     // Validate command with Zod
     const validated = ListAgentsCommandSchema.parse(options);

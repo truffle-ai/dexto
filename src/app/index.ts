@@ -43,11 +43,11 @@ import {
 } from './cli/commands/index.js';
 import {
     handleSetupCommand,
-    type CLISetupOptions,
+    type CLISetupOptionsInput,
     handleInstallCommand,
     type InstallCommandOptions,
     handleListAgentsCommand,
-    type ListAgentsCommandOptions,
+    type ListAgentsCommandOptionsInput,
     handleWhichCommand,
 } from './cli/commands/index.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
@@ -76,8 +76,7 @@ program
         'The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp',
         'cli'
     )
-    .option('--web-port <port>', 'optional port for the web UI', '3000')
-    .option('--no-interactive', 'Disable interactive prompts (fail instead of prompting)');
+    .option('--web-port <port>', 'optional port for the web UI', '3000');
 
 // 2) `create-app` SUB-COMMAND
 program
@@ -153,14 +152,14 @@ program
 program
     .command('setup')
     .description('Configure global Dexto preferences')
-    .option('--llm-provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
+    .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
     .option('--model <model>', 'Model name (uses provider default if not specified)')
     .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
-    .action(async (options: CLISetupOptions) => {
+    .option('--no-interactive', 'Skip interactive prompts and API key setup')
+    .option('--force', 'Overwrite existing setup without confirmation')
+    .action(async (options: CLISetupOptionsInput) => {
         try {
             await handleSetupCommand(options);
-            // keeping this log and not inside to avoid cluttering in case of auto-setup
-            console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));
             process.exit(0);
         } catch (err) {
             console.error(
@@ -194,7 +193,7 @@ program
     .option('--verbose', 'Show detailed agent information')
     .option('--installed', 'Show only installed agents')
     .option('--available', 'Show only available agents')
-    .action(async (options: Partial<ListAgentsCommandOptions>) => {
+    .action(async (options: ListAgentsCommandOptionsInput) => {
         try {
             await handleListAgentsCommand(options);
             process.exit(0);

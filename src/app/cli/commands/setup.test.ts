@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import { handleSetupCommand, type CLISetupOptions } from './setup.js';
+import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
 
 // Mock only external dependencies that can't be tested directly
 vi.mock('@core/preferences/loader.js', () => ({
@@ -22,13 +22,30 @@ vi.mock('@app/cli/utils/provider-setup.js', () => ({
     selectProvider: vi.fn(),
 }));
 
+vi.mock('@app/cli/utils/setup-utils.js', () => ({
+    requiresSetup: vi.fn(),
+}));
+
+vi.mock('@clack/prompts', () => ({
+    intro: vi.fn(),
+    note: vi.fn(),
+    confirm: vi.fn(),
+    cancel: vi.fn(),
+    isCancel: vi.fn(),
+    log: { warn: vi.fn() },
+}));
+
 describe('Setup Command', () => {
     let tempDir: string;
     let mockCreateInitialPreferences: any;
     let mockSaveGlobalPreferences: any;
     let mockInteractiveApiKeySetup: any;
     let mockSelectProvider: any;
+    let mockRequiresSetup: any;
+    let mockPrompts: any;
     let consoleSpy: any;
+    let consoleErrorSpy: any;
+    let processExitSpy: any;
 
     function createTempDir() {
         return fs.mkdtempSync(path.join(tmpdir(), 'setup-test-'));
@@ -42,11 +59,22 @@ describe('Setup Command', () => {
         const prefLoader = await import('@core/preferences/loader.js');
         const apiKeySetup = await import('@app/cli/utils/api-key-setup.js');
         const providerSetup = await import('@app/cli/utils/provider-setup.js');
+        const setupUtils = await import('@app/cli/utils/setup-utils.js');
+        const prompts = await import('@clack/prompts');
 
         mockCreateInitialPreferences = vi.mocked(prefLoader.createInitialPreferences);
         mockSaveGlobalPreferences = vi.mocked(prefLoader.saveGlobalPreferences);
         mockInteractiveApiKeySetup = vi.mocked(apiKeySetup.interactiveApiKeySetup);
         mockSelectProvider = vi.mocked(providerSetup.selectProvider);
+        mockRequiresSetup = vi.mocked(setupUtils.requiresSetup);
+        mockPrompts = {
+            intro: vi.mocked(prompts.intro),
+            note: vi.mocked(prompts.note),
+            confirm: vi.mocked(prompts.confirm),
+            cancel: vi.mocked(prompts.cancel),
+            isCancel: vi.mocked(prompts.isCancel),
+            log: { warn: vi.mocked(prompts.log.warn) },
+        };
 
         // Reset mocks to default behavior
         mockCreateInitialPreferences.mockImplementation(
@@ -59,9 +87,17 @@ describe('Setup Command', () => {
         mockSaveGlobalPreferences.mockResolvedValue(undefined);
         mockInteractiveApiKeySetup.mockResolvedValue(undefined);
         mockSelectProvider.mockResolvedValue(null);
+        mockRequiresSetup.mockResolvedValue(true); // Default: setup is required
+        mockPrompts.isCancel.mockReturnValue(false);
 
         // Mock console to prevent test output noise
         consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        processExitSpy = vi
+            .spyOn(process, 'exit')
+            .mockImplementation((code?: string | number | null | undefined) => {
+                throw new Error(`Process exit called with code ${code}`);
+            });
     });
 
     afterEach(() => {
@@ -69,11 +105,13 @@ describe('Setup Command', () => {
             fs.rmSync(tempDir, { recursive: true, force: true });
         }
         consoleSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
+        processExitSpy.mockRestore();
     });
 
     describe('Non-interactive setup', () => {
         it('creates preferences with provided options', async () => {
-            const options: CLISetupOptions = {
+            const options: CLISetupOptionsInput = {
                 llmProvider: 'openai',
                 model: 'gpt-4o',
                 defaultAgent: 'my-agent',
@@ -114,7 +152,7 @@ describe('Setup Command', () => {
             };
 
             await expect(handleSetupCommand(options)).rejects.toThrow(
-                'Provider required in non-interactive mode. Use --llm-provider option.'
+                'Provider required in non-interactive mode. Use --provider option.'
             );
         });
 
@@ -340,6 +378,134 @@ describe('Setup Command', () => {
                 'OPENAI_API_KEY',
                 'default-agent'
             );
+        });
+    });
+
+    describe('Re-setup scenarios', () => {
+        beforeEach(() => {
+            // Setup is already complete for these tests
+            mockRequiresSetup.mockResolvedValue(false);
+        });
+
+        describe('Non-interactive re-setup', () => {
+            it('errors without --force flag when setup is already complete', async () => {
+                const options = {
+                    llmProvider: 'openai' as const,
+                    interactive: false,
+                    force: false,
+                };
+
+                await expect(handleSetupCommand(options)).rejects.toThrow(
+                    'Process exit called with code 1'
+                );
+
+                expect(consoleErrorSpy).toHaveBeenCalledWith(
+                    expect.stringContaining('Setup is already complete')
+                );
+                expect(mockCreateInitialPreferences).not.toHaveBeenCalled();
+            });
+
+            it('proceeds with --force flag when setup is already complete', async () => {
+                const options = {
+                    llmProvider: 'openai' as const,
+                    interactive: false,
+                    force: true,
+                };
+
+                await handleSetupCommand(options);
+
+                expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
+                    'openai',
+                    'gpt-4.1-mini',
+                    'OPENAI_API_KEY',
+                    'default-agent'
+                );
+                expect(mockSaveGlobalPreferences).toHaveBeenCalled();
+                expect(processExitSpy).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('Interactive re-setup', () => {
+            it('cancels when user declines to overwrite setup', async () => {
+                mockPrompts.confirm.mockResolvedValue(false);
+
+                const options = {
+                    llmProvider: 'openai' as const,
+                    interactive: true,
+                };
+
+                await expect(handleSetupCommand(options)).rejects.toThrow(
+                    'Process exit called with code 0'
+                );
+
+                expect(mockPrompts.intro).toHaveBeenCalledWith(
+                    expect.stringContaining('Setup Already Complete')
+                );
+                expect(mockPrompts.confirm).toHaveBeenCalledWith({
+                    message: 'Do you want to continue and overwrite your current setup?',
+                    initialValue: false,
+                });
+                expect(mockPrompts.cancel).toHaveBeenCalledWith(
+                    'Setup cancelled. Your existing configuration remains unchanged.'
+                );
+                expect(mockCreateInitialPreferences).not.toHaveBeenCalled();
+            });
+
+            it('proceeds when user confirms overwrite', async () => {
+                mockPrompts.confirm.mockResolvedValue(true);
+
+                const options = {
+                    llmProvider: 'openai' as const,
+                    interactive: true,
+                };
+
+                await handleSetupCommand(options);
+
+                expect(mockPrompts.intro).toHaveBeenCalled();
+                expect(mockPrompts.confirm).toHaveBeenCalled();
+                expect(mockPrompts.log.warn).toHaveBeenCalledWith(
+                    'Proceeding with setup override...'
+                );
+                expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
+                    'openai',
+                    'gpt-4.1-mini',
+                    'OPENAI_API_KEY',
+                    'default-agent'
+                );
+                expect(mockSaveGlobalPreferences).toHaveBeenCalled();
+            });
+
+            it('handles user cancellation during confirmation prompt', async () => {
+                mockPrompts.confirm.mockResolvedValue(false);
+                mockPrompts.isCancel.mockReturnValue(true);
+
+                const options = {
+                    llmProvider: 'openai' as const,
+                    interactive: true,
+                };
+
+                await expect(handleSetupCommand(options)).rejects.toThrow(
+                    'Process exit called with code 0'
+                );
+
+                expect(mockCreateInitialPreferences).not.toHaveBeenCalled();
+            });
+        });
+
+        it('proceeds normally when setup is required despite preferences existing', async () => {
+            // Edge case: preferences exist but are incomplete/corrupted
+            mockRequiresSetup.mockResolvedValue(true);
+
+            const options = {
+                llmProvider: 'openai' as const,
+                interactive: false,
+            };
+
+            await handleSetupCommand(options);
+
+            expect(mockPrompts.intro).not.toHaveBeenCalled();
+            expect(mockCreateInitialPreferences).toHaveBeenCalled();
+            expect(mockSaveGlobalPreferences).toHaveBeenCalled();
         });
     });
 });

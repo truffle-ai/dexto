@@ -59,6 +59,7 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
     const preferencesPath = getDextoGlobalPath(PREFERENCES_FILE);
 
     try {
+        logger.info(`Saving global preferences to: ${preferencesPath}`);
         // Ensure ~/.dexto directory exists
         const dextoDir = getDextoGlobalPath('');
         await fs.mkdir(dextoDir, { recursive: true });
