@@ -27,10 +27,10 @@ Extract and filter GitHub review comments from Dexto pull requests with support 
 # Get all unresolved comments from any reviewer
 /get-gh-comments 123 --unresolved-only
 
-# Get unresolved comments from latest actionable CodeRabbit review (most useful for CodeRabbit)
+# Get unresolved comments from latest actionable review (most useful for CodeRabbit)
 /get-gh-comments 123 --reviewer coderabbitai[bot] --latest-actionable --unresolved-only
 
-# Get unresolved comments from latest human review
+# Get unresolved comments from latest actionable human review
 /get-gh-comments 123 --reviewer rahulkarajgikar --latest-actionable --unresolved-only
 
 # Show help
@@ -40,7 +40,7 @@ Extract and filter GitHub review comments from Dexto pull requests with support 
 ## Available Options
 
 ### Reviewer Filter
-- `--reviewer LOGIN_ID`: Filter by specific reviewer (e.g., `coderabbitai[bot]`, `rahulkarajgikar`)
+- `--reviewer LOGIN_ID`: Filter by specific reviewer (e.g., `coderabbitai[bot]`, `rahulkarajgikar`, `shaunak99`)
 
 ### Flags (combinable)
 - `--latest-only`: Latest review by timestamp (most recent)
