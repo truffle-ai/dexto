@@ -3,7 +3,11 @@ import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
-import { getDextoProjectRoot } from './execution-context.js';
+import {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+} from './execution-context.js';
 
 /**
  * Generic directory walker that searches up the directory tree
@@ -36,16 +40,34 @@ export function walkUpDirectories(
  * @returns Absolute path to the requested location
  */
 export function getDextoPath(type: string, filename?: string, startPath?: string): string {
-    const projectRoot = getDextoProjectRoot(startPath);
+    const context = getExecutionContext(startPath);
 
     let basePath: string;
 
-    if (projectRoot) {
-        // In dexto project: /project/.dexto/logs/
-        basePath = path.join(projectRoot, '.dexto', type);
-    } else {
-        // Global: ~/.dexto/logs/
-        basePath = path.join(homedir(), '.dexto', type);
+    switch (context) {
+        case 'dexto-source': {
+            const sourceRoot = findDextoSourceRoot(startPath);
+            if (!sourceRoot) {
+                throw new Error('Not in dexto source context');
+            }
+            basePath = path.join(sourceRoot, '.dexto', type);
+            break;
+        }
+        case 'dexto-project': {
+            const projectRoot = findDextoProjectRoot(startPath);
+            if (!projectRoot) {
+                throw new Error('Not in dexto project context');
+            }
+            basePath = path.join(projectRoot, '.dexto', type);
+            break;
+        }
+        case 'global-cli': {
+            basePath = path.join(homedir(), '.dexto', type);
+            break;
+        }
+        default: {
+            throw new Error(`Unknown execution context: ${context}`);
+        }
     }
 
     return filename ? path.join(basePath, filename) : basePath;
@@ -161,13 +183,25 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * @returns Absolute path to .env file for saving
  */
 export function getDextoEnvPath(startPath: string = process.cwd()): string {
-    const projectRoot = getDextoProjectRoot(startPath);
+    const context = getExecutionContext(startPath);
 
-    if (projectRoot) {
-        // In dexto project: save to project .env
-        return path.join(projectRoot, '.env');
-    } else {
-        // Global usage: save to ~/.dexto/.env
-        return path.join(homedir(), '.dexto', '.env');
+    switch (context) {
+        case 'dexto-source': {
+            const sourceRoot = findDextoSourceRoot(startPath);
+            if (!sourceRoot) {
+                throw new Error('Not in dexto source context');
+            }
+            return path.join(sourceRoot, '.env');
+        }
+        case 'dexto-project': {
+            const projectRoot = findDextoProjectRoot(startPath);
+            if (!projectRoot) {
+                throw new Error('Not in dexto project context');
+            }
+            return path.join(projectRoot, '.env');
+        }
+        case 'global-cli': {
+            return path.join(homedir(), '.dexto', '.env');
+        }
     }
 }

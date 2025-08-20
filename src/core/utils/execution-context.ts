@@ -7,22 +7,38 @@ import * as path from 'path';
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 
 /**
- * Check if directory has dexto as dependency (MOST RELIABLE)
+ * Check if directory is the dexto source code itself
  * @param dirPath Directory to check
- * @returns True if directory contains dexto as dependency
+ * @returns True if directory contains dexto source (package.name === 'dexto')
  */
-function hasDextoDependency(dirPath: string): boolean {
+function isDextoSourceDirectory(dirPath: string): boolean {
+    const packageJsonPath = path.join(dirPath, 'package.json');
+
+    try {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        return pkg.name === 'dexto';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Check if directory is a project that uses dexto as dependency (but is not dexto source)
+ * @param dirPath Directory to check
+ * @returns True if directory has dexto as dependency but is not dexto source
+ */
+function isDextoProjectDirectory(dirPath: string): boolean {
     const packageJsonPath = path.join(dirPath, 'package.json');
 
     try {
         const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
-        // Case 1: This IS the dexto package itself (source code development)
+        // Not the dexto source itself
         if (pkg.name === 'dexto') {
-            return true;
+            return false;
         }
 
-        // Case 2: Project using dexto as dependency (SDK/CLI in project)
+        // Check if has dexto as dependency
         const allDeps = {
             ...(pkg.dependencies ?? {}),
             ...(pkg.devDependencies ?? {}),
@@ -36,12 +52,21 @@ function hasDextoDependency(dirPath: string): boolean {
 }
 
 /**
- * Get dexto project root (or null if not in project)
+ * Find dexto source root directory
  * @param startPath Starting directory path
- * @returns Project root directory or null
+ * @returns Dexto source root directory or null if not found
  */
-export function getDextoProjectRoot(startPath: string = process.cwd()): string | null {
-    return walkUpDirectories(startPath, hasDextoDependency);
+export function findDextoSourceRoot(startPath: string = process.cwd()): string | null {
+    return walkUpDirectories(startPath, isDextoSourceDirectory);
+}
+
+/**
+ * Find dexto project root directory (projects using dexto as dependency)
+ * @param startPath Starting directory path
+ * @returns Dexto project root directory or null if not found
+ */
+export function findDextoProjectRoot(startPath: string = process.cwd()): string | null {
+    return walkUpDirectories(startPath, isDextoProjectDirectory);
 }
 
 /**
@@ -51,60 +76,15 @@ export function getDextoProjectRoot(startPath: string = process.cwd()): string |
  */
 export function getExecutionContext(startPath: string = process.cwd()): ExecutionContext {
     // Check for Dexto source context first (most specific)
-    if (isDextoSourceCode(startPath)) {
+    if (findDextoSourceRoot(startPath)) {
         return 'dexto-source';
     }
 
     // Check for Dexto project context
-    if (getDextoProjectRoot(startPath)) {
+    if (findDextoProjectRoot(startPath)) {
         return 'dexto-project';
     }
 
     // Default to global CLI context
     return 'global-cli';
-}
-
-/**
- * Check if we're currently in the dexto source code itself
- * @param startPath Starting directory path
- * @returns True if in dexto source code (package.name === 'dexto')
- */
-export function isDextoSourceCode(startPath: string = process.cwd()): boolean {
-    const projectRoot = getDextoProjectRoot(startPath);
-    if (!projectRoot) return false;
-
-    try {
-        const pkg = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf-8'));
-        return pkg.name === 'dexto';
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Check if running in global CLI context (outside any dexto project)
- */
-export function isGlobalCLI(startPath?: string): boolean {
-    return getExecutionContext(startPath) === 'global-cli';
-}
-
-/**
- * Check if running in a dexto project context (not source code)
- */
-export function isDextoProject(startPath?: string): boolean {
-    return getExecutionContext(startPath) === 'dexto-project';
-}
-
-/**
- * Get human-readable context description for logging/debugging
- */
-export function getContextDescription(context: ExecutionContext): string {
-    switch (context) {
-        case 'dexto-source':
-            return 'Dexto source code development';
-        case 'dexto-project':
-            return 'Dexto project';
-        case 'global-cli':
-            return 'Global CLI usage';
-    }
 }

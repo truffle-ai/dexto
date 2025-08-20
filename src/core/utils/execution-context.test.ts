@@ -3,10 +3,8 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import {
     getExecutionContext,
-    isDextoProject,
-    isDextoSourceCode,
-    getDextoProjectRoot,
-    isGlobalCLI,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
 } from './execution-context.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
@@ -55,37 +53,24 @@ describe('Execution Context Detection', () => {
             });
         });
 
-        it('detects project with dexto dependency', () => {
-            const result = isDextoProject(tempDir);
-            expect(result).toBe(true);
-        });
-
-        it('returns correct project root', () => {
-            const result = getDextoProjectRoot(tempDir);
-            expect(result).toBe(tempDir);
-        });
-
-        it('finds project root from nested directory', () => {
-            const nestedDir = path.join(tempDir, 'nested', 'deep');
-            fs.mkdirSync(nestedDir, { recursive: true });
-
-            const result = getDextoProjectRoot(nestedDir);
-            expect(result).toBe(tempDir);
-        });
-
-        it('isDextoSourceCode returns false for project with dexto dependency', () => {
-            const result = isDextoSourceCode(tempDir);
-            expect(result).toBe(false);
-        });
-
         it('getExecutionContext returns dexto-project', () => {
             const result = getExecutionContext(tempDir);
             expect(result).toBe('dexto-project');
         });
 
-        it('isGlobalCLI returns false', () => {
-            const result = isGlobalCLI(tempDir);
-            expect(result).toBe(false);
+        it('findDextoProjectRoot returns correct root from nested directory', () => {
+            // Set up nested directory
+            const nestedDir = path.join(tempDir, 'nested', 'deep');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            const result = findDextoProjectRoot(nestedDir);
+            // Normalize paths for macOS symlink differences (/var vs /private/var)
+            expect(result ? fs.realpathSync(result) : null).toBe(fs.realpathSync(tempDir));
+        });
+
+        it('findDextoSourceRoot returns null for dexto-project context', () => {
+            const result = findDextoSourceRoot(tempDir);
+            expect(result).toBeNull();
         });
     });
 
@@ -97,11 +82,6 @@ describe('Execution Context Detection', () => {
                     devDependencies: { dexto: '^1.0.0' },
                 },
             });
-        });
-
-        it('detects project with dexto devDependency', () => {
-            const result = isDextoProject(tempDir);
-            expect(result).toBe(true);
         });
 
         it('getExecutionContext returns dexto-project', () => {
@@ -120,29 +100,20 @@ describe('Execution Context Detection', () => {
             });
         });
 
-        it('detects dexto source project itself', () => {
-            const result = isDextoProject(tempDir);
-            expect(result).toBe(false); // Should be false because it's source, not a regular project
-        });
-
-        it('returns correct project root for dexto source', () => {
-            const result = getDextoProjectRoot(tempDir);
-            expect(result).toBe(tempDir);
-        });
-
-        it('isDextoSourceCode returns true for dexto source project', () => {
-            const result = isDextoSourceCode(tempDir);
-            expect(result).toBe(true);
-        });
-
         it('getExecutionContext returns dexto-source', () => {
             const result = getExecutionContext(tempDir);
             expect(result).toBe('dexto-source');
         });
 
-        it('isGlobalCLI returns false', () => {
-            const result = isGlobalCLI(tempDir);
-            expect(result).toBe(false);
+        it('findDextoSourceRoot returns correct root', () => {
+            const result = findDextoSourceRoot(tempDir);
+            // Normalize paths for macOS symlink differences (/var vs /private/var)
+            expect(result ? fs.realpathSync(result) : null).toBe(fs.realpathSync(tempDir));
+        });
+
+        it('findDextoProjectRoot returns null for dexto-source context', () => {
+            const result = findDextoProjectRoot(tempDir);
+            expect(result).toBeNull();
         });
     });
 
@@ -156,29 +127,19 @@ describe('Execution Context Detection', () => {
             });
         });
 
-        it('returns false for non-dexto project', () => {
-            const result = isDextoProject(tempDir);
-            expect(result).toBe(false);
-        });
-
-        it('isDextoSourceCode returns false for non-dexto project', () => {
-            const result = isDextoSourceCode(tempDir);
-            expect(result).toBe(false);
-        });
-
-        it('returns null for non-dexto project root', () => {
-            const result = getDextoProjectRoot(tempDir);
-            expect(result).toBeNull();
-        });
-
         it('getExecutionContext returns global-cli', () => {
             const result = getExecutionContext(tempDir);
             expect(result).toBe('global-cli');
         });
 
-        it('isGlobalCLI returns true', () => {
-            const result = isGlobalCLI(tempDir);
-            expect(result).toBe(true);
+        it('findDextoSourceRoot returns null for global-cli context', () => {
+            const result = findDextoSourceRoot(tempDir);
+            expect(result).toBeNull();
+        });
+
+        it('findDextoProjectRoot returns null for global-cli context', () => {
+            const result = findDextoProjectRoot(tempDir);
+            expect(result).toBeNull();
         });
     });
 
@@ -187,24 +148,14 @@ describe('Execution Context Detection', () => {
             tempDir = createTempDir();
         });
 
-        it('returns false when no package.json exists', () => {
-            const result = isDextoProject(tempDir);
-            expect(result).toBe(false);
-        });
-
-        it('returns null for project root when no package.json', () => {
-            const result = getDextoProjectRoot(tempDir);
-            expect(result).toBeNull();
-        });
-
         it('getExecutionContext returns global-cli', () => {
             const result = getExecutionContext(tempDir);
             expect(result).toBe('global-cli');
         });
 
-        it('isGlobalCLI returns true', () => {
-            const result = isGlobalCLI(tempDir);
-            expect(result).toBe(true);
+        it('find functions return null for non-dexto directories', () => {
+            expect(findDextoSourceRoot(tempDir)).toBeNull();
+            expect(findDextoProjectRoot(tempDir)).toBeNull();
         });
     });
 });

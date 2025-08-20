@@ -29,6 +29,27 @@
 - ✅ DO: Configure via config file for normal operation
 - ❌ DON'T: Add every internal dependency to override options
 
+### Execution Context Detection
+Dexto automatically detects execution environment to enable context-aware behavior. Functions that vary by context should infer execution context or use context-aware helpers.
+
+**Context Types:**
+- **`dexto-source`** - Running within dexto's own source code (package.name === 'dexto')
+- **`dexto-project`** - Running in a project that depends on dexto (has dexto in dependencies)
+- **`global-cli`** - Running as global CLI or in non-dexto project
+
+**Usage Patterns:**
+- Path resolution: `src/core/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
+- Environment loading: `src/core/utils/env.ts` - `loadEnvironmentVariables()`
+- Agent resolution: `src/core/config/agent-resolver.ts` - context-specific defaults
+- API key setup: `src/app/cli/utils/api-key-setup.ts` - context-aware instructions
+
+**Key Functions (`src/core/utils/execution-context.ts`):**
+- `getExecutionContext(startPath?)` - Detect context from directory
+- `findDextoSourceRoot(startPath?)` - Find dexto source directory (null if not found)
+- `findDextoProjectRoot(startPath?)` - Find dexto project directory (null if not found)
+- `getDextoPath(type, filename?, startPath?)` - Context-aware path resolution
+- `getDextoGlobalPath(type, filename?)` - Always returns global ~/.dexto paths
+
 ### Schema Design (Zod)
 - **Always use `.strict()`** for configuration objects - Prevents typos and unknown fields
 - **Prefer `discriminatedUnion` over `union`** - Clearer error messages with discriminator field

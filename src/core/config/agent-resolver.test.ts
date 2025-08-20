@@ -20,7 +20,8 @@ vi.mock('@core/logger/index.js', () => ({
 }));
 
 const mockGetExecutionContext = vi.fn();
-const mockGetDextoProjectRoot = vi.fn();
+const mockFindDextoSourceRoot = vi.fn();
+const mockFindDextoProjectRoot = vi.fn();
 const mockGlobalPreferencesExist = vi.fn();
 const mockLoadGlobalPreferences = vi.fn();
 const mockUpdateGlobalPreferences = vi.fn();
@@ -28,8 +29,10 @@ const mockGetAgentRegistry = vi.fn();
 // Import mocked modules
 vi.mocked(await import('@core/utils/execution-context.js')).getExecutionContext =
     mockGetExecutionContext;
-vi.mocked(await import('@core/utils/execution-context.js')).getDextoProjectRoot =
-    mockGetDextoProjectRoot;
+vi.mocked(await import('@core/utils/execution-context.js')).findDextoSourceRoot =
+    mockFindDextoSourceRoot;
+vi.mocked(await import('@core/utils/execution-context.js')).findDextoProjectRoot =
+    mockFindDextoProjectRoot;
 vi.mocked(await import('@core/preferences/loader.js')).globalPreferencesExist =
     mockGlobalPreferencesExist;
 vi.mocked(await import('@core/preferences/loader.js')).loadGlobalPreferences =
@@ -143,22 +146,20 @@ describe('Agent Resolver', () => {
     describe('resolveAgentPath - Default Resolution - Dexto Source Context', () => {
         beforeEach(() => {
             mockGetExecutionContext.mockReturnValue('dexto-source');
+            mockFindDextoSourceRoot.mockReturnValue(tempDir);
         });
 
         it('resolves bundled agent when exists', async () => {
-            const bundledPath = path.resolve('agents/default-agent.yml');
-
-            // Mock fs.access to succeed
-            vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+            const bundledPath = path.join(tempDir, 'agents', 'default-agent.yml');
+            await fs.mkdir(path.join(tempDir, 'agents'), { recursive: true });
+            await fs.writeFile(bundledPath, 'test: config');
 
             const result = await resolveAgentPath();
             expect(result).toBe(bundledPath);
         });
 
         it('throws ConfigError.bundledNotFound when bundled agent missing', async () => {
-            // Mock fs.access to fail
-            vi.spyOn(fs, 'access').mockRejectedValue(new Error('File not found'));
-
+            // Don't create the bundled agent file
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.BUNDLED_NOT_FOUND,
@@ -172,7 +173,7 @@ describe('Agent Resolver', () => {
     describe('resolveAgentPath - Default Resolution - Dexto Project Context', () => {
         beforeEach(() => {
             mockGetExecutionContext.mockReturnValue('dexto-project');
-            mockGetDextoProjectRoot.mockReturnValue(tempDir);
+            mockFindDextoProjectRoot.mockReturnValue(tempDir);
         });
 
         it('uses project-local default-agent.yml when exists', async () => {
@@ -194,7 +195,7 @@ describe('Agent Resolver', () => {
         });
 
         it('falls back to preferences when no project default', async () => {
-            // No project default file
+            // No project default file (don't create the file)
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: true },

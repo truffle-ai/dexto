@@ -3,9 +3,12 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { isPath } from '@core/utils/path.js';
-import { getDextoProjectRoot } from '@core/utils/execution-context.js';
+import {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+} from '@core/utils/execution-context.js';
 import { loadGlobalPreferences, globalPreferencesExist } from '@core/preferences/loader.js';
-import { getExecutionContext } from '@core/utils/execution-context.js';
 import { logger } from '@core/logger/index.js';
 import { ConfigError } from './errors.js';
 
@@ -76,9 +79,12 @@ async function resolveDefaultAgentByContext(
  * Resolution for Dexto source code context - bundled default only
  */
 async function resolveDefaultAgentForDextoSource(): Promise<string> {
-    // Resolve relative to the dexto project root, not the current working directory
-    const projectRoot = getDextoProjectRoot() || process.cwd();
-    const bundledPath = path.join(projectRoot, 'agents', 'default-agent.yml');
+    // Get the dexto source root directory
+    const sourceRoot = findDextoSourceRoot();
+    if (!sourceRoot) {
+        throw ConfigError.bundledNotFound('dexto source directory not found');
+    }
+    const bundledPath = path.join(sourceRoot, 'agents', 'default-agent.yml');
 
     try {
         await fs.access(bundledPath);
@@ -95,10 +101,14 @@ async function resolveDefaultAgentForDextoProject(
     autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
-    const projectRoot = getDextoProjectRoot()!;
+    // Get the dexto project root directory
+    const projectRoot = findDextoProjectRoot();
+    if (!projectRoot) {
+        throw ConfigError.noProjectDefault('Project root not found');
+    }
 
     // 1. Try project-local default-agent.yml first
-    // TODO: Expand this to have project level configurable defaults/settings as well
+    // TODO: Expand this to have project level configurable defaults/settings as well. Could set this in dexto.config.ts or something similar and read from there
     const projectDefaultPath = path.join(projectRoot, 'default-agent.yml');
     try {
         await fs.access(projectDefaultPath);

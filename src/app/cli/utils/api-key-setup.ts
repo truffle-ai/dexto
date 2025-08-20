@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { LLMProvider, logger } from '@core/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { getDextoEnvPath } from '@core/utils/path.js';
-import { isGlobalCLI } from '@core/utils/execution-context.js';
+import { getExecutionContext } from '@core/utils/execution-context.js';
 import { updateEnvFileWithLLMKeys } from './env-utils.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import {
@@ -114,7 +114,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             // Provide context-aware manual setup instructions
             let instructions: string;
 
-            if (isGlobalCLI()) {
+            if (getExecutionContext() === 'global-cli') {
                 instructions =
                     `1. Create ~/.dexto/.env file\n` +
                     `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
@@ -150,18 +150,19 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
  * Shows manual setup instructions to the user
  */
 function showManualSetupInstructions(): void {
-    const envInstructions = isGlobalCLI()
-        ? [
-              `${chalk.bold('2. Recommended: Use dexto setup (easiest):')}`,
-              `   dexto setup`,
-              ``,
-              `${chalk.bold('Or manually create ~/.dexto/.env:')}`,
-              `   mkdir -p ~/.dexto && echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > ~/.dexto/.env`,
-          ]
-        : [
-              `${chalk.bold('2. Create a .env file in your project:')}`,
-              `   echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > .env`,
-          ];
+    const envInstructions =
+        getExecutionContext() === 'global-cli'
+            ? [
+                  `${chalk.bold('2. Recommended: Use dexto setup (easiest):')}`,
+                  `   dexto setup`,
+                  ``,
+                  `${chalk.bold('Or manually create ~/.dexto/.env:')}`,
+                  `   mkdir -p ~/.dexto && echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > ~/.dexto/.env`,
+              ]
+            : [
+                  `${chalk.bold('2. Create a .env file in your project:')}`,
+                  `   echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > .env`,
+              ];
 
     const instructions = [
         `${chalk.bold('1. Get an API key:')}`,
