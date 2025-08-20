@@ -44,7 +44,7 @@ export async function resolveAgentPath(
 }
 
 /**
- * Resolve default agent based on execution context - no fallbacks, fail fast
+ * Resolve default agent based on execution context
  */
 async function resolveDefaultAgentByContext(injectPreferences: boolean = true): Promise<string> {
     const executionContext = getExecutionContext();
@@ -65,7 +65,7 @@ async function resolveDefaultAgentByContext(injectPreferences: boolean = true): 
 }
 
 /**
- * Resolution for Dexto source code context - bundled default only, no fallbacks
+ * Resolution for Dexto source code context - bundled default only
  */
 async function resolveDefaultAgentForDextoSource(): Promise<string> {
     const bundledPath = path.resolve('agents/default-agent.yml');
@@ -79,7 +79,7 @@ async function resolveDefaultAgentForDextoSource(): Promise<string> {
 }
 
 /**
- * Resolution for Dexto project context - project default OR preferences default, no fallbacks
+ * Resolution for Dexto project context - project default OR preferences default
  */
 async function resolveDefaultAgentForDextoProject(
     injectPreferences: boolean = true
@@ -114,7 +114,7 @@ async function resolveDefaultAgentForDextoProject(
 }
 
 /**
- * Resolution for Global CLI context - preferences default REQUIRED, no fallbacks
+ * Resolution for Global CLI context - preferences default REQUIRED
  */
 async function resolveDefaultAgentForGlobalCLI(injectPreferences: boolean = true): Promise<string> {
     if (!globalPreferencesExist()) {
