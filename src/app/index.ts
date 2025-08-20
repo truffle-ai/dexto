@@ -68,6 +68,10 @@ program
     .description('AI-powered CLI and WebUI for interacting with MCP servers')
     .version(pkg.version, '-v, --version', 'output the current version')
     .option('-a, --agent <name|path>', 'Agent name or path to agent config file')
+    .option(
+        '-p, --prompt <text>',
+        'One-shot prompt text. Alternatively provide a single quoted string as positional argument.'
+    )
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('-m, --model <model>', 'Specify the LLM model to use')
