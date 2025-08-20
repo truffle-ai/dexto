@@ -7,28 +7,44 @@ allowed-tools: ["bash", "read"]
 
 Extract and filter GitHub review comments from Dexto pull requests with support for any reviewer.
 
-!./scripts/extract-review-comments.sh truffle-ai/dexto $ARGUMENTS
+I'll parse your request and call the appropriate script with the right parameters. You can use natural language like:
+- "for PR 293 from rahulkarajgikar" 
+- "get unresolved comments from latest CodeRabbit review on PR 456"
+- "show all comments from PR 123"
 
-## Usage Examples
+The script I'll use: `./scripts/extract-review-comments.sh truffle-ai/dexto [PR_NUMBER] [OPTIONS]`
+
+## Natural Language Examples
+
+```bash
+# Use natural language - Claude will parse these intelligently!
+/get-gh-comments for PR 293 from rahulkarajgikar
+/get-gh-comments unresolved comments from latest CodeRabbit review on PR 456  
+/get-gh-comments show all comments from PR 123
+/get-gh-comments latest actionable review from PR 789
+/get-gh-comments get PR 555 comments from coderabbitai that are unresolved
+```
+
+## Traditional Flag Examples
 
 ```bash
 # Get all review comments from PR #123
 /get-gh-comments 123
 
-# Get CodeRabbit comments only
-/get-gh-comments 123 --reviewer coderabbitai[bot]
+# Get CodeRabbit comments only - uses quotes to avoid parsing issues in shell
+/get-gh-comments 123 --reviewer "coderabbitai[bot]"
 
 # Get human reviewer comments  
 /get-gh-comments 123 --reviewer rahulkarajgikar
 
-# Get latest actionable review from CodeRabbit (substantial feedback)
-/get-gh-comments 123 --reviewer coderabbitai[bot] --latest-actionable
+# Get latest actionable review from CodeRabbit (substantial feedback) - quotes to avoid issues in shell
+/get-gh-comments 123 --reviewer "coderabbitai[bot]" --latest-actionable
 
 # Get all unresolved comments from any reviewer
 /get-gh-comments 123 --unresolved-only
 
 # Get unresolved comments from latest actionable review (most useful for CodeRabbit)
-/get-gh-comments 123 --reviewer coderabbitai[bot] --latest-actionable --unresolved-only
+/get-gh-comments 123 --reviewer "coderabbitai[bot]" --latest-actionable --unresolved-only
 
 # Get unresolved comments from latest actionable human review
 /get-gh-comments 123 --reviewer rahulkarajgikar --latest-actionable --unresolved-only
@@ -36,6 +52,11 @@ Extract and filter GitHub review comments from Dexto pull requests with support 
 # Show help
 /get-gh-comments 123 --help
 ```
+
+## Defaults
+
+If user doesn't specify, prefer unresolved only. No point in looking at resolved comments generally
+If user doesn't specify to use the latest only, run script with both --latest-actionable and without, and consolidate the two to give a meaningful response
 
 ## Available Options
 
@@ -51,7 +72,7 @@ Extract and filter GitHub review comments from Dexto pull requests with support 
 
 **Focus on CodeRabbit's current feedback:**
 ```bash
-/get-gh-comments 456 --reviewer coderabbitai[bot] --latest-actionable --unresolved-only
+/get-gh-comments 456 --reviewer "coderabbitai[bot]" --latest-actionable --unresolved-only
 ```
 
 **Check all unresolved issues:**
@@ -66,7 +87,7 @@ Extract and filter GitHub review comments from Dexto pull requests with support 
 
 **See all feedback from a specific reviewer:**
 ```bash
-/get-gh-comments 456 --reviewer coderabbitai[bot]
+/get-gh-comments 456 --reviewer "coderabbitai[bot]"
 ```
 
 ## Requirements
@@ -80,3 +101,17 @@ Extract and filter GitHub review comments from Dexto pull requests with support 
 - **Actionable Reviews**: Reviews with top-level summaries (body content), typically containing substantial feedback
 - **Resolution Status**: Uses GitHub's review thread resolution system
 - **Reviewer IDs**: Use GitHub login names (bot accounts include `[bot]` suffix)
+
+
+## Responding back to user
+
+While responding back to the user, mention the following information:
+- Number of total comments (would be at the bottom of the script response)
+
+Then for each comment, mention:
+- The number of the comment
+- The line number of the comment
+- High level information about what the comment is
+- Potential fix: keep this short about what needs to be done to fix it
+
+This keeps the response concise for the user while also informing them of the essentials
