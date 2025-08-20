@@ -2,7 +2,12 @@
 
 import chalk from 'chalk';
 import { z } from 'zod';
-import { getDefaultModelForProvider, LLM_PROVIDERS } from '@core/llm/registry.js';
+import {
+    getDefaultModelForProvider,
+    LLM_PROVIDERS,
+    isValidProviderModel,
+    getSupportedModels,
+} from '@core/llm/registry.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { createInitialPreferences, saveGlobalPreferences } from '@core/preferences/loader.js';
 import { interactiveApiKeySetup } from '@app/cli/utils/api-key-setup.js';
@@ -14,7 +19,7 @@ import { logger } from '@core/index.js';
 // Zod schema for setup command validation
 const SetupCommandSchema = z
     .object({
-        llmProvider: z.enum(LLM_PROVIDERS).optional(),
+        provider: z.enum(LLM_PROVIDERS).optional(),
         model: z.string().min(1, 'Model name cannot be empty').optional(),
         defaultAgent: z
             .string()
@@ -23,7 +28,20 @@ const SetupCommandSchema = z
         interactive: z.boolean().default(true),
         force: z.boolean().default(false),
     })
-    .strict();
+    .strict()
+    .superRefine((data, ctx) => {
+        // Validate model against provider when both are provided
+        if (data.provider && data.model) {
+            if (!isValidProviderModel(data.provider, data.model)) {
+                const supportedModels = getSupportedModels(data.provider);
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['model'],
+                    message: `Model '${data.model}' is not supported by provider '${data.provider}'. Supported models: ${supportedModels.join(', ')}`,
+                });
+            }
+        }
+    });
 
 export type CLISetupOptions = z.output<typeof SetupCommandSchema>;
 export type CLISetupOptionsInput = z.input<typeof SetupCommandSchema>;
@@ -36,7 +54,7 @@ function validateSetupCommand(options: Partial<CLISetupOptionsInput>): CLISetupO
     const validated = SetupCommandSchema.parse(options);
 
     // Business logic validation
-    if (!validated.interactive && !validated.llmProvider) {
+    if (!validated.interactive && !validated.provider) {
         throw new Error('Provider required in non-interactive mode. Use --provider option.');
     }
 
@@ -46,6 +64,7 @@ function validateSetupCommand(options: Partial<CLISetupOptionsInput>): CLISetupO
 export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>): Promise<void> {
     // Validate command with Zod
     const validated = validateSetupCommand(options);
+    logger.debug(`Validated setup command options: ${JSON.stringify(validated, null, 2)}`);
 
     // Check if setup is already complete and handle accordingly
     const needsSetup = await requiresSetup();
@@ -92,7 +111,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     console.log(chalk.cyan('\n🎉 Setting up Dexto...\n'));
 
     // Determine provider (interactive or from options)
-    let provider = validated.llmProvider;
+    let provider = validated.provider;
     if (!provider) {
         provider = await selectProvider();
     }

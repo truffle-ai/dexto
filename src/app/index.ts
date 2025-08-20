@@ -68,7 +68,7 @@ program
     .option('-a, --agent <name|path>', 'Agent name or path to agent config file')
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
-    .option('-m, --model <model>', 'Specify the LLM model to use. ')
+    .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('-r, --router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--new-session [sessionId]', 'Start with a new session (optionally specify session ID)')
     .option(
@@ -76,7 +76,8 @@ program
         'The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp',
         'cli'
     )
-    .option('--web-port <port>', 'optional port for the web UI', '3000');
+    .option('--web-port <port>', 'optional port for the web UI', '3000')
+    .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
 program

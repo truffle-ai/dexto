@@ -58,6 +58,12 @@ export async function loadGlobalPreferences(): Promise<GlobalPreferences> {
 export async function saveGlobalPreferences(preferences: GlobalPreferences): Promise<void> {
     const preferencesPath = getDextoGlobalPath(PREFERENCES_FILE);
 
+    // Validate preferences against schema before saving
+    const validation = GlobalPreferencesSchema.safeParse(preferences);
+    if (!validation.success) {
+        throw PreferenceError.validationFailed(validation.error);
+    }
+
     try {
         logger.info(`Saving global preferences to: ${preferencesPath}`);
         // Ensure ~/.dexto directory exists

@@ -112,7 +112,7 @@ describe('Setup Command', () => {
     describe('Non-interactive setup', () => {
         it('creates preferences with provided options', async () => {
             const options: CLISetupOptionsInput = {
-                llmProvider: 'openai',
+                provider: 'openai',
                 model: 'gpt-4o',
                 defaultAgent: 'my-agent',
                 interactive: false,
