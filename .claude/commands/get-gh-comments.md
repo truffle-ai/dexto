@@ -97,6 +97,8 @@ Recommended approach:
 - `--latest-actionable`: Latest review with substantial feedback (has top-level summary)  
 - `--unresolved-only`: Only comments that haven't been resolved
 
+*Note*: `--latest-only` and `--latest-actionable` are mutually exclusive. The script uses an `elif` structure where `--latest-actionable` takes precedence if both are provided.
+
 ## Common Workflows
 
 **Focus on CodeRabbit's current feedback (paginated):**
@@ -158,3 +160,24 @@ Then for each comment, mention:
 - Your assessment: whether the fix is actually needed or if current code is correct
 
 This keeps the response concise for the user while also informing them of the essentials
+
+## Handling Incorrect CodeRabbit Comments
+
+When CodeRabbit comments are **incorrect** or based on outdated analysis:
+
+1. **Provide the GitHub links** for manual resolution as invalid
+2. **Explain why the comment is wrong** briefly  
+3. **Group them clearly**:
+
+```
+## Comments to Manually Resolve (CodeRabbit was wrong)
+
+1. **Total count output** - https://github.com/truffle-ai/dexto/pull/293#discussion_r2288992034
+   INCORRECT: Script already displays total counts properly
+
+2. **GraphQL -F flag** - https://github.com/truffle-ai/dexto/pull/293#discussion_r2289006182
+   INCORRECT: -F is correct for integer parameters, -f is for strings
+
+## Valid Comments Still Needing Fixes
+[List the legitimate issues with their links]
+```

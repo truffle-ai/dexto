@@ -60,9 +60,42 @@ export async function writeLLMPreferences(
     preferences: GlobalPreferences,
     overrides?: LLMOverrides
 ): Promise<void> {
-    // Load raw config
-    const fileContent = await fs.readFile(configPath, 'utf-8');
-    const config = parseYaml(fileContent);
+    logger.debug(`Writing LLM preferences to: ${configPath}`, {
+        provider: overrides?.provider ?? preferences.llm.provider,
+        model: overrides?.model ?? preferences.llm.model,
+        hasApiKeyOverride: Boolean(overrides?.apiKey),
+        hasPreferenceApiKey: Boolean(preferences.llm.apiKey),
+    });
+
+    // Load raw config with proper error mapping
+    logger.debug(`Reading config file: ${configPath}`);
+    let fileContent: string;
+    try {
+        fileContent = await fs.readFile(configPath, 'utf-8');
+        logger.debug(`Successfully read config file (${fileContent.length} chars)`);
+    } catch (error) {
+        logger.error(`Failed to read config file: ${configPath}`, { error });
+        throw ConfigError.fileReadError(
+            configPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+    // TODO: Use proper typing - raw YAML parsing should be decoupled from schema validation
+    let config: AgentConfig;
+    try {
+        config = parseYaml(fileContent) as AgentConfig;
+        logger.debug(`Successfully parsed YAML config`, {
+            hasLlmSection: Boolean(config.llm),
+            existingProvider: config.llm?.provider,
+            existingModel: config.llm?.model,
+        });
+    } catch (error) {
+        logger.error(`Failed to parse YAML config: ${configPath}`, { error });
+        throw ConfigError.parseError(
+            configPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
 
     // Determine final values (precedence: CLI > preferences > agent defaults)
     const provider = overrides?.provider ?? preferences.llm.provider;
@@ -72,10 +105,6 @@ export async function writeLLMPreferences(
     // Note: provider+model validation already handled in preference schema
 
     // Write only core LLM fields, preserve agent-specific settings
-    if (!config.llm) {
-        config.llm = {};
-    }
-
     config.llm = {
         ...config.llm, // Preserve temperature, router, maxTokens, etc.
         provider, // Write user preference
@@ -85,7 +114,7 @@ export async function writeLLMPreferences(
 
     // Write back to file using the shared writeConfigFile function
     // Type assertion is safe: we read a valid config and only modified the LLM section
-    await writeConfigFile(configPath, config as AgentConfig);
+    await writeConfigFile(configPath, config);
 
     logger.info(`✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${model})`);
 }
@@ -101,15 +130,23 @@ export async function writePreferencesToAgent(
     preferences: GlobalPreferences,
     overrides?: LLMOverrides
 ): Promise<void> {
-    const stat = await fs.stat(installedPath);
+    let stat;
+    try {
+        stat = await fs.stat(installedPath);
+    } catch (error) {
+        throw ConfigError.fileReadError(
+            installedPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
 
     if (stat.isFile()) {
         // Single file agent - write directly
         if (installedPath.endsWith('.yml') || installedPath.endsWith('.yaml')) {
             await writeLLMPreferences(installedPath, preferences, overrides);
-            logger.info(`✓ Applied preferences to: ${path.basename(installedPath)}`);
+            logger.info(`✓ Applied preferences to: ${path.basename(installedPath)}`, null, 'green');
         } else {
-            logger.warn(`Skipping non-YAML file: ${installedPath}`);
+            logger.warn(`Skipping non-YAML file: ${installedPath}`, null, 'yellow');
         }
     } else if (stat.isDirectory()) {
         // Directory-based agent - write to all .yml files
