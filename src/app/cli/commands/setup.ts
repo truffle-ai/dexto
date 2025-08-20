@@ -21,7 +21,7 @@ const SetupCommandSchema = z
     })
     .strict();
 
-export type CLISetupOptions = z.infer<typeof SetupCommandSchema>;
+export type CLISetupOptions = z.output<typeof SetupCommandSchema>;
 
 /**
  * Validate setup command options with comprehensive validation

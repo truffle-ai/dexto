@@ -63,7 +63,7 @@ describe('Install Command', () => {
     describe('Validation', () => {
         it('throws error when no agents specified and all flag is false', async () => {
             await expect(handleInstallCommand([], {})).rejects.toThrow(
-                'No agents specified. Use agent names or --all flag.'
+                'No agents specified. Use agent names or --all flag. Run dexto list-agents to see available agents.'
             );
         });
 

@@ -16,7 +16,7 @@ const InstallCommandSchema = z
     })
     .strict();
 
-export type InstallCommandOptions = z.infer<typeof InstallCommandSchema>;
+export type InstallCommandOptions = z.output<typeof InstallCommandSchema>;
 
 /**
  * Validate install command arguments with registry-aware validation
@@ -35,14 +35,16 @@ function validateInstallCommand(
 
     // Business logic validation
     if (!validated.all && validated.agents.length === 0) {
-        throw new Error('No agents specified. Use agent names or --all flag.');
+        throw new Error(
+            'No agents specified. Use agent names or --all flag. Run dexto list-agents to see available agents.'
+        );
     }
 
     if (!validated.all) {
         // Validate all specified agents exist in registry
         const invalidAgents = validated.agents.filter((agent) => !registry.hasAgent(agent));
         if (invalidAgents.length > 0) {
-            const available = registry.getAvailableAgents();
+            const available = Object.keys(registry.getAvailableAgents());
             throw new Error(
                 `Unknown agents: ${invalidAgents.join(', ')}. ` +
                     `Available agents: ${available.join(', ')}`
@@ -64,7 +66,7 @@ export async function handleInstallCommand(
     // Determine which agents to install
     let agentsToInstall: string[];
     if (validated.all) {
-        agentsToInstall = registry.getAvailableAgents();
+        agentsToInstall = Object.keys(registry.getAvailableAgents());
         console.log(`📋 Installing all ${agentsToInstall.length} available agents...`);
     } else {
         agentsToInstall = validated.agents;

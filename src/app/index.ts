@@ -46,6 +46,9 @@ import {
     type CLISetupOptions,
     handleInstallCommand,
     type InstallCommandOptions,
+    handleListAgentsCommand,
+    type ListAgentsCommandOptions,
+    handleWhichCommand,
 } from './cli/commands/index.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
@@ -180,7 +183,38 @@ program
         }
     });
 
-// 6) `mcp` SUB-COMMAND
+// 6) `list-agents` SUB-COMMAND
+program
+    .command('list-agents')
+    .description('List available and installed agents')
+    .option('--verbose', 'Show detailed agent information')
+    .option('--installed', 'Show only installed agents')
+    .option('--available', 'Show only available agents')
+    .action(async (options: Partial<ListAgentsCommandOptions>) => {
+        try {
+            await handleListAgentsCommand(options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto list-agents command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 7) `which` SUB-COMMAND
+program
+    .command('which <agent>')
+    .description('Show the path to an agent')
+    .action(async (agent: string) => {
+        try {
+            await handleWhichCommand(agent);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto which command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 8) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -253,7 +287,7 @@ program
         }
     });
 
-// 7) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 9) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -353,7 +387,7 @@ program
                         console.error(`❌ Agent '${opts.agent}' not found in registry`);
 
                         // Show available agents
-                        const available = registry.getAvailableAgents();
+                        const available = Object.keys(registry.getAvailableAgents());
                         if (available.length > 0) {
                             console.log(`📋 Available agents: ${available.join(', ')}`);
                         } else {
@@ -565,5 +599,5 @@ program
         }
     });
 
-// 8) PARSE & EXECUTE
+// 10) PARSE & EXECUTE
 program.parseAsync(process.argv);

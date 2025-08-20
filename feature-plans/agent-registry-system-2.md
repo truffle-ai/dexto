@@ -329,10 +329,10 @@ loadAgentConfig(nameOrPath) {
 - [x] **4.3 Test project workflows** - Ensure consistent naming doesn't break development
 
 ### Phase 5: Enhanced CLI Commands
-- [ ] **5.1 Add dexto install command** - Explicit bulk installation with preference control
-- [ ] **5.2 Add dexto update-agent command** - Interactive CLI to update any part of agent (initially: reapply preferences)
-- [ ] **5.3 Enhance list-agents command** - Show installation and preference status
-- [ ] **5.4 Add which command** - Debug resolution with preference info
+- [x] **5.1 Add dexto install command** - Explicit bulk installation with preference control (was already implemented)
+- [ ] **5.2 Add dexto update-agent command** - Interactive CLI to update any part of agent (initially: reapply preferences). Optional for now.
+- [x] **5.3 add dexto list-agents command** - Show installation and preference status with file system timestamp tracking
+- [x] **5.4 Add dexto which command** - Debug resolution with preference info
 
 ### Phase 6: Testing & Migration  
 - [ ] **6.1 Cross-platform testing** - Windows, Mac, Linux path handling

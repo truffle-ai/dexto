@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Schema for agent data in registry JSON
  */
-export const RawAgentDataSchema = z
+export const AgentRegistryEntrySchema = z
     .object({
         description: z.string(),
         author: z.string(),
@@ -13,7 +13,7 @@ export const RawAgentDataSchema = z
     })
     .strict();
 
-export type RawAgentData = z.output<typeof RawAgentDataSchema>;
+export type AgentRegistryEntry = z.output<typeof AgentRegistryEntrySchema>;
 
 /**
  * Schema for complete registry JSON
@@ -21,7 +21,7 @@ export type RawAgentData = z.output<typeof RawAgentDataSchema>;
 export const RegistrySchema = z
     .object({
         version: z.string(),
-        agents: z.record(z.string(), RawAgentDataSchema),
+        agents: z.record(z.string(), AgentRegistryEntrySchema),
     })
     .strict();
 

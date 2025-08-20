@@ -12,3 +12,5 @@ export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app
 
 export { handleSetupCommand, type CLISetupOptions } from './setup.js';
 export { handleInstallCommand, type InstallCommandOptions } from './install.js';
+export { handleListAgentsCommand, type ListAgentsCommandOptions } from './list-agents.js';
+export { handleWhichCommand, type WhichCommandOptions } from './which.js';

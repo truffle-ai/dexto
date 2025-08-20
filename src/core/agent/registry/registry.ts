@@ -5,7 +5,7 @@ import { logger } from '@core/logger/index.js';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
 import { loadGlobalPreferences } from '@core/preferences/loader.js';
 import { writePreferencesToAgent } from '@core/config/writer.js';
-import { Registry, RegistrySchema, AgentRegistry } from './types.js';
+import { Registry, RegistrySchema, AgentRegistry, AgentRegistryEntry } from './types.js';
 import { RegistryError } from './errors.js';
 
 // Cached registry instance
@@ -20,7 +20,7 @@ export class LocalAgentRegistry implements AgentRegistry {
     /**
      * Lazy load registry from JSON file
      */
-    private getRegistry(): Registry {
+    getRegistry(): Registry {
         if (this._registry === null) {
             this._registry = this.loadRegistry();
         }
@@ -64,11 +64,11 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
-     * Get list of available agent names in registry
+     * Get available agents with their metadata from registry
      */
-    getAvailableAgents(): string[] {
+    getAvailableAgents(): Record<string, AgentRegistryEntry> {
         const registry = this.getRegistry();
-        return Object.keys(registry.agents);
+        return registry.agents;
     }
 
     /**
