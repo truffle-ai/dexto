@@ -63,7 +63,7 @@ OFFSET="0"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --reviewer)
-            if [ -z "$2" ]; then
+            if [ -z "$2" ] || [[ "$2" == --* || "$2" == -* ]]; then
                 echo "❌ Error: --reviewer requires a login ID"
                 exit 1
             fi
@@ -170,16 +170,14 @@ TARGET_REVIEW_ID=""
 if [ "$LATEST_ONLY" = true ]; then
     # Get the most recent review by timestamp
     if [ -n "$REVIEWER" ]; then
-        # Filter by specific reviewer
+        # Filter by specific reviewer, then sort to most recent
         TARGET_REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            | jq -r --arg reviewer "$REVIEWER" '.[] | select(.user.login == $reviewer) | .id' \
-            | tail -1)
+            | jq -r --arg reviewer "$REVIEWER" '[.[] | select(.user.login == $reviewer)] | sort_by(.submitted_at // .created_at // .id) | last | .id')
         REVIEWER_DESC=" from $REVIEWER"
     else
-        # Any reviewer
+        # Any reviewer, sort to most recent
         TARGET_REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            | jq -r '.[] | .id' \
-            | tail -1)
+            | jq -r '[.[]] | sort_by(.submitted_at // .created_at // .id) | last | .id')
         REVIEWER_DESC=""
     fi
     
@@ -192,16 +190,14 @@ if [ "$LATEST_ONLY" = true ]; then
 elif [ "$LATEST_ACTIONABLE" = true ]; then
     # Get the most recent review with a body (top-level summary = actionable review)
     if [ -n "$REVIEWER" ]; then
-        # Filter by specific reviewer
+        # Filter by specific reviewer, then sort to most recent actionable
         TARGET_REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            | jq -r --arg reviewer "$REVIEWER" '.[] | select(.user.login == $reviewer and .body != null and .body != "") | .id' \
-            | tail -1)
+            | jq -r --arg reviewer "$REVIEWER" '[.[] | select(.user.login == $reviewer and .body != null and .body != "")] | sort_by(.submitted_at // .created_at // .id) | last | .id')
         REVIEWER_DESC=" from $REVIEWER"
     else
-        # Any reviewer
+        # Any reviewer, most recent actionable
         TARGET_REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            | jq -r '.[] | select(.body != null and .body != "") | .id' \
-            | tail -1)
+            | jq -r '[.[] | select(.body != null and .body != "")] | sort_by(.submitted_at // .created_at // .id) | last | .id')
         REVIEWER_DESC=""
     fi
     
@@ -216,15 +212,15 @@ fi
 if [ -n "$TARGET_REVIEW_ID" ]; then
     # Get comments from specific review (already filtered by reviewer if specified)
     BASE_COMMENTS=$(gh api "repos/$REPO/pulls/$PR_NUMBER/comments" --paginate \
-        | jq --arg review_id "$TARGET_REVIEW_ID" '[.[] | select(.pull_request_review_id == ($review_id | tonumber))]')
+        | jq -s --arg review_id "$TARGET_REVIEW_ID" '[ .[] | .[] | select(.pull_request_review_id == ($review_id | tonumber)) ]')
 else
     # Get all comments, optionally filtered by reviewer
     if [ -n "$REVIEWER" ]; then
         BASE_COMMENTS=$(gh api "repos/$REPO/pulls/$PR_NUMBER/comments" --paginate \
-            | jq --arg reviewer "$REVIEWER" '[.[] | select(.user.login == $reviewer)]')
+            | jq -s --arg reviewer "$REVIEWER" '[ .[] | .[] | select(.user.login == $reviewer) ]')
     else
         BASE_COMMENTS=$(gh api "repos/$REPO/pulls/$PR_NUMBER/comments" --paginate \
-            | jq '[.[] | select(.user.login)]')  # All comments from any reviewer
+            | jq -s '[ .[] | .[] | select(.user.login) ]')  # All comments from any reviewer
     fi
 fi
 
@@ -242,7 +238,7 @@ if [ "$UNRESOLVED_ONLY" = true ]; then
                         nodes {
                             id
                             isResolved
-                            comments(first: 10) {
+                            comments(first: 100) {
                                 nodes {
                                     id
                                     databaseId
