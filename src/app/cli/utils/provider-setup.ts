@@ -69,24 +69,6 @@ export function getProviderDisplayName(provider: LLMProvider): string {
 }
 
 /**
- * Gets API key placeholder for a provider
- */
-export function getApiKeyPlaceholder(provider: LLMProvider): string {
-    switch (provider) {
-        case 'google':
-            return 'AIza...';
-        case 'openai':
-            return 'sk-...';
-        case 'anthropic':
-            return 'sk-ant-...';
-        case 'groq':
-            return 'gsk_...';
-        default:
-            return 'your-api-key';
-    }
-}
-
-/**
  * Validates API key format for a provider
  */
 export function isValidApiKeyFormat(apiKey: string, provider: LLMProvider): boolean {

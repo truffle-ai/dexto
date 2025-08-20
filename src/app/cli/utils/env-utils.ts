@@ -1,6 +1,5 @@
 // src/app/cli/utils/env-utils.ts
 
-import chalk from 'chalk';
 import { logger } from '@core/index.js';
 import { type LLMProvider } from '@core/llm/registry.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';

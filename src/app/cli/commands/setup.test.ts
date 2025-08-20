@@ -132,7 +132,7 @@ describe('Setup Command', () => {
 
         it('uses default model when not specified', async () => {
             const options = {
-                llmProvider: 'anthropic' as const,
+                provider: 'anthropic' as const,
                 interactive: false,
             };
 
@@ -158,7 +158,7 @@ describe('Setup Command', () => {
 
         it('throws error when provider requires specific model but none provided', async () => {
             const options = {
-                llmProvider: 'openai-compatible' as const, // Provider with no default model
+                provider: 'openai-compatible' as const, // Provider with no default model
                 interactive: false,
             };
 
@@ -189,7 +189,7 @@ describe('Setup Command', () => {
 
         it('runs interactive API key setup by default', async () => {
             const options = {
-                llmProvider: 'openai' as const,
+                provider: 'openai' as const,
                 interactive: true,
             };
 
@@ -202,7 +202,7 @@ describe('Setup Command', () => {
     describe('Validation', () => {
         it('validates schema correctly with defaults', async () => {
             const options = {
-                llmProvider: 'google' as const,
+                provider: 'google' as const,
             };
 
             await handleSetupCommand(options);
@@ -218,7 +218,7 @@ describe('Setup Command', () => {
 
         it('throws ZodError for invalid provider', async () => {
             const options = {
-                llmProvider: 'invalid-provider',
+                provider: 'invalid-provider',
                 interactive: false,
             } as any;
 
@@ -227,7 +227,7 @@ describe('Setup Command', () => {
 
         it('throws validation error for empty model name', async () => {
             const options = {
-                llmProvider: 'openai',
+                provider: 'openai',
                 model: '',
                 interactive: false,
             } as any;
@@ -237,7 +237,7 @@ describe('Setup Command', () => {
 
         it('throws validation error for empty default agent', async () => {
             const options = {
-                llmProvider: 'openai',
+                provider: 'openai',
                 defaultAgent: '',
                 interactive: false,
             } as any;
@@ -247,7 +247,7 @@ describe('Setup Command', () => {
 
         it('handles strict mode validation correctly', async () => {
             const options = {
-                llmProvider: 'openai',
+                provider: 'openai',
                 unknownField: 'should-cause-error',
                 interactive: false,
             } as any;
@@ -263,7 +263,7 @@ describe('Setup Command', () => {
             });
 
             const options = {
-                llmProvider: 'openai' as const,
+                provider: 'openai' as const,
                 interactive: false,
             };
 
@@ -284,7 +284,7 @@ describe('Setup Command', () => {
             mockSaveGlobalPreferences.mockRejectedValue(new Error('Failed to save preferences'));
 
             const options = {
-                llmProvider: 'openai' as const,
+                provider: 'openai' as const,
                 interactive: false,
             };
 
@@ -304,7 +304,7 @@ describe('Setup Command', () => {
             mockInteractiveApiKeySetup.mockRejectedValue(new Error('API key setup failed'));
 
             const options = {
-                llmProvider: 'openai' as const,
+                provider: 'openai' as const,
                 interactive: true,
             };
 
@@ -339,7 +339,7 @@ describe('Setup Command', () => {
                 mockInteractiveApiKeySetup.mockClear();
 
                 const options = {
-                    llmProvider: testCase.provider,
+                    provider: testCase.provider,
                     interactive: false,
                 };
 
@@ -365,7 +365,7 @@ describe('Setup Command', () => {
             );
 
             const options = {
-                llmProvider: 'openai' as const,
+                provider: 'openai' as const,
                 model: 'gpt-4o-mini',
                 interactive: false,
             };
@@ -390,7 +390,7 @@ describe('Setup Command', () => {
         describe('Non-interactive re-setup', () => {
             it('errors without --force flag when setup is already complete', async () => {
                 const options = {
-                    llmProvider: 'openai' as const,
+                    provider: 'openai' as const,
                     interactive: false,
                     force: false,
                 };
@@ -407,7 +407,7 @@ describe('Setup Command', () => {
 
             it('proceeds with --force flag when setup is already complete', async () => {
                 const options = {
-                    llmProvider: 'openai' as const,
+                    provider: 'openai' as const,
                     interactive: false,
                     force: true,
                 };
@@ -430,7 +430,7 @@ describe('Setup Command', () => {
                 mockPrompts.confirm.mockResolvedValue(false);
 
                 const options = {
-                    llmProvider: 'openai' as const,
+                    provider: 'openai' as const,
                     interactive: true,
                 };
 
@@ -455,7 +455,7 @@ describe('Setup Command', () => {
                 mockPrompts.confirm.mockResolvedValue(true);
 
                 const options = {
-                    llmProvider: 'openai' as const,
+                    provider: 'openai' as const,
                     interactive: true,
                 };
 
@@ -480,7 +480,7 @@ describe('Setup Command', () => {
                 mockPrompts.isCancel.mockReturnValue(true);
 
                 const options = {
-                    llmProvider: 'openai' as const,
+                    provider: 'openai' as const,
                     interactive: true,
                 };
 
@@ -497,7 +497,7 @@ describe('Setup Command', () => {
             mockRequiresSetup.mockResolvedValue(true);
 
             const options = {
-                llmProvider: 'openai' as const,
+                provider: 'openai' as const,
                 interactive: false,
             };
 

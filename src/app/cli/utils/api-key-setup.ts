@@ -9,7 +9,6 @@ import { updateEnvFileWithLLMKeys } from './env-utils.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import {
     getProviderDisplayName,
-    getApiKeyPlaceholder,
     isValidApiKeyFormat,
     getProviderInstructions,
 } from './provider-setup.js';
@@ -72,19 +71,6 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             process.exit(1);
         }
 
-        // const apiKey = await p.text({
-        //     message: `Enter your ${getProviderDisplayName(provider)} API key`,
-        //     placeholder: getApiKeyPlaceholder(provider),
-        //     validate: (value) => {
-        //         if (!value || value.trim().length === 0) {
-        //             return 'API key is required';
-        //         }
-        //         if (!isValidApiKeyFormat(value.trim(), provider)) {
-        //             return `Invalid ${getProviderDisplayName(provider)} API key format`;
-        //         }
-        //         return undefined;
-        //     },
-        // });
         const apiKey = await p.password({
             message: `Enter your ${getProviderDisplayName(provider)} API key`,
             mask: '*',
