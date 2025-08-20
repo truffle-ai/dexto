@@ -102,6 +102,13 @@ export async function writeLLMPreferences(
     const model = overrides?.model ?? preferences.llm.model;
     const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
 
+    logger.debug(`Applying LLM preferences`, {
+        finalProvider: provider,
+        finalModel: model,
+        hasApiKey: Boolean(apiKey),
+        source: overrides ? 'CLI overrides + preferences' : 'preferences only',
+    });
+
     // Note: provider+model validation already handled in preference schema
 
     // Write only core LLM fields, preserve agent-specific settings
@@ -202,6 +209,7 @@ async function writePreferencesToDirectory(
 
 /**
  * Find all agent configuration files in a directory
+
  */
 async function findAgentConfigFiles(dir: string): Promise<string[]> {
     const configFiles: string[] = [];

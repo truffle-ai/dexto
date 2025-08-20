@@ -38,7 +38,7 @@ export interface AgentRegistry {
     /**
      * Returns a map of available agent names to their registry entries
      */
-    getAvailableAgents(): Record<string, unknown>;
+    getAvailableAgents(): Record<string, AgentRegistryEntry>;
     /**
      * Installs an agent from the registry
      */
@@ -47,6 +47,10 @@ export interface AgentRegistry {
      * Uninstalls an agent
      */
     uninstallAgent(agentName: string, force?: boolean): Promise<void>;
+    /**
+     * Returns list of currently installed agents
+     */
+    getInstalledAgents(): Promise<string[]>;
     /**
      * Resolves and installs/copies the agent; returns the installed path (or main file)
      */
