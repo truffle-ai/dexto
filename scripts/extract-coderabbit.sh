@@ -16,6 +16,7 @@ show_usage() {
     echo ""
     echo "Examples:"
     echo "  $0 truffle-ai/dexto 293                                    # All comments"
+    echo "  $0 truffle-ai/dexto 293 --latest-only                     # Latest review by timestamp"
     echo "  $0 truffle-ai/dexto 293 --latest-actionable               # Latest actionable review"
     echo "  $0 truffle-ai/dexto 293 --unresolved-only                 # All unresolved comments"
     echo "  $0 truffle-ai/dexto 293 --latest-actionable --unresolved-only  # Unresolved from latest actionable"
