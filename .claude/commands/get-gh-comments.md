@@ -122,6 +122,7 @@ Recommended approach:
 ## Requirements
 
 - GitHub CLI (`gh`) must be installed and authenticated
+- `jq` must be installed for JSON processing
 - Access to the target repository
 - PR must have review comments
 
@@ -134,6 +135,15 @@ Recommended approach:
 - **Pagination Navigation**: The script provides ready-to-use commands for next/previous pages
 
 
+## ⚠️ Important: Review Before Acting
+
+**ALWAYS review the comments and current code before making changes!**
+
+1. **Read the comments carefully** - CodeRabbit suggestions may be based on outdated code analysis
+2. **Check if the issue actually exists** - Test current functionality before "fixing" it
+3. **Verify the suggested change is beneficial** - Some suggestions may break working code
+4. **Ask the user for confirmation** if you're unsure about a suggested change
+
 ## Responding back to user
 
 While responding back to the user, mention the following information:
@@ -144,5 +154,6 @@ Then for each comment, mention:
 - The line number of the comment
 - High level information about what the comment is
 - Potential fix: keep this short about what needs to be done to fix it
+- Your assessment: whether the fix is actually needed or if current code is correct
 
 This keeps the response concise for the user while also informing them of the essentials

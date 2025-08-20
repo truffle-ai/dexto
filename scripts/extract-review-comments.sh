@@ -4,6 +4,17 @@
 # Usage: ./extract-review-comments.sh OWNER/REPO PR_NUMBER [--reviewer LOGIN_ID] [FLAGS]
 
 set -e
+set -o pipefail
+
+# Check dependencies early
+if ! command -v gh >/dev/null 2>&1; then
+  echo "❌ Error: GitHub CLI (gh) is required but not installed" >&2
+  exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "❌ Error: jq is required but not installed" >&2
+  exit 1
+fi
 
 # Function to show usage
 show_usage() {
