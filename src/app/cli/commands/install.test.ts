@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { handleInstallCommand } from './install.js';
 
 // Mock the registry module
 vi.mock('@core/agent/registry/registry.js', () => ({
     getAgentRegistry: vi.fn(),
 }));
+
+// Import SUT after mocks
+import { handleInstallCommand } from './install.js';
 
 describe('Install Command', () => {
     let mockRegistry: any;

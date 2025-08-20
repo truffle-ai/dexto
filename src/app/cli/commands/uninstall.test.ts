@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { handleUninstallCommand } from './uninstall.js';
 
 // Mock the registry module
 vi.mock('@core/agent/registry/registry.js', () => ({
     getAgentRegistry: vi.fn(),
 }));
+
+// Import SUT after mocks
+import { handleUninstallCommand } from './uninstall.js';
 
 describe('Uninstall Command', () => {
     let mockRegistry: any;

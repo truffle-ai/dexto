@@ -25,9 +25,12 @@ export async function resolveAgentPath(
     // 1. Handle explicit paths (highest priority)
     if (nameOrPath && isPath(nameOrPath)) {
         const resolved = path.resolve(nameOrPath);
-        // Verify file exists - fail fast if not
+        // Verify an actual file exists - fail fast if not
         try {
-            await fs.access(resolved);
+            const stat = await fs.stat(resolved);
+            if (!stat.isFile()) {
+                throw ConfigError.fileNotFound(resolved);
+            }
             return resolved;
         } catch {
             throw ConfigError.fileNotFound(resolved);
@@ -73,7 +76,9 @@ async function resolveDefaultAgentByContext(
  * Resolution for Dexto source code context - bundled default only
  */
 async function resolveDefaultAgentForDextoSource(): Promise<string> {
-    const bundledPath = path.resolve('agents/default-agent.yml');
+    // Resolve relative to the dexto project root, not the current working directory
+    const projectRoot = getDextoProjectRoot() || process.cwd();
+    const bundledPath = path.join(projectRoot, 'agents', 'default-agent.yml');
 
     try {
         await fs.access(bundledPath);

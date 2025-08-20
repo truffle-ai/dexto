@@ -12,7 +12,7 @@ export function validateCliOptions(opts: any): void {
 
     // Base schema for primitive shape
     const cliOptionShape = z.object({
-        agent: z.string().min(1, 'Agent name or pathmust not be empty').optional(),
+        agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
         strict: z.boolean().optional().default(false),
         verbose: z.boolean().optional().default(true),
         mode: z.enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'], {

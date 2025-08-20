@@ -267,10 +267,13 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         try {
             const entries = await fs.readdir(globalAgentsDir, { withFileTypes: true });
-            return entries
-                .filter((entry) => entry.isDirectory())
-                .map((entry) => entry.name)
-                .filter((name) => !name.startsWith('.tmp')); // Exclude temp directories from failed installs
+            return (
+                entries
+                    .filter((entry) => entry.isDirectory())
+                    .map((entry) => entry.name)
+                    // Exclude temp directories both when prefixed and suffixed (agentName.tmp.<ts>)
+                    .filter((name) => !name.startsWith('.tmp') && !name.includes('.tmp.'))
+            );
         } catch (error) {
             logger.error(`Failed to read installed agents directory: ${error}`);
             return [];

@@ -41,8 +41,8 @@ function expandString(str: string, agentDir: string): string {
     // Replace ${{dexto.agent_dir}} with absolute path
     const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, agentDir);
 
-    // Security: Validate no path traversal for expanded paths
-    if (result !== str && result.includes('..')) {
+    // Security: Validate no path traversal for any expanded path
+    if (result !== str) {
         validateExpandedPath(str, result, agentDir);
     }
 
@@ -55,8 +55,8 @@ function expandString(str: string, agentDir: string): string {
 function validateExpandedPath(original: string, expanded: string, agentDir: string): void {
     const resolved = path.resolve(expanded);
     const agentRoot = path.resolve(agentDir);
-
-    if (!resolved.startsWith(agentRoot)) {
+    const relative = path.relative(agentRoot, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new Error(
             `Security: Template expansion attempted to escape agent directory.\n` +
                 `Original: ${original}\n` +

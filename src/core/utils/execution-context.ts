@@ -17,16 +17,16 @@ function hasDextoDependency(dirPath: string): boolean {
     try {
         const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
-        // Case 1: This IS the dexto package itself (local testing)
+        // Case 1: This IS the dexto package itself (source code development)
         if (pkg.name === 'dexto') {
             return true;
         }
 
         // Case 2: Project using dexto as dependency (SDK/CLI in project)
         const allDeps = {
-            ...pkg.dependencies,
-            ...pkg.devDependencies,
-            ...pkg.peerDependencies,
+            ...(pkg.dependencies ?? {}),
+            ...(pkg.devDependencies ?? {}),
+            ...(pkg.peerDependencies ?? {}),
         };
 
         return 'dexto' in allDeps;

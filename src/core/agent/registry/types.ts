@@ -31,6 +31,25 @@ export type Registry = z.output<typeof RegistrySchema>;
  * Agent registry interface
  */
 export interface AgentRegistry {
+    /**
+     * Returns true if the registry contains an agent with the provided name
+     */
+    hasAgent(name: string): boolean;
+    /**
+     * Returns a map of available agent names to their registry entries
+     */
+    getAvailableAgents(): Record<string, unknown>;
+    /**
+     * Installs an agent from the registry
+     */
+    installAgent(agentName: string, injectPreferences?: boolean): Promise<string>;
+    /**
+     * Uninstalls an agent
+     */
+    uninstallAgent(agentName: string, force?: boolean): Promise<void>;
+    /**
+     * Resolves and installs/copies the agent; returns the installed path (or main file)
+     */
     resolveAgent(
         nameOrPath: string,
         autoInstall?: boolean,

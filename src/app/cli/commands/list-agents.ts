@@ -229,8 +229,9 @@ export async function handleListAgentsCommand(
 
     // Show summary
     const totalInstalled = installedAgents.length;
-    const totalAvailable = availableAgents.length;
-    const availableToInstall = totalAvailable - totalInstalled;
+    const availableToInstall = availableAgents.filter(
+        (a) => !installedAgents.some((i) => i.name === a.name)
+    ).length;
 
     if (!validated.verbose) {
         console.log(
