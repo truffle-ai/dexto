@@ -87,7 +87,7 @@ async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
 
                             llmProvider = configMatch?.[1]?.trim();
                             llmModel = modelMatch?.[1]?.trim();
-                        } catch {
+                        } catch (_error) {
                             // Ignore config parsing errors
                         }
                     }
@@ -96,21 +96,24 @@ async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
                     const registryData = registry.getAvailableAgents()[agentName];
                     const description = registryData?.description || 'Custom agent';
 
-                    installedAgents.push({
+                    const agentInfo: InstalledAgentInfo = {
                         name: agentName,
                         description,
                         path: mainConfigPath,
-                        llmProvider,
-                        llmModel,
                         installedAt: stats.birthtime || stats.mtime,
-                    });
+                    };
+
+                    if (llmProvider) agentInfo.llmProvider = llmProvider;
+                    if (llmModel) agentInfo.llmModel = llmModel;
+
+                    installedAgents.push(agentInfo);
                 } catch (error) {
                     // Skip agents that can't be processed
                     console.warn(`Warning: Could not process agent '${agentName}': ${error}`);
                 }
             }
         }
-    } catch (error) {
+    } catch (_error) {
         // Return empty array if we can't read the directory
         return [];
     }
