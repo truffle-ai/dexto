@@ -23,4 +23,7 @@ export enum RegistryErrorCode {
     AGENT_NOT_INSTALLED = 'registry_agent_not_installed',
     AGENT_PROTECTED = 'registry_agent_protected',
     UNINSTALLATION_FAILED = 'registry_uninstallation_failed',
+
+    // Auto-install control
+    AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED = 'registry_agent_not_installed_auto_install_disabled',
 }

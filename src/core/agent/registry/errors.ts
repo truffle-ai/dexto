@@ -109,4 +109,16 @@ export class RegistryError {
             'Check file permissions and ensure no processes are using the agent'
         );
     }
+
+    // Auto-install control errors
+    static agentNotInstalledAutoInstallDisabled(agentName: string, availableAgents: string[]) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Agent '${agentName}' is not installed locally and auto-install is disabled`,
+            { agentName, availableAgents },
+            `Use 'dexto install ${agentName}' to install it manually, or use a file path for custom agents`
+        );
+    }
 }

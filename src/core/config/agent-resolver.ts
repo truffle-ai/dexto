@@ -12,12 +12,14 @@ import { ConfigError } from './errors.js';
 /**
  * Resolve agent path with preference integration
  * @param nameOrPath Optional agent name or explicit path
+ * @param autoInstall Whether to automatically install missing agents from registry (default: true)
  * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
  * @returns Resolved absolute path to agent config
  * @throws DextoRuntimeError for any resolution failures
  */
 export async function resolveAgentPath(
     nameOrPath?: string,
+    autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
     // 1. Handle explicit paths (highest priority)
@@ -36,17 +38,20 @@ export async function resolveAgentPath(
     if (nameOrPath) {
         const { getAgentRegistry } = await import('@core/agent/registry/registry.js');
         const registry = getAgentRegistry();
-        return await registry.resolveAgent(nameOrPath, injectPreferences); // Let registry throw its own errors
+        return await registry.resolveAgent(nameOrPath, autoInstall, injectPreferences); // Let registry throw its own errors
     }
 
     // 3. Default agent resolution based on execution context
-    return await resolveDefaultAgentByContext(injectPreferences);
+    return await resolveDefaultAgentByContext(autoInstall, injectPreferences);
 }
 
 /**
  * Resolve default agent based on execution context
  */
-async function resolveDefaultAgentByContext(injectPreferences: boolean = true): Promise<string> {
+async function resolveDefaultAgentByContext(
+    autoInstall: boolean = true,
+    injectPreferences: boolean = true
+): Promise<string> {
     const executionContext = getExecutionContext();
 
     switch (executionContext) {
@@ -54,10 +59,10 @@ async function resolveDefaultAgentByContext(injectPreferences: boolean = true): 
             return await resolveDefaultAgentForDextoSource();
 
         case 'dexto-project':
-            return await resolveDefaultAgentForDextoProject(injectPreferences);
+            return await resolveDefaultAgentForDextoProject(autoInstall, injectPreferences);
 
         case 'global-cli':
-            return await resolveDefaultAgentForGlobalCLI(injectPreferences);
+            return await resolveDefaultAgentForGlobalCLI(autoInstall, injectPreferences);
 
         default:
             throw ConfigError.unknownContext(executionContext);
@@ -82,6 +87,7 @@ async function resolveDefaultAgentForDextoSource(): Promise<string> {
  * Resolution for Dexto project context - project default OR preferences default
  */
 async function resolveDefaultAgentForDextoProject(
+    autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
     const projectRoot = getDextoProjectRoot()!;
@@ -110,13 +116,16 @@ async function resolveDefaultAgentForDextoProject(
     const preferredAgentName = preferences.defaults.defaultAgent;
     const { getAgentRegistry } = await import('@core/agent/registry/registry.js');
     const registry = getAgentRegistry();
-    return await registry.resolveAgent(preferredAgentName, injectPreferences); // Let registry handle its own errors
+    return await registry.resolveAgent(preferredAgentName, autoInstall, injectPreferences); // Let registry handle its own errors
 }
 
 /**
  * Resolution for Global CLI context - preferences default REQUIRED
  */
-async function resolveDefaultAgentForGlobalCLI(injectPreferences: boolean = true): Promise<string> {
+async function resolveDefaultAgentForGlobalCLI(
+    autoInstall: boolean = true,
+    injectPreferences: boolean = true
+): Promise<string> {
     if (!globalPreferencesExist()) {
         throw ConfigError.noGlobalPreferences();
     }
@@ -130,17 +139,22 @@ async function resolveDefaultAgentForGlobalCLI(injectPreferences: boolean = true
     const preferredAgentName = preferences.defaults.defaultAgent;
     const { getAgentRegistry } = await import('@core/agent/registry/registry.js');
     const registry = getAgentRegistry();
-    return await registry.resolveAgent(preferredAgentName, injectPreferences); // Let registry handle its own errors
+    return await registry.resolveAgent(preferredAgentName, autoInstall, injectPreferences); // Let registry handle its own errors
 }
 
 /**
  * Update default agent preference
  */
 export async function updateDefaultAgentPreference(agentName: string): Promise<void> {
-    // Validate agent exists first
+    // Validate agent exists in registry first
     const { getAgentRegistry } = await import('@core/agent/registry/registry.js');
+    const { RegistryError } = await import('@core/agent/registry/errors.js');
     const registry = getAgentRegistry();
-    await registry.resolveAgent(agentName, false); // Will throw if not found, don't inject preferences for validation
+
+    if (!registry.hasAgent(agentName)) {
+        const available = Object.keys(registry.getAvailableAgents());
+        throw RegistryError.agentNotFound(agentName, available);
+    }
 
     // Update preferences
     const { updateGlobalPreferences } = await import('@core/preferences/loader.js');

@@ -79,6 +79,7 @@ program
         'cli'
     )
     .option('--web-port <port>', 'optional port for the web UI', '3000')
+    .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
@@ -268,7 +269,11 @@ program
             const globalOpts = program.opts();
             const nameOrPath = globalOpts.agent;
 
-            const configPath = await resolveAgentPath(nameOrPath);
+            const configPath = await resolveAgentPath(
+                nameOrPath,
+                globalOpts.autoInstall !== false,
+                true
+            );
             const config = await loadAgentConfig(configPath);
             console.log(`📄 Loading Dexto config from: ${configPath}`);
 
@@ -398,7 +403,7 @@ program
         try {
             // Case 1: File path - skip all validation and setup
             if (opts.agent && isPath(opts.agent)) {
-                resolvedPath = await resolveAgentPath(opts.agent);
+                resolvedPath = await resolveAgentPath(opts.agent, opts.autoInstall !== false, true);
             }
             // Cases 2 & 3: Default agent or registry agent
             else {
@@ -431,7 +436,7 @@ program
                 }
 
                 // Now resolve agent (will auto-install with preferences since setup is complete)
-                resolvedPath = await resolveAgentPath(opts.agent);
+                resolvedPath = await resolveAgentPath(opts.agent, opts.autoInstall !== false, true);
             }
 
             // Load raw config and apply CLI overrides

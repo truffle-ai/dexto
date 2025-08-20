@@ -71,6 +71,12 @@ describe('LocalAgentRegistry', () => {
                 source: 'dir-agent/',
                 main: 'main.yml',
             },
+            'auto-test-agent': {
+                description: 'Auto-install test agent',
+                author: 'Test',
+                tags: ['test'],
+                source: 'auto-test-agent.yml',
+            },
         });
 
         // Mock path functions
@@ -125,10 +131,16 @@ describe('LocalAgentRegistry', () => {
                     source: 'dir-agent/',
                     main: 'main.yml',
                 },
+                'auto-test-agent': {
+                    description: 'Auto-install test agent',
+                    author: 'Test',
+                    tags: ['test'],
+                    source: 'auto-test-agent.yml',
+                },
             });
 
             // Should have correct number of agents
-            expect(Object.keys(agents)).toHaveLength(2);
+            expect(Object.keys(agents)).toHaveLength(3);
         });
     });
 
@@ -151,6 +163,12 @@ describe('LocalAgentRegistry', () => {
                         tags: ['test'],
                         source: 'dir-agent/',
                         main: 'main.yml',
+                    },
+                    'auto-test-agent': {
+                        description: 'Auto-install test agent',
+                        author: 'Test',
+                        tags: ['test'],
+                        source: 'auto-test-agent.yml',
                     },
                 },
             });
@@ -348,6 +366,108 @@ describe('LocalAgentRegistry', () => {
 
             const result = await registry.resolveAgent('dir-agent');
             expect(result).toBe(path.join(agentPath, 'main.yml'));
+        });
+
+        describe('auto-install behavior', () => {
+            beforeEach(() => {
+                // Create bundled agent for auto-install tests
+                const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
+                fs.mkdirSync(path.dirname(bundledPath), { recursive: true });
+                fs.writeFileSync(
+                    bundledPath,
+                    'name: auto-test-agent\ndescription: Test auto-install'
+                );
+            });
+
+            it('auto-installs missing agent when autoInstall=true (default)', async () => {
+                // Set up mocks for this specific test
+                const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
+                mockResolveBundledScript
+                    .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                    .mockReturnValueOnce(bundledPath);
+
+                const result = await registry.resolveAgent('auto-test-agent');
+
+                // Should return path to installed agent
+                const expectedPath = path.join(
+                    tempDir,
+                    'global',
+                    'agents',
+                    'auto-test-agent',
+                    'auto-test-agent.yml'
+                );
+                expect(result).toBe(expectedPath);
+
+                // Verify agent was actually installed
+                expect(fs.existsSync(expectedPath)).toBe(true);
+            });
+
+            it('auto-installs missing agent when autoInstall=true explicitly', async () => {
+                // Set up mocks for this specific test
+                const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
+                mockResolveBundledScript
+                    .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                    .mockReturnValueOnce(bundledPath);
+
+                const result = await registry.resolveAgent('auto-test-agent', true, true);
+
+                const expectedPath = path.join(
+                    tempDir,
+                    'global',
+                    'agents',
+                    'auto-test-agent',
+                    'auto-test-agent.yml'
+                );
+                expect(result).toBe(expectedPath);
+                expect(fs.existsSync(expectedPath)).toBe(true);
+            });
+
+            it('throws error when autoInstall=false and agent not installed', async () => {
+                await expect(
+                    registry.resolveAgent('auto-test-agent', false, true)
+                ).rejects.toMatchObject({
+                    code: RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
+                    scope: ErrorScope.AGENT_REGISTRY,
+                    type: ErrorType.USER,
+                    context: {
+                        agentName: 'auto-test-agent',
+                        availableAgents: expect.arrayContaining([
+                            'test-agent',
+                            'dir-agent',
+                            'auto-test-agent',
+                        ]),
+                    },
+                    recovery: expect.stringContaining('dexto install auto-test-agent'),
+                });
+
+                // Verify agent was NOT installed
+                const expectedPath = path.join(tempDir, 'global', 'agents', 'auto-test-agent');
+                expect(fs.existsSync(expectedPath)).toBe(false);
+            });
+
+            it('respects injectPreferences parameter during auto-install', async () => {
+                // Set up mocks for this specific test
+                const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
+                mockResolveBundledScript
+                    .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                    .mockReturnValueOnce(bundledPath);
+
+                // Auto-install with injectPreferences=false
+                const result = await registry.resolveAgent('auto-test-agent', true, false);
+
+                const expectedPath = path.join(
+                    tempDir,
+                    'global',
+                    'agents',
+                    'auto-test-agent',
+                    'auto-test-agent.yml'
+                );
+                expect(result).toBe(expectedPath);
+                expect(fs.existsSync(expectedPath)).toBe(true);
+
+                // Note: We can't easily test the preference injection behavior without setting up
+                // the full preferences system, but we can verify the agent was installed
+            });
         });
     });
 

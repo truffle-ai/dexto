@@ -214,9 +214,14 @@ export class LocalAgentRegistry implements AgentRegistry {
      * NOTE: Only handles registry names, not file paths (routing done in loadAgentConfig)
      * Handles installing agent if needed
      * @param agentName Name of the agent to resolve
+     * @param autoInstall Whether to automatically install missing agents from registry (default: true)
      * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
      */
-    async resolveAgent(agentName: string, injectPreferences: boolean = true): Promise<string> {
+    async resolveAgent(
+        agentName: string,
+        autoInstall: boolean = true,
+        injectPreferences: boolean = true
+    ): Promise<string> {
         logger.debug(`Resolving registry agent: ${agentName}`);
 
         // 1. Check if installed
@@ -231,10 +236,17 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         logger.debug(`Agent '${agentName}' not found in installed path: ${installedPath}`);
 
-        // 2. Check if available in registry - install if needed
+        // 2. Check if available in registry
         if (this.hasAgent(agentName)) {
-            logger.info(`Installing agent '${agentName}' from registry...`);
-            return await this.installAgent(agentName, injectPreferences);
+            if (autoInstall) {
+                logger.info(`Installing agent '${agentName}' from registry...`);
+                return await this.installAgent(agentName, injectPreferences);
+            } else {
+                // Agent is available in registry but auto-install is disabled
+                const registry = this.getRegistry();
+                const available = Object.keys(registry.agents);
+                throw RegistryError.agentNotInstalledAutoInstallDisabled(agentName, available);
+            }
         }
 
         // 3. Not found in registry

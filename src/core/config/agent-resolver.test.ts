@@ -55,6 +55,8 @@ describe('Agent Resolver', () => {
         // Setup default registry mock
         mockRegistry = {
             resolveAgent: vi.fn(),
+            hasAgent: vi.fn(),
+            getAvailableAgents: vi.fn(),
         };
         mockGetAgentRegistry.mockReturnValue(mockRegistry);
     });
@@ -127,7 +129,7 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath('database-agent');
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('database-agent', true);
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('database-agent', true, true);
             expect(result).toBe(expectedPath);
         });
 
@@ -202,7 +204,7 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath();
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent', true);
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent', true, true);
             expect(result).toBe('/path/to/my-agent.yml');
         });
 
@@ -250,7 +252,7 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath();
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-default', true);
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-default', true, true);
             expect(result).toBe('/path/to/my-default.yml');
         });
 
@@ -299,29 +301,28 @@ describe('Agent Resolver', () => {
 
     describe('updateDefaultAgentPreference', () => {
         it('updates preference for valid agent', async () => {
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/agent.yml');
+            mockRegistry.hasAgent.mockReturnValue(true);
             mockUpdateGlobalPreferences.mockResolvedValue(undefined);
 
             await updateDefaultAgentPreference('my-agent');
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent', false);
+            expect(mockRegistry.hasAgent).toHaveBeenCalledWith('my-agent');
             expect(mockUpdateGlobalPreferences).toHaveBeenCalledWith({
                 defaults: { defaultAgent: 'my-agent' },
             });
         });
 
         it('throws error for invalid agent', async () => {
-            mockRegistry.resolveAgent.mockRejectedValue(new Error('Agent not found'));
+            mockRegistry.hasAgent.mockReturnValue(false);
+            mockRegistry.getAvailableAgents.mockReturnValue({ 'valid-agent': {} });
 
-            await expect(updateDefaultAgentPreference('invalid-agent')).rejects.toThrow(
-                'Agent not found'
-            );
+            await expect(updateDefaultAgentPreference('invalid-agent')).rejects.toThrow();
 
             expect(mockUpdateGlobalPreferences).not.toHaveBeenCalled();
         });
 
         it('throws error when preference update fails', async () => {
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/agent.yml');
+            mockRegistry.hasAgent.mockReturnValue(true);
             mockUpdateGlobalPreferences.mockRejectedValue(new Error('Update failed'));
 
             await expect(updateDefaultAgentPreference('my-agent')).rejects.toThrow('Update failed');
