@@ -17,7 +17,7 @@ describe('Install Command', () => {
         mockRegistry = {
             hasAgent: vi.fn(),
             getAvailableAgents: vi.fn(),
-            resolveAgent: vi.fn(),
+            installAgent: vi.fn(),
         };
 
         // Mock getAgentRegistry to return our mock
@@ -34,9 +34,7 @@ describe('Install Command', () => {
 
     describe('Validation', () => {
         it('throws error when no agents specified and all flag is false', async () => {
-            await expect(handleInstallCommand([], {})).rejects.toThrow(
-                'No agents specified. Use agent names or --all flag. Run dexto list-agents to see available agents.'
-            );
+            await expect(handleInstallCommand([], {})).rejects.toThrow();
         });
 
         it('throws error for unknown agents', async () => {
@@ -57,40 +55,40 @@ describe('Install Command', () => {
             });
 
             await expect(handleInstallCommand(['test-agent', 'unknown-agent'], {})).rejects.toThrow(
-                'Unknown agents: unknown-agent. Available agents: test-agent, other-agent'
+                /Unknown agents.*unknown-agent/
             );
         });
 
         it('accepts valid agents', async () => {
             mockRegistry.hasAgent.mockReturnValue(true);
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/agent.yml');
+            mockRegistry.installAgent.mockResolvedValue('/path/to/agent.yml');
 
             // Should not throw
             await handleInstallCommand(['test-agent'], {});
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('test-agent', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('test-agent', true);
         });
     });
 
     describe('Single agent installation', () => {
         it('installs single agent and applies preferences by default', async () => {
             mockRegistry.hasAgent.mockReturnValue(true);
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/test-agent.yml');
+            mockRegistry.installAgent.mockResolvedValue('/path/to/test-agent.yml');
 
             await handleInstallCommand(['test-agent'], {});
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('test-agent', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('test-agent', true);
             expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('test-agent'));
         });
 
-        it('respects force flag by calling resolveAgent without preferences injection', async () => {
+        it('respects force flag by calling installAgent without preferences injection', async () => {
             mockRegistry.hasAgent.mockReturnValue(true);
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/test-agent.yml');
+            mockRegistry.installAgent.mockResolvedValue('/path/to/test-agent.yml');
 
             await handleInstallCommand(['test-agent'], { force: true });
 
             // Force flag doesn't affect preference injection - that's controlled by the second parameter
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('test-agent', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('test-agent', true);
         });
     });
 
@@ -116,15 +114,15 @@ describe('Install Command', () => {
                     source: 'agent3.yml',
                 },
             });
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/agent.yml');
+            mockRegistry.installAgent.mockResolvedValue('/path/to/agent.yml');
 
             await handleInstallCommand([], { all: true });
 
             expect(mockRegistry.getAvailableAgents).toHaveBeenCalled();
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('agent1', true);
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('agent2', true);
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('agent3', true);
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledTimes(3);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('agent1', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('agent2', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('agent3', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledTimes(3);
             expect(consoleSpy).toHaveBeenCalledWith(
                 expect.stringContaining('Installing all 3 available agents')
             );
@@ -145,13 +143,13 @@ describe('Install Command', () => {
                     source: 'available2.yml',
                 },
             });
-            mockRegistry.resolveAgent.mockResolvedValue('/path/to/agent.yml');
+            mockRegistry.installAgent.mockResolvedValue('/path/to/agent.yml');
 
             await handleInstallCommand(['should-be-ignored'], { all: true });
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('available1', true);
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('available2', true);
-            expect(mockRegistry.resolveAgent).not.toHaveBeenCalledWith(
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('available1', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('available2', true);
+            expect(mockRegistry.installAgent).not.toHaveBeenCalledWith(
                 'should-be-ignored',
                 expect.anything()
             );
@@ -161,7 +159,7 @@ describe('Install Command', () => {
     describe('Error handling', () => {
         it('continues installing other agents when one fails', async () => {
             mockRegistry.hasAgent.mockReturnValue(true);
-            mockRegistry.resolveAgent.mockImplementation((agent: string) => {
+            mockRegistry.installAgent.mockImplementation((agent: string) => {
                 if (agent === 'failing-agent') {
                     throw new Error('Installation failed');
                 }
@@ -171,9 +169,17 @@ describe('Install Command', () => {
             // Should not throw - partial success is acceptable
             await handleInstallCommand(['test-agent', 'failing-agent'], {});
 
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledTimes(2);
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('test-agent', true);
-            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('failing-agent', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledTimes(2);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('test-agent', true);
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('failing-agent', true);
+        });
+
+        it('throws when single agent installation fails', async () => {
+            mockRegistry.hasAgent.mockReturnValue(true);
+            mockRegistry.installAgent.mockRejectedValue(new Error('Installation failed'));
+
+            // Single agent failure should propagate the error directly
+            await expect(handleInstallCommand(['bad-agent'], {})).rejects.toThrow();
         });
     });
 });

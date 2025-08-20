@@ -34,9 +34,10 @@ function validateInstallCommand(
     });
 
     // Business logic validation
+    const availableAgents = registry.getAvailableAgents();
     if (!validated.all && validated.agents.length === 0) {
         throw new Error(
-            'No agents specified. Use agent names or --all flag. Run dexto list-agents to see available agents.'
+            `No agents specified. Use agent names or --all flag.  Available agents: ${Object.keys(availableAgents).join(', ')}`
         );
     }
 
@@ -44,10 +45,9 @@ function validateInstallCommand(
         // Validate all specified agents exist in registry
         const invalidAgents = validated.agents.filter((agent) => !registry.hasAgent(agent));
         if (invalidAgents.length > 0) {
-            const available = Object.keys(registry.getAvailableAgents());
             throw new Error(
                 `Unknown agents: ${invalidAgents.join(', ')}. ` +
-                    `Available agents: ${available.join(', ')}`
+                    `Available agents: ${Object.keys(availableAgents).join(', ')}`
             );
         }
     }
@@ -92,7 +92,7 @@ export async function handleInstallCommand(
                 continue;
             }
 
-            await registry.resolveAgent(agentName, validated.injectPreferences);
+            await registry.installAgent(agentName, validated.injectPreferences);
             successCount++;
             console.log(`✅ ${agentName} installed successfully`);
         } catch (error) {
@@ -103,7 +103,15 @@ export async function handleInstallCommand(
         }
     }
 
-    // Summary
+    // For single agent operations, throw error if it failed
+    if (agentsToInstall.length === 1) {
+        if (errorCount > 0) {
+            throw new Error(errors[0]);
+        }
+        return;
+    }
+
+    // Show summary if more than 1 agent installed
     console.log(`\n📊 Installation Summary:`);
     console.log(`✅ Successfully installed: ${successCount}`);
     if (errorCount > 0) {

@@ -75,4 +75,38 @@ export class RegistryError {
             'This indicates a problem with the agent bundle structure'
         );
     }
+
+    // Uninstallation errors
+    static agentNotInstalled(agentName: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_NOT_INSTALLED,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Agent '${agentName}' is not installed`,
+            { agentName },
+            'Use "dexto list-agents --installed" to see installed agents'
+        );
+    }
+
+    static agentProtected(agentName: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_PROTECTED,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Agent '${agentName}' is protected and cannot be uninstalled. Use --force to override (not recommended for critical agents)`,
+            { agentName },
+            'Use --force to override (not recommended for critical agents)'
+        );
+    }
+
+    static uninstallationFailed(agentName: string, cause: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.UNINSTALLATION_FAILED,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.SYSTEM,
+            `Failed to uninstall agent '${agentName}': ${cause}`,
+            { agentName, cause },
+            'Check file permissions and ensure no processes are using the agent'
+        );
+    }
 }

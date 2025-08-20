@@ -46,6 +46,8 @@ import {
     type CLISetupOptionsInput,
     handleInstallCommand,
     type InstallCommandOptions,
+    handleUninstallCommand,
+    type UninstallCommandOptions,
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
@@ -187,7 +189,23 @@ program
         }
     });
 
-// 6) `list-agents` SUB-COMMAND
+// 6) `uninstall` SUB-COMMAND
+program
+    .command('uninstall [agents...]')
+    .description('Uninstall agents from the local installation')
+    .option('--all', 'Uninstall all installed agents')
+    .option('--force', 'Force uninstall even if agent is protected (e.g., default-agent)')
+    .action(async (agents: string[], options: Partial<UninstallCommandOptions>) => {
+        try {
+            await handleUninstallCommand(agents, options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto uninstall command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 7) `list-agents` SUB-COMMAND
 program
     .command('list-agents')
     .description('List available and installed agents')
@@ -204,7 +222,7 @@ program
         }
     });
 
-// 7) `which` SUB-COMMAND
+// 8) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
@@ -218,7 +236,7 @@ program
         }
     });
 
-// 8) `mcp` SUB-COMMAND
+// 9) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -291,7 +309,7 @@ program
         }
     });
 
-// 9) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -601,5 +619,5 @@ program
         }
     });
 
-// 10) PARSE & EXECUTE
+// 11) PARSE & EXECUTE
 program.parseAsync(process.argv);

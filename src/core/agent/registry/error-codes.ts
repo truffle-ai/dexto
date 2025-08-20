@@ -18,4 +18,9 @@ export enum RegistryErrorCode {
     // Config file errors
     CONFIG_NOT_FOUND = 'registry_config_not_found',
     MAIN_CONFIG_MISSING = 'registry_main_config_missing',
+
+    // Uninstallation errors
+    AGENT_NOT_INSTALLED = 'registry_agent_not_installed',
+    AGENT_PROTECTED = 'registry_agent_protected',
+    UNINSTALLATION_FAILED = 'registry_uninstallation_failed',
 }

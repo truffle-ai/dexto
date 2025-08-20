@@ -118,6 +118,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * @param injectPreferences Whether to inject global preferences into installed agent (default: true)
      */
     async installAgent(agentName: string, injectPreferences: boolean = true): Promise<string> {
+        logger.info(`Installing agent: ${agentName}`);
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
@@ -131,7 +132,7 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         // Check if already installed
         if (existsSync(targetDir)) {
-            logger.debug(`Agent '${agentName}' already installed`);
+            logger.info(`Agent '${agentName}' already installed`);
             return this.resolveMainConfig(targetDir, agentName);
         }
 
@@ -183,7 +184,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                     );
                 }
             } else {
-                logger.debug(
+                logger.info(
                     `Skipped preference injection for '${agentName}' (injectPreferences=false)`
                 );
             }
@@ -196,7 +197,9 @@ export class LocalAgentRegistry implements AgentRegistry {
                     await fs.rm(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logger.debug(`Failed to clean up temp directory: ${cleanupError}`);
+                logger.error(
+                    `Failed to clean up temp directory: ${cleanupError}. Skipping cleanup...`
+                );
             }
 
             throw RegistryError.installationFailed(
@@ -238,6 +241,66 @@ export class LocalAgentRegistry implements AgentRegistry {
         const registry = this.getRegistry();
         const available = Object.keys(registry.agents);
         throw RegistryError.agentNotFound(agentName, available);
+    }
+
+    /**
+     * Get list of currently installed agents
+     */
+    async getInstalledAgents(): Promise<string[]> {
+        const globalAgentsDir = getDextoGlobalPath('agents');
+
+        if (!existsSync(globalAgentsDir)) {
+            return [];
+        }
+
+        try {
+            const entries = await fs.readdir(globalAgentsDir, { withFileTypes: true });
+            return entries
+                .filter((entry) => entry.isDirectory())
+                .map((entry) => entry.name)
+                .filter((name) => !name.startsWith('.tmp')); // Exclude temp directories from failed installs
+        } catch (error) {
+            logger.error(`Failed to read installed agents directory: ${error}`);
+            return [];
+        }
+    }
+
+    /**
+     * Check if an agent is safe to uninstall (not the default-agent which is critical)
+     */
+    private isAgentSafeToUninstall(agentName: string): boolean {
+        // Protect the default-agent as it's critical for CLI operation
+        return agentName !== 'default-agent';
+    }
+
+    /**
+     * Uninstall an agent by removing its directory
+     * @param agentName Name of the agent to uninstall
+     * @param force Whether to force uninstall even if agent is protected (default: false)
+     */
+    async uninstallAgent(agentName: string, force: boolean = false): Promise<void> {
+        const globalAgentsDir = getDextoGlobalPath('agents');
+        const agentDir = path.join(globalAgentsDir, agentName);
+        logger.info(`Uninstalling agent: ${agentName} from ${agentDir}`);
+
+        if (!existsSync(agentDir)) {
+            throw RegistryError.agentNotInstalled(agentName);
+        }
+
+        // Safety check for default-agent unless forced
+        if (!force && !this.isAgentSafeToUninstall(agentName)) {
+            throw RegistryError.agentProtected(agentName);
+        }
+
+        try {
+            await fs.rm(agentDir, { recursive: true, force: true });
+            logger.info(`✓ Removed agent '${agentName}' from ${agentDir}`);
+        } catch (error) {
+            throw RegistryError.uninstallationFailed(
+                agentName,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
     }
 }
 

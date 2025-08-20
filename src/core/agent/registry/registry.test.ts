@@ -401,4 +401,142 @@ describe('LocalAgentRegistry', () => {
             );
         });
     });
+
+    describe('getInstalledAgents', () => {
+        it('returns empty array when agents directory does not exist', async () => {
+            const installedAgents = await registry.getInstalledAgents();
+            expect(installedAgents).toEqual([]);
+        });
+
+        it('returns list of installed agent directories', async () => {
+            const agentsDir = path.join(tempDir, 'global', 'agents');
+            fs.mkdirSync(agentsDir, { recursive: true });
+
+            // Create agent directories
+            fs.mkdirSync(path.join(agentsDir, 'agent1'));
+            fs.mkdirSync(path.join(agentsDir, 'agent2'));
+            fs.mkdirSync(path.join(agentsDir, 'default-agent'));
+
+            // Create temp directory (should be filtered out)
+            fs.mkdirSync(path.join(agentsDir, '.tmp.123456'));
+
+            // Create a file (should be filtered out)
+            fs.writeFileSync(path.join(agentsDir, 'not-a-directory.txt'), 'content');
+
+            const installedAgents = await registry.getInstalledAgents();
+
+            expect(installedAgents.sort()).toEqual(['agent1', 'agent2', 'default-agent']);
+        });
+    });
+
+    describe('uninstallAgent', () => {
+        let agentsDir: string;
+
+        beforeEach(() => {
+            agentsDir = path.join(tempDir, 'global', 'agents');
+            fs.mkdirSync(agentsDir, { recursive: true });
+        });
+
+        it('successfully removes agent directory and all contents', async () => {
+            const agentPath = path.join(agentsDir, 'test-agent');
+            const subDir = path.join(agentPath, 'subdir');
+
+            // Create agent with nested structure
+            fs.mkdirSync(subDir, { recursive: true });
+            fs.writeFileSync(path.join(agentPath, 'config.yml'), 'test config');
+            fs.writeFileSync(path.join(subDir, 'nested.txt'), 'nested content');
+
+            // Verify it exists
+            expect(fs.existsSync(agentPath)).toBe(true);
+            expect(fs.existsSync(path.join(subDir, 'nested.txt'))).toBe(true);
+
+            await registry.uninstallAgent('test-agent');
+
+            // Verify complete removal
+            expect(fs.existsSync(agentPath)).toBe(false);
+        });
+
+        it('throws error when agent is not installed', async () => {
+            await expect(registry.uninstallAgent('nonexistent-agent')).rejects.toThrow(
+                expect.objectContaining({
+                    code: RegistryErrorCode.AGENT_NOT_INSTALLED,
+                })
+            );
+        });
+
+        it('protects default-agent from deletion without force', async () => {
+            const defaultAgentPath = path.join(agentsDir, 'default-agent');
+            fs.mkdirSync(defaultAgentPath);
+            fs.writeFileSync(path.join(defaultAgentPath, 'config.yml'), 'important');
+
+            await expect(registry.uninstallAgent('default-agent')).rejects.toThrow(
+                expect.objectContaining({
+                    code: RegistryErrorCode.AGENT_PROTECTED,
+                })
+            );
+
+            // Verify it still exists
+            expect(fs.existsSync(defaultAgentPath)).toBe(true);
+            expect(fs.readFileSync(path.join(defaultAgentPath, 'config.yml'), 'utf-8')).toBe(
+                'important'
+            );
+        });
+
+        it('allows force uninstall of default-agent', async () => {
+            const defaultAgentPath = path.join(agentsDir, 'default-agent');
+            fs.mkdirSync(defaultAgentPath);
+            fs.writeFileSync(path.join(defaultAgentPath, 'config.yml'), 'config');
+
+            await registry.uninstallAgent('default-agent', true);
+
+            expect(fs.existsSync(defaultAgentPath)).toBe(false);
+        });
+
+        it('maintains other agents when removing one', async () => {
+            const agent1Path = path.join(agentsDir, 'keep-me');
+            const agent2Path = path.join(agentsDir, 'remove-me');
+
+            fs.mkdirSync(agent1Path);
+            fs.mkdirSync(agent2Path);
+            fs.writeFileSync(path.join(agent1Path, 'config.yml'), 'keep');
+            fs.writeFileSync(path.join(agent2Path, 'config.yml'), 'remove');
+
+            await registry.uninstallAgent('remove-me');
+
+            expect(fs.existsSync(agent1Path)).toBe(true);
+            expect(fs.existsSync(agent2Path)).toBe(false);
+            expect(fs.readFileSync(path.join(agent1Path, 'config.yml'), 'utf-8')).toBe('keep');
+        });
+    });
+
+    describe('install and uninstall integration', () => {
+        it('can install then uninstall an agent', async () => {
+            // Create bundled agent file
+            const bundledPath = path.join(tempDir, 'bundled', 'agents', 'test-agent.yml');
+            fs.mkdirSync(path.dirname(bundledPath), { recursive: true });
+            fs.writeFileSync(bundledPath, 'name: test-agent\ndescription: Test');
+
+            mockResolveBundledScript
+                .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                .mockReturnValueOnce(bundledPath);
+
+            // Install agent
+            const configPath = await registry.installAgent('test-agent');
+            const installedPath = path.join(tempDir, 'global', 'agents', 'test-agent');
+            expect(configPath).toBe(path.join(installedPath, 'test-agent.yml'));
+
+            // Verify installation
+            expect(fs.existsSync(installedPath)).toBe(true);
+            const installed = await registry.getInstalledAgents();
+            expect(installed).toContain('test-agent');
+
+            // Uninstall agent
+            await registry.uninstallAgent('test-agent');
+
+            // Verify removal
+            expect(fs.existsSync(installedPath)).toBe(false);
+            const installedAfter = await registry.getInstalledAgents();
+            expect(installedAfter).not.toContain('test-agent');
+        });
+    });
 });
