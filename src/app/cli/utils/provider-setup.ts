@@ -2,7 +2,7 @@
 
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { type LLMProvider } from '@core/llm/types.js';
+import { type LLMProvider } from '@core/llm/index.js';
 
 /**
  * Standardized provider options used across all setup flows
