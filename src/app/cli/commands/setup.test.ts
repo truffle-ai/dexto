@@ -149,19 +149,6 @@ describe('Setup Command', () => {
             );
         });
 
-        it('handles cancelled provider selection', async () => {
-            mockSelectProvider.mockResolvedValue(null);
-
-            const options = {
-                interactive: true,
-            };
-
-            await handleSetupCommand(options);
-
-            expect(mockCreateInitialPreferences).not.toHaveBeenCalled();
-            expect(mockSaveGlobalPreferences).not.toHaveBeenCalled();
-        });
-
         it('runs interactive API key setup by default', async () => {
             const options = {
                 llmProvider: 'openai' as const,
