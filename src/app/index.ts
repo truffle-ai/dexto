@@ -159,9 +159,13 @@ program
     .action(async (options: CLISetupOptions) => {
         try {
             await handleSetupCommand(options);
+            // keeping this log and not inside to avoid cluttering in case of auto-setup
+            console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));
             process.exit(0);
         } catch (err) {
-            console.error(`❌ dexto setup command failed: ${err}`);
+            console.error(
+                `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+            );
             process.exit(1);
         }
     });
@@ -405,9 +409,7 @@ program
                         process.exit(1);
                     }
 
-                    console.log('🚀 Setting up Dexto for first use...');
                     await handleSetupCommand({ interactive: true });
-                    console.log('✨ Setup complete! Continuing with agent...');
                 }
 
                 // Now resolve agent (will auto-install with preferences since setup is complete)

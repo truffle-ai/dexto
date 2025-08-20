@@ -42,17 +42,12 @@ export async function handleSetupCommand(options: Partial<CLISetupOptions>): Pro
     // Validate command with Zod
     const validated = validateSetupCommand(options);
 
-    console.log(chalk.cyan('\n🎉 Setting up Dexto preferences...\n'));
+    console.log(chalk.cyan('\n🎉 Setting up Dexto...\n'));
 
     // Determine provider (interactive or from options)
     let provider = validated.llmProvider;
     if (!provider) {
-        const selectedProvider = await selectProvider();
-        if (!selectedProvider) {
-            console.log('Setup cancelled');
-            return;
-        }
-        provider = selectedProvider;
+        provider = await selectProvider();
     }
 
     // Get model and API key details
@@ -65,18 +60,13 @@ export async function handleSetupCommand(options: Partial<CLISetupOptions>): Pro
     const defaultAgent = validated.defaultAgent;
 
     // Create and save preferences
-    console.log('Creating initial preferences...');
+    //console.log('Creating initial preferences...');
     const preferences = createInitialPreferences(provider, model, apiKeyVar, defaultAgent);
     await saveGlobalPreferences(preferences);
-    console.log('Preferences saved');
+    //console.log('Preferences saved');
 
     // Setup API key interactively (only if interactive mode enabled)
     if (validated.interactive) {
         await interactiveApiKeySetup(provider);
-    } else {
-        console.log('Skipping API key setup (non-interactive mode)');
-        console.log(`Set your API key: export ${apiKeyVar}=your_api_key_here`);
     }
-
-    console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));
 }

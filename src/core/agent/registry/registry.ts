@@ -166,8 +166,6 @@ export class LocalAgentRegistry implements AgentRegistry {
             await fs.rename(tempDir, targetDir);
 
             logger.info(`✓ Installed agent '${agentName}' to ${targetDir}`);
-            // console.log for CLI visibility temporarily
-            console.log(`✓ Installed agent '${agentName}' to ${targetDir}`);
 
             // Inject global preferences if requested
             if (injectPreferences) {
@@ -175,7 +173,6 @@ export class LocalAgentRegistry implements AgentRegistry {
                     const preferences = await loadGlobalPreferences();
                     await writePreferencesToAgent(targetDir, preferences);
                     logger.info(`✓ Applied global preferences to installed agent '${agentName}'`);
-                    console.log(`✓ Applied global preferences to installed agent '${agentName}'`);
                 } catch (error) {
                     // Log warning but don't fail installation if preference injection fails
                     logger.warn(
@@ -230,12 +227,9 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
 
         logger.debug(`Agent '${agentName}' not found in installed path: ${installedPath}`);
-        // console.log for CLI visibility temporarily
-        console.log(`Agent '${agentName}' not found in installed path: ${installedPath}`);
 
         // 2. Check if available in registry - install if needed
         if (this.hasAgent(agentName)) {
-            console.log(`Agent '${agentName}' found in registry, installing...`);
             logger.info(`Installing agent '${agentName}' from registry...`);
             return await this.installAgent(agentName, injectPreferences);
         }

@@ -28,9 +28,4 @@ export async function updateEnvFileWithLLMKeys(
 
     // Use the generic env file writer
     await updateEnvFile(envFilePath, updates);
-
-    // Log where the API key was written for visibility
-    if (llmProvider && llmApiKey) {
-        console.log(chalk.green(`✓ Wrote ${llmProvider.toUpperCase()} API key to: ${envFilePath}`));
-    }
 }

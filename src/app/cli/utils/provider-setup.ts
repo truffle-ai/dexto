@@ -34,15 +34,18 @@ export const PROVIDER_OPTIONS = [
  * Interactive provider selection using standardized options
  * @returns Selected provider or null if cancelled
  */
-export async function selectProvider(): Promise<LLMProvider | null> {
+export async function selectProvider(): Promise<LLMProvider> {
     const choice = await p.select({
         message: 'Choose your AI provider',
         options: PROVIDER_OPTIONS,
     });
 
     if (p.isCancel(choice)) {
-        return null;
+        p.cancel('Setup cancelled');
+        process.exit(1);
     }
+
+    p.outro(chalk.green(`🎉 Provider ${choice} selected!`));
 
     return choice as LLMProvider;
 }

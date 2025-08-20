@@ -73,7 +73,9 @@ export async function saveGlobalPreferences(preferences: GlobalPreferences): Pro
         // Write to file
         await fs.writeFile(preferencesPath, yamlContent, 'utf-8');
 
-        logger.info(`✓ Saved global preferences to: ${preferencesPath}`);
+        logger.info(
+            `✓ Saved global preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
+        );
     } catch (error) {
         throw PreferenceError.fileWriteError(
             preferencesPath,

@@ -6,6 +6,7 @@ import { LLMProvider, logger } from '@core/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { getDextoEnvPath } from '@core/utils/path.js';
 import { updateEnvFileWithLLMKeys } from './env-utils.js';
+import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import {
     getProviderDisplayName,
     getApiKeyPlaceholder,
@@ -17,12 +18,13 @@ import {
  * Interactively prompts the user to set up an API key for a specific provider.
  * Used when config validation detects a missing API key for a configured provider.
  * Only handles environment variable setup - does not modify config files.
+ * Exits the process if user cancels or setup fails.
  * @param provider - The specific provider that needs API key setup
  */
-export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boolean> {
+export async function interactiveApiKeySetup(provider: LLMProvider): Promise<void> {
     try {
         // Welcome message
-        p.intro(chalk.cyan('🔑 API Key Setup'));
+        p.intro(chalk.cyan('🔑 API Key Setup '));
 
         // Show targeted message for the required provider
         const instructions = getProviderInstructions(provider);
@@ -56,24 +58,42 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
 
         if (action === 'exit') {
             p.cancel('Setup cancelled. Run dexto again when you have an API key!');
-            return false;
+            process.exit(0);
         }
 
         if (action === 'manual') {
             showManualSetupInstructions();
             console.log(chalk.dim('\n👋 Run dexto again once you have set up your API key!'));
-            return false;
+            process.exit(0);
         }
 
-        const apiKey = await p.text({
+        if (p.isCancel(action)) {
+            p.cancel('Setup cancelled');
+            process.exit(1);
+        }
+
+        // const apiKey = await p.text({
+        //     message: `Enter your ${getProviderDisplayName(provider)} API key`,
+        //     placeholder: getApiKeyPlaceholder(provider),
+        //     validate: (value) => {
+        //         if (!value || value.trim().length === 0) {
+        //             return 'API key is required';
+        //         }
+        //         if (!isValidApiKeyFormat(value.trim(), provider)) {
+        //             return `Invalid ${getProviderDisplayName(provider)} API key format`;
+        //         }
+        //         return undefined;
+        //     },
+        // });
+        const apiKey = await p.password({
             message: `Enter your ${getProviderDisplayName(provider)} API key`,
-            placeholder: getApiKeyPlaceholder(provider),
+            mask: '*',
             validate: (value) => {
                 if (!value || value.trim().length === 0) {
                     return 'API key is required';
                 }
                 if (!isValidApiKeyFormat(value.trim(), provider)) {
-                    return `Invalid ${getProviderDisplayName(provider)} API key format`;
+                    throw new Error(`Invalid ${getProviderDisplayName(provider)} API key format`);
                 }
                 return undefined;
             },
@@ -81,7 +101,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
 
         if (p.isCancel(apiKey)) {
             p.cancel('Setup cancelled');
-            return false;
+            process.exit(0);
         }
 
         // Update .env file
@@ -92,15 +112,14 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
             // Update .env file with the API key using smart path detection
             const envFilePath = getDextoEnvPath(process.cwd());
             await updateEnvFileWithLLMKeys(envFilePath, provider, apiKey.trim());
-            spinner.stop('API key saved successfully! ✨');
-
-            p.outro(
-                chalk.green(
-                    '🎉 API Key Setup complete for ' + getProviderDisplayName(provider) + '!'
-                )
+            spinner.stop(
+                `✨ API key saved successfully for ${getProviderDisplayName(provider)} in ${envFilePath}!`
             );
 
-            return true;
+            p.outro(chalk.green(`✨ API key setup complete!`));
+
+            // Reload environment variables so the newly saved API key is available
+            await applyLayeredEnvironmentLoading();
         } catch (error) {
             spinner.stop('Failed to save API key');
             logger.error(`Failed to update .env file: ${error}`);
@@ -113,15 +132,15 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<boo
                 chalk.yellow('Save this API key manually')
             );
             console.error(chalk.red('\n❌ API key setup required to continue.'));
-            return false;
+            process.exit(1);
         }
     } catch (error) {
         if (p.isCancel(error)) {
             p.cancel('Setup cancelled');
-            return false;
+            process.exit(0);
         }
         console.error(chalk.red('\n❌ API key setup required to continue.'));
-        throw error;
+        process.exit(1);
     }
 }
 
