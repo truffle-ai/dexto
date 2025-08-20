@@ -7,7 +7,7 @@ import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 
 /**
  * Updates the LLM provider information in a dexto config file
- * Used for project creation/initialization (modifies agent.yml files)
+ * Used for project creation/initialization (modifies agent yml files)
  * @param filepath Path to agent config file
  * @param llmProvider LLM provider to configure
  */

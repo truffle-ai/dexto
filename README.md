@@ -115,7 +115,7 @@ The `DextoAgent` class is the core of the runtime. The following example shows i
 import 'dotenv/config';
 import { DextoAgent, loadConfigFile } from 'dexto';
 
-const cfg  = await loadConfigFile('./agents/agent.yml');
+const cfg  = await loadConfigFile('./agents/default-agent.yml');
 const agent = new DextoAgent(cfg);
 
 await agent.start();

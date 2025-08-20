@@ -24,7 +24,7 @@
 - APIs should resemble code that users could write with public libraries
 
 ### Service Initialization
-- **Config file is source of truth** - Use `agent.yml` for all configuration
+- **Config file is source of truth** - Use `agents/default-agent.yml` for all configuration
 - **Override pattern for advanced use** - Use `InitializeServicesOptions` only for top-level services
 - ✅ DO: Configure via config file for normal operation
 - ❌ DON'T: Add every internal dependency to override options

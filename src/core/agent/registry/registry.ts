@@ -75,7 +75,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * Resolve main config file for installed agent
      * Handles both directory agents (with main field) and single-file agents
      */
-    public resolveMainConfig(agentDir: string, agentName: string): string {
+    resolveMainConfig(agentDir: string, agentName: string): string {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
@@ -117,10 +117,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * @param agentName Name of the agent to install
      * @param injectPreferences Whether to inject global preferences into installed agent (default: true)
      */
-    private async installAgent(
-        agentName: string,
-        injectPreferences: boolean = true
-    ): Promise<string> {
+    async installAgent(agentName: string, injectPreferences: boolean = true): Promise<string> {
         const registry = this.getRegistry();
         const agentData = registry.agents[agentName];
 
@@ -215,6 +212,7 @@ export class LocalAgentRegistry implements AgentRegistry {
     /**
      * Resolve a registry agent name to a config path
      * NOTE: Only handles registry names, not file paths (routing done in loadAgentConfig)
+     * Handles installing agent if needed
      * @param agentName Name of the agent to resolve
      * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
      */

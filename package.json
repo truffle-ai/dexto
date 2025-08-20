@@ -63,7 +63,7 @@
     "license": "Elastic-2.0",
     "files": [
         "dist/",
-        "agents/agent.yml",
+        "agents/default-agent.yml",
         "agents/agent-template.yml",
         "public/"
     ],

@@ -340,13 +340,13 @@ program
         let resolvedPath: string;
 
         try {
-            // Case 3: File path - skip all validation and setup
+            // Case 1: File path - skip all validation and setup
             if (opts.agent && isPath(opts.agent)) {
                 resolvedPath = await resolveAgentPath(opts.agent);
             }
-            // Cases 1 & 2: Default agent or registry agent
+            // Cases 2 & 3: Default agent or registry agent
             else {
-                // Early registry validation for named agents (Case 2d)
+                // Early registry validation for named agents
                 if (opts.agent) {
                     const registry = getAgentRegistry();
                     if (!registry.hasAgent(opts.agent)) {
@@ -544,7 +544,7 @@ program
                             defaultVersion: agentCardConfig.version ?? '1.0.0',
                             defaultBaseUrl: 'stdio://local-dexto',
                         },
-                        agentCardConfig // preserve overrides from agent.yml
+                        agentCardConfig // preserve overrides from agent file
                     );
                     // Use stdio transport in mcp mode
                     const mcpTransport = await createMcpTransport('stdio');

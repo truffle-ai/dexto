@@ -320,13 +320,13 @@ loadAgentConfig(nameOrPath) {
 ### Phase 3: Integration & Polish
 - [x] **3.1 Add bulk installation support** - Multiple agents in single command
 - [x] **3.2 Enhance error handling** - Clear messages for missing preferences/registry stuff
-- [ ] **3.3 Add validation and recovery** - Handle corrupted preferences
-- [ ] **3.4 Update first-time setup integration** - Use new preference system. mostly done
+- [x] **3.3 Add validation and recovery** - Handle corrupted preferences
+- [x] **3.4 Update first-time setup integration** - Use new preference system. mostly done
 
 ### Phase 4: Project Integration
-- [ ] **4.1 Update dexto create-app** - Generate `src/dexto/agents/default-agent.yml` instead of `agent.yml`. search for `agent.yml` and `agents/agent.yml` in the repo and update references because we are now using `agents/default-agent.yml`
-- [ ] **4.2 Update path resolution** - Look for `default-agent.yml` in project search paths
-- [ ] **4.3 Test project workflows** - Ensure consistent naming doesn't break development
+- [x] **4.1 Update dexto create-app** - Generate `src/dexto/agents/default-agent.yml` instead of `agent.yml`. search for `agent.yml` and `agents/agent.yml` in the repo and update references because we are now using `agents/default-agent.yml`
+- [x] **4.2 Update path resolution** - Look for `default-agent.yml` in project search paths
+- [x] **4.3 Test project workflows** - Ensure consistent naming doesn't break development
 
 ### Phase 5: Enhanced CLI Commands
 - [ ] **5.1 Add dexto install command** - Explicit bulk installation with preference control

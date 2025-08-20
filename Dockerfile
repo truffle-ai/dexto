@@ -57,7 +57,7 @@ COPY --from=builder --chown=dexto:dexto /app/agents ./agents
 # Environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
-    CONFIG_FILE=/app/agents/agent.yml \
+    CONFIG_FILE=/app/agents/default-agent.yml \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 

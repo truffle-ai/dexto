@@ -13,7 +13,7 @@ We chose `yml` instead of the more popular `json` because of its support for com
 
 ## Where to Place Your Config
 
-By default, Dexto uses a configuration file named `agents/agent.yml`. You can also specify a custom config path using the CLI:
+By default, Dexto uses a configuration file named `agents/default-agent.yml`. You can also specify a custom config path using the CLI:
 
 ```bash
 dexto --agent path/to/your-config.yml

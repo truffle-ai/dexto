@@ -291,7 +291,7 @@ describe('real-world execution contexts', () => {
                     name: 'my-app',
                     dependencies: { dexto: '^1.0.0' },
                 },
-                'src/dexto/agents/agent.yml': 'mcpServers: {}',
+                'src/dexto/agents/default-agent.yml': 'mcpServers: {}',
             });
         });
 
@@ -317,7 +317,7 @@ describe('real-world execution contexts', () => {
                     name: 'dexto',
                     version: '1.0.0',
                 },
-                'agents/agent.yml': 'mcpServers: {}',
+                'agents/default-agent.yml': 'mcpServers: {}',
             });
         });
 

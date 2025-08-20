@@ -31,8 +31,8 @@ export GOOGLE_GENERATIVE_AI_API_KEY="your_key"
 export COHERE_API_KEY="your_key"
 ```
 
-### Agent Configuration (`agent.yml`)
-Agent behavior is defined in a YAML file (default: `agents/agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
+### Agent Configuration (`default-agent.yml`)
+Agent behavior is defined in a YAML file (default: `agents/default-agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
 
 **Example `agent.yml`:**
 ```yaml
@@ -152,7 +152,7 @@ dexto
 ```
 
 **Key CLI Flags:**
-- `-m, --model <model_name>`: Switch LLM model (e.g., `claude-3-sonnet-20240229`). Overrides config file.
+- `-m, --model <model_name>`: Switch LLM model (e.g., `claude-4-sonnet-20250514`). Overrides config file.
 - `-a, --agent <path/to/agent.yml>`: Use a specific agent configuration file.
 - `--mode <mode>`: Change the run mode.
 - `--new-session [id]`: Start a new chat session.
@@ -190,7 +190,7 @@ import { DextoAgent, loadAgentConfig } from 'dexto';
 const config = await loadAgentConfig();
 
 // Or load from a specific file
-// const config = await loadAgentConfig('./agents/agent.yml');
+// const config = await loadAgentConfig('./agents/default-agent.yml');
 
 // Create and start the agent
 const agent = new DextoAgent(config);
