@@ -8,7 +8,7 @@ import {
     isValidProviderModel,
     getSupportedModels,
 } from '@core/llm/registry.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import { createInitialPreferences, saveGlobalPreferences } from '@core/preferences/loader.js';
 import { interactiveApiKeySetup } from '@app/cli/utils/api-key-setup.js';
 import { selectProvider } from '@app/cli/utils/provider-setup.js';
@@ -129,9 +129,14 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     const preferences = createInitialPreferences(provider, model, apiKeyVar, defaultAgent);
     await saveGlobalPreferences(preferences);
 
-    // Setup API key interactively (only if interactive mode enabled)
+    // Setup API key interactively (only if interactive mode enabled and key doesn't exist)
     if (validated.interactive) {
-        await interactiveApiKeySetup(provider);
+        const existingApiKey = resolveApiKeyForProvider(provider);
+        if (existingApiKey) {
+            console.log(chalk.green(`✅ API key for ${provider} already configured`));
+        } else {
+            await interactiveApiKeySetup(provider);
+        }
     }
 
     console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));

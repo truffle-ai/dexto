@@ -18,6 +18,14 @@ vi.mock('@app/cli/utils/api-key-setup.js', () => ({
     interactiveApiKeySetup: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@core/utils/api-key-resolver.js', async () => {
+    const actual = await vi.importActual('@core/utils/api-key-resolver.js');
+    return {
+        ...actual,
+        resolveApiKeyForProvider: vi.fn(),
+    };
+});
+
 vi.mock('@app/cli/utils/provider-setup.js', () => ({
     selectProvider: vi.fn(),
 }));
@@ -42,6 +50,7 @@ describe('Setup Command', () => {
     let mockInteractiveApiKeySetup: any;
     let mockSelectProvider: any;
     let mockRequiresSetup: any;
+    let mockResolveApiKeyForProvider: any;
     let mockPrompts: any;
     let consoleSpy: any;
     let consoleErrorSpy: any;
@@ -58,6 +67,7 @@ describe('Setup Command', () => {
         // Get mock functions
         const prefLoader = await import('@core/preferences/loader.js');
         const apiKeySetup = await import('@app/cli/utils/api-key-setup.js');
+        const apiKeyResolver = await import('@core/utils/api-key-resolver.js');
         const providerSetup = await import('@app/cli/utils/provider-setup.js');
         const setupUtils = await import('@app/cli/utils/setup-utils.js');
         const prompts = await import('@clack/prompts');
@@ -65,6 +75,7 @@ describe('Setup Command', () => {
         mockCreateInitialPreferences = vi.mocked(prefLoader.createInitialPreferences);
         mockSaveGlobalPreferences = vi.mocked(prefLoader.saveGlobalPreferences);
         mockInteractiveApiKeySetup = vi.mocked(apiKeySetup.interactiveApiKeySetup);
+        mockResolveApiKeyForProvider = vi.mocked(apiKeyResolver.resolveApiKeyForProvider);
         mockSelectProvider = vi.mocked(providerSetup.selectProvider);
         mockRequiresSetup = vi.mocked(setupUtils.requiresSetup);
         mockPrompts = {
@@ -86,6 +97,7 @@ describe('Setup Command', () => {
         );
         mockSaveGlobalPreferences.mockResolvedValue(undefined);
         mockInteractiveApiKeySetup.mockResolvedValue(undefined);
+        mockResolveApiKeyForProvider.mockReturnValue(undefined); // Default: no API key exists
         mockSelectProvider.mockResolvedValue(null);
         mockRequiresSetup.mockResolvedValue(true); // Default: setup is required
         mockPrompts.isCancel.mockReturnValue(false);
@@ -187,15 +199,31 @@ describe('Setup Command', () => {
             );
         });
 
-        it('runs interactive API key setup by default', async () => {
+        it('runs interactive API key setup when no API key exists', async () => {
             const options = {
                 provider: 'openai' as const,
                 interactive: true,
             };
+            mockResolveApiKeyForProvider.mockReturnValue(undefined); // No API key exists
 
             await handleSetupCommand(options);
 
             expect(mockInteractiveApiKeySetup).toHaveBeenCalledWith('openai');
+        });
+
+        it('skips interactive API key setup when API key already exists', async () => {
+            const options = {
+                provider: 'openai' as const,
+                interactive: true,
+            };
+            mockResolveApiKeyForProvider.mockReturnValue('sk-test-api-key'); // API key exists
+
+            await handleSetupCommand(options);
+
+            expect(mockInteractiveApiKeySetup).not.toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining('✅ API key for openai already configured')
+            );
         });
     });
 
@@ -301,6 +329,7 @@ describe('Setup Command', () => {
                 })
             );
             mockSaveGlobalPreferences.mockResolvedValue(undefined);
+            mockResolveApiKeyForProvider.mockReturnValue(undefined); // Ensure no API key exists
             mockInteractiveApiKeySetup.mockRejectedValue(new Error('API key setup failed'));
 
             const options = {
