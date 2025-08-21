@@ -62,7 +62,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
         }
 
         if (action === 'manual') {
-            showManualSetupInstructions();
+            showManualSetupInstructions(provider);
             console.log(chalk.dim('\n👋 Run dexto again once you have set up your API key!'));
             process.exit(0);
         }
@@ -149,7 +149,8 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
 /**
  * Shows manual setup instructions to the user
  */
-function showManualSetupInstructions(): void {
+function showManualSetupInstructions(provider: LLMProvider): void {
+    const envVar = getPrimaryApiKeyEnvVar(provider);
     const envInstructions =
         getExecutionContext() === 'global-cli'
             ? [
@@ -157,11 +158,11 @@ function showManualSetupInstructions(): void {
                   `   dexto setup`,
                   ``,
                   `${chalk.bold('Or manually create ~/.dexto/.env:')}`,
-                  `   mkdir -p ~/.dexto && echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > ~/.dexto/.env`,
+                  `   mkdir -p ~/.dexto && echo "${envVar}=your_api_key_here" > ~/.dexto/.env`,
               ]
             : [
                   `${chalk.bold('2. Create a .env file in your project:')}`,
-                  `   echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > .env`,
+                  `   echo "${envVar}=your_api_key_here" > .env`,
               ];
 
     const instructions = [

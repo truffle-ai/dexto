@@ -1,6 +1,6 @@
 // src/core/utils/execution-context.ts
 
-import { walkUpDirectories } from './path.js';
+import { walkUpDirectories } from './fs-walk.js';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 

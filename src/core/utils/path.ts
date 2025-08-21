@@ -3,34 +3,12 @@ import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
+import { walkUpDirectories } from './fs-walk.js';
 import {
     getExecutionContext,
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-
-/**
- * Generic directory walker that searches up the directory tree
- * @param startPath Starting directory path
- * @param predicate Function that returns true when the desired condition is found
- * @returns The directory path where the condition was met, or null if not found
- */
-export function walkUpDirectories(
-    startPath: string,
-    predicate: (dirPath: string) => boolean
-): string | null {
-    let currentPath = path.resolve(startPath);
-    const rootPath = path.parse(currentPath).root;
-
-    while (currentPath !== rootPath) {
-        if (predicate(currentPath)) {
-            return currentPath;
-        }
-        currentPath = path.dirname(currentPath);
-    }
-
-    return null;
-}
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects

@@ -1,13 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import {
-    walkUpDirectories,
-    getDextoPath,
-    getDextoGlobalPath,
-    findPackageRoot,
-    resolveBundledScript,
-} from './path.js';
+import { walkUpDirectories } from './fs-walk.js';
+import { getDextoPath, getDextoGlobalPath, findPackageRoot, resolveBundledScript } from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 function createTempDir() {
