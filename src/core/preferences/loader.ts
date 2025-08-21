@@ -149,14 +149,17 @@ export async function updateGlobalPreferences(
     // Load existing preferences
     const existing = await loadGlobalPreferences();
 
-    // Merge updates
+    // Hybrid merge strategy: different sections have different coherence requirements
     const merged = {
         ...existing,
         ...updates,
-        // Deep merge for nested objects
-        llm: { ...existing.llm, ...updates.llm },
-        defaults: { ...existing.defaults, ...updates.defaults },
-        setup: { ...existing.setup, ...updates.setup },
+        // LLM section requires complete replacement (high coherence - provider/model/apiKey must match)
+        llm: updates.llm || existing.llm,
+        // Defaults and setup sections allow partial updates (low coherence - independent fields)
+        defaults: updates.defaults
+            ? { ...existing.defaults, ...updates.defaults }
+            : existing.defaults,
+        setup: updates.setup ? { ...existing.setup, ...updates.setup } : existing.setup,
     };
 
     // Validate merged result

@@ -10,7 +10,6 @@ import {
 } from './writer.js';
 import { type AgentConfig } from '@core/agent/schemas.js';
 import { type GlobalPreferences } from '@core/preferences/schemas.js';
-import { DextoRuntimeError } from '@core/errors/index.js';
 import { ConfigErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
@@ -27,19 +26,19 @@ describe('Config Writer', () => {
 
         // Sample agent configuration
         sampleConfig = {
-            name: 'Test Agent',
+            agentCard: {
+                name: 'Test Agent',
+                description: 'A test agent',
+                url: 'https://example.com',
+                version: '1.0.0',
+            },
             llm: {
                 provider: 'openai',
                 model: 'gpt-4',
                 apiKey: '$OPENAI_API_KEY',
             },
-            systemPrompt: {
-                instructions: 'You are a helpful assistant.',
-            },
-            tools: {
-                searchWeb: { enabled: true },
-                executeCode: { enabled: false },
-            },
+            systemPrompt: 'You are a helpful assistant.',
+            internalTools: ['search_history'],
         };
 
         // Sample global preferences
@@ -155,8 +154,8 @@ describe('Config Writer', () => {
 
             const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
             expect(updatedContent).toContain('name: Test Agent');
-            expect(updatedContent).toContain('instructions: You are a helpful assistant.');
-            expect(updatedContent).toContain('searchWeb:');
+            expect(updatedContent).toContain('You are a helpful assistant');
+            expect(updatedContent).toContain('search_history');
         });
 
         it('should apply CLI overrides over preferences', async () => {
@@ -196,7 +195,7 @@ describe('Config Writer', () => {
                     ...sampleConfig.llm,
                     temperature: 0.7,
                     maxTokens: 4000,
-                    router: 'direct',
+                    router: 'vercel' as const,
                 },
             };
 
@@ -206,7 +205,7 @@ describe('Config Writer', () => {
             const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
             expect(updatedContent).toContain('temperature: 0.7');
             expect(updatedContent).toContain('maxTokens: 4000');
-            expect(updatedContent).toContain('router: direct');
+            expect(updatedContent).toContain('router: vercel');
         });
 
         it('should throw ConfigError for non-existent file', async () => {
@@ -265,8 +264,16 @@ describe('Config Writer', () => {
             const config2Path = path.join(agentDir, 'agent2.yaml');
             const readmePath = path.join(agentDir, 'README.md');
 
-            await writeConfigFile(config1Path, { ...sampleConfig, name: 'Agent 1' });
-            await writeConfigFile(config2Path, { ...sampleConfig, name: 'Agent 2' });
+            const config1 = {
+                ...sampleConfig,
+                agentCard: { ...sampleConfig.agentCard!, name: 'Agent 1' },
+            };
+            const config2 = {
+                ...sampleConfig,
+                agentCard: { ...sampleConfig.agentCard!, name: 'Agent 2' },
+            };
+            await writeConfigFile(config1Path, config1);
+            await writeConfigFile(config2Path, config2);
             await fs.writeFile(readmePath, '# Agent Documentation', 'utf-8');
 
             await writePreferencesToAgent(agentDir, samplePreferences);
@@ -291,8 +298,16 @@ describe('Config Writer', () => {
             const mainConfigPath = path.join(agentDir, 'main.yml');
             const subConfigPath = path.join(subDir, 'sub.yml');
 
-            await writeConfigFile(mainConfigPath, { ...sampleConfig, name: 'Main Agent' });
-            await writeConfigFile(subConfigPath, { ...sampleConfig, name: 'Sub Agent' });
+            const mainConfig = {
+                ...sampleConfig,
+                agentCard: { ...sampleConfig.agentCard!, name: 'Main Agent' },
+            };
+            const subConfig = {
+                ...sampleConfig,
+                agentCard: { ...sampleConfig.agentCard!, name: 'Sub Agent' },
+            };
+            await writeConfigFile(mainConfigPath, mainConfig);
+            await writeConfigFile(subConfigPath, subConfig);
 
             await writePreferencesToAgent(agentDir, samplePreferences);
 

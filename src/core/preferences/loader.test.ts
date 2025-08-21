@@ -148,7 +148,7 @@ describe('Preferences Loader', () => {
 
             // Should be properly formatted
             expect(fileContent).toMatch(/^llm:/m);
-            expect(fileContent).toMatch(/^  provider:/m);
+            expect(fileContent).toMatch(/^ {2}provider:/m);
             expect(fileContent).toMatch(/^defaults:/m);
         });
 
@@ -165,7 +165,7 @@ describe('Preferences Loader', () => {
                 setup: {
                     completed: true, // Required field
                 },
-            } as GlobalPreferences;
+            } as any;
 
             await expect(saveGlobalPreferences(invalidPreferences)).rejects.toThrow(
                 expect.objectContaining({
@@ -255,20 +255,6 @@ describe('Preferences Loader', () => {
         });
 
         it('should throw validation error for preferences with invalid provider', async () => {
-            const invalidPreferences = {
-                llm: {
-                    provider: 'invalid-provider',
-                    model: 'some-model',
-                    apiKey: '$API_KEY',
-                },
-                defaults: {
-                    defaultAgent: 'test-agent',
-                },
-                setup: {
-                    completed: true,
-                },
-            };
-
             const yamlContent = `llm:
   provider: invalid-provider
   model: some-model
@@ -341,23 +327,29 @@ setup:
             await saveGlobalPreferences(samplePreferences);
         });
 
-        it('should merge partial updates with existing preferences', async () => {
-            const updates = {
+        it('should replace complete sections while preserving others', async () => {
+            const updates: Partial<GlobalPreferences> = {
                 llm: {
-                    provider: 'openai' as const,
+                    provider: 'openai',
                     model: 'gpt-4o',
+                    apiKey: '$OPENAI_API_KEY',
                 },
             };
 
             const updatedPreferences = await updateGlobalPreferences(updates);
 
+            // LLM section should be completely replaced
             expect(updatedPreferences.llm.provider).toBe('openai');
             expect(updatedPreferences.llm.model).toBe('gpt-4o');
-            expect(updatedPreferences.llm.apiKey).toBe('$ANTHROPIC_API_KEY'); // Preserved from original
-            expect(updatedPreferences.defaults.defaultAgent).toBe('test-agent'); // Preserved
+            expect(updatedPreferences.llm.apiKey).toBe('$OPENAI_API_KEY');
+
+            // Other sections should remain unchanged
+            expect(updatedPreferences.defaults.defaultAgent).toBe('test-agent'); // Preserved from original
+            expect(updatedPreferences.setup.completed).toBe(true); // Preserved from original
         });
 
-        it('should update nested objects correctly', async () => {
+        it('should allow partial updates for defaults section', async () => {
+            // Update only the defaults section
             const updates = {
                 defaults: {
                     defaultAgent: 'new-default-agent',
@@ -366,14 +358,36 @@ setup:
 
             const updatedPreferences = await updateGlobalPreferences(updates);
 
+            // Defaults section should be updated
             expect(updatedPreferences.defaults.defaultAgent).toBe('new-default-agent');
+            // Other sections should remain unchanged
             expect(updatedPreferences.llm.provider).toBe('anthropic'); // Preserved
+            expect(updatedPreferences.setup.completed).toBe(true); // Preserved
+        });
+
+        it('should allow partial updates for setup section', async () => {
+            // Update only the setup section
+            const updates = {
+                setup: {
+                    completed: false,
+                },
+            };
+
+            const updatedPreferences = await updateGlobalPreferences(updates);
+
+            // Setup section should be updated
+            expect(updatedPreferences.setup.completed).toBe(false);
+            // Other sections should remain unchanged
+            expect(updatedPreferences.llm.provider).toBe('anthropic'); // Preserved
+            expect(updatedPreferences.defaults.defaultAgent).toBe('test-agent'); // Preserved
         });
 
         it('should save updated preferences to file', async () => {
             const updates = {
                 llm: {
+                    provider: 'anthropic' as const,
                     model: 'claude-3-opus-20240229',
+                    apiKey: '$ANTHROPIC_API_KEY',
                 },
             };
 
@@ -388,6 +402,8 @@ setup:
             const invalidUpdates = {
                 llm: {
                     provider: 'invalid-provider' as any,
+                    model: 'some-model',
+                    apiKey: '$API_KEY',
                 },
             };
 
@@ -409,6 +425,7 @@ setup:
                 llm: {
                     provider: 'google' as const,
                     model: 'gemini-2.0-flash',
+                    apiKey: '$GOOGLE_API_KEY',
                 },
                 defaults: {
                     defaultAgent: 'updated-agent',
@@ -431,6 +448,7 @@ setup:
                 llm: {
                     provider: 'groq' as const,
                     model: 'llama-3.3-70b-versatile', // Valid groq model
+                    apiKey: '$GROQ_API_KEY',
                 },
             };
 
