@@ -11,7 +11,7 @@
 import { ToolConfirmationProvider, ToolExecutionDetails } from './types.js';
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
 import { InMemoryAllowedToolsProvider } from './allowed-tools-provider/in-memory.js';
-import { logger } from '@core/logger/logger.js';
+import { logger } from '@core/logger/index.js';
 
 export class NoOpConfirmationProvider implements ToolConfirmationProvider {
     public allowedToolsProvider: IAllowedToolsProvider;

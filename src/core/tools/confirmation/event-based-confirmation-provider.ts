@@ -5,7 +5,7 @@ import {
     ToolConfirmationResponse,
 } from './types.js';
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
-import { logger } from '@core/logger/logger.js';
+import { logger } from '@core/logger/index.js';
 import { AgentEventBus } from '../../events/index.js';
 import { ToolError } from '../errors.js';
 

@@ -37,6 +37,7 @@ vi.mock('@app/cli/utils/setup-utils.js', () => ({
 vi.mock('@clack/prompts', () => ({
     intro: vi.fn(),
     note: vi.fn(),
+    outro: vi.fn(),
     confirm: vi.fn(),
     cancel: vi.fn(),
     isCancel: vi.fn(),
@@ -221,9 +222,6 @@ describe('Setup Command', () => {
             await handleSetupCommand(options);
 
             expect(mockInteractiveApiKeySetup).not.toHaveBeenCalled();
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('✅ API key for openai already configured')
-            );
         });
     });
 

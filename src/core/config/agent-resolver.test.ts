@@ -55,6 +55,11 @@ describe('Agent Resolver', () => {
         // Reset all mocks
         vi.clearAllMocks();
 
+        // Setup execution context mocks with default values
+        mockGetExecutionContext.mockReturnValue('global-cli');
+        mockFindDextoSourceRoot.mockReturnValue(null);
+        mockFindDextoProjectRoot.mockReturnValue(null);
+
         // Setup default registry mock
         mockRegistry = {
             resolveAgent: vi.fn(),

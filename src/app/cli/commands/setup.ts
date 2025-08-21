@@ -14,7 +14,7 @@ import { interactiveApiKeySetup } from '@app/cli/utils/api-key-setup.js';
 import { selectProvider } from '@app/cli/utils/provider-setup.js';
 import { requiresSetup } from '@app/cli/utils/setup-utils.js';
 import * as p from '@clack/prompts';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z

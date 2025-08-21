@@ -1,4 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock logger to prevent initialization issues
+vi.mock('@core/logger/index.js', () => ({
+    logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
+}));
 import { z } from 'zod';
 import { LLMErrorCode } from './error-codes.js';
 import {
