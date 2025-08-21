@@ -49,12 +49,22 @@ describe('walkUpDirectories', () => {
 
     it('includes filesystem root in search', () => {
         // Test that the function evaluates the predicate for the root path
-        const rootPath = path.parse(process.cwd()).root;
+        // Derive root from the startPath under test, not the CWD
+        const rootPath = path.parse(nestedDir).root;
+
+        // Guard: ensure nestedDir is on the same drive/filesystem
+        expect(nestedDir.startsWith(rootPath)).toBe(true);
 
         // Use a predicate that only matches the root
         const result = walkUpDirectories(nestedDir, (dir) => dir === rootPath);
 
         // Should find the root path
         expect(result).toBe(rootPath);
+    });
+
+    it('returns null when starting at root and predicate never matches', () => {
+        const root = path.parse(nestedDir).root;
+        const result = walkUpDirectories(root, () => false);
+        expect(result).toBeNull();
     });
 });
