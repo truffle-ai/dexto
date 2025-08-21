@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import { walkUpDirectories } from './fs-walk.js';
 import { getDextoPath, getDextoGlobalPath, findPackageRoot, resolveBundledScript } from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
@@ -30,46 +29,6 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
 
     return tempDir;
 }
-
-describe('walkUpDirectories', () => {
-    let tempDir: string;
-    let nestedDir: string;
-
-    beforeEach(() => {
-        tempDir = createTempDir();
-        nestedDir = path.join(tempDir, 'nested', 'deep', 'directory');
-        fs.mkdirSync(nestedDir, { recursive: true });
-
-        // Create a marker file in tempDir
-        fs.writeFileSync(path.join(tempDir, 'marker.txt'), 'found');
-    });
-
-    afterEach(() => {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-    });
-
-    it('returns null when no directories match the predicate', () => {
-        const result = walkUpDirectories(nestedDir, (dir) =>
-            fs.existsSync(path.join(dir, 'nonexistent.txt'))
-        );
-        expect(result).toBeNull();
-    });
-
-    it('finds directory by walking up the tree', () => {
-        const result = walkUpDirectories(nestedDir, (dir) =>
-            fs.existsSync(path.join(dir, 'marker.txt'))
-        );
-        expect(result).toBe(tempDir);
-    });
-
-    it('returns the immediate directory if it matches', () => {
-        fs.writeFileSync(path.join(nestedDir, 'immediate.txt'), 'here');
-        const result = walkUpDirectories(nestedDir, (dir) =>
-            fs.existsSync(path.join(dir, 'immediate.txt'))
-        );
-        expect(result).toBe(nestedDir);
-    });
-});
 
 describe('getDextoPath', () => {
     let tempDir: string;

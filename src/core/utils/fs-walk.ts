@@ -13,11 +13,14 @@ export function walkUpDirectories(
     let currentPath = path.resolve(startPath);
     const rootPath = path.parse(currentPath).root;
 
-    while (currentPath !== rootPath) {
+    while (true) {
         if (predicate(currentPath)) {
             return currentPath;
         }
-        currentPath = path.dirname(currentPath);
+        if (currentPath === rootPath) break;
+        const parent = path.dirname(currentPath);
+        if (parent === currentPath) break; // safety for exotic paths
+        currentPath = parent;
     }
 
     return null;
