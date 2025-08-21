@@ -80,6 +80,7 @@ async function resolveDefaultAgentByContext(
  */
 async function resolveDefaultAgentForDextoSource(): Promise<string> {
     // Get the dexto source root directory
+    logger.debug('Resolving default agent for dexto source context');
     const sourceRoot = findDextoSourceRoot();
     if (!sourceRoot) {
         throw ConfigError.bundledNotFound('dexto source directory not found');
@@ -102,14 +103,24 @@ async function resolveDefaultAgentForDextoProject(
     injectPreferences: boolean = true
 ): Promise<string> {
     // Get the dexto project root directory
+    logger.debug('Resolving default agent for dexto project context');
     const projectRoot = findDextoProjectRoot();
     if (!projectRoot) {
         throw ConfigError.noProjectDefault('Project root not found');
     }
 
     // 1. Try project-local default-agent.yml first
-    // TODO: Expand this to have project level configurable defaults/settings as well. Could set this in dexto.config.ts or something similar and read from there
-    const projectDefaultPath = path.join(projectRoot, 'default-agent.yml');
+    // TODO: Expand this to have project level configurable defaults/settings as well.
+    // Could set this in dexto.config.ts or something similar and read from there
+    // This will allow users to configure default agent specific for a project
+    // link this with create-app which creates this file and preferences module
+    const projectDefaultPath = path.join(
+        projectRoot,
+        'src',
+        'dexto',
+        'agents',
+        'default-agent.yml'
+    );
     try {
         await fs.access(projectDefaultPath);
         return projectDefaultPath;
@@ -141,6 +152,7 @@ async function resolveDefaultAgentForGlobalCLI(
     autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
+    logger.debug('Resolving default agent for global CLI context');
     if (!globalPreferencesExist()) {
         throw ConfigError.noGlobalPreferences();
     }

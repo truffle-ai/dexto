@@ -176,8 +176,15 @@ describe('Agent Resolver', () => {
             mockFindDextoProjectRoot.mockReturnValue(tempDir);
         });
 
-        it('uses project-local default-agent.yml when exists', async () => {
-            const projectDefault = path.join(tempDir, 'default-agent.yml');
+        it('uses project-local src/dexto/agents/default-agent.yml when exists', async () => {
+            const projectDefault = path.join(
+                tempDir,
+                'src',
+                'dexto',
+                'agents',
+                'default-agent.yml'
+            );
+            await fs.mkdir(path.join(tempDir, 'src', 'dexto', 'agents'), { recursive: true });
             await fs.writeFile(projectDefault, 'test: config');
 
             // Mock fs.access to succeed for the project default file
