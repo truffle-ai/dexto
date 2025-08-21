@@ -299,7 +299,7 @@ export async function createDextoExampleFile(directory: string): Promise<string>
     // Extract the base directory from the given path (e.g., "src" from "src/dexto")
     const baseDir = path.dirname(directory);
 
-    const configPath = `./${path.join(baseDir, 'dexto/agents/default-agent.yml')}`;
+    const configPath = `./${path.posix.join(baseDir, 'dexto/agents/default-agent.yml')}`;
 
     const indexTsLines = [
         "import 'dotenv/config';",

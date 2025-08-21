@@ -106,7 +106,7 @@ async function resolveDefaultAgentForDextoProject(
     logger.debug('Resolving default agent for dexto project context');
     const projectRoot = findDextoProjectRoot();
     if (!projectRoot) {
-        throw ConfigError.noProjectDefault('Project root not found');
+        throw ConfigError.unknownContext('dexto-project: project root not found');
     }
 
     // 1. Try project-local default-agent.yml first
@@ -114,23 +114,27 @@ async function resolveDefaultAgentForDextoProject(
     // Could set this in dexto.config.ts or something similar and read from there
     // This will allow users to configure default agent specific for a project
     // link this with create-app which creates this file and preferences module
-    const projectDefaultPath = path.join(
-        projectRoot,
-        'src',
-        'dexto',
-        'agents',
-        'default-agent.yml'
-    );
-    try {
-        await fs.access(projectDefaultPath);
-        return projectDefaultPath;
-    } catch {
-        logger.debug(`No project-local default-agent.yml found in ${projectRoot}`);
+
+    // Probe common project-local locations (ordered by preference)
+    const candidatePaths = [
+        path.join(projectRoot, 'default-agent.yml'),
+        path.join(projectRoot, 'agents', 'default-agent.yml'),
+        path.join(projectRoot, 'src', 'dexto', 'agents', 'default-agent.yml'),
+    ];
+    for (const p of candidatePaths) {
+        try {
+            await fs.access(p);
+            return p;
+        } catch {
+            // continue
+        }
     }
+    logger.debug(`No project-local default-agent.yml found in ${projectRoot}`);
 
     // 2. Use preferences default agent name - REQUIRED if no project default
     if (!globalPreferencesExist()) {
-        throw ConfigError.noProjectDefault(projectDefaultPath);
+        // Provide the project root to help the user fix placement
+        throw ConfigError.noProjectDefault(projectRoot);
     }
 
     const preferences = await loadGlobalPreferences();
@@ -176,9 +180,11 @@ export async function updateDefaultAgentPreference(agentName: string): Promise<v
     // Validate agent exists in registry first
     const { getAgentRegistry } = await import('@core/agent/registry/registry.js');
     const { RegistryError } = await import('@core/agent/registry/errors.js');
+    const { isPath } = await import('@core/utils/path.js');
     const registry = getAgentRegistry();
 
-    if (!registry.hasAgent(agentName)) {
+    // Only registry agent names are allowed here, not file paths
+    if (isPath(agentName) || !registry.hasAgent(agentName)) {
         const available = Object.keys(registry.getAvailableAgents());
         throw RegistryError.agentNotFound(agentName, available);
     }
