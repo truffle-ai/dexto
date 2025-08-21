@@ -80,7 +80,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
                     return 'API key is required';
                 }
                 if (!isValidApiKeyFormat(value.trim(), provider)) {
-                    throw new Error(`Invalid ${getProviderDisplayName(provider)} API key format`);
+                    return `Invalid ${getProviderDisplayName(provider)} API key format`;
                 }
                 return undefined;
             },
@@ -117,15 +117,15 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             if (getExecutionContext() === 'global-cli') {
                 instructions =
                     `1. Create ~/.dexto/.env file\n` +
-                    `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
+                    `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=your_api_key_here\n` +
                     `3. Run dexto again\n\n` +
                     `Alternatively:\n` +
-                    `• Set environment variable: export ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
+                    `• Set environment variable: export ${getPrimaryApiKeyEnvVar(provider)}=your_api_key_here\n` +
                     `• Or run: dexto setup`;
             } else {
                 instructions =
                     `1. Create a .env file in your project root\n` +
-                    `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=${apiKey}\n` +
+                    `2. Add this line: ${getPrimaryApiKeyEnvVar(provider)}=your_api_key_here\n` +
                     `3. Run dexto again`;
             }
 

@@ -19,14 +19,25 @@ import { logger } from '@core/index.js';
 // Zod schema for setup command validation
 const SetupCommandSchema = z
     .object({
-        provider: z.enum(LLM_PROVIDERS).optional(),
-        model: z.string().min(1, 'Model name cannot be empty').optional(),
+        provider: z
+            .enum(LLM_PROVIDERS)
+            .optional()
+            .describe('AI provider identifier to use for LLM calls'),
+        model: z
+            .string()
+            .min(1, 'Model name cannot be empty')
+            .optional()
+            .describe('Preferred model name for the selected provider'),
         defaultAgent: z
             .string()
             .min(1, 'Default agent name cannot be empty')
-            .default('default-agent'),
-        interactive: z.boolean().default(true),
-        force: z.boolean().default(false),
+            .default('default-agent')
+            .describe('Registry agent id to use when none is specified'),
+        interactive: z.boolean().default(true).describe('Enable interactive prompts'),
+        force: z
+            .boolean()
+            .default(false)
+            .describe('Overwrite existing setup when already configured'),
     })
     .strict()
     .superRefine((data, ctx) => {

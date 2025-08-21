@@ -82,7 +82,7 @@ export class SessionManager {
         this.cleanupInterval = setInterval(
             () =>
                 this.cleanupExpiredSessions().catch((err) =>
-                    logger.error('Periodic session cleanup failed:', err)
+                    logger.error(`Periodic session cleanup failed: ${err}`)
                 ),
             cleanupIntervalMs
         );

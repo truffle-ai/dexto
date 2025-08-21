@@ -119,7 +119,7 @@ export class StorageManager {
             logger.info(`Connecting to Redis at ${config.host}:${config.port}`);
             return new RedisBackend(config);
         } catch (error) {
-            logger.warn('Redis not available, falling back to in-memory cache:', error);
+            logger.warn(`Redis not available, falling back to in-memory cache: ${error}`);
             return new MemoryBackend();
         }
     }
@@ -133,7 +133,7 @@ export class StorageManager {
             logger.info('Connecting to PostgreSQL database');
             return new PostgresBackend(config);
         } catch (error) {
-            logger.warn('PostgreSQL not available, falling back to in-memory database:', error);
+            logger.warn(`PostgreSQL not available, falling back to in-memory database: ${error}`);
             return new MemoryBackend();
         }
     }

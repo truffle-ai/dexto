@@ -74,6 +74,7 @@ program
     )
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
+    .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('-r, --router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--new-session [sessionId]', 'Start with a new session (optionally specify session ID)')
