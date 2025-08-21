@@ -44,7 +44,7 @@ systemPrompt:
       type: file
       priority: 10
       files:
-        - docs/company-overview.md
+        - "${{dexto.agent_dir}}/docs/company-overview.md"
       options:
         includeFilenames: true
         errorHandling: skip
@@ -53,7 +53,7 @@ systemPrompt:
       type: file
       priority: 20
       files:
-        - docs/escalation-policies.md
+        - "${{dexto.agent_dir}}/docs/escalation-policies.md"
       options:
         includeFilenames: true
         errorHandling: skip

@@ -130,4 +130,79 @@ mcpServers:
         const config = await loadAgentConfig(tmpFile);
         expect(config.llm?.apiKey).toBe('${UNDEFINED_API_KEY}');
     });
+
+    it('expands template variables in config', async () => {
+        const yamlContent = `
+llm:
+  provider: 'test-provider'
+  model: 'test-model'
+mcpServers:
+  testServer:
+    type: 'stdio'
+    command: 'echo'
+    args: 
+      - 'hello'
+      - '\${{dexto.agent_dir}}/data/file.txt'
+systemPrompt:
+  contributors:
+    - type: file
+      files:
+        - '\${{dexto.agent_dir}}/docs/prompt.md'
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+
+        const config = await loadAgentConfig(tmpFile);
+        const expectedDir = path.dirname(tmpFile);
+        const expectedDataFile = path.join(expectedDir, 'data', 'file.txt');
+        const expectedPromptFile = path.join(expectedDir, 'docs', 'prompt.md');
+
+        // Template variables should be expanded (cross-platform)
+        expect(path.normalize((config.mcpServers?.testServer as any)?.args?.[1] as string)).toBe(
+            path.normalize(expectedDataFile)
+        );
+        expect(
+            path.normalize((config.systemPrompt as any)?.contributors?.[0]?.files?.[0] as string)
+        ).toBe(path.normalize(expectedPromptFile));
+    });
+
+    it('handles config without template variables', async () => {
+        const yamlContent = `
+llm:
+  provider: 'test-provider'
+  model: 'test-model'
+mcpServers:
+  testServer:
+    type: 'stdio'
+    command: 'echo'
+    args: ['hello', 'world']
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+
+        const config = await loadAgentConfig(tmpFile);
+
+        // Regular config should work normally
+        expect((config.mcpServers?.testServer as any)?.args).toEqual(['hello', 'world']);
+    });
+
+    it('throws error on path traversal in template expansion', async () => {
+        const yamlContent = `
+llm:
+  provider: 'test-provider'
+  model: 'test-model'
+mcpServers:
+  testServer:
+    type: 'stdio'
+    command: 'echo'
+    args: ['\${{dexto.agent_dir}}/../../../sensitive/file']
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+
+        await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
+            expect.objectContaining({
+                code: ConfigErrorCode.PARSE_ERROR,
+                scope: ErrorScope.CONFIG,
+                type: ErrorType.USER,
+            })
+        );
+    });
 });

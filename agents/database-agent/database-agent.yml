@@ -11,7 +11,7 @@ mcpServers:
     args:
       - -y
       - "@executeautomation/database-server"
-      - "./agents/database-agent/data/example.db"
+      - "${{dexto.agent_dir}}/data/example.db"
     timeout: 30000
     connectionMode: strict
 

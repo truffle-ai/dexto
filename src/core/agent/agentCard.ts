@@ -1,4 +1,4 @@
-import type { AgentCard } from './types.js';
+import type { AgentCard } from './schemas.js';
 import { AgentCardSchema } from '@core/agent/schemas.js';
 
 /**

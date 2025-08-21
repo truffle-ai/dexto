@@ -7,7 +7,13 @@ import { getPackageManager, getPackageManagerInstallCommand } from '../utils/pac
 import { executeWithTimeout } from '../utils/execute.js';
 import { createRequire } from 'module';
 import { LLMProvider, logger } from '@core/index.js';
-import { updateDextoConfigFile, updateEnvFileWithLLMKeys } from '../utils/api-key-utils.js';
+import { updateDextoConfigFile } from '../utils/project-utils.js';
+import { updateEnvFileWithLLMKeys } from '../utils/env-utils.js';
+import {
+    getProviderDisplayName,
+    isValidApiKeyFormat,
+    PROVIDER_OPTIONS,
+} from '../utils/provider-setup.js';
 
 const require = createRequire(import.meta.url);
 
@@ -25,30 +31,46 @@ export async function getUserInputToInitDextoApp(): Promise<{
         {
             llmProvider: () =>
                 p.select({
-                    message: 'Select your LLM provider',
-                    options: [
-                        { value: 'openai', label: 'OpenAI', hint: 'Most popular LLM provider' },
-                        { value: 'anthropic', label: 'Anthropic' },
-                        { value: 'google', label: 'Google' },
-                        { value: 'groq', label: 'Groq' },
-                    ],
+                    message: 'Choose your AI provider',
+                    options: PROVIDER_OPTIONS,
                 }),
             llmApiKey: async ({ results }) => {
-                const llmProvider = results.llmProvider;
+                const llmProvider = results.llmProvider as LLMProvider;
                 const selection = await p.select({
-                    message: `Enter your API key for ${llmProvider}?`,
+                    message: `Enter your API key for ${getProviderDisplayName(llmProvider)}?`,
                     options: [
-                        { value: 'skip', label: 'Skip', hint: 'default' },
-                        { value: 'enter', label: 'Enter', hint: 'enter it manually' },
+                        { value: 'enter', label: 'Enter', hint: 'recommended' },
+                        { value: 'skip', label: 'Skip', hint: '' },
                     ],
-                    initialValue: 'skip',
+                    initialValue: 'enter',
                 });
 
+                if (p.isCancel(selection)) {
+                    p.cancel('Dexto initialization cancelled');
+                    process.exit(0);
+                }
+
                 if (selection === 'enter') {
-                    return await p.text({
-                        message: 'Enter your API key',
-                        placeholder: 'sk-...',
+                    const apiKey = await p.password({
+                        message: `Enter your ${getProviderDisplayName(llmProvider)} API key`,
+                        mask: '*',
+                        validate: (value) => {
+                            if (!value || value.trim().length === 0) {
+                                return 'API key is required';
+                            }
+                            if (!isValidApiKeyFormat(value.trim(), llmProvider)) {
+                                return `Invalid ${getProviderDisplayName(llmProvider)} API key format`;
+                            }
+                            return undefined;
+                        },
                     });
+
+                    if (p.isCancel(apiKey)) {
+                        p.cancel('Dexto initialization cancelled');
+                        process.exit(0);
+                    }
+
+                    return apiKey;
                 }
                 return '';
             },
@@ -139,7 +161,9 @@ export async function initDexto(
                 message: 'Overwrite Dexto?',
                 initialValue: false,
             });
-            if (!overwrite) {
+
+            if (p.isCancel(overwrite) || !overwrite) {
+                p.cancel('Dexto initialization cancelled');
                 return { success: false };
             }
         }
@@ -157,7 +181,7 @@ export async function initDexto(
             spinner.stop(chalk.red('Failed to create agent config file'));
             logger.error(`Config creation error: ${configError}`);
             throw new Error(
-                `Failed to create agent.yml: ${configError instanceof Error ? configError.message : String(configError)}`
+                `Failed to create default-agent.yml: ${configError instanceof Error ? configError.message : String(configError)}`
             );
         }
 
@@ -196,8 +220,8 @@ export async function postInitDexto(directory: string) {
     const nextSteps = [
         `1. Run the example: ${chalk.cyan(`node --loader ts-node/esm ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
-        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'agent.yml'))}`,
-        `4. Try out different LLMs and MCP servers in the agent.yml file`,
+        `3. Check out the agent configuration file ${chalk.cyan(path.join(directory, 'dexto', 'agents', 'default-agent.yml'))}`,
+        `4. Try out different LLMs and MCP servers in the default-agent.yml file`,
         `5. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
     ].join('\n');
     p.note(nextSteps, chalk.yellow('Next steps:'));
@@ -252,7 +276,7 @@ export async function createDextoConfigFile(directory: string): Promise<string> 
         }
 
         // Path to the destination config file
-        const destConfigPath = path.join(directory, 'agent.yml');
+        const destConfigPath = path.join(directory, 'default-agent.yml');
         logger.debug(`Copying template to: ${destConfigPath}`);
 
         // Copy the config file from the Dexto package
@@ -275,7 +299,7 @@ export async function createDextoExampleFile(directory: string): Promise<string>
     // Extract the base directory from the given path (e.g., "src" from "src/dexto")
     const baseDir = path.dirname(directory);
 
-    const configPath = `./${path.join(baseDir, 'dexto/agents/agent.yml')}`;
+    const configPath = `./${path.posix.join(baseDir, 'dexto/agents/default-agent.yml')}`;
 
     const indexTsLines = [
         "import 'dotenv/config';",
@@ -297,22 +321,32 @@ export async function createDextoExampleFile(directory: string): Promise<string>
         '',
         '  // Example 1: Simple task',
         "  console.log('📋 Example 1: Simple information request');",
-        "  const response1 = await agent.run('What tools do you have available?');",
+        "  const request1 = 'What tools do you have available?';",
+        "  console.log('Request:', request1);",
+        '  const response1 = await agent.run(request1);',
         "  console.log('Response:', response1);",
-        "  console.log('\\n——\\n');",
+        "  console.log('\\n——————\\n');",
         '',
         '  // Example 2: File operation',
         "  console.log('📄 Example 2: File creation');",
-        '  const response2 = await agent.run(\'Create a file called test-output.txt with the content "Hello from Dexto!"\');',
+        '  const request2 = \'Create a file called test-output.txt with the content "Hello from Dexto!"\';',
+        "  console.log('Request:', request2);",
+        '  const response2 = await agent.run(request2);',
         "  console.log('Response:', response2);",
-        "  console.log('\\n——\\n');",
+        "  console.log('\\n——————\\n');",
         '',
         '  // Example 3: Multi-step conversation',
         "  console.log('🗣️ Example 3: Multi-step conversation');",
-        '  await agent.run(\'Create a simple HTML file called demo.html with a heading that says "Dexto Demo"\');',
-        "  const response3 = await agent.run('Now add a paragraph to that HTML file explaining what Dexto is');",
-        "  console.log('Response:', response3);",
-        "  console.log('\\n——\\n');",
+        '  const request3a = \'Create a simple HTML file called demo.html with a heading that says "Dexto Demo"\';',
+        "  console.log('Request 3a:', request3a);",
+        '  const response3a = await agent.run(request3a);',
+        "  console.log('Response:', response3a);",
+        "  console.log('\\n\\n');",
+        "  const request3b = 'Now add a paragraph to that HTML file explaining what Dexto is';",
+        "  console.log('Request 3b:', request3b);",
+        '  const response3b = await agent.run(request3b);',
+        "  console.log('Response:', response3b);",
+        "  console.log('\\n——————\\n');",
         '',
         '  // Reset conversation (clear context)',
         "  console.log('🔄 Resetting conversation context...');",
@@ -320,12 +354,14 @@ export async function createDextoExampleFile(directory: string): Promise<string>
         '',
         '  // Example 4: Complex task',
         "  console.log('🏗️ Example 4: Complex multi-tool task');",
-        '  const response4 = await agent.run(',
+        '  const request4 = ',
         "    'Create a simple webpage about AI agents with HTML, CSS, and JavaScript. ' +",
         "    'The page should have a title, some content about what AI agents are, ' +",
-        "    'and a button that shows an alert when clicked.'",
-        '  );',
+        "    'and a button that shows an alert when clicked.';",
+        "  console.log('Request:', request4);",
+        '  const response4 = await agent.run(request4);',
         "  console.log('Response:', response4);",
+        "  console.log('\\n——————\\n');",
         '',
         '  // Stop the agent (disconnect from MCP servers)',
         "  console.log('\\n🛑 Stopping agent...');",
@@ -336,7 +372,7 @@ export async function createDextoExampleFile(directory: string): Promise<string>
         "  console.error('❌ Error:', error);",
         '}',
         '',
-        "console.log('\\n📖 Read Dexto documentation to understand more about using Dexto: https://github.com/truffle-ai/dexto');",
+        "console.log('\\n📖 Read Dexto documentation to understand more about using Dexto: https://docs.dexto.ai');",
     ];
     const indexTsContent = indexTsLines.join('\n');
     const outputPath = path.join(directory, 'dexto-example.ts');

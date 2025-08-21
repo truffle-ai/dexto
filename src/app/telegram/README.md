@@ -18,7 +18,7 @@ To run Dexto as a Telegram bot, you need to configure the following environment 
 
 Once the `TELEGRAM_BOT_TOKEN` is set (e.g., in a `.env` file at the project root), you can start the Telegram bot.
 
-To use the default Dexto configuration (`agents/agent.yml`):
+To use the default Dexto configuration (`agents/default-agent.yml`):
 ```bash
 dexto --mode telegram
 # With a custom config path:

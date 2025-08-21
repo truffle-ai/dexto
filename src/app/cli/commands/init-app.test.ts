@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { createDextoDirectories, createDextoExampleFile, postInitDexto } from './init.js';
+import { createDextoDirectories, createDextoExampleFile, postInitDexto } from './init-app.js';
 
 describe('Init Module', () => {
     let tempDir: string;
@@ -81,7 +81,7 @@ describe('Init Module', () => {
                 const content = await fs.readFile(examplePath, 'utf8');
                 expect(content).toContain("import { DextoAgent, loadAgentConfig } from 'dexto'");
                 expect(content).toContain("console.log('🚀 Starting Dexto Basic Example");
-                expect(content).toContain('./src/dexto/agents/agent.yml'); // Correct relative path
+                expect(content).toContain('./src/dexto/agents/default-agent.yml'); // Correct relative path
                 expect(content).toContain('const agent = new DextoAgent(config)');
             } finally {
                 process.chdir(originalCwd);
@@ -99,7 +99,7 @@ describe('Init Module', () => {
                 const examplePath = await createDextoExampleFile(dextoDir);
                 const content = await fs.readFile(examplePath, 'utf8');
 
-                expect(content).toContain('./custom/dexto/agents/agent.yml');
+                expect(content).toContain('./custom/dexto/agents/default-agent.yml');
             } finally {
                 process.chdir(originalCwd);
             }

@@ -12,7 +12,7 @@ export function validateCliOptions(opts: any): void {
 
     // Base schema for primitive shape
     const cliOptionShape = z.object({
-        agent: z.string().min(1, 'Agent config file path must not be empty').optional(),
+        agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
         strict: z.boolean().optional().default(false),
         verbose: z.boolean().optional().default(true),
         mode: z.enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'], {
@@ -31,11 +31,11 @@ export function validateCliOptions(opts: any): void {
         provider: z.string().optional(),
         model: z.string().optional(),
         router: z.enum(['vercel', 'in-built']).optional(),
-        skipInteractive: z
+        interactive: z
             .boolean()
             .optional()
-            .default(false)
-            .describe('Skip interactive prompts and fail instead'),
+            .default(true)
+            .describe('Enable interactive prompts (set to false with --no-interactive)'),
     });
 
     // Basic semantic validation
@@ -87,7 +87,7 @@ export function validateCliOptions(opts: any): void {
         provider: opts.provider,
         model: opts.model,
         router: opts.router,
-        skipInteractive: opts.skipInteractive,
+        interactive: opts.interactive,
     });
 }
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 import { tmpdir, homedir } from 'os';
-import { updateEnvFileWithLLMKeys } from './api-key-utils.js';
+import { updateEnvFileWithLLMKeys } from './env-utils.js';
 
 // Mock homedir to control global .dexto location
 vi.mock('os', async () => {
@@ -13,13 +13,13 @@ vi.mock('os', async () => {
     };
 });
 
-describe('API Key Utils', () => {
+describe('Environment Utils', () => {
     let tempDir: string;
     let mockHomeDir: string;
 
     beforeEach(async () => {
         // Create a temporary directory for testing
-        tempDir = await fs.mkdtemp(path.join(tmpdir(), 'dexto-api-key-test-'));
+        tempDir = await fs.mkdtemp(path.join(tmpdir(), 'dexto-env-test-'));
 
         // Create mock home directory
         mockHomeDir = await fs.mkdtemp(path.join(tmpdir(), 'dexto-mock-home-'));

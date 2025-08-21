@@ -13,13 +13,15 @@ import pkg from '../../package.json' with { type: 'json' };
 
 import {
     logger,
-    resolveConfigPath,
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
     loadAgentConfig,
     LLMProvider,
 } from '@core/index.js';
+import { resolveAgentPath } from '@core/config/agent-resolver.js';
+import { getAgentRegistry } from '@core/agent/registry/registry.js';
+import { isPath } from '@core/utils/path.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 import { startAiCli, startHeadlessCli } from './cli/cli.js';
@@ -29,7 +31,6 @@ import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
-import { isFirstTimeUserScenario, handleFirstTimeSetup } from './cli/utils/first-time-setup.js';
 import { getPort } from '@core/utils/port-utils.js';
 import {
     createDextoProject,
@@ -39,11 +40,23 @@ import {
     initDexto,
     postInitDexto,
     getUserInputToInitDextoApp,
-} from './cli/project-commands/index.js';
+} from './cli/commands/index.js';
+import {
+    handleSetupCommand,
+    type CLISetupOptionsInput,
+    handleInstallCommand,
+    type InstallCommandOptions,
+    handleUninstallCommand,
+    type UninstallCommandOptions,
+    handleListAgentsCommand,
+    type ListAgentsCommandOptionsInput,
+    handleWhichCommand,
+} from './cli/commands/index.js';
+import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
-import { createAgentCard } from '@core/config/agentCard.js';
+import { createAgentCard } from '@core/agent/agentCard.js';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
 
@@ -54,14 +67,15 @@ program
     .name('dexto')
     .description('AI-powered CLI and WebUI for interacting with MCP servers')
     .version(pkg.version, '-v, --version', 'output the current version')
-    .option('-a, --agent <path>', 'Path to agent config file')
+    .option('-a, --agent <name|path>', 'Agent name or path to agent config file')
     .option(
         '-p, --prompt <text>',
         'One-shot prompt text. Alternatively provide a single quoted string as positional argument.'
     )
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
-    .option('-m, --model <model>', 'Specify the LLM model to use. ')
+    .option('--no-interactive', 'Disable interactive prompts and API key setup')
+    .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('-r, --router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--new-session [sessionId]', 'Start with a new session (optionally specify session ID)')
     .option(
@@ -70,7 +84,8 @@ program
         'cli'
     )
     .option('--web-port <port>', 'optional port for the web UI', '3000')
-    .option('--skip-interactive', 'Disable interactive prompts (fail instead of prompting)');
+    .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
+    .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
 program
@@ -142,7 +157,92 @@ program
         }
     });
 
-// 4) `mcp` SUB-COMMAND
+// 4) `setup` SUB-COMMAND
+program
+    .command('setup')
+    .description('Configure global Dexto preferences')
+    .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
+    .option('--model <model>', 'Model name (uses provider default if not specified)')
+    .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
+    .option('--no-interactive', 'Skip interactive prompts and API key setup')
+    .option('--force', 'Overwrite existing setup without confirmation')
+    .action(async (options: CLISetupOptionsInput) => {
+        try {
+            await handleSetupCommand(options);
+            process.exit(0);
+        } catch (err) {
+            console.error(
+                `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+            );
+            process.exit(1);
+        }
+    });
+
+// 5) `install` SUB-COMMAND
+program
+    .command('install [agents...]')
+    .description('Install agents from the registry')
+    .option('--all', 'Install all available agents from registry')
+    .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
+    .option('--force', 'Force reinstall even if agent is already installed')
+    .action(async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
+        try {
+            await handleInstallCommand(agents, options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto install command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 6) `uninstall` SUB-COMMAND
+program
+    .command('uninstall [agents...]')
+    .description('Uninstall agents from the local installation')
+    .option('--all', 'Uninstall all installed agents')
+    .option('--force', 'Force uninstall even if agent is protected (e.g., default-agent)')
+    .action(async (agents: string[], options: Partial<UninstallCommandOptions>) => {
+        try {
+            await handleUninstallCommand(agents, options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto uninstall command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 7) `list-agents` SUB-COMMAND
+program
+    .command('list-agents')
+    .description('List available and installed agents')
+    .option('--verbose', 'Show detailed agent information')
+    .option('--installed', 'Show only installed agents')
+    .option('--available', 'Show only available agents')
+    .action(async (options: ListAgentsCommandOptionsInput) => {
+        try {
+            await handleListAgentsCommand(options);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto list-agents command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 8) `which` SUB-COMMAND
+program
+    .command('which <agent>')
+    .description('Show the path to an agent')
+    .action(async (agent: string) => {
+        try {
+            await handleWhichCommand(agent);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto which command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 9) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -172,10 +272,15 @@ program
             // Load and resolve config
             // Get the global agent option from the main program
             const globalOpts = program.opts();
-            const configPath = globalOpts.agent;
+            const nameOrPath = globalOpts.agent;
 
+            const configPath = await resolveAgentPath(
+                nameOrPath,
+                globalOpts.autoInstall !== false,
+                true
+            );
             const config = await loadAgentConfig(configPath);
-            console.log(`📄 Loading Dexto config from: ${resolveConfigPath(configPath)}`);
+            console.log(`📄 Loading Dexto config from: ${configPath}`);
 
             // Validate that MCP servers are configured
             if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
@@ -214,7 +319,7 @@ program
         }
     });
 
-// 5) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -296,40 +401,55 @@ program
             handleCliOptionsError(err);
         }
 
-        // ——— LOAD AND PREPARE CONFIG ———
+        // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
         let validatedConfig: AgentConfig;
+        let resolvedPath: string;
+
         try {
-            // Check for first-time user scenario BEFORE loading config
-            const resolvedPath = resolveConfigPath(opts.agent);
-            if (isFirstTimeUserScenario(resolvedPath)) {
-                if (opts.skipInteractive) {
-                    console.error(
-                        chalk.red(
-                            '❌ First-time setup required but --skip-interactive flag is set.'
-                        )
-                    );
-                    console.error(
-                        chalk.dim(
-                            'Please run without --skip-interactive to complete setup, or provide a valid config file.'
-                        )
-                    );
-                    process.exit(1);
+            // Case 1: File path - skip all validation and setup
+            if (opts.agent && isPath(opts.agent)) {
+                resolvedPath = await resolveAgentPath(opts.agent, opts.autoInstall !== false, true);
+            }
+            // Cases 2 & 3: Default agent or registry agent
+            else {
+                // Early registry validation for named agents
+                if (opts.agent) {
+                    const registry = getAgentRegistry();
+                    if (!registry.hasAgent(opts.agent)) {
+                        console.error(`❌ Agent '${opts.agent}' not found in registry`);
+
+                        // Show available agents
+                        const available = Object.keys(registry.getAvailableAgents());
+                        if (available.length > 0) {
+                            console.log(`📋 Available agents: ${available.join(', ')}`);
+                        } else {
+                            console.log('📋 No agents available in registry');
+                        }
+                        process.exit(1);
+                    }
                 }
-                // Handle first-time setup (provider selection, config creation, API key)
-                const setupComplete = await handleFirstTimeSetup();
-                if (!setupComplete) {
-                    console.log(chalk.dim('\n👋 Run dexto again when ready!'));
-                    process.exit(0);
+
+                // Check setup state and auto-trigger if needed
+                if (await requiresSetup()) {
+                    if (opts.interactive === false) {
+                        console.error('❌ Setup required but --no-interactive flag is set.');
+                        console.error('💡 Run `dexto setup` to configure preferences first.');
+                        process.exit(1);
+                    }
+
+                    await handleSetupCommand({ interactive: true });
                 }
-                // Config has been created, continue with normal flow
+
+                // Now resolve agent (will auto-install with preferences since setup is complete)
+                resolvedPath = await resolveAgentPath(opts.agent, opts.autoInstall !== false, true);
             }
 
             // Load raw config and apply CLI overrides
-            const rawConfig = await loadAgentConfig(opts.agent);
+            const rawConfig = await loadAgentConfig(resolvedPath);
             const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
             // Validate with interactive setup if needed (for API key issues)
-            validatedConfig = await validateAgentConfig(mergedConfig, !opts.skipInteractive);
+            validatedConfig = await validateAgentConfig(mergedConfig, opts.interactive !== false);
         } catch (err) {
             // Config loading failed completely
             console.error(`❌ Failed to load configuration: ${err}`);
@@ -339,7 +459,7 @@ program
         // ——— CREATE AGENT ———
         let agent: DextoAgent;
         try {
-            console.log(`🚀 Initializing Dexto with config: ${resolveConfigPath(opts.agent)}`);
+            console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
 
             // Set run mode for tool confirmation provider
             process.env.DEXTO_RUN_MODE = opts.mode;
@@ -481,14 +601,13 @@ program
 
                 try {
                     // Logs are already redirected to file by default to prevent interference with stdio transport
-
                     const agentCardData = createAgentCard(
                         {
                             defaultName: agentCardConfig.name ?? 'dexto',
                             defaultVersion: agentCardConfig.version ?? '1.0.0',
                             defaultBaseUrl: 'stdio://local-dexto',
                         },
-                        agentCardConfig // preserve overrides from agent.yml
+                        agentCardConfig // preserve overrides from agent file
                     );
                     // Use stdio transport in mcp mode
                     const mcpTransport = await createMcpTransport('stdio');
@@ -509,5 +628,5 @@ program
         }
     });
 
-// 6) PARSE & EXECUTE
+// 11) PARSE & EXECUTE
 program.parseAsync(process.argv);

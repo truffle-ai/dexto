@@ -18,11 +18,14 @@ describe('validateCliOptions', () => {
         expect(() => validateCliOptions(opts)).toThrow(ZodError);
     });
 
-    it('validates skipInteractive flag correctly', () => {
-        const optsWithSkipInteractive = { mode: 'cli', webPort: '8080', skipInteractive: true };
-        expect(() => validateCliOptions(optsWithSkipInteractive)).not.toThrow();
+    it('validates interactive flag correctly', () => {
+        const optsWithNoInteractive = { mode: 'cli', webPort: '8080', interactive: false };
+        expect(() => validateCliOptions(optsWithNoInteractive)).not.toThrow();
 
-        const optsWithoutSkipInteractive = { mode: 'cli', webPort: '8080' };
-        expect(() => validateCliOptions(optsWithoutSkipInteractive)).not.toThrow();
+        const optsWithInteractive = { mode: 'cli', webPort: '8080', interactive: true };
+        expect(() => validateCliOptions(optsWithInteractive)).not.toThrow();
+
+        const optsWithoutFlag = { mode: 'cli', webPort: '8080' };
+        expect(() => validateCliOptions(optsWithoutFlag)).not.toThrow();
     });
 });

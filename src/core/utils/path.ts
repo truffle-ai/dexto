@@ -1,105 +1,15 @@
 import * as path from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
-import { ConfigError } from '@core/config/errors.js';
-/**
- * Default config file path (relative to package root)
- */
-export const DEFAULT_CONFIG_PATH = 'agents/agent.yml';
-
-/**
- * User's global config path (relative to home directory)
- */
-export const USER_CONFIG_PATH = '.dexto/agent.yml';
-
-/**
- * Generic directory walker that searches up the directory tree
- * @param startPath Starting directory path
- * @param predicate Function that returns true when the desired condition is found
- * @returns The directory path where the condition was met, or null if not found
- */
-export function walkUpDirectories(
-    startPath: string,
-    predicate: (dirPath: string) => boolean
-): string | null {
-    let currentPath = path.resolve(startPath);
-    const rootPath = path.parse(currentPath).root;
-
-    while (currentPath !== rootPath) {
-        if (predicate(currentPath)) {
-            return currentPath;
-        }
-        currentPath = path.dirname(currentPath);
-    }
-
-    return null;
-}
-
-/**
- * Check if directory has dexto as dependency (MOST RELIABLE)
- * @param dirPath Directory to check
- * @returns True if directory contains dexto as dependency
- */
-function hasDextoDependency(dirPath: string): boolean {
-    const packageJsonPath = path.join(dirPath, 'package.json');
-
-    try {
-        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-        // Case 1: This IS the dexto package itself (local testing)
-        if (pkg.name === 'dexto') {
-            return true;
-        }
-
-        // Case 2: Project using dexto as dependency (SDK/CLI in project)
-        const allDeps = {
-            ...pkg.dependencies,
-            ...pkg.devDependencies,
-            ...pkg.peerDependencies,
-        };
-
-        return 'dexto' in allDeps;
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Check if we're currently in a dexto project
- * @param startPath Starting directory path
- * @returns True if in a dexto project
- */
-export function isDextoProject(startPath: string = process.cwd()): boolean {
-    return getDextoProjectRoot(startPath) !== null;
-}
-
-/**
- * Check if we're currently in the dexto source code itself
- * @param startPath Starting directory path
- * @returns True if in dexto source code (package.name === 'dexto')
- */
-export function isDextoSourceCode(startPath: string = process.cwd()): boolean {
-    const projectRoot = getDextoProjectRoot(startPath);
-    if (!projectRoot) return false;
-
-    try {
-        const pkg = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf-8'));
-        return pkg.name === 'dexto';
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Get dexto project root (or null if not in project)
- * @param startPath Starting directory path
- * @returns Project root directory or null
- */
-export function getDextoProjectRoot(startPath: string = process.cwd()): string | null {
-    return walkUpDirectories(startPath, hasDextoDependency);
-}
+import { walkUpDirectories } from './fs-walk.js';
+import {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+} from './execution-context.js';
+import { logger } from '@core/index.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -109,77 +19,90 @@ export function getDextoProjectRoot(startPath: string = process.cwd()): string |
  * @returns Absolute path to the requested location
  */
 export function getDextoPath(type: string, filename?: string, startPath?: string): string {
-    const projectRoot = getDextoProjectRoot(startPath);
+    const context = getExecutionContext(startPath);
 
     let basePath: string;
 
-    if (projectRoot) {
-        // In dexto project: /project/.dexto/logs/
-        basePath = path.join(projectRoot, '.dexto', type);
-    } else {
-        // Global: ~/.dexto/logs/
-        basePath = path.join(homedir(), '.dexto', type);
+    switch (context) {
+        case 'dexto-source': {
+            const sourceRoot = findDextoSourceRoot(startPath);
+            if (!sourceRoot) {
+                throw new Error('Not in dexto source context');
+            }
+            basePath = path.join(sourceRoot, '.dexto', type);
+            break;
+        }
+        case 'dexto-project': {
+            const projectRoot = findDextoProjectRoot(startPath);
+            if (!projectRoot) {
+                throw new Error('Not in dexto project context');
+            }
+            basePath = path.join(projectRoot, '.dexto', type);
+            break;
+        }
+        case 'global-cli': {
+            basePath = path.join(homedir(), '.dexto', type);
+            break;
+        }
+        default: {
+            throw new Error(`Unknown execution context: ${context}`);
+        }
     }
 
     return filename ? path.join(basePath, filename) : basePath;
 }
 
 /**
- * Resolve config path with context awareness
- * @param configPath Optional explicit config path
- * @param startPath Starting directory for project detection
- * @returns Absolute path to config file
+ * Global path resolver that ALWAYS returns paths in the user's home directory
+ * Used for agent registry and other global-only resources that should not be project-relative
+ * @param type Path type (agents, cache, etc.)
+ * @param filename Optional filename to append
+ * @returns Absolute path to the global location (~/.dexto/...)
  */
-export function resolveConfigPath(configPath?: string, startPath?: string): string {
-    if (configPath) {
-        // Explicit path provided
-        return path.resolve(configPath);
+export function getDextoGlobalPath(type: string, filename?: string): string {
+    // ALWAYS return global path, ignore project context
+    const basePath = path.join(homedir(), '.dexto', type);
+    return filename ? path.join(basePath, filename) : basePath;
+}
+
+/**
+ * Copy entire directory recursively
+ * @param src Source directory path
+ * @param dest Destination directory path
+ */
+export async function copyDirectory(src: string, dest: string): Promise<void> {
+    await fs.mkdir(dest, { recursive: true });
+
+    const entries = await fs.readdir(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+
+        if (entry.isDirectory()) {
+            await copyDirectory(srcPath, destPath);
+        } else {
+            await fs.copyFile(srcPath, destPath);
+        }
     }
+}
 
-    const projectRoot = getDextoProjectRoot(startPath);
+/**
+ * Check if string looks like a file path vs registry name
+ * @param str String to check
+ * @returns True if looks like a path, false if looks like a registry name
+ */
+export function isPath(str: string): boolean {
+    // Absolute paths
+    if (path.isAbsolute(str)) return true;
 
-    if (projectRoot) {
-        // In dexto project: Look for config in project (multiple possible locations)
-        const configPaths = [
-            path.join(projectRoot, DEFAULT_CONFIG_PATH), // Standard
-            path.join(projectRoot, 'src', DEFAULT_CONFIG_PATH), // Common
-            path.join(projectRoot, 'src', 'dexto', DEFAULT_CONFIG_PATH), // Test app structure
-            path.join(projectRoot, '.dexto', 'agent.yml'), // Hidden
-            path.join(projectRoot, 'agent.yml'), // Root
-        ];
+    // Relative paths with separators
+    if (/[\\/]/.test(str)) return true;
 
-        for (const configPath of configPaths) {
-            if (existsSync(configPath)) {
-                return configPath;
-            }
-        }
+    // File extensions
+    if (/\.(ya?ml|json)$/i.test(str)) return true;
 
-        throw ConfigError.fileNotFound(
-            `No agent.yml found in project. Searched: ${configPaths.join(', ')}`
-        );
-    } else {
-        // Global CLI mode
-
-        // Check for user's global config first
-        const userConfigPath = getUserConfigPath();
-        if (existsSync(userConfigPath)) {
-            return userConfigPath;
-        }
-
-        // Fall back to bundled default config
-        try {
-            const bundledConfigPath = getBundledConfigPath();
-            if (existsSync(bundledConfigPath)) {
-                return bundledConfigPath;
-            }
-        } catch {
-            // Fallback if bundled script resolution fails
-        }
-
-        throw ConfigError.fileNotFound(
-            'Global CLI: No bundled config found and no explicit config provided'
-        );
-    }
+    return false;
 }
 
 /**
@@ -239,42 +162,30 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * @returns Absolute path to .env file for saving
  */
 export function getDextoEnvPath(startPath: string = process.cwd()): string {
-    const projectRoot = getDextoProjectRoot(startPath);
-
-    if (projectRoot) {
-        // In dexto project: save to project .env
-        return path.join(projectRoot, '.env');
-    } else {
-        // Global usage: save to ~/.dexto/.env
-        return path.join(homedir(), '.dexto', '.env');
+    const context = getExecutionContext(startPath);
+    let envPath = '';
+    switch (context) {
+        case 'dexto-source': {
+            const sourceRoot = findDextoSourceRoot(startPath);
+            if (!sourceRoot) {
+                throw new Error('Not in dexto source context');
+            }
+            envPath = path.join(sourceRoot, '.env');
+            break;
+        }
+        case 'dexto-project': {
+            const projectRoot = findDextoProjectRoot(startPath);
+            if (!projectRoot) {
+                throw new Error('Not in dexto project context');
+            }
+            envPath = path.join(projectRoot, '.env');
+            break;
+        }
+        case 'global-cli': {
+            envPath = path.join(homedir(), '.dexto', '.env');
+            break;
+        }
     }
-}
-
-/**
- * Get the user's global config path
- * @returns Absolute path to ~/.dexto/agent.yml
- */
-export function getUserConfigPath(): string {
-    return path.join(homedir(), USER_CONFIG_PATH);
-}
-
-/**
- * Get the bundled config path
- * @returns Absolute path to bundled agent.yml
- */
-export function getBundledConfigPath(): string {
-    return resolveBundledScript(DEFAULT_CONFIG_PATH);
-}
-
-/**
- * Check if a config path is the bundled config
- * @param configPath Path to check
- * @returns True if this is the bundled config
- */
-export function isUsingBundledConfig(configPath: string): boolean {
-    try {
-        return configPath === getBundledConfigPath();
-    } catch {
-        return false;
-    }
+    logger.debug(`Dexto env path: ${envPath}, context: ${context}`);
+    return envPath;
 }

@@ -63,8 +63,15 @@
     "license": "Elastic-2.0",
     "files": [
         "dist/",
-        "agents/agent.yml",
+        "agents/agent-registry.json",
         "agents/agent-template.yml",
+        "agents/default-agent.yml",
+        "agents/database-agent/",
+        "agents/talk2pdf-agent/",
+        "agents/image-editor-agent/",
+        "agents/music-agent/",
+        "agents/product-name-researcher/",
+        "agents/triage-demo/",
         "public/"
     ],
     "dependencies": {

@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import chalk from 'chalk';
 import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
-import { interactiveApiKeySetup } from './interactive-api-key-setup.js';
+import { interactiveApiKeySetup } from './api-key-setup.js';
 import { LLMErrorCode } from '@core/llm/error-codes.js';
-import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import type { LLMProvider } from '@core/index.js';
+import { logger } from '@core/index.js';
 
 /**
  * Validates agent config with optional interactive fixes for user experience.
@@ -13,31 +13,30 @@ import type { LLMProvider } from '@core/index.js';
  */
 export async function validateAgentConfig(
     config: AgentConfig,
-    allowInteractive: boolean = false
+    interactive: boolean = false
 ): Promise<AgentConfig> {
     // Parse with schema to detect issues
     const parseResult = AgentConfigSchema.safeParse(config);
 
     if (!parseResult.success) {
         // Check for API key validation errors using raw Zod error (preserves params)
+        logger.error(`Agent config validation error: ${JSON.stringify(parseResult.error)}`);
         const apiKeyError = findApiKeyError(parseResult.error, config);
 
-        if (apiKeyError && allowInteractive) {
+        if (apiKeyError && interactive) {
+            logger.debug(
+                `API key error found for ${apiKeyError.provider} provider, retriggering interactive setup`
+            );
             console.log(
                 chalk.yellow(`\n🔑 API key required for ${apiKeyError.provider} provider\n`)
             );
 
             // Run interactive setup for the specific provider that failed
-            const setupSucceeded = await interactiveApiKeySetup(apiKeyError.provider);
-
-            if (!setupSucceeded) {
-                process.exit(0);
-            }
-
-            // Reload environment variables with layered loading and retry
-            await applyLayeredEnvironmentLoading();
+            // Function will exit process if user cancels, otherwise continues
+            // Environment variables are automatically reloaded after API key setup
+            await interactiveApiKeySetup(apiKeyError.provider);
             // Same config, but EnvExpandedString will now find the API key
-            return validateAgentConfig(config, allowInteractive);
+            return validateAgentConfig(config, interactive);
         }
 
         // API key error in non-interactive mode or other validation errors

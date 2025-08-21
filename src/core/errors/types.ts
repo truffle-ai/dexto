@@ -7,6 +7,8 @@ import type { SessionErrorCode } from '@core/session/error-codes.js';
 import type { StorageErrorCode } from '@core/storage/error-codes.js';
 import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
+import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
+import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -22,6 +24,8 @@ export enum ErrorScope {
     TOOLS = 'tools', // Tool execution and authorization
     STORAGE = 'storage', // Storage backend operations
     SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
+    PREFERENCE = 'preference', // Global preferences file operations and validation
+    AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
 }
 
 /**
@@ -52,7 +56,9 @@ export type DextoErrorCode =
     | MCPErrorCode
     | ToolErrorCode
     | StorageErrorCode
-    | SystemPromptErrorCode;
+    | SystemPromptErrorCode
+    | PreferenceErrorCode
+    | RegistryErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

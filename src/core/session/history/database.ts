@@ -1,4 +1,4 @@
-import { logger } from '@core/logger/logger.js';
+import { logger } from '@core/logger/index.js';
 import type { DatabaseBackend } from '@core/storage/types.js';
 import { SessionError } from '../errors.js';
 import type { InternalMessage } from '@core/context/types.js';
