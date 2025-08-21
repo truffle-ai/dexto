@@ -119,7 +119,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
         }
     }
 
-    console.log(chalk.cyan('\n🎉 Setting up Dexto...\n'));
+    console.log(chalk.cyan('\n🗿 Setting up Dexto...\n'));
 
     // Determine provider (interactive or from options)
     let provider = validated.provider;
@@ -144,8 +144,9 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     if (validated.interactive) {
         const existingApiKey = resolveApiKeyForProvider(provider);
         if (existingApiKey) {
-            console.log(chalk.green(`✅ API key for ${provider} already configured`));
+            p.outro(chalk.green(`✅ API key for ${provider} already configured`));
         } else {
+            p.outro(chalk.cyan(`API key not found for ${provider}, starting api key setup...`));
             await interactiveApiKeySetup(provider);
         }
     }

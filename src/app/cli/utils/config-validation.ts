@@ -24,6 +24,9 @@ export async function validateAgentConfig(
         const apiKeyError = findApiKeyError(parseResult.error, config);
 
         if (apiKeyError && interactive) {
+            logger.debug(
+                `API key error found for ${apiKeyError.provider} provider, retriggering interactive setup`
+            );
             console.log(
                 chalk.yellow(`\n🔑 API key required for ${apiKeyError.provider} provider\n`)
             );

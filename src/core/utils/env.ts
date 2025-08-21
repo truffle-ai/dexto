@@ -34,6 +34,7 @@ export async function loadEnvironmentVariables(
     }
 
     // Layer 2: Project .env (medium priority)
+    // load in project/source context only
     if (context === 'dexto-source' || context === 'dexto-project') {
         const projectEnvPath = getDextoEnvPath(startPath);
         try {
@@ -47,9 +48,9 @@ export async function loadEnvironmentVariables(
     }
 
     // Layer 1: Shell environment (highest priority)
-    // Filter to only include defined values (not undefined)
+    // Filter to only include defined, non-empty values
     for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined) {
+        if (value !== undefined && value !== '') {
             env[key] = value;
         }
     }

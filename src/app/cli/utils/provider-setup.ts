@@ -45,8 +45,6 @@ export async function selectProvider(): Promise<LLMProvider> {
         process.exit(1);
     }
 
-    p.outro(chalk.green(`🎉 Provider ${choice} selected!`));
-
     return choice as LLMProvider;
 }
 

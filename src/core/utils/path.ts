@@ -9,6 +9,7 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
+import { logger } from '@core/index.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -162,24 +163,29 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  */
 export function getDextoEnvPath(startPath: string = process.cwd()): string {
     const context = getExecutionContext(startPath);
-
+    let envPath = '';
     switch (context) {
         case 'dexto-source': {
             const sourceRoot = findDextoSourceRoot(startPath);
             if (!sourceRoot) {
                 throw new Error('Not in dexto source context');
             }
-            return path.join(sourceRoot, '.env');
+            envPath = path.join(sourceRoot, '.env');
+            break;
         }
         case 'dexto-project': {
             const projectRoot = findDextoProjectRoot(startPath);
             if (!projectRoot) {
                 throw new Error('Not in dexto project context');
             }
-            return path.join(projectRoot, '.env');
+            envPath = path.join(projectRoot, '.env');
+            break;
         }
         case 'global-cli': {
-            return path.join(homedir(), '.dexto', '.env');
+            envPath = path.join(homedir(), '.dexto', '.env');
+            break;
         }
     }
+    logger.debug(`Dexto env path: ${envPath}, context: ${context}`);
+    return envPath;
 }
