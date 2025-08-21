@@ -1,0 +1,450 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { tmpdir } from 'os';
+import {
+    loadGlobalPreferences,
+    saveGlobalPreferences,
+    globalPreferencesExist,
+    getGlobalPreferencesPath,
+    createInitialPreferences,
+    updateGlobalPreferences,
+} from './loader.js';
+import { type GlobalPreferences } from './schemas.js';
+import { PreferenceErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+
+// Mock getDextoGlobalPath to use a temporary directory
+import * as pathUtils from '@core/utils/path.js';
+import { vi } from 'vitest';
+
+describe('Preferences Loader', () => {
+    let tempDir: string;
+    let mockPreferencesPath: string;
+    let samplePreferences: GlobalPreferences;
+
+    beforeEach(async () => {
+        // Create temporary directory for each test
+        tempDir = await fs.mkdtemp(path.join(tmpdir(), 'dexto-preferences-test-'));
+        mockPreferencesPath = path.join(tempDir, 'preferences.yml');
+
+        // Mock getDextoGlobalPath to return our test path
+        vi.spyOn(pathUtils, 'getDextoGlobalPath').mockImplementation(
+            (type: string, filename?: string) => {
+                if (type === 'preferences.yml' || filename === 'preferences.yml') {
+                    return mockPreferencesPath;
+                }
+                if (filename) {
+                    return path.join(tempDir, filename);
+                }
+                // For nested directory test, return proper structure
+                if (type.includes('nested')) {
+                    return type;
+                }
+                return tempDir;
+            }
+        );
+
+        // Sample preferences object
+        samplePreferences = {
+            llm: {
+                provider: 'anthropic',
+                model: 'claude-3-sonnet-20240229',
+                apiKey: '$ANTHROPIC_API_KEY',
+            },
+            defaults: {
+                defaultAgent: 'test-agent',
+            },
+            setup: {
+                completed: true,
+            },
+        };
+    });
+
+    afterEach(async () => {
+        vi.restoreAllMocks();
+        // Clean up temporary directory
+        await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    describe('globalPreferencesExist', () => {
+        it('should return false when preferences file does not exist', () => {
+            expect(globalPreferencesExist()).toBe(false);
+        });
+
+        it('should return true when preferences file exists', async () => {
+            await saveGlobalPreferences(samplePreferences);
+            expect(globalPreferencesExist()).toBe(true);
+        });
+    });
+
+    describe('getGlobalPreferencesPath', () => {
+        it('should return the correct preferences file path', () => {
+            const preferencesPath = getGlobalPreferencesPath();
+            expect(preferencesPath).toBe(mockPreferencesPath);
+        });
+    });
+
+    describe('saveGlobalPreferences', () => {
+        it('should save preferences to YAML file', async () => {
+            await saveGlobalPreferences(samplePreferences);
+
+            // Verify file was created
+            expect(
+                await fs.access(mockPreferencesPath).then(
+                    () => true,
+                    () => false
+                )
+            ).toBe(true);
+
+            // Verify content is valid YAML with correct values
+            const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
+            expect(fileContent).toContain('provider: anthropic');
+            expect(fileContent).toContain('model: claude-3-sonnet-20240229');
+            expect(fileContent).toContain('apiKey: $ANTHROPIC_API_KEY');
+            expect(fileContent).toContain('defaultAgent: test-agent');
+            expect(fileContent).toContain('completed: true');
+        });
+
+        it('should create directory structure if it does not exist', async () => {
+            // Use a nested path that doesn't exist
+            const nestedDir = path.join(tempDir, 'nested', 'deep');
+            const nestedPreferencesPath = path.join(nestedDir, 'preferences.yml');
+
+            // Restore the original mock and create new one for this test
+            vi.restoreAllMocks();
+            vi.spyOn(pathUtils, 'getDextoGlobalPath').mockImplementation(
+                (type: string, filename?: string) => {
+                    if (type === 'preferences.yml' || filename === 'preferences.yml') {
+                        return nestedPreferencesPath;
+                    }
+                    return nestedDir;
+                }
+            );
+
+            await saveGlobalPreferences(samplePreferences);
+
+            // Directory should be created
+            expect(
+                await fs.access(nestedPreferencesPath).then(
+                    () => true,
+                    () => false
+                )
+            ).toBe(true);
+        });
+
+        it('should format YAML with proper indentation and line width', async () => {
+            const preferencesWithLongValues = {
+                ...samplePreferences,
+                llm: {
+                    provider: 'openai' as const,
+                    model: 'gpt-4o-audio-preview', // Valid long model name
+                    apiKey: '$OPENAI_API_KEY',
+                },
+            };
+
+            await saveGlobalPreferences(preferencesWithLongValues);
+            const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
+
+            // Should be properly formatted
+            expect(fileContent).toMatch(/^llm:/m);
+            expect(fileContent).toMatch(/^  provider:/m);
+            expect(fileContent).toMatch(/^defaults:/m);
+        });
+
+        it('should throw validation error for invalid preferences', async () => {
+            const invalidPreferences = {
+                llm: {
+                    provider: 'invalid-provider', // Invalid provider
+                    model: 'some-model',
+                    apiKey: '$API_KEY',
+                },
+                defaults: {
+                    defaultAgent: 'test-agent', // Required field
+                },
+                setup: {
+                    completed: true, // Required field
+                },
+            } as GlobalPreferences;
+
+            await expect(saveGlobalPreferences(invalidPreferences)).rejects.toThrow(
+                expect.objectContaining({
+                    issues: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: PreferenceErrorCode.VALIDATION_ERROR,
+                            scope: ErrorScope.PREFERENCE,
+                            type: ErrorType.USER,
+                        }),
+                    ]),
+                })
+            );
+        });
+    });
+
+    describe('loadGlobalPreferences', () => {
+        beforeEach(async () => {
+            // Create preferences file for loading tests
+            await saveGlobalPreferences(samplePreferences);
+        });
+
+        it('should load preferences from YAML file', async () => {
+            const loadedPreferences = await loadGlobalPreferences();
+
+            expect(loadedPreferences).toEqual(samplePreferences);
+        });
+
+        it('should validate loaded preferences against schema', async () => {
+            const loadedPreferences = await loadGlobalPreferences();
+
+            // Should have all required fields
+            expect(loadedPreferences.llm.provider).toBeDefined();
+            expect(loadedPreferences.llm.model).toBeDefined();
+            expect(loadedPreferences.llm.apiKey).toBeDefined();
+            expect(loadedPreferences.defaults.defaultAgent).toBeDefined();
+            expect(loadedPreferences.setup.completed).toBeDefined();
+        });
+
+        it('should throw file not found error when preferences file does not exist', async () => {
+            // Remove the preferences file
+            await fs.unlink(mockPreferencesPath);
+
+            await expect(loadGlobalPreferences()).rejects.toThrow(
+                expect.objectContaining({
+                    code: PreferenceErrorCode.FILE_NOT_FOUND,
+                    scope: ErrorScope.PREFERENCE,
+                    type: ErrorType.USER,
+                })
+            );
+        });
+
+        it('should throw validation error for invalid YAML content', async () => {
+            // Write invalid YAML
+            await fs.writeFile(mockPreferencesPath, 'invalid: yaml: [}', 'utf-8');
+
+            await expect(loadGlobalPreferences()).rejects.toThrow(
+                expect.objectContaining({
+                    code: PreferenceErrorCode.FILE_READ_ERROR,
+                    scope: ErrorScope.PREFERENCE,
+                    type: ErrorType.SYSTEM,
+                })
+            );
+        });
+
+        it('should throw validation error for preferences with missing required fields', async () => {
+            const incompletePreferences = {
+                llm: {
+                    provider: 'openai',
+                    // Missing model and apiKey
+                },
+                // Missing defaults and setup sections
+            };
+
+            await fs.writeFile(mockPreferencesPath, JSON.stringify(incompletePreferences), 'utf-8');
+
+            await expect(loadGlobalPreferences()).rejects.toThrow(
+                expect.objectContaining({
+                    issues: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: PreferenceErrorCode.VALIDATION_ERROR,
+                            scope: ErrorScope.PREFERENCE,
+                            type: ErrorType.USER,
+                        }),
+                    ]),
+                })
+            );
+        });
+
+        it('should throw validation error for preferences with invalid provider', async () => {
+            const invalidPreferences = {
+                llm: {
+                    provider: 'invalid-provider',
+                    model: 'some-model',
+                    apiKey: '$API_KEY',
+                },
+                defaults: {
+                    defaultAgent: 'test-agent',
+                },
+                setup: {
+                    completed: true,
+                },
+            };
+
+            const yamlContent = `llm:
+  provider: invalid-provider
+  model: some-model
+  apiKey: $API_KEY
+defaults:
+  defaultAgent: test-agent
+setup:
+  completed: true`;
+
+            await fs.writeFile(mockPreferencesPath, yamlContent, 'utf-8');
+
+            await expect(loadGlobalPreferences()).rejects.toThrow(
+                expect.objectContaining({
+                    issues: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: PreferenceErrorCode.VALIDATION_ERROR,
+                            scope: ErrorScope.PREFERENCE,
+                            type: ErrorType.USER,
+                        }),
+                    ]),
+                })
+            );
+        });
+    });
+
+    describe('createInitialPreferences', () => {
+        it('should create preferences with provided values', () => {
+            const preferences = createInitialPreferences(
+                'openai',
+                'gpt-4',
+                'OPENAI_API_KEY',
+                'my-agent'
+            );
+
+            expect(preferences).toEqual({
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    apiKey: '$OPENAI_API_KEY',
+                },
+                defaults: {
+                    defaultAgent: 'my-agent',
+                },
+                setup: {
+                    completed: true,
+                },
+            });
+        });
+
+        it('should use default agent name when not provided', () => {
+            const preferences = createInitialPreferences(
+                'anthropic',
+                'claude-3-sonnet-20240229',
+                'ANTHROPIC_API_KEY'
+            );
+
+            expect(preferences.defaults.defaultAgent).toBe('default-agent');
+        });
+
+        it('should format API key with $ prefix', () => {
+            const preferences = createInitialPreferences('google', 'gemini-pro', 'GOOGLE_API_KEY');
+
+            expect(preferences.llm.apiKey).toBe('$GOOGLE_API_KEY');
+        });
+    });
+
+    describe('updateGlobalPreferences', () => {
+        beforeEach(async () => {
+            // Create initial preferences file
+            await saveGlobalPreferences(samplePreferences);
+        });
+
+        it('should merge partial updates with existing preferences', async () => {
+            const updates = {
+                llm: {
+                    provider: 'openai' as const,
+                    model: 'gpt-4o',
+                },
+            };
+
+            const updatedPreferences = await updateGlobalPreferences(updates);
+
+            expect(updatedPreferences.llm.provider).toBe('openai');
+            expect(updatedPreferences.llm.model).toBe('gpt-4o');
+            expect(updatedPreferences.llm.apiKey).toBe('$ANTHROPIC_API_KEY'); // Preserved from original
+            expect(updatedPreferences.defaults.defaultAgent).toBe('test-agent'); // Preserved
+        });
+
+        it('should update nested objects correctly', async () => {
+            const updates = {
+                defaults: {
+                    defaultAgent: 'new-default-agent',
+                },
+            };
+
+            const updatedPreferences = await updateGlobalPreferences(updates);
+
+            expect(updatedPreferences.defaults.defaultAgent).toBe('new-default-agent');
+            expect(updatedPreferences.llm.provider).toBe('anthropic'); // Preserved
+        });
+
+        it('should save updated preferences to file', async () => {
+            const updates = {
+                llm: {
+                    model: 'claude-3-opus-20240229',
+                },
+            };
+
+            await updateGlobalPreferences(updates);
+
+            // Verify file was updated
+            const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
+            expect(fileContent).toContain('model: claude-3-opus-20240229');
+        });
+
+        it('should throw validation error for invalid merged preferences', async () => {
+            const invalidUpdates = {
+                llm: {
+                    provider: 'invalid-provider' as any,
+                },
+            };
+
+            await expect(updateGlobalPreferences(invalidUpdates)).rejects.toThrow(
+                expect.objectContaining({
+                    issues: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: PreferenceErrorCode.VALIDATION_ERROR,
+                            scope: ErrorScope.PREFERENCE,
+                            type: ErrorType.USER,
+                        }),
+                    ]),
+                })
+            );
+        });
+
+        it('should handle multiple nested updates', async () => {
+            const updates = {
+                llm: {
+                    provider: 'google' as const,
+                    model: 'gemini-2.0-flash',
+                },
+                defaults: {
+                    defaultAgent: 'updated-agent',
+                },
+                setup: {
+                    completed: false,
+                },
+            };
+
+            const updatedPreferences = await updateGlobalPreferences(updates);
+
+            expect(updatedPreferences.llm.provider).toBe('google');
+            expect(updatedPreferences.llm.model).toBe('gemini-2.0-flash');
+            expect(updatedPreferences.defaults.defaultAgent).toBe('updated-agent');
+            expect(updatedPreferences.setup.completed).toBe(false);
+        });
+
+        it('should return the updated preferences object', async () => {
+            const updates = {
+                llm: {
+                    provider: 'groq' as const,
+                    model: 'llama-3.3-70b-versatile', // Valid groq model
+                },
+            };
+
+            const result = await updateGlobalPreferences(updates);
+
+            expect(result.llm.provider).toBe('groq');
+            expect(result.llm.model).toBe('llama-3.3-70b-versatile');
+            expect(result).toMatchObject({
+                llm: expect.objectContaining({
+                    provider: 'groq',
+                }),
+                defaults: expect.any(Object),
+                setup: expect.any(Object),
+            });
+        });
+    });
+});
