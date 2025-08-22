@@ -1051,6 +1051,21 @@ export class DextoAgent {
      */
     public async addFileSystemResource(paths: string[]): Promise<void> {
         this.ensureStarted();
+
+        // Validate paths
+        if (!paths || paths.length === 0) {
+            throw new Error('At least one path must be provided');
+        }
+
+        // Basic path validation to prevent directory traversal
+        for (const path of paths) {
+            if (path.includes('..') || path.startsWith('/')) {
+                throw new Error(
+                    `Invalid path: ${path}. Paths must be relative and not contain '..'`
+                );
+            }
+        }
+
         const internalProvider = this.resourceManager.getInternalResourcesProvider();
         if (!internalProvider) {
             throw new Error('Internal resources are not enabled');

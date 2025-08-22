@@ -284,7 +284,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         const serverId = req.params.serverId;
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
-            return res.status(404).json({ error: `Server '${serverId}' not found` });
+            return next(new Error(`Server '${serverId}' not found`));
         }
         try {
             const toolsMap = await client.getTools();
@@ -311,7 +311,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
             if (!clientExists) {
                 logger.warn(`Attempted to delete non-existent server: ${serverId}`);
-                return res.status(404).json({ error: `Server '${serverId}' not found.` });
+                return next(new Error(`Server '${serverId}' not found.`));
             }
 
             await agent.removeMcpServer(serverId);
@@ -330,9 +330,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             // Verify server exists
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
-                return res
-                    .status(404)
-                    .json({ success: false, error: `Server '${serverId}' not found` });
+                return next(new Error(`Server '${serverId}' not found`));
             }
             try {
                 // Execute tool through the agent's unified wrapper method
@@ -348,7 +346,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // ============= RESOURCE MANAGEMENT ENDPOINTS =============
 
     // Get all available resources
-    app.get('/api/resources', async (req, res) => {
+    app.get('/api/resources', async (req, res, next) => {
         try {
             const resources = await agent.listResources();
             return res.status(200).json({
@@ -356,18 +354,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 resources: Object.values(resources),
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`Error listing resources: ${errorMessage}`);
-            return res.status(500).json({
-                ok: false,
-                error: 'Failed to list resources',
-                message: errorMessage,
-            });
+            return next(error);
         }
     });
 
     // Read resource content
-    app.get('/api/resources/:resourceId/content', async (req, res) => {
+    app.get('/api/resources/:resourceId/content', async (req, res, next) => {
         const resourceIdParam = req.params.resourceId;
 
         // Safely decode resourceId
@@ -377,11 +369,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'URI decode error';
             logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            return res.status(400).json({
-                ok: false,
-                error: 'Invalid resourceId',
-                message: errorMessage,
-            });
+            return next(new Error(`Invalid resourceId: ${errorMessage}`));
         }
 
         // Validate resourceId with Zod schema
@@ -390,11 +378,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         if (!validation.success) {
             const errorMessage = validation.error.issues.map((i) => i.message).join(', ');
             logger.error(`Invalid resourceId validation: ${errorMessage}`);
-            return res.status(400).json({
-                ok: false,
-                error: 'Invalid resourceId',
-                message: errorMessage,
-            });
+            return next(new Error(`Invalid resourceId: ${errorMessage}`));
         }
 
         try {
@@ -405,16 +389,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             logger.error(
                 `Error reading resource content for '${validation.data}': ${errorMessage}`
             );
-            return res.status(500).json({
-                ok: false,
-                error: 'Failed to read resource content',
-                message: errorMessage,
-            });
+            return next(error);
         }
     });
 
     // Check if resource exists
-    app.head('/api/resources/:resourceId', async (req, res) => {
+    app.head('/api/resources/:resourceId', async (req, res, next) => {
         const resourceIdParam = req.params.resourceId;
 
         // Safely decode resourceId
@@ -424,7 +404,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'URI decode error';
             logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            return res.status(400).end();
+            return next(new Error(`Invalid resourceId: ${errorMessage}`));
         }
 
         // Validate resourceId with Zod schema
@@ -433,7 +413,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         if (!validation.success) {
             const errorMessage = validation.error.issues.map((i) => i.message).join(', ');
             logger.error(`Invalid resourceId validation: ${errorMessage}`);
-            return res.status(400).end();
+            return next(new Error(`Invalid resourceId: ${errorMessage}`));
         }
 
         try {
@@ -448,12 +428,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             logger.error(
                 `Error checking resource existence for '${validation.data}': ${errorMessage}`
             );
-            return res.status(500).end();
+            return next(error);
         }
     });
 
     // List resources for a specific MCP server
-    app.get('/api/mcp/servers/:serverId/resources', async (req, res) => {
+    app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
         const serverId = req.params.serverId;
         try {
             const resources = await agent.listResourcesForServer(serverId);
@@ -461,25 +441,18 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(`Error fetching resources for server '${serverId}': ${errorMessage}`);
-            return res.status(500).json({
-                ok: false,
-                error: 'Failed to fetch resources for server',
-                message: errorMessage,
-            });
+            return next(error);
         }
     });
 
     // Read resource content from specific MCP server
-    app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res) => {
+    app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res, next) => {
         const serverId = req.params.serverId;
         const resourceIdParam = req.params.resourceId;
 
         // Validate parameters exist
         if (!serverId || !resourceIdParam) {
-            return res.status(400).json({
-                ok: false,
-                error: 'Missing serverId or resourceId parameters',
-            });
+            return next(new Error('Missing serverId or resourceId parameters'));
         }
 
         // Safely decode resourceId
@@ -487,10 +460,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         try {
             decodedResourceId = decodeURIComponent(resourceIdParam);
         } catch (_error) {
-            return res.status(400).json({
-                ok: false,
-                error: 'Invalid resourceId parameter - failed to decode URI component',
-            });
+            return next(new Error('Invalid resourceId parameter - failed to decode URI component'));
         }
 
         try {
@@ -503,11 +473,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             logger.error(
                 `Error reading resource '${decodedResourceId}' from server '${serverId}': ${errorMessage}`
             );
-            return res.status(500).json({
-                ok: false,
-                error: 'Failed to read resource content',
-                message: errorMessage,
-            });
+            return next(error);
         }
     });
 
@@ -1017,7 +983,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
-                return res.status(404).json({ error: 'Webhook not found' });
+                return next(new Error('Webhook not found'));
             }
 
             return sendJsonResponse(res, {
@@ -1040,7 +1006,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const removed = webhookSubscriber.removeWebhook(webhookId);
 
             if (!removed) {
-                return res.status(404).json({ error: 'Webhook not found' });
+                return next(new Error('Webhook not found'));
             }
 
             logger.info(`Webhook removed: ${webhookId}`);
@@ -1057,7 +1023,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
-                return res.status(404).json({ error: 'Webhook not found' });
+                return next(new Error('Webhook not found'));
             }
 
             logger.info(`Testing webhook: ${webhookId}`);

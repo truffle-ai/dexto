@@ -46,9 +46,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                 logger.debug(`Initialized ${resourceConfig.type} resource handler`);
             } catch (error) {
                 logger.error(
-                    `Failed to initialize ${resourceConfig.type} resource handler: ${
-                        error instanceof Error ? error.message : String(error)
-                    }`
+                    `Failed to initialize ${resourceConfig.type} resource handler`,
+                    error instanceof Error ? error : new Error(String(error))
                 );
             }
         }
@@ -77,7 +76,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                 logger.error(
                     `Failed to list resources from ${type} handler: ${
                         error instanceof Error ? error.message : String(error)
-                    }`
+                    }`,
+                    {}
                 );
             }
         }
@@ -107,9 +107,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                     return await handler.readResource(uri);
                 } catch (error) {
                     logger.error(
-                        `Failed to read resource ${uri} from ${type} handler: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
+                        `Failed to read resource ${uri} from ${type} handler`,
+                        error instanceof Error ? error : new Error(String(error))
                     );
                     throw error;
                 }
@@ -130,9 +129,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                     logger.debug(`Refreshed ${type} resource handler`);
                 } catch (error) {
                     logger.error(
-                        `Failed to refresh ${type} resource handler: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
+                        `Failed to refresh ${type} resource handler`,
+                        error instanceof Error ? error : new Error(String(error))
                     );
                 }
             }
@@ -168,14 +166,13 @@ export class InternalResourcesProvider implements ResourceProvider {
             this.handlers.set(config.type, handler);
 
             // Add to stored config (store the parsed config with defaults)
-            this.config.resources.push(parsedConfig as any);
+            this.config.resources.push(parsedConfig);
 
             logger.info(`Added new ${config.type} resource handler`);
         } catch (error) {
             logger.error(
-                `Failed to add ${config.type} resource handler: ${
-                    error instanceof Error ? error.message : String(error)
-                }`
+                `Failed to add ${config.type} resource handler`,
+                error instanceof Error ? error : new Error(String(error))
             );
             throw error;
         }

@@ -334,7 +334,7 @@ program
             const configPath = options.agent || globalOpts.agent;
 
             const config = await loadAgentConfig(configPath);
-            console.log(`📄 Loading Dexto config from: ${resolveConfigPath(configPath)}`);
+            console.log(`📄 Loading Dexto config from: ${configPath}`);
 
             // Initialize agent
             const agent = new DextoAgent(config, configPath);
