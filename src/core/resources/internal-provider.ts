@@ -74,10 +74,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                 allResources.push(...resources);
             } catch (error) {
                 logger.error(
-                    `Failed to list resources from ${type} handler: ${
-                        error instanceof Error ? error.message : String(error)
-                    }`,
-                    {}
+                    `Failed to list resources from ${type} handler`,
+                    error instanceof Error ? error : new Error(String(error))
                 );
             }
         }
@@ -106,11 +104,12 @@ export class InternalResourcesProvider implements ResourceProvider {
                 try {
                     return await handler.readResource(uri);
                 } catch (error) {
+                    const normalized = error instanceof Error ? error : new Error(String(error));
                     logger.error(
-                        `Failed to read resource ${uri} from ${type} handler`,
-                        error instanceof Error ? error : new Error(String(error))
+                        `Failed to read resource ${uri} from ${type} handler: ${normalized.message}`,
+                        normalized
                     );
-                    throw error;
+                    throw normalized;
                 }
             }
         }

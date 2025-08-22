@@ -374,20 +374,19 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
         // Validate resourceId with Zod schema
         const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
-        const validation = resourceIdSchema.safeParse(decodedResourceId);
-        if (!validation.success) {
-            const errorMessage = validation.error.issues.map((i) => i.message).join(', ');
-            logger.error(`Invalid resourceId validation: ${errorMessage}`);
-            return next(new Error(`Invalid resourceId: ${errorMessage}`));
-        }
-
         try {
-            const content = await agent.readResource(validation.data);
+            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
+            const content = await agent.readResource(validatedResourceId);
             return res.status(200).json({ ok: true, content });
         } catch (error) {
+            if (error instanceof z.ZodError) {
+                const errorMessage = error.issues.map((i) => i.message).join(', ');
+                logger.error(`Invalid resourceId validation: ${errorMessage}`);
+                return next(error);
+            }
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(
-                `Error reading resource content for '${validation.data}': ${errorMessage}`
+                `Error reading resource content for '${decodedResourceId}': ${errorMessage}`
             );
             return next(error);
         }
@@ -409,24 +408,23 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
         // Validate resourceId with Zod schema
         const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
-        const validation = resourceIdSchema.safeParse(decodedResourceId);
-        if (!validation.success) {
-            const errorMessage = validation.error.issues.map((i) => i.message).join(', ');
-            logger.error(`Invalid resourceId validation: ${errorMessage}`);
-            return next(new Error(`Invalid resourceId: ${errorMessage}`));
-        }
-
         try {
-            const exists = await agent.hasResource(validation.data);
+            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
+            const exists = await agent.hasResource(validatedResourceId);
             if (exists) {
                 return res.status(200).end();
             } else {
                 return res.status(404).end();
             }
         } catch (error) {
+            if (error instanceof z.ZodError) {
+                const errorMessage = error.issues.map((i) => i.message).join(', ');
+                logger.error(`Invalid resourceId validation: ${errorMessage}`);
+                return next(error);
+            }
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(
-                `Error checking resource existence for '${validation.data}': ${errorMessage}`
+                `Error checking resource existence for '${decodedResourceId}': ${errorMessage}`
             );
             return next(error);
         }
