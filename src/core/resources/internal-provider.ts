@@ -8,6 +8,7 @@ import {
     createInternalResourceHandler,
 } from './internal-registry.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
+import { InternalResourceConfigSchema } from './schemas.js';
 
 /**
  * Internal Resources Provider
@@ -38,8 +39,9 @@ export class InternalResourcesProvider implements ResourceProvider {
         for (const resourceConfig of this.config.resources) {
             try {
                 const handler = createInternalResourceHandler(resourceConfig.type);
-                // Convert the validated schema config to the registry config format
-                await handler.initialize(resourceConfig as InternalResourceConfig, this.services);
+                // Parse through schema to apply defaults
+                const parsedConfig = InternalResourceConfigSchema.parse(resourceConfig);
+                await handler.initialize(parsedConfig, this.services);
                 this.handlers.set(resourceConfig.type, handler);
                 logger.debug(`Initialized ${resourceConfig.type} resource handler`);
             } catch (error) {
@@ -160,11 +162,13 @@ export class InternalResourcesProvider implements ResourceProvider {
         try {
             // If handler already exists, we could merge configs or replace
             const handler = createInternalResourceHandler(config.type);
-            await handler.initialize(config, this.services);
+            // Parse through schema to apply defaults
+            const parsedConfig = InternalResourceConfigSchema.parse(config);
+            await handler.initialize(parsedConfig, this.services);
             this.handlers.set(config.type, handler);
 
-            // Add to stored config
-            this.config.resources.push(config);
+            // Add to stored config (store the parsed config with defaults)
+            this.config.resources.push(parsedConfig as any);
 
             logger.info(`Added new ${config.type} resource handler`);
         } catch (error) {

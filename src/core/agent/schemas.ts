@@ -99,7 +99,9 @@ export const AgentConfigSchema = z
 
         internalResources: InternalResourcesSchema.describe(
             'Configuration for internal file system resources'
-        ),
+        )
+            .optional()
+            .default({ enabled: false, resources: [] }),
 
         llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
 

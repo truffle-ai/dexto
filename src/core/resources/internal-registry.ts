@@ -28,9 +28,9 @@ export type InternalResourceConfig = FileSystemResourceConfig;
 /**
  * Services available to internal resource handlers
  */
-export interface InternalResourceServices {
+export type InternalResourceServices = {
     // Add services as needed for resource implementations
-}
+};
 
 /**
  * Internal resource handler interface
@@ -76,6 +76,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     private resourcesCache: Map<string, ResourceMetadata> = new Map();
     private visitedPaths: Set<string> = new Set();
     private fileCount: number = 0;
+    private canonicalRoots: string[] = [];
 
     // Default safe limits
     private static readonly DEFAULT_MAX_DEPTH = 3;
@@ -106,9 +107,6 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         '.sh',
         '.bash',
         '.zsh',
-        '.dockerfile',
-        '.gitignore',
-        '.env.example',
     ];
 
     getType(): string {
@@ -123,6 +121,20 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             throw new Error('Invalid config type for FileSystemResourceHandler');
         }
         this.config = config;
+
+        // Canonicalize all root paths for security validation
+        this.canonicalRoots = [];
+        for (const configPath of this.config.paths) {
+            try {
+                const canonicalRoot = await fs.realpath(path.resolve(configPath));
+                this.canonicalRoots.push(canonicalRoot);
+            } catch (error) {
+                logger.warn(
+                    `Failed to canonicalize root path '${configPath}': ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
         await this.buildResourceCache();
     }
 
@@ -134,6 +146,20 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         return uri.startsWith('fs://');
     }
 
+    /**
+     * Check if a canonicalized path is within allowed roots
+     */
+    private isPathAllowed(canonicalPath: string): boolean {
+        return this.canonicalRoots.some((root) => {
+            const normalizedPath = path.normalize(canonicalPath);
+            const normalizedRoot = path.normalize(root);
+            return (
+                normalizedPath.startsWith(normalizedRoot + path.sep) ||
+                normalizedPath === normalizedRoot
+            );
+        });
+    }
+
     async readResource(uri: string): Promise<ReadResourceResult> {
         if (!this.canHandle(uri)) {
             throw new Error(`Cannot handle URI: ${uri}`);
@@ -142,34 +168,51 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         const filePath = uri.replace('fs://', '');
         const resolvedPath = path.resolve(filePath);
 
+        // Security: Canonicalize the path to prevent directory traversal attacks
+        let canonicalPath: string;
+        try {
+            canonicalPath = await fs.realpath(resolvedPath);
+        } catch (_error) {
+            throw new Error(`Path does not exist or is not accessible: ${resolvedPath}`);
+        }
+
+        // Validate that the canonicalized path is within allowed roots
+        if (!this.isPathAllowed(canonicalPath)) {
+            throw new Error(`Access denied: path is outside configured roots: ${canonicalPath}`);
+        }
+
         try {
             // Check if file exists and get stats
-            const stat = await fs.stat(resolvedPath);
+            const stat = await fs.stat(canonicalPath);
             if (stat.size > 10 * 1024 * 1024) {
                 // 10MB limit
-                throw new Error(`File too large (${stat.size} bytes): ${resolvedPath}`);
+                throw new Error(`File too large (${stat.size} bytes): ${canonicalPath}`);
             }
 
             // Check if file is likely binary before attempting to read as text
-            if (this.isBinaryFile(resolvedPath)) {
+            if (this.isBinaryFile(canonicalPath)) {
                 return {
                     contents: [
                         {
                             uri,
-                            mimeType: this.getMimeType(resolvedPath),
-                            text: `[Binary file: ${path.basename(resolvedPath)} (${stat.size} bytes)]`,
+                            mimeType: 'text/plain', // Return as text/plain for binary placeholders
+                            text: `[Binary file: ${path.basename(canonicalPath)} (${stat.size} bytes)]`,
                         },
                     ],
-                    _meta: { isBinary: true, size: stat.size },
+                    _meta: {
+                        isBinary: true,
+                        size: stat.size,
+                        originalMimeType: this.getMimeType(canonicalPath),
+                    },
                 };
             }
 
-            const content = await fs.readFile(resolvedPath, 'utf-8');
+            const content = await fs.readFile(canonicalPath, 'utf-8');
             return {
                 contents: [
                     {
                         uri,
-                        mimeType: this.getMimeType(resolvedPath),
+                        mimeType: this.getMimeType(canonicalPath),
                         text: content,
                     },
                 ],
@@ -177,7 +220,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             };
         } catch (error) {
             throw new Error(
-                `Failed to read file ${resolvedPath}: ${error instanceof Error ? error.message : String(error)}`
+                `Failed to read file ${canonicalPath}: ${error instanceof Error ? error.message : String(error)}`
             );
         }
     }
@@ -248,9 +291,9 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         this.visitedPaths.clear();
         this.fileCount = 0;
 
-        const maxFiles = this.config.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
+        const maxFiles = this.config?.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
 
-        for (const configPath of this.config.paths) {
+        for (const configPath of this.config?.paths ?? []) {
             if (this.fileCount >= maxFiles) {
                 logger.warn(`Reached maximum file limit (${maxFiles}), stopping scan`);
                 break;
@@ -301,7 +344,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 
             if (stat.isFile()) {
                 // Check if file should be included
-                if (!this.shouldIncludeFile(resolvedPath, includeExtensions)) {
+                if (!this.shouldIncludeFile(resolvedPath, includeExtensions, includeHidden)) {
                     logger.debug(`Skipping file due to extension filter: ${resolvedPath}`);
                     return;
                 }
@@ -382,12 +425,39 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     /**
      * Check if a file should be included based on extension filter
      */
-    private shouldIncludeFile(filePath: string, includeExtensions: string[]): boolean {
+    private shouldIncludeFile(
+        filePath: string,
+        includeExtensions: string[],
+        includeHidden: boolean
+    ): boolean {
+        const basename = path.basename(filePath).toLowerCase();
         const ext = path.extname(filePath).toLowerCase();
 
-        // Always include files without extensions (like Dockerfile, Makefile, etc.)
+        // Handle hidden files (files starting with '.')
+        if (basename.startsWith('.')) {
+            if (!includeHidden) {
+                // Small whitelist of commonly useful dotfiles
+                const allowedDotfiles = [
+                    '.gitignore',
+                    '.env',
+                    '.env.example',
+                    '.npmignore',
+                    '.dockerignore',
+                    '.editorconfig',
+                ];
+                if (!allowedDotfiles.includes(basename)) {
+                    return false;
+                }
+            }
+            // For dotfiles, treat them as having their own extension-like behavior
+            // Check for .env patterns
+            if (basename === '.env' || basename.startsWith('.env.')) {
+                return true;
+            }
+        }
+
+        // Handle special files that don't use traditional extensions
         if (!ext) {
-            const basename = path.basename(filePath).toLowerCase();
             const commonNoExtFiles = [
                 'dockerfile',
                 'makefile',
@@ -397,6 +467,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 'contributing',
             ];
             return commonNoExtFiles.some((common) => basename.includes(common));
+        }
+
+        // Handle .gitignore specifically
+        if (basename === '.gitignore') {
+            return true;
         }
 
         return includeExtensions.includes(ext);

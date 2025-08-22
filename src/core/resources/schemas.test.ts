@@ -66,7 +66,7 @@ describe('InternalResourcesSchema - New Auto-Enable Logic', () => {
         it('isInternalResourcesEnabled should return true for enabled config', () => {
             const config = {
                 enabled: true,
-                resources: [{ type: 'filesystem' as const, paths: ['.'] }],
+                resources: [{ type: 'filesystem' as const, paths: ['.'] } as any],
             };
 
             expect(isInternalResourcesEnabled(config)).toBe(true);
@@ -136,6 +136,19 @@ describe('InternalResourcesSchema - New Auto-Enable Logic', () => {
                 {
                     type: 'filesystem' as const,
                     paths: [], // Empty paths
+                },
+            ];
+
+            expect(() => InternalResourcesSchema.parse(input)).toThrow();
+        });
+
+        it('should reject unknown keys after .strict()', () => {
+            const input = [
+                {
+                    type: 'filesystem' as const,
+                    paths: ['.'],
+                    pathz: 'typo', // Unknown property (typo)
+                    maxDepthh: 5, // Another typo
                 },
             ];
 

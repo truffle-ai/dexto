@@ -1029,12 +1029,18 @@ export class DextoAgent {
         // Filter resources by server name and map to API format
         const serverResources = Object.values(allResources)
             .filter((resource) => resource.serverName === serverId)
-            .map((resource) => ({
-                uri: (resource.metadata?.originalUri as string) || resource.uri,
-                name: resource.name || resource.uri.split('/').pop() || resource.uri,
-                originalUri: (resource.metadata?.originalUri as string) || resource.uri,
-                serverName: resource.serverName || serverId,
-            }));
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+
+                return {
+                    uri: original,
+                    name: name,
+                    originalUri: original,
+                    serverName: serverName,
+                };
+            });
 
         return serverResources;
     }

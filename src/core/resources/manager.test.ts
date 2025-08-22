@@ -118,7 +118,7 @@ describe('ResourceManager - Unit Tests', () => {
         beforeEach(() => {
             const mockInternalConfig: ValidatedInternalResourcesConfig = {
                 enabled: true,
-                resources: [{ type: 'filesystem', paths: ['.'] }],
+                resources: [{ type: 'filesystem', paths: ['.'] } as any],
             };
 
             mockInternalProvider = {
@@ -196,7 +196,7 @@ describe('ResourceManager - Unit Tests', () => {
             const resourceManagerWithInternal = new ResourceManager(mockMcpManager, {
                 internalResourcesConfig: {
                     enabled: true,
-                    resources: [{ type: 'filesystem', paths: ['.'] }],
+                    resources: [{ type: 'filesystem', paths: ['.'] } as any],
                 },
             });
 
@@ -214,7 +214,7 @@ describe('ResourceManager - Unit Tests', () => {
             const resourceManagerWithInternal = new ResourceManager(mockMcpManager, {
                 internalResourcesConfig: {
                     enabled: true,
-                    resources: [{ type: 'filesystem', paths: ['.'] }],
+                    resources: [{ type: 'filesystem', paths: ['.'] } as any],
                 },
             });
 
