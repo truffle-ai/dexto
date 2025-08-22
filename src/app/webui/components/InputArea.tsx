@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, StopCircle, FileAudio, File } from 'lucide-react';
+import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, StopCircle, FileAudio, File, Search } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
@@ -24,9 +24,10 @@ interface InputAreaProps {
     fileData?: { base64: string; mimeType: string; filename?: string }
   ) => void;
   isSending?: boolean;
+  variant?: 'welcome' | 'chat';
 }
 
-export default function InputArea({ onSend, isSending }: InputAreaProps) {
+export default function InputArea({ onSend, isSending, variant = 'chat' }: InputAreaProps) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [imageData, setImageData] = useState<{ base64: string; mimeType: string } | null>(null);
@@ -396,6 +397,177 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
     e.target.value = '';
   };
 
+  // Welcome variant - simplified, prominent search bar
+  if (variant === 'welcome') {
+    return (
+      <div className="w-full">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          handleSend();
+        }} className="relative">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask me anything..."
+              rows={1}
+              className="min-h-[42px] pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
+            />
+            <Button
+              type="submit"
+              disabled={!text.trim() && !imageData && !fileData}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
+            >
+              <SendHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+        </form>
+        
+        {/* File attachments for welcome variant */}
+        {(imageData || fileData) && (
+          <div className="mt-3 flex items-center gap-2">
+            {imageData && (
+              <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50">
+                <img
+                  src={`data:${imageData.mimeType};base64,${imageData.base64}`}
+                  alt="preview"
+                  className="h-12 w-auto rounded-md"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={removeImage}
+                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground shadow-md"
+                  aria-label="Remove image"
+                >
+                  <X className="h-2 w-2" />
+                </Button>
+              </div>
+            )}
+            {fileData && (
+              <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2">
+                {fileData.mimeType.startsWith('audio') ? (
+                  <FileAudio className="h-4 w-4" />
+                ) : (
+                  <File className="h-4 w-4" />
+                )}
+                <span className="text-xs font-medium max-w-[100px] truncate">{fileData.filename || 'attachment'}</span>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={() => setFileData(null)}
+                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground shadow-md"
+                  aria-label="Remove attachment"
+                >
+                  <X className="h-2 w-2" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Welcome variant controls */}
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                  aria-label="Attach File"
+                >
+                  <Paperclip className="h-3 w-3 mr-1.5" />
+                  Attach
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start">
+                <DropdownMenuItem onClick={triggerFileInput}>
+                  <Paperclip className="h-4 w-4 mr-2" /> Image
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={triggerPdfInput}>
+                  <File className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={triggerAudioInput}>
+                  <FileAudio className="h-4 w-4 mr-2" /> Audio file
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={isRecording ? stopRecording : startRecording}
+              className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+              aria-label={isRecording ? 'Stop recording' : 'Record audio'}
+            >
+              {isRecording ? <StopCircle className="h-3 w-3 mr-1.5 text-red-500" /> : <Mic className="h-3 w-3 mr-1.5" />}
+              {isRecording ? 'Stop' : 'Record'}
+            </Button>
+          </div>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                disabled={isLoadingModel}
+              >
+                <Bot className="h-3 w-3 mr-1.5" />
+                <span className="hidden sm:inline">
+                  {isLoadingModel ? '...' : currentModel}
+                </span>
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {coreModels.map((model) => (
+                <DropdownMenuItem 
+                  key={model.model}
+                  onClick={() => handleModelSwitch(model)}
+                >
+                  <Bot className="h-4 w-4 mr-2" />
+                  {model.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        
+        {/* Hidden inputs for welcome variant */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          id="image-upload"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageChange}
+        />
+        <input
+          ref={pdfInputRef}
+          type="file"
+          id="pdf-upload"
+          accept="application/pdf"
+          className="hidden"
+          onChange={handlePdfChange}
+        />
+        <input
+          ref={audioInputRef}
+          type="file"
+          id="audio-upload"
+          accept="audio/*"
+          className="hidden"
+          onChange={handleAudioFileChange}
+        />
+      </div>
+    );
+  }
+
+  // Chat variant - full featured input area
   return (
     <div
       id="input-area"
@@ -553,7 +725,7 @@ export default function InputArea({ onSend, isSending }: InputAreaProps) {
               onKeyDown={handleKeyDown}
               placeholder="Ask Dexto anything..."
               rows={1}
-              className="resize-none min-h-[42px] w-full border-input bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-lg p-2.5 pr-32 text-sm"
+              className="resize-none min-h-[42px] w-full border-input bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-full p-2.5 pr-32 text-sm"
             />
             
             {/* Controls - Model Selector and Streaming Toggle */}
