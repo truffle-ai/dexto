@@ -407,7 +407,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   // Welcome variant - simplified, prominent search bar
   if (variant === 'welcome') {
     return (
-      <div className="w-full">
+      <div className="w-full relative">
         <form onSubmit={(e) => {
           e.preventDefault();
           handleSend();
@@ -417,8 +417,45 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             <Textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setText(newValue);
+                // Handle resource autocomplete
+                const cursorPosition = e.target.selectionStart || 0;
+                autocomplete.handleTextChange(newValue, cursorPosition);
+              }}
+              onSelect={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onClick={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onKeyDown={(e) => {
+                // Handle resource autocomplete first
+                const handled = autocomplete.handleKeyDown(e, resources.filter((resource) => {
+                  if (!autocomplete.query || autocomplete.query === '@') return true;
+                  const searchQuery = autocomplete.query.replace('@', '').toLowerCase();
+                  const searchFields = [
+                    resource.name,
+                    resource.description,
+                    resource.serverName,
+                    resource.uri,
+                  ].filter(Boolean);
+                  return searchFields.some((field) =>
+                    field?.toLowerCase().includes(searchQuery)
+                  );
+                }));
+                
+                if (!handled) {
+                  handleKeyDown(e);
+                }
+              }}
               placeholder="Ask me anything..."
               rows={1}
               className="min-h-[42px] pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
