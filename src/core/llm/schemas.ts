@@ -13,8 +13,8 @@ import {
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
-    isRouterSupportedForProvider,
-    getSupportedRoutersForProvider,
+    isRouterSupportedForModel,
+    getSupportedRoutersForModel,
 } from './registry.js';
 
 /** Core object with structural constraints and normalization */
@@ -190,13 +190,13 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
         }
     }
 
-    if (!isRouterSupportedForProvider(data.provider, data.router)) {
-        const supportedRouters = getSupportedRoutersForProvider(data.provider);
+    if (!isRouterSupportedForModel(data.provider, data.model, data.router)) {
+        const supportedRouters = getSupportedRoutersForModel(data.provider, data.model);
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['router'],
             message:
-                `Provider '${data.provider}' does not support router '${data.router}'. ` +
+                `Model '${data.model}' (${data.provider}) does not support router '${data.router}'. ` +
                 `Supported: ${supportedRouters.join(', ')}`,
             params: {
                 code: LLMErrorCode.ROUTER_UNSUPPORTED,

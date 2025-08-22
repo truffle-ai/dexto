@@ -11,7 +11,7 @@ import SessionPanel from './SessionPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -52,6 +52,9 @@ export default function ChatApp() {
   // Conversation management states
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Welcome screen search state
+  const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
 
   useEffect(() => {
     if (isExportOpen) {
@@ -98,70 +101,71 @@ export default function ChatApp() {
         ? `${exportName}-${currentSessionId}.yml`
         : `${exportName}.yml`;
       link.download = fileName;
-      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      setExportOpen(false);
-      setExportError(null);
-    } catch (err) {
-      console.error('Export failed:', err);
-      setExportError(err instanceof Error ? err.message : 'Export failed');
+    } catch (error) {
+      console.error('Download failed:', error);
+      setExportError(error instanceof Error ? error.message : 'Download failed');
     }
   }, [exportName, currentSessionId]);
 
   const handleCopy = useCallback(async () => {
     try {
-      const exportUrl = currentSessionId 
-        ? `/api/config.yaml?sessionId=${currentSessionId}`
-        : '/api/config.yaml';
-      
-      const res = await fetch(exportUrl);
-      if (!res.ok) throw new Error('Failed to fetch configuration');
-      const yamlText = await res.text();
-      await navigator.clipboard.writeText(yamlText);
+      await navigator.clipboard.writeText(exportContent);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-      setExportError(null);
-    } catch (err) {
-      console.error('Copy failed:', err);
-      setExportError(err instanceof Error ? err.message : 'Copy failed');
+    } catch (error) {
+      console.error('Copy failed:', error);
+      setExportError('Failed to copy to clipboard');
     }
-  }, [setCopySuccess, setExportError, currentSessionId]);
+  }, [exportContent]);
 
-  const handleInstallServer = useCallback(async (entry: any) => {
-    // This will be implemented to install servers from the registry
-    console.log('Installing server:', entry);
-    // For now, just close the modal
-    setServerRegistryOpen(false);
-  }, []);
-
-  const handleSend = useCallback(async (
-    content: string,
-    imageData?: { base64: string; mimeType: string },
-    fileData?: { base64: string; mimeType: string; filename?: string }
-  ) => {
+  const handleSend = useCallback(async (content: string, imageData?: any, fileData?: any) => {
     setIsSendingMessage(true);
+    setErrorMessage(null);
+    
     try {
       await sendMessage(content, imageData, fileData);
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error('Failed to send message:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to send message');
+      setTimeout(() => setErrorMessage(null), 5000);
     } finally {
       setIsSendingMessage(false);
     }
   }, [sendMessage]);
 
-  const handleSessionChange = useCallback(async (sessionId: string) => {
-    try {
-      await switchSession(sessionId);
-      // Close sessions panel after switching (for mobile experience)
-      setSessionsPanelOpen(false);
-    } catch (error) {
-      console.error('Error switching session:', error);
-    }
+  const handleSessionChange = useCallback((sessionId: string) => {
+    switchSession(sessionId);
+    setSessionsPanelOpen(false);
   }, [switchSession]);
 
+  const handleInstallServer = useCallback(async (entry: any) => {
+    try {
+      const response = await fetch('/api/mcp/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverId: entry.id }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to install server');
+      }
+      
+      // Close the modal and refresh servers panel if open
+      setServerRegistryOpen(false);
+      if (isServersPanelOpen) {
+        // Trigger a refresh of the servers panel
+        window.dispatchEvent(new CustomEvent('refresh-servers'));
+      }
+    } catch (error) {
+      console.error('Failed to install server:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to install server');
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  }, [isServersPanelOpen]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
@@ -170,34 +174,65 @@ export default function ChatApp() {
     try {
       const response = await fetch(`/api/sessions/${currentSessionId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
-
+      
       if (!response.ok) {
         throw new Error('Failed to delete conversation');
       }
-
-      // After deleting, return to welcome state
-      // Don't switch to any specific session, let user start fresh
+      
       setDeleteDialogOpen(false);
       returnToWelcome();
     } catch (error) {
-      console.error('Error deleting conversation:', error);
-      // You might want to show a toast notification here
+      console.error('Failed to delete conversation:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete conversation');
+      setTimeout(() => setErrorMessage(null), 5000);
     } finally {
       setIsDeleting(false);
     }
   }, [currentSessionId, returnToWelcome]);
 
+  const handleWelcomeSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (welcomeSearchQuery.trim()) {
+      handleSend(welcomeSearchQuery.trim());
+      setWelcomeSearchQuery('');
+    }
+  }, [welcomeSearchQuery, handleSend]);
+
+  const createAndSwitchSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.message || errorBody.error || errorMessage;
+        } catch {
+          // If we can't parse the error body, use the status text
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      handleSessionChange(data.session.id);
+    } catch (error) {
+      console.error('Error creating new session:', error);
+      setErrorMessage('Failed to create new session. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  }, [handleSessionChange]);
 
   const quickActions = [
     {
-      title: "What can you do?",
-      description: "See current capabilities",
-      action: () => handleSend("What tools and capabilities do you have available right now?"),
-      icon: "🤔"
+      title: "Help me get started",
+      description: "Show me what you can do",
+      action: () => handleSend("I'm new to Dexto. Can you show me your capabilities and help me understand how to work with you effectively?"),
+      icon: "🚀"
     },
     {
       title: "Create Snake Game",
@@ -212,10 +247,10 @@ export default function ChatApp() {
       icon: "🔧"
     },
     {
-      title: "Test existing tools",
-      description: "Try out connected capabilities",
-      action: () => handleSend("Show me how to use one of your available tools. Pick an interesting one and demonstrate it."),
-      icon: "🧪"
+      title: "Demonstrate tools",
+      description: "Show me your capabilities",
+      action: () => handleSend("Pick one of your most interesting tools and demonstrate it with a practical example. Show me what it can do."),
+      icon: "⚡"
     }
   ];
 
@@ -230,19 +265,7 @@ export default function ChatApp() {
       // Ctrl/Cmd + K to create new session
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
         e.preventDefault();
-        // Create new session using the same logic as SessionPanel
-        fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        })
-        .then(response => response.json())
-        .then(data => handleSessionChange(data.session.id))
-        .catch(error => {
-          console.error('Error creating new session:', error);
-          setErrorMessage('Failed to create new session. Please try again.');
-          setTimeout(() => setErrorMessage(null), 5000);
-        });
+        createAndSwitchSession();
       }
       // Ctrl/Cmd + J to toggle tools/servers panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
@@ -288,22 +311,79 @@ export default function ChatApp() {
 
   return (
     <div className="flex h-screen bg-background">
+      {/* Left Sidebar - Chat History */}
+      <div className={cn(
+        "shrink-0 transition-all duration-300 ease-in-out border-r border-border/50 bg-card/50 backdrop-blur-sm",
+        isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
+      )}>
+        {isSessionsPanelOpen && (
+          <SessionPanel
+            isOpen={isSessionsPanelOpen}
+            onClose={() => setSessionsPanelOpen(false)}
+            currentSessionId={currentSessionId}
+            onSessionChange={handleSessionChange}
+            returnToWelcome={returnToWelcome}
+            variant="inline"
+            onSearchOpen={() => setSearchOpen(true)}
+          />
+        )}
+      </div>
+
       <main className="flex-1 flex flex-col relative">
-        {/* Simplified Header */}
-        <header className="shrink-0 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+        {/* Clean Header */}
+        <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
           <div className="flex justify-between items-center px-4 py-3">
             <div className="flex items-center space-x-4">
+              {/* Chat History Toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setSessionsPanelOpen(!isSessionsPanelOpen)}
+                    className={cn(
+                      "h-8 w-8 p-0 transition-colors",
+                      isSessionsPanelOpen && "bg-muted"
+                    )}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Chat History (⌘H)
+                </TooltipContent>
+              </Tooltip>
+              
+              {/* New Chat Button - Only show when panel is closed */}
+              {!isSessionsPanelOpen && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={createAndSwitchSession}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    New Chat (⌘K)
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              
               <div className="flex items-center space-x-3">
-                <div className="flex items-center justify-center w-7 h-7 rounded-lg border border-border/50 text-primary-foreground">
-                  <img src="/logo.png" alt="Dexto" className="w-4 h-4" />
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-primary/20 bg-primary/5 text-primary-foreground shadow-sm">
+                  <img src="/logo.png" alt="Dexto" className="w-5 h-5" />
                 </div>
-                <h1 className="text-base font-semibold tracking-tight">Dexto</h1>
+                <h1 className="text-lg font-semibold tracking-tight text-foreground">Dexto</h1>
               </div>
               
               {/* Current Session Indicator - Only show when there's an active session */}
               {currentSessionId && !isWelcomeState && (
                 <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30">
                     {currentSessionId}
                   </Badge>
                 </div>
@@ -313,41 +393,6 @@ export default function ChatApp() {
             {/* Minimal Action Bar */}
             <div className="flex items-center space-x-1">
               <ThemeSwitch />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setSearchOpen(true)}
-                    className="h-8 px-2 text-xs transition-colors"
-                  >
-                    <Search className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline ml-1.5">Search</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Search conversations (⌘⇧S)
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setSessionsPanelOpen(!isSessionsPanelOpen)}
-                    className={cn(
-                      "h-8 px-2 text-xs transition-colors",
-                      isSessionsPanelOpen && "bg-muted"
-                    )}
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline ml-1.5">Sessions</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Toggle sessions panel (⌘H)
-                </TooltipContent>
-              </Tooltip>
               
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -361,7 +406,7 @@ export default function ChatApp() {
                     )}
                   >
                     <Server className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline ml-1.5">MCP Servers</span>
+                    <span className="hidden sm:inline ml-1.5">Tools</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -379,7 +424,7 @@ export default function ChatApp() {
                   >
                     <Link href="/playground" target="_blank">
                       <Wrench className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline ml-1.5">MCP Playground</span>
+                      <span className="hidden sm:inline ml-1.5">Playground</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
@@ -398,11 +443,11 @@ export default function ChatApp() {
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
-                    <Server className="h-4 w-4 mr-2" />
-                    Browse MCP Registry
-                  </DropdownMenuItem>
+                                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
+                      <Server className="h-4 w-4 mr-2" />
+                      Browse MCP Registry
+                    </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="h-4 w-4 mr-2" />
                     Export Config
@@ -438,50 +483,57 @@ export default function ChatApp() {
               {errorMessage}
             </div>
           )}
+          
           {/* Chat Content */}
           <div className="flex-1 flex flex-col">
             {isWelcomeState || messages.length === 0 ? (
-              /* Welcome Screen - Clean Design */
-              <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-md space-y-8">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-center w-16 h-16 mx-auto rounded-2xl bg-primary/10 text-primary">
-                      <img src="/logo.png" alt="Dexto" className="w-8 h-8" />
+              /* Modern Welcome Screen with Central Search */
+              <div className="flex-1 flex items-center justify-center p-6 -mt-20">
+                <div className="w-full max-w-2xl space-y-6">
+                  <div className="space-y-4 text-center">
+                    <div className="flex items-center justify-center w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary shadow-sm">
+                      <img src="/logo.png" alt="Dexto" className="w-6 h-6" />
                     </div>
                     <div className="space-y-2">
-                      <h2 className="text-2xl font-semibold tracking-tight font-mono bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent text-center">Hello, Welcome to Dexto!</h2>
-                      <p className="text-muted-foreground text-base text-center">
-                        Ask anything or connect new tools to expand what you can do.
+                      <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                        Welcome to Dexto
+                      </h2>
+                      <p className="text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
+                        Your AI assistant with powerful tools. Ask anything or connect new capabilities.
                       </p>
                     </div>
                   </div>
 
-                  {/* Quick Actions Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+                  {/* Quick Actions Grid - Compact */}
+                  <div className="flex flex-wrap justify-center gap-2 max-w-2xl mx-auto">
                     {quickActions.map((action, index) => (
                       <button
                         key={index}
                         onClick={action.action}
-                        className="group p-4 text-left rounded-xl border border-border/50 bg-card hover:bg-muted/50 transition-all duration-200 hover:border-border hover:shadow-minimal"
+                        className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
                       >
-                        <div className="flex items-center space-x-3">
-                          <span className="text-lg">{action.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-sm group-hover:text-foreground transition-colors">
-                              {action.title}
-                            </h3>
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                              {action.description}
-                            </p>
-                          </div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-sm">{action.icon}</span>
+                          <span className="font-medium text-xs text-primary group-hover:text-primary/80 transition-colors">
+                            {action.title}
+                          </span>
                         </div>
                       </button>
                     ))}
                   </div>
+
+                  {/* Central Search Bar with Full Features */}
+                  <div className="max-w-2xl mx-auto">
+                    <InputArea
+                      onSend={handleSend}
+                      isSending={isSendingMessage}
+                      variant="welcome"
+                    />
+                  </div>
                 
                   {/* Quick Tips */}
                   <div className="text-xs text-muted-foreground space-y-1 text-center">
-                    <p>💡 Try <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘K</kbd> for new chat, <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘J</kbd> for tools, <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘L</kbd> for playground, <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘/</kbd> for shortcuts</p>
+                    <p>💡 Try <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘K</kbd> for new chat, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘J</kbd> for tools, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘L</kbd> for playground, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘/</kbd> for shortcuts</p>
                   </div>
                 </div>
               </div>
@@ -496,37 +548,23 @@ export default function ChatApp() {
               </div>
             )}
             
-            {/* Input Area */}
-            <div className="shrink-0 border-t border-border/50 bg-background/80 backdrop-blur-xl">
-              <div className="p-4">
-                <InputArea
-                  onSend={handleSend}
-                  isSending={isSendingMessage}
-                />
+            {/* Input Area - Only show when in chat state */}
+            {!isWelcomeState && messages.length > 0 && (
+              <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
+                <div className="p-4">
+                  <InputArea
+                    onSend={handleSend}
+                    isSending={isSendingMessage}
+                    variant="chat"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
-
-          {/* Sessions Panel - Slide Animation */}
-          <div className={cn(
-            "shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card",
-            isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
-          )}>
-            {isSessionsPanelOpen && (
-              <SessionPanel
-                isOpen={isSessionsPanelOpen}
-                onClose={() => setSessionsPanelOpen(false)}
-                currentSessionId={currentSessionId}
-                onSessionChange={handleSessionChange}
-                returnToWelcome={returnToWelcome}
-                variant="inline"
-              />
             )}
           </div>
 
           {/* Servers Panel - Slide Animation */}
           <div className={cn(
-            "shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card",
+            "shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
             isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
@@ -663,8 +701,8 @@ export default function ChatApp() {
             
             <div className="space-y-3">
               {[
-                { key: '⌘H', desc: 'Toggle sessions panel' },
-                { key: '⌘K', desc: 'Create new session' },
+                { key: '⌘H', desc: 'Toggle chat history panel' },
+                { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
                 { key: '⌘L', desc: 'Open playground' },

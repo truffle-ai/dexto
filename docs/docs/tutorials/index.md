@@ -15,7 +15,7 @@ Let's build an agent that can organize messy directories:
 import 'dotenv/config';
 import { loadConfigFile, DextoAgent } from 'dexto';
 
-const config = await loadConfigFile('./agents/agent.yml');
+const config = await loadConfigFile('./agents/default-agent.yml');
 const agent = new DextoAgent(config);
 
 // Start the agent
@@ -44,7 +44,7 @@ import 'dotenv/config';
 import { loadConfigFile, DextoAgent } from 'dexto';
 import readline from 'readline';
 
-const config = await loadConfigFile('./agents/agent.yml');
+const config = await loadConfigFile('./agents/default-agent.yml');
 const agent = new DextoAgent(config);
 await agent.start();
 
@@ -111,7 +111,7 @@ import { loadConfigFile, DextoAgent } from 'dexto';
 import readline from 'readline';
 
 const agent = new DextoAgent(
-  await loadConfigFile('./agents/agent.yml')
+  await loadConfigFile('./agents/default-agent.yml')
 );
 await agent.start();
 
@@ -205,7 +205,7 @@ app.use(express.json());
 
 // Initialize our agent once
 const agent = new DextoAgent(
-  await loadConfigFile('./agents/agent.yml')
+  await loadConfigFile('./agents/default-agent.yml')
 );
 await agent.start();
 

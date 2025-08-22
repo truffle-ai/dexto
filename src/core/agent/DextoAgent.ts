@@ -3,7 +3,7 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { PromptManager } from '../systemPrompt/manager.js';
-import { AgentStateManager } from '../config/agent-state-manager.js';
+import { AgentStateManager } from './state-manager.js';
 import { SessionManager, SessionMetadata, ChatSession, SessionError } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';

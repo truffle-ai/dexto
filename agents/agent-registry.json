@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "agents": {
+    "database-agent": {
+      "description": "AI agent for database operations and SQL queries",
+      "author": "Truffle AI",
+      "tags": ["database", "sql", "data", "queries"],
+      "source": "database-agent/",
+      "main": "database-agent.yml"
+    },
+    "talk2pdf-agent": {
+      "description": "PDF document analysis and conversation",
+      "author": "Truffle AI",
+      "tags": ["pdf", "documents", "analysis", "conversation"],
+      "source": "talk2pdf-agent/",
+      "main": "talk2pdf-agent.yml"
+    },
+    "image-editor-agent": {
+      "description": "AI agent for image editing and manipulation",
+      "author": "Truffle AI",
+      "tags": ["images", "editing", "graphics", "visual"],
+      "source": "image-editor-agent/",
+      "main": "image-editor-agent.yml"
+    },
+    "music-agent": {
+      "description": "AI agent for music creation and audio processing",
+      "author": "Truffle AI",
+      "tags": ["music", "audio", "creation", "sound"],
+      "source": "music-agent/",
+      "main": "music-agent.yml"
+    },
+    "product-researcher": {
+      "description": "AI agent for product name research and branding",
+      "author": "Truffle AI",
+      "tags": ["product", "research", "branding", "naming"],
+      "source": "product-name-researcher/",
+      "main": "product-name-researcher.yml"
+    },
+    "triage-agent": {
+      "description": "Customer support triage system",
+      "author": "Truffle AI",
+      "tags": ["support", "triage", "routing", "multi-agent"],
+      "source": "triage-demo/",
+      "main": "triage-agent.yml"
+    },
+    "default-agent": {
+      "description": "Default Dexto agent with filesystem and puppeteer tools",
+      "author": "Truffle AI", 
+      "tags": ["default", "filesystem", "puppeteer"],
+      "source": "default-agent.yml"
+    }
+  }
+}

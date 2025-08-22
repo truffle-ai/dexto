@@ -24,10 +24,31 @@
 - APIs should resemble code that users could write with public libraries
 
 ### Service Initialization
-- **Config file is source of truth** - Use `agent.yml` for all configuration
+- **Config file is source of truth** - Use `agents/default-agent.yml` for all configuration
 - **Override pattern for advanced use** - Use `InitializeServicesOptions` only for top-level services
 - ✅ DO: Configure via config file for normal operation
 - ❌ DON'T: Add every internal dependency to override options
+
+### Execution Context Detection
+Dexto automatically detects execution environment to enable context-aware behavior. Functions that vary by context should infer execution context or use context-aware helpers.
+
+**Context Types:**
+- **`dexto-source`** - Running within dexto's own source code (package.name === 'dexto')
+- **`dexto-project`** - Running in a project that depends on dexto (has dexto in dependencies)
+- **`global-cli`** - Running as global CLI or in non-dexto project
+
+**Usage Patterns:**
+- Path resolution: `src/core/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
+- Environment loading: `src/core/utils/env.ts` - `loadEnvironmentVariables()`
+- Agent resolution: `src/core/config/agent-resolver.ts` - context-specific defaults
+- API key setup: `src/app/cli/utils/api-key-setup.ts` - context-aware instructions
+
+**Key Functions (`src/core/utils/execution-context.ts`):**
+- `getExecutionContext(startPath?)` - Detect context from directory
+- `findDextoSourceRoot(startPath?)` - Find dexto source directory (null if not found)
+- `findDextoProjectRoot(startPath?)` - Find dexto project directory (null if not found)
+- `getDextoPath(type, filename?, startPath?)` - Context-aware path resolution
+- `getDextoGlobalPath(type, filename?)` - Always returns global ~/.dexto paths
 
 ### Schema Design (Zod)
 - **Always use `.strict()`** for configuration objects - Prevents typos and unknown fields
@@ -45,7 +66,6 @@
    - Creates clear contract between public API and internal implementation
 
 2. **Result<T,C> for Validation Layers** - Internal validation helpers return Result<T,C>; DextoAgent converts failures into typed exceptions (e.g. DextoLLMError) before exposing them
-
 
 3. **API Layer Error Mapping** - Centralised Express error middleware  
    - `DextoValidationError` (or any subclass) → 400  
@@ -106,6 +126,28 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
   }
 });
 ```
+
+### Error Handling
+
+**Core Error Classes:**
+- **`DextoRuntimeError`** - Single-issue errors (file not found, API failures, system errors)
+- **`DextoValidationError`** - Multiple validation issues (schema failures, input validation)
+
+**When to Use Each:**
+- **Runtime errors**: File operations, network calls, system failures, business logic violations
+  - Examples: `src/core/config/loader.ts`, `src/core/llm/services/vercel.ts`
+- **Validation errors**: Schema validation, input parsing, configuration validation with multiple issues  
+  - Examples: `src/core/agent/DextoAgent.ts` (switchLLM validation)
+
+**Error Factory Pattern (REQUIRED):**
+Each module should have an error factory class that creates properly typed errors.
+- **Reference example**: `src/core/config/errors.ts` - Follow this pattern for new modules
+
+**API Integration:**
+The error middleware (`src/app/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
+
+**❌ DON'T**: Use plain `Error` or `throw new Error()`  
+**✅ DO**: Create module-specific error factories and use typed error classes
 
 ## Code Standards
 
@@ -224,11 +266,6 @@ User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
 - **Add regression tests** - When fixing bugs, add tests to prevent recurrence
 - **Tests before style** - Ensure tests pass before fixing style checks
 
-## Error Handling Patterns
-- Use proper type guards for error checking
-- Include context in error messages with template literals
-- Handle async operations with try/catch
-- Return consistent error responses from APIs
 
 ## Maintaining This File
 **Important**: Keep this CLAUDE.md file updated when you discover:

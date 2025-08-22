@@ -1,4 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock logger to prevent initialization issues
+vi.mock('@core/logger/index.js', () => ({
+    logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
+}));
 import { z } from 'zod';
 import { LLMErrorCode } from './error-codes.js';
 import {
@@ -17,6 +27,7 @@ import {
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
+    getSupportedRoutersForModel,
     type LLMProvider,
     type LLMRouter,
 } from './registry.js';
@@ -27,10 +38,17 @@ class LLMTestHelpers {
         const models = getSupportedModels(provider);
         const defaultModel = getDefaultModelForProvider(provider) || models[0] || 'custom-model';
 
+        // Get supported routers for the specific model
+        const supportedRouters = getSupportedRoutersForModel(provider, defaultModel);
+        const router = supportedRouters.includes('vercel')
+            ? 'vercel'
+            : supportedRouters[0] || 'vercel';
+
         const baseConfig = {
             provider,
             model: defaultModel,
             apiKey: 'test-key',
+            router,
         };
 
         if (requiresBaseURL(provider)) {
@@ -184,10 +202,17 @@ describe('LLMConfigSchema', () => {
                 // Test first few models to avoid excessive test runs
                 const modelsToTest = models.slice(0, 3);
                 for (const model of modelsToTest) {
+                    // Get supported routers for this specific model
+                    const supportedRouters = getSupportedRoutersForModel(provider, model);
+                    const router = supportedRouters.includes('vercel')
+                        ? 'vercel'
+                        : supportedRouters[0] || 'vercel';
+
                     const config: LLMConfig = {
                         provider,
                         model,
                         apiKey: 'test-key',
+                        router,
                         ...(requiresBaseURL(provider) && { baseURL: 'https://api.test.com/v1' }),
                     };
 
@@ -363,10 +388,17 @@ describe('LLMConfigSchema', () => {
             const model = models[0]!;
             const maxTokens = getMaxInputTokensForModel(provider, model);
 
+            // Get supported routers for this specific model
+            const supportedRouters = getSupportedRoutersForModel(provider, model);
+            const router = supportedRouters.includes('vercel')
+                ? 'vercel'
+                : supportedRouters[0] || 'vercel';
+
             const config: LLMConfig = {
                 provider,
                 model,
                 apiKey: 'test-key',
+                router,
                 maxInputTokens: Math.floor(maxTokens / 2), // Well within limit
                 ...(requiresBaseURL(provider) && { baseURL: 'https://api.test.com/v1' }),
             };
@@ -383,10 +415,17 @@ describe('LLMConfigSchema', () => {
             const model = models[0]!;
             const maxTokens = getMaxInputTokensForModel(provider, model);
 
+            // Get supported routers for this specific model
+            const supportedRouters = getSupportedRoutersForModel(provider, model);
+            const router = supportedRouters.includes('vercel')
+                ? 'vercel'
+                : supportedRouters[0] || 'vercel';
+
             const config: LLMConfig = {
                 provider,
                 model,
                 apiKey: 'test-key',
+                router,
                 maxInputTokens: maxTokens + 1000, // Exceed limit
                 ...(requiresBaseURL(provider) && { baseURL: 'https://api.test.com/v1' }),
             };
@@ -548,6 +587,54 @@ describe('LLMConfigSchema', () => {
                 const updates = { model: 'gpt-4o', maxIterations: 10, router: 'vercel' };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
+        });
+    });
+
+    describe('Model-Specific Router Validation', () => {
+        it('should reject GPT-5 models with vercel router', () => {
+            const config: LLMConfig = {
+                ...LLMTestHelpers.getValidConfigForProvider('openai'),
+                model: 'gpt-5',
+                router: 'vercel',
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.path).toEqual(['router']);
+            expect((result.error?.issues[0] as any).params?.code).toBe(
+                LLMErrorCode.ROUTER_UNSUPPORTED
+            );
+            expect(result.error?.issues[0]?.message).toContain(
+                "Model 'gpt-5' (openai) does not support router 'vercel'"
+            );
+        });
+
+        it('should accept GPT-5 models with in-built router', () => {
+            const config: LLMConfig = {
+                ...LLMTestHelpers.getValidConfigForProvider('openai'),
+                model: 'gpt-5',
+                router: 'in-built',
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(true);
+        });
+
+        it('should accept other OpenAI models with both routers', () => {
+            const vercelConfig: LLMConfig = {
+                ...LLMTestHelpers.getValidConfigForProvider('openai'),
+                model: 'gpt-4.1-mini',
+                router: 'vercel',
+            };
+
+            const inBuiltConfig: LLMConfig = {
+                ...LLMTestHelpers.getValidConfigForProvider('openai'),
+                model: 'gpt-4.1-mini',
+                router: 'in-built',
+            };
+
+            expect(LLMConfigSchema.safeParse(vercelConfig).success).toBe(true);
+            expect(LLMConfigSchema.safeParse(inBuiltConfig).success).toBe(true);
         });
     });
 });

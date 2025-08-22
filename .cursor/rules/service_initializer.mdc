@@ -20,7 +20,7 @@ alwaysApply: false
 - **Examples**
 ```typescript
 // ✅ DO: Use config for compression strategies
-// In agent.yml:
+// In agents/default-agent.yml:
 messages:
   compression:
     - type: middle

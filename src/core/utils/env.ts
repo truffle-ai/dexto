@@ -2,7 +2,8 @@ import * as path from 'path';
 import { homedir } from 'os';
 import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
-import { getDextoProjectRoot, ensureDextoGlobalDirectory } from './path.js';
+import { getExecutionContext } from './execution-context.js';
+import { ensureDextoGlobalDirectory, getDextoEnvPath } from './path.js';
 
 /**
  * Multi-layer environment variable loading with context awareness.
@@ -17,10 +18,11 @@ import { getDextoProjectRoot, ensureDextoGlobalDirectory } from './path.js';
 export async function loadEnvironmentVariables(
     startPath: string = process.cwd()
 ): Promise<Record<string, string>> {
-    const projectRoot = getDextoProjectRoot(startPath);
+    const context = getExecutionContext(startPath);
     const env: Record<string, string> = {};
 
     // Layer 3: Global ~/.dexto/.env (lowest priority)
+    // TODO: Maybe don't load this if we are in dexto-source or dexto-project context? need to see
     const globalEnvPath = path.join(homedir(), '.dexto', '.env');
     try {
         const globalResult = dotenv.config({ path: globalEnvPath, processEnv: {} });
@@ -32,8 +34,9 @@ export async function loadEnvironmentVariables(
     }
 
     // Layer 2: Project .env (medium priority)
-    if (projectRoot) {
-        const projectEnvPath = path.join(projectRoot, '.env');
+    // load in project/source context only
+    if (context === 'dexto-source' || context === 'dexto-project') {
+        const projectEnvPath = getDextoEnvPath(startPath);
         try {
             const projectResult = dotenv.config({ path: projectEnvPath, processEnv: {} });
             if (projectResult.parsed) {
@@ -45,9 +48,9 @@ export async function loadEnvironmentVariables(
     }
 
     // Layer 1: Shell environment (highest priority)
-    // Filter to only include defined values (not undefined)
+    // Filter to only include defined, non-empty values
     for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined) {
+        if (value !== undefined && value !== '') {
             env[key] = value;
         }
     }

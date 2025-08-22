@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AgentStateManager } from './agent-state-manager.js';
+import { AgentStateManager } from './state-manager.js';
 import { AgentEventBus } from '../events/index.js';
 import { AgentConfigSchema } from '@core/agent/schemas.js';
 import { LLMConfigSchema } from '@core/llm/schemas.js';

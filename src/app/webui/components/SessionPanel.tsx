@@ -17,7 +17,9 @@ import {
   Hash,
   AlertTriangle,
   RefreshCw,
-  MoreHorizontal
+  MoreHorizontal,
+  History,
+  Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
@@ -43,6 +45,7 @@ interface SessionPanelProps {
   onSessionChange: (sessionId: string) => void;
   returnToWelcome: () => void;
   variant?: 'inline' | 'modal';
+  onSearchOpen?: () => void;
 }
 
 export default function SessionPanel({ 
@@ -51,7 +54,8 @@ export default function SessionPanel({
   currentSessionId,
   onSessionChange,
   returnToWelcome,
-  variant = 'modal' 
+  variant = 'modal',
+  onSearchOpen
 }: SessionPanelProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
@@ -221,32 +225,35 @@ export default function SessionPanel({
     return `${days}d ago`;
   };
 
+
+
   const content = (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border/50">
+      <div className="flex items-center justify-between p-3 border-b border-border/50">
         <div className="flex items-center space-x-2">
-          <MessageSquare className="h-5 w-5" />
-          <h2 className="text-lg font-semibold">Sessions</h2>
+          <h2 className="text-base font-semibold">Chat History</h2>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchSessions}
-            disabled={loading}
-            className="h-8 w-8 p-0"
-          >
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </Button>
+        <div className="flex items-center space-x-1">
+          {onSearchOpen && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSearchOpen}
+              className="h-7 w-7 p-0"
+              title="Search Conversations (⌘⇧S)"
+            >
+              <Search className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setNewSessionOpen(true)}
-            className="h-8"
+            className="h-7 px-2"
           >
-            <Plus className="h-4 w-4 mr-1" />
-            New Session
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            <span className="text-xs">New</span>
           </Button>
         </div>
       </div>
@@ -270,9 +277,9 @@ export default function SessionPanel({
             </div>
           ) : sessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No active sessions</p>
-              <p className="text-sm">Create a new session to get started</p>
+              <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No chat history</p>
+              <p className="text-sm">Start a conversation to see it here</p>
             </div>
           ) : (
             sessions.map((session) => (
@@ -364,16 +371,16 @@ export default function SessionPanel({
         </div>
       </ScrollArea>
 
-      {/* New Session Dialog */}
+      {/* New Chat Dialog */}
       <Dialog open={isNewSessionOpen} onOpenChange={setNewSessionOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create New Session</DialogTitle>
+            <DialogTitle>Start New Chat</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="sessionId">Session ID</Label>
+              <Label htmlFor="sessionId">Chat ID</Label>
               <Input
                 id="sessionId"
                 value={newSessionId}
@@ -392,7 +399,7 @@ export default function SessionPanel({
               Cancel
             </Button>
             <Button onClick={handleCreateSession}>
-              Create Session
+              Start Chat
             </Button>
           </DialogFooter>
         </DialogContent>
