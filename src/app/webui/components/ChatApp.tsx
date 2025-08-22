@@ -345,19 +345,32 @@ export default function ChatApp() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => {
-                        fetch('/api/sessions', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({}),
-                        })
-                        .then(response => response.json())
-                        .then(data => handleSessionChange(data.session.id))
-                        .catch(error => {
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/sessions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({}),
+                          });
+                          
+                          if (!response.ok) {
+                            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                            try {
+                              const errorBody = await response.json();
+                              errorMessage = errorBody.message || errorBody.error || errorMessage;
+                            } catch {
+                              // If we can't parse the error body, use the status text
+                            }
+                            throw new Error(errorMessage);
+                          }
+                          
+                          const data = await response.json();
+                          handleSessionChange(data.session.id);
+                        } catch (error) {
                           console.error('Error creating new session:', error);
                           setErrorMessage('Failed to create new session. Please try again.');
                           setTimeout(() => setErrorMessage(null), 5000);
-                        });
+                        }
                       }}
                       className="h-8 w-8 p-0"
                     >

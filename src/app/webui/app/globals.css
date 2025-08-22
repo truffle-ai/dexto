@@ -98,7 +98,7 @@
   --accent-foreground: #fafafa;
   --destructive: #dc2626;
   --destructive-foreground: #fafafa;
-  --border: #333333;
+  --border: #525252;
   --input: #262626;
   --ring: #d4d4d8;
   --chart-1: #3b82f6;
@@ -112,7 +112,7 @@
   --sidebar-primary-foreground: #0f0f0f;
   --sidebar-accent: #262626;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #333333;
+  --sidebar-border: #525252;
   --sidebar-ring: #d4d4d8;
 }
 
