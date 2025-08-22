@@ -96,7 +96,7 @@ describe('ResourceManager - Unit Tests', () => {
 
         it('should throw error for invalid URI formats', async () => {
             await expect(resourceManager.read('invalid-format')).rejects.toThrow(
-                'Invalid resource URI format: invalid-format'
+                "Invalid resource URI format: 'invalid-format' (expected mcp:server:resource or internal:path)"
             );
         });
 
@@ -179,7 +179,7 @@ describe('ResourceManager - Unit Tests', () => {
 
         it('should throw error for internal resources when not initialized', async () => {
             await expect(resourceManager.read('internal:some/file.txt')).rejects.toThrow(
-                'Internal resources not initialized for: internal:some/file.txt'
+                "Internal resource provider not initialized for: 'internal:some/file.txt'"
             );
         });
     });
@@ -237,11 +237,11 @@ describe('ResourceManager - Unit Tests', () => {
 
         it('should reject empty URI parts', async () => {
             await expect(resourceManager.read('mcp:server:')).rejects.toThrow(
-                'Invalid MCP resource URI format: mcp:server:'
+                "Invalid resource URI format: 'mcp:server:' (expected mcp:server:resource)"
             );
 
             await expect(resourceManager.read('internal:')).rejects.toThrow(
-                'Resource URI cannot be empty after prefix: internal:'
+                'Resource URI cannot be empty'
             );
         });
     });

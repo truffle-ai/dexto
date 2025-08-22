@@ -4,6 +4,7 @@ import { InternalResourcesProvider } from './internal-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
+import { ResourceError } from './errors.js';
 
 /**
  * Options for ResourceManager initialization
@@ -187,11 +188,11 @@ export class ResourceManager {
                 logger.debug(`🗃️ Detected MCP resource: '${uri}'`);
                 const parts = uri.split(':');
                 if (parts.length < 3) {
-                    throw new Error(`Invalid MCP resource URI format: ${uri}`);
+                    throw ResourceError.invalidUriFormat(uri, 'mcp:server:resource');
                 }
                 const originalUri = parts.slice(2).join(':'); // Rejoin in case original URI had colons
                 if (originalUri.length === 0) {
-                    throw new Error(`Invalid MCP resource URI format: ${uri}`);
+                    throw ResourceError.invalidUriFormat(uri, 'mcp:server:resource');
                 }
                 logger.debug(`🎯 MCP routing: '${uri}' -> '${originalUri}'`);
                 const result = await this.mcpManager.readResource(originalUri);
@@ -203,10 +204,10 @@ export class ResourceManager {
                 logger.debug(`🗃️ Detected internal resource: '${uri}'`);
                 const originalUri = uri.substring('internal:'.length);
                 if (originalUri.length === 0) {
-                    throw new Error(`Resource URI cannot be empty after prefix: ${uri}`);
+                    throw ResourceError.emptyUri();
                 }
                 if (!this.internalResourcesProvider) {
-                    throw new Error(`Internal resources not initialized for: ${uri}`);
+                    throw ResourceError.providerNotInitialized('Internal', uri);
                 }
                 logger.debug(`🎯 Internal routing: '${uri}' -> 'fs://${originalUri}'`);
                 const result = await this.internalResourcesProvider.readResource(
@@ -220,7 +221,7 @@ export class ResourceManager {
                 logger.error(
                     `❌ Invalid resource URI format: '${uri}' (expected 'mcp:server:uri' or 'internal:path')`
                 );
-                throw new Error(`Invalid resource URI format: ${uri}`);
+                throw ResourceError.invalidUriFormat(uri, 'mcp:server:resource or internal:path');
             }
         } catch (error) {
             logger.error(

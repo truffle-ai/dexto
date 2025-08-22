@@ -34,3 +34,6 @@ export {
     formatResourceContent,
 } from './reference-parser.js';
 export type { ResourceReference, ResourceExpansionResult } from './reference-parser.js';
+
+export { ResourceError } from './errors.js';
+export { ResourceErrorCode } from './error-codes.js';

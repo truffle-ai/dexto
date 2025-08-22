@@ -34,6 +34,8 @@ import {
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
+import { MCPError } from '@core/mcp/errors.js';
+import { ResourceError } from '@core/resources/errors.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -369,7 +371,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'URI decode error';
             logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            return next(new Error(`Invalid resourceId: ${errorMessage}`));
+            return next(
+                ResourceError.invalidUriFormat(
+                    resourceIdParam,
+                    'valid URI-encoded resource identifier'
+                )
+            );
         }
 
         // Validate resourceId with Zod schema
@@ -403,7 +410,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'URI decode error';
             logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            return next(new Error(`Invalid resourceId: ${errorMessage}`));
+            return next(
+                ResourceError.invalidUriFormat(
+                    resourceIdParam,
+                    'valid URI-encoded resource identifier'
+                )
+            );
         }
 
         // Validate resourceId with Zod schema
@@ -450,7 +462,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
         // Validate parameters exist
         if (!serverId || !resourceIdParam) {
-            return next(new Error('Missing serverId or resourceId parameters'));
+            return next(
+                MCPError.protocolError('Missing serverId or resourceId parameters', {
+                    serverId,
+                    resourceIdParam,
+                })
+            );
         }
 
         // Safely decode resourceId
@@ -458,7 +475,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         try {
             decodedResourceId = decodeURIComponent(resourceIdParam);
         } catch (_error) {
-            return next(new Error('Invalid resourceId parameter - failed to decode URI component'));
+            return next(
+                MCPError.protocolError(
+                    'Invalid resourceId parameter - failed to decode URI component',
+                    { resourceIdParam }
+                )
+            );
         }
 
         try {
