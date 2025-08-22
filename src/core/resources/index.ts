@@ -14,8 +14,6 @@ export type { InternalResourcesConfig, ValidatedInternalResourcesConfig } from '
 
 export { ResourceManager } from './manager.js';
 
-export { MCPResourceProvider } from './mcp-provider.js';
-
 export { InternalResourcesProvider } from './internal-provider.js';
 
 export {

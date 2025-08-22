@@ -1,6 +1,5 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type { ResourceSet } from './types.js';
-import { MCPResourceProvider } from './mcp-provider.js';
+import type { ResourceSet, ResourceMetadata } from './types.js';
 import { InternalResourcesProvider } from './internal-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
@@ -14,42 +13,33 @@ export interface ResourceManagerOptions {
 }
 
 /**
- * Simplified Resource Manager
+ * Simplified Resource Manager - Thin Coordinator
  *
- * Manages resources from two sources:
- * - MCP servers (external)
- * - Internal resources (extensible via registry)
+ * Acts as a thin coordinator that directly accesses MCPManager and InternalResourcesProvider
+ * without additional wrapping layers. Uses simple, clear URI prefixes.
+ *
+ * URI Format:
+ * - MCP resources: "mcp:servername:originaluri"
+ * - Internal resources: "internal:type:path"
  *
  * Architecture:
- * Application → ResourceManager → [MCPResourceProvider, InternalResourcesProvider]
+ * Application → ResourceManager → [MCPManager, InternalResourcesProvider] (direct access)
  */
 export class ResourceManager {
     private mcpManager: MCPManager;
-    private mcpResourceProvider: MCPResourceProvider;
     private internalResourcesProvider?: InternalResourcesProvider;
-
-    // Resource source prefixing
-    private static readonly MCP_RESOURCE_PREFIX = 'mcp--';
-    private static readonly INTERNAL_RESOURCE_PREFIX = 'internal--';
-
-    // Resource caching for performance
-    private resourcesCache: ResourceSet = {};
-    private cacheValid: boolean = false;
 
     constructor(mcpManager: MCPManager, options?: ResourceManagerOptions) {
         this.mcpManager = mcpManager;
 
-        // Initialize MCP resource provider
-        this.mcpResourceProvider = new MCPResourceProvider(mcpManager);
-
-        // Initialize internal resources if configured
+        // Initialize internal resources if configured (auto-enabled when resources specified)
         if (options?.internalResourcesConfig?.enabled) {
             this.internalResourcesProvider = new InternalResourcesProvider(
                 options.internalResourcesConfig
             );
         }
 
-        logger.debug('ResourceManager initialized');
+        logger.debug('ResourceManager initialized as thin coordinator');
     }
 
     /**
@@ -59,146 +49,179 @@ export class ResourceManager {
         if (this.internalResourcesProvider) {
             await this.internalResourcesProvider.initialize();
         }
-        await this.buildResourceCache();
         logger.debug('ResourceManager initialization complete');
     }
 
     /**
-     * Invalidate the resources cache
+     * Extract a human-readable name from a resource URI
      */
-    private invalidateCache(): void {
-        this.cacheValid = false;
-        this.resourcesCache = {};
-        this.mcpResourceProvider.invalidateCache();
-        if (this.internalResourcesProvider) {
-            this.internalResourcesProvider.invalidateCache();
+    private extractResourceName(uri: string): string {
+        // Handle both forward slashes and backslashes
+        const forwardSlashParts = uri.split('/');
+        const lastForwardSlashPart = forwardSlashParts[forwardSlashParts.length - 1];
+
+        if (lastForwardSlashPart && lastForwardSlashPart.includes('\\')) {
+            const backslashParts = lastForwardSlashPart.split('\\');
+            return backslashParts[backslashParts.length - 1] || uri;
         }
-        logger.debug('ResourceManager cache invalidated');
+
+        if (lastForwardSlashPart && forwardSlashParts.length > 1) {
+            return lastForwardSlashPart || uri;
+        }
+
+        if (uri.includes('\\')) {
+            const parts = uri.split('\\');
+            return parts[parts.length - 1] || uri;
+        }
+
+        return uri;
     }
 
     /**
-     * Build unified resource cache with universal prefixing
+     * List all available resources with clear URI format
      */
-    private async buildResourceCache(): Promise<void> {
-        const allResources: ResourceSet = {};
+    async list(): Promise<ResourceSet> {
+        const resources: ResourceSet = {};
 
-        // Get resources from both sources
-        let mcpResources: any[] = [];
-        let internalResources: any[] = [];
-
+        // Get MCP resources directly from MCPManager
         try {
-            mcpResources = await this.mcpResourceProvider.listResources();
+            const mcpClients = this.mcpManager.getClients();
+            for (const [serverName, client] of mcpClients.entries()) {
+                try {
+                    const resourceUris = await client.listResources();
+                    logger.debug(`📁 Server '${serverName}' has ${resourceUris.length} resources`);
+
+                    for (const uri of resourceUris) {
+                        // Clean URI format: "mcp:servername:originaluri"
+                        const qualifiedUri = `mcp:${serverName}:${uri}`;
+                        const metadata: ResourceMetadata = {
+                            uri: qualifiedUri,
+                            name: this.extractResourceName(uri),
+                            description: `Resource from MCP server: ${serverName}`,
+                            source: 'mcp',
+                            serverName,
+                            metadata: {
+                                originalUri: uri,
+                                serverName,
+                            },
+                        };
+                        resources[qualifiedUri] = metadata;
+                    }
+                } catch (error) {
+                    logger.warn(
+                        `Failed to list resources from MCP server '${serverName}': ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                }
+            }
         } catch (error) {
             logger.error(
                 `Failed to get MCP resources: ${error instanceof Error ? error.message : String(error)}`
             );
-            mcpResources = [];
         }
 
-        try {
-            internalResources = this.internalResourcesProvider?.listResources
-                ? await this.internalResourcesProvider.listResources()
-                : [];
-        } catch (error) {
-            logger.error(
-                `Failed to get internal resources: ${error instanceof Error ? error.message : String(error)}`
-            );
-            internalResources = [];
+        // Get internal resources if enabled
+        if (this.internalResourcesProvider) {
+            try {
+                const internalResources = await this.internalResourcesProvider.listResources();
+                for (const resource of internalResources) {
+                    // Clean URI format: "internal:originaluri"
+                    const qualifiedUri = `internal:${resource.uri.replace(/^fs:\/\//, '')}`;
+                    resources[qualifiedUri] = {
+                        ...resource,
+                        uri: qualifiedUri,
+                        source: 'custom',
+                        description: `${resource.description || 'Internal resource'}`,
+                    };
+                }
+            } catch (error) {
+                logger.error(
+                    `Failed to get internal resources: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
 
-        // Add internal resources with prefix
-        for (const resource of internalResources) {
-            const qualifiedUri = `${ResourceManager.INTERNAL_RESOURCE_PREFIX}${resource.uri}`;
-            allResources[qualifiedUri] = {
-                ...resource,
-                uri: qualifiedUri,
-                description: `${resource.description || 'No description provided'} (internal resource)`,
-            };
-        }
-
-        // Add MCP resources with prefix
-        for (const resource of mcpResources) {
-            const qualifiedUri = `${ResourceManager.MCP_RESOURCE_PREFIX}${resource.uri.replace(/^mcp--/, '')}`;
-            allResources[qualifiedUri] = {
-                ...resource,
-                uri: qualifiedUri,
-                description: `${resource.description || 'No description provided'} (via MCP servers)`,
-            };
-        }
-
-        this.resourcesCache = allResources;
-        this.cacheValid = true;
-
-        const totalResources = Object.keys(allResources).length;
-        const mcpCount = mcpResources.length;
-        const internalCount = internalResources.length;
+        const totalResources = Object.keys(resources).length;
+        const mcpCount = Object.keys(resources).filter((k) => k.startsWith('mcp:')).length;
+        const internalCount = Object.keys(resources).filter((k) =>
+            k.startsWith('internal:')
+        ).length;
 
         logger.debug(
-            `🗃️ Unified resource discovery: ${totalResources} total resources (${mcpCount} MCP → ${ResourceManager.MCP_RESOURCE_PREFIX}*, ${internalCount} internal → ${ResourceManager.INTERNAL_RESOURCE_PREFIX}*)`
+            `🗃️ Resource discovery: ${totalResources} total resources (${mcpCount} MCP, ${internalCount} internal)`
         );
-    }
 
-    /**
-     * List all available resources
-     */
-    async list(): Promise<ResourceSet> {
-        if (!this.cacheValid) {
-            await this.buildResourceCache();
-        }
-        return this.resourcesCache;
+        return resources;
     }
 
     /**
      * Check if a resource exists
      */
     async has(uri: string): Promise<boolean> {
-        const resources = await this.list();
-        return uri in resources;
+        if (uri.startsWith('mcp:')) {
+            const parts = uri.split(':');
+            if (parts.length >= 3) {
+                const originalUri = parts.slice(2).join(':');
+                const client = this.mcpManager.getResourceClient(originalUri);
+                return client !== undefined;
+            }
+        } else if (uri.startsWith('internal:')) {
+            const originalUri = uri.substring('internal:'.length);
+            if (this.internalResourcesProvider) {
+                return await this.internalResourcesProvider.hasResource(`fs://${originalUri}`);
+            }
+        }
+        return false;
     }
 
     /**
-     * Read resource content by routing based on prefix
+     * Read resource content by parsing clean URI format
      */
     async read(uri: string): Promise<ReadResourceResult> {
         logger.debug(`📖 Reading resource: ${uri}`);
 
         try {
-            let result: ReadResourceResult;
-
-            // Route to MCP resources
-            if (uri.startsWith(ResourceManager.MCP_RESOURCE_PREFIX)) {
+            // Route to MCP resources: "mcp:servername:originaluri"
+            if (uri.startsWith('mcp:')) {
                 logger.debug(`🗃️ Detected MCP resource: '${uri}'`);
-                const actualUri = uri.substring(ResourceManager.MCP_RESOURCE_PREFIX.length);
-                if (actualUri.length === 0) {
-                    throw new Error(`Resource URI cannot be empty after prefix: ${uri}`);
+                const parts = uri.split(':');
+                if (parts.length < 3) {
+                    throw new Error(`Invalid MCP resource URI format: ${uri}`);
                 }
-                logger.debug(`🎯 MCP routing: '${uri}' -> '${actualUri}'`);
-                result = await this.mcpResourceProvider.readResource(`mcp--${actualUri}`);
+                const originalUri = parts.slice(2).join(':'); // Rejoin in case original URI had colons
+                if (originalUri.length === 0) {
+                    throw new Error(`Invalid MCP resource URI format: ${uri}`);
+                }
+                logger.debug(`🎯 MCP routing: '${uri}' -> '${originalUri}'`);
+                const result = await this.mcpManager.readResource(originalUri);
+                logger.debug(`✅ Successfully read MCP resource: ${uri}`);
+                return result;
             }
-            // Route to internal resources
-            else if (uri.startsWith(ResourceManager.INTERNAL_RESOURCE_PREFIX)) {
+            // Route to internal resources: "internal:path"
+            else if (uri.startsWith('internal:')) {
                 logger.debug(`🗃️ Detected internal resource: '${uri}'`);
-                const actualUri = uri.substring(ResourceManager.INTERNAL_RESOURCE_PREFIX.length);
-                if (actualUri.length === 0) {
+                const originalUri = uri.substring('internal:'.length);
+                if (originalUri.length === 0) {
                     throw new Error(`Resource URI cannot be empty after prefix: ${uri}`);
                 }
                 if (!this.internalResourcesProvider) {
                     throw new Error(`Internal resources not initialized for: ${uri}`);
                 }
-                logger.debug(`🎯 Internal routing: '${uri}' -> '${actualUri}'`);
-                result = await this.internalResourcesProvider.readResource(actualUri);
-            }
-            // Resource doesn't have proper prefix
-            else {
-                logger.debug(`🗃️ Detected resource without proper prefix: '${uri}'`);
-                logger.error(
-                    `❌ Resource missing source prefix: '${uri}' (expected '${ResourceManager.MCP_RESOURCE_PREFIX}*' or '${ResourceManager.INTERNAL_RESOURCE_PREFIX}*')`
+                logger.debug(`🎯 Internal routing: '${uri}' -> 'fs://${originalUri}'`);
+                const result = await this.internalResourcesProvider.readResource(
+                    `fs://${originalUri}`
                 );
-                throw new Error(`Resource not found: ${uri}`);
+                logger.debug(`✅ Successfully read internal resource: ${uri}`);
+                return result;
             }
-
-            logger.debug(`✅ Successfully read resource: ${uri}`);
-            return result;
+            // Invalid URI format
+            else {
+                logger.error(
+                    `❌ Invalid resource URI format: '${uri}' (expected 'mcp:server:uri' or 'internal:path')`
+                );
+                throw new Error(`Invalid resource URI format: ${uri}`);
+            }
         } catch (error) {
             logger.error(
                 `❌ Failed to read resource '${uri}': ${error instanceof Error ? error.message : String(error)}`
@@ -208,22 +231,14 @@ export class ResourceManager {
     }
 
     /**
-     * Refresh all resource caches
+     * Refresh all resource providers
      */
     async refresh(): Promise<void> {
-        this.invalidateCache();
         if (this.internalResourcesProvider) {
             await this.internalResourcesProvider.refresh();
         }
-        await this.buildResourceCache();
+        // MCP resources are refreshed automatically when clients reconnect
         logger.info('ResourceManager refreshed');
-    }
-
-    /**
-     * Get MCP resource provider for direct access
-     */
-    getMcpResourceProvider(): MCPResourceProvider {
-        return this.mcpResourceProvider;
     }
 
     /**

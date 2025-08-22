@@ -67,11 +67,23 @@ storage:
     # path: ./data/dexto.db
 
 internalResources:
-  enabled: true
   resources:
     - type: filesystem
       paths:
-        - .
+        - "."                    # Current directory - safe traversal
+        - "docs/"               # Docs directory
+      # NEW OPTIMIZATION OPTIONS:
+      maxDepth: 3              # Max subdirectory depth (default: 3)
+      maxFiles: 1000           # Max files to include (default: 1000)
+      includeHidden: false     # Include hidden files/dirs (default: false)
+      includeExtensions:       # File extensions to include (defaults to common text files)
+        - .md
+        - .js
+        - .ts
+        - .json
+        - .yaml
+        - .py
+        - .txt
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
