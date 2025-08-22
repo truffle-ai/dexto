@@ -199,6 +199,34 @@ export default function ChatApp() {
     }
   }, [welcomeSearchQuery, handleSend]);
 
+  const createAndSwitchSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.message || errorBody.error || errorMessage;
+        } catch {
+          // If we can't parse the error body, use the status text
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      handleSessionChange(data.session.id);
+    } catch (error) {
+      console.error('Error creating new session:', error);
+      setErrorMessage('Failed to create new session. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  }, [handleSessionChange]);
+
   const quickActions = [
     {
       title: "Help me get started",
@@ -237,19 +265,7 @@ export default function ChatApp() {
       // Ctrl/Cmd + K to create new session
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
         e.preventDefault();
-        // Create new session using the same logic as SessionPanel
-        fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        })
-        .then(response => response.json())
-        .then(data => handleSessionChange(data.session.id))
-        .catch(error => {
-          console.error('Error creating new session:', error);
-          setErrorMessage('Failed to create new session. Please try again.');
-          setTimeout(() => setErrorMessage(null), 5000);
-        });
+        createAndSwitchSession();
       }
       // Ctrl/Cmd + J to toggle tools/servers panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
@@ -345,33 +361,7 @@ export default function ChatApp() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={async () => {
-                        try {
-                          const response = await fetch('/api/sessions', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({}),
-                          });
-                          
-                          if (!response.ok) {
-                            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-                            try {
-                              const errorBody = await response.json();
-                              errorMessage = errorBody.message || errorBody.error || errorMessage;
-                            } catch {
-                              // If we can't parse the error body, use the status text
-                            }
-                            throw new Error(errorMessage);
-                          }
-                          
-                          const data = await response.json();
-                          handleSessionChange(data.session.id);
-                        } catch (error) {
-                          console.error('Error creating new session:', error);
-                          setErrorMessage('Failed to create new session. Please try again.');
-                          setTimeout(() => setErrorMessage(null), 5000);
-                        }
-                      }}
+                      onClick={createAndSwitchSession}
                       className="h-8 w-8 p-0"
                     >
                       <Plus className="h-4 w-4" />
