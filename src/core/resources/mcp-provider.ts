@@ -1,7 +1,7 @@
-import type { MCPManager } from '../../mcp/manager.js';
-import type { ResourceProvider, ResourceMetadata, ResourceSource } from '../types.js';
+import type { MCPManager } from '../mcp/manager.js';
+import type { ResourceProvider, ResourceMetadata, ResourceSource } from './types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../logger/index.js';
 
 /**
  * Resource provider that aggregates resources from MCP servers

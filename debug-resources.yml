@@ -1,0 +1,20 @@
+# Debug configuration for internal resources
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  apiKey: $OPENAI_API_KEY
+
+internalResources:
+  enabled: true
+  resources:
+    - type: filesystem
+      paths: 
+        - src/core/resources
+
+systemPrompt:
+  contributors:
+    - id: base-prompt
+      type: static
+      priority: 0
+      content: |
+        You are a helpful assistant. You have access to filesystem resources.

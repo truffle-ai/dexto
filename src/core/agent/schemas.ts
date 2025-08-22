@@ -11,6 +11,7 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
+import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { z } from 'zod';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
@@ -95,6 +96,10 @@ export const AgentConfigSchema = z
         ),
 
         internalTools: InternalToolsSchema,
+
+        internalResources: InternalResourcesSchema.describe(
+            'Configuration for internal file system resources'
+        ),
 
         llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
 

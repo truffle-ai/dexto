@@ -1040,25 +1040,42 @@ export class DextoAgent {
     }
 
     /**
-     * Registers a custom resource provider.
-     * @param name Unique name for the provider
-     * @param provider The resource provider instance
+     * Adds a filesystem resource configuration dynamically.
+     * @param paths Array of file paths or directories to expose as resources
      */
-    public registerResourceProvider(
-        name: string,
-        provider: import('../resources/index.js').ResourceProvider
-    ): void {
+    public async addFileSystemResource(paths: string[]): Promise<void> {
         this.ensureStarted();
-        this.resourceManager.registerProvider(name, provider);
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw new Error('Internal resources are not enabled');
+        }
+
+        await internalProvider.addResourceConfig({
+            type: 'filesystem',
+            paths,
+        });
+
+        // Refresh the resource cache
+        await this.resourceManager.refresh();
+        logger.info(`Added filesystem resource with paths: ${paths.join(', ')}`);
     }
 
     /**
-     * Unregisters a custom resource provider.
-     * @param name The name of the provider to remove
+     * Removes a resource handler by type.
+     * @param type Resource handler type to remove
      */
-    public unregisterResourceProvider(name: string): void {
+    public async removeResourceHandler(type: string): Promise<void> {
         this.ensureStarted();
-        this.resourceManager.unregisterProvider(name);
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw new Error('Internal resources are not enabled');
+        }
+
+        await internalProvider.removeResourceHandler(type);
+
+        // Refresh the resource cache
+        await this.resourceManager.refresh();
+        logger.info(`Removed resource handler: ${type}`);
     }
 
     // ============= PROMPT MANAGEMENT =============

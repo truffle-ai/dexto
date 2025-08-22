@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MCPResourceProvider } from './mcp-resource-provider.js';
-import { MCPManager } from '../../mcp/manager.js';
-import type { IMCPClient } from '../../mcp/types.js';
+import { MCPResourceProvider } from './mcp-provider.js';
+import { MCPManager } from '../mcp/manager.js';
+import type { IMCPClient } from '../mcp/types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 
 // Mock logger
-vi.mock('../../logger/index.js', () => ({
+vi.mock('../logger/index.js', () => ({
     logger: {
         debug: vi.fn(),
         info: vi.fn(),

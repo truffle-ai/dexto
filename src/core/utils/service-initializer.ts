@@ -106,8 +106,10 @@ export async function createAgentServices(
     // 4. Initialize search service
     const searchService = new SearchService(storage.database);
 
-    // 5. Initialize resource manager
-    const resourceManager = new ResourceManager(mcpManager);
+    // 5. Initialize resource manager with internal resources options
+    const resourceManager = new ResourceManager(mcpManager, {
+        internalResourcesConfig: config.internalResources,
+    });
     await resourceManager.initialize();
     logger.debug('ResourceManager initialized');
 

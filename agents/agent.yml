@@ -66,6 +66,13 @@ storage:
     type: sqlite
     # path: ./data/dexto.db
 
+internalResources:
+  enabled: true
+  resources:
+    - type: filesystem
+      paths:
+        - .
+
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
 # llm:

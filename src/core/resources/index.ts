@@ -10,9 +10,24 @@ export type {
     ResourceSet,
 } from './types.js';
 
-export { ResourceManager } from './resource-manager.js';
+export type { InternalResourcesConfig, ValidatedInternalResourcesConfig } from './schemas.js';
 
-export { MCPResourceProvider } from './providers/mcp-resource-provider.js';
+export { ResourceManager } from './manager.js';
+
+export { MCPResourceProvider } from './mcp-provider.js';
+
+export { InternalResourcesProvider } from './internal-provider.js';
+
+export {
+    createInternalResourceHandler,
+    getInternalResourceHandlerTypes,
+} from './internal-registry.js';
+
+export type {
+    InternalResourceConfig,
+    InternalResourceHandler,
+    InternalResourceServices,
+} from './internal-registry.js';
 
 export {
     parseResourceReferences,
