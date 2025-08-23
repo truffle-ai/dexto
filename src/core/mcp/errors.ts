@@ -102,6 +102,20 @@ export class MCPError {
     }
 
     /**
+     * MCP server not found
+     */
+    static serverNotFound(serverId: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.CONNECTION_FAILED,
+            ErrorScope.MCP,
+            ErrorType.NOT_FOUND,
+            `Server '${serverId}' not found`,
+            { serverId },
+            'Check that the server is properly configured and connected'
+        );
+    }
+
+    /**
      * Invalid tool schema
      */
     static invalidToolSchema(toolName: string, reason: string) {

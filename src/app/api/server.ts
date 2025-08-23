@@ -40,6 +40,18 @@ import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 /**
+ * Helper for webhook 404 errors
+ */
+const webhookNotFound = (webhookId: string) =>
+    new DextoRuntimeError(
+        'webhook_not_found' as any,
+        ErrorScope.CONFIG,
+        ErrorType.NOT_FOUND,
+        `Webhook not found: ${webhookId}`,
+        { webhookId }
+    );
+
+/**
  * Helper function to send JSON response with optional pretty printing
  */
 function sendJsonResponse(res: any, data: any, statusCode = 200) {
@@ -288,7 +300,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         const serverId = req.params.serverId;
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
-            return next(new Error(`Server '${serverId}' not found`));
+            return next(MCPError.serverNotFound(serverId));
         }
         try {
             const toolsMap = await client.getTools();
@@ -315,7 +327,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
             if (!clientExists) {
                 logger.warn(`Attempted to delete non-existent server: ${serverId}`);
-                return next(new Error(`Server '${serverId}' not found.`));
+                return next(MCPError.serverNotFound(serverId));
             }
 
             await agent.removeMcpServer(serverId);
@@ -334,7 +346,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             // Verify server exists
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
-                return next(new Error(`Server '${serverId}' not found`));
+                return next(MCPError.serverNotFound(serverId));
             }
             try {
                 // Execute tool through the agent's unified wrapper method
@@ -446,12 +458,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // List resources for a specific MCP server
     app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
-        const serverId = req.params.serverId;
         try {
+            const { serverId } = z.object({ serverId: z.string().min(1) }).parse(req.params);
             const resources = await agent.listResourcesForServer(serverId);
-            return res.status(200).json({ ok: true, resources });
+            return sendJsonResponse(res, { success: true, resources }, 200);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const serverId = req.params.serverId; // Access from original params for error logging
             logger.error(`Error fetching resources for server '${serverId}': ${errorMessage}`);
             return next(error);
         }
@@ -490,7 +503,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             // Note: serverId is already URL path parameter, decodedResourceId is the raw resource URI
             const qualifiedUri = `mcp:${serverId}:${decodedResourceId}`;
             const content = await agent.readResource(qualifiedUri);
-            return res.status(200).json({ ok: true, content });
+            return sendJsonResponse(res, { success: true, data: { content } }, 200);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(
@@ -1006,15 +1019,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
-                return next(
-                    new DextoRuntimeError(
-                        'webhook_not_found' as any,
-                        ErrorScope.CONFIG, // Webhooks are configuration-related
-                        ErrorType.NOT_FOUND,
-                        `Webhook not found: ${webhookId}`,
-                        { webhookId }
-                    )
-                );
+                return next(webhookNotFound(webhookId));
             }
 
             return sendJsonResponse(res, {
@@ -1037,15 +1042,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const removed = webhookSubscriber.removeWebhook(webhookId);
 
             if (!removed) {
-                return next(
-                    new DextoRuntimeError(
-                        'webhook_not_found' as any,
-                        ErrorScope.CONFIG,
-                        ErrorType.NOT_FOUND,
-                        `Webhook not found: ${webhookId}`,
-                        { webhookId }
-                    )
-                );
+                return next(webhookNotFound(webhookId));
             }
 
             logger.info(`Webhook removed: ${webhookId}`);
@@ -1062,15 +1059,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
-                return next(
-                    new DextoRuntimeError(
-                        'webhook_not_found' as any,
-                        ErrorScope.CONFIG,
-                        ErrorType.NOT_FOUND,
-                        `Webhook not found: ${webhookId}`,
-                        { webhookId }
-                    )
-                );
+                return next(webhookNotFound(webhookId));
             }
 
             logger.info(`Testing webhook: ${webhookId}`);
