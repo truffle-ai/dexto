@@ -319,7 +319,78 @@ program
         }
     });
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 10) `resources` SUB-COMMAND - Resource management
+program
+    .command('resources')
+    .description('List and access resources from MCP servers')
+    .option('-a, --agent <path>', 'Path to agent config file (uses global option if not specified)')
+    .option('-s, --strict', 'Require all MCP server connections to succeed')
+    .option('--read <uri>', 'Read content of a specific resource by URI')
+    .option('--json', 'Output results in JSON format')
+    .action(async (options) => {
+        try {
+            // Load config
+            const globalOpts = program.opts();
+            const configPath = options.agent || globalOpts.agent;
+
+            const config = await loadAgentConfig(configPath);
+            console.log(`📄 Loading Dexto config from: ${configPath}`);
+
+            // Initialize agent
+            const agent = new DextoAgent(config, configPath);
+            await agent.start();
+
+            // Handle specific resource operations
+            if (options.read) {
+                console.log(`📖 Reading resource: ${options.read}`);
+                try {
+                    const content = await agent.readResource(options.read);
+                    if (options.json) {
+                        console.log(JSON.stringify(content, null, 2));
+                    } else {
+                        console.log('Content:', content);
+                    }
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to read resource: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    process.exit(1);
+                }
+                await agent.stop();
+                return;
+            }
+
+            // List all resources
+            console.log('🔍 Listing all resources...');
+            const resources = await agent.listResources();
+            const resourceList = Object.values(resources);
+
+            if (options.json) {
+                console.log(JSON.stringify(resourceList, null, 2));
+            } else {
+                console.log(`\n📁 Found ${resourceList.length} resources:`);
+
+                resourceList.forEach((resource, index) => {
+                    console.log(`\n${index + 1}. ${resource.name || resource.uri}`);
+                    console.log(`   URI: ${resource.uri}`);
+                    if (resource.description)
+                        console.log(`   Description: ${resource.description}`);
+                    if (resource.mimeType) console.log(`   MIME Type: ${resource.mimeType}`);
+                    if (resource.serverName) console.log(`   Server: ${resource.serverName}`);
+                    console.log(`   Source: ${resource.source}`);
+                    if (resource.size) console.log(`   Size: ${resource.size} bytes`);
+                });
+            }
+
+            await agent.stop();
+        } catch (err) {
+            console.error(`❌ dexto resources command failed: ${err}`);
+            logger.error('Error in resources command', err);
+            process.exit(1);
+        }
+    });
+
+// 11) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -332,12 +403,14 @@ program
             // TODO: Add `dexto tell me about your cli` starter prompt
             'Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto -p "<prompt>"` or `dexto "<prompt>"`\n' +
             'Start with a new session using `dexto --new-session [sessionId]`\n' +
+            'Use @ references to include resource content: @file.txt, @server:file, @<full-uri>\n' +
             'Run dexto web UI with `dexto --mode web`\n' +
             'Run dexto as a server (REST APIs + WebSockets) with `dexto --mode server`\n' +
             'Run dexto as a discord bot with `dexto --mode discord`\n' +
             'Run dexto as a telegram bot with `dexto --mode telegram`\n' +
             'Run dexto agent as an MCP server with `dexto --mode mcp`\n' +
-            'Run dexto as an MCP server aggregator with `dexto mcp --group-servers`\n\n' +
+            'Run dexto as an MCP server aggregator with `dexto mcp --group-servers`\n' +
+            'Manage and query resources with `dexto resources`\n\n' +
             'Check subcommands for more features. Check https://github.com/truffle-ai/dexto for documentation on how to customize dexto and other examples'
     )
     .action(async (prompt: string[] = []) => {

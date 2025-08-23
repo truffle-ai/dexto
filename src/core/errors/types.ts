@@ -9,6 +9,7 @@ import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
 import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
+import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -26,6 +27,7 @@ export enum ErrorScope {
     SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
     PREFERENCE = 'preference', // Global preferences file operations and validation
     AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
+    RESOURCE = 'resource', // Resource management, URI parsing, provider coordination
 }
 
 /**
@@ -58,7 +60,8 @@ export type DextoErrorCode =
     | StorageErrorCode
     | SystemPromptErrorCode
     | PreferenceErrorCode
-    | RegistryErrorCode;
+    | RegistryErrorCode
+    | ResourceErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

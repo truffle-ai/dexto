@@ -53,6 +53,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 initializeFromConfig: vi.fn().mockResolvedValue(undefined),
             } as any,
             toolManager: {} as any,
+            resourceManager: {} as any,
             promptManager: {} as any,
             agentEventBus: {} as any,
             stateManager: {

@@ -16,6 +16,9 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import { useResources } from './hooks/useResources';
+import { useResourceAutocomplete } from './hooks/useResourceAutocomplete';
+import { ResourceAutocomplete } from './ResourceAutocomplete';
 
 interface InputAreaProps {
   onSend: (
@@ -48,6 +51,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  
+  // Resource autocomplete functionality
+  const { resources } = useResources();
+  const autocomplete = useResourceAutocomplete(textareaRef);
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
@@ -400,7 +407,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   // Welcome variant - simplified, prominent search bar
   if (variant === 'welcome') {
     return (
-      <div className="w-full">
+      <div className="w-full relative">
         <form onSubmit={(e) => {
           e.preventDefault();
           handleSend();
@@ -410,8 +417,45 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             <Textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setText(newValue);
+                // Handle resource autocomplete
+                const cursorPosition = e.target.selectionStart || 0;
+                autocomplete.handleTextChange(newValue, cursorPosition);
+              }}
+              onSelect={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onClick={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onKeyDown={(e) => {
+                // Handle resource autocomplete first
+                const handled = autocomplete.handleKeyDown(e, resources.filter((resource) => {
+                  if (!autocomplete.query || autocomplete.query === '@') return true;
+                  const searchQuery = autocomplete.query.replace('@', '').toLowerCase();
+                  const searchFields = [
+                    resource.name,
+                    resource.description,
+                    resource.serverName,
+                    resource.uri,
+                  ].filter(Boolean);
+                  return searchFields.some((field) =>
+                    field?.toLowerCase().includes(searchQuery)
+                  );
+                }));
+                
+                if (!handled) {
+                  handleKeyDown(e);
+                }
+              }}
               placeholder="Ask me anything..."
               rows={1}
               className="min-h-[42px] pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
@@ -571,7 +615,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   return (
     <div
       id="input-area"
-      className="flex flex-col gap-2 w-full"
+      className="flex flex-col gap-2 w-full relative"
     >
       {/* Model Switch Error Alert */}
       {modelSwitchError && (
@@ -672,7 +716,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           onChange={handleAudioFileChange}
         />
  
-        <div className="flex-1 flex flex-col w-full">
+        <div className="flex-1 flex flex-col w-full relative">
           {imageData && (
             <div className="relative mb-1.5 w-fit border border-border rounded-lg p-1 bg-muted/50 group">
               <img
@@ -721,9 +765,46 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             <Textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Dexto anything..."
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setText(newValue);
+                // Handle resource autocomplete
+                const cursorPosition = e.target.selectionStart || 0;
+                autocomplete.handleTextChange(newValue, cursorPosition);
+              }}
+              onSelect={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onClick={(e) => {
+                // Handle cursor position changes for autocomplete
+                const target = e.target as HTMLTextAreaElement;
+                const cursorPosition = target.selectionStart || 0;
+                autocomplete.handleTextChange(target.value, cursorPosition);
+              }}
+              onKeyDown={(e) => {
+                // Handle resource autocomplete first
+                const handled = autocomplete.handleKeyDown(e, resources.filter((resource) => {
+                  if (!autocomplete.query || autocomplete.query === '@') return true;
+                  const searchQuery = autocomplete.query.replace('@', '').toLowerCase();
+                  const searchFields = [
+                    resource.name,
+                    resource.description,
+                    resource.serverName,
+                    resource.uri,
+                  ].filter(Boolean);
+                  return searchFields.some((field) =>
+                    field?.toLowerCase().includes(searchQuery)
+                  );
+                }));
+                
+                if (!handled) {
+                  handleKeyDown(e);
+                }
+              }}
+              placeholder="Ask Dexto anything... Type @ to see available resources"
               rows={1}
               className="resize-none min-h-[42px] w-full border-input bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-full p-2.5 pr-32 text-sm"
             />
@@ -829,6 +910,33 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
            </div>
         )}
       </div>
+
+      {/* Resource Autocomplete Dropdown */}
+      <ResourceAutocomplete
+        resources={resources}
+        isOpen={autocomplete.isOpen}
+        position={autocomplete.position}
+        query={autocomplete.query}
+        onSelect={autocomplete.insertResource}
+        onClose={autocomplete.closeAutocomplete}
+        selectedIndex={autocomplete.selectedIndex}
+        onKeyDown={(e) => {
+          const filteredResources = resources.filter((resource) => {
+            if (!autocomplete.query || autocomplete.query === '@') return true;
+            const searchQuery = autocomplete.query.replace('@', '').toLowerCase();
+            const searchFields = [
+              resource.name,
+              resource.description,
+              resource.serverName,
+              resource.uri,
+            ].filter(Boolean);
+            return searchFields.some((field) =>
+              field?.toLowerCase().includes(searchQuery)
+            );
+          });
+          autocomplete.handleKeyDown(e, filteredResources);
+        }}
+      />
     </div>
   );
 } 
