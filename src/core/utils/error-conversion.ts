@@ -18,17 +18,20 @@ export function toError(error: unknown): Error {
 
     if (error && typeof error === 'object') {
         // Try to extract meaningful message from error object
-        if ('message' in error && typeof error.message === 'string') {
-            return new Error(error.message);
+        if ('message' in error && typeof (error as { message?: unknown }).message === 'string') {
+            return new Error((error as { message: string }).message, { cause: error });
         }
-        if ('error' in error && typeof error.error === 'string') {
-            return new Error(error.error);
+        if ('error' in error && typeof (error as { error?: unknown }).error === 'string') {
+            return new Error((error as { error: string }).error, { cause: error });
         }
-        if ('details' in error && typeof error.details === 'string') {
-            return new Error(error.details);
+        if ('details' in error && typeof (error as { details?: unknown }).details === 'string') {
+            return new Error((error as { details: string }).details, { cause: error });
         }
-        if ('description' in error && typeof error.description === 'string') {
-            return new Error(error.description);
+        if (
+            'description' in error &&
+            typeof (error as { description?: unknown }).description === 'string'
+        ) {
+            return new Error((error as { description: string }).description, { cause: error });
         }
 
         // Fallback to safe serialization for complex objects
@@ -37,11 +40,11 @@ export function toError(error: unknown): Error {
     }
 
     if (typeof error === 'string') {
-        return new Error(error);
+        return new Error(error, { cause: error });
     }
 
     // For primitives and other types
-    return new Error(String(error));
+    return new Error(String(error), { cause: error as unknown });
 }
 
 /**
@@ -52,5 +55,5 @@ export function toError(error: unknown): Error {
  * @returns Meaningful error message string
  */
 export function extractErrorMessage(error: unknown): string {
-    return toError(error).message;
+    return toError(error).message.trim();
 }
