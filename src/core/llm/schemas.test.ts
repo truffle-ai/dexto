@@ -591,7 +591,7 @@ describe('LLMConfigSchema', () => {
     });
 
     describe('Model-Specific Router Validation', () => {
-        it('should reject GPT-5 models with vercel router', () => {
+        it('should accept GPT-5 models with vercel router after v5 migration', () => {
             const config: LLMConfig = {
                 ...LLMTestHelpers.getValidConfigForProvider('openai'),
                 model: 'gpt-5',
@@ -599,14 +599,7 @@ describe('LLMConfigSchema', () => {
             };
 
             const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.path).toEqual(['router']);
-            expect((result.error?.issues[0] as any).params?.code).toBe(
-                LLMErrorCode.ROUTER_UNSUPPORTED
-            );
-            expect(result.error?.issues[0]?.message).toContain(
-                "Model 'gpt-5' (openai) does not support router 'vercel'"
-            );
+            expect(result.success).toBe(true);
         });
 
         it('should accept GPT-5 models with in-built router', () => {

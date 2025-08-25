@@ -18,8 +18,6 @@ llm:
 
 **Supported models**: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `o4-mini`, `o3`, `o3-mini`, `o1`
 
-> **Note**: GPT-5 models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) only support the `in-built` router. Using these models with the `vercel` router will result in a validation error.
-
 ### **Anthropic**
 ```yaml
 llm:
