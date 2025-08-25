@@ -311,8 +311,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       });
       
       const result = await response.json();
-      
-      if (result.ok) {
+
+      if (response.ok) {
         setCurrentModel(model.name);
         setModelSwitchError(null); // Clear any errors on success
       } else {

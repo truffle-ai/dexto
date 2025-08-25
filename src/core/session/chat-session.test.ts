@@ -207,13 +207,12 @@ describe('ChatSession', () => {
             await chatSession.init();
 
             // Emit a session event
-            chatSession.eventBus.emit('llmservice:thinking', { status: 'processing' });
+            chatSession.eventBus.emit('llmservice:thinking');
 
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
                 'llmservice:thinking',
                 expect.objectContaining({
                     sessionId,
-                    status: 'processing',
                 })
             );
         });

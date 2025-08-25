@@ -57,7 +57,8 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                 this.broadcast({
                     event: 'chunk',
                     data: {
-                        text: payload.content,
+                        type: payload.type,
+                        content: payload.content,
                         isComplete: payload.isComplete,
                         sessionId: payload.sessionId,
                     },
@@ -102,11 +103,15 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:response',
             (payload) => {
+                logger.info(
+                    `in websocket-subscriber: llmservice:response: ${JSON.stringify(payload)}`
+                );
                 this.broadcast({
                     event: 'response',
                     data: {
                         text: payload.content,
-                        tokenCount: payload.tokenCount,
+                        reasoning: payload.reasoning,
+                        tokenUsage: payload.tokenUsage,
                         model: payload.model,
                         sessionId: payload.sessionId,
                     },

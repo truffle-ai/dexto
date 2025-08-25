@@ -198,7 +198,7 @@ describe('WebhookEventSubscriber', () => {
             agentEventBus.emit('llmservice:response', {
                 content: 'Hello world',
                 sessionId: 'test-session',
-                tokenCount: 2,
+                tokenUsage: { totalTokens: 2 },
                 model: 'test-model',
             });
 
@@ -215,7 +215,7 @@ describe('WebhookEventSubscriber', () => {
                 data: {
                     content: 'Hello world',
                     sessionId: 'test-session',
-                    tokenCount: 2,
+                    tokenUsage: { totalTokens: 2 },
                     model: 'test-model',
                 },
                 created: expect.any(String),

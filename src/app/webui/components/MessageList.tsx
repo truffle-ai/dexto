@@ -15,6 +15,7 @@ import {
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
 import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 interface MessageListProps {
   messages: Message[];
@@ -135,7 +136,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                         <div className="mt-2 space-y-2">
                           <div>
                             <p className="text-xs font-medium">Arguments:</p>
-                            <pre className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
+                            <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
                               {JSON.stringify(msg.toolArgs, null, 2)}
                             </pre>
                           </div>
@@ -143,7 +144,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                             <div>
                               <p className="text-xs font-medium">Result:</p>
                               {isToolResultError(msg.toolResult) ? (
-                                <pre className="whitespace-pre-wrap overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
+                                <pre className="whitespace-pre-wrap break-words overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
                                   {typeof msg.toolResult.error === 'object'
                                     ? JSON.stringify(msg.toolResult.error, null, 2)
                                     : String(msg.toolResult.error)}
@@ -163,7 +164,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                                   }
                                   if (isTextPart(part)) {
                                     return (
-                                      <pre key={index} className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
+                                      <pre key={index} className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
                                         {part.text}
                                       </pre>
                                     );
@@ -179,13 +180,13 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                                     );
                                   }
                                   return (
-                                    <pre key={index} className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
+                                    <pre key={index} className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
                                       {typeof part === 'object' ? JSON.stringify(part, null, 2) : String(part)}
                                     </pre>
                                   );
                                 })
                               ) : (
-                                <pre className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
+                                <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
                                   {typeof msg.toolResult === 'string' && msg.toolResult.startsWith('data:image') 
                                     ? (isValidDataUri(msg.toolResult) ? <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" /> : 'Invalid image data')
                                     : typeof msg.toolResult === 'object' ? JSON.stringify(msg.toolResult, null, 2) : String(msg.toolResult)}
@@ -199,11 +200,11 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                   ) : (
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                       )}
 
                       {msg.content && typeof msg.content === 'object' && !Array.isArray(msg.content) && (
-                        <pre className="whitespace-pre-wrap overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
+                        <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
                           {JSON.stringify(msg.content, null, 2)}
                         </pre>
                       )}
@@ -211,7 +212,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                       {Array.isArray(msg.content) && msg.content.map((part, partIdx) => {
                         const partKey = `${msgKey}-part-${partIdx}`;
                         if (part.type === 'text') {
-                          return <p key={partKey} className="whitespace-pre-wrap">{(part as TextPart).text}</p>;
+                          return <p key={partKey} className="whitespace-pre-wrap break-words">{(part as TextPart).text}</p>;
                         }
                         if (part.type === 'image' && 'base64' in part && 'mimeType' in part) {
                           const imagePart = part as ImagePart;
@@ -320,11 +321,29 @@ export default function MessageList({ messages, activeError, onDismissError }: M
               {!isSystem && !isToolRelated && (
                 <div className="text-xs text-muted-foreground mt-1 px-1 flex items-center gap-2">
                   <span>{timestampStr}</span>
-                  {isAi && msg.tokenCount && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                      {msg.tokenCount} tokens
-                    </span>
+                  {isAi && msg.tokenUsage?.totalTokens !== undefined && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs cursor-default">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                          {msg.tokenUsage.totalTokens} tokens
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="flex flex-col gap-0.5">
+                          {msg.tokenUsage.inputTokens !== undefined && (
+                            <div>Input: {msg.tokenUsage.inputTokens}</div>
+                          )}
+                          {msg.tokenUsage.outputTokens !== undefined && (
+                            <div>Output: {msg.tokenUsage.outputTokens}</div>
+                          )}
+                          {msg.tokenUsage.reasoningTokens !== undefined && (
+                            <div>Reasoning: {msg.tokenUsage.reasoningTokens}</div>
+                          )}
+                          <div className="font-medium mt-0.5">Total: {msg.tokenUsage.totalTokens}</div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                   {isAi && msg.model && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs">

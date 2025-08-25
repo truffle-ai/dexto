@@ -62,10 +62,10 @@ export class EventBasedConfirmationProvider implements ToolConfirmationProvider 
         const event = {
             toolName: details.toolName,
             args: details.args,
-            description: details.description,
+            ...(details.description && { description: details.description }),
             executionId,
             timestamp: new Date(),
-            sessionId: details.sessionId, // session context
+            ...(details.sessionId && { sessionId: details.sessionId }), // session context
         };
 
         logger.info(

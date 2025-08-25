@@ -183,16 +183,17 @@ export default function LLMSelector() {
 
       const result = await response.json();
 
-      if (result.ok) {
-        // Success case - update config and show success message
+      if (response.ok) {
+        // Success case - server returns { config, sessionId }
+        const cfg = result.config;
         const newConfig: LLMConfig = {
-          config: result.data,
+          config: cfg,
           serviceInfo: {
-            provider: result.data.provider,
-            model: result.data.model,
-            router: result.data.router || selectedRouter,
-            configuredMaxTokens: result.data.maxInputTokens,
-            modelMaxTokens: result.data.maxInputTokens
+            provider: cfg.provider,
+            model: cfg.model,
+            router: cfg.router || selectedRouter,
+            configuredMaxTokens: cfg.maxInputTokens,
+            modelMaxTokens: cfg.maxInputTokens
           }
         };
         setCurrentConfig(newConfig);
@@ -214,14 +215,15 @@ export default function LLMSelector() {
             if (warnings.length > 0) {
               console.warn('LLM switch warnings:', warnings);
             }
+            const cfg = result.config;
             const newConfig: LLMConfig = {
-              config: result.data,
+              config: cfg,
               serviceInfo: {
-                provider: result.data.provider,
-                model: result.data.model,
-                router: result.data.router || selectedRouter,
-                configuredMaxTokens: result.data.maxInputTokens,
-                modelMaxTokens: result.data.maxInputTokens
+                provider: cfg.provider,
+                model: cfg.model,
+                router: cfg.router || selectedRouter,
+                configuredMaxTokens: cfg.maxInputTokens,
+                modelMaxTokens: cfg.maxInputTokens
               }
             };
             setCurrentConfig(newConfig);
