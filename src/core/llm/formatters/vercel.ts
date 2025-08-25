@@ -252,13 +252,22 @@ export class VercelMessageFormatter implements IMessageFormatter {
         function_call?: { name: string; arguments: string };
     } {
         if (msg.toolCalls && msg.toolCalls.length > 0) {
-            const contentParts = [];
-            if (msg.content) {
+            const contentParts: AssistantContent = [];
+            if (typeof msg.content === 'string' && msg.content.length > 0) {
                 contentParts.push({ type: 'text', text: msg.content });
+            } else if (Array.isArray(msg.content)) {
+                // Robustness: if assistant content is accidentally an array, extract text parts
+                const combined = msg.content
+                    .map((part) => (part.type === 'text' ? part.text : ''))
+                    .filter(Boolean)
+                    .join('\n');
+                if (combined) {
+                    contentParts.push({ type: 'text', text: combined });
+                }
             }
             for (const toolCall of msg.toolCalls) {
                 const rawArgs = toolCall.function.arguments;
-                let parsed: any = {};
+                let parsed: unknown = {};
                 if (typeof rawArgs === 'string') {
                     try {
                         parsed = JSON.parse(rawArgs);
@@ -269,25 +278,33 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         );
                     }
                 } else {
-                    parsed = rawArgs;
+                    parsed = rawArgs ?? {};
                 }
+                // AI SDK v5 expects 'input' for tool-call arguments (not 'args').
                 contentParts.push({
                     type: 'tool-call',
                     toolCallId: toolCall.id,
                     toolName: toolCall.function.name,
-                    args: parsed,
+                    input: parsed,
                 });
             }
             const firstToolCall = msg.toolCalls?.[0];
             if (firstToolCall) {
+                // Ensure function_call.arguments is always a valid JSON string
+                const argString = (() => {
+                    const raw = firstToolCall.function.arguments;
+                    if (typeof raw === 'string') return raw;
+                    try {
+                        return JSON.stringify(raw ?? {});
+                    } catch {
+                        return '{}';
+                    }
+                })();
                 return {
-                    content: contentParts as AssistantContent,
+                    content: contentParts,
                     function_call: {
                         name: firstToolCall.function.name,
-                        arguments:
-                            typeof firstToolCall.function.arguments === 'string'
-                                ? firstToolCall.function.arguments
-                                : JSON.stringify(firstToolCall.function.arguments),
+                        arguments: argString,
                     },
                 };
             }
