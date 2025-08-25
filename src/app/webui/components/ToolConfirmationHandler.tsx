@@ -137,7 +137,7 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
                 sendResponse(false);
             }
         }}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[800px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-yellow-500" />
@@ -145,7 +145,7 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
                     </DialogTitle>
                 </DialogHeader>
                 
-                <div className="space-y-4">
+                <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
                     <div className="flex items-center gap-2">
                         <Wrench className="h-4 w-4 text-blue-500" />
                         <span className="font-medium">Tool:</span>
@@ -159,11 +159,13 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
                         </div>
                     )}
 
-                    <div>
-                        <span className="font-medium">Arguments:</span>
-                        <pre className="bg-background/50 p-3 rounded-md text-xs overflow-auto max-h-48 mt-1 text-muted-foreground">
-                            {formatArgs(pendingConfirmation.args)}
-                        </pre>
+                    <div className="flex flex-col">
+                        <span className="font-medium mb-2">Arguments:</span>
+                        <div className="bg-background/50 p-3 rounded-md text-xs overflow-auto max-h-80 min-h-16 text-muted-foreground border">
+                            <pre className="whitespace-pre-wrap break-words font-mono">
+                                {formatArgs(pendingConfirmation.args)}
+                            </pre>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -193,7 +195,7 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
                     </div>
                 </div>
 
-                <DialogFooter className="gap-2">
+                <DialogFooter className="gap-2 flex-shrink-0 mt-4 pt-4 border-t">
                     <Button 
                         variant="outline" 
                         onClick={handleDeny}
