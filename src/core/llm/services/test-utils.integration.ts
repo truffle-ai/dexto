@@ -125,7 +125,7 @@ export const TestConfigs = {
 
         // Default models for common providers
         const defaultModels: Record<LLMProvider, string> = {
-            openai: 'gpt-4o-mini',
+            openai: 'gpt-5-nano',
             anthropic: 'claude-3-haiku-20240307',
             google: 'gemini-2.0-flash',
             groq: 'llama-3.1-8b-instant',

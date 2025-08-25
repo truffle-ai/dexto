@@ -12,8 +12,6 @@ import { OpenAIService } from './openai.js';
 import { AnthropicService } from './anthropic.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@core/errors/index.js';
-import { LLMErrorCode } from '../error-codes.js';
 import { LLMRouter } from '../registry.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
@@ -100,14 +98,7 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             // OpenAI-compatible - requires baseURL, uses compatible mode
             const baseURL = getOpenAICompatibleBaseURL(llmConfig);
             if (!baseURL) {
-                throw new DextoRuntimeError({
-                    code: LLMErrorCode.INVALID_CONFIGURATION,
-                    message:
-                        'OpenAI-compatible provider requires a baseURL (set config.baseURL or OPENAI_BASE_URL environment variable)',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                    severity: 'error',
-                });
+                throw LLMError.baseUrlMissing('openai-compatible');
             }
             return createOpenAI({ apiKey, baseURL })(model);
         }

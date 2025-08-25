@@ -24,6 +24,16 @@ export class LLMError {
         );
     }
 
+    static baseUrlMissing(provider: LLMProvider) {
+        return new DextoRuntimeError(
+            LLMErrorCode.BASE_URL_MISSING,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Provider '${provider}' requires a baseURL (set config.baseURL or OPENAI_BASE_URL environment variable)`,
+            { provider }
+        );
+    }
+
     static modelProviderUnknown(model: string) {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(

@@ -215,7 +215,7 @@ export class VercelLLMService implements ILLMService {
             { mcpManager: this.toolManager.getMcpManager() },
             { provider: this.config.provider, model: this.getModelId() }
         );
-        const formattedMessages: unknown[] = prepared.formattedMessages;
+        const formattedMessages: ModelMessage[] = prepared.formattedMessages as ModelMessage[];
         const _systemPrompt: string | undefined = prepared.systemPrompt;
         const tokensUsed: number = prepared.tokensUsed;
 
@@ -247,7 +247,7 @@ export class VercelLLMService implements ILLMService {
     }
 
     async generateText(
-        messages: unknown[],
+        messages: ModelMessage[],
         tools: VercelToolSet,
         maxSteps: number = 50
     ): Promise<string> {
@@ -273,15 +273,15 @@ export class VercelLLMService implements ILLMService {
         }
 
         try {
+            const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
             const response = await generateText({
                 model: this.model,
-                messages: messages as any,
+                messages,
                 tools: effectiveTools,
                 onStepFinish: (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
-                    logger.debug(`Step finished`);
-                    logger.debug(`Step finished, step text: ${step.text}`);
+                    logger.debug(`Step finished, text: ${step.text}`);
                     logger.debug(
                         `Step finished, step tool calls: ${JSON.stringify(step.toolCalls, null, 2)}`
                     );
@@ -321,7 +321,7 @@ export class VercelLLMService implements ILLMService {
                     }
                 },
                 stopWhen: stepCountIs(maxSteps),
-                ...(maxOutputTokens && { maxOutputTokens }),
+                ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
                 ...(temperature !== undefined && { temperature }),
             });
 
@@ -406,7 +406,7 @@ export class VercelLLMService implements ILLMService {
 
     // Updated streamText to behave like generateText - returns string and handles message processing internally
     async streamText(
-        messages: unknown[],
+        messages: ModelMessage[],
         tools: VercelToolSet,
         maxSteps: number = 10
     ): Promise<string> {
@@ -428,9 +428,10 @@ export class VercelLLMService implements ILLMService {
 
         // use vercel's streamText
         let streamErr: unknown | undefined;
+        const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
         const response = streamText({
             model: this.model,
-            messages: messages as any, // Type assertion for complex message structure compatibility
+            messages,
             tools: effectiveTools,
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
@@ -453,8 +454,7 @@ export class VercelLLMService implements ILLMService {
             onStepFinish: (step) => {
                 logger.debug(`Step iteration: ${stepIteration}`);
                 stepIteration++;
-                logger.debug(`Step finished`);
-                logger.debug(`Step finished, step text: ${step.text}`);
+                logger.debug(`Step finished, text: ${step.text}`);
                 logger.debug(
                     `Step finished, step tool calls: ${JSON.stringify(step.toolCalls, null, 2)}`
                 );
@@ -533,7 +533,7 @@ export class VercelLLMService implements ILLMService {
                 }
             },
             stopWhen: stepCountIs(maxSteps),
-            ...(maxOutputTokens && { maxOutputTokens }),
+            ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
             ...(temperature !== undefined && { temperature }),
         });
         // Consume the stream to get the final text
