@@ -53,25 +53,29 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         20000
     );
 
-    test.skipIf(skipTests)('multi-turn generate works normally', async () => {
-        const response1 = await testEnv.agent.run(
-            'My name is Bob',
-            undefined,
-            undefined,
-            testEnv.sessionId
-        );
-        const response2 = await testEnv.agent.run(
-            'What is my name?',
-            undefined,
-            undefined,
-            testEnv.sessionId
-        );
+    test.skipIf(skipTests)(
+        'multi-turn generate works normally',
+        async () => {
+            const response1 = await testEnv.agent.run(
+                'My name is Bob',
+                undefined,
+                undefined,
+                testEnv.sessionId
+            );
+            const response2 = await testEnv.agent.run(
+                'What is my name?',
+                undefined,
+                undefined,
+                testEnv.sessionId
+            );
 
-        expect(response1).toBeTruthy();
-        expect(response2).toBeTruthy();
-        expect(typeof response1).toBe('string');
-        expect(typeof response2).toBe('string');
-    });
+            expect(response1).toBeTruthy();
+            expect(response2).toBeTruthy();
+            expect(typeof response1).toBe('string');
+            expect(typeof response2).toBe('string');
+        },
+        20000
+    );
 
     test.skipIf(skipTests)('stream works normally', async () => {
         const response = await testEnv.agent.run(

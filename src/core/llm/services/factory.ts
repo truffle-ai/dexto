@@ -97,6 +97,16 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
         case 'openai-compatible': {
             // OpenAI-compatible - requires baseURL, uses compatible mode
             const baseURL = getOpenAICompatibleBaseURL(llmConfig);
+            if (!baseURL) {
+                throw new DextoRuntimeError({
+                    code: LLMErrorCode.INVALID_CONFIGURATION,
+                    message:
+                        'OpenAI-compatible provider requires a baseURL (set config.baseURL or OPENAI_BASE_URL environment variable)',
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                    severity: 'error',
+                });
+            }
             return createOpenAI({ apiKey, baseURL })(model);
         }
         case 'anthropic':

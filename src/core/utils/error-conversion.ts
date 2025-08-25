@@ -3,6 +3,8 @@
  * with meaningful messages instead of "[object Object]"
  */
 
+import { safeStringify } from './safe-stringify.js';
+
 /**
  * Converts any error value to an Error instance with a meaningful message
  *
@@ -29,12 +31,9 @@ export function toError(error: unknown): Error {
             return new Error(error.description);
         }
 
-        // Fallback to JSON serialization for complex objects
-        try {
-            return new Error(JSON.stringify(error));
-        } catch (serializationError) {
-            return new Error(`Complex error object (serialization failed: ${serializationError})`);
-        }
+        // Fallback to safe serialization for complex objects
+        const serialized = safeStringify(error); // Use default limit (1000 chars)
+        return new Error(serialized);
     }
 
     if (typeof error === 'string') {

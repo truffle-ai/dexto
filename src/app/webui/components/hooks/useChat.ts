@@ -307,9 +307,8 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'error': {
-                    // Extract meaningful error messages from complex error objects
-                    const rawMsg = payload.message ?? 'Unknown error';
-                    const errMsg = extractErrorMessage(rawMsg);
+                    // Extract meaningful error messages from potentially nested error payloads
+                    const errMsg = extractErrorMessage(payload);
 
                     // Clean up thinking messages like other terminal events
                     setMessages((ms) =>
