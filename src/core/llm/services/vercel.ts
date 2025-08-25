@@ -18,6 +18,7 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { SessionEventBus } from '../../events/index.js';
+import { toError } from '../../utils/error-conversion.js';
 import { ToolErrorCode } from '../../tools/error-codes.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { PromptManager } from '../../systemPrompt/manager.js';
@@ -309,10 +310,10 @@ export class VercelLLMService implements ILLMService {
                         }
                     }
                     if (step.toolResults && step.toolResults.length > 0) {
-                        for (const toolResult of step.toolResults as any) {
+                        for (const toolResult of step.toolResults) {
                             this.sessionEventBus.emit('llmservice:toolResult', {
                                 toolName: toolResult.toolName,
-                                result: toolResult.result,
+                                result: toolResult.output,
                                 callId: toolResult.toolCallId,
                                 success: true,
                             });
@@ -443,7 +444,7 @@ export class VercelLLMService implements ILLMService {
             onError: (error) => {
                 logger.error(`Error in streamText: ${JSON.stringify(error, null, 2)}`);
                 this.sessionEventBus.emit('llmservice:error', {
-                    error: error instanceof Error ? error : new Error(String(error)),
+                    error: toError(error),
                     context: 'streamText',
                     recoverable: false,
                 });
@@ -491,10 +492,10 @@ export class VercelLLMService implements ILLMService {
 
                 // Process tool results (same condition as generateText)
                 if (step.toolResults && step.toolResults.length > 0) {
-                    for (const toolResult of step.toolResults as any) {
+                    for (const toolResult of step.toolResults) {
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName: toolResult.toolName,
-                            result: toolResult.result,
+                            result: toolResult.output,
                             callId: toolResult.toolCallId,
                             success: true,
                         });
@@ -541,9 +542,16 @@ export class VercelLLMService implements ILLMService {
             fullResponse += textPart;
         }
 
-        // If streaming reported an error, map and throw now
+        // If streaming reported an error, return early since we already emitted llmservice:error event
         if (streamErr) {
-            this.mapProviderError(streamErr, 'stream');
+            // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
+            // Current approach: emit llmservice:error event for subscribers (WebSocket, CLI, webhooks)
+            // Alternative: throw error and let generic handlers deal with it
+            // Trade-offs: event-driven (flexible, multiple subscribers) vs exception-based (simpler, single path)
+
+            // Error was already handled via llmservice:error event in onError callback
+            // Don't re-throw to prevent duplicate error messages in WebSocket
+            return '';
         }
 
         // Process the LLM response through ContextManager using the new stream method

@@ -371,7 +371,7 @@ export class DextoAgent {
             return response;
         } catch (error) {
             logger.error(
-                `Error during DextoAgent.run: ${error instanceof Error ? error.message : String(error)}`
+                `Error during DextoAgent.run: ${error instanceof Error ? error.message : JSON.stringify(error)}`
             );
             throw error;
         }

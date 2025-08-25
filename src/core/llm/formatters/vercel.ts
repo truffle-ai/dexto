@@ -1,4 +1,4 @@
-import type { ModelMessage, AssistantContent, ToolContent } from 'ai';
+import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
@@ -297,7 +297,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
 
     // Helper to format Tool result messages
     private formatToolMessage(msg: InternalMessage): { content: ToolContent } {
-        let toolResultPart: unknown;
+        let toolResultPart: ToolResultPart;
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
                 const imagePart = msg.content[0];
@@ -306,10 +306,16 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
                     toolName: msg.name!,
-                    result: null,
-                    experimental_content: [
-                        { type: 'image', data: imageDataBase64, mimeType: imagePart.mimeType },
-                    ],
+                    output: {
+                        type: 'content',
+                        value: [
+                            {
+                                type: 'media',
+                                data: imageDataBase64,
+                                mediaType: imagePart.mimeType || 'image/jpeg',
+                            },
+                        ],
+                    },
                 };
             } else if (msg.content[0]?.type === 'file') {
                 const filePart = msg.content[0];
@@ -318,22 +324,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
                     toolName: msg.name!,
-                    result: null,
-                    experimental_content: [
-                        {
-                            type: 'file',
-                            data: fileDataBase64,
-                            mimeType: filePart.mimeType,
-                            filename: filePart.filename,
-                        },
-                    ],
+                    output: {
+                        type: 'content',
+                        value: [
+                            {
+                                type: 'media',
+                                data: fileDataBase64,
+                                mediaType: filePart.mimeType,
+                            },
+                        ],
+                    },
                 };
             } else {
+                const textContent = Array.isArray(msg.content)
+                    ? msg.content
+                          .map((part) => (part.type === 'text' ? part.text : JSON.stringify(part)))
+                          .join('\n')
+                    : String(msg.content);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
                     toolName: msg.name!,
-                    result: msg.content,
+                    output: {
+                        type: 'text',
+                        value: textContent,
+                    },
                 };
             }
         } else {
@@ -341,9 +356,12 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 type: 'tool-result',
                 toolCallId: msg.toolCallId!,
                 toolName: msg.name!,
-                result: msg.content,
+                output: {
+                    type: 'text',
+                    value: String(msg.content || ''),
+                },
             };
         }
-        return { content: [toolResultPart] as ToolContent };
+        return { content: [toolResultPart] };
     }
 }

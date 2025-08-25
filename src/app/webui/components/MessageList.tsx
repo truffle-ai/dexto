@@ -10,12 +10,16 @@ import {
     isToolResultContent, 
     isTextPart, 
     isImagePart, 
-    isFilePart 
+    isFilePart, 
+    ErrorMessage
 } from './hooks/useChat';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio } from 'lucide-react';
+import ErrorBanner from './ErrorBanner';
+import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
+  activeError?: ErrorMessage | null;
+  onDismissError?: () => void;
 }
 
 // Helper to format timestamp from createdAt
@@ -30,7 +34,7 @@ function isValidDataUri(src: string): boolean {
   return dataUriRegex.test(src);
 }
 
-export default function MessageList({ messages }: MessageListProps) {
+export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -95,12 +99,15 @@ export default function MessageList({ messages }: MessageListProps) {
         const contentWrapperClass = "flex flex-col gap-2";
         const timestampStr = formatTimestamp(msg.createdAt);
 
+        const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
+
         return (
-          <div key={msgKey} className={messageContainerClass}>
-            {isAi && <AvatarComponent className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
-            {msg.role === 'tool' && <Wrench className="h-7 w-7 p-1 mr-3 mt-1 rounded-full border border-border text-muted-foreground self-start flex-shrink-0" />}
-            
-            <div className={cn("flex flex-col", isUser ? "items-end" : "items-start", isSystem && "w-full items-center")}>
+          <div key={msgKey} className="w-full">
+            <div className={messageContainerClass}>
+              {isAi && <AvatarComponent className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
+              {msg.role === 'tool' && <Wrench className="h-7 w-7 p-1 mr-3 mt-1 rounded-full border border-border text-muted-foreground self-start flex-shrink-0" />}
+              
+              <div className={cn("flex flex-col", isUser ? "items-end" : "items-start", isSystem && "w-full items-center")}> 
               <div className={bubbleSpecificClass}>
                 <div className={contentWrapperClass}>
                   {msg.toolName ? (
@@ -331,8 +338,14 @@ export default function MessageList({ messages }: MessageListProps) {
                   )} */}
                 </div>
               )}
+              </div>
+              {isUser && <AvatarComponent className="h-7 w-7 ml-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
             </div>
-            {isUser && <AvatarComponent className="h-7 w-7 ml-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
+            {errorAnchoredHere && (
+              <div className="mt-2 ml-12 mr-4">{/* indent to align under bubbles */}
+                <ErrorBanner error={activeError!} onDismiss={onDismissError || (() => {})} />
+              </div>
+            )}
           </div>
         );
       })}

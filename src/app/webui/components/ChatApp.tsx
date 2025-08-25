@@ -31,7 +31,7 @@ import { ThemeSwitch } from './ThemeSwitch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 
 export default function ChatApp() {
-  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket } = useChatContext();
+  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -543,6 +543,8 @@ export default function ChatApp() {
                 <div className="h-full overflow-y-auto">
                   <MessageList 
                     messages={messages}
+                    activeError={activeError}
+                    onDismissError={clearError}
                   />
                 </div>
               </div>

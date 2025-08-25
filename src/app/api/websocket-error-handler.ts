@@ -6,6 +6,7 @@ import { AgentErrorCode } from '@core/agent/error-codes.js';
 import { ZodError } from 'zod';
 import { zodToIssues } from '@core/utils/result.js';
 import { logger } from '@core/logger/index.js';
+import { extractErrorMessage } from '@core/utils/error-conversion.js';
 
 /**
  * Standardized WebSocket error handler that mirrors HTTP error middleware
@@ -24,7 +25,7 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
         errorData = dexErr.toJSON();
     } else {
         // Log unexpected errors with full context for debugging (mirror HTTP middleware)
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = extractErrorMessage(error);
         const errorStack = error instanceof Error ? error.stack : undefined;
         logger.error(`Unhandled WebSocket error: ${errorMessage}`, {
             error: error,
@@ -32,10 +33,10 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
             type: typeof error,
         });
 
-        // Generic error response for non-DextoError exceptions (mirror HTTP middleware)
+        // Generic error response for non-DextoError exceptions - include actual error details
         errorData = {
             code: 'internal_error',
-            message: 'An unexpected error occurred',
+            message: errorMessage, // Use extracted error message instead of generic text
             scope: ErrorScope.AGENT,
             type: ErrorType.SYSTEM,
             severity: 'error',
