@@ -1,4 +1,4 @@
-import type { CoreMessage, AssistantContent, ToolContent } from 'ai';
+import type { ModelMessage, AssistantContent, ToolContent } from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
@@ -29,9 +29,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
         history: Readonly<InternalMessage[]>,
         context: LLMContext,
         systemPrompt: string | null
-    ): CoreMessage[] {
+    ): ModelMessage[] {
         // Returns Vercel-specific type
-        const formatted: CoreMessage[] = [];
+        const formatted: ModelMessage[] = [];
 
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
@@ -59,9 +59,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     // Images (and text) in user content arrays are handled natively
                     // by the Vercel SDK. We can forward the array of TextPart/ImagePart directly.
                     if (msg.content !== null) {
+                        // Convert internal content types to AI SDK types
+                        const content =
+                            typeof msg.content === 'string'
+                                ? msg.content
+                                : msg.content.map((part) => {
+                                      if (part.type === 'file') {
+                                          return {
+                                              type: 'file' as const,
+                                              data: part.data,
+                                              mediaType: part.mimeType, // Convert mimeType -> mediaType
+                                              ...(part.filename && { filename: part.filename }),
+                                          };
+                                      } else if (part.type === 'image') {
+                                          return {
+                                              type: 'image' as const,
+                                              image: part.image,
+                                              ...(part.mimeType && { mediaType: part.mimeType }), // Convert mimeType -> mediaType
+                                          };
+                                      }
+                                      return part; // TextPart doesn't need conversion
+                                  });
+
                         formatted.push({
                             role: 'user',
-                            content: msg.content,
+                            content,
                         });
                     }
                     break;
@@ -157,9 +179,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
                                     function: {
                                         name: part.toolName,
                                         arguments:
-                                            typeof part.args === 'string'
-                                                ? part.args
-                                                : JSON.stringify(part.args),
+                                            typeof part.input === 'string'
+                                                ? part.input
+                                                : JSON.stringify(part.input),
                                     },
                                 });
                             }
@@ -181,20 +203,29 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         for (const part of msg.content) {
                             if (part.type === 'tool-result') {
                                 let content: InternalMessage['content'];
-                                if (Array.isArray(part.experimental_content)) {
-                                    content = part.experimental_content.map((img: unknown) => {
-                                        const imgData = img as { data?: string; mimeType?: string };
-                                        return {
-                                            type: 'image',
-                                            image: imgData.data || '',
-                                            mimeType: imgData.mimeType || 'image/jpeg',
-                                        };
+                                // Handle the new LanguageModelV2ToolResultOutput structure
+                                const output = part.output;
+                                if (output.type === 'content') {
+                                    content = output.value.map((item) => {
+                                        if (item.type === 'media') {
+                                            return {
+                                                type: 'image',
+                                                image: item.data,
+                                                mimeType: item.mediaType,
+                                            };
+                                        } else {
+                                            return {
+                                                type: 'text',
+                                                text: item.text,
+                                            };
+                                        }
                                     });
+                                } else if (output.type === 'text' || output.type === 'error-text') {
+                                    content = output.value;
+                                } else if (output.type === 'json' || output.type === 'error-json') {
+                                    content = JSON.stringify(output.value);
                                 } else {
-                                    // Ensure result is a string for InternalMessage.content
-                                    const raw = part.result;
-                                    content =
-                                        typeof raw === 'string' ? raw : JSON.stringify(raw ?? '');
+                                    content = JSON.stringify(output);
                                 }
                                 internal.push({
                                     role: 'tool',

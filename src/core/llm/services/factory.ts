@@ -10,7 +10,7 @@ import { createXai } from '@ai-sdk/xai';
 import { VercelLLMService } from './vercel.js';
 import { OpenAIService } from './openai.js';
 import { AnthropicService } from './anthropic.js';
-import { LanguageModelV1 } from 'ai';
+import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { LLMRouter } from '../registry.js';
 import { createCohere } from '@ai-sdk/cohere';
@@ -84,7 +84,7 @@ function _createInBuiltLLMService(
     }
 }
 
-function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModelV1 {
+function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
     const provider = llmConfig.provider;
     const model = llmConfig.model;
     const apiKey = llmConfig.apiKey;
@@ -92,12 +92,12 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModelV1 {
     switch (provider.toLowerCase()) {
         case 'openai': {
             // Regular OpenAI - strict compatibility, no baseURL
-            return createOpenAI({ apiKey, compatibility: 'strict' })(model);
+            return createOpenAI({ apiKey })(model);
         }
         case 'openai-compatible': {
             // OpenAI-compatible - requires baseURL, uses compatible mode
             const baseURL = getOpenAICompatibleBaseURL(llmConfig);
-            return createOpenAI({ apiKey, baseURL, compatibility: 'compatible' })(model);
+            return createOpenAI({ apiKey, baseURL })(model);
         }
         case 'anthropic':
             return createAnthropic({ apiKey })(model);

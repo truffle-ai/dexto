@@ -28,7 +28,7 @@ import { ContextError } from './errors.js';
  * TODO: Move InternalMessage parsing logic to zod
  * Right now its weaker because it doesn't account for tools and other non-text content in the prompt.
  *
- * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, CoreMessage)
+ * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, ModelMessage)
  */
 export class ContextManager<TMessage = unknown> {
     /**

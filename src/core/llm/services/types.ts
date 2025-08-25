@@ -1,4 +1,4 @@
-import { LanguageModelV1 } from 'ai';
+import { LanguageModel } from 'ai';
 import { ToolSet } from '../../tools/types.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { LLMProvider, LLMRouter } from '../registry.js';
@@ -42,7 +42,7 @@ export interface ILLMService {
 export type LLMServiceConfig = {
     router: LLMRouter;
     provider: LLMProvider;
-    model: string | LanguageModelV1;
+    model: LanguageModel;
     configuredMaxInputTokens?: number | null;
     modelMaxInputTokens?: number | null;
 };
