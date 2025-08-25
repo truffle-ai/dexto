@@ -15,6 +15,7 @@ import {
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
 import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 interface MessageListProps {
   messages: Message[];
@@ -320,11 +321,29 @@ export default function MessageList({ messages, activeError, onDismissError }: M
               {!isSystem && !isToolRelated && (
                 <div className="text-xs text-muted-foreground mt-1 px-1 flex items-center gap-2">
                   <span>{timestampStr}</span>
-                  {isAi && msg.tokenCount && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                      {msg.tokenCount} tokens
-                    </span>
+                  {isAi && msg.tokenUsage?.totalTokens !== undefined && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs cursor-default">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                          {msg.tokenUsage.totalTokens} tokens
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="flex flex-col gap-0.5">
+                          {msg.tokenUsage.inputTokens !== undefined && (
+                            <div>Input: {msg.tokenUsage.inputTokens}</div>
+                          )}
+                          {msg.tokenUsage.outputTokens !== undefined && (
+                            <div>Output: {msg.tokenUsage.outputTokens}</div>
+                          )}
+                          {msg.tokenUsage.reasoningTokens !== undefined && (
+                            <div>Reasoning: {msg.tokenUsage.reasoningTokens}</div>
+                          )}
+                          <div className="font-medium mt-0.5">Total: {msg.tokenUsage.totalTokens}</div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                   {isAi && msg.model && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs">

@@ -172,7 +172,7 @@ export class AnthropicService implements ILLMService {
                     this.sessionEventBus.emit('llmservice:response', {
                         content: fullResponse,
                         model: this.config.model,
-                        tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                     return fullResponse;
                 }
@@ -247,7 +247,7 @@ export class AnthropicService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: fullResponse,
                 model: this.config.model,
-                tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
             });
             return (
                 fullResponse ||

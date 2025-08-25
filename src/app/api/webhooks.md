@@ -29,7 +29,7 @@ The webhook system provides full TypeScript autocomplete support for event types
 if (event.type === "llmservice:response") {
     // TypeScript knows event.data has response-specific fields
     console.log(event.data.content);
-    console.log(event.data.tokenCount);
+    console.log(event.data.tokenUsage?.totalTokens);
 }
 ```
 

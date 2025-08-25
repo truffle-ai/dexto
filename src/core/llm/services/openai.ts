@@ -108,11 +108,11 @@ export class OpenAIService implements ILLMService {
                         this.contextManager.updateActualTokenCount(totalTokens);
                     }
 
-                    // Emit final response
+                    // Emit final response with token usage (total only)
                     this.sessionEventBus.emit('llmservice:response', {
                         content: responseText,
                         model: this.config.model,
-                        tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                     return responseText;
                 }
@@ -201,11 +201,11 @@ export class OpenAIService implements ILLMService {
                 this.contextManager.updateActualTokenCount(totalTokens);
             }
 
-            // Emit final response
+            // Emit final response with token usage (total only)
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
                 model: this.config.model,
-                tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
             });
             return finalResponse;
         } catch (error) {

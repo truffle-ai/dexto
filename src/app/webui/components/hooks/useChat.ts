@@ -83,7 +83,13 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     toolName?: string;
     toolArgs?: Record<string, unknown>;
     toolResult?: ToolResult;
-    tokenCount?: number;
+    tokenUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        reasoningTokens?: number;
+        totalTokens?: number;
+    };
+    reasoning?: string;
     model?: string;
     sessionId?: string;
 }
@@ -129,6 +135,9 @@ export function useChat(wsUrl: string) {
             });
         };
         ws.onmessage = (event: globalThis.MessageEvent) => {
+            // TODO: Replace untyped WebSocket payloads with a shared, typed schema
+            // Define a union for { event: 'chunk' | 'response' | ...; data: ... } and
+            // use proper type guards instead of `any` casting here.
             let msg: any;
             try {
                 msg = JSON.parse(event.data);
@@ -151,7 +160,7 @@ export function useChat(wsUrl: string) {
                     ]);
                     break;
                 case 'chunk': {
-                    const text = typeof payload.text === 'string' ? payload.text : '';
+                    const text = typeof payload.content === 'string' ? payload.content : '';
                     setMessages((ms) => {
                         // Remove any existing 'thinking' system messages
                         const cleaned = ms.filter(
@@ -183,8 +192,17 @@ export function useChat(wsUrl: string) {
                 }
                 case 'response': {
                     const text = typeof payload.text === 'string' ? payload.text : '';
-                    const tokenCount =
-                        typeof payload.tokenCount === 'number' ? payload.tokenCount : undefined;
+                    const reasoning =
+                        typeof payload.reasoning === 'string' ? payload.reasoning : undefined;
+                    const tokenUsage =
+                        payload && typeof payload.tokenUsage === 'object'
+                            ? (payload.tokenUsage as {
+                                  inputTokens?: number;
+                                  outputTokens?: number;
+                                  reasoningTokens?: number;
+                                  totalTokens?: number;
+                              })
+                            : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
@@ -212,7 +230,8 @@ export function useChat(wsUrl: string) {
                             role: 'assistant',
                             content,
                             createdAt: Date.now(),
-                            tokenCount,
+                            tokenUsage,
+                            reasoning,
                             model,
                             sessionId,
                         };
@@ -231,7 +250,7 @@ export function useChat(wsUrl: string) {
                                 detail: {
                                     text,
                                     sessionId,
-                                    tokenCount,
+                                    tokenUsage,
                                     model,
                                     timestamp: Date.now(),
                                 },

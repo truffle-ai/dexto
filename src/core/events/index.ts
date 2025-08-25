@@ -82,6 +82,7 @@ export interface AgentEventMap {
 
     /** LLM service sent a streaming chunk */
     'llmservice:chunk': {
+        type: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
         sessionId: string;
@@ -90,8 +91,14 @@ export interface AgentEventMap {
     /** LLM service final response */
     'llmservice:response': {
         content: string;
-        tokenCount?: number;
+        reasoning?: string;
         model?: string;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
         sessionId: string;
     };
 
@@ -215,6 +222,7 @@ export interface SessionEventMap {
 
     /** LLM service sent a streaming chunk */
     'llmservice:chunk': {
+        type: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
     };
@@ -222,8 +230,14 @@ export interface SessionEventMap {
     /** LLM service final response */
     'llmservice:response': {
         content: string;
-        tokenCount?: number;
+        reasoning?: string;
         model?: string;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
     };
 
     /** LLM service requested a tool call */
