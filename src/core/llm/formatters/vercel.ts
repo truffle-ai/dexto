@@ -1,4 +1,12 @@
-import type { CoreMessage, AssistantContent, ToolContent } from 'ai';
+import type {
+    ModelMessage,
+    AssistantContent,
+    ToolContent,
+    ToolResultPart,
+    TextPart as VercelTextPart,
+    ImagePart as VercelImagePart,
+    FilePart as VercelFilePart,
+} from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
@@ -12,7 +20,7 @@ import { logger } from '@core/logger/index.js';
  * Converts the internal message format to Vercel's specific structure:
  * - System prompt is included in the messages array
  * - Tool calls use function_call property instead of tool_calls
- * - Tool results use the 'function' role instead of 'tool'
+ * - Tool results use the 'tool' role (SDK v5)
  *
  * Note: Vercel's implementation is different from OpenAI's standard,
  * particularly in its handling of function calls and responses.
@@ -29,9 +37,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
         history: Readonly<InternalMessage[]>,
         context: LLMContext,
         systemPrompt: string | null
-    ): CoreMessage[] {
+    ): ModelMessage[] {
         // Returns Vercel-specific type
-        const formatted: CoreMessage[] = [];
+        const formatted: ModelMessage[] = [];
 
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
@@ -59,9 +67,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     // Images (and text) in user content arrays are handled natively
                     // by the Vercel SDK. We can forward the array of TextPart/ImagePart directly.
                     if (msg.content !== null) {
+                        // Convert internal content types to AI SDK types
+                        const content =
+                            typeof msg.content === 'string'
+                                ? msg.content
+                                : msg.content.map((part) => {
+                                      if (part.type === 'file') {
+                                          return {
+                                              type: 'file' as const,
+                                              data: part.data,
+                                              mediaType: part.mimeType, // Convert mimeType -> mediaType
+                                              ...(part.filename && { filename: part.filename }),
+                                          };
+                                      } else if (part.type === 'image') {
+                                          return {
+                                              type: 'image' as const,
+                                              image: part.image,
+                                              ...(part.mimeType && { mediaType: part.mimeType }), // Convert mimeType -> mediaType
+                                          };
+                                      }
+                                      return part; // TextPart doesn't need conversion
+                                  });
+
                         formatted.push({
                             role: 'user',
-                            content: msg.content,
+                            content,
                         });
                     }
                     break;
@@ -138,6 +168,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                             role: 'user',
                             content: [{ type: 'text', text: msg.content }],
                         });
+                    } else if (Array.isArray(msg.content)) {
+                        const srcParts = msg.content as Array<
+                            VercelTextPart | VercelImagePart | VercelFilePart
+                        >;
+                        const parts = srcParts.map((p) => {
+                            if (p.type === 'text') return { type: 'text', text: p.text } as const;
+                            if (p.type === 'image')
+                                return {
+                                    type: 'image',
+                                    image: p.image,
+                                    mimeType: p.mediaType ?? 'image/jpeg',
+                                } as const;
+                            if (p.type === 'file')
+                                return {
+                                    type: 'file',
+                                    data: p.data,
+                                    mimeType: p.mediaType,
+                                    filename: p.filename,
+                                } as const;
+                            return { type: 'text', text: JSON.stringify(p) } as const;
+                        });
+                        internal.push({
+                            role: 'user',
+                            content: parts as InternalMessage['content'],
+                        });
                     }
                     break;
                 case 'assistant': {
@@ -157,9 +212,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
                                     function: {
                                         name: part.toolName,
                                         arguments:
-                                            typeof part.args === 'string'
-                                                ? part.args
-                                                : JSON.stringify(part.args),
+                                            typeof part.input === 'string'
+                                                ? part.input
+                                                : JSON.stringify(part.input),
                                     },
                                 });
                             }
@@ -181,20 +236,29 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         for (const part of msg.content) {
                             if (part.type === 'tool-result') {
                                 let content: InternalMessage['content'];
-                                if (Array.isArray(part.experimental_content)) {
-                                    content = part.experimental_content.map((img: unknown) => {
-                                        const imgData = img as { data?: string; mimeType?: string };
-                                        return {
-                                            type: 'image',
-                                            image: imgData.data || '',
-                                            mimeType: imgData.mimeType || 'image/jpeg',
-                                        };
+                                // Handle the new LanguageModelV2ToolResultOutput structure
+                                const output = part.output;
+                                if (output.type === 'content') {
+                                    content = output.value.map((item) => {
+                                        if (item.type === 'media') {
+                                            return {
+                                                type: 'image',
+                                                image: item.data,
+                                                mimeType: item.mediaType,
+                                            };
+                                        } else {
+                                            return {
+                                                type: 'text',
+                                                text: item.text,
+                                            };
+                                        }
                                     });
+                                } else if (output.type === 'text' || output.type === 'error-text') {
+                                    content = output.value;
+                                } else if (output.type === 'json' || output.type === 'error-json') {
+                                    content = JSON.stringify(output.value);
                                 } else {
-                                    // Ensure result is a string for InternalMessage.content
-                                    const raw = part.result;
-                                    content =
-                                        typeof raw === 'string' ? raw : JSON.stringify(raw ?? '');
+                                    content = JSON.stringify(output);
                                 }
                                 internal.push({
                                     role: 'tool',
@@ -215,19 +279,28 @@ export class VercelMessageFormatter implements IMessageFormatter {
     }
 
     // Helper to format Assistant messages (with optional tool calls)
-    // Todo: improve typingwhen InternalMessage type is updated
+    // TODO: improve typing when InternalMessage type is updated
     private formatAssistantMessage(msg: InternalMessage): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
     } {
         if (msg.toolCalls && msg.toolCalls.length > 0) {
-            const contentParts = [];
-            if (msg.content) {
+            const contentParts: AssistantContent = [];
+            if (typeof msg.content === 'string' && msg.content.length > 0) {
                 contentParts.push({ type: 'text', text: msg.content });
+            } else if (Array.isArray(msg.content)) {
+                // Robustness: if assistant content is accidentally an array, extract text parts
+                const combined = msg.content
+                    .map((part) => (part.type === 'text' ? part.text : ''))
+                    .filter(Boolean)
+                    .join('\n');
+                if (combined) {
+                    contentParts.push({ type: 'text', text: combined });
+                }
             }
             for (const toolCall of msg.toolCalls) {
                 const rawArgs = toolCall.function.arguments;
-                let parsed: any = {};
+                let parsed: unknown = {};
                 if (typeof rawArgs === 'string') {
                     try {
                         parsed = JSON.parse(rawArgs);
@@ -238,35 +311,48 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         );
                     }
                 } else {
-                    parsed = rawArgs;
+                    parsed = rawArgs ?? {};
                 }
+                // AI SDK v5 expects 'input' for tool-call arguments (not 'args').
                 contentParts.push({
                     type: 'tool-call',
                     toolCallId: toolCall.id,
                     toolName: toolCall.function.name,
-                    args: parsed,
+                    input: parsed,
                 });
             }
             const firstToolCall = msg.toolCalls?.[0];
             if (firstToolCall) {
+                // Ensure function_call.arguments is always a valid JSON string
+                const argString = (() => {
+                    const raw = firstToolCall.function.arguments;
+                    if (typeof raw === 'string') return raw;
+                    try {
+                        return JSON.stringify(raw ?? {});
+                    } catch {
+                        return '{}';
+                    }
+                })();
                 return {
-                    content: contentParts as AssistantContent,
+                    content: contentParts,
                     function_call: {
                         name: firstToolCall.function.name,
-                        arguments:
-                            typeof firstToolCall.function.arguments === 'string'
-                                ? firstToolCall.function.arguments
-                                : JSON.stringify(firstToolCall.function.arguments),
+                        arguments: argString,
                     },
                 };
             }
         }
-        return { content: msg.content as AssistantContent };
+        return {
+            content:
+                typeof msg.content === 'string'
+                    ? [{ type: 'text', text: msg.content }]
+                    : (msg.content as AssistantContent),
+        };
     }
 
     // Helper to format Tool result messages
     private formatToolMessage(msg: InternalMessage): { content: ToolContent } {
-        let toolResultPart: unknown;
+        let toolResultPart: ToolResultPart;
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
                 const imagePart = msg.content[0];
@@ -275,10 +361,16 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
                     toolName: msg.name!,
-                    result: null,
-                    experimental_content: [
-                        { type: 'image', data: imageDataBase64, mimeType: imagePart.mimeType },
-                    ],
+                    output: {
+                        type: 'content',
+                        value: [
+                            {
+                                type: 'media',
+                                data: imageDataBase64,
+                                mediaType: imagePart.mimeType || 'image/jpeg',
+                            },
+                        ],
+                    },
                 };
             } else if (msg.content[0]?.type === 'file') {
                 const filePart = msg.content[0];
@@ -287,22 +379,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
                     toolName: msg.name!,
-                    result: null,
-                    experimental_content: [
-                        {
-                            type: 'file',
-                            data: fileDataBase64,
-                            mimeType: filePart.mimeType,
-                            filename: filePart.filename,
-                        },
-                    ],
+                    output: {
+                        type: 'content',
+                        value: [
+                            {
+                                type: 'media',
+                                data: fileDataBase64,
+                                mediaType: filePart.mimeType,
+                            },
+                        ],
+                    },
                 };
             } else {
+                const textContent = Array.isArray(msg.content)
+                    ? msg.content
+                          .map((part) => (part.type === 'text' ? part.text : JSON.stringify(part)))
+                          .join('\n')
+                    : String(msg.content);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
                     toolName: msg.name!,
-                    result: msg.content,
+                    output: {
+                        type: 'text',
+                        value: textContent,
+                    },
                 };
             }
         } else {
@@ -310,9 +411,12 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 type: 'tool-result',
                 toolCallId: msg.toolCallId!,
                 toolName: msg.name!,
-                result: msg.content,
+                output: {
+                    type: 'text',
+                    value: String(msg.content || ''),
+                },
             };
         }
-        return { content: [toolResultPart] as ToolContent };
+        return { content: [toolResultPart] };
     }
 }

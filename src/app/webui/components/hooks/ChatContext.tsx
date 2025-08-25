@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
-import { useChat, Message } from './useChat';
+import { useChat, Message, ErrorMessage } from './useChat';
 
 interface ChatContextType {
   messages: Message[];
@@ -20,6 +20,9 @@ interface ChatContextType {
   isStreaming: boolean;
   setStreaming: (streaming: boolean) => void;
   websocket: WebSocket | null;
+  // Error state
+  activeError: ErrorMessage | null;
+  clearError: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -43,7 +46,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
-  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket } = useChat(wsUrl);
+  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError } = useChat(wsUrl);
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
@@ -279,7 +282,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       returnToWelcome,
       isStreaming,
       setStreaming: setIsStreaming,
-      websocket
+      websocket,
+      // Error state
+      activeError,
+      clearError
     }}>
       {children}
     </ChatContext.Provider>

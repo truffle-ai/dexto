@@ -466,14 +466,14 @@ describe('Provider-Specific Tests', () => {
 
 describe('Model-Specific Router Support Functions', () => {
     describe('isRouterSupportedForModel', () => {
-        it('validates GPT-5 models only support in-built router', () => {
-            // GPT-5 models should only support in-built router
+        it('validates GPT-5 models support both routers after v5 migration', () => {
+            // GPT-5 models now support both routers (vercel + in-built)
             expect(isRouterSupportedForModel('openai', 'gpt-5', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5', 'vercel')).toBe(false);
+            expect(isRouterSupportedForModel('openai', 'gpt-5', 'vercel')).toBe(true);
             expect(isRouterSupportedForModel('openai', 'gpt-5-mini', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5-mini', 'vercel')).toBe(false);
+            expect(isRouterSupportedForModel('openai', 'gpt-5-mini', 'vercel')).toBe(true);
             expect(isRouterSupportedForModel('openai', 'gpt-5-nano', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5-nano', 'vercel')).toBe(false);
+            expect(isRouterSupportedForModel('openai', 'gpt-5-nano', 'vercel')).toBe(true);
         });
 
         it('validates other OpenAI models support both routers', () => {
@@ -494,10 +494,16 @@ describe('Model-Specific Router Support Functions', () => {
     });
 
     describe('getSupportedRoutersForModel', () => {
-        it('returns correct routers for GPT-5 models', () => {
-            expect(getSupportedRoutersForModel('openai', 'gpt-5')).toEqual(['in-built']);
-            expect(getSupportedRoutersForModel('openai', 'gpt-5-mini')).toEqual(['in-built']);
-            expect(getSupportedRoutersForModel('openai', 'gpt-5-nano')).toEqual(['in-built']);
+        it('returns both routers for GPT-5 models after v5 migration', () => {
+            expect(getSupportedRoutersForModel('openai', 'gpt-5')).toEqual(['vercel', 'in-built']);
+            expect(getSupportedRoutersForModel('openai', 'gpt-5-mini')).toEqual([
+                'vercel',
+                'in-built',
+            ]);
+            expect(getSupportedRoutersForModel('openai', 'gpt-5-nano')).toEqual([
+                'vercel',
+                'in-built',
+            ]);
         });
 
         it('returns both routers for other OpenAI models', () => {

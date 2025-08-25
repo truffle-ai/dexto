@@ -60,7 +60,7 @@ export const TestConfigs = {
             systemPrompt: 'You are a helpful assistant for testing purposes.',
             llm: {
                 provider,
-                model: 'gpt-4o-mini', // Use cheapest model for testing
+                model: 'gpt-5-nano', // Use cheapest model for testing
                 apiKey,
                 maxOutputTokens: 100, // Keep costs low
                 temperature: 0, // Deterministic responses
@@ -125,7 +125,7 @@ export const TestConfigs = {
 
         // Default models for common providers
         const defaultModels: Record<LLMProvider, string> = {
-            openai: 'gpt-4o-mini',
+            openai: 'gpt-5-nano',
             anthropic: 'claude-3-haiku-20240307',
             google: 'gemini-2.0-flash',
             groq: 'llama-3.1-8b-instant',

@@ -36,33 +36,46 @@ describe('Vercel AI SDK LLM Service Integration', () => {
     });
 
     // Normal operation tests
-    test.skipIf(skipTests)('generate works normally', async () => {
-        const response = await testEnv.agent.run('Hello', undefined, undefined, testEnv.sessionId);
+    test.skipIf(skipTests)(
+        'generate works normally',
+        async () => {
+            const response = await testEnv.agent.run(
+                'Hello',
+                undefined,
+                undefined,
+                testEnv.sessionId
+            );
 
-        expect(response).toBeTruthy();
-        expect(typeof response).toBe('string');
-        expect(response.length).toBeGreaterThan(0);
-    });
+            expect(response).toBeTruthy();
+            expect(typeof response).toBe('string');
+            expect(response.length).toBeGreaterThan(0);
+        },
+        20000
+    );
 
-    test.skipIf(skipTests)('multi-turn generate works normally', async () => {
-        const response1 = await testEnv.agent.run(
-            'My name is Bob',
-            undefined,
-            undefined,
-            testEnv.sessionId
-        );
-        const response2 = await testEnv.agent.run(
-            'What is my name?',
-            undefined,
-            undefined,
-            testEnv.sessionId
-        );
+    test.skipIf(skipTests)(
+        'multi-turn generate works normally',
+        async () => {
+            const response1 = await testEnv.agent.run(
+                'My name is Bob',
+                undefined,
+                undefined,
+                testEnv.sessionId
+            );
+            const response2 = await testEnv.agent.run(
+                'What is my name?',
+                undefined,
+                undefined,
+                testEnv.sessionId
+            );
 
-        expect(response1).toBeTruthy();
-        expect(response2).toBeTruthy();
-        expect(typeof response1).toBe('string');
-        expect(typeof response2).toBe('string');
-    });
+            expect(response1).toBeTruthy();
+            expect(response2).toBeTruthy();
+            expect(typeof response1).toBe('string');
+            expect(typeof response2).toBe('string');
+        },
+        20000
+    );
 
     test.skipIf(skipTests)('stream works normally', async () => {
         const response = await testEnv.agent.run(
@@ -78,27 +91,31 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         expect(response.length).toBeGreaterThan(0);
     });
 
-    test.skipIf(skipTests)('multi-turn stream works normally', async () => {
-        const response1 = await testEnv.agent.run(
-            'I like pizza',
-            undefined,
-            undefined,
-            testEnv.sessionId,
-            true
-        );
-        const response2 = await testEnv.agent.run(
-            'What do I like?',
-            undefined,
-            undefined,
-            testEnv.sessionId,
-            true
-        );
+    test.skipIf(skipTests)(
+        'multi-turn stream works normally',
+        async () => {
+            const response1 = await testEnv.agent.run(
+                'I like pizza',
+                undefined,
+                undefined,
+                testEnv.sessionId,
+                true
+            );
+            const response2 = await testEnv.agent.run(
+                'What do I like?',
+                undefined,
+                undefined,
+                testEnv.sessionId,
+                true
+            );
 
-        expect(response1).toBeTruthy();
-        expect(response2).toBeTruthy();
-        expect(typeof response1).toBe('string');
-        expect(typeof response2).toBe('string');
-    });
+            expect(response1).toBeTruthy();
+            expect(response2).toBeTruthy();
+            expect(typeof response1).toBe('string');
+            expect(typeof response2).toBe('string');
+        },
+        30000
+    );
 
     test.skipIf(skipTests)('creating sessions works normally', async () => {
         const newSession = await testEnv.agent.createSession('test-vercel-session');
@@ -185,6 +202,119 @@ describe('Vercel AI SDK LLM Service Integration', () => {
             ],
         });
     });
+
+    // Positive media/file tests (OpenAI via Vercel)
+    test.skipIf(!requiresApiKey('openai'))(
+        'openai via vercel: image input works',
+        async () => {
+            const openaiConfig = TestConfigs.createVercelConfig('openai');
+            const openaiEnv = await createTestEnvironment(openaiConfig);
+            let errorSeen = false;
+            const onError = () => {
+                errorSeen = true;
+            };
+            try {
+                openaiEnv.agent.agentEventBus.on('llmservice:error', onError);
+                // 1x1 PNG (red pixel) base64 (no data URI), minimal cost
+                const imgBase64 =
+                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+                const res = await openaiEnv.agent.run(
+                    'What is in the image?',
+                    { image: imgBase64, mimeType: 'image/png' },
+                    undefined,
+                    openaiEnv.sessionId
+                );
+
+                expect(typeof res).toBe('string');
+                expect(res.length).toBeGreaterThan(0);
+                expect(errorSeen).toBe(false);
+            } finally {
+                // cleanup listener
+                try {
+                    openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
+                } catch (_e) {
+                    void 0; // ignore
+                }
+                await cleanupTestEnvironment(openaiEnv);
+            }
+        },
+        30000
+    );
+
+    test.skipIf(!requiresApiKey('openai'))(
+        'openai via vercel: pdf file input works',
+        async () => {
+            const openaiConfig = TestConfigs.createVercelConfig('openai');
+            const openaiEnv = await createTestEnvironment(openaiConfig);
+            let errorSeen = false;
+            const onError = () => {
+                errorSeen = true;
+            };
+            try {
+                openaiEnv.agent.agentEventBus.on('llmservice:error', onError);
+                // Valid tiny PDF (Hello World) base64 from OpenAI tests
+                const pdfBase64 =
+                    'JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA2MTIgNzkyXQovQ29udGVudHMgNCAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL0xlbmd0aCA0NAo+PgpzdHJlYW0KQlQKL0YxIDEyIFRmCjcyIDcyMCBUZAooSGVsbG8gV29ybGQpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDUKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4gCjAwMDAwMDAwNzkgMDAwMDAgbiAKMDAwMDAwMDE3MyAwMDAwMCBuIAowMDAwMDAwMzAxIDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgNQovUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKMzgwCiUlRU9G';
+
+                const res = await openaiEnv.agent.run(
+                    'Summarize this PDF',
+                    undefined,
+                    { data: pdfBase64, mimeType: 'application/pdf', filename: 'test.pdf' },
+                    openaiEnv.sessionId
+                );
+
+                expect(typeof res).toBe('string');
+                expect(res.length).toBeGreaterThan(0);
+                expect(errorSeen).toBe(false);
+            } finally {
+                try {
+                    openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
+                } catch (_e) {
+                    void 0; // ignore
+                }
+                await cleanupTestEnvironment(openaiEnv);
+            }
+        },
+        30000
+    );
+
+    test.skipIf(!requiresApiKey('openai'))(
+        'openai via vercel: streaming with image works',
+        async () => {
+            const openaiConfig = TestConfigs.createVercelConfig('openai');
+            const openaiEnv = await createTestEnvironment(openaiConfig);
+            let errorSeen = false;
+            const onError = () => {
+                errorSeen = true;
+            };
+            try {
+                openaiEnv.agent.agentEventBus.on('llmservice:error', onError);
+                const imgBase64 =
+                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+                const res = await openaiEnv.agent.run(
+                    'Describe this image in one sentence',
+                    { image: imgBase64, mimeType: 'image/png' },
+                    undefined,
+                    openaiEnv.sessionId,
+                    true
+                );
+
+                expect(typeof res).toBe('string');
+                expect(res.length).toBeGreaterThan(0);
+                expect(errorSeen).toBe(false);
+            } finally {
+                try {
+                    openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
+                } catch (_e) {
+                    void 0; // ignore
+                }
+                await cleanupTestEnvironment(openaiEnv);
+            }
+        },
+        30000
+    );
 
     // Skip test warnings
     if (skipTests) {

@@ -2,6 +2,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
+import { extractErrorMessage } from '@core/utils/error-conversion.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -87,6 +88,18 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     sessionId?: string;
 }
 
+// Separate error state interface
+export interface ErrorMessage {
+    id: string;
+    message: string;
+    timestamp: number;
+    context?: string;
+    recoverable?: boolean;
+    sessionId?: string;
+    // Message id this error relates to (e.g., last user input)
+    anchorMessageId?: string;
+}
+
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(wsUrl: string) {
@@ -94,7 +107,11 @@ export function useChat(wsUrl: string) {
     const [messages, setMessages] = useState<Message[]>([]);
     // Store the last toolResult image URI to attach to the next AI response
     const lastImageUriRef = useRef<string | null>(null);
+    // Track the last user message id to anchor errors inline in the UI
+    const lastUserMessageIdRef = useRef<string | null>(null);
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
+    // Separate error state - not part of message flow
+    const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
 
     useEffect(() => {
         const ws = new globalThis.WebSocket(wsUrl);
@@ -102,12 +119,22 @@ export function useChat(wsUrl: string) {
         wsRef.current = ws;
         ws.onopen = () => setStatus('open');
         ws.onclose = () => setStatus('closed');
+        ws.onerror = (_evt) => {
+            setStatus('closed');
+            setActiveError({
+                id: generateUniqueId(),
+                message: 'Connection error. Please try again.',
+                timestamp: Date.now(),
+                context: 'websocket',
+            });
+        };
         ws.onmessage = (event: globalThis.MessageEvent) => {
             let msg: any;
             try {
                 msg = JSON.parse(event.data);
-            } catch (err: any) {
-                console.error('WebSocket message parse error:', event.data, err);
+            } catch (err: unknown) {
+                const em = extractErrorMessage(err);
+                console.error(`[useChat] WebSocket message parse error: ${em}`);
                 return; // Skip malformed message
             }
             const payload = msg.data || {};
@@ -218,6 +245,8 @@ export function useChat(wsUrl: string) {
                 }
                 case 'conversationReset':
                     setMessages([]);
+                    lastImageUriRef.current = null;
+                    lastUserMessageIdRef.current = null;
                     break;
                 case 'toolCall': {
                     const name = payload.toolName;
@@ -241,8 +270,22 @@ export function useChat(wsUrl: string) {
                     // Extract image URI from tool result, supporting data+mimetype
                     let uri: string | null = null;
                     if (result && Array.isArray(result.content)) {
-                        const imgPart: any = result.content.find(
-                            (p: any) => p.type === 'image' && (p.data || p.image || p.url)
+                        const imgPart = result.content.find(
+                            (
+                                p: unknown
+                            ): p is {
+                                type: 'image';
+                                data?: string;
+                                image?: string;
+                                url?: string;
+                                mimeType?: string;
+                            } =>
+                                typeof p === 'object' &&
+                                p !== null &&
+                                (p as { type?: unknown }).type === 'image' &&
+                                ('data' in (p as Record<string, unknown>) ||
+                                    'image' in (p as Record<string, unknown>) ||
+                                    'url' in (p as Record<string, unknown>))
                         );
                         if (imgPart) {
                             if (imgPart.data && imgPart.mimeType) {
@@ -290,20 +333,26 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'error': {
-                    // Ensure that error messages are always rendered as readable text.
-                    const rawMsg = payload.message ?? 'Unknown error';
-                    const errMsg =
-                        typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg, null, 2);
+                    // Extract meaningful error messages from potentially nested error payloads
+                    const errMsg = extractErrorMessage(payload);
 
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'system',
-                            content: errMsg,
-                            createdAt: Date.now(),
-                        },
-                    ]);
+                    // Clean up thinking messages like other terminal events
+                    setMessages((ms) =>
+                        ms.filter(
+                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                        )
+                    );
+
+                    // Set error as separate state, not as a message
+                    setActiveError({
+                        id: generateUniqueId(),
+                        message: errMsg,
+                        timestamp: Date.now(),
+                        context: payload.context,
+                        recoverable: payload.recoverable,
+                        sessionId: payload.sessionId,
+                        anchorMessageId: lastUserMessageIdRef.current || undefined,
+                    });
                     break;
                 }
                 default:
@@ -335,10 +384,12 @@ export function useChat(wsUrl: string) {
                 wsRef.current.send(JSON.stringify(message));
 
                 // Add user message to local state immediately
+                const userId = generateUniqueId();
+                lastUserMessageIdRef.current = userId;
                 setMessages((ms) => [
                     ...ms,
                     {
-                        id: generateUniqueId(),
+                        id: userId,
                         role: 'user',
                         content,
                         createdAt: Date.now(),
@@ -356,6 +407,14 @@ export function useChat(wsUrl: string) {
                         })
                     );
                 }
+            } else {
+                setActiveError({
+                    id: generateUniqueId(),
+                    message: 'Cannot send message: connection is not open',
+                    timestamp: Date.now(),
+                    context: 'websocket',
+                    recoverable: true,
+                });
             }
         },
         []
@@ -366,7 +425,24 @@ export function useChat(wsUrl: string) {
             wsRef.current.send(JSON.stringify({ type: 'reset', sessionId }));
         }
         setMessages([]);
+        setActiveError(null); // Clear errors on reset
+        lastImageUriRef.current = null;
+        lastUserMessageIdRef.current = null;
     }, []);
 
-    return { messages, status, sendMessage, reset, setMessages, websocket: wsRef.current };
+    const clearError = useCallback(() => {
+        setActiveError(null);
+    }, []);
+
+    return {
+        messages,
+        status,
+        sendMessage,
+        reset,
+        setMessages,
+        websocket: wsRef.current,
+        // Error state
+        activeError,
+        clearError,
+    };
 }

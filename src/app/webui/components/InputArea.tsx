@@ -509,33 +509,59 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             </Button>
           </div>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
-                disabled={isLoadingModel}
-              >
-                <Bot className="h-3 w-3 mr-1.5" />
-                <span className="hidden sm:inline">
-                  {isLoadingModel ? '...' : currentModel}
-                </span>
-                <ChevronDown className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {coreModels.map((model) => (
-                <DropdownMenuItem 
-                  key={model.model}
-                  onClick={() => handleModelSwitch(model)}
+          <div className="flex items-center gap-3">
+            {/* Streaming Toggle (welcome) */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 cursor-pointer">
+                    <Zap className={`h-3 w-3 ${isStreaming ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                    <Switch
+                      checked={isStreaming}
+                      onCheckedChange={setStreaming}
+                      className="scale-75"
+                      aria-label="Toggle streaming"
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{isStreaming ? 'Streaming enabled' : 'Streaming disabled'}</p>
+                  <p className="text-xs opacity-75">
+                    {isStreaming ? 'Responses will stream in real-time' : 'Responses will arrive all at once'}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Model Selector (welcome) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                  disabled={isLoadingModel}
                 >
-                  <Bot className="h-4 w-4 mr-2" />
-                  {model.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <Bot className="h-3 w-3 mr-1.5" />
+                  <span className="hidden sm:inline">
+                    {isLoadingModel ? '...' : currentModel}
+                  </span>
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {coreModels.map((model) => (
+                  <DropdownMenuItem 
+                    key={model.model}
+                    onClick={() => handleModelSwitch(model)}
+                  >
+                    <Bot className="h-4 w-4 mr-2" />
+                    {model.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         
         {/* Hidden inputs for welcome variant */}
