@@ -187,8 +187,7 @@ export class OpenAIService implements ILLMService {
                     }
                 }
 
-                // Notify thinking for next iteration
-                this.sessionEventBus.emit('llmservice:thinking');
+                // Continue to next iteration without additional thinking notification
             }
 
             // If we reached max iterations, return a message
@@ -263,9 +262,7 @@ export class OpenAIService implements ILLMService {
     }
 
     // Helper methods
-    private async getAIResponseWithRetries(
-        tools: any[]
-    ): Promise<{
+    private async getAIResponseWithRetries(tools: any[]): Promise<{
         message: OpenAI.Chat.Completions.ChatCompletionMessage;
         usage?: OpenAI.Completions.CompletionUsage;
     }> {
