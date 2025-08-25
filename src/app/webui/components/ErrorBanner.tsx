@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, Copy, X } from 'lucide-react';
-import { cn } from "@/lib/utils";
 import { ErrorMessage } from './hooks/useChat';
 
 interface ErrorBannerProps {
@@ -33,18 +32,18 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
   };
 
   return (
-    <div className="w-full bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+    <div className="w-full rounded-lg p-4 mb-4 border shadow-sm bg-destructive/10 border-destructive/40">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+        <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium text-red-800">
+              <h3 className="text-sm font-medium text-destructive">
                 Error
               </h3>
               {error.context && (
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-destructive/15 text-destructive px-2 py-0.5 rounded-full">
                   {error.context}
                 </span>
               )}
@@ -53,7 +52,7 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1 hover:bg-red-100 rounded text-red-600"
+                className="p-1 hover:bg-destructive/15 rounded text-destructive"
                 title={isExpanded ? "Collapse" : "Expand"}
               >
                 {isExpanded ? (
@@ -65,7 +64,7 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
               
               <button
                 onClick={copyToClipboard}
-                className="p-1 hover:bg-red-100 rounded text-red-600"
+                className="p-1 hover:bg-destructive/15 rounded text-destructive"
                 title="Copy error"
               >
                 <Copy className="h-4 w-4" />
@@ -73,7 +72,7 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
               
               <button
                 onClick={onDismiss}
-                className="p-1 hover:bg-red-100 rounded text-red-600"
+                className="p-1 hover:bg-destructive/15 rounded text-destructive"
                 title="Dismiss"
               >
                 <X className="h-4 w-4" />
@@ -83,7 +82,7 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
           
           {isExpanded && (
             <div className="mt-3">
-              <pre className="text-xs text-red-700 bg-red-100 p-3 rounded border whitespace-pre-wrap overflow-auto max-h-60">
+              <pre className="text-xs text-destructive bg-destructive/10 p-3 rounded border border-destructive/30 whitespace-pre-wrap overflow-auto max-h-60">
                 {error.message}
               </pre>
             </div>
@@ -92,7 +91,7 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
       </div>
       
       {copySuccess && (
-        <div className="mt-2 text-xs text-green-600">
+        <div className="mt-2 text-xs text-foreground">
           ✓ Copied to clipboard
         </div>
       )}
