@@ -137,7 +137,6 @@ Fired when agent state is exported as configuration.
 ```typescript
 {
   config: AgentConfig;
-  runtimeSettings: any;
 }
 ```
 

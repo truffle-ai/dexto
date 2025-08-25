@@ -293,7 +293,7 @@ export class VercelLLMService implements ILLMService {
                         for (const toolCall of step.toolCalls) {
                             this.sessionEventBus.emit('llmservice:toolCall', {
                                 toolName: toolCall.toolName,
-                                args: toolCall.input,
+                                args: toolCall.input as Record<string, any>,
                                 callId: toolCall.toolCallId,
                             });
                         }
@@ -316,13 +316,21 @@ export class VercelLLMService implements ILLMService {
             // Emit final response with reasoning and token usage (authoritative)
             this.sessionEventBus.emit('llmservice:response', {
                 content: response.text,
-                reasoning: response.reasoningText,
+                ...(response.reasoningText && { reasoning: response.reasoningText }),
                 model: this.getModelId(),
                 tokenUsage: {
-                    inputTokens: response.totalUsage.inputTokens,
-                    outputTokens: response.totalUsage.outputTokens,
-                    reasoningTokens: response.totalUsage.reasoningTokens,
-                    totalTokens: response.totalUsage.totalTokens,
+                    ...(response.totalUsage.inputTokens !== undefined && {
+                        inputTokens: response.totalUsage.inputTokens,
+                    }),
+                    ...(response.totalUsage.outputTokens !== undefined && {
+                        outputTokens: response.totalUsage.outputTokens,
+                    }),
+                    ...(response.totalUsage.reasoningTokens !== undefined && {
+                        reasoningTokens: response.totalUsage.reasoningTokens,
+                    }),
+                    ...(response.totalUsage.totalTokens !== undefined && {
+                        totalTokens: response.totalUsage.totalTokens,
+                    }),
                 },
             });
 
@@ -473,7 +481,7 @@ export class VercelLLMService implements ILLMService {
                     for (const toolCall of step.toolCalls) {
                         this.sessionEventBus.emit('llmservice:toolCall', {
                             toolName: toolCall.toolName,
-                            args: toolCall.input,
+                            args: toolCall.input as Record<string, any>,
                             callId: toolCall.toolCallId,
                         });
                     }
@@ -516,13 +524,15 @@ export class VercelLLMService implements ILLMService {
         // Emit final response with reasoning and full token usage (authoritative)
         this.sessionEventBus.emit('llmservice:response', {
             content: finalText,
-            reasoning: reasoningText,
+            ...(reasoningText && { reasoning: reasoningText }),
             model: this.getModelId(),
             tokenUsage: {
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
-                reasoningTokens: usage.reasoningTokens,
-                totalTokens: usage.totalTokens,
+                ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
+                ...(usage.reasoningTokens !== undefined && {
+                    reasoningTokens: usage.reasoningTokens,
+                }),
+                ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
             },
         });
 

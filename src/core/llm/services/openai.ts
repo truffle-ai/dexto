@@ -112,7 +112,7 @@ export class OpenAIService implements ILLMService {
                     this.sessionEventBus.emit('llmservice:response', {
                         content: responseText,
                         model: this.config.model,
-                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+                        ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     });
                     return responseText;
                 }
@@ -205,7 +205,7 @@ export class OpenAIService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
                 model: this.config.model,
-                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+                ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             });
             return finalResponse;
         } catch (error) {
@@ -263,7 +263,12 @@ export class OpenAIService implements ILLMService {
     }
 
     // Helper methods
-    private async getAIResponseWithRetries(tools: any[]): Promise<{ message: any; usage?: any }> {
+    private async getAIResponseWithRetries(
+        tools: any[]
+    ): Promise<{
+        message: OpenAI.Chat.Completions.ChatCompletionMessage;
+        usage?: OpenAI.Completions.CompletionUsage;
+    }> {
         let attempts = 0;
         const MAX_ATTEMPTS = 3;
 
@@ -311,7 +316,7 @@ export class OpenAIService implements ILLMService {
                 // Get usage information
                 const usage = response.usage;
 
-                return { message, usage };
+                return { message, ...(usage && { usage }) };
             } catch (error) {
                 const apiError = error as any;
                 logger.error(
