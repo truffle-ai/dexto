@@ -70,19 +70,16 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-5',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
-                supportedRouters: ['in-built'],
             },
             {
                 name: 'gpt-5-mini',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
-                supportedRouters: ['in-built'],
             },
             {
                 name: 'gpt-5-nano',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
-                supportedRouters: ['in-built'],
             },
             { name: 'gpt-4.1', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
             {
