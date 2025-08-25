@@ -60,7 +60,7 @@ export const TestConfigs = {
             systemPrompt: 'You are a helpful assistant for testing purposes.',
             llm: {
                 provider,
-                model: 'gpt-4o-mini', // Use cheapest model for testing
+                model: 'gpt-5-nano', // Use cheapest model for testing
                 apiKey,
                 maxOutputTokens: 100, // Keep costs low
                 temperature: 0, // Deterministic responses

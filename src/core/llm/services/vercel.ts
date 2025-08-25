@@ -357,7 +357,7 @@ export class VercelLLMService implements ILLMService {
                     LLMErrorCode.RATE_LIMIT_EXCEEDED,
                     ErrorScope.LLM,
                     ErrorType.RATE_LIMIT,
-                    'Rate limit exceeded',
+                    `Rate limit exceeded${body ? ` - ${body}` : ''}`,
                     {
                         sessionId: this.sessionId,
                         provider: this.config.provider,
@@ -374,7 +374,7 @@ export class VercelLLMService implements ILLMService {
                     LLMErrorCode.GENERATION_FAILED,
                     ErrorScope.LLM,
                     ErrorType.TIMEOUT,
-                    'Provider timed out',
+                    `Provider timed out${body ? ` - ${body}` : ''}`,
                     {
                         sessionId: this.sessionId,
                         provider: this.config.provider,
@@ -389,7 +389,7 @@ export class VercelLLMService implements ILLMService {
                 LLMErrorCode.GENERATION_FAILED,
                 ErrorScope.LLM,
                 ErrorType.THIRD_PARTY,
-                `Provider error ${status}`,
+                `Provider error ${status}${body ? ` - ${body}` : ''}`,
                 {
                     sessionId: this.sessionId,
                     provider: this.config.provider,
