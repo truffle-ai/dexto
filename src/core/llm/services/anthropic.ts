@@ -232,8 +232,7 @@ export class AnthropicService implements ILLMService {
                     }
                 }
 
-                // Notify thinking for next iteration
-                this.sessionEventBus.emit('llmservice:thinking');
+                // Continue to next iteration without additional thinking notification
             }
 
             // If we reached max iterations
