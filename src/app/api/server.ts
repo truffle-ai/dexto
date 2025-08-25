@@ -22,7 +22,7 @@ import os from 'os';
 import { resolveBundledScript } from '@core/index.js';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
 import { z } from 'zod';
-import { LLMUpdatesSchema } from '@core/llm/schemas.js';
+import { LLMConfigBaseSchema } from '@core/llm/schemas.js';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { validateInputForLLM } from '@core/llm/validation.js';
 import {
@@ -52,12 +52,25 @@ function sendJsonResponse(res: any, data: any, statusCode = 200) {
 
 /**
  * Schema for LLM switch API requests
+ * Note: LLMUpdatesSchema is strict(), so intersecting with a separate
+ * { sessionId } object would reject the sessionId key. Build a single
+ * object schema that includes sessionId and the updatable LLM fields.
  */
-const LLMSwitchRequestSchema = z
-    .object({
+const LLMSwitchRequestSchema = LLMConfigBaseSchema.partial()
+    .extend({
         sessionId: z.string().optional(),
     })
-    .and(LLMUpdatesSchema);
+    .strict()
+    .superRefine((data, ctx) => {
+        // Mirror LLMUpdatesSchema rule: require at least model or provider
+        if (!data.model && !data.provider) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'At least model or provider must be specified for LLM switch',
+                path: [],
+            });
+        }
+    });
 
 /**
  * API request validation schemas based on actual usage
