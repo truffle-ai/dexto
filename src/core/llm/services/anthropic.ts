@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { MessageParam, MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources';
+import { MessageParam } from '@anthropic-ai/sdk/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { ToolSet } from '../../tools/types.js';

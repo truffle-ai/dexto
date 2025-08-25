@@ -4,7 +4,6 @@ import {
     TestConfigs,
     requiresApiKey,
     cleanupTestEnvironment,
-    TestEnvironment,
 } from './test-utils.integration.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
