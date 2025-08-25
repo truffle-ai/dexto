@@ -12,6 +12,8 @@ import { OpenAIService } from './openai.js';
 import { AnthropicService } from './anthropic.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@core/errors/index.js';
+import { LLMErrorCode } from '../error-codes.js';
 import { LLMRouter } from '../registry.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';

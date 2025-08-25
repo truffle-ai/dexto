@@ -233,7 +233,9 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 // cleanup listener
                 try {
                     openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
-                } catch {}
+                } catch (_e) {
+                    void 0; // ignore
+                }
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
@@ -268,7 +270,9 @@ describe('Vercel AI SDK LLM Service Integration', () => {
             } finally {
                 try {
                     openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
-                } catch {}
+                } catch (_e) {
+                    void 0; // ignore
+                }
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
@@ -303,7 +307,9 @@ describe('Vercel AI SDK LLM Service Integration', () => {
             } finally {
                 try {
                     openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
-                } catch {}
+                } catch (_e) {
+                    void 0; // ignore
+                }
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
