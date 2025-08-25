@@ -57,7 +57,7 @@ export class AnthropicService implements ILLMService {
         );
     }
 
-    getAllTools(): Promise<any> {
+    getAllTools(): Promise<ToolSet> {
         return this.toolManager.getAllTools();
     }
 
@@ -283,9 +283,13 @@ export class AnthropicService implements ILLMService {
         };
     }
 
-    private formatToolsForClaude(tools: ToolSet): any[] {
+    private formatToolsForClaude(tools: ToolSet): Anthropic.Tool[] {
         return Object.entries(tools).map(([toolName, tool]) => {
-            const input_schema: { type: string; properties: any; required: string[] } = {
+            const input_schema: {
+                type: 'object';
+                properties: Record<string, any>;
+                required: string[];
+            } = {
                 type: 'object',
                 properties: {},
                 required: [],
@@ -294,7 +298,7 @@ export class AnthropicService implements ILLMService {
             // Map tool parameters to JSON Schema format
             if (tool.parameters) {
                 // The actual parameters structure appears to be a JSON Schema object
-                const jsonSchemaParams = tool.parameters as any;
+                const jsonSchemaParams = tool.parameters as Record<string, any>;
 
                 if (jsonSchemaParams.type === 'object' && jsonSchemaParams.properties) {
                     input_schema.properties = jsonSchemaParams.properties;
@@ -314,7 +318,7 @@ export class AnthropicService implements ILLMService {
 
             return {
                 name: toolName,
-                description: tool.description,
+                description: tool.description || '',
                 input_schema: input_schema,
             };
         });
