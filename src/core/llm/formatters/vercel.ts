@@ -1,4 +1,12 @@
-import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
+import type {
+    ModelMessage,
+    AssistantContent,
+    ToolContent,
+    ToolResultPart,
+    TextPart as VercelTextPart,
+    ImagePart as VercelImagePart,
+    FilePart as VercelFilePart,
+} from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
@@ -12,7 +20,7 @@ import { logger } from '@core/logger/index.js';
  * Converts the internal message format to Vercel's specific structure:
  * - System prompt is included in the messages array
  * - Tool calls use function_call property instead of tool_calls
- * - Tool results use the 'function' role instead of 'tool'
+ * - Tool results use the 'tool' role (SDK v5)
  *
  * Note: Vercel's implementation is different from OpenAI's standard,
  * particularly in its handling of function calls and responses.
@@ -160,6 +168,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                             role: 'user',
                             content: [{ type: 'text', text: msg.content }],
                         });
+                    } else if (Array.isArray(msg.content)) {
+                        const srcParts = msg.content as Array<
+                            VercelTextPart | VercelImagePart | VercelFilePart
+                        >;
+                        const parts = srcParts.map((p) => {
+                            if (p.type === 'text') return { type: 'text', text: p.text } as const;
+                            if (p.type === 'image')
+                                return {
+                                    type: 'image',
+                                    image: p.image,
+                                    mimeType: p.mediaType ?? 'image/jpeg',
+                                } as const;
+                            if (p.type === 'file')
+                                return {
+                                    type: 'file',
+                                    data: p.data,
+                                    mimeType: p.mediaType,
+                                    filename: p.filename,
+                                } as const;
+                            return { type: 'text', text: JSON.stringify(p) } as const;
+                        });
+                        internal.push({
+                            role: 'user',
+                            content: parts as InternalMessage['content'],
+                        });
                     }
                     break;
                 case 'assistant': {
@@ -246,7 +279,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
     }
 
     // Helper to format Assistant messages (with optional tool calls)
-    // Todo: improve typingwhen InternalMessage type is updated
+    // TODO: improve typing when InternalMessage type is updated
     private formatAssistantMessage(msg: InternalMessage): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
@@ -309,7 +342,12 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 };
             }
         }
-        return { content: msg.content as AssistantContent };
+        return {
+            content:
+                typeof msg.content === 'string'
+                    ? [{ type: 'text', text: msg.content }]
+                    : (msg.content as AssistantContent),
+        };
     }
 
     // Helper to format Tool result messages

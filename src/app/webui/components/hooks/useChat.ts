@@ -119,12 +119,22 @@ export function useChat(wsUrl: string) {
         wsRef.current = ws;
         ws.onopen = () => setStatus('open');
         ws.onclose = () => setStatus('closed');
+        ws.onerror = (_evt) => {
+            setStatus('closed');
+            setActiveError({
+                id: generateUniqueId(),
+                message: 'Connection error. Please try again.',
+                timestamp: Date.now(),
+                context: 'websocket',
+            });
+        };
         ws.onmessage = (event: globalThis.MessageEvent) => {
             let msg: any;
             try {
                 msg = JSON.parse(event.data);
-            } catch (err: any) {
-                console.error('WebSocket message parse error:', event.data, err);
+            } catch (err: unknown) {
+                const em = extractErrorMessage(err);
+                console.error(`[useChat] WebSocket message parse error: ${em}`);
                 return; // Skip malformed message
             }
             const payload = msg.data || {};
@@ -235,6 +245,8 @@ export function useChat(wsUrl: string) {
                 }
                 case 'conversationReset':
                     setMessages([]);
+                    lastImageUriRef.current = null;
+                    lastUserMessageIdRef.current = null;
                     break;
                 case 'toolCall': {
                     const name = payload.toolName;
@@ -258,8 +270,22 @@ export function useChat(wsUrl: string) {
                     // Extract image URI from tool result, supporting data+mimetype
                     let uri: string | null = null;
                     if (result && Array.isArray(result.content)) {
-                        const imgPart: any = result.content.find(
-                            (p: any) => p.type === 'image' && (p.data || p.image || p.url)
+                        const imgPart = result.content.find(
+                            (
+                                p: unknown
+                            ): p is {
+                                type: 'image';
+                                data?: string;
+                                image?: string;
+                                url?: string;
+                                mimeType?: string;
+                            } =>
+                                typeof p === 'object' &&
+                                p !== null &&
+                                (p as { type?: unknown }).type === 'image' &&
+                                ('data' in (p as Record<string, unknown>) ||
+                                    'image' in (p as Record<string, unknown>) ||
+                                    'url' in (p as Record<string, unknown>))
                         );
                         if (imgPart) {
                             if (imgPart.data && imgPart.mimeType) {
@@ -381,6 +407,14 @@ export function useChat(wsUrl: string) {
                         })
                     );
                 }
+            } else {
+                setActiveError({
+                    id: generateUniqueId(),
+                    message: 'Cannot send message: connection is not open',
+                    timestamp: Date.now(),
+                    context: 'websocket',
+                    recoverable: true,
+                });
             }
         },
         []
@@ -392,6 +426,8 @@ export function useChat(wsUrl: string) {
         }
         setMessages([]);
         setActiveError(null); // Clear errors on reset
+        lastImageUriRef.current = null;
+        lastUserMessageIdRef.current = null;
     }, []);
 
     const clearError = useCallback(() => {

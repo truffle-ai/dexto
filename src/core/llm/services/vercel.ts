@@ -125,7 +125,7 @@ export class VercelLLMService implements ILLMService {
     }
 
     private async validateToolSupport(): Promise<boolean> {
-        const modelKey = `${this.config.provider}:${this.getModelId()}`;
+        const modelKey = `${this.config.provider}:${this.getModelId()}:${this.config.baseURL ?? ''}`;
 
         // Check cache first
         if (this.toolSupportCache.has(modelKey)) {
@@ -448,6 +448,7 @@ export class VercelLLMService implements ILLMService {
                     error: toError(error),
                     context: 'streamText',
                     recoverable: false,
+                    model: this.getModelId(),
                 });
                 streamErr = error;
             },
