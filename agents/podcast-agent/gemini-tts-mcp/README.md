@@ -9,6 +9,7 @@ A Model Context Protocol (MCP) server for Google Gemini Text-to-Speech (TTS) wit
 - **Natural Language Tone Control**: Apply tone instructions like "Say cheerfully:" or "Speak in a formal tone:"
 - **Multiple Language Support**: Support for 24+ languages with automatic detection
 - **Flexible Output**: Save audio files with descriptive names and custom directories
+- **Rate Limit Handling**: Automatically returns dummy audio when encountering 429 rate limit errors
 
 ## Installation
 
@@ -207,6 +208,18 @@ The server provides detailed error messages for common issues:
 - **Invalid Voice**: Use one of the available voices from the list
 - **Network Issues**: Check your internet connection and API key validity
 - **File System Errors**: Ensure output directories are writable
+- **Rate Limit (429)**: Automatically returns dummy audio when rate limits are exceeded
+
+### Rate Limit Handling
+
+When the Gemini API returns a 429 status code (rate limit exceeded), the server automatically:
+
+1. **Generates dummy audio**: Creates a 2-second sine wave tone (440 Hz) as a fallback
+2. **Saves the file**: Stores the dummy audio with a descriptive filename
+3. **Returns structured response**: Provides both text notification and audio data
+4. **Logs the event**: Records the rate limit event for monitoring
+
+This ensures your application continues to function even when API rate limits are hit, providing a graceful degradation experience.
 
 ## License
 

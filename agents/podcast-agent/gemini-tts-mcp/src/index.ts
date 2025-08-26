@@ -98,6 +98,26 @@ function saveAudioFile(filePath: string, audioData: Buffer): void {
     writeFileSync(filePath, audioData);
 }
 
+// --- Dummy Audio Generation ---
+function generateDummyAudio(durationSeconds: number = 2.0): Buffer {
+    const sampleRate = 24000;
+    const samples = Math.floor(sampleRate * durationSeconds);
+
+    // Create a simple sine wave tone (440 Hz)
+    const frequency = 440;
+    const amplitude = 0.1; // Low amplitude to avoid clipping
+
+    const pcmData = Buffer.alloc(samples * 2); // 16-bit = 2 bytes per sample
+
+    for (let i = 0; i < samples; i++) {
+        const sample = Math.sin((2 * Math.PI * frequency * i) / sampleRate) * amplitude;
+        const intSample = Math.floor(sample * 32767); // Convert to 16-bit integer
+        pcmData.writeInt16LE(intSample, i * 2);
+    }
+
+    return convertPCMToWAV(pcmData, sampleRate);
+}
+
 // --- Tool Schemas ---
 const GenerateSpeechSchema = z.object({
     text: z.string().describe('Text to convert to speech'),
@@ -166,7 +186,7 @@ function convertPCMToWAV(pcmData: Buffer, sampleRate: number = 24000): Buffer {
 }
 
 // --- Tool Implementations ---
-async function generateSpeech(input: z.infer<typeof GenerateSpeechSchema>): Promise<string> {
+async function generateSpeech(input: z.infer<typeof GenerateSpeechSchema>): Promise<any> {
     const { text, voice_name, tone, output_directory } = input;
 
     if (!checkApiKey()) {
@@ -209,6 +229,34 @@ async function generateSpeech(input: z.infer<typeof GenerateSpeechSchema>): Prom
         );
 
         if (!response.ok) {
+            if (response.status === 429) {
+                console.warn('Received 429 rate limit error, returning dummy audio.');
+                const dummyWavBuffer = generateDummyAudio();
+
+                // Save to file
+                const outputPath = makeOutputPath(output_directory);
+                const outputFilename = makeOutputFile('dummy_speech', text, 'wav');
+                const outputFile = join(outputPath, outputFilename);
+
+                saveAudioFile(outputFile, dummyWavBuffer);
+
+                const voiceDescription = VOICES[voice_name as keyof typeof VOICES];
+
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `⚠️ Rate limit exceeded (429), returning dummy audio using voice ${voice_name} (${voiceDescription})\n📁 Saved as: ${outputFile}\n⏱️ Duration: 2.0s`,
+                        },
+                        {
+                            type: 'audio',
+                            data: dummyWavBuffer.toString('base64'),
+                            mimeType: 'audio/wav',
+                            filename: outputFilename,
+                        },
+                    ],
+                };
+            }
             throw new Error(`API request failed: ${response.status} ${response.statusText}`);
         }
 
@@ -232,7 +280,25 @@ async function generateSpeech(input: z.infer<typeof GenerateSpeechSchema>): Prom
 
         saveAudioFile(outputFile, wavBuffer);
 
-        return `Success! Audio saved as: ${outputFile}\nVoice used: ${voice_name} (${VOICES[voice_name as keyof typeof VOICES]})\nDuration: ${(wavBuffer.length / 48000).toFixed(2)}s`;
+        // Calculate duration estimate
+        const durationSeconds = (wavBuffer.length / 48000).toFixed(2);
+        const voiceDescription = VOICES[voice_name as keyof typeof VOICES];
+
+        // Return structured content with both text and audio data
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: `🎵 Audio generated successfully using voice ${voice_name} (${voiceDescription})\n📁 Saved as: ${outputFile}\n⏱️ Duration: ${durationSeconds}s`,
+                },
+                {
+                    type: 'audio',
+                    data: wavBuffer.toString('base64'),
+                    mimeType: 'audio/wav',
+                    filename: outputFilename,
+                },
+            ],
+        };
     } catch (error: any) {
         console.error('Error generating speech:', error);
         throw new Error(`Failed to generate speech: ${error.message}`);
@@ -241,7 +307,7 @@ async function generateSpeech(input: z.infer<typeof GenerateSpeechSchema>): Prom
 
 async function generateMultiSpeakerSpeech(
     input: z.infer<typeof GenerateMultiSpeakerSpeechSchema>
-): Promise<string> {
+): Promise<any> {
     const { text, speakers, output_directory } = input;
 
     if (!checkApiKey()) {
@@ -295,6 +361,40 @@ async function generateMultiSpeakerSpeech(
         );
 
         if (!response.ok) {
+            if (response.status === 429) {
+                console.warn('Received 429 rate limit error, returning dummy audio.');
+                const dummyWavBuffer = generateDummyAudio();
+
+                // Save to file
+                const outputPath = makeOutputPath(output_directory);
+                const outputFilename = makeOutputFile('dummy_multi_speech', text, 'wav');
+                const outputFile = join(outputPath, outputFilename);
+
+                saveAudioFile(outputFile, dummyWavBuffer);
+
+                // Create speaker summary
+                const speakerSummary = speakers
+                    .map(
+                        (speaker) =>
+                            `- ${speaker.name}: ${speaker.voice} (${VOICES[speaker.voice as keyof typeof VOICES]})`
+                    )
+                    .join('\n');
+
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `⚠️ Rate limit exceeded (429), returning dummy audio\n📁 Saved as: ${outputFile}\n⏱️ Duration: 2.0s\n\n👥 Speakers:\n${speakerSummary}`,
+                        },
+                        {
+                            type: 'audio',
+                            data: dummyWavBuffer.toString('base64'),
+                            mimeType: 'audio/wav',
+                            filename: outputFilename,
+                        },
+                    ],
+                };
+            }
             throw new Error(`API request failed: ${response.status} ${response.statusText}`);
         }
 
@@ -318,6 +418,9 @@ async function generateMultiSpeakerSpeech(
 
         saveAudioFile(outputFile, wavBuffer);
 
+        // Calculate duration estimate
+        const durationSeconds = (wavBuffer.length / 48000).toFixed(2);
+
         // Create speaker summary
         const speakerSummary = speakers
             .map(
@@ -326,7 +429,21 @@ async function generateMultiSpeakerSpeech(
             )
             .join('\n');
 
-        return `Success! Multi-speaker audio saved as: ${outputFile}\n\nSpeakers:\n${speakerSummary}\nDuration: ${(wavBuffer.length / 48000).toFixed(2)}s`;
+        // Return structured content with both text and audio data
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: `🎭 Multi-speaker audio generated successfully\n📁 Saved as: ${outputFile}\n⏱️ Duration: ${durationSeconds}s\n\n👥 Speakers:\n${speakerSummary}`,
+                },
+                {
+                    type: 'audio',
+                    data: wavBuffer.toString('base64'),
+                    mimeType: 'audio/wav',
+                    filename: outputFilename,
+                },
+            ],
+        };
     } catch (error: any) {
         console.error('Error generating multi-speaker speech:', error);
         throw new Error(`Failed to generate multi-speaker speech: ${error.message}`);
@@ -354,7 +471,7 @@ interface ToolDefinition<TInput = any> {
     name: string;
     description: string;
     inputSchema: ZodSchema<TInput>;
-    executeLogic: (input: TInput) => Promise<string>;
+    executeLogic: (input: TInput) => Promise<any>;
 }
 
 // --- Tool Definitions ---
@@ -490,8 +607,27 @@ server.setRequestHandler(
             const validatedArgs = tool.inputSchema.parse(rawArgs);
             const result = await tool.executeLogic(validatedArgs);
 
+            // Handle structured content responses (audio generation tools)
+            if (
+                result &&
+                typeof result === 'object' &&
+                result.content &&
+                Array.isArray(result.content)
+            ) {
+                return {
+                    content: result.content,
+                    isError: false,
+                };
+            }
+
+            // Handle simple string responses (list tools)
             return {
-                content: [{ type: 'text', text: result }],
+                content: [
+                    {
+                        type: 'text',
+                        text: typeof result === 'string' ? result : JSON.stringify(result),
+                    },
+                ],
                 isError: false,
             };
         } catch (error: any) {
