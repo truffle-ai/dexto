@@ -56,6 +56,54 @@ export default function ChatApp() {
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
 
+  // Scroll management for robust autoscroll
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const listContentRef = React.useRef<HTMLDivElement | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isScrollingToBottom, setIsScrollingToBottom] = useState(false);
+
+  const recomputeIsAtBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
+    setIsAtBottom(nearBottom);
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setIsScrollingToBottom(true);
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    // Release the lock on next frame to allow ResizeObserver to settle
+    requestAnimationFrame(() => setIsScrollingToBottom(false));
+  }, []);
+
+  // Observe user scroll position
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      // When user scrolls up, disable autoscroll until they return to bottom
+      recomputeIsAtBottom();
+    };
+    el.addEventListener('scroll', onScroll);
+    // Initial compute in case of restored sessions
+    recomputeIsAtBottom();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [recomputeIsAtBottom]);
+
+  // Content resize observer to autoscroll when already near bottom
+  useEffect(() => {
+    const content = listContentRef.current;
+    if (!content) return;
+    const ro = new ResizeObserver(() => {
+      if (isScrollingToBottom) return;
+      if (isAtBottom) scrollToBottom('auto');
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, [isAtBottom, isScrollingToBottom, scrollToBottom]);
+
   useEffect(() => {
     if (isExportOpen) {
       // Include current session ID in config export if available
@@ -128,6 +176,8 @@ export default function ChatApp() {
     
     try {
       await sendMessage(content, imageData, fileData);
+      // After successfully queuing send, scroll to bottom to follow conversation
+      setTimeout(() => scrollToBottom('smooth'), 0);
     } catch (error) {
       console.error('Failed to send message:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to send message');
@@ -540,12 +590,21 @@ export default function ChatApp() {
             ) : (
               /* Messages Area */
               <div className="flex-1 min-h-0 overflow-hidden">
-                <div className="h-full overflow-y-auto">
+                <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
                   <MessageList 
                     messages={messages}
                     activeError={activeError}
                     onDismissError={clearError}
+                    outerRef={listContentRef}
                   />
+                  {/* Scroll to bottom button */}
+                  {!isAtBottom && (
+                    <div className="absolute bottom-20 right-4 z-10">
+                      <Button size="sm" variant="outline" onClick={() => scrollToBottom('smooth')}>
+                        Jump to latest
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -553,7 +612,7 @@ export default function ChatApp() {
             {/* Input Area - Only show when in chat state */}
             {!isWelcomeState && messages.length > 0 && (
               <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm sticky bottom-0">
-                <div className="p-4 max-h-[50vh] overflow-y-auto">
+                <div className="p-4">
                   <InputArea
                     onSend={handleSend}
                     isSending={isSendingMessage}

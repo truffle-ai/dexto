@@ -96,37 +96,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     fetchCurrentModel();
   }, [currentSessionId]); // Re-fetch whenever the session changes
 
-  const adjustTextareaHeight = useCallback(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      // More generous max height that adapts to viewport
-      const maxHeight = Math.min(400, window.innerHeight * 0.4); // Max 400px or 40% of viewport
-      const finalHeight = Math.min(scrollHeight, maxHeight);
-      
-      textareaRef.current.style.height = `${finalHeight}px`;
-      textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
-      
-      // Smooth scrolling for better UX
-      if (scrollHeight > maxHeight) {
-        textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [text, adjustTextareaHeight]);
-
-  // Handle window resize to recalculate textarea height
-  useEffect(() => {
-    const handleResize = () => {
-      adjustTextareaHeight();
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [adjustTextareaHeight]);
+  // NOTE: We intentionally do not manually resize the textarea. We rely on
+  // CSS max-height + overflow to keep layout stable.
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -136,16 +107,38 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     setText('');
     setImageData(null);
     setFileData(null);
-    if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.overflowY = 'hidden';
-    }
+    // Height handled by CSS; no imperative adjustments.
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  // Large paste guard to prevent layout from exploding with very large text
+  const LARGE_PASTE_THRESHOLD = 20000; // characters
+  const toBase64 = (str: string) => {
+    try {
+      return btoa(unescape(encodeURIComponent(str)));
+    } catch {
+      return btoa(str);
+    }
+  };
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text/plain');
+    if (!pasted) return;
+    if (pasted.length <= LARGE_PASTE_THRESHOLD) return;
+    e.preventDefault();
+    const attach = window.confirm(
+      'Large text detected. Attach as a file instead of inflating the input?\n(OK = attach as file, Cancel = paste truncated preview)'
+    );
+    if (attach) {
+      setFileData({ base64: toBase64(pasted), mimeType: 'text/plain', filename: 'pasted.txt' });
+    } else {
+      const preview = pasted.slice(0, LARGE_PASTE_THRESHOLD);
+      setText((prev) => prev + preview);
     }
   };
 
@@ -430,9 +423,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder="Ask me anything..."
               rows={1}
-              className="min-h-[42px] pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
+              className="min-h-[42px] max-h-[40vh] overflow-auto pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
             />
             <Button
               type="submit"
@@ -767,9 +761,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder="Ask Dexto anything..."
               rows={1}
-              className="resize-none min-h-[42px] w-full border-input bg-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-xl p-3 pr-32 text-sm shadow-sm placeholder:text-muted-foreground/60"
+              className="resize-none min-h-[42px] max-h-[40vh] overflow-auto w-full border-input bg-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-xl p-3 pr-32 text-sm shadow-sm placeholder:text-muted-foreground/60"
             />
             
             {/* Controls - Model Selector and Streaming Toggle */}
@@ -855,14 +850,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => { 
-              setText(''); 
+            onClick={() => {
+              setText('');
               setImageData(null); 
               setFileData(null);
-              if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
-                textareaRef.current.style.overflowY = 'hidden';
-              }
             }}
             className="flex-shrink-0 text-muted-foreground hover:text-destructive rounded-lg p-2 ml-1 h-10 w-10"
             aria-label="Clear input"

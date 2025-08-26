@@ -23,6 +23,12 @@ interface MessageListProps {
   messages: Message[];
   activeError?: ErrorMessage | null;
   onDismissError?: () => void;
+  /**
+   * Optional ref to the outer content container so parents can observe size
+   * changes (for robust autoscroll). When provided, it is attached to the
+   * top-level wrapping div around the list content.
+   */
+  outerRef?: React.Ref<HTMLDivElement>;
 }
 
 // Helper to format timestamp from createdAt
@@ -37,19 +43,14 @@ function isValidDataUri(src: string): boolean {
   return dataUriRegex.test(src);
 }
 
-export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
+export default function MessageList({ messages, activeError, onDismissError, outerRef }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [messages]);
+  // NOTE: Autoscroll is now delegated to the parent (ChatApp) which
+  // observes size changes and maintains isAtBottom state.
 
   if (!messages || messages.length === 0) {
     return null;
@@ -69,7 +70,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
   };
 
   return (
-    <div id="message-list-container" className="flex flex-col space-y-3 px-4 py-2">
+    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-4 py-2">
       {messages.map((msg, idx) => {
         const msgKey = msg.id ?? `msg-${idx}`;
         const isUser = msg.role === 'user';
