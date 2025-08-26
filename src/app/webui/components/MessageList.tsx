@@ -107,9 +107,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
           msg.role === 'tool'
             ? "w-full text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-sm"
             : isUser
-            ? "p-3 rounded-xl shadow-sm max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-sm"
+            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-primary text-primary-foreground rounded-br-none text-sm break-normal hyphens-none"
             : isAi
-            ? "p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm"
+            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-card text-card-foreground border border-border rounded-bl-none text-sm break-normal hyphens-none"
             : isSystem
             ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
@@ -126,7 +126,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
               {isAi && <AvatarComponent className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
               {msg.role === 'tool' && <Wrench className="h-7 w-7 p-1 mr-3 mt-1 rounded-full border border-border text-muted-foreground self-start flex-shrink-0" />}
               
-              <div className={cn("flex flex-col group", isUser ? "items-end" : "items-start", isSystem && "w-full items-center")}> 
+              <div className={cn("flex flex-col group w-full", isUser ? "items-end" : "items-start", isSystem && "items-center")}> 
               <div className={bubbleSpecificClass}>
                 <div className={contentWrapperClass}>
                   {/* Reasoning panel (assistant only) - display at top */}
@@ -249,7 +249,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
                         <div className="relative">
-                          <MarkdownText>{msg.content}</MarkdownText>
+                          {isUser ? (
+                            <p className="text-sm whitespace-pre-line break-normal">
+                              {msg.content}
+                            </p>
+                          ) : (
+                            <MarkdownText>{msg.content}</MarkdownText>
+                          )}
                         </div>
                       )}
 
@@ -264,7 +270,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                         if (part.type === 'text') {
                           return (
                             <div key={partKey} className="relative">
-                              <MarkdownText>{(part as TextPart).text}</MarkdownText>
+                              {isUser ? (
+                                <p className="text-sm whitespace-pre-line break-normal">
+                                  {(part as TextPart).text}
+                                </p>
+                              ) : (
+                                <MarkdownText>{(part as TextPart).text}</MarkdownText>
+                              )}
                             </div>
                           );
                         }

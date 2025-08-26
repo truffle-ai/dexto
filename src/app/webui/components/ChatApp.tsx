@@ -112,6 +112,11 @@ export default function ChatApp() {
     return () => ro.disconnect();
   }, [isAtBottom, isScrollingToBottom, followStreaming, scrollToBottom]);
 
+  // Fallback: if messages change during streaming, ensure we keep following
+  useEffect(() => {
+    if (followStreaming) scrollToBottom('auto');
+  }, [followStreaming, messages, scrollToBottom]);
+
   // Position the last user message near the top (ChatGPT-like) then follow streaming
   const positionLastUserNearTop = useCallback(() => {
     const container = scrollContainerRef.current;
