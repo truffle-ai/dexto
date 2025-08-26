@@ -419,7 +419,7 @@ export function validateModelFileSupport(
     error?: string;
 } {
     // Extract base MIME type by removing parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
-    const baseMimeType = mimeType.toLowerCase().split(';')[0].trim();
+    const baseMimeType = mimeType.toLowerCase().split(';')[0]?.trim() || mimeType.toLowerCase();
     const fileType = MIME_TYPE_TO_FILE_TYPE[baseMimeType];
     if (!fileType) {
         return {

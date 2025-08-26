@@ -154,7 +154,8 @@ function validateFileInput(
 
     // Security validation: MIME type allowlist
     // Extract base MIME type by removing parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
-    const baseMimeType = fileData.mimeType.toLowerCase().split(';')[0].trim();
+    const baseMimeType =
+        fileData.mimeType.toLowerCase().split(';')[0]?.trim() || fileData.mimeType.toLowerCase();
     const allowedMimeTypes = getAllowedMimeTypes();
     if (!allowedMimeTypes.includes(baseMimeType)) {
         return {
@@ -209,7 +210,9 @@ function validateImageInput(
     // Extract base MIME type by removing parameters (e.g., "image/jpeg;quality=85" -> "image/jpeg")
     const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (imageData.mimeType) {
-        const baseMimeType = imageData.mimeType.toLowerCase().split(';')[0].trim();
+        const baseMimeType =
+            imageData.mimeType.toLowerCase().split(';')[0]?.trim() ||
+            imageData.mimeType.toLowerCase();
         if (!supportedImageTypes.includes(baseMimeType)) {
             return {
                 isSupported: false,
