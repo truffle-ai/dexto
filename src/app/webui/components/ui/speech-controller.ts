@@ -21,7 +21,9 @@ class SpeechController {
             try {
                 const v = window.localStorage.getItem('ttsVoiceName');
                 this.preferredVoiceName = v && v.length ? v : null;
-            } catch {}
+            } catch {
+                /* noop */
+            }
 
             const populate = () => {
                 try {
@@ -33,12 +35,17 @@ class SpeechController {
                         this.voices = list;
                         this.voiceSubscribers.forEach((cb) => cb());
                     }
-                } catch {}
+                } catch {
+                    /* noop */
+                }
             };
             populate();
             try {
-                window.speechSynthesis.addEventListener('voiceschanged', populate as EventListener);
-            } catch {}
+                // Cast to any to avoid referencing DOM EventListener identifier at runtime
+                window.speechSynthesis.addEventListener('voiceschanged', populate as any);
+            } catch {
+                /* noop */
+            }
         }
     }
 
@@ -68,7 +75,9 @@ class SpeechController {
         if (!this.supported) return;
         try {
             window.speechSynthesis.cancel();
-        } catch {}
+        } catch {
+            /* noop */
+        }
         this.utterance = null;
         if (this._speaking) {
             this._speaking = false;
@@ -82,7 +91,7 @@ class SpeechController {
 
         this.stop();
 
-        const utter = new SpeechSynthesisUtterance(text);
+        const utter = new window.SpeechSynthesisUtterance(text);
         if (opts?.rate) utter.rate = opts.rate;
         if (opts?.pitch) utter.pitch = opts.pitch;
         const voice = this.resolveVoice();
@@ -90,7 +99,9 @@ class SpeechController {
             try {
                 utter.voice = voice;
                 utter.lang = voice.lang || opts?.lang || utter.lang;
-            } catch {}
+            } catch {
+                /* noop */
+            }
         } else if (opts?.lang) {
             utter.lang = opts.lang;
         }
@@ -115,6 +126,7 @@ class SpeechController {
                 this.notify();
             }
         } catch {
+            // ensure state resets if speaking fails
             end();
         }
     }
@@ -128,7 +140,9 @@ class SpeechController {
             if (this.preferredVoiceName)
                 window.localStorage.setItem('ttsVoiceName', this.preferredVoiceName);
             else window.localStorage.removeItem('ttsVoiceName');
-        } catch {}
+        } catch {
+            /* noop */
+        }
         this.voiceSubscribers.forEach((cb) => cb());
     }
     getPreferredVoiceName() {
