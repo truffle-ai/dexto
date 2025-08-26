@@ -61,6 +61,8 @@ export default function ChatApp() {
   const listContentRef = React.useRef<HTMLDivElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isScrollingToBottom, setIsScrollingToBottom] = useState(false);
+  const [followStreaming, setFollowStreaming] = useState(false);
+  const lastScrollTopRef = React.useRef(0);
 
   const recomputeIsAtBottom = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -83,26 +85,52 @@ export default function ChatApp() {
     const el = scrollContainerRef.current;
     if (!el) return;
     const onScroll = () => {
-      // When user scrolls up, disable autoscroll until they return to bottom
+      // When user scrolls up, disable followStreaming
+      const prev = lastScrollTopRef.current;
+      const curr = el.scrollTop;
+      if (!isScrollingToBottom && followStreaming && curr < prev) {
+        setFollowStreaming(false);
+      }
+      lastScrollTopRef.current = curr;
       recomputeIsAtBottom();
     };
     el.addEventListener('scroll', onScroll);
     // Initial compute in case of restored sessions
     recomputeIsAtBottom();
     return () => el.removeEventListener('scroll', onScroll);
-  }, [recomputeIsAtBottom]);
+  }, [recomputeIsAtBottom, followStreaming, isScrollingToBottom]);
 
-  // Content resize observer to autoscroll when already near bottom
+  // Content resize observer to autoscroll on content growth
   useEffect(() => {
     const content = listContentRef.current;
     if (!content) return;
     const ro = new ResizeObserver(() => {
       if (isScrollingToBottom) return;
-      if (isAtBottom) scrollToBottom('auto');
+      if (followStreaming || isAtBottom) scrollToBottom('auto');
     });
     ro.observe(content);
     return () => ro.disconnect();
-  }, [isAtBottom, isScrollingToBottom, scrollToBottom]);
+  }, [isAtBottom, isScrollingToBottom, followStreaming, scrollToBottom]);
+
+  // Position the last user message near the top (ChatGPT-like) then follow streaming
+  const positionLastUserNearTop = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const nodes = container.querySelectorAll('[data-role="user"]');
+    const el = nodes[nodes.length - 1] as HTMLElement | undefined;
+    if (!el) {
+      // Fallback to bottom
+      scrollToBottom('auto');
+      return;
+    }
+    const cRect = container.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    const offsetTop = eRect.top - cRect.top + container.scrollTop;
+    const target = Math.max(offsetTop - 16, 0);
+    setIsScrollingToBottom(true);
+    container.scrollTo({ top: target, behavior: 'auto' });
+    requestAnimationFrame(() => setIsScrollingToBottom(false));
+  }, [scrollToBottom]);
 
   useEffect(() => {
     if (isExportOpen) {
@@ -176,8 +204,12 @@ export default function ChatApp() {
     
     try {
       await sendMessage(content, imageData, fileData);
-      // After successfully queuing send, scroll to bottom to follow conversation
-      setTimeout(() => scrollToBottom('smooth'), 0);
+      // After sending, position the new user message near the top,
+      // then enable followStreaming to follow the assistant reply.
+      setTimeout(() => {
+        positionLastUserNearTop();
+        setFollowStreaming(true);
+      }, 0);
     } catch (error) {
       console.error('Failed to send message:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to send message');
@@ -185,7 +217,19 @@ export default function ChatApp() {
     } finally {
       setIsSendingMessage(false);
     }
-  }, [sendMessage]);
+  }, [sendMessage, positionLastUserNearTop]);
+
+  // Hook into existing custom events to toggle followStreaming
+  useEffect(() => {
+    const onStart = () => setFollowStreaming(true);
+    const onEnd = () => setFollowStreaming(false);
+    window.addEventListener('dexto:message', onStart as EventListener);
+    window.addEventListener('dexto:response', onEnd as EventListener);
+    return () => {
+      window.removeEventListener('dexto:message', onStart as EventListener);
+      window.removeEventListener('dexto:response', onEnd as EventListener);
+    };
+  }, []);
 
   const handleSessionChange = useCallback((sessionId: string) => {
     switchSession(sessionId);

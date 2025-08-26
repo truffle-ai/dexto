@@ -121,7 +121,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
         const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
 
         return (
-          <div key={msgKey} className="w-full">
+          <div key={msgKey} className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
             <div className={messageContainerClass}>
               {isAi && <AvatarComponent className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
               {msg.role === 'tool' && <Wrench className="h-7 w-7 p-1 mr-3 mt-1 rounded-full border border-border text-muted-foreground self-start flex-shrink-0" />}
