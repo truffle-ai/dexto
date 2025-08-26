@@ -37,7 +37,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
                       setTimeout(() => setCopied(false), 2000);
                     }).catch(() => {});
                   }}
-                  className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
+                  className="absolute right-2 top-2 z-10 opacity-70 hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
                 >
                   {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
                 </TooltipIconButton>
