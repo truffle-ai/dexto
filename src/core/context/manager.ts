@@ -410,6 +410,85 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Filters media content from tool results to prevent LLM context pollution.
+     * Replaces large binary data (especially audio) with lightweight text placeholders.
+     *
+     * @param result The original tool result
+     * @returns Filtered result with media content replaced by placeholders
+     */
+    private filterMediaContentFromToolResult(result: unknown): unknown {
+        if (!result || typeof result !== 'object') {
+            return result;
+        }
+
+        // Recursively filter large base64 strings from any object
+        const filterLargeBase64 = (obj: any): any => {
+            if (typeof obj === 'string') {
+                // If it's a base64 string longer than 1KB, truncate it
+                // More permissive regex to catch various base64 formats
+                if (
+                    obj.length > 1024 &&
+                    (/^[A-Za-z0-9+/]+={0,2}$/.test(obj) || /^[A-Za-z0-9_-]+$/.test(obj))
+                ) {
+                    return `[Base64 data truncated - ${obj.length} chars]`;
+                }
+                return obj;
+            }
+
+            if (Array.isArray(obj)) {
+                return obj.map((item) => filterLargeBase64(item));
+            }
+
+            if (typeof obj === 'object' && obj !== null) {
+                const filtered: any = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    // Special handling for 'data' field containing base64 audio
+                    if (key === 'data' && typeof value === 'string' && value.length > 1024) {
+                        // More aggressive filtering for 'data' field - assume it's base64 if it's long
+                        filtered[key] = `[Base64 audio data - ${value.length} chars]`;
+                    } else {
+                        filtered[key] = filterLargeBase64(value);
+                    }
+                }
+                return filtered;
+            }
+
+            return obj;
+        };
+
+        // Handle structured MCP content with array of parts
+        if ('content' in result && Array.isArray((result as any).content)) {
+            const structuredResult = result as { content: Array<any> };
+            const filteredContent = structuredResult.content
+                .map((part) => {
+                    // COMPLETELY REMOVE audio parts from LLM context
+                    if (part && typeof part === 'object' && part.type === 'audio') {
+                        return null; // Remove entirely
+                    }
+                    // Also remove audio files with type:'file'
+                    if (
+                        part &&
+                        typeof part === 'object' &&
+                        part.type === 'file' &&
+                        part.mimeType &&
+                        part.mimeType.startsWith('audio/')
+                    ) {
+                        return null; // Remove entirely
+                    }
+
+                    // Filter any remaining base64 data in non-audio parts
+                    return filterLargeBase64(part);
+                })
+                .filter((part) => part !== null); // Remove null entries
+
+            return { content: filteredContent };
+        }
+
+        // Apply general base64 filtering for any other structure
+        return filterLargeBase64(result);
+    }
+
+    /**
      * Adds a tool result message to the conversation
      *
      * @param toolCallId ID of the tool call this result is responding to
@@ -422,11 +501,14 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.toolCallIdNameRequired();
         }
 
-        // Simplest image detection: if result has an 'image' field, treat as ImagePart
+        // Filter media content to prevent LLM context pollution
+        const filteredResult = this.filterMediaContentFromToolResult(result);
+
+        // Process the filtered result for content formatting
         let content: InternalMessage['content'];
-        if (result && typeof result === 'object' && 'image' in result) {
+        if (filteredResult && typeof filteredResult === 'object' && 'image' in filteredResult) {
             // Use shared helper to get base64/URL
-            const imagePart = result as {
+            const imagePart = filteredResult as {
                 image: string | Uint8Array | Buffer | ArrayBuffer | URL;
                 mimeType?: string;
             };
@@ -437,14 +519,14 @@ export class ContextManager<TMessage = unknown> {
                     mimeType: imagePart.mimeType || 'image/jpeg',
                 },
             ];
-        } else if (typeof result === 'string') {
-            content = result;
-        } else if (Array.isArray(result)) {
+        } else if (typeof filteredResult === 'string') {
+            content = filteredResult;
+        } else if (Array.isArray(filteredResult)) {
             // Assume array of parts already
-            content = result;
+            content = filteredResult;
         } else {
             // Fallback: stringify all other values
-            content = JSON.stringify(result ?? '');
+            content = JSON.stringify(filteredResult ?? '');
         }
 
         await this.addMessage({ role: 'tool', content, toolCallId, name });

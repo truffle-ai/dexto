@@ -6,15 +6,18 @@ import {
     Message, 
     TextPart, 
     ImagePart, 
+    AudioPart,
     isToolResultError, 
     isToolResultContent, 
     isTextPart, 
     isImagePart, 
     isFilePart, 
+    isAudioPart,
     ErrorMessage
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
 import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
+import AudioWidget from './ui/AudioWidget';
 
 interface MessageListProps {
   messages: Message[];
@@ -34,11 +37,6 @@ function isValidDataUri(src: string): boolean {
   return dataUriRegex.test(src);
 }
 
-// Helper to validate data URI for audio files to prevent XSS
-function isValidAudioDataUri(src: string): boolean {
-  const audioDataUriRegex = /^data:audio\/(mp3|mpeg|wav|webm|ogg|m4a|aac);base64,[A-Za-z0-9+/]+={0,2}$/i;
-  return audioDataUriRegex.test(src);
-}
 
 export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -80,7 +78,6 @@ export default function MessageList({ messages, activeError, onDismissError }: M
           }
         };
 
-        const showAvatar = isUser || isAi;
         const AvatarComponent = isUser ? User : Bot;
 
         const messageContainerClass = cn(
@@ -174,33 +171,29 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                                       </pre>
                                     );
                                   }
+                                  if (isAudioPart(part)) {
+                                    const src = `data:${part.mimeType};base64,${part.data}`;
+                                    return (
+                                      <AudioWidget 
+                                        key={index}
+                                        src={src}
+                                        filename={part.filename}
+                                        mimeType={part.mimeType}
+                                        className="my-1"
+                                      />
+                                    );
+                                  }
                                   if (isFilePart(part)) {
                                     if (part.mimeType.startsWith('audio/')) {
                                       const src = `data:${part.mimeType};base64,${part.data}`;
-                                      if (!isValidAudioDataUri(src)) {
-                                        return (
-                                          <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
-                                            <FileAudio className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-xs text-muted-foreground">
-                                              Invalid audio data ({part.mimeType})
-                                            </span>
-                                          </div>
-                                        );
-                                      }
                                       return (
-                                        <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
-                                          <FileAudio className="h-4 w-4 text-muted-foreground" />
-                                          <audio 
-                                            controls 
-                                            src={src} 
-                                            className="flex-1 h-8"
-                                          />
-                                          {part.filename && (
-                                            <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                                              {part.filename}
-                                            </span>
-                                          )}
-                                        </div>
+                                        <AudioWidget 
+                                          key={index}
+                                          src={src}
+                                          filename={part.filename}
+                                          mimeType={part.mimeType}
+                                          className="my-1"
+                                        />
                                       );
                                     } else {
                                       // Non-audio files (PDFs, etc.)
@@ -264,34 +257,32 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                             />
                           );
                         }
+                        if (part.type === 'audio' && 'data' in part && 'mimeType' in part) {
+                          const audioPart = part as AudioPart;
+                          const src = `data:${audioPart.mimeType};base64,${audioPart.data}`;
+
+                          return (
+                            <AudioWidget 
+                              key={partKey}
+                              src={src}
+                              filename={audioPart.filename}
+                              mimeType={audioPart.mimeType}
+                              className="my-2"
+                            />
+                          );
+                        }
                         if ((part as any).type === 'file' && 'data' in part && 'mimeType' in part) {
                           const filePart = part as any;
                           if (filePart.mimeType.startsWith('audio/')) {
                             const src = `data:${filePart.mimeType};base64,${filePart.data}`;
-                            if (!isValidAudioDataUri(src)) {
-                              return (
-                                <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                  <FileAudio className="h-5 w-5 text-muted-foreground" />
-                                  <span className="text-sm text-muted-foreground">
-                                    Invalid audio data ({filePart.mimeType})
-                                  </span>
-                                </div>
-                              );
-                            }
                             return (
-                              <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                <FileAudio className="h-5 w-5 text-muted-foreground" />
-                                <audio 
-                                  controls 
-                                  src={src} 
-                                  className="flex-1 h-8"
-                                />
-                                {filePart.filename && (
-                                  <span className="text-sm text-muted-foreground truncate max-w-[120px]">
-                                    {filePart.filename}
-                                  </span>
-                                )}
-                              </div>
+                              <AudioWidget 
+                                key={partKey}
+                                src={src}
+                                filename={filePart.filename}
+                                mimeType={filePart.mimeType}
+                                className="my-2"
+                              />
                             );
                           } else {
                             // Non-audio files (PDFs, etc.)
@@ -335,34 +326,11 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                   {msg.fileData && !Array.isArray(msg.content) && (
                     <div className="mt-2">
                       {msg.fileData.mimeType.startsWith('audio/') ? (
-                        (() => {
-                          const src = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
-                          if (!isValidAudioDataUri(src)) {
-                            return (
-                              <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                <FileAudio className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">
-                                  Invalid audio data ({msg.fileData.mimeType})
-                                </span>
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                              <FileAudio className="h-5 w-5 text-muted-foreground" />
-                              <audio 
-                                controls 
-                                src={src} 
-                                className="flex-1 h-8"
-                              />
-                              {msg.fileData.filename && (
-                                <span className="text-sm text-muted-foreground truncate max-w-[120px]">
-                                  {msg.fileData.filename}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })()
+                        <AudioWidget 
+                          src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`}
+                          filename={msg.fileData.filename}
+                          mimeType={msg.fileData.mimeType}
+                        />
                        ) : (
                          <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
                            <File className="h-5 w-5 text-muted-foreground" />

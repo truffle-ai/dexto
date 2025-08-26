@@ -14,6 +14,14 @@ export interface ImagePart {
     mimeType: string;
 }
 
+// Define a WebUI-specific audio part for tool results
+export interface AudioPart {
+    type: 'audio';
+    data: string; // base64 audio data
+    mimeType: string;
+    filename?: string;
+}
+
 export interface FileData {
     base64: string;
     mimeType: string;
@@ -26,7 +34,7 @@ export interface ToolResultError {
 }
 
 export interface ToolResultContent {
-    content: Array<TextPart | ImagePart | FilePart>;
+    content: Array<TextPart | ImagePart | FilePart | AudioPart>;
 }
 
 export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
@@ -73,11 +81,20 @@ export function isFilePart(part: unknown): part is FilePart {
     );
 }
 
+export function isAudioPart(part: unknown): part is AudioPart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'audio'
+    );
+}
+
 // Extend core InternalMessage for WebUI
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart>;
     imageData?: { base64: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
@@ -102,11 +119,91 @@ export interface ErrorMessage {
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+// Helper function to filter media content from tool results for LLM context
+function filterMediaFromToolResult(result: ToolResult): ToolResult {
+    if (!result || typeof result !== 'object') {
+        return result;
+    }
+
+    // Recursively filter large base64 strings from any object (same logic as core)
+    const filterLargeBase64 = (obj: any): any => {
+        if (typeof obj === 'string') {
+            // If it's a base64 string longer than 1KB, truncate it
+            // More permissive regex to catch various base64 formats
+            if (
+                obj.length > 1024 &&
+                (/^[A-Za-z0-9+/]+={0,2}$/.test(obj) || /^[A-Za-z0-9_-]+$/.test(obj))
+            ) {
+                return `[Base64 data truncated - ${obj.length} chars]`;
+            }
+            return obj;
+        }
+
+        if (Array.isArray(obj)) {
+            return obj.map((item) => filterLargeBase64(item));
+        }
+
+        if (typeof obj === 'object' && obj !== null) {
+            const filtered: any = {};
+            for (const [key, value] of Object.entries(obj)) {
+                // Special handling for 'data' field containing base64 audio
+                if (key === 'data' && typeof value === 'string' && value.length > 1024) {
+                    // More aggressive filtering for 'data' field - assume it's base64 if it's long
+                    filtered[key] = `[Base64 audio data - ${value.length} chars]`;
+                } else {
+                    filtered[key] = filterLargeBase64(value);
+                }
+            }
+            return filtered;
+        }
+
+        return obj;
+    };
+
+    // Handle structured content with array of parts
+    if (isToolResultContent(result) && Array.isArray(result.content)) {
+        const filteredContent = result.content
+            .map((part) => {
+                // COMPLETELY REMOVE audio parts from filtered results (they're already consumed by UI)
+                if (isAudioPart(part)) {
+                    return null; // Remove entirely
+                }
+                if (isFilePart(part) && part.mimeType.startsWith('audio/')) {
+                    return null; // Remove entirely
+                }
+
+                // Filter any remaining base64 data in non-audio parts
+                return filterLargeBase64(part);
+            })
+            .filter((part) => part !== null); // Remove null entries
+
+        return { content: filteredContent };
+    }
+
+    // Apply general base64 filtering for any other structure
+    return filterLargeBase64(result);
+}
+
+// Helper function to create a filtered message for LLM context
+function createFilteredMessage(message: Message): Message {
+    if (message.toolResult) {
+        return {
+            ...message,
+            toolResult: filterMediaFromToolResult(message.toolResult),
+        };
+    }
+    return message;
+}
+
 export function useChat(wsUrl: string) {
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     // Store the last toolResult image URI to attach to the next AI response
     const lastImageUriRef = useRef<string | null>(null);
+    // Store the last toolResult audio data to attach to the next AI response
+    const lastAudioDataRef = useRef<{ src: string; filename?: string; mimeType: string } | null>(
+        null
+    );
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
@@ -159,9 +256,70 @@ export function useChat(wsUrl: string) {
                         );
                         const last = cleaned[cleaned.length - 1];
                         if (last && last.role === 'assistant') {
-                            // Only concatenate if existing content is a string
-                            const newContent =
-                                typeof last.content === 'string' ? last.content + text : text;
+                            // Preserve existing content structure (text + audio/image parts)
+                            let newContent: string | Array<TextPart | ImagePart | AudioPart>;
+
+                            if (Array.isArray(last.content)) {
+                                // If content is already an array (has audio/image parts), update the text part
+                                const textPart = last.content.find(
+                                    (part) => part.type === 'text'
+                                ) as TextPart;
+                                if (textPart) {
+                                    // Update existing text part
+                                    const updatedParts = last.content.map((part) =>
+                                        part.type === 'text'
+                                            ? { ...part, text: textPart.text + text }
+                                            : part
+                                    );
+                                    newContent = updatedParts;
+                                } else {
+                                    // Add new text part to existing array
+                                    newContent = [...last.content, { type: 'text', text }];
+                                }
+                            } else {
+                                // If content is just a string, convert to array with text + audio/image parts
+                                const hasImage = !!lastImageUriRef.current;
+                                const hasAudio = !!lastAudioDataRef.current;
+
+                                if (hasImage || hasAudio) {
+                                    const parts: Array<TextPart | ImagePart | AudioPart> = [];
+
+                                    // Add text part
+                                    const existingText =
+                                        typeof last.content === 'string' ? last.content : '';
+                                    parts.push({ type: 'text', text: existingText + text });
+
+                                    // Add image part if available
+                                    if (lastImageUriRef.current) {
+                                        const uri = lastImageUriRef.current;
+                                        const [, base64] = uri.split(',');
+                                        const mimeMatch = uri.match(/data:(.*);base64/);
+                                        const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+                                        parts.push({ type: 'image', base64, mimeType });
+                                    }
+
+                                    // Add audio part if available
+                                    if (lastAudioDataRef.current) {
+                                        const audioData = lastAudioDataRef.current;
+                                        const [, base64] = audioData.src.split(',');
+                                        const audioPart: AudioPart = {
+                                            type: 'audio',
+                                            data: base64,
+                                            mimeType: audioData.mimeType,
+                                            filename: audioData.filename,
+                                        };
+                                        parts.push(audioPart);
+                                    }
+
+                                    newContent = parts;
+                                } else {
+                                    // Just text content
+                                    newContent =
+                                        (typeof last.content === 'string' ? last.content : '') +
+                                        text;
+                                }
+                            }
+
                             const updated = {
                                 ...last,
                                 content: newContent,
@@ -169,12 +327,50 @@ export function useChat(wsUrl: string) {
                             };
                             return [...cleaned.slice(0, -1), updated];
                         }
+
+                        // Create new assistant message
+                        const hasImage = !!lastImageUriRef.current;
+                        const hasAudio = !!lastAudioDataRef.current;
+
+                        let content: string | Array<TextPart | ImagePart | AudioPart> = text;
+
+                        if (hasImage || hasAudio) {
+                            const parts: Array<TextPart | ImagePart | AudioPart> = [];
+
+                            // Add text part
+                            parts.push({ type: 'text', text });
+
+                            // Add image part if available
+                            if (lastImageUriRef.current) {
+                                const uri = lastImageUriRef.current;
+                                const [, base64] = uri.split(',');
+                                const mimeMatch = uri.match(/data:(.*);base64/);
+                                const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+                                parts.push({ type: 'image', base64, mimeType });
+                            }
+
+                            // Add audio part if available
+                            if (lastAudioDataRef.current) {
+                                const audioData = lastAudioDataRef.current;
+                                const [, base64] = audioData.src.split(',');
+                                const audioPart: AudioPart = {
+                                    type: 'audio',
+                                    data: base64,
+                                    mimeType: audioData.mimeType,
+                                    filename: audioData.filename,
+                                };
+                                parts.push(audioPart);
+                            }
+
+                            content = parts;
+                        }
+
                         return [
                             ...cleaned,
                             {
                                 id: generateUniqueId(),
                                 role: 'assistant',
-                                content: text,
+                                content,
                                 createdAt: Date.now(),
                             },
                         ];
@@ -194,17 +390,42 @@ export function useChat(wsUrl: string) {
                         const cleaned = ms.filter(
                             (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
                         );
-                        // Embed image part in content if available
-                        let content: string | Array<TextPart | ImagePart> = text;
-                        if (lastImageUriRef.current) {
-                            const uri = lastImageUriRef.current;
-                            const [, base64] = uri.split(',');
-                            const mimeMatch = uri.match(/data:(.*);base64/);
-                            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
-                            const imagePart: ImagePart = { type: 'image', base64, mimeType };
-                            content = text.trim()
-                                ? [{ type: 'text', text }, imagePart]
-                                : [imagePart];
+                        // Embed image and audio parts in content if available
+                        let content: string | Array<TextPart | ImagePart | AudioPart> = text;
+                        const hasImage = !!lastImageUriRef.current;
+                        const hasAudio = !!lastAudioDataRef.current;
+
+                        if (hasImage || hasAudio) {
+                            const parts: Array<TextPart | ImagePart | AudioPart> = [];
+
+                            // Add text part if present
+                            if (text.trim()) {
+                                parts.push({ type: 'text', text });
+                            }
+
+                            // Add image part if available
+                            if (lastImageUriRef.current) {
+                                const uri = lastImageUriRef.current;
+                                const [, base64] = uri.split(',');
+                                const mimeMatch = uri.match(/data:(.*);base64/);
+                                const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+                                parts.push({ type: 'image', base64, mimeType });
+                            }
+
+                            // Add audio part if available
+                            if (lastAudioDataRef.current) {
+                                const audioData = lastAudioDataRef.current;
+                                const [, base64] = audioData.src.split(',');
+                                const audioPart: AudioPart = {
+                                    type: 'audio',
+                                    data: base64,
+                                    mimeType: audioData.mimeType,
+                                    filename: audioData.filename,
+                                };
+                                parts.push(audioPart);
+                            }
+
+                            content = parts;
                         }
                         // Prepare new AI message
                         const newMsg: Message = {
@@ -219,7 +440,39 @@ export function useChat(wsUrl: string) {
                         // Check if this response is updating an existing message
                         const lastMsg = cleaned[cleaned.length - 1];
                         if (lastMsg && lastMsg.role === 'assistant') {
-                            return [...cleaned.slice(0, -1), newMsg];
+                            // Preserve existing content structure when updating
+                            let finalContent: string | Array<TextPart | ImagePart | AudioPart>;
+
+                            if (Array.isArray(lastMsg.content)) {
+                                // If existing content is an array (has audio/image parts), preserve it
+                                // but update the text part with the final text
+                                const textPart = lastMsg.content.find(
+                                    (part) => part.type === 'text'
+                                ) as TextPart;
+                                if (textPart) {
+                                    // Update existing text part with final text
+                                    const updatedParts = lastMsg.content.map((part) =>
+                                        part.type === 'text' ? { ...part, text } : part
+                                    );
+                                    finalContent = updatedParts;
+                                } else {
+                                    // Add new text part to existing array
+                                    finalContent = [...lastMsg.content, { type: 'text', text }];
+                                }
+                            } else {
+                                // If existing content is just a string, use the new content (which may include audio/image parts)
+                                finalContent = content;
+                            }
+
+                            const updatedMsg: Message = {
+                                ...lastMsg,
+                                content: finalContent,
+                                tokenCount,
+                                model,
+                                sessionId,
+                                createdAt: Date.now(),
+                            };
+                            return [...cleaned.slice(0, -1), updatedMsg];
                         }
                         return [...cleaned, newMsg];
                     });
@@ -239,13 +492,17 @@ export function useChat(wsUrl: string) {
                         );
                     }
 
-                    // Clear the last image for the next message
-                    lastImageUriRef.current = null;
+                    // Clear the last image and audio for the next message AFTER React renders
+                    setTimeout(() => {
+                        lastImageUriRef.current = null;
+                        lastAudioDataRef.current = null;
+                    }, 0);
                     break;
                 }
                 case 'conversationReset':
                     setMessages([]);
                     lastImageUriRef.current = null;
+                    lastAudioDataRef.current = null;
                     lastUserMessageIdRef.current = null;
                     break;
                 case 'toolCall': {
@@ -269,7 +526,12 @@ export function useChat(wsUrl: string) {
                     const result = payload.result;
                     // Extract image URI from tool result, supporting data+mimetype
                     let uri: string | null = null;
+                    // Extract audio data from tool result for embedding in final response
+                    let audioData: { src: string; filename?: string; mimeType: string } | null =
+                        null;
+
                     if (result && Array.isArray(result.content)) {
+                        // Look for image part
                         const imgPart = result.content.find(
                             (
                                 p: unknown
@@ -295,6 +557,60 @@ export function useChat(wsUrl: string) {
                                 uri = imgPart.image || imgPart.url;
                             }
                         }
+
+                        // Look for audio part
+                        const audioPart = result.content.find(
+                            (
+                                p: unknown
+                            ): p is {
+                                type: 'audio';
+                                data: string;
+                                mimeType: string;
+                                filename?: string;
+                            } =>
+                                typeof p === 'object' &&
+                                p !== null &&
+                                (p as { type?: unknown }).type === 'audio' &&
+                                'data' in (p as Record<string, unknown>) &&
+                                'mimeType' in (p as Record<string, unknown>)
+                        );
+                        if (audioPart) {
+                            audioData = {
+                                src: `data:${audioPart.mimeType};base64,${audioPart.data}`,
+                                filename: audioPart.filename,
+                                mimeType: audioPart.mimeType,
+                            };
+                        }
+
+                        // Also check for file parts with audio mimeType
+                        if (!audioData) {
+                            const audioFilePart = result.content.find(
+                                (
+                                    p: unknown
+                                ): p is {
+                                    type: 'file';
+                                    data: string;
+                                    mimeType: string;
+                                    filename?: string;
+                                } =>
+                                    typeof p === 'object' &&
+                                    p !== null &&
+                                    (p as { type?: unknown }).type === 'file' &&
+                                    'data' in (p as Record<string, unknown>) &&
+                                    'mimeType' in (p as Record<string, unknown>) &&
+                                    typeof (p as Record<string, unknown>).mimeType === 'string' &&
+                                    ((p as Record<string, unknown>).mimeType as string).startsWith(
+                                        'audio/'
+                                    )
+                            );
+                            if (audioFilePart) {
+                                audioData = {
+                                    src: `data:${audioFilePart.mimeType};base64,${audioFilePart.data}`,
+                                    filename: audioFilePart.filename,
+                                    mimeType: audioFilePart.mimeType,
+                                };
+                            }
+                        }
                     } else if (typeof result === 'string' && result.startsWith('data:image')) {
                         uri = result;
                     } else if (result && typeof result === 'object') {
@@ -310,6 +626,8 @@ export function useChat(wsUrl: string) {
                         }
                     }
                     lastImageUriRef.current = uri;
+                    lastAudioDataRef.current = audioData;
+
                     // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
                         const idx = ms.findIndex(
@@ -319,6 +637,7 @@ export function useChat(wsUrl: string) {
                                 m.toolResult === undefined
                         );
                         if (idx !== -1) {
+                            // Store the ORIGINAL result for UI display, but provide filtered version for LLM context
                             const updatedMsg = { ...ms[idx], toolResult: result };
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
@@ -427,12 +746,18 @@ export function useChat(wsUrl: string) {
         setMessages([]);
         setActiveError(null); // Clear errors on reset
         lastImageUriRef.current = null;
+        lastAudioDataRef.current = null;
         lastUserMessageIdRef.current = null;
     }, []);
 
     const clearError = useCallback(() => {
         setActiveError(null);
     }, []);
+
+    // Get messages with media content filtered for LLM context
+    const getFilteredMessages = useCallback(() => {
+        return messages.map(createFilteredMessage);
+    }, [messages]);
 
     return {
         messages,
@@ -444,5 +769,7 @@ export function useChat(wsUrl: string) {
         // Error state
         activeError,
         clearError,
+        // Filtered messages for LLM context
+        getFilteredMessages,
     };
 }
