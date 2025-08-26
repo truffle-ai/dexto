@@ -485,7 +485,7 @@ export default function ChatApp() {
           )}
           
           {/* Chat Content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {isWelcomeState || messages.length === 0 ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex items-center justify-center p-6 -mt-20">
@@ -539,7 +539,7 @@ export default function ChatApp() {
               </div>
             ) : (
               /* Messages Area */
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <div className="h-full overflow-y-auto">
                   <MessageList 
                     messages={messages}
@@ -552,8 +552,8 @@ export default function ChatApp() {
             
             {/* Input Area - Only show when in chat state */}
             {!isWelcomeState && messages.length > 0 && (
-              <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-                <div className="p-4">
+              <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm sticky bottom-0">
+                <div className="p-4 max-h-[50vh] overflow-y-auto">
                   <InputArea
                     onSend={handleSend}
                     isSending={isSendingMessage}

@@ -100,15 +100,33 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
-      const maxHeight = 120;
-      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+      // More generous max height that adapts to viewport
+      const maxHeight = Math.min(400, window.innerHeight * 0.4); // Max 400px or 40% of viewport
+      const finalHeight = Math.min(scrollHeight, maxHeight);
+      
+      textareaRef.current.style.height = `${finalHeight}px`;
       textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+      
+      // Smooth scrolling for better UX
+      if (scrollHeight > maxHeight) {
+        textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+      }
     }
   }, []);
 
   useEffect(() => {
     adjustTextareaHeight();
   }, [text, adjustTextareaHeight]);
+
+  // Handle window resize to recalculate textarea height
+  useEffect(() => {
+    const handleResize = () => {
+      adjustTextareaHeight();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [adjustTextareaHeight]);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -751,11 +769,11 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               onKeyDown={handleKeyDown}
               placeholder="Ask Dexto anything..."
               rows={1}
-              className="resize-none min-h-[42px] w-full border-input bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-full p-2.5 pr-32 text-sm"
+              className="resize-none min-h-[42px] w-full border-input bg-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-xl p-3 pr-32 text-sm shadow-sm placeholder:text-muted-foreground/60"
             />
             
             {/* Controls - Model Selector and Streaming Toggle */}
-            <div className="absolute bottom-1.5 right-2 flex items-center gap-2">
+            <div className="absolute bottom-2 right-3 flex items-center gap-2">
               {/* Streaming Toggle */}
               <TooltipProvider>
                 <Tooltip>
@@ -822,11 +840,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           type="submit" 
           size="icon" 
           onClick={handleSend} 
-          disabled={!text.trim() && !imageData && !fileData} 
-          className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-70"
+          disabled={!text.trim() && !imageData && !fileData || isSending} 
+          className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg p-2 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50 transition-all h-10 w-10"
           aria-label="Send message"
         >
-          <SendHorizontal className="h-5 w-5" />
+          {isSending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <SendHorizontal className="h-4 w-4" />
+          )}
         </Button>
 
         {showClearButton && !isSending && (
@@ -842,17 +864,11 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 textareaRef.current.style.overflowY = 'hidden';
               }
             }}
-            className="flex-shrink-0 text-muted-foreground hover:text-destructive rounded-full p-2 ml-1"
+            className="flex-shrink-0 text-muted-foreground hover:text-destructive rounded-lg p-2 ml-1 h-10 w-10"
             aria-label="Clear input"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
-        )}
-
-        {isSending && (
-           <div className="flex-shrink-0 p-2 ml-1">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-           </div>
         )}
       </div>
     </div>
