@@ -50,7 +50,7 @@ if [ -f "${SCRIPT_DIR}/data/example.db" ]; then
     echo "🎉 Database setup complete!"
     echo ""
     echo "You can now run the Database Interaction Agent with:"
-    echo "  saiki --agent agents/database-agent.yml"
+    echo "  dexto --agent agents/database-agent.yml"
     echo ""
     echo "Example interactions you can try:"
     echo "  - 'Show me all users'"

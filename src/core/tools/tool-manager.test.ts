@@ -1,245 +1,350 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from './tool-manager.js';
-import { NoOpConfirmationProvider } from '../client/tool-confirmation/noop-confirmation-provider.js';
-import type { ToolManagerToolSet } from './types.js';
+import { MCPManager } from '../mcp/manager.js';
+import { ToolConfirmationProvider } from './confirmation/types.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { ToolErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
-// Mock MCPManager
-class MockMCPManager {
-    private tools: Record<string, any> = {};
+// Mock logger
+vi.mock('../logger/index.js', () => ({
+    logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
+}));
 
-    constructor(tools: Record<string, any> = {}) {
-        this.tools = tools;
-    }
-
-    async getAllTools(): Promise<ToolManagerToolSet> {
-        return this.tools;
-    }
-
-    async executeTool(toolName: string, args: any, sessionId?: string): Promise<any> {
-        if (!this.tools[toolName]) {
-            throw new Error(`No MCP tool found: ${toolName}`);
-        }
-        return { result: `MCP:${toolName}`, args, sessionId };
-    }
-
-    getToolClient(toolName: string): any {
-        return this.tools[toolName] ? {} : undefined;
-    }
-}
-
-// Mock InternalToolsProvider
-class MockInternalToolsProvider {
-    private tools: ToolManagerToolSet = {};
-
-    constructor(tools: ToolManagerToolSet = {}) {
-        this.tools = tools;
-    }
-
-    async initialize(): Promise<void> {
-        // No-op for mocking
-    }
-
-    hasTool(toolName: string): boolean {
-        return toolName in this.tools;
-    }
-
-    async executeTool(toolName: string, args: any, sessionId?: string): Promise<any> {
-        if (!this.hasTool(toolName)) {
-            throw new Error(`No internal tool found: ${toolName}`);
-        }
-        return { result: `INTERNAL:${toolName}`, args, sessionId };
-    }
-
-    getAllTools(): ToolManagerToolSet {
-        return this.tools;
-    }
-
-    getToolNames(): string[] {
-        return Object.keys(this.tools);
-    }
-}
-
-describe('ToolManager', () => {
-    let confirmationProvider: NoOpConfirmationProvider;
+describe('ToolManager - Unit Tests (Pure Logic)', () => {
+    let mockMcpManager: MCPManager;
+    let mockConfirmationProvider: ToolConfirmationProvider;
 
     beforeEach(() => {
-        confirmationProvider = new NoOpConfirmationProvider();
-    });
+        mockMcpManager = {
+            getAllTools: vi.fn(),
+            executeTool: vi.fn(),
+            getToolClient: vi.fn(),
+        } as any;
 
-    afterEach(() => {
+        mockConfirmationProvider = {
+            requestConfirmation: vi.fn(),
+            allowedToolsProvider: {} as any,
+        };
+
         vi.clearAllMocks();
     });
 
-    describe('Basic functionality', () => {
-        it('should initialize with empty tools', async () => {
-            const mcpManager = new MockMCPManager();
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
+    describe('Tool Source Detection Logic', () => {
+        it('should correctly identify MCP tools', () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            const tools = await toolManager.getAllTools();
-            expect(tools).toEqual({});
+            expect(toolManager.getToolSource('mcp--file_read')).toBe('mcp');
+            expect(toolManager.getToolSource('mcp--web_search')).toBe('mcp');
         });
 
-        it('should return MCP tools when only MCP tools exist', async () => {
-            const mcpTools = {
-                mcp_tool1: { description: 'MCP Tool 1' },
-                mcp_tool2: { description: 'MCP Tool 2' },
-            };
-            const mcpManager = new MockMCPManager(mcpTools);
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
+        it('should correctly identify internal tools', () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            const tools = await toolManager.getAllTools();
-            expect(Object.keys(tools)).toHaveLength(2);
-            expect(tools['mcp_tool1']).toBeDefined();
-            expect(tools['mcp_tool2']).toBeDefined();
+            expect(toolManager.getToolSource('internal--search_history')).toBe('internal');
+            expect(toolManager.getToolSource('internal--config_manager')).toBe('internal');
         });
 
-        it('should return internal tools when only internal tools exist', async () => {
-            const internalTools = {
-                internal_tool1: { description: 'Internal Tool 1' },
-                internal_tool2: { description: 'Internal Tool 2' },
-            };
-            const mcpManager = new MockMCPManager();
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
-            const internalProvider = new MockInternalToolsProvider(internalTools);
+        it('should identify unknown tools', () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            await toolManager.initializeInternalTools(internalProvider as any);
+            expect(toolManager.getToolSource('invalid_tool')).toBe('unknown');
+            expect(toolManager.getToolSource('file_read')).toBe('unknown'); // No prefix
+            expect(toolManager.getToolSource('')).toBe('unknown'); // Empty
+        });
 
-            const tools = await toolManager.getAllTools();
-            expect(Object.keys(tools)).toHaveLength(2);
-            expect(tools['internal_tool1']).toBeDefined();
-            expect(tools['internal_tool2']).toBeDefined();
+        it('should handle edge cases with empty tool names', () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
+            expect(toolManager.getToolSource('internal--')).toBe('unknown'); // Prefix but no name
         });
     });
 
-    describe('Conflict resolution', () => {
-        it('should give precedence to internal tools over MCP tools with same name', async () => {
-            const mcpTools = {
-                common_tool: { description: 'MCP Common Tool' },
-                mcp_only: { description: 'MCP Only Tool' },
-            };
-            const internalTools = {
-                common_tool: { description: 'Internal Common Tool' },
-                internal_only: { description: 'Internal Only Tool' },
-            };
+    describe('Tool Name Parsing Logic', () => {
+        it('should extract actual tool name from MCP prefix', () => {
+            const prefixedName = 'mcp--file_read';
+            const actualName = prefixedName.substring('mcp--'.length);
+            expect(actualName).toBe('file_read');
+        });
 
-            const mcpManager = new MockMCPManager(mcpTools);
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
-            const internalProvider = new MockInternalToolsProvider(internalTools);
+        it('should extract actual tool name from internal prefix', () => {
+            const prefixedName = 'internal--search_history';
+            const actualName = prefixedName.substring('internal--'.length);
+            expect(actualName).toBe('search_history');
+        });
 
-            await toolManager.initializeInternalTools(internalProvider as any);
-
-            const tools = await toolManager.getAllTools();
-
-            // Should have internal version of common_tool and prefixed MCP version
-            expect(tools['common_tool']).toBeDefined();
-            expect(tools['common_tool']?.description).toBe('Internal Common Tool');
-            expect(tools['mcp--common_tool']).toBeDefined();
-            expect(tools['mcp--common_tool']?.description).toContain('MCP Common Tool');
-            expect(tools['mcp_only']).toBeDefined();
-            expect(tools['internal_only']).toBeDefined();
+        it('should handle complex tool names', () => {
+            const complexName = 'mcp--complex_tool_name_with_underscores';
+            const actualName = complexName.substring('mcp--'.length);
+            expect(actualName).toBe('complex_tool_name_with_underscores');
         });
     });
 
-    describe('Tool execution', () => {
-        it('should route to internal tools first', async () => {
-            const mcpTools = {
-                common_tool: { description: 'MCP Common Tool' },
-            };
-            const internalTools = {
-                common_tool: { description: 'Internal Common Tool' },
-            };
-
-            const mcpManager = new MockMCPManager(mcpTools);
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
-            const internalProvider = new MockInternalToolsProvider(internalTools);
-
-            await toolManager.initializeInternalTools(internalProvider as any);
-
-            const result = (await toolManager.executeTool('common_tool', { test: 'args' })) as any;
-
-            expect(result.result).toBe('INTERNAL:common_tool');
+    describe('Tool Validation Logic', () => {
+        beforeEach(() => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
         });
 
-        it('should route to MCP tools when internal tool not available', async () => {
-            const mcpTools = {
-                mcp_tool: { description: 'MCP Tool' },
-            };
+        it('should reject tools without proper prefix', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const mcpManager = new MockMCPManager(mcpTools);
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            const result = (await toolManager.executeTool('mcp_tool', { test: 'args' })) as any;
-
-            expect(result.result).toBe('MCP:mcp_tool');
+            const error = (await toolManager
+                .executeTool('invalid_tool', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.NOT_FOUND);
         });
 
-        it('should execute prefixed tools correctly', async () => {
-            const mcpTools = {
-                common_tool: { description: 'MCP Common Tool' },
-            };
-            const internalTools = {
-                common_tool: { description: 'Internal Common Tool' },
-            };
+        it('should reject tools with prefix but no name', async () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            const mcpManager = new MockMCPManager(mcpTools);
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
-            const internalProvider = new MockInternalToolsProvider(internalTools);
+            const mcpError = (await toolManager
+                .executeTool('mcp--', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(mcpError).toBeInstanceOf(DextoRuntimeError);
+            expect(mcpError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
+            expect(mcpError.scope).toBe(ErrorScope.TOOLS);
+            expect(mcpError.type).toBe(ErrorType.USER);
 
-            await toolManager.initializeInternalTools(internalProvider as any);
+            const internalError = (await toolManager
+                .executeTool('internal--', {})
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(internalError).toBeInstanceOf(DextoRuntimeError);
+            expect(internalError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
+            expect(internalError.scope).toBe(ErrorScope.TOOLS);
+            expect(internalError.type).toBe(ErrorType.USER);
 
-            // Execute the prefixed MCP version
-            const result = (await toolManager.executeTool('mcp--common_tool', {
-                test: 'args',
-            })) as any;
-
-            expect(result.result).toBe('MCP:common_tool');
+            // Should NOT call the underlying managers
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });
 
-        it('should throw error for non-existent tools', async () => {
-            const mcpManager = new MockMCPManager();
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
+        it('should reject internal tools when provider not initialized', async () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            await expect(toolManager.executeTool('non_existent', {})).rejects.toThrow(
-                'Tool not found: non_existent'
+            await expect(toolManager.executeTool('internal--search_history', {})).rejects.toThrow(
+                'Internal tools not initialized, cannot execute: internal--search_history'
             );
         });
     });
 
-    describe('Tool statistics', () => {
-        it('should return correct tool stats', async () => {
-            const mcpTools = {
-                mcp_tool1: { description: 'MCP Tool 1' },
-                mcp_tool2: { description: 'MCP Tool 2' },
-                common_tool: { description: 'MCP Common Tool' },
-            };
-            const internalTools = {
-                internal_tool1: { description: 'Internal Tool 1' },
-                common_tool: { description: 'Internal Common Tool' },
-            };
+    describe('Confirmation Flow Logic', () => {
+        it('should request confirmation with correct parameters', async () => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const mcpManager = new MockMCPManager(mcpTools);
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
-            const internalProvider = new MockInternalToolsProvider(internalTools);
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
 
-            await toolManager.initializeInternalTools(internalProvider as any);
+            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
 
-            const stats = await toolManager.getToolStats();
+            expect(mockConfirmationProvider.requestConfirmation).toHaveBeenCalledWith({
+                toolName: 'mcp--file_read',
+                args: { path: '/test' },
+                sessionId: 'session123',
+            });
+        });
 
-            expect(stats.mcp).toBe(3);
-            expect(stats.internal).toBe(2);
-            expect(stats.conflicts).toBe(1); // common_tool conflicts
-            expect(stats.total).toBe(4); // 3 MCP + 2 internal - 1 conflict = 4 unique tools
+        it('should request confirmation without sessionId when not provided', async () => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            await toolManager.executeTool('mcp--file_read', { path: '/test' });
+
+            expect(mockConfirmationProvider.requestConfirmation).toHaveBeenCalledWith({
+                toolName: 'mcp--file_read',
+                args: { path: '/test' },
+            });
+        });
+
+        it('should throw execution denied error when confirmation denied', async () => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(false);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const error = (await toolManager
+                .executeTool('mcp--file_read', { path: '/test' }, 'session123')
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.FORBIDDEN);
+
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+        });
+
+        it('should proceed with execution when confirmation approved', async () => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
+
+            expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                'file_read',
+                { path: '/test' },
+                undefined
+            );
+            expect(result).toBe('success');
         });
     });
 
-    describe('Tool source detection', () => {
-        it('should detect tool sources correctly', () => {
-            const mcpManager = new MockMCPManager();
-            const toolManager = new ToolManager(mcpManager as any, confirmationProvider);
+    describe('Cache Management Logic', () => {
+        it('should cache tool discovery results', async () => {
+            const tools = {
+                test_tool: { name: 'test_tool', description: 'Test', parameters: {} },
+            };
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue(tools);
 
-            expect(toolManager.getToolSource('regular_tool')).toBe('auto');
-            expect(toolManager.getToolSource('mcp--prefixed_tool')).toBe('mcp');
-            expect(toolManager.getToolSource('internal--prefixed_tool')).toBe('internal');
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            // First call
+            await toolManager.getAllTools();
+            // Second call should use cache
+            await toolManager.getAllTools();
+
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(1);
+        });
+
+        it('should invalidate cache on refresh', async () => {
+            const tools = {
+                test_tool: { name: 'test_tool', description: 'Test', parameters: {} },
+            };
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue(tools);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            // First call
+            await toolManager.getAllTools();
+
+            // Refresh should invalidate cache
+            await toolManager.refresh();
+
+            // Second call should fetch again
+            await toolManager.getAllTools();
+
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('Tool Statistics Logic', () => {
+        it('should calculate statistics correctly', async () => {
+            const mcpTools = {
+                tool1: { name: 'tool1', description: 'Tool 1', parameters: {} },
+                tool2: { name: 'tool2', description: 'Tool 2', parameters: {} },
+            };
+
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue(mcpTools);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const stats = await toolManager.getToolStats();
+
+            expect(stats).toEqual({
+                total: 2,
+                mcp: 2,
+                internal: 0,
+            });
+        });
+
+        it('should handle empty tool sets', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const stats = await toolManager.getToolStats();
+
+            expect(stats).toEqual({
+                total: 0,
+                mcp: 0,
+                internal: 0,
+            });
+        });
+
+        it('should handle MCP errors gracefully in statistics', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockRejectedValue(new Error('MCP failed'));
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const stats = await toolManager.getToolStats();
+
+            expect(stats).toEqual({
+                total: 0,
+                mcp: 0,
+                internal: 0,
+            });
+        });
+    });
+
+    describe('Tool Existence Checking Logic', () => {
+        it('should check MCP tool existence correctly', async () => {
+            mockMcpManager.getToolClient = vi.fn().mockReturnValue({});
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const exists = await toolManager.hasTool('mcp--file_read');
+
+            expect(mockMcpManager.getToolClient).toHaveBeenCalledWith('file_read');
+            expect(exists).toBe(true);
+        });
+
+        it('should return false for non-existent MCP tools', async () => {
+            mockMcpManager.getToolClient = vi.fn().mockReturnValue(undefined);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const exists = await toolManager.hasTool('mcp--nonexistent');
+
+            expect(exists).toBe(false);
+        });
+
+        it('should return false for tools without proper prefix', async () => {
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            const exists = await toolManager.hasTool('invalid_tool');
+
+            expect(exists).toBe(false);
+        });
+    });
+
+    describe('Error Propagation Logic', () => {
+        beforeEach(() => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+        });
+
+        it('should propagate MCP tool execution errors', async () => {
+            const executionError = new Error('Tool execution failed');
+            mockMcpManager.executeTool = vi.fn().mockRejectedValue(executionError);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            await expect(
+                toolManager.executeTool('mcp--file_read', { path: '/test' })
+            ).rejects.toThrow('Tool execution failed');
+        });
+
+        it('should propagate confirmation provider errors', async () => {
+            const confirmationError = new Error('Confirmation failed');
+            mockConfirmationProvider.requestConfirmation = vi
+                .fn()
+                .mockRejectedValue(confirmationError);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+
+            await expect(
+                toolManager.executeTool('mcp--file_read', { path: '/test' })
+            ).rejects.toThrow('Confirmation failed');
         });
     });
 });

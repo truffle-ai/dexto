@@ -1,21 +1,21 @@
-# Running Saiki with Docker
+# Running Dexto with Docker
 
-Simple guide to run Saiki server with Docker.
+Simple guide to run Dexto server with Docker.
 
 ## Setup
 
 1. **Build the image**
    ```bash
-   docker build -t saiki .
+   docker build -t dexto .
    ```
 
 2. **Create .env file**
    Add your API keys (see main README for details)
 
-## Run Saiki Server
+## Run Dexto Server
 
 ```bash
-docker run --env-file .env -p 3001:3001 saiki
+docker run --env-file .env -p 3001:3001 dexto
 ```
 
 The server will start on port 3001 with:
@@ -46,17 +46,17 @@ docker compose up --build
 ## Background Mode
 
 ```bash
-docker run -d --env-file .env -p 3001:3001 saiki
+docker run -d --env-file .env -p 3001:3001 dexto
 ```
 
 ## Cloud Deployment
 
 ```bash
 # Build for production
-docker build --platform=linux/amd64 -t saiki .
+docker build --platform=linux/amd64 -t dexto .
 
 # Push to registry
-docker push your-registry.com/saiki
+docker push your-registry.com/dexto
 ```
 
-That's it! Saiki runs in server mode with REST API + WebSocket on port 3001.
+That's it! Dexto runs in server mode with REST API + WebSocket on port 3001.

@@ -1,0 +1,10 @@
+{
+  "label": "MCP",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "title": "Model Context Protocol",
+    "description": "Connect Dexto to MCP servers, manage tools, and expose agents over MCP."
+  }
+}
+

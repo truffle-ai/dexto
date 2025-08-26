@@ -2,13 +2,13 @@
 sidebar_position: 2
 ---
 
-# React Chat App using Saiki
+# React Chat App using Dexto
 
-When you run `saiki --mode web`, you get a powerful backend server with REST APIs and WebSocket support. Let's build a React chat application step by step, introducing each API capability as we go.
+When you run `dexto --mode web`, you get a powerful backend server with REST APIs and WebSocket support. Let's build a React chat application step by step, introducing each API capability as we go.
 
-## Available Saiki Server APIs
+## Available Dexto Server APIs
 
-When Saiki runs in web mode, it provides these endpoints:
+When Dexto runs in web mode, it provides these endpoints:
 
 - **`POST /api/message-sync`** - Send message and get complete response
 - **`POST /api/message`** - Send message asynchronously (use WebSocket for response)
@@ -56,7 +56,7 @@ export const BasicChat: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Call Saiki's synchronous API
+      // Call Dexto's synchronous API
       const response = await fetch('http://localhost:3001/api/message-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,7 +96,7 @@ export const BasicChat: React.FC = () => {
     <div className="flex flex-col h-screen max-w-2xl mx-auto p-4">
       {/* Header */}
       <div className="mb-4 p-4 bg-blue-50 rounded">
-        <h1 className="text-2xl font-bold">Saiki Chat - Basic Version</h1>
+        <h1 className="text-2xl font-bold">Dexto Chat - Basic Version</h1>
         <p className="text-sm text-gray-600">Using synchronous API</p>
       </div>
 
@@ -156,7 +156,7 @@ export const BasicChat: React.FC = () => {
 ```
 
 **What we've learned:**
-- Basic API communication with Saiki
+- Basic API communication with Dexto
 - Simple request/response pattern
 - Error handling basics
 
@@ -190,17 +190,17 @@ export const StreamingChat: React.FC = () => {
 
       ws.onopen = () => {
         setIsConnected(true);
-        console.log('🟢 Connected to Saiki');
+        console.log('🟢 Connected to Dexto');
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        handleSaikiEvent(data);
+        handleDextoEvent(data);
       };
 
       ws.onclose = () => {
         setIsConnected(false);
-        console.log('🔴 Disconnected from Saiki');
+        console.log('🔴 Disconnected from Dexto');
         // Auto-reconnect after 3 seconds
         setTimeout(connectWebSocket, 3000);
       };
@@ -217,7 +217,7 @@ export const StreamingChat: React.FC = () => {
     };
   }, []);
 
-  const handleSaikiEvent = (data: any) => {
+  const handleDextoEvent = (data: any) => {
     switch (data.event) {
       case 'thinking':
         // Agent started thinking
@@ -315,11 +315,11 @@ export const StreamingChat: React.FC = () => {
     <div className="flex flex-col h-screen max-w-2xl mx-auto p-4">
       {/* Header */}
       <div className="mb-4 p-4 bg-blue-50 rounded">
-        <h1 className="text-2xl font-bold">Saiki Chat - Streaming Version</h1>
+        <h1 className="text-2xl font-bold">Dexto Chat - Streaming Version</h1>
         <div className="flex items-center gap-2">
           <span className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
           <span className="text-sm text-gray-600">
-            {isConnected ? 'Connected to Saiki' : 'Connecting...'}
+            {isConnected ? 'Connected to Dexto' : 'Connecting...'}
           </span>
         </div>
       </div>
@@ -421,7 +421,7 @@ export const ServerManagementChat: React.FC = () => {
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        handleSaikiEvent(data);
+        handleDextoEvent(data);
       };
 
       ws.onclose = () => {
@@ -484,7 +484,7 @@ export const ServerManagementChat: React.FC = () => {
     }
   };
 
-  const handleSaikiEvent = (data: any) => {
+  const handleDextoEvent = (data: any) => {
     switch (data.event) {
       case 'thinking':
         setMessages(prev => [...prev, {
@@ -562,11 +562,11 @@ export const ServerManagementChat: React.FC = () => {
       <div className="mb-4 p-4 bg-blue-50 rounded">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">Saiki Chat - With Server Management</h1>
+            <h1 className="text-2xl font-bold">Dexto Chat - With Server Management</h1>
             <div className="flex items-center gap-2">
               <span className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
               <span className="text-sm text-gray-600">
-                {isConnected ? 'Connected to Saiki' : 'Connecting...'}
+                {isConnected ? 'Connected to Dexto' : 'Connecting...'}
               </span>
             </div>
           </div>

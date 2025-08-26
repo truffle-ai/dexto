@@ -8,7 +8,7 @@ import type { AgentCard } from '@core/index.js';
 import { logger } from '@core/index.js';
 import { z } from 'zod';
 import express from 'express';
-import { SaikiAgent } from '@core/index.js';
+import { DextoAgent } from '@core/index.js';
 import { randomUUID } from 'crypto';
 
 export type McpTransportType = 'stdio' | 'sse' | 'http';
@@ -41,7 +41,7 @@ export async function createMcpTransport(
 
 /** Initializes MCP server, its tools, resources, and connects to the transport */
 export async function initializeMcpServer(
-    agent: SaikiAgent,
+    agent: DextoAgent,
     agentCardData: AgentCard,
     mcpTransport: Transport
 ): Promise<McpServer> {
@@ -97,7 +97,7 @@ export async function initializeAgentCardResource(
     agentCardData: AgentCard
 ): Promise<void> {
     const agentCardResourceProgrammaticName = 'agentCard';
-    const agentCardResourceUri = 'saiki://agent/card';
+    const agentCardResourceUri = 'dexto://agent/card';
     try {
         const readCallback: ReadResourceCallback = async (uri, _extra) => {
             logger.info(`MCP client requesting resource at ${uri.href}`);

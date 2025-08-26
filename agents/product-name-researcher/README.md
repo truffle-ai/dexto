@@ -30,8 +30,8 @@ uvx truffle-ai-domain-checker-mcp
 ### Start the Agent
 
 ```bash
-# From the saiki root directory
-saiki -a agents/product-name-researcher/product-name-researcher.yml
+# From the dexto root directory
+dexto -a agents/product-name-researcher/product-name-researcher.yml
 ```
 
 ### Example Interactions

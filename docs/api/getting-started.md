@@ -5,23 +5,23 @@ sidebar_position: 1
 
 # Getting Started
 
-Welcome to the Saiki API. This guide will walk you through the essential first steps to begin interacting with your Saiki agent programmatically.
+Welcome to the Dexto API. This guide will walk you through the essential first steps to begin interacting with your Dexto agent programmatically.
 
 ## 1. Starting the API Server
 
-Before you can make any API calls, you must start the Saiki server. This single command enables both the REST and WebSocket APIs.
+Before you can make any API calls, you must start the Dexto server. This single command enables both the REST and WebSocket APIs.
 
 Run the following command in your terminal:
 
 ```bash
-saiki --mode server
+dexto --mode server
 ```
 
 By default, the server will run on port `3001`. You should see a confirmation message in your terminal indicating that the server has started successfully.
 
 ## 2. Choosing Your API
 
-Saiki offers two distinct APIs to suit different use cases. Understanding when to use each is key to building your application effectively.
+Dexto offers two distinct APIs to suit different use cases. Understanding when to use each is key to building your application effectively.
 
 ### When to use the REST API?
 Use the **REST API** for synchronous, request-response actions where you want to perform a task and get a result immediately. It's ideal for:

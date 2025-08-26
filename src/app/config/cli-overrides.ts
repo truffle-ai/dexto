@@ -3,8 +3,8 @@
  * This file handles CLI argument processing and config merging logic
  */
 
-import { AgentConfigSchema } from '@core/index.js';
-import type { LLMConfig, ValidatedAgentConfig, AgentConfig } from '@core/index.js';
+import { type AgentConfig } from '@core/agent/index.js';
+import type { LLMConfig } from '@core/llm/index.js';
 
 /**
  * CLI config override type for LLM fields that can be overridden via CLI
@@ -16,24 +16,29 @@ export type CLIConfigOverrides = Partial<
 
 /**
  * Applies CLI overrides to an agent configuration
- * This merges CLI arguments into the base config, producing a final AgentConfig
- * that can be passed to the core layer
+ * This merges CLI arguments into the base config without validation.
+ * Validation should be performed separately after this merge step.
  *
  * @param baseConfig The configuration loaded from file
  * @param cliOverrides CLI arguments to override specific fields
- * @returns Merged configuration ready for core layer
+ * @returns Merged configuration (unvalidated)
  */
 export function applyCLIOverrides(
     baseConfig: AgentConfig,
     cliOverrides?: CLIConfigOverrides
-): ValidatedAgentConfig {
-    if (!cliOverrides) {
-        // Parse through schema to apply defaults and convert input to output type
-        return AgentConfigSchema.parse(baseConfig);
+): AgentConfig {
+    if (!cliOverrides || Object.keys(cliOverrides).length === 0) {
+        // No overrides, return base config as-is (no validation yet)
+        return baseConfig;
     }
 
     // Create a deep copy of the base config for modification
     const mergedConfig = JSON.parse(JSON.stringify(baseConfig));
+
+    // Ensure llm section exists
+    if (!mergedConfig.llm) {
+        mergedConfig.llm = {};
+    }
 
     // Apply CLI overrides to LLM config
     if (cliOverrides.provider) {
@@ -49,6 +54,6 @@ export function applyCLIOverrides(
         mergedConfig.llm.apiKey = cliOverrides.apiKey;
     }
 
-    // Parse through schema to apply defaults and validate
-    return AgentConfigSchema.parse(mergedConfig);
+    // Return merged config without validation - validation happens later
+    return mergedConfig;
 }

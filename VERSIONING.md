@@ -1,6 +1,6 @@
-# Versioning Saiki
+# Versioning Dexto
 
-This document describes the standard procedure for publishing a new version of `saiki` [CLI + library]
+This document describes the standard procedure for publishing a new version of `dexto` [CLI + library]
 
 ## 1. Go to main branch of your fork and ensure that the code is up-to-date
 
@@ -52,4 +52,4 @@ git push upstream main --follow-tags
 
 See [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) for the publish workflow configuration.
 
-After this workflow completes successfully, the new version of `saiki` will be available on npm. 
+After this workflow completes successfully, the new version of `dexto` will be available on npm. 

@@ -55,4 +55,4 @@ storage:
     type: in-memory
   database:
     type: sqlite
-    path: .saiki/database/linear-task-manager.db
+    path: .dexto/database/linear-task-manager.db

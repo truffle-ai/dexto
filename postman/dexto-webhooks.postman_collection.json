@@ -1,0 +1,259 @@
+{
+  "info": {
+    "name": "Dexto Webhook API",
+    "description": "Complete API collection for testing Dexto webhook functionality",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "webhookId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "test-session-123",
+      "type": "string"
+    },
+    {
+      "key": "webhookUrl",
+      "value": "https://webhook.site/your-unique-id",
+      "type": "string"
+    },
+    {
+      "key": "webhookSecret",
+      "value": "test_secret_123",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Webhook Management",
+      "item": [
+        {
+          "name": "Register Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('webhookId', jsonData.webhook.id);",
+                  "    console.log('Webhook ID saved:', jsonData.webhook.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"{{webhookUrl}}\",\n  \"secret\": \"{{webhookSecret}}\",\n  \"description\": \"Test webhook for development\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List All Webhooks",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Specific Webhook",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "{{webhookId}}"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Test Webhook",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}/test?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "{{webhookId}}", "test"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove Webhook",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/{{webhookId}}?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "{{webhookId}}"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Event Triggers",
+      "item": [
+        {
+          "name": "Send Message (Triggers Events)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello, this is a test message from Postman!\",\n  \"sessionId\": \"{{sessionId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/message?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "message"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Conversation (Triggers Event)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{sessionId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reset?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reset"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Other API Endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current LLM Config",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/llm/current?pretty=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "llm", "current"],
+              "query": [
+                {
+                  "key": "pretty",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import type { DatabaseBackend } from './database-backend.js';
-import type { PostgresBackendConfig } from '../../config/schemas.js';
+import type { PostgresBackendConfig } from '../schemas.js';
+import { StorageError } from '../errors.js';
 
 /**
  * PostgreSQL storage backend for production database operations.
@@ -58,6 +59,12 @@ export class PostgresBackend implements DatabaseBackend {
         try {
             const result = await client.query('SELECT value FROM kv WHERE key = $1', [key]);
             return result.rows[0] ? result.rows[0].value : undefined;
+        } catch (error) {
+            throw StorageError.readFailed(
+                'get',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
         } finally {
             client.release();
         }
@@ -175,7 +182,7 @@ export class PostgresBackend implements DatabaseBackend {
 
     private checkConnection(): void {
         if (!this.connected || !this.pool) {
-            throw new Error('PostgresBackend not connected');
+            throw StorageError.notConnected('PostgresBackend');
         }
     }
 

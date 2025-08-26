@@ -5,6 +5,7 @@ yarn-debug.log*
 yarn-error.log*
 
 feature-plans/
+technical-plans/
 
 # Build output
 dist/
@@ -32,6 +33,9 @@ build/
 .cursor/rules/dev_workflow.mdc
 .cursor/rules/taskmaster_dev_workflow.mdc
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Logs
 logs/
 *.log
@@ -53,4 +57,9 @@ logs/
 test-temp/
 
 # temporary storage
-.saiki/
+.dexto/
+
+# Temporarily ignore module READMEs in src/core
+src/core/*/README.md
+
+

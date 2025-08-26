@@ -42,8 +42,8 @@ Understanding the distinction between **AI agents** and **LLM (Large Language Mo
   - The process does not require dynamic decision-making.
 
 
-## In Saiki
+## In Dexto
 
-Saiki CLI spins up a powerful AI Agent you can use for solving complex problems
+Dexto CLI spins up a powerful AI Agent you can use for solving complex problems
 
-Choosing the right tools for the job helps you get the most out of Saiki's automation capabilities. 
+Choosing the right tools for the job helps you get the most out of Dexto's automation capabilities. 

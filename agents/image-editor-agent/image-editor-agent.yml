@@ -1,4 +1,4 @@
-# Saiki Agent Configuration for Python Image Editor MCP Server
+# Dexto Agent Configuration for Python Image Editor MCP Server
 # Generated on 2025-07-18T19:30:00.000Z
 
 systemPrompt: |
@@ -42,4 +42,4 @@ storage:
     type: in-memory
   database:
     type: sqlite
-    path: .saiki/database/image-editor-agent-python.db 
+    path: .dexto/database/image-editor-agent-python.db 

@@ -42,27 +42,27 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -g 1001 -S saiki && adduser -S saiki -u 1001
+RUN addgroup -g 1001 -S dexto && adduser -S dexto -u 1001
 
-# Create .saiki directory with proper permissions for database
-RUN mkdir -p /app/.saiki/database && \
-    chown -R saiki:saiki /app/.saiki
+# Create .dexto directory with proper permissions for database
+RUN mkdir -p /app/.dexto/database && \
+    chown -R dexto:dexto /app/.dexto
 
 # Copy only essential production files
-COPY --from=builder --chown=saiki:saiki /app/dist ./dist
-COPY --from=builder --chown=saiki:saiki /app/node_modules ./node_modules
-COPY --from=builder --chown=saiki:saiki /app/package.json ./
-COPY --from=builder --chown=saiki:saiki /app/agents ./agents
+COPY --from=builder --chown=dexto:dexto /app/dist ./dist
+COPY --from=builder --chown=dexto:dexto /app/node_modules ./node_modules
+COPY --from=builder --chown=dexto:dexto /app/package.json ./
+COPY --from=builder --chown=dexto:dexto /app/agents ./agents
 
 # Environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
-    CONFIG_FILE=/app/agents/agent.yml \
+    CONFIG_FILE=/app/agents/default-agent.yml \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Switch to non-root user
-USER saiki
+USER dexto
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

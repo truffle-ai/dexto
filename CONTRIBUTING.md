@@ -5,8 +5,8 @@ We welcome contributions! Here's how to get started:
 1. Fork the repository to your GitHub account.
 2. Clone your fork:
    ```bash
-   git clone https://github.com/your-username/saiki.git
-   cd saiki
+   git clone https://github.com/your-username/dexto.git
+   cd dexto
    ```
 3. Create a new feature branch:
    ```bash

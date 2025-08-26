@@ -1,17 +1,17 @@
 # Webhook API Documentation
 
-The Saiki webhook system provides HTTP-based event delivery for agent events, offering an alternative to WebSocket subscriptions for cloud integrations.
+The Dexto webhook system provides HTTP-based event delivery for agent events, offering an alternative to WebSocket subscriptions for cloud integrations.
 
 ## Overview
 
-Webhooks allow you to receive real-time notifications about agent events by registering HTTP endpoints that will receive POST requests when events occur. This is similar to how Stripe webhooks work - when something happens in your Saiki agent, we'll send a POST request to your configured webhook URL.
+Webhooks allow you to receive real-time notifications about agent events by registering HTTP endpoints that will receive POST requests when events occur. This is similar to how Stripe webhooks work - when something happens in your Dexto agent, we'll send a POST request to your configured webhook URL.
 
 ## Event Structure
 
 All webhook events follow a consistent structure inspired by Stripe's webhook events:
 
 ```typescript
-interface SaikiWebhookEvent<T extends AgentEventName = AgentEventName> {
+interface DextoWebhookEvent<T extends AgentEventName = AgentEventName> {
     id: string;              // Unique event ID (e.g., "evt_1234567890_abc123def")
     type: T;                 // Event type with TypeScript autocomplete
     data: AgentEventMap[T];  // Event-specific payload
@@ -44,12 +44,12 @@ The webhook system supports all agent events:
 - `llmservice:response` - Final AI response received
 - `llmservice:error` - Error during AI processing
 - `llmservice:unsupportedInput` - Input type not supported by selected model
-- `saiki:conversationReset` - Conversation history cleared
-- `saiki:mcpServerConnected` - MCP server connection established
-- `saiki:availableToolsUpdated` - Available tools changed
-- `saiki:toolConfirmationRequest` - Tool execution requires confirmation
-- `saiki:llmSwitched` - LLM model switched
-- `saiki:stateChanged` - Agent state updated
+- `dexto:conversationReset` - Conversation history cleared
+- `dexto:mcpServerConnected` - MCP server connection established
+- `dexto:availableToolsUpdated` - Available tools changed
+- `dexto:toolConfirmationRequest` - Tool execution requires confirmation
+- `dexto:llmSwitched` - LLM model switched
+- `dexto:stateChanged` - Agent state updated
 
 ## Webhook Management API
 
@@ -60,7 +60,7 @@ POST /api/webhooks
 Content-Type: application/json
 
 {
-    "url": "https://your-app.com/webhooks/saiki",
+    "url": "https://your-app.com/webhooks/dexto",
     "secret": "whsec_your_secret_key",  // Optional for signature verification
     "description": "Production webhook"  // Optional description
 }
@@ -71,7 +71,7 @@ Response:
 {
     "webhook": {
         "id": "wh_1703123456_abc123def",
-        "url": "https://your-app.com/webhooks/saiki",
+        "url": "https://your-app.com/webhooks/dexto",
         "description": "Production webhook",
         "createdAt": "2025-01-01T12:00:00.000Z"
     }
@@ -102,14 +102,14 @@ DELETE /api/webhooks/{webhook_id}
 POST /api/webhooks/{webhook_id}/test
 ```
 
-This sends a test `saiki:availableToolsUpdated` event to verify your endpoint is working.
+This sends a test `dexto:availableToolsUpdated` event to verify your endpoint is working.
 
 ## Security & Signature Verification
 
-When you provide a `secret` during webhook registration, Saiki will include an HMAC signature in the `X-Saiki-Signature-256` header for verification:
+When you provide a `secret` during webhook registration, Dexto will include an HMAC signature in the `X-Dexto-Signature-256` header for verification:
 
 ```
-X-Saiki-Signature-256: sha256=a1b2c3d4e5f6...
+X-Dexto-Signature-256: sha256=a1b2c3d4e5f6...
 ```
 
 ### Verifying Signatures (Node.js Example)
@@ -131,8 +131,8 @@ function verifyWebhookSignature(payload, signature, secret) {
 }
 
 // In your webhook handler
-app.post('/webhooks/saiki', (req, res) => {
-    const signature = req.headers['x-saiki-signature-256'];
+app.post('/webhooks/dexto', (req, res) => {
+    const signature = req.headers['x-dexto-signature-256'];
     const payload = req.body.toString('utf8'); // `req.body` is a Buffer here
     
     if (!verifyWebhookSignature(payload, signature, 'your_secret')) {
@@ -152,11 +152,11 @@ app.post('/webhooks/saiki', (req, res) => {
 Each webhook request includes these headers:
 
 - `Content-Type: application/json`
-- `User-Agent: SaikiAgent/1.0`
-- `X-Saiki-Event-Type: {event_type}`
-- `X-Saiki-Event-Id: {event_id}`
-- `X-Saiki-Delivery-Attempt: {attempt_number}`
-- `X-Saiki-Signature-256: sha256={signature}` (if secret provided)
+- `User-Agent: DextoAgent/1.0`
+- `X-Dexto-Event-Type: {event_type}`
+- `X-Dexto-Event-Id: {event_id}`
+- `X-Dexto-Delivery-Attempt: {attempt_number}`
+- `X-Dexto-Signature-256: sha256={signature}` (if secret provided)
 
 ## Delivery & Retry Logic
 
@@ -172,7 +172,7 @@ Each webhook request includes these headers:
 
 2. **Handle Duplicates**: Due to retries, you might receive the same event multiple times. Use the `event.id` for deduplication.
 
-3. **Verify Signatures**: Always verify webhook signatures in production to ensure requests are from Saiki.
+3. **Verify Signatures**: Always verify webhook signatures in production to ensure requests are from Dexto.
 
 4. **Use HTTPS**: Always use HTTPS URLs for webhook endpoints to ensure secure delivery.
 
@@ -182,15 +182,15 @@ Each webhook request includes these headers:
 
 ```typescript
 import express from 'express';
-import type { SaikiWebhookEvent } from './webhook-types';
+import type { DextoWebhookEvent } from './webhook-types';
 
 const app = express();
 // Use raw body middleware for signature verification
 app.use(express.raw({ type: 'application/json' }));
 
-app.post('/webhooks/saiki', (req, res) => {
+app.post('/webhooks/dexto', (req, res) => {
     // Parse JSON from raw buffer
-    const event: SaikiWebhookEvent = JSON.parse(req.body.toString('utf8'));
+    const event: DextoWebhookEvent = JSON.parse(req.body.toString('utf8'));
     
     try {
         switch (event.type) {
@@ -202,7 +202,7 @@ app.post('/webhooks/saiki', (req, res) => {
                 console.log('Tool Called:', event.data.toolName);
                 break;
                 
-            case 'saiki:conversationReset':
+            case 'dexto:conversationReset':
                 console.log('Conversation reset for session:', event.data.sessionId);
                 break;
                 
@@ -231,4 +231,4 @@ app.post('/webhooks/saiki', (req, res) => {
 
 ## Server Mode Requirement
 
-Webhooks are only available when Saiki is running in server mode (`saiki --mode server` command). They are not available in CLI or other modes since webhooks require the HTTP API server to be running.
+Webhooks are only available when Dexto is running in server mode (`dexto --mode server` command). They are not available in CLI or other modes since webhooks require the HTTP API server to be running.

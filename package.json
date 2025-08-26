@@ -1,6 +1,6 @@
 {
-    "name": "@truffle-ai/saiki",
-    "version": "0.3.7",
+    "name": "dexto",
+    "version": "1.0.2",
     "engines": {
         "node": ">=20.0.0",
         "npm": ">=8.3.0"
@@ -11,7 +11,7 @@
     "module": "dist/src/core/index.js",
     "types": "dist/src/core/index.d.ts",
     "bin": {
-        "saiki": "./dist/src/app/index.js"
+        "dexto": "./dist/src/app/index.js"
     },
     "exports": {
         ".": {
@@ -23,7 +23,7 @@
     },
     "scripts": {
         "clean": "npx rimraf dist build public coverage logs .eslintcache test-temp && npm run clean:storage && npx tsx scripts/clean-build-files.ts",
-        "clean:storage": "npx rimraf .saiki",
+        "clean:storage": "npx rimraf .dexto",
         "prebuild": "",
         "build": "npm run clean && npm run build-webui && tsup && npm run copy-webui-dist",
         "build:check": "npm run typecheck && npm run build",
@@ -56,27 +56,35 @@
         "cli",
         "natural-language",
         "openai",
-        "truffle-ai"
+        "truffle-ai",
+        "dexto"
     ],
     "author": "",
     "license": "Elastic-2.0",
     "files": [
         "dist/",
-        "agents/agent.yml",
+        "agents/agent-registry.json",
         "agents/agent-template.yml",
+        "agents/default-agent.yml",
+        "agents/database-agent/",
+        "agents/talk2pdf-agent/",
+        "agents/image-editor-agent/",
+        "agents/music-agent/",
+        "agents/product-name-researcher/",
+        "agents/triage-demo/",
         "public/"
     ],
     "dependencies": {
-        "@ai-sdk/anthropic": "^1.2.2",
-        "@ai-sdk/cohere": "^1.2.10",
-        "@ai-sdk/google": "^1.2.8",
-        "@ai-sdk/groq": "^1.2.9",
-        "@ai-sdk/openai": "^1.3.3",
-        "@ai-sdk/xai": "^1.2.17",
+        "@ai-sdk/anthropic": "^2.0.0",
+        "@ai-sdk/cohere": "^2.0.0",
+        "@ai-sdk/google": "^2.0.0",
+        "@ai-sdk/groq": "^2.0.0",
+        "@ai-sdk/openai": "^2.0.0",
+        "@ai-sdk/xai": "^2.0.0",
         "@anthropic-ai/sdk": "^0.39.0",
         "@clack/prompts": "^0.10.1",
-        "@modelcontextprotocol/sdk": "^1.11.0",
-        "ai": "^4.2.6",
+        "@modelcontextprotocol/sdk": "^1.17.2",
+        "ai": "^5.0.0",
         "better-sqlite3": "^11.10.0",
         "boxen": "^7.1.1",
         "chalk": "^5.4.1",
@@ -99,7 +107,8 @@
         "winston": "^3.17.0",
         "ws": "^8.18.1",
         "yaml": "^2.7.1",
-        "zod": "^3.24.3"
+        "zod": "^3.25.0",
+        "zod-to-json-schema": "^3.24.6"
     },
     "devDependencies": {
         "@eslint/js": "^9.23.0",

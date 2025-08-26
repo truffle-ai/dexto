@@ -5,7 +5,7 @@ import boxen from 'boxen';
 import {
     ToolConfirmationEvent,
     ToolConfirmationResponse,
-} from '../../../core/client/tool-confirmation/types.js';
+} from '../../../core/tools/confirmation/types.js';
 import { AgentEventBus } from '../../../core/events/index.js';
 import { EventSubscriber } from '../../api/types.js';
 
@@ -26,7 +26,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
     subscribe(eventBus: AgentEventBus): void {
         this.agentEventBus = eventBus;
         this.agentEventBus.on(
-            'saiki:toolConfirmationRequest',
+            'dexto:toolConfirmationRequest',
             this.handleConfirmationRequest.bind(this)
         );
     }
@@ -81,7 +81,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         logger.debug(
             `CLI sending toolConfirmationResponse for executionId ${response.executionId}, approved=${response.approved}, sessionId=${response.sessionId}`
         );
-        this.agentEventBus.emit('saiki:toolConfirmationResponse', response);
+        this.agentEventBus.emit('dexto:toolConfirmationResponse', response);
     }
 
     /**
@@ -203,7 +203,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
      */
     cleanup(): void {
         if (this.agentEventBus) {
-            this.agentEventBus.removeAllListeners('saiki:toolConfirmationRequest');
+            this.agentEventBus.removeAllListeners('dexto:toolConfirmationRequest');
         }
     }
 }

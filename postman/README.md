@@ -1,11 +1,11 @@
 # Postman Collections
 
-This folder contains Postman collections for testing Saiki APIs.
+This folder contains Postman collections for testing Dexto APIs.
 
 ## Available Collections
 
-### `saiki-webhooks.postman_collection.json`
-Complete API collection for testing Saiki webhook functionality including:
+### `dexto-webhooks.postman_collection.json`
+Complete API collection for testing Dexto webhook functionality including:
 - Webhook management (register, list, get, test, remove)
 - Event triggers (send message, reset conversation)
 - Other API endpoints (health, sessions, LLM config)
@@ -24,7 +24,7 @@ Complete API collection for testing Saiki webhook functionality including:
    - Update `baseUrl` if server runs on different port
    - Save changes
 
-3. **Start Saiki Server**
+3. **Start Dexto Server**
    ```bash
    npm run build
    node dist/src/app/index.js --mode server --agent test-config.yml
@@ -38,7 +38,7 @@ Complete API collection for testing Saiki webhook functionality including:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `baseUrl` | Saiki server URL | `http://localhost:3000` |
+| `baseUrl` | Dexto server URL | `http://localhost:3000` |
 | `webhookUrl` | Test webhook endpoint | `https://webhook.site/your-unique-id` |
 | `webhookSecret` | HMAC verification secret | `test_secret_123` |
 | `sessionId` | Session ID for events | `test-session-123` |

@@ -1,3 +1,10 @@
+// ============================================================================
+// SIMPLIFIED TOOL TYPES - Essential interfaces only
+// ============================================================================
+
+import type { JSONSchema7 } from 'json-schema';
+import type { ZodSchema } from 'zod';
+
 /**
  * Context passed to tool execution
  */
@@ -6,10 +13,14 @@ export interface ToolExecutionContext {
     sessionId?: string | undefined;
 }
 
+// ============================================================================
+// CORE TOOL INTERFACES
+// ============================================================================
+
 /**
- * Simple tool interface for internal tools
+ * Internal tool interface - for tools implemented within Dexto
  */
-export interface Tool {
+export interface InternalTool {
     /** Unique identifier for the tool */
     id: string;
 
@@ -17,41 +28,57 @@ export interface Tool {
     description: string;
 
     /** Zod schema defining the input parameters */
-    inputSchema: any; // Using any for flexibility since we don't import zod here
+    inputSchema: ZodSchema;
 
-    /** The actual function that executes the tool */
-    execute: (input: any, context?: ToolExecutionContext) => Promise<any> | any;
+    /** The actual function that executes the tool - input is validated by Zod before execution */
+    execute: (input: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown;
 }
 
 /**
- * Tool parameters interface for normalized tool definitions
+ * Standard tool set interface - used by AI/LLM services
+ * Each tool entry contains JSON Schema parameters
  */
-export interface ToolParameters {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-    [key: string]: unknown; // Allow additional JSON Schema properties
-}
-
-/**
- * Raw tool definition interface (before normalization)
- */
-export interface RawToolDefinition {
-    description?: string;
-    parameters?: {
-        type?: string;
-        properties?: Record<string, unknown>;
-        required?: string[];
-    };
-}
-
-/**
- * Tool manager's unified tool set (for compatibility with MCP tools and ai/types.ts)
- */
-export interface ToolManagerToolSet {
-    [toolName: string]: {
+export interface ToolSet {
+    [key: string]: {
         name?: string;
-        description: string;
-        parameters?: ToolParameters;
+        description?: string;
+        parameters: JSONSchema7; // JSON Schema v7 specification
     };
+}
+
+// ============================================================================
+// TOOL EXECUTION AND RESULTS
+// ============================================================================
+
+/**
+ * Tool execution result
+ */
+export interface ToolResult {
+    success: boolean;
+    data?: any;
+    error?: string;
+    metadata?: {
+        type: string;
+        mimeType?: string;
+    };
+}
+
+/**
+ * Tool call representation
+ */
+export interface ToolCall {
+    id: string;
+    toolName: string;
+    input: any;
+    output?: any;
+    error?: string;
+    duration?: number;
+}
+
+/**
+ * Interface for any provider of tools
+ */
+export interface ToolProvider {
+    getTools(): Promise<ToolSet>;
+    callTool(toolName: string, args: Record<string, unknown>): Promise<unknown>;
 }

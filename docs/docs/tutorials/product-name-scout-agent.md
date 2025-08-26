@@ -32,7 +32,7 @@ A product name research agent that can:
 
 ## Understanding the Architecture
 
-The product name scout agent follows Saiki's framework design with clear separation of responsibilities:
+The product name scout agent follows Dexto's framework design with clear separation of responsibilities:
 
 1. **MCP Servers with tools**: Multiple specialized servers for different aspects of name research. These handle specific research tasks (SERP analysis, domain checking, etc.)
 2. **Agent**: Orchestrates complex research workflows and synthesizes findings
@@ -62,8 +62,8 @@ agents/product-name-researcher/
 The agent uses published MCP servers that are automatically installed:
 
 ```bash
-# From the saiki project root
-saiki --agent agents/product-name-researcher/product-name-researcher.yml
+# From the dexto project root
+dexto --agent agents/product-name-researcher/product-name-researcher.yml
 ```
 
 The agent will automatically download and install all required MCP servers:
@@ -165,7 +165,7 @@ Start the product name research agent:
 
 ```bash
 # From the project root
-saiki --agent agents/product-name-researcher/product-name-researcher.yml
+dexto --agent agents/product-name-researcher/product-name-researcher.yml
 ```
 
 ## Step 7: Testing with Example Prompts

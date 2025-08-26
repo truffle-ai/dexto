@@ -74,19 +74,19 @@ mcpServers:
 ### Using Specialized Agents
 ```typescript
 // specialized-agents.ts
-import { loadConfigFile, SaikiAgent } from '@truffle-ai/saiki';
+import { loadConfigFile, DextoAgent } from 'dexto';
 
 class AgentOrchestrator {
   private codeReviewer: any;
   private docWriter: any;
   
   async initialize() {
-    this.codeReviewer = new SaikiAgent(
+    this.codeReviewer = new DextoAgent(
       await loadConfigFile('./agents/code-reviewer.yml')
     );
     await this.codeReviewer.start();
     
-    this.docWriter = new SaikiAgent(
+    this.docWriter = new DextoAgent(
       await loadConfigFile('./agents/documentation-writer.yml')
     );
     await this.docWriter.start();
@@ -271,7 +271,7 @@ class SmartAgent extends EventEmitter {
     });
     
     // Handle conversation resets
-    this.agent.agentEventBus.on('saiki:conversationReset', () => {
+    this.agent.agentEventBus.on('dexto:conversationReset', () => {
       console.log('🔄 Conversation reset');
       this.emit('conversationReset');
     });
@@ -478,7 +478,7 @@ class AgentWorkflow {
   
   async addAgent(name: string, configPath: string) {
     const config = await loadConfigFile(configPath);
-    const agent = new SaikiAgent(config);
+    const agent = new DextoAgent(config);
     await agent.start();
     this.agents.set(name, agent);
   }
@@ -574,6 +574,6 @@ You're now equipped with production-ready patterns! Here's what to explore next:
 
 - **Deploy your application**: Check out the [Deployment Guide](../guides/deployment.md) for deployment and scaling guidance
 - **Join the community**: Share your patterns and learn from others in our [Discord](https://discord.gg/GFzWFAAZcm)
-- **Contribute back**: Help improve Saiki by sharing your experiences and patterns
+- **Contribute back**: Help improve Dexto by sharing your experiences and patterns
 
 You're ready to build enterprise-grade AI applications! 🚀 

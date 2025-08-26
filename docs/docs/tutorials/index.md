@@ -13,10 +13,10 @@ Let's build an agent that can organize messy directories:
 ```typescript
 // file-organizer.ts
 import 'dotenv/config';
-import { loadConfigFile, SaikiAgent } from '@truffle-ai/saiki';
+import { loadConfigFile, DextoAgent } from 'dexto';
 
-const config = await loadConfigFile('./agents/agent.yml');
-const agent = new SaikiAgent(config);
+const config = await loadConfigFile('./agents/default-agent.yml');
+const agent = new DextoAgent(config);
 
 // Start the agent
 await agent.start();
@@ -41,11 +41,11 @@ Let's add some user input:
 ```typescript
 // interactive-organizer.ts
 import 'dotenv/config';
-import { loadConfigFile, SaikiAgent } from '@truffle-ai/saiki';
+import { loadConfigFile, DextoAgent } from 'dexto';
 import readline from 'readline';
 
-const config = await loadConfigFile('./agents/agent.yml');
-const agent = new SaikiAgent(config);
+const config = await loadConfigFile('./agents/default-agent.yml');
+const agent = new DextoAgent(config);
 await agent.start();
 
 const rl = readline.createInterface({
@@ -107,11 +107,11 @@ Now let's build something interactive for developers:
 ```typescript
 // code-helper.ts
 import 'dotenv/config';
-import { loadConfigFile, SaikiAgent } from '@truffle-ai/saiki';
+import { loadConfigFile, DextoAgent } from 'dexto';
 import readline from 'readline';
 
-const agent = new SaikiAgent(
-  await loadConfigFile('./agents/agent.yml')
+const agent = new DextoAgent(
+  await loadConfigFile('./agents/default-agent.yml')
 );
 await agent.start();
 
@@ -198,14 +198,14 @@ Ready for something more advanced? Let's create a web service:
 ```typescript
 // web-service.ts
 import express from 'express';
-import { loadConfigFile, SaikiAgent } from '@truffle-ai/saiki';
+import { loadConfigFile, DextoAgent } from 'dexto';
 
 const app = express();
 app.use(express.json());
 
 // Initialize our agent once
-const agent = new SaikiAgent(
-  await loadConfigFile('./agents/agent.yml')
+const agent = new DextoAgent(
+  await loadConfigFile('./agents/default-agent.yml')
 );
 await agent.start();
 
@@ -254,7 +254,7 @@ app.post('/analyze', async (req, res) => {
 });
 
 const server = app.listen(3000, () => {
-  console.log('🚀 Saiki web service running on http://localhost:3000');
+  console.log('🚀 Dexto web service running on http://localhost:3000');
   console.log('Endpoints:');
   console.log('  POST /chat - Chat with the agent');
   console.log('  POST /analyze - Analyze files');
@@ -271,7 +271,7 @@ process.on('SIGTERM', async () => {
 });
 ```
 
-**What you're learning:** The same agent works everywhere - CLI, web, mobile, anywhere TypeScript/JavaScript runs.
+**What you're learning:** The same agent works everywhere—CLI, web, mobile—anywhere TypeScript runs.
 
 ### Testing Your Web Service
 
@@ -304,7 +304,7 @@ Each application has a clear, focused purpose:
 Notice how we didn't write complex AI integration code. Instead:
 - **Configure capabilities** in YAML
 - **Use simple API calls** to interact
-- **Let Saiki handle** the complexity
+- **Let Dexto handle** the complexity
 
 ### 3. Consistent API
 The same `agent.run()` call works in:
@@ -378,7 +378,7 @@ You now have three working applications that demonstrate:
 Ready to take it to the next level?
 
 - **Learn advanced patterns**: Check out [Advanced Patterns](./advanced-patterns) for production-ready techniques
-- **Add more tools**: Explore [MCP servers](../guides/configuring-saiki/mcpServers) for additional capabilities
+- **Add more tools**: Explore [MCP servers](../mcp/connecting-servers) for additional capabilities
 - **Deploy your service**: See the [deployment guide](../guides/deployment) for production hosting
 - **Join the community**: Share your creations in our [Discord](https://discord.gg/GFzWFAAZcm)
 

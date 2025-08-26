@@ -114,7 +114,7 @@ describe('WebhookEventSubscriber', () => {
             expect(mockOn).toHaveBeenCalledWith('llmservice:response', expect.any(Function), {
                 signal: expect.any(AbortSignal),
             });
-            expect(mockOn).toHaveBeenCalledWith('saiki:conversationReset', expect.any(Function), {
+            expect(mockOn).toHaveBeenCalledWith('dexto:conversationReset', expect.any(Function), {
                 signal: expect.any(AbortSignal),
             });
         });
@@ -154,7 +154,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.subscribe(agentEventBus);
 
             // Emit event and wait for async delivery
-            agentEventBus.emit('saiki:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
 
             // Wait for async delivery to complete (much shorter in test env due to 1ms delays)
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -166,11 +166,11 @@ describe('WebhookEventSubscriber', () => {
                     method: 'POST',
                     headers: expect.objectContaining({
                         'Content-Type': 'application/json',
-                        'User-Agent': 'SaikiAgent/1.0',
-                        'X-Saiki-Event-Type': 'saiki:conversationReset',
-                        'X-Saiki-Signature-256': expect.stringMatching(/^sha256=[a-f0-9]{64}$/),
+                        'User-Agent': 'DextoAgent/1.0',
+                        'X-Dexto-Event-Type': 'dexto:conversationReset',
+                        'X-Dexto-Signature-256': expect.stringMatching(/^sha256=[a-f0-9]{64}$/),
                     }),
-                    body: expect.stringContaining('"type":"saiki:conversationReset"'),
+                    body: expect.stringContaining('"type":"dexto:conversationReset"'),
                 })
             );
         });
@@ -178,7 +178,7 @@ describe('WebhookEventSubscriber', () => {
         it('should not deliver events when no webhooks are registered', async () => {
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('saiki:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -245,7 +245,7 @@ describe('WebhookEventSubscriber', () => {
                 'https://example.com/webhook',
                 expect.objectContaining({
                     method: 'POST',
-                    body: expect.stringContaining('"type":"saiki:availableToolsUpdated"'),
+                    body: expect.stringContaining('"type":"dexto:availableToolsUpdated"'),
                 })
             );
         });
@@ -314,14 +314,14 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('saiki:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(mockFetch).toHaveBeenCalled();
             expect(mockFetch.mock.calls[0]).toBeDefined();
             const [_url, requestOptions] = mockFetch.mock.calls[0]!;
-            expect((requestOptions as any).headers['X-Saiki-Signature-256']).toMatch(
+            expect((requestOptions as any).headers['X-Dexto-Signature-256']).toMatch(
                 /^sha256=[a-f0-9]{64}$/
             );
         });
@@ -336,14 +336,14 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('saiki:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(mockFetch).toHaveBeenCalled();
             expect(mockFetch.mock.calls[0]).toBeDefined();
             const [_url, requestOptions] = mockFetch.mock.calls[0]!;
-            expect((requestOptions as any).headers['X-Saiki-Signature-256']).toBeUndefined();
+            expect((requestOptions as any).headers['X-Dexto-Signature-256']).toBeUndefined();
         });
     });
 
@@ -411,7 +411,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook2);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('saiki:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 200));
 

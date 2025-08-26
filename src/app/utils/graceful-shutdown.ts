@@ -1,7 +1,7 @@
-import type { SaikiAgent } from '@core/index.js';
+import type { DextoAgent } from '@core/index.js';
 import { logger } from '@core/index.js';
 
-export function registerGracefulShutdown(agent: SaikiAgent): void {
+export function registerGracefulShutdown(agent: DextoAgent): void {
     const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGUSR2'];
 
     let isShuttingDown = false;

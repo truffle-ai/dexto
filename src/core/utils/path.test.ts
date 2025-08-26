@@ -1,19 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import {
-    walkUpDirectories,
-    isSaikiProject,
-    getSaikiProjectRoot,
-    getSaikiPath,
-    resolveConfigPath,
-    findPackageRoot,
-    resolveBundledScript,
-} from './path.js';
+import { getDextoPath, getDextoGlobalPath, findPackageRoot, resolveBundledScript } from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 function createTempDir() {
-    return fs.mkdtempSync(path.join(tmpdir(), 'saiki-test-'));
+    return fs.mkdtempSync(path.join(tmpdir(), 'dexto-test-'));
 }
 
 function createTempDirStructure(structure: Record<string, any>, baseDir?: string): string {
@@ -38,47 +30,7 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
     return tempDir;
 }
 
-describe('walkUpDirectories', () => {
-    let tempDir: string;
-    let nestedDir: string;
-
-    beforeEach(() => {
-        tempDir = createTempDir();
-        nestedDir = path.join(tempDir, 'nested', 'deep', 'directory');
-        fs.mkdirSync(nestedDir, { recursive: true });
-
-        // Create a marker file in tempDir
-        fs.writeFileSync(path.join(tempDir, 'marker.txt'), 'found');
-    });
-
-    afterEach(() => {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-    });
-
-    it('returns null when no directories match the predicate', () => {
-        const result = walkUpDirectories(nestedDir, (dir) =>
-            fs.existsSync(path.join(dir, 'nonexistent.txt'))
-        );
-        expect(result).toBeNull();
-    });
-
-    it('finds directory by walking up the tree', () => {
-        const result = walkUpDirectories(nestedDir, (dir) =>
-            fs.existsSync(path.join(dir, 'marker.txt'))
-        );
-        expect(result).toBe(tempDir);
-    });
-
-    it('returns the immediate directory if it matches', () => {
-        fs.writeFileSync(path.join(nestedDir, 'immediate.txt'), 'here');
-        const result = walkUpDirectories(nestedDir, (dir) =>
-            fs.existsSync(path.join(dir, 'immediate.txt'))
-        );
-        expect(result).toBe(nestedDir);
-    });
-});
-
-describe('isSaikiProject and getSaikiProjectRoot', () => {
+describe('getDextoPath', () => {
     let tempDir: string;
 
     afterEach(() => {
@@ -87,155 +39,41 @@ describe('isSaikiProject and getSaikiProjectRoot', () => {
         }
     });
 
-    describe('with saiki as dependency', () => {
-        beforeEach(() => {
-            tempDir = createTempDirStructure({
-                'package.json': {
-                    name: 'my-test-project',
-                    dependencies: {
-                        '@truffle-ai/saiki': '^1.0.0',
-                    },
-                },
-            });
-        });
-
-        it('detects project with saiki dependency', () => {
-            const result = isSaikiProject(tempDir);
-            expect(result).toBe(true);
-        });
-
-        it('returns correct project root', () => {
-            const result = getSaikiProjectRoot(tempDir);
-            expect(result).toBe(tempDir);
-        });
-
-        it('finds project root from nested directory', () => {
-            const nestedDir = path.join(tempDir, 'src', 'components');
-            fs.mkdirSync(nestedDir, { recursive: true });
-
-            const result = getSaikiProjectRoot(nestedDir);
-            expect(result).toBe(tempDir);
-        });
-    });
-
-    describe('with saiki as devDependency', () => {
-        beforeEach(() => {
-            tempDir = createTempDirStructure({
-                'package.json': {
-                    name: 'my-dev-project',
-                    devDependencies: {
-                        '@truffle-ai/saiki': '^1.0.0',
-                    },
-                },
-            });
-        });
-
-        it('detects project with saiki devDependency', () => {
-            const result = isSaikiProject(tempDir);
-            expect(result).toBe(true);
-        });
-    });
-
-    describe('saiki source project', () => {
-        beforeEach(() => {
-            tempDir = createTempDirStructure({
-                'package.json': {
-                    name: '@truffle-ai/saiki',
-                    version: '1.0.0',
-                },
-            });
-        });
-
-        it('detects saiki source project itself', () => {
-            const result = isSaikiProject(tempDir);
-            expect(result).toBe(true);
-        });
-
-        it('returns correct project root for saiki source', () => {
-            const result = getSaikiProjectRoot(tempDir);
-            expect(result).toBe(tempDir);
-        });
-    });
-
-    describe('non-saiki project', () => {
-        beforeEach(() => {
-            tempDir = createTempDirStructure({
-                'package.json': {
-                    name: 'regular-project',
-                    dependencies: {
-                        express: '^4.0.0',
-                    },
-                },
-            });
-        });
-
-        it('returns false for non-saiki project', () => {
-            const result = isSaikiProject(tempDir);
-            expect(result).toBe(false);
-        });
-
-        it('returns null for non-saiki project root', () => {
-            const result = getSaikiProjectRoot(tempDir);
-            expect(result).toBeNull();
-        });
-    });
-
-    describe('no package.json', () => {
-        beforeEach(() => {
-            tempDir = createTempDir();
-        });
-
-        it('returns false when no package.json exists', () => {
-            const result = isSaikiProject(tempDir);
-            expect(result).toBe(false);
-        });
-    });
-});
-
-describe('getSaikiPath', () => {
-    let tempDir: string;
-
-    afterEach(() => {
-        if (tempDir) {
-            fs.rmSync(tempDir, { recursive: true, force: true });
-        }
-    });
-
-    describe('in saiki project', () => {
+    describe('in dexto project', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
                     name: 'test-project',
-                    dependencies: { '@truffle-ai/saiki': '^1.0.0' },
+                    dependencies: { dexto: '^1.0.0' },
                 },
             });
         });
 
         it('returns project-local path for logs', () => {
-            const result = getSaikiPath('logs', 'test.log', tempDir);
-            expect(result).toBe(path.join(tempDir, '.saiki', 'logs', 'test.log'));
+            const result = getDextoPath('logs', 'test.log', tempDir);
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'test.log'));
         });
 
         it('returns project-local path for database', () => {
-            const result = getSaikiPath('database', 'saiki.db', tempDir);
-            expect(result).toBe(path.join(tempDir, '.saiki', 'database', 'saiki.db'));
+            const result = getDextoPath('database', 'dexto.db', tempDir);
+            expect(result).toBe(path.join(tempDir, '.dexto', 'database', 'dexto.db'));
         });
 
         it('returns directory path when no filename provided', () => {
-            const result = getSaikiPath('config', undefined, tempDir);
-            expect(result).toBe(path.join(tempDir, '.saiki', 'config'));
+            const result = getDextoPath('config', undefined, tempDir);
+            expect(result).toBe(path.join(tempDir, '.dexto', 'config'));
         });
 
         it('works from nested directories', () => {
             const nestedDir = path.join(tempDir, 'src', 'app');
             fs.mkdirSync(nestedDir, { recursive: true });
 
-            const result = getSaikiPath('logs', 'app.log', nestedDir);
-            expect(result).toBe(path.join(tempDir, '.saiki', 'logs', 'app.log'));
+            const result = getDextoPath('logs', 'app.log', nestedDir);
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'app.log'));
         });
     });
 
-    describe('outside saiki project (global)', () => {
+    describe('outside dexto project (global)', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
@@ -245,12 +83,12 @@ describe('getSaikiPath', () => {
             });
         });
 
-        it('returns global path when not in saiki project', () => {
+        it('returns global path when not in dexto project', () => {
             const originalCwd = process.cwd();
             try {
                 process.chdir(tempDir);
-                const result = getSaikiPath('logs', 'global.log');
-                expect(result).toContain('.saiki');
+                const result = getDextoPath('logs', 'global.log');
+                expect(result).toContain('.dexto');
                 expect(result).toContain('logs');
                 expect(result).toContain('global.log');
                 expect(result).not.toContain(tempDir);
@@ -261,7 +99,7 @@ describe('getSaikiPath', () => {
     });
 });
 
-describe('resolveConfigPath', () => {
+describe('getDextoGlobalPath', () => {
     let tempDir: string;
 
     afterEach(() => {
@@ -270,80 +108,59 @@ describe('resolveConfigPath', () => {
         }
     });
 
-    describe('explicit config path provided', () => {
-        it('returns absolute path when provided', () => {
-            const explicitPath = '/absolute/path/to/config.yml';
-            const result = resolveConfigPath(explicitPath);
-            expect(result).toBe(explicitPath);
+    describe('basic functionality', () => {
+        it('returns global agents directory', () => {
+            const result = getDextoGlobalPath('agents');
+            expect(result).toContain('.dexto');
+            expect(result).toContain('agents');
+            expect(path.isAbsolute(result)).toBe(true);
         });
 
-        it('resolves relative path to absolute', () => {
-            const relativePath = 'relative/config.yml';
-            const result = resolveConfigPath(relativePath);
+        it('returns global path with filename', () => {
+            const result = getDextoGlobalPath('agents', 'database-agent');
+            expect(result).toContain('.dexto');
+            expect(result).toContain('agents');
+            expect(result).toContain('database-agent');
             expect(path.isAbsolute(result)).toBe(true);
-            expect(result.endsWith('relative/config.yml')).toBe(true);
+        });
+
+        it('handles different types correctly', () => {
+            const agents = getDextoGlobalPath('agents');
+            const logs = getDextoGlobalPath('logs');
+            const cache = getDextoGlobalPath('cache');
+
+            expect(agents).toContain('agents');
+            expect(logs).toContain('logs');
+            expect(cache).toContain('cache');
         });
     });
 
-    describe('auto-discovery in saiki project', () => {
+    describe('in dexto project context', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
                     name: 'test-project',
-                    dependencies: { '@truffle-ai/saiki': '^1.0.0' },
+                    dependencies: { dexto: '^1.0.0' },
                 },
             });
         });
 
-        it('finds standard agents/agent.yml', () => {
-            const configPath = path.join(tempDir, 'agents', 'agent.yml');
-            fs.mkdirSync(path.dirname(configPath), { recursive: true });
-            fs.writeFileSync(configPath, 'test: config');
+        it('always returns global path, never project-relative', () => {
+            // getDextoPath returns project-relative
+            const projectPath = getDextoPath('agents', 'test-agent', tempDir);
+            expect(projectPath).toBe(path.join(tempDir, '.dexto', 'agents', 'test-agent'));
 
-            const result = resolveConfigPath(undefined, tempDir);
-            expect(result).toBe(configPath);
-        });
-
-        it('finds src/agents/agent.yml', () => {
-            const configPath = path.join(tempDir, 'src', 'agents', 'agent.yml');
-            fs.mkdirSync(path.dirname(configPath), { recursive: true });
-            fs.writeFileSync(configPath, 'test: config');
-
-            const result = resolveConfigPath(undefined, tempDir);
-            expect(result).toBe(configPath);
-        });
-
-        it('finds src/saiki/agents/agent.yml (test app structure)', () => {
-            const configPath = path.join(tempDir, 'src', 'saiki', 'agents', 'agent.yml');
-            fs.mkdirSync(path.dirname(configPath), { recursive: true });
-            fs.writeFileSync(configPath, 'test: config');
-
-            const result = resolveConfigPath(undefined, tempDir);
-            expect(result).toBe(configPath);
-        });
-
-        it('prioritizes standard location over nested locations', () => {
-            // Create both standard and nested configs
-            const standardPath = path.join(tempDir, 'agents', 'agent.yml');
-            const nestedPath = path.join(tempDir, 'src', 'saiki', 'agents', 'agent.yml');
-
-            fs.mkdirSync(path.dirname(standardPath), { recursive: true });
-            fs.mkdirSync(path.dirname(nestedPath), { recursive: true });
-            fs.writeFileSync(standardPath, 'standard: config');
-            fs.writeFileSync(nestedPath, 'nested: config');
-
-            const result = resolveConfigPath(undefined, tempDir);
-            expect(result).toBe(standardPath);
-        });
-
-        it('throws error when no config found', () => {
-            expect(() => resolveConfigPath(undefined, tempDir)).toThrow(
-                'No agent.yml found in project'
-            );
+            // getDextoGlobalPath should ALWAYS return global, never project-relative
+            const globalPath = getDextoGlobalPath('agents', 'test-agent');
+            expect(globalPath).toContain('.dexto');
+            expect(globalPath).toContain('agents');
+            expect(globalPath).toContain('test-agent');
+            expect(globalPath).not.toContain(tempDir); // Key difference!
+            expect(path.isAbsolute(globalPath)).toBe(true);
         });
     });
 
-    describe('global CLI context', () => {
+    describe('outside dexto project context', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
@@ -353,10 +170,13 @@ describe('resolveConfigPath', () => {
             });
         });
 
-        it('uses bundled config when no explicit config provided', () => {
-            const result = resolveConfigPath(undefined, tempDir);
-            expect(result).toContain('agents/agent.yml');
-            expect(path.isAbsolute(result)).toBe(true);
+        it('returns global path (same as in project context)', () => {
+            const globalPath = getDextoGlobalPath('agents', 'test-agent');
+            expect(globalPath).toContain('.dexto');
+            expect(globalPath).toContain('agents');
+            expect(globalPath).toContain('test-agent');
+            expect(globalPath).not.toContain(tempDir);
+            expect(path.isAbsolute(globalPath)).toBe(true);
         });
     });
 });
@@ -397,7 +217,7 @@ describe('resolveBundledScript', () => {
     it('resolves script path for bundled MCP servers', () => {
         const scriptPath = 'dist/scripts/test-server.js';
 
-        // This test depends on the actual saiki package structure
+        // This test depends on the actual dexto package structure
         // In a real scenario, this would resolve to the installed package location
         expect(() => resolveBundledScript(scriptPath)).not.toThrow();
 
@@ -423,9 +243,9 @@ describe('real-world execution contexts', () => {
             tempDir = createTempDirStructure({
                 'package.json': {
                     name: 'my-app',
-                    dependencies: { '@truffle-ai/saiki': '^1.0.0' },
+                    dependencies: { dexto: '^1.0.0' },
                 },
-                'src/saiki/agents/agent.yml': 'mcpServers: {}',
+                'src/dexto/agents/default-agent.yml': 'mcpServers: {}',
             });
         });
 
@@ -433,35 +253,25 @@ describe('real-world execution contexts', () => {
             fs.rmSync(tempDir, { recursive: true, force: true });
         });
 
-        it('correctly identifies project context', () => {
-            expect(isSaikiProject(tempDir)).toBe(true);
-            expect(getSaikiProjectRoot(tempDir)).toBe(tempDir);
-        });
-
         it('uses project-local storage', () => {
-            const logPath = getSaikiPath('logs', 'saiki.log', tempDir);
-            const dbPath = getSaikiPath('database', 'saiki.db', tempDir);
+            const logPath = getDextoPath('logs', 'dexto.log', tempDir);
+            const dbPath = getDextoPath('database', 'dexto.db', tempDir);
 
-            expect(logPath).toBe(path.join(tempDir, '.saiki', 'logs', 'saiki.log'));
-            expect(dbPath).toBe(path.join(tempDir, '.saiki', 'database', 'saiki.db'));
-        });
-
-        it('finds config in test app structure', () => {
-            const configPath = resolveConfigPath(undefined, tempDir);
-            expect(configPath).toBe(path.join(tempDir, 'src', 'saiki', 'agents', 'agent.yml'));
+            expect(logPath).toBe(path.join(tempDir, '.dexto', 'logs', 'dexto.log'));
+            expect(dbPath).toBe(path.join(tempDir, '.dexto', 'database', 'dexto.db'));
         });
     });
 
-    describe('CLI in saiki source', () => {
+    describe('CLI in dexto source', () => {
         let tempDir: string;
 
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
-                    name: '@truffle-ai/saiki',
+                    name: 'dexto',
                     version: '1.0.0',
                 },
-                'agents/agent.yml': 'mcpServers: {}',
+                'agents/default-agent.yml': 'mcpServers: {}',
             });
         });
 
@@ -469,14 +279,9 @@ describe('real-world execution contexts', () => {
             fs.rmSync(tempDir, { recursive: true, force: true });
         });
 
-        it('correctly identifies source project', () => {
-            expect(isSaikiProject(tempDir)).toBe(true);
-            expect(getSaikiProjectRoot(tempDir)).toBe(tempDir);
-        });
-
         it('uses project-local storage for development', () => {
-            const logPath = getSaikiPath('logs', 'saiki.log', tempDir);
-            expect(logPath).toBe(path.join(tempDir, '.saiki', 'logs', 'saiki.log'));
+            const logPath = getDextoPath('logs', 'dexto.log', tempDir);
+            expect(logPath).toBe(path.join(tempDir, '.dexto', 'logs', 'dexto.log'));
         });
     });
 });

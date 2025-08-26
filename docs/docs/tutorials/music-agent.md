@@ -13,7 +13,7 @@ Watch the Music Creator Agent in action:
 <iframe
   width="100%"
   height="400"
-  src="https://www.youtube.com/embed/FGg0nIOZUig"
+  src="https://www.youtube.com/embed/wEnQy1zEVZw"
   title="Music Creator Agent Demo"
   frameborder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
@@ -35,7 +35,7 @@ A music creator agent that can:
 
 ## Understanding the Architecture
 
-The music creator agent follows Saiki's framework design with clear separation of responsibilities:
+The music creator agent follows Dexto's framework design with clear separation of responsibilities:
 
 1. **MCP Server**: Sets up the server and exposes audio processing tools to the agent
 2. **Agent**: Orchestrates workflows and handles user interaction
@@ -64,8 +64,8 @@ agents/music-agent/
 The music creator agent uses a published MCP server that's automatically installed:
 
 ```bash
-# From the saiki project root
-saiki --agent agents/music-agent/music-agent.yml
+# From the dexto project root
+dexto --agent agents/music-agent/music-agent.yml
 ```
 
 That's it! The MCP server (`truffle-ai-music-creator-mcp`) will be automatically downloaded and installed via `uvx` on first run.
@@ -158,7 +158,7 @@ Start the music creator agent:
 
 ```bash
 # From the project root
-saiki --agent agents/music-agent/music-agent.yml
+dexto --agent agents/music-agent/music-agent.yml
 ```
 
 ## Step 6: Testing with Example Prompts

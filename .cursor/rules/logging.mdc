@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Logging Standards
 
-This rule defines the consistent logging patterns used throughout the Saiki codebase.
+This rule defines the consistent logging patterns used throughout the Dexto codebase.
 
 ## **Required Logging Format**
 

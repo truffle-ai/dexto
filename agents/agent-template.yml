@@ -1,4 +1,4 @@
-# Template for saiki create-app
+# Template for dexto create-app
 # describes the mcp servers to use
 mcpServers:
   filesystem:
@@ -22,7 +22,7 @@ systemPrompt:
       type: static
       priority: 0
       content: |
-        You are a helpful AI assistant demonstrating Saiki's capabilities.
+        You are a helpful AI assistant demonstrating Dexto's capabilities.
         You have access to filesystem and browser automation tools.
 
         Your capabilities include:

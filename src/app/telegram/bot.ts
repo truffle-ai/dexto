@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import { Bot, InlineKeyboard } from 'grammy';
 import https from 'https';
-import { SaikiAgent } from '@core/index.js';
+import { DextoAgent } from '@core/index.js';
 
 // Load environment variables (including TELEGRAM_BOT_TOKEN)
 dotenv.config();
@@ -43,7 +43,7 @@ async function downloadFileAsBase64(
 }
 
 // Insert initTelegramBot to wire up a TelegramBot given pre-initialized services
-export function startTelegramBot(agent: SaikiAgent) {
+export function startTelegramBot(agent: DextoAgent) {
     if (!token) {
         throw new Error('TELEGRAM_BOT_TOKEN is not set');
     }
@@ -61,7 +61,7 @@ export function startTelegramBot(agent: SaikiAgent) {
             .row()
             .text('❓ Help', 'help');
 
-        await ctx.reply('Welcome to Saiki AI Bot! Choose an option below:', {
+        await ctx.reply('Welcome to Dexto AI Bot! Choose an option below:', {
             reply_markup: keyboard,
         });
     });

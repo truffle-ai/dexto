@@ -108,7 +108,7 @@ llm:
 export OPENAI_API_KEY="your-openai-api-key"
 
 # Start the database agent
-saiki --agent database-agent.yml
+dexto --agent database-agent.yml
 ```
 
 ## Step 4: Basic Database Operations

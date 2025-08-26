@@ -29,8 +29,8 @@ This separation allows the agent to focus on understanding and analysis while th
 The talk2pdf agent uses a published MCP server that's automatically installed:
 
 ```bash
-# From the saiki project root
-saiki --agent agents/talk2pdf-agent/talk2pdf-agent.yml
+# From the dexto project root
+dexto --agent agents/talk2pdf-agent/talk2pdf-agent.yml
 ```
 
 That's it! The MCP server (`@truffle-ai/talk2pdf-mcp`) will be automatically downloaded and installed via `npx` on first run.
@@ -256,7 +256,7 @@ Now we can test our agent:
 
 ```bash
 # From the project root
-saiki --agent ./agents/talk2pdf-agent/talk2pdf-agent.yml
+dexto --agent ./agents/talk2pdf-agent/talk2pdf-agent.yml
 ```
 
 Once started, try these interactions:

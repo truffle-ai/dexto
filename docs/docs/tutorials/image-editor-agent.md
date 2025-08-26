@@ -13,7 +13,7 @@ Watch the Image Editor Agent in action:
 <iframe
   width="100%"
   height="400"
-  src="https://www.youtube.com/embed/3X6edzACT3U"
+  src="https://www.youtube.com/embed/A0j61EIgWdI"
   title="Image Editor Agent Demo"
   frameborder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
@@ -34,7 +34,7 @@ An image editor agent that can:
 
 ## Understanding the Architecture
 
-The image editor agent follows Saiki's framework design with clear separation of responsibilities:
+The image editor agent follows Dexto's framework design with clear separation of responsibilities:
 
 1. **MCP Server**: Sets up the server and exposes image processing tools to the agent
 2. **Agent**: Orchestrates workflows and handles user interaction
@@ -64,8 +64,8 @@ agents/image-editor-agent/
 The image editor agent uses a published MCP server that's automatically installed:
 
 ```bash
-# From the saiki project root
-saiki --agent agents/image-editor-agent/image-editor-agent.yml
+# From the dexto project root
+dexto --agent agents/image-editor-agent/image-editor-agent.yml
 ```
 
 That's it! The MCP server (`truffle-ai-image-editor-mcp`) will be automatically downloaded and installed via `uvx` on first run.
@@ -160,7 +160,7 @@ Start the image editor agent:
 
 ```bash
 # From the project root
-saiki --agent agents/image-editor-agent/image-editor-agent.yml
+dexto --agent agents/image-editor-agent/image-editor-agent.yml
 ```
 
 ## Step 6: Testing with Example Prompts

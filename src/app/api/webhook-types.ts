@@ -21,7 +21,7 @@ export interface WebhookConfig {
  * Webhook event payload interface
  * Mirrors Stripe.Event structure for familiar developer experience
  */
-export interface SaikiWebhookEvent<T extends AgentEventName = AgentEventName> {
+export interface DextoWebhookEvent<T extends AgentEventName = AgentEventName> {
     /** Unique identifier for this webhook event */
     id: string;
     /** The type of event - provides IDE autocomplete */
@@ -65,7 +65,7 @@ export interface WebhookRegistrationRequest {
 /**
  * Webhook test event payload
  */
-export interface WebhookTestEvent extends SaikiWebhookEvent<'saiki:availableToolsUpdated'> {
+export interface WebhookTestEvent extends DextoWebhookEvent<'dexto:availableToolsUpdated'> {
     /** Indicates this is a test event */
     test: true;
 }
@@ -75,7 +75,7 @@ export interface WebhookTestEvent extends SaikiWebhookEvent<'saiki:availableTool
  * Provides autocomplete for event types and typed data payloads
  */
 export type WebhookHandler<T extends AgentEventName = AgentEventName> = (
-    event: SaikiWebhookEvent<T>
+    event: DextoWebhookEvent<T>
 ) => Promise<void> | void;
 
 /**

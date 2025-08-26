@@ -6,8 +6,8 @@ import { tmpdir } from 'os';
 
 // Ensure console.log is mocked and environment is reset between tests
 beforeEach(() => {
-    delete process.env.SAIKI_LOG_LEVEL;
-    delete process.env.SAIKI_LOG_TO_CONSOLE;
+    delete process.env.DEXTO_LOG_LEVEL;
+    delete process.env.DEXTO_LOG_TO_CONSOLE;
     delete process.env.DEBUG;
     vi.restoreAllMocks();
 });
@@ -25,7 +25,7 @@ describe('Logger utilities', () => {
     beforeEach(() => {
         spyLog = vi.spyOn(console, 'log').mockImplementation(() => {});
         _spyStdErrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true) as any;
-        tempDir = fs.mkdtempSync(path.join(tmpdir(), 'saiki-logger-test-'));
+        tempDir = fs.mkdtempSync(path.join(tmpdir(), 'dexto-logger-test-'));
     });
 
     afterEach(() => {
@@ -41,8 +41,8 @@ describe('Logger utilities', () => {
         expect(l.getLevel()).toBe('info');
     });
 
-    it('respects SAIKI_LOG_LEVEL env var', () => {
-        process.env.SAIKI_LOG_LEVEL = 'debug';
+    it('respects DEXTO_LOG_LEVEL env var', () => {
+        process.env.DEXTO_LOG_LEVEL = 'debug';
         const customLogPath = path.join(tempDir, 'test.log');
         const l = new Logger({ customLogPath });
         expect(l.getLevel()).toBe('debug');
@@ -64,8 +64,8 @@ describe('Logger utilities', () => {
         expect(l.getLogFilePath()).toBe(customLogPath);
     });
 
-    it('enables console logging when SAIKI_LOG_TO_CONSOLE=true', () => {
-        process.env.SAIKI_LOG_TO_CONSOLE = 'true';
+    it('enables console logging when DEXTO_LOG_TO_CONSOLE=true', () => {
+        process.env.DEXTO_LOG_TO_CONSOLE = 'true';
         const customLogPath = path.join(tempDir, 'test.log');
         const l = new Logger({ customLogPath });
 

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Saiki",
+  title: "Dexto",
   description: "Interactive playground for testing MCP tools and talking to AI agents",
 };
 

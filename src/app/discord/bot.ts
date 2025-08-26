@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import https from 'https';
 import http from 'http'; // ADDED for http support
-import { SaikiAgent } from '@core/index.js';
+import { DextoAgent } from '@core/index.js';
 
 // Load environment variables
 dotenv.config();
@@ -82,7 +82,7 @@ async function downloadFileAsBase64(
 }
 
 // Insert initDiscordBot to wire up a Discord client given pre-initialized services
-export function startDiscordBot(agent: SaikiAgent) {
+export function startDiscordBot(agent: DextoAgent) {
     if (!token) {
         throw new Error('DISCORD_BOT_TOKEN is not set');
     }

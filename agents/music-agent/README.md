@@ -43,7 +43,7 @@ This agent provides access to professional-grade music production tools through 
 ## Quick Start
 
 ### Prerequisites
-- **Node.js 18+**: For the Saiki framework
+- **Node.js 18+**: For the Dexto framework
 - **Python 3.10+**: Automatically managed by the MCP server
 - **FFmpeg**: For audio processing (optional, but recommended)
 
@@ -61,7 +61,7 @@ This agent provides access to professional-grade music production tools through 
 2. **Run the Agent**:
    ```bash
    # From the project root
-   saiki --agent agents/music-agent/music-agent.yml
+   dexto --agent agents/music-agent/music-agent.yml
    ```
 
 That's it! The MCP server will be automatically downloaded and installed via `uvx` on first run.
@@ -286,9 +286,9 @@ The agent uses a Python-based MCP server that provides:
 ## Getting Help
 
 - **MCP Server Issues**: Report at the [mcp-servers repository](https://github.com/truffle-ai/mcp-servers/issues)
-- **Agent Configuration**: Report at the main Saiki repository
+- **Agent Configuration**: Report at the main Dexto repository
 - **Feature Requests**: Use the mcp-servers repository for tool-related requests
 
 ## License
 
-This agent configuration is part of the Saiki AI Agent framework. The MCP server is distributed under the MIT license.
+This agent configuration is part of the Dexto AI Agent framework. The MCP server is distributed under the MIT license.

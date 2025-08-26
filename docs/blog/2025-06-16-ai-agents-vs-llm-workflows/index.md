@@ -3,13 +3,13 @@ slug: ai-agents-vs-llm-workflows
 title: AI Agents vs LLM Workflows – Why Autonomy Matters
 description: Learn what AI agents are, how they differ from traditional LLM workflows, and when to use each approach.
 authors: rahul
-tags: [ai-agents, llm-workflows, autonomous-ai, saiki]
+tags: [ai-agents, llm-workflows, autonomous-ai, dexto]
 keywords:
   - ai agents
   - llm workflows
   - autonomous ai
   - code review automation
-  - saiki open-source runtime
+  - dexto open-source runtime
 ---
 
 If you have been remotely exposed to AI, you've probably heard the term AI agent. But what really is an AI agent?
@@ -211,4 +211,4 @@ Google DeepMind recently launched [AlphaEvolve](https://deepmind.google/discover
 
 We're also seeing new AI agent products - IDEs like [Cursor](https://www.cursor.com/) and [Windsurf](https://windsurf.com/) allow users to build software applications by talking to an AI agent.
 
-In a later blog post, we'll walk through how to use [Saiki, our open-source AI agent runtime](/docs/getting-started/intro) to build a real AI agent.
+In a later blog post, we'll walk through how to use [Dexto, our open-source AI agent runtime](/docs/getting-started/intro) to build a real AI agent.

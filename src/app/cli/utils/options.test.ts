@@ -8,8 +8,24 @@ describe('validateCliOptions', () => {
         expect(() => validateCliOptions(opts)).not.toThrow();
     });
 
-    it('throws ZodError for missing agent', () => {
+    it('does not throw for missing agent (now optional)', () => {
         const opts = { mode: 'cli', webPort: '8080' };
+        expect(() => validateCliOptions(opts)).not.toThrow();
+    });
+
+    it('throws ZodError for empty agent string', () => {
+        const opts = { agent: '', mode: 'cli', webPort: '8080' };
         expect(() => validateCliOptions(opts)).toThrow(ZodError);
+    });
+
+    it('validates interactive flag correctly', () => {
+        const optsWithNoInteractive = { mode: 'cli', webPort: '8080', interactive: false };
+        expect(() => validateCliOptions(optsWithNoInteractive)).not.toThrow();
+
+        const optsWithInteractive = { mode: 'cli', webPort: '8080', interactive: true };
+        expect(() => validateCliOptions(optsWithInteractive)).not.toThrow();
+
+        const optsWithoutFlag = { mode: 'cli', webPort: '8080' };
+        expect(() => validateCliOptions(optsWithoutFlag)).not.toThrow();
     });
 });

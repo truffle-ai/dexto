@@ -1,78 +1,86 @@
 import { promises as fs } from 'fs';
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { AgentConfig } from './schemas.js';
+import path from 'path';
+import { parse as parseYaml } from 'yaml';
+import { AgentConfig } from '@core/agent/schemas.js';
 import { logger } from '../logger/index.js';
-import { resolveConfigPath } from '../utils/path.js';
-import {
-    ConfigEnvVarError,
-    ConfigFileNotFoundError,
-    ConfigFileReadError,
-    ConfigFileWriteError,
-    ConfigParseError,
-} from '@core/error/index.js';
+import { ConfigError } from './errors.js';
 
 /**
- * Load the complete agent configuration
- * @param configPath Path to the configuration file
- * @returns Complete agent configuration
+ * Expand template variables in agent configuration
+ * Replaces ${{dexto.agent_dir}} with the agent's directory path
  */
+function expandTemplateVars(config: unknown, agentDir: string): unknown {
+    // Deep clone to avoid mutations
+    const result = JSON.parse(JSON.stringify(config));
 
-// Expand $VAR and ${VAR} in all string values recursively
-function expandEnvVars(config: any): any {
-    if (typeof config === 'string') {
-        const expanded = config.replace(
-            /\$([A-Z_][A-Z0-9_]*)|\${([A-Z_][A-Z0-9_]*)}/gi,
-            (_, v1, v2) => {
-                const varName = v1 || v2;
-                const value = process.env[varName];
-
-                if (value === undefined || value === '') {
-                    throw new ConfigEnvVarError(config, varName, 'not defined');
-                }
-                logger.info(varName, value);
-
-                return value;
+    // Walk the config recursively
+    function walk(obj: unknown): unknown {
+        if (typeof obj === 'string') {
+            return expandString(obj, agentDir);
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(walk);
+        }
+        if (obj !== null && typeof obj === 'object') {
+            const result: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(obj)) {
+                result[key] = walk(value);
             }
-        );
-
-        // Try to convert numeric strings to numbers
-        if (expanded !== config && /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(expanded.trim())) {
-            return Number(expanded); // handles int, float, sci-notation
+            return result;
         }
-
-        return expanded;
-    } else if (Array.isArray(config)) {
-        return config.map(expandEnvVars);
-    } else if (typeof config === 'object' && config !== null) {
-        const result: any = {};
-        for (const key in config) {
-            result[key] = expandEnvVars(config[key]);
-        }
-        return result;
+        return obj;
     }
-    return config;
+
+    return walk(result);
+}
+
+/**
+ * Expand template variables in a string value
+ */
+function expandString(str: string, agentDir: string): string {
+    // Replace ${{dexto.agent_dir}} with absolute path
+    const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, agentDir);
+
+    // Security: Validate no path traversal for any expanded path
+    if (result !== str) {
+        validateExpandedPath(str, result, agentDir);
+    }
+
+    return result;
+}
+
+/**
+ * Validate that template expansion doesn't allow path traversal
+ */
+function validateExpandedPath(original: string, expanded: string, agentDir: string): void {
+    const resolved = path.resolve(expanded);
+    const agentRoot = path.resolve(agentDir);
+    const relative = path.relative(agentRoot, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error(
+            `Security: Template expansion attempted to escape agent directory.\n` +
+                `Original: ${original}\n` +
+                `Expanded: ${expanded}\n` +
+                `Agent root: ${agentRoot}`
+        );
+    }
 }
 
 /**
  * Asynchronously loads and processes an agent configuration file.
- * This function orchestrates the steps of resolving the file path, checking its existence,
- * reading its content, parsing it as YAML, and expanding any environment variables within it.
- * Each step is wrapped in a try-catch block to gracefully handle errors and throw specific,
- * custom error types for better error identification and handling by the caller.
+ * This function handles file reading, YAML parsing, and template variable expansion.
+ * Environment variable expansion is handled by the Zod schema during validation.
  *
- * @param configPath - An optional string representing the path to the configuration file.
- * If not provided, a default path will be resolved internally.
- * @returns A Promise that resolves to the fully loaded and processed `AgentConfig` object.
- * @throws {ConfigFileNotFoundError} If the configuration file does not exist at the resolved path.
- * @throws {ConfigFileReadError} If an error occurs while attempting to read the configuration file (e.g., permissions issues).
- * @throws {ConfigParseError} If the content of the configuration file is not valid YAML.
- * @throws {ConfigEnvVarError} If there's a problem expanding environment variables within the parsed configuration.
+ * Note: Path resolution should be done before calling this function using resolveConfigPath().
+ *
+ * @param configPath - Path to the configuration file (absolute or relative)
+ * @returns A Promise that resolves to the parsed `AgentConfig` object with template variables expanded
+ * @throws {ConfigError} with FILE_NOT_FOUND if the configuration file does not exist
+ * @throws {ConfigError} with FILE_READ_ERROR if file read fails (e.g., permissions issues)
+ * @throws {ConfigError} with PARSE_ERROR if the content is not valid YAML or template expansion fails
  */
-export async function loadAgentConfig(configPath?: string): Promise<AgentConfig> {
-    // Resolve the absolute path of the configuration file.
-    // This utility function should handle cases where `configPath` is undefined,
-    // determining a default or conventional location for the config.
-    const absolutePath = resolveConfigPath(configPath);
+export async function loadAgentConfig(configPath: string): Promise<AgentConfig> {
+    const absolutePath = path.resolve(configPath);
 
     // --- Step 1: Verify the configuration file exists and is accessible ---
     try {
@@ -81,7 +89,7 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
         await fs.access(absolutePath);
     } catch (_error) {
         // Throw a specific error indicating that the configuration file was not found.
-        throw new ConfigFileNotFoundError(absolutePath);
+        throw ConfigError.fileNotFound(absolutePath);
     }
 
     let fileContent: string;
@@ -92,80 +100,38 @@ export async function loadAgentConfig(configPath?: string): Promise<AgentConfig>
     } catch (error) {
         // If an error occurs during file reading (e.g., I/O error, corrupted file),
         // throw a `ConfigFileReadError` with the absolute path and the underlying cause.
-        throw new ConfigFileReadError(
+        throw ConfigError.fileReadError(
             absolutePath,
             error instanceof Error ? error.message : String(error)
         );
     }
 
-    let config: any;
     // --- Step 3: Parse the file content as YAML ---
+    let config: unknown;
     try {
         // Attempt to parse the string content into a JavaScript object using a YAML parser.
         config = parseYaml(fileContent);
     } catch (error) {
         // If the content is not valid YAML, `parseYaml` will throw an error.
         // Catch it and throw a `ConfigParseError` with details.
-        throw new ConfigParseError(
+        throw ConfigError.parseError(
             absolutePath,
             error instanceof Error ? error.message : String(error)
         );
     }
 
-    // --- Step 4: Expand environment variables within the parsed configuration ---
+    // --- Step 4: Expand template variables ---
     try {
-        // Process the parsed configuration object to replace any placeholders
-        // with their corresponding environment variable values.
-        return expandEnvVars(config);
+        const agentDir = path.dirname(absolutePath);
+        config = expandTemplateVars(config, agentDir);
+        logger.debug(`Expanded template variables for agent in: ${agentDir}`);
     } catch (error) {
-        // If an environment variable is missing or its expansion fails,
-        // throw a `ConfigEnvVarError`. The 'unknown' placeholder suggests
-        // that the `expandEnvVars` utility might not directly return the
-        // problematic variable's name, but it's good to indicate it could be
-        // extracted if available.
-        throw new ConfigEnvVarError(
+        throw ConfigError.parseError(
             absolutePath,
-            'unknown', // Ideally, `expandEnvVars` would pass the problematic env var name
-            error instanceof Error ? error.message : String(error)
+            `Template expansion failed: ${error instanceof Error ? error.message : String(error)}`
         );
     }
-}
 
-/**
- * Asynchronously writes the given agent configuration object to a YAML file.
- * This function handles the serialization of the config object to YAML format
- * and then writes it to the specified file path, logging the action.
- * It uses custom error classes for robust error handling.
- *
- * @param configPath - Optional. The path where the configuration file should be written.
- * If undefined, `resolveConfigPath` will determine the default path.
- * @param config - The `AgentConfig` object to be written to the file.
- * @returns A Promise that resolves when the file has been successfully written.
- * @throws {ConfigFileWriteError} If an error occurs during the YAML stringification or file writing process.
- */
-export async function writeConfigFile(
-    configPath: string | undefined,
-    config: AgentConfig
-): Promise<void> {
-    // Resolve the absolute path where the configuration file will be written.
-    const absolutePath = resolveConfigPath(configPath);
-
-    try {
-        // Convert the AgentConfig object into a YAML string.
-        const yamlContent = stringifyYaml(config);
-
-        // Write the YAML content to the specified file.
-        // The 'utf-8' encoding ensures proper character handling.
-        await fs.writeFile(absolutePath, yamlContent, 'utf-8');
-
-        // Log a debug message indicating successful file write.
-        logger.debug(`Wrote saiki config to: ${absolutePath}`);
-    } catch (error: any) {
-        // Catch any errors that occur during YAML stringification or file writing.
-        // Throw a specific `ConfigFileWriteError` for better error categorization.
-        throw new ConfigFileWriteError(
-            absolutePath, // Pass the absolute path for context
-            error instanceof Error ? error.message : String(error) // Provide the underlying cause message
-        );
-    }
+    // Return expanded config - environment variable expansion handled by Zod schema
+    return config as AgentConfig;
 }
