@@ -7,6 +7,7 @@ import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
 import { logger } from '@core/index.js';
+import { redactSensitiveData } from '@core/utils/redactor.js';
 import type { AgentCard } from '@core/index.js';
 import { setupA2ARoutes } from './a2a.js';
 import {
@@ -365,7 +366,18 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
         ws.on('message', async (messageBuffer) => {
             const messageString = messageBuffer.toString();
-            logger.debug(`WebSocket received message: ${messageString}`);
+            try {
+                const parsedMessage = JSON.parse(messageString);
+                const redactedMessage = redactSensitiveData(parsedMessage);
+                logger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
+            } catch {
+                // If JSON parsing fails, log first 200 chars to avoid huge logs
+                const truncated =
+                    messageString.length > 200
+                        ? `${messageString.substring(0, 200)}... (${messageString.length} total chars)`
+                        : messageString;
+                logger.debug(`WebSocket received message: ${truncated}`);
+            }
             try {
                 const data = JSON.parse(messageString);
                 if (data.type === 'toolConfirmationResponse' && data.data) {
