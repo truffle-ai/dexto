@@ -149,7 +149,30 @@ export class VercelMessageFormatter implements IMessageFormatter {
         };
 
         // Reuse the existing parseResponse logic
-        return this.parseResponse(adaptedResponse as GenerateTextResult<VercelToolSet, unknown>);
+        const internal = this.parseResponse(
+            adaptedResponse as GenerateTextResult<VercelToolSet, unknown>
+        );
+
+        // Attach final reasoning and usage, if available, to the last assistant message
+        const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
+        if (lastAssistant) {
+            const usage = await response.totalUsage;
+            const reasoningText = await response.reasoningText;
+            if (reasoningText) {
+                lastAssistant.reasoning = reasoningText;
+            }
+            if (usage) {
+                lastAssistant.tokenUsage = {
+                    ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                    ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
+                    ...(usage.reasoningTokens !== undefined && {
+                        reasoningTokens: usage.reasoningTokens,
+                    }),
+                    ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+                };
+            }
+        }
+        return internal;
     }
 
     /**
@@ -273,6 +296,27 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 default:
                     // ignore system or unknown
                     break;
+            }
+        }
+
+        // Attach final reasoning and usage, if available, to the last assistant message
+        const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
+        const anyResp: any = response as any;
+        const usage = anyResp?.totalUsage;
+        const reasoningText = anyResp?.reasoningText;
+        if (lastAssistant) {
+            if (typeof reasoningText === 'string' && reasoningText.length > 0) {
+                lastAssistant.reasoning = reasoningText;
+            }
+            if (usage) {
+                lastAssistant.tokenUsage = {
+                    ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                    ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
+                    ...(usage.reasoningTokens !== undefined && {
+                        reasoningTokens: usage.reasoningTokens,
+                    }),
+                    ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+                };
             }
         }
         return internal;

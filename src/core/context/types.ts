@@ -52,6 +52,22 @@ export interface InternalMessage {
     content: string | null | Array<TextPart | ImagePart | FilePart>;
 
     /**
+     * Optional model reasoning text associated with an assistant response.
+     * Present when the provider supports reasoning and returns a final reasoning trace.
+     */
+    reasoning?: string;
+
+    /**
+     * Optional token usage accounting for this assistant response.
+     */
+    tokenUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        reasoningTokens?: number;
+        totalTokens?: number;
+    };
+
+    /**
      * Tool calls made by the assistant.
      * Only present in assistant messages when the LLM requests tool execution.
      */

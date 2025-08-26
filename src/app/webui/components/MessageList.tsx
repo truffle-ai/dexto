@@ -14,8 +14,10 @@ import {
     ErrorMessage
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
+import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, Brain } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MessageListProps {
   messages: Message[];
@@ -38,6 +40,7 @@ function isValidDataUri(src: string): boolean {
 export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
+  const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,6 +114,36 @@ export default function MessageList({ messages, activeError, onDismissError }: M
               <div className={cn("flex flex-col", isUser ? "items-end" : "items-start", isSystem && "w-full items-center")}> 
               <div className={bubbleSpecificClass}>
                 <div className={contentWrapperClass}>
+                  {/* Reasoning panel (assistant only) - display at top */}
+                  {isAi && typeof msg.reasoning === 'string' && msg.reasoning.trim().length > 0 && (
+                    <div className="mb-3 border border-orange-200/50 dark:border-orange-400/20 rounded-lg bg-gradient-to-br from-orange-50/30 to-amber-50/20 dark:from-orange-900/20 dark:to-amber-900/10">
+                      <div className="px-3 py-2 border-b border-orange-200/30 dark:border-orange-400/20 bg-orange-100/50 dark:bg-orange-900/30 rounded-t-lg">
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-800 dark:hover:text-orange-200 transition-colors group"
+                          onClick={() =>
+                            setReasoningExpanded((prev) => ({ ...prev, [msg.id!]: !prev[msg.id!] }))
+                          }
+                        >
+                          <Brain className="h-3.5 w-3.5" />
+                          <span>AI Reasoning</span>
+                          {(reasoningExpanded[msg.id!] ?? true) ? (
+                            <ChevronUp className="h-3 w-3 group-hover:scale-110 transition-transform" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3 group-hover:scale-110 transition-transform" />
+                          )}
+                        </button>
+                      </div>
+                      {(reasoningExpanded[msg.id!] ?? true) && (
+                        <div className="px-3 py-2">
+                          <pre className="whitespace-pre-wrap break-words text-xs text-orange-800/80 dark:text-orange-200/70 leading-relaxed font-mono">
+                            {msg.reasoning}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {msg.toolName ? (
                     <div className="p-2 rounded border border-border bg-muted/30 hover:bg-muted/60 cursor-pointer w-full" onClick={toggleManualExpansion}>
                       <div className="flex items-center justify-between text-xs font-medium">
@@ -200,7 +233,11 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                   ) : (
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-pre:my-2 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-code:bg-muted prose-code:rounded">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
                       )}
 
                       {msg.content && typeof msg.content === 'object' && !Array.isArray(msg.content) && (

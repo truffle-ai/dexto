@@ -161,33 +161,66 @@ export function useChat(wsUrl: string) {
                     break;
                 case 'chunk': {
                     const text = typeof payload.content === 'string' ? payload.content : '';
-                    setMessages((ms) => {
-                        // Remove any existing 'thinking' system messages
-                        const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        );
-                        const last = cleaned[cleaned.length - 1];
-                        if (last && last.role === 'assistant') {
-                            // Only concatenate if existing content is a string
-                            const newContent =
-                                typeof last.content === 'string' ? last.content + text : text;
-                            const updated = {
-                                ...last,
-                                content: newContent,
-                                createdAt: Date.now(),
-                            };
-                            return [...cleaned.slice(0, -1), updated];
-                        }
-                        return [
-                            ...cleaned,
-                            {
-                                id: generateUniqueId(),
-                                role: 'assistant',
-                                content: text,
-                                createdAt: Date.now(),
-                            },
-                        ];
-                    });
+                    const chunkType = payload.type as 'text' | 'reasoning' | undefined;
+                    if (chunkType === 'reasoning') {
+                        // Update reasoning on the last assistant message if present,
+                        // otherwise create a placeholder assistant message to host the reasoning stream.
+                        setMessages((ms) => {
+                            const cleaned = ms.filter(
+                                (m) =>
+                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                            );
+                            const last = cleaned[cleaned.length - 1];
+                            if (last && last.role === 'assistant') {
+                                const updated = {
+                                    ...last,
+                                    reasoning: (last.reasoning || '') + text,
+                                    createdAt: Date.now(),
+                                };
+                                return [...cleaned.slice(0, -1), updated];
+                            }
+                            // No assistant yet; create one with empty content and initial reasoning
+                            return [
+                                ...cleaned,
+                                {
+                                    id: generateUniqueId(),
+                                    role: 'assistant',
+                                    content: '',
+                                    reasoning: text,
+                                    createdAt: Date.now(),
+                                },
+                            ];
+                        });
+                    } else {
+                        setMessages((ms) => {
+                            // Remove any existing 'thinking' system messages
+                            const cleaned = ms.filter(
+                                (m) =>
+                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                            );
+                            const last = cleaned[cleaned.length - 1];
+                            if (last && last.role === 'assistant') {
+                                // Only concatenate if existing content is a string
+                                const newContent =
+                                    typeof last.content === 'string' ? last.content + text : text;
+                                const updated = {
+                                    ...last,
+                                    content: newContent,
+                                    createdAt: Date.now(),
+                                };
+                                return [...cleaned.slice(0, -1), updated];
+                            }
+                            return [
+                                ...cleaned,
+                                {
+                                    id: generateUniqueId(),
+                                    role: 'assistant',
+                                    content: text,
+                                    createdAt: Date.now(),
+                                },
+                            ];
+                        });
+                    }
                     break;
                 }
                 case 'response': {
