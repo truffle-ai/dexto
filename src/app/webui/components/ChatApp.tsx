@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { ThemeSwitch } from './ThemeSwitch';
+import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 
 export default function ChatApp() {
@@ -39,6 +40,7 @@ export default function ChatApp() {
   const [isSessionsPanelOpen, setSessionsPanelOpen] = useState(false);
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [isExportOpen, setExportOpen] = useState(false);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [exportName, setExportName] = useState('dexto-config');
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
@@ -492,6 +494,20 @@ export default function ChatApp() {
             {/* Minimal Action Bar */}
             <div className="flex items-center space-x-1">
               <ThemeSwitch />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSettingsOpen(true)}
+                    className="h-8 w-8 p-0"
+                    aria-label="Open settings"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Settings</TooltipContent>
+              </Tooltip>
               
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -762,6 +778,9 @@ export default function ChatApp() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Settings Modal */}
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
 
 
         {/* Delete Conversation Confirmation Modal */}
