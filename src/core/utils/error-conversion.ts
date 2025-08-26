@@ -46,14 +46,3 @@ export function toError(error: unknown): Error {
     // For primitives and other types
     return new Error(String(error), { cause: error as unknown });
 }
-
-/**
- * Extracts a meaningful error message string from any error value
- * Similar to toError but returns just the message string
- *
- * @param error - The error value to extract message from
- * @returns Meaningful error message string
- */
-export function extractErrorMessage(error: unknown): string {
-    return toError(error).message.trim();
-}

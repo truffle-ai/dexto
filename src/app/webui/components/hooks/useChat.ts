@@ -2,7 +2,8 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
-import { extractErrorMessage } from '@core/utils/error-conversion.js';
+import { toError } from '@core/utils/error-conversion.js';
+import { Issue } from '@core/errors/types.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -104,6 +105,8 @@ export interface ErrorMessage {
     sessionId?: string;
     // Message id this error relates to (e.g., last user input)
     anchorMessageId?: string;
+    // Raw validation issues for hierarchical display
+    detailedIssues?: Issue[];
 }
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -142,8 +145,10 @@ export function useChat(wsUrl: string) {
             try {
                 msg = JSON.parse(event.data);
             } catch (err: unknown) {
-                const em = extractErrorMessage(err);
-                console.error(`[useChat] WebSocket message parse error: ${em}`);
+                const error = toError(err);
+                console.error(`[useChat] WebSocket message parse error: ${error.message}`, {
+                    error,
+                });
                 return; // Skip malformed message
             }
             const payload = msg.data || {};
@@ -385,8 +390,15 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'error': {
-                    // Extract meaningful error messages from potentially nested error payloads
-                    const errMsg = extractErrorMessage(payload);
+                    // TODO: Replace untyped WebSocket payloads with a shared, typed schema
+                    // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
+                    // use proper type guards instead of manual payload inspection here.
+
+                    // Debug logging to see what we're actually receiving
+                    console.log('[useChat] Error payload:', JSON.stringify(payload, null, 2));
+
+                    // Keep the hierarchical top-level message, don't override with detailed issue message
+                    let errorMessage = toError(payload).message;
 
                     // Clean up thinking messages like other terminal events
                     setMessages((ms) =>
@@ -398,12 +410,13 @@ export function useChat(wsUrl: string) {
                     // Set error as separate state, not as a message
                     setActiveError({
                         id: generateUniqueId(),
-                        message: errMsg,
+                        message: errorMessage,
                         timestamp: Date.now(),
                         context: payload.context,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        detailedIssues: payload.issues || [],
                     });
                     break;
                 }

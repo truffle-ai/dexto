@@ -35,6 +35,9 @@ import {
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { AgentErrorCode } from '@core/agent/error-codes.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -425,15 +428,28 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     );
 
                     if (!validation.ok) {
-                        sendWebSocketValidationError(
-                            ws,
-                            'Invalid input for current LLM configuration',
+                        logger.error(`Invalid input for current LLM configuration`, {
+                            provider: currentConfig.llm.provider,
+                            model: currentConfig.llm.model,
+                            issues: validation.issues,
+                        });
+                        // Create a hierarchical error structure: generic top-level + detailed nested issues
+                        // This allows the UI to show "Invalid input for LLM config" with expandable specifics
+                        const hierarchicalError = new DextoValidationError([
                             {
-                                provider: currentConfig.llm.provider,
-                                model: currentConfig.llm.model,
-                                issues: validation.issues,
-                            }
-                        );
+                                code: AgentErrorCode.API_VALIDATION_ERROR,
+                                message: 'Invalid input for current LLM configuration',
+                                scope: ErrorScope.AGENT,
+                                type: ErrorType.USER,
+                                severity: 'error' as const,
+                                context: {
+                                    provider: currentConfig.llm.provider,
+                                    model: currentConfig.llm.model,
+                                    detailedIssues: validation.issues, // Nest the specific validation details
+                                },
+                            },
+                        ]);
+                        sendWebSocketError(ws, hierarchicalError);
                         return;
                     }
 
