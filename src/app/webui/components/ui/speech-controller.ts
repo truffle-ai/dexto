@@ -48,12 +48,16 @@ class SpeechController {
 
     subscribe(cb: Subscriber) {
         this.subscribers.add(cb);
-        return () => this.subscribers.delete(cb);
+        return () => {
+            this.subscribers.delete(cb);
+        };
     }
 
     subscribeVoices(cb: Subscriber) {
         this.voiceSubscribers.add(cb);
-        return () => this.voiceSubscribers.delete(cb);
+        return () => {
+            this.voiceSubscribers.delete(cb);
+        };
     }
 
     private notify() {
