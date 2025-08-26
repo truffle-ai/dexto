@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import { memo, useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
-import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 
 // Enhanced markdown component with proper emoji support and spacing
 const MarkdownTextImpl = ({ children }: { children: string }) => {

@@ -16,8 +16,8 @@ import {
 import ErrorBanner from './ErrorBanner';
 import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, Brain, Check as CheckIcon } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import { MarkdownText } from './assistant-ui/markdown-text';
-import { TooltipIconButton } from './assistant-ui/tooltip-icon-button';
+import { MarkdownText } from './ui/markdown-text';
+import { TooltipIconButton } from './ui/tooltip-icon-button';
 
 interface MessageListProps {
   messages: Message[];
@@ -421,7 +421,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                           setTimeout(() => setCopiedMessageId(null), 2000);
                         }).catch(() => {});
                       }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="opacity-70 hover:opacity-100 transition-opacity"
                     >
                       {copiedMessageId === msg.id ? <CheckIcon size={12} /> : <Copy size={12} />}
                     </TooltipIconButton>
