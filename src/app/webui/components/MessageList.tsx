@@ -20,6 +20,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
 import { TooltipIconButton } from './ui/tooltip-icon-button';
 import { CopyButton } from './ui/copy-button';
+import { SpeakButton } from './ui/speak-button';
 
 interface MessageListProps {
   messages: Message[];
@@ -164,12 +165,20 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             <ChevronDown className="h-3 w-3 group-hover:scale-110 transition-transform" />
                           )}
                         </button>
-                        <CopyButton
-                          value={msg.reasoning}
-                          tooltip="Copy reasoning"
-                          copiedTooltip="Copied!"
-                          className="opacity-70 hover:opacity-100 transition-opacity"
-                        />
+                        <div className="flex items-center gap-1">
+                          <CopyButton
+                            value={msg.reasoning}
+                            tooltip="Copy reasoning"
+                            copiedTooltip="Copied!"
+                            className="opacity-70 hover:opacity-100 transition-opacity"
+                          />
+                          <SpeakButton
+                            value={msg.reasoning}
+                            tooltip="Speak reasoning"
+                            stopTooltip="Stop"
+                            className="opacity-70 hover:opacity-100 transition-opacity"
+                          />
+                        </div>
                       </div>
                       {(reasoningExpanded[msg.id!] ?? true) && (
                         <div className="px-3 py-2">
@@ -212,14 +221,22 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           </div>
                           {msg.toolResult && (
                             <div>
-                              <div className="text-xs font-medium flex items-center justify-between">
+                              <div className="text-xs font-medium flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
                                 <span>Result:</span>
-                                <CopyButton
-                                  value={getToolResultCopyText(msg.toolResult)}
-                                  tooltip="Copy result"
-                                  copiedTooltip="Copied!"
-                                  className="opacity-70 hover:opacity-100 transition-opacity"
-                                />
+                                <div className="flex items-center gap-1">
+                                  <CopyButton
+                                    value={getToolResultCopyText(msg.toolResult)}
+                                    tooltip="Copy result"
+                                    copiedTooltip="Copied!"
+                                    className="opacity-70 hover:opacity-100 transition-opacity"
+                                  />
+                                  <SpeakButton
+                                    value={getToolResultCopyText(msg.toolResult)}
+                                    tooltip="Speak result"
+                                    stopTooltip="Stop"
+                                    className="opacity-70 hover:opacity-100 transition-opacity"
+                                  />
+                                </div>
                               </div>
                               {isToolResultError(msg.toolResult) ? (
                                 <pre className="whitespace-pre-wrap break-words overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
@@ -453,14 +470,22 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     </span>
                   )} */}
                   </div>
-                  {/* Copy button for user and AI messages */}
+                  {/* Speak + Copy controls for user and AI messages */}
                   {(isAi || isUser) && (
-                    <CopyButton
-                      value={getPlainTextFromMessage(msg)}
-                      tooltip="Copy message"
-                      copiedTooltip="Copied!"
-                      className="opacity-70 hover:opacity-100 transition-opacity"
-                    />
+                    <div className="flex items-center gap-1">
+                      <CopyButton
+                        value={getPlainTextFromMessage(msg)}
+                        tooltip="Copy message"
+                        copiedTooltip="Copied!"
+                        className="opacity-70 hover:opacity-100 transition-opacity"
+                      />
+                      <SpeakButton
+                        value={getPlainTextFromMessage(msg)}
+                        tooltip="Speak"
+                        stopTooltip="Stop"
+                        className="opacity-70 hover:opacity-100 transition-opacity"
+                      />
+                    </div>
                   )}
                 </div>
               )}
