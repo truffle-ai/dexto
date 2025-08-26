@@ -11,7 +11,8 @@ import {
     isTextPart, 
     isImagePart, 
     isFilePart, 
-    ErrorMessage
+    ErrorMessage,
+    ToolResult
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
 import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, Brain, Check as CheckIcon } from 'lucide-react';
@@ -68,6 +69,20 @@ export default function MessageList({ messages, activeError, onDismissError, out
     }
     if (msg.content && typeof msg.content === 'object') return JSON.stringify(msg.content, null, 2);
     return '';
+  };
+
+  const getToolResultCopyText = (result: ToolResult | undefined): string => {
+    if (!result) return '';
+    if (isToolResultError(result)) {
+      return typeof result.error === 'object' ? JSON.stringify(result.error, null, 2) : String(result.error);
+    }
+    if (isToolResultContent(result)) {
+      return result.content
+        .map((part) => (isTextPart(part) ? part.text : typeof part === 'object' ? '' : String(part)))
+        .filter(Boolean)
+        .join('\n');
+    }
+    return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
   };
 
   return (
@@ -133,7 +148,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   {/* Reasoning panel (assistant only) - display at top */}
                   {isAi && typeof msg.reasoning === 'string' && msg.reasoning.trim().length > 0 && (
                     <div className="mb-3 border border-orange-200/50 dark:border-orange-400/20 rounded-lg bg-gradient-to-br from-orange-50/30 to-amber-50/20 dark:from-orange-900/20 dark:to-amber-900/10">
-                      <div className="px-3 py-2 border-b border-orange-200/30 dark:border-orange-400/20 bg-orange-100/50 dark:bg-orange-900/30 rounded-t-lg">
+                      <div className="px-3 py-2 border-b border-orange-200/30 dark:border-orange-400/20 bg-orange-100/50 dark:bg-orange-900/30 rounded-t-lg flex items-center justify-between">
                         <button
                           type="button"
                           className="flex items-center gap-2 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-800 dark:hover:text-orange-200 transition-colors group"
@@ -149,6 +164,12 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             <ChevronDown className="h-3 w-3 group-hover:scale-110 transition-transform" />
                           )}
                         </button>
+                        <CopyButton
+                          value={msg.reasoning}
+                          tooltip="Copy reasoning"
+                          copiedTooltip="Copied!"
+                          className="opacity-70 hover:opacity-100 transition-opacity"
+                        />
                       </div>
                       {(reasoningExpanded[msg.id!] ?? true) && (
                         <div className="px-3 py-2">
@@ -191,7 +212,15 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           </div>
                           {msg.toolResult && (
                             <div>
-                              <p className="text-xs font-medium">Result:</p>
+                              <div className="text-xs font-medium flex items-center justify-between">
+                                <span>Result:</span>
+                                <CopyButton
+                                  value={getToolResultCopyText(msg.toolResult)}
+                                  tooltip="Copy result"
+                                  copiedTooltip="Copied!"
+                                  className="opacity-70 hover:opacity-100 transition-opacity"
+                                />
+                              </div>
                               {isToolResultError(msg.toolResult) ? (
                                 <pre className="whitespace-pre-wrap break-words overflow-auto bg-red-100 text-red-700 p-2 rounded text-xs">
                                   {typeof msg.toolResult.error === 'object'
