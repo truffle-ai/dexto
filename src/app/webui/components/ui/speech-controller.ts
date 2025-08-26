@@ -136,6 +136,15 @@ class SpeechController {
             ? this.voices.find((v) => v.name === this.preferredVoiceName)
             : null;
         if (byName) return byName;
+
+        // Prefer Google UK English Female when available (Chrome typically exposes this voice)
+        const ukFemale = this.voices.find(
+            (v) =>
+                v.name.toLowerCase() === 'google uk english female' ||
+                (v.name.toLowerCase().includes('google uk english female') &&
+                    v.lang?.toLowerCase().startsWith('en-gb'))
+        );
+        if (ukFemale) return ukFemale;
         const score = (v: SpeechSynthesisVoice) => {
             const n = v.name.toLowerCase();
             let s = 0;
