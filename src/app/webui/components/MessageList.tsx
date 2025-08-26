@@ -14,10 +14,10 @@ import {
     ErrorMessage
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, Brain } from 'lucide-react';
+import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, Brain, Check as CheckIcon } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownText } from './assistant-ui/markdown-text';
+import { TooltipIconButton } from './assistant-ui/tooltip-icon-button';
 
 interface MessageListProps {
   messages: Message[];
@@ -42,6 +42,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,6 +54,19 @@ export default function MessageList({ messages, activeError, onDismissError }: M
   if (!messages || messages.length === 0) {
     return null;
   }
+
+  // Helper function to extract plain text from message for copy functionality
+  const getPlainTextFromMessage = (msg: Message): string => {
+    if (typeof msg.content === 'string') return msg.content;
+    if (Array.isArray(msg.content)) {
+      return msg.content
+        .map((p) => (isTextPart(p) ? p.text : ''))
+        .filter(Boolean)
+        .join('\n');
+    }
+    if (msg.content && typeof msg.content === 'object') return JSON.stringify(msg.content, null, 2);
+    return '';
+  };
 
   return (
     <div id="message-list-container" className="flex flex-col space-y-3 px-4 py-2">
@@ -111,7 +125,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
               {isAi && <AvatarComponent className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
               {msg.role === 'tool' && <Wrench className="h-7 w-7 p-1 mr-3 mt-1 rounded-full border border-border text-muted-foreground self-start flex-shrink-0" />}
               
-              <div className={cn("flex flex-col", isUser ? "items-end" : "items-start", isSystem && "w-full items-center")}> 
+              <div className={cn("flex flex-col group", isUser ? "items-end" : "items-start", isSystem && "w-full items-center")}> 
               <div className={bubbleSpecificClass}>
                 <div className={contentWrapperClass}>
                   {/* Reasoning panel (assistant only) - display at top */}
@@ -233,10 +247,8 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                   ) : (
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
-                        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-pre:my-2 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-code:bg-muted prose-code:rounded">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
-                          </ReactMarkdown>
+                        <div className="relative">
+                          <MarkdownText>{msg.content}</MarkdownText>
                         </div>
                       )}
 
@@ -249,7 +261,11 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                       {Array.isArray(msg.content) && msg.content.map((part, partIdx) => {
                         const partKey = `${msgKey}-part-${partIdx}`;
                         if (part.type === 'text') {
-                          return <p key={partKey} className="whitespace-pre-wrap break-words">{(part as TextPart).text}</p>;
+                          return (
+                            <div key={partKey} className="relative">
+                              <MarkdownText>{(part as TextPart).text}</MarkdownText>
+                            </div>
+                          );
                         }
                         if (part.type === 'image' && 'base64' in part && 'mimeType' in part) {
                           const imagePart = part as ImagePart;
@@ -356,8 +372,9 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                 </div>
               </div>
               {!isSystem && !isToolRelated && (
-                <div className="text-xs text-muted-foreground mt-1 px-1 flex items-center gap-2">
-                  <span>{timestampStr}</span>
+                <div className="text-xs text-muted-foreground mt-1 px-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span>{timestampStr}</span>
                   {isAi && msg.tokenUsage?.totalTokens !== undefined && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -392,6 +409,23 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                       {msg.sessionId.slice(0, 8)}
                     </span>
                   )} */}
+                  </div>
+                  {/* Copy button for AI messages */}
+                  {isAi && (
+                    <TooltipIconButton
+                      tooltip={copiedMessageId === msg.id ? "Copied!" : "Copy message"}
+                      onClick={() => {
+                        const text = getPlainTextFromMessage(msg);
+                        navigator.clipboard.writeText(text).then(() => {
+                          setCopiedMessageId(msg.id);
+                          setTimeout(() => setCopiedMessageId(null), 2000);
+                        }).catch(() => {});
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {copiedMessageId === msg.id ? <CheckIcon size={12} /> : <Copy size={12} />}
+                    </TooltipIconButton>
+                  )}
                 </div>
               )}
               </div>
