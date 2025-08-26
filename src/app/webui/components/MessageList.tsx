@@ -18,6 +18,7 @@ import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
 import { TooltipIconButton } from './ui/tooltip-icon-button';
+import { CopyButton } from './ui/copy-button';
 
 interface MessageListProps {
   messages: Message[];
@@ -423,21 +424,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     </span>
                   )} */}
                   </div>
-                  {/* Copy button for AI messages */}
-                  {isAi && (
-                    <TooltipIconButton
-                      tooltip={copiedMessageId === msg.id ? "Copied!" : "Copy message"}
-                      onClick={() => {
-                        const text = getPlainTextFromMessage(msg);
-                        navigator.clipboard.writeText(text).then(() => {
-                          setCopiedMessageId(msg.id);
-                          setTimeout(() => setCopiedMessageId(null), 2000);
-                        }).catch(() => {});
-                      }}
+                  {/* Copy button for user and AI messages */}
+                  {(isAi || isUser) && (
+                    <CopyButton
+                      value={getPlainTextFromMessage(msg)}
+                      tooltip="Copy message"
+                      copiedTooltip="Copied!"
                       className="opacity-70 hover:opacity-100 transition-opacity"
-                    >
-                      {copiedMessageId === msg.id ? <CheckIcon size={12} /> : <Copy size={12} />}
-                    </TooltipIconButton>
+                    />
                   )}
                 </div>
               )}
