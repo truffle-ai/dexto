@@ -338,6 +338,46 @@ describe('File Support Functions', () => {
             expect(result.error).toBe('Unsupported file type: application/unknown');
         });
 
+        it('handles parameterized MIME types correctly', () => {
+            // Test audio/webm;codecs=opus (the original issue)
+            const webmResult = validateModelFileSupport(
+                'openai',
+                'gpt-4o-audio-preview',
+                'audio/webm;codecs=opus'
+            );
+            expect(webmResult.isSupported).toBe(true);
+            expect(webmResult.fileType).toBe('audio');
+            expect(webmResult.error).toBeUndefined();
+
+            // Test other parameterized MIME types
+            const mp3Result = validateModelFileSupport(
+                'openai',
+                'gpt-4o-audio-preview',
+                'audio/mpeg;layer=3'
+            );
+            expect(mp3Result.isSupported).toBe(true);
+            expect(mp3Result.fileType).toBe('audio');
+
+            const pdfResult = validateModelFileSupport(
+                'openai',
+                'gpt-4o',
+                'application/pdf;version=1.4'
+            );
+            expect(pdfResult.isSupported).toBe(true);
+            expect(pdfResult.fileType).toBe('pdf');
+
+            // Test that unsupported base types with parameters still fail correctly
+            const unknownResult = validateModelFileSupport(
+                'openai',
+                'gpt-4o',
+                'application/unknown;param=value'
+            );
+            expect(unknownResult.isSupported).toBe(false);
+            expect(unknownResult.error).toBe(
+                'Unsupported file type: application/unknown;param=value'
+            );
+        });
+
         it('rejects files for openai-compatible provider', () => {
             const result = validateModelFileSupport(
                 'openai-compatible',

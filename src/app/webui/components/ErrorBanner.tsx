@@ -17,6 +17,7 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
   
   // Extract the actual detailed validation issues from the hierarchical structure
   // The server sends: hierarchicalError.issues[0].context.detailedIssues = [actual validation issues]
+  // TODO: Update this to just print the entire error object
   const firstIssue = error.detailedIssues?.[0];
   const detailedIssues = (firstIssue?.context && 
     typeof firstIssue.context === 'object' && 
