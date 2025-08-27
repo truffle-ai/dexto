@@ -7,11 +7,18 @@ import { extractErrorMessage } from '@core/utils/error-conversion.js';
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
 
-// Define a WebUI-specific image part
+// Define WebUI-specific media parts
 export interface ImagePart {
     type: 'image';
     base64: string;
     mimeType: string;
+}
+
+export interface AudioPart {
+    type: 'audio';
+    base64: string;
+    mimeType: string;
+    filename?: string;
 }
 
 export interface FileData {
@@ -26,7 +33,7 @@ export interface ToolResultError {
 }
 
 export interface ToolResultContent {
-    content: Array<TextPart | ImagePart | FilePart>;
+    content: Array<TextPart | ImagePart | AudioPart | FilePart>;
 }
 
 export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
@@ -64,6 +71,15 @@ export function isImagePart(part: unknown): part is ImagePart {
     );
 }
 
+export function isAudioPart(part: unknown): part is AudioPart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'audio'
+    );
+}
+
 export function isFilePart(part: unknown): part is FilePart {
     return (
         typeof part === 'object' &&
@@ -77,7 +93,7 @@ export function isFilePart(part: unknown): part is FilePart {
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart>;
     imageData?: { base64: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
@@ -207,6 +223,7 @@ export function useChat(wsUrl: string) {
                                 tokenCount,
                                 model,
                                 createdAt: Date.now(),
+                                sessionId,
                             };
                             return [...cleaned.slice(0, -1), updatedMsg];
                         }
@@ -269,7 +286,7 @@ export function useChat(wsUrl: string) {
                     let processedResult = result;
 
                     if (result && Array.isArray(result.content)) {
-                        // Normalize image parts in tool result content
+                        // Normalize media parts in tool result content
                         const normalizedContent = result.content.map((part: unknown) => {
                             if (
                                 typeof part === 'object' &&
@@ -292,6 +309,30 @@ export function useChat(wsUrl: string) {
                                     };
                                 } else if (imgPart.image || imgPart.url) {
                                     return part; // Keep original format for URL-based images
+                                }
+                            } else if (
+                                typeof part === 'object' &&
+                                part !== null &&
+                                (part as { type?: unknown }).type === 'audio'
+                            ) {
+                                const audioPart = part as any;
+                                // Ensure consistent format for audio parts
+                                if (audioPart.data && audioPart.mimeType) {
+                                    return {
+                                        type: 'audio',
+                                        base64: audioPart.data,
+                                        mimeType: audioPart.mimeType,
+                                        filename: audioPart.filename,
+                                    };
+                                } else if (audioPart.base64 && audioPart.mimeType) {
+                                    return {
+                                        type: 'audio',
+                                        base64: audioPart.base64,
+                                        mimeType: audioPart.mimeType,
+                                        filename: audioPart.filename,
+                                    };
+                                } else if (audioPart.audio || audioPart.url) {
+                                    return part; // Keep original format for URL-based audio
                                 }
                             }
                             return part;
