@@ -117,7 +117,7 @@ export default function ContentEditableInput({
           "border-2 border-border/50 focus:border-primary/50",
           "transition-all duration-200",
           "bg-background/50 backdrop-blur-sm",
-          "rounded-full",
+          "rounded-3xl", // Changed from rounded-full to rounded-3xl for pill shape
           "shadow-sm",
           "outline-none",
           className
