@@ -667,22 +667,25 @@ export default function ChatApp() {
               /* Messages Area */
               <div className="flex-1 min-h-0 overflow-hidden">
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
-                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
-                    <MessageList 
-                      messages={messages}
-                      activeError={activeError}
-                      onDismissError={clearError}
-                      outerRef={listContentRef}
-                    />
-                  </div>
-                  {/* Sticky input dock inside scroll viewport */}
-                  <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] bg-background">
-                    <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
-                      <InputArea
-                        onSend={handleSend}
-                        isSending={isSendingMessage}
-                        variant="chat"
+                  {/* Ensure the input dock sits at the very bottom even if content is short */}
+                  <div className="min-h-full grid grid-rows-[1fr_auto]">
+                    <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+                      <MessageList 
+                        messages={messages}
+                        activeError={activeError}
+                        onDismissError={clearError}
+                        outerRef={listContentRef}
                       />
+                    </div>
+                    {/* Sticky input dock inside scroll viewport */}
+                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] bg-background">
+                      <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
+                        <InputArea
+                          onSend={handleSend}
+                          isSending={isSendingMessage}
+                          variant="chat"
+                        />
+                      </div>
                     </div>
                   </div>
                   {/* Scroll to bottom button */}
