@@ -624,7 +624,7 @@ export default function ChatApp() {
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         Welcome to Dexto
                       </h2>
-                      <p className="text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
+                      <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
                         Your AI assistant with powerful tools. Ask anything or connect new capabilities.
                       </p>
                     </div>
