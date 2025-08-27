@@ -430,7 +430,18 @@ export default function ChatApp() {
         )}
       </div>
 
-      <main className="flex-1 flex flex-col relative">
+      <main
+        className="flex-1 flex flex-col relative"
+        style={{ ["--thread-max-width" as any]: "48rem" }}
+      >
+        {/** Shared centered content width for welcome, messages, and composer */}
+        {/** Keep this in sync to unify UI width like ChatGPT */}
+        {/** 720px base, expand to ~2xl on sm, ~3xl on lg */}
+        {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
+        {(() => {
+          /* no-op to allow inline constant-like usage below via variable */
+          return null;
+        })()}
         {/* Clean Header */}
         <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
           <div className="flex justify-between items-center px-4 py-3">
@@ -604,7 +615,7 @@ export default function ChatApp() {
             {isWelcomeState || messages.length === 0 ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex items-center justify-center p-6 -mt-20">
-                <div className="w-full max-w-2xl space-y-6">
+                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="space-y-4 text-center">
                     <div className="flex items-center justify-center w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary shadow-sm">
                       <img src="/logo.png" alt="Dexto" className="w-6 h-6" />
@@ -620,7 +631,7 @@ export default function ChatApp() {
                   </div>
 
                   {/* Quick Actions Grid - Compact */}
-                  <div className="flex flex-wrap justify-center gap-2 max-w-2xl mx-auto">
+                  <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
                     {quickActions.map((action, index) => (
                       <button
                         key={index}
@@ -638,7 +649,7 @@ export default function ChatApp() {
                   </div>
 
                   {/* Central Search Bar with Full Features */}
-                  <div className="max-w-2xl mx-auto">
+                  <div className="max-w-[var(--thread-max-width)] mx-auto">
                     <InputArea
                       onSend={handleSend}
                       isSending={isSendingMessage}
@@ -656,12 +667,14 @@ export default function ChatApp() {
               /* Messages Area */
               <div className="flex-1 min-h-0 overflow-hidden">
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
-                  <MessageList 
-                    messages={messages}
-                    activeError={activeError}
-                    onDismissError={clearError}
-                    outerRef={listContentRef}
-                  />
+                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+                    <MessageList 
+                      messages={messages}
+                      activeError={activeError}
+                      onDismissError={clearError}
+                      outerRef={listContentRef}
+                    />
+                  </div>
                   {/* Scroll to bottom button */}
                   {!isAtBottom && (
                     <div className="absolute bottom-20 right-4 z-10">
@@ -678,11 +691,13 @@ export default function ChatApp() {
             {!isWelcomeState && messages.length > 0 && (
               <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm sticky bottom-0">
                 <div className="p-4">
-                  <InputArea
-                    onSend={handleSend}
-                    isSending={isSendingMessage}
-                    variant="chat"
-                  />
+                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+                    <InputArea
+                      onSend={handleSend}
+                      isSending={isSendingMessage}
+                      variant="chat"
+                    />
+                  </div>
                 </div>
               </div>
             )}

@@ -408,202 +408,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     e.target.value = '';
   };
 
-  // Welcome variant - simplified, prominent search bar
-  if (variant === 'welcome') {
-    return (
-      <div className="w-full">
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          handleSend();
-        }} className="relative">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
-            <Textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder="Ask me anything..."
-              rows={1}
-              className="min-h-[42px] max-h-[40vh] overflow-auto pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
-            />
-            <Button
-              type="submit"
-              disabled={!text.trim() && !imageData && !fileData}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
-            >
-              <SendHorizontal className="h-4 w-4" />
-            </Button>
-          </div>
-        </form>
-        
-        {/* File attachments for welcome variant */}
-        {(imageData || fileData) && (
-          <div className="mt-3 flex items-center gap-2">
-            {imageData && (
-              <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50">
-                <img
-                  src={`data:${imageData.mimeType};base64,${imageData.base64}`}
-                  alt="preview"
-                  className="h-12 w-auto rounded-md"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={removeImage}
-                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground shadow-md"
-                  aria-label="Remove image"
-                >
-                  <X className="h-2 w-2" />
-                </Button>
-              </div>
-            )}
-            {fileData && (
-              <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2">
-                {fileData.mimeType.startsWith('audio') ? (
-                  <FileAudio className="h-4 w-4" />
-                ) : (
-                  <File className="h-4 w-4" />
-                )}
-                <span className="text-xs font-medium max-w-[100px] truncate">{fileData.filename || 'attachment'}</span>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => setFileData(null)}
-                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground shadow-md"
-                  aria-label="Remove attachment"
-                >
-                  <X className="h-2 w-2" />
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Welcome variant controls */}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
-                  aria-label="Attach File"
-                >
-                  <Paperclip className="h-3 w-3 mr-1.5" />
-                  Attach
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start">
-                <DropdownMenuItem onClick={triggerFileInput}>
-                  <Paperclip className="h-4 w-4 mr-2" /> Image
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={triggerPdfInput}>
-                  <File className="h-4 w-4 mr-2" /> PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={triggerAudioInput}>
-                  <FileAudio className="h-4 w-4 mr-2" /> Audio file
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={isRecording ? stopRecording : startRecording}
-              className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
-              aria-label={isRecording ? 'Stop recording' : 'Record audio'}
-            >
-              {isRecording ? <StopCircle className="h-3 w-3 mr-1.5 text-red-500" /> : <Mic className="h-3 w-3 mr-1.5" />}
-              {isRecording ? 'Stop' : 'Record'}
-            </Button>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            {/* Streaming Toggle (welcome) */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5 cursor-pointer">
-                    <Zap className={`h-3 w-3 ${isStreaming ? 'text-blue-500' : 'text-muted-foreground'}`} />
-                    <Switch
-                      checked={isStreaming}
-                      onCheckedChange={setStreaming}
-                      className="scale-75"
-                      aria-label="Toggle streaming"
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{isStreaming ? 'Streaming enabled' : 'Streaming disabled'}</p>
-                  <p className="text-xs opacity-75">
-                    {isStreaming ? 'Responses will stream in real-time' : 'Responses will arrive all at once'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {/* Model Selector (welcome) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
-                  disabled={isLoadingModel}
-                >
-                  <Bot className="h-3 w-3 mr-1.5" />
-                  <span className="hidden sm:inline">
-                    {isLoadingModel ? '...' : currentModel}
-                  </span>
-                  <ChevronDown className="h-3 w-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {coreModels.map((model) => (
-                  <DropdownMenuItem 
-                    key={model.model}
-                    onClick={() => handleModelSwitch(model)}
-                  >
-                    <Bot className="h-4 w-4 mr-2" />
-                    {model.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        
-        {/* Hidden inputs for welcome variant */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          id="image-upload"
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageChange}
-        />
-        <input
-          ref={pdfInputRef}
-          type="file"
-          id="pdf-upload"
-          accept="application/pdf"
-          className="hidden"
-          onChange={handlePdfChange}
-        />
-        <input
-          ref={audioInputRef}
-          type="file"
-          id="audio-upload"
-          accept="audio/*"
-          className="hidden"
-          onChange={handleAudioFileChange}
-        />
-      </div>
-    );
-  }
+  // Unified input panel: use the same full-featured chat composer in both welcome and chat states
 
   // Chat variant - full featured input area
   return (
@@ -647,44 +452,178 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         </Alert>
       )}
 
-      <div className="flex items-end gap-2 w-full">
-        {/* File Upload Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+      <div className="w-full">
+        {/* Unified pill input with send button */}
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder="Ask Dexto anything..."
+              rows={1}
+              className="min-h-[42px] max-h-[40vh] overflow-auto pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
+            />
+            <Button
+              type="submit"
+              disabled={!text.trim() && !imageData && !fileData || isSending}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
+              aria-label="Send message"
+            >
+              {isSending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <SendHorizontal className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </form>
+
+        {/* Previews below input */}
+        {(imageData || fileData) && (
+          <div className="mt-3 flex items-center gap-2">
+            {imageData && (
+              <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group">
+                <img
+                  src={`data:${imageData.mimeType};base64,${imageData.base64}`}
+                  alt="preview"
+                  className="h-12 w-auto rounded-md"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={removeImage}
+                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                  aria-label="Remove image"
+                >
+                  <X className="h-2 w-2" />
+                </Button>
+              </div>
+            )}
+            {fileData && (
+              <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                {fileData.mimeType.startsWith('audio') ? (
+                  <>
+                    <FileAudio className="h-4 w-4" />
+                    <audio controls src={`data:${fileData.mimeType};base64,${fileData.base64}`} className="h-8" />
+                  </>
+                ) : (
+                  <>
+                    <File className="h-4 w-4" />
+                    <span className="text-xs font-medium max-w-[160px] truncate">{fileData.filename || 'attachment'}</span>
+                  </>
+                )}
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={() => setFileData(null)}
+                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                  aria-label="Remove attachment"
+                >
+                  <X className="h-2 w-2" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Controls row: attach/record on left, streaming/model on right */}
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                  aria-label="Attach File"
+                >
+                  <Paperclip className="h-3 w-3 mr-1.5" />
+                  Attach
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start">
+                <DropdownMenuItem onClick={triggerFileInput}>
+                  <Paperclip className="h-4 w-4 mr-2" /> Image
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={triggerPdfInput}>
+                  <File className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={triggerAudioInput}>
+                  <FileAudio className="h-4 w-4 mr-2" /> Audio file
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button
               variant="outline"
-              size="icon"
-              className="flex-shrink-0 text-muted-foreground hover:text-primary rounded-full p-2"
-              aria-label="Attach File"
+              size="sm"
+              onClick={isRecording ? stopRecording : startRecording}
+              className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+              aria-label={isRecording ? 'Stop recording' : 'Record audio'}
             >
-              <Paperclip className="h-8 w-8" />
+              {isRecording ? <StopCircle className="h-3 w-3 mr-1.5 text-red-500" /> : <Mic className="h-3 w-3 mr-1.5" />}
+              {isRecording ? 'Stop' : 'Record'}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start">
-            <DropdownMenuItem onClick={triggerFileInput}>
-              <Paperclip className="h-4 w-4 mr-2" /> Image
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={triggerPdfInput}>
-              <File className="h-4 w-4 mr-2" /> PDF
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={triggerAudioInput}>
-              <FileAudio className="h-4 w-4 mr-2" /> Audio file
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
 
-        {/* Record Audio Button */}
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={isRecording ? stopRecording : startRecording}
-          className="flex-shrink-0 text-muted-foreground hover:text-primary rounded-full p-2"
-          aria-label={isRecording ? 'Stop recording' : 'Record audio'}
-        >
-          {isRecording ? <StopCircle className="h-8 w-8 text-red-500" /> : <Mic className="h-8 w-8" />}
-        </Button>
+          <div className="flex items-center gap-3">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 cursor-pointer">
+                    <Zap className={`h-3 w-3 ${isStreaming ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                    <Switch
+                      checked={isStreaming}
+                      onCheckedChange={setStreaming}
+                      className="scale-75"
+                      aria-label="Toggle streaming"
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{isStreaming ? 'Streaming enabled' : 'Streaming disabled'}</p>
+                  <p className="text-xs opacity-75">
+                    {isStreaming ? 'Responses will stream in real-time' : 'Responses will arrive all at once'}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
-        {/* Hidden Inputs */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                  disabled={isLoadingModel}
+                >
+                  <Bot className="h-3 w-3 mr-1.5" />
+                  <span className="hidden sm:inline">
+                    {isLoadingModel ? '...' : currentModel}
+                  </span>
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {coreModels.map((model) => (
+                  <DropdownMenuItem 
+                    key={model.model}
+                    onClick={() => handleModelSwitch(model)}
+                  >
+                    <Bot className="h-4 w-4 mr-2" />
+                    {model.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Hidden inputs */}
         <input
           ref={fileInputRef}
           type="file"
@@ -709,158 +648,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           className="hidden"
           onChange={handleAudioFileChange}
         />
- 
-        <div className="flex-1 flex flex-col w-full">
-          {imageData && (
-            <div className="relative mb-1.5 w-fit border border-border rounded-lg p-1 bg-muted/50 group">
-              <img
-                src={`data:${imageData.mimeType};base64,${imageData.base64}`}
-                alt="preview"
-                className="h-20 w-auto rounded-md"
-              />
-              <Button
-                variant="destructive"
-                size="icon"
-                onClick={removeImage}
-                className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                aria-label="Remove image"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-          {/* PDF / Audio preview */}
-          {fileData && (
-            <div className="relative mb-1.5 w-fit border border-border rounded-lg p-2 bg-muted/50 group flex items-center gap-2">
-              {fileData.mimeType.startsWith('audio') ? (
-                <>
-                  <FileAudio className="h-6 w-6" />
-                  <audio controls src={`data:${fileData.mimeType};base64,${fileData.base64}`} className="h-10" />
-                </>
-              ) : (
-                <>
-                  <File className="h-6 w-6" />
-                  <span className="text-sm font-medium max-w-[120px] truncate">{fileData.filename || 'attachment'}</span>
-                </>
-              )}
-              <Button
-                variant="destructive"
-                size="icon"
-                onClick={() => setFileData(null)}
-                className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                aria-label="Remove attachment"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-          
-          <div className="relative">
-            <Textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder="Ask Dexto anything..."
-              rows={1}
-              className="resize-none min-h-[42px] max-h-[40vh] overflow-auto w-full border-input bg-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 rounded-xl p-3 pr-32 text-sm shadow-sm placeholder:text-muted-foreground/60"
-            />
-            
-            {/* Controls - Model Selector and Streaming Toggle */}
-            <div className="absolute bottom-2 right-3 flex items-center gap-2">
-              {/* Streaming Toggle */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 cursor-pointer">
-                      <Zap className={`h-3 w-3 ${isStreaming ? 'text-blue-500' : 'text-muted-foreground'}`} />
-                      <Switch
-                        checked={isStreaming}
-                        onCheckedChange={setStreaming}
-                        className="scale-75"
-                        aria-label="Toggle streaming"
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>{isStreaming ? 'Streaming enabled' : 'Streaming disabled'}</p>
-                    <p className="text-xs opacity-75">
-                      {isStreaming ? 'Responses will stream in real-time' : 'Responses will arrive all at once'}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              {/* Model Selector */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    disabled={isLoadingModel}
-                  >
-                    <Bot className="h-3 w-3 mr-1" />
-                    <span className="hidden sm:inline">
-                      {isLoadingModel ? '...' : currentModel}
-                    </span>
-                    <ChevronDown className="h-3 w-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {coreModels.map((model) => (
-                    <DropdownMenuItem 
-                      key={model.model}
-                      onClick={() => handleModelSwitch(model)}
-                    >
-                      <Bot className="h-4 w-4 mr-2" />
-                      {model.name}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => {
-                    // TODO: Implement proper model viewer UI
-                    console.log('View all models clicked');
-                  }}>
-                    View all models
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-
-        <Button 
-          type="submit" 
-          size="icon" 
-          onClick={handleSend} 
-          disabled={!text.trim() && !imageData && !fileData || isSending} 
-          className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg p-2 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50 transition-all h-10 w-10"
-          aria-label="Send message"
-        >
-          {isSending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <SendHorizontal className="h-4 w-4" />
-          )}
-        </Button>
-
-        {showClearButton && !isSending && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => {
-              setText('');
-              setImageData(null); 
-              setFileData(null);
-            }}
-            className="flex-shrink-0 text-muted-foreground hover:text-destructive rounded-lg p-2 ml-1 h-10 w-10"
-            aria-label="Clear input"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
       </div>
     </div>
   );
