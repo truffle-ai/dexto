@@ -40,7 +40,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   
   // TODO(unify-fonts): Defer autosize until fonts are ready to avoid
   // initial one-line height jump due to font swap metrics. Remove this
-  // once the app uses a single font pipeline without swap.
+  // once the app uses a single font pipeline without swap. 
+  // Currently it looks like only 'Welcome to Dexto' is using the older font - (checked with chrome dev tools)
   const fontsReady = useFontsReady();
 
   // Audio recording state
