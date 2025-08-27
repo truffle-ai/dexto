@@ -12,6 +12,7 @@ import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
 import { z } from 'zod';
+import { OtelConfigurationSchema } from '@core/telemetry/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
@@ -113,6 +114,10 @@ export const AgentConfigSchema = z
 
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
+        ),
+
+        telemetry: OtelConfigurationSchema.default({}).describe(
+            'Telemetry configuration for the agent'
         ),
     })
     .strict()

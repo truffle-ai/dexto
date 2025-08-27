@@ -62,3 +62,10 @@ storage:
 #   provider: google
 #   model: gemini-2.0-flash
 #   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+
+telemetry:
+  serviceName: dexto-default-agent
+  enabled: true
+  tracerName: dexto-tracer
+  export:
+    type: console
