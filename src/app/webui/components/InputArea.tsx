@@ -466,7 +466,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               placeholder="Ask Dexto anything..."
               minRows={1}
               maxRows={8}
-              className="w-full px-4 py-4 pb-12 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus:outline-none"
+              className="w-full px-4 py-4 pb-12 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
             />
             
             <ButtonFooter
