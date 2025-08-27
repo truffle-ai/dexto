@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ChatProvider } from '../components/hooks/ChatContext';
 import { SpeechReset } from "../components/ui/speech-reset";
+import { cookies } from 'next/headers';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,8 +25,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read initial theme from cookie so SSR markup matches client hydration
+  const themeCookie = cookies().get('theme')?.value;
+  const isDark = themeCookie ? themeCookie === 'dark' : true; // default dark
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={isDark ? 'dark' : ''}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

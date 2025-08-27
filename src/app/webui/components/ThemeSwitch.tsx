@@ -3,8 +3,7 @@ import { Sun, Moon } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 
 export function ThemeSwitch() {
-  const { theme, toggleTheme, hasMounted } = useTheme();
-  if (!hasMounted) return null;
+  const { theme, toggleTheme } = useTheme();
 
   const isDark = theme === 'dark';
 
