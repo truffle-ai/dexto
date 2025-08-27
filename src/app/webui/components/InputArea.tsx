@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import { useFontsReady } from './hooks/useFontsReady';
 
 interface InputAreaProps {
   onSend: (
@@ -36,6 +37,11 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  
+  // TODO(unify-fonts): Defer autosize until fonts are ready to avoid
+  // initial one-line height jump due to font swap metrics. Remove this
+  // once the app uses a single font pipeline without swap.
+  const fontsReady = useFontsReady();
 
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -509,17 +515,30 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
             {/* Editor area: scrollable, independent from footer */}
             <div className="flex-auto overflow-y-auto">
-              <TextareaAutosize
-                ref={textareaRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder="Ask Dexto anything..."
-                minRows={1}
-                maxRows={8}
-                className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
-              />
+              {fontsReady ? (
+                <TextareaAutosize
+                  ref={textareaRef}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  placeholder="Ask Dexto anything..."
+                  minRows={1}
+                  maxRows={8}
+                  className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
+                />
+              ) : (
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  placeholder="Ask Dexto anything..."
+                  className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                />
+              )}
             </div>
 
             {/* Footer row: normal flow */}

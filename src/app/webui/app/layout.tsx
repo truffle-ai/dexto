@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// TODO(unify-fonts): We currently load Nunito via globals.css and also
+// register Geist via next/font (variables). Only Nunito is applied to
+// the html element by default, so two font pipelines coexist. Unify to
+// a single pipeline (either next/font everywhere or CSS @import only)
+// and then remove the fonts-ready autosize workaround in InputArea.
+
 export const metadata: Metadata = {
   title: "Dexto",
   description: "Interactive playground for testing MCP tools and talking to AI agents",
