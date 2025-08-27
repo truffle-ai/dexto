@@ -675,33 +675,24 @@ export default function ChatApp() {
                       outerRef={listContentRef}
                     />
                   </div>
-                  {/* Bottom occluder: reserves space and hides content under the floating input */}
-                  <div className="sticky bottom-0 z-10 pointer-events-none">
-                    <div className="h-[calc(env(safe-area-inset-bottom)+6.5rem)] bg-background" />
+                  {/* Sticky input dock inside scroll viewport */}
+                  <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] bg-background">
+                    <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
+                      <InputArea
+                        onSend={handleSend}
+                        isSending={isSendingMessage}
+                        variant="chat"
+                      />
+                    </div>
                   </div>
                   {/* Scroll to bottom button */}
                   {!isAtBottom && (
-                    <div className="absolute right-4 z-20 bottom-[calc(env(safe-area-inset-bottom)+7.5rem)]">
+                    <div className="absolute right-4 z-20 bottom-[calc(env(safe-area-inset-bottom)+9rem)]">
                       <Button size="sm" variant="outline" onClick={() => scrollToBottom('smooth')}>
                         Jump to latest
                       </Button>
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-            
-            {/* Floating Input - Only show when in chat state */}
-            {!isWelcomeState && messages.length > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">
-                <div className="w-full max-w-[var(--thread-max-width)] mx-auto px-4 pb-4">
-                  <div className="pointer-events-auto">
-                    <InputArea
-                      onSend={handleSend}
-                      isSending={isSendingMessage}
-                      variant="chat"
-                    />
-                  </div>
                 </div>
               </div>
             )}
