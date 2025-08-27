@@ -22,6 +22,7 @@ import { KeyValueEditor } from './ui/key-value-editor';
 interface ConnectServerModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onServerConnected?: () => void;
 }
 
 interface HeaderPair {
@@ -30,7 +31,7 @@ interface HeaderPair {
     id: string;
 }
 
-export default function ConnectServerModal({ isOpen, onClose }: ConnectServerModalProps) {
+export default function ConnectServerModal({ isOpen, onClose, onServerConnected }: ConnectServerModalProps) {
     const [serverName, setServerName] = useState('');
     const [serverType, setServerType] = useState<'stdio' | 'sse' | 'http'>('stdio');
     const [command, setCommand] = useState('');
@@ -153,6 +154,10 @@ export default function ConnectServerModal({ isOpen, onClose }: ConnectServerMod
                 return;
             }
             console.log('Connect server response:', result);
+            // Notify parent component that server was connected successfully
+            if (onServerConnected) {
+                onServerConnected();
+            }
             onClose();
         } catch (err: any) {
             setError(err.message || 'Failed to connect server');

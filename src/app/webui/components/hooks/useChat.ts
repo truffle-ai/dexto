@@ -7,11 +7,18 @@ import { extractErrorMessage } from '@core/utils/error-conversion.js';
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
 
-// Define a WebUI-specific image part
+// Define WebUI-specific media parts
 export interface ImagePart {
     type: 'image';
     base64: string;
     mimeType: string;
+}
+
+export interface AudioPart {
+    type: 'audio';
+    base64: string;
+    mimeType: string;
+    filename?: string;
 }
 
 export interface FileData {
@@ -26,7 +33,7 @@ export interface ToolResultError {
 }
 
 export interface ToolResultContent {
-    content: Array<TextPart | ImagePart | FilePart>;
+    content: Array<TextPart | ImagePart | AudioPart | FilePart>;
 }
 
 export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
@@ -64,6 +71,15 @@ export function isImagePart(part: unknown): part is ImagePart {
     );
 }
 
+export function isAudioPart(part: unknown): part is AudioPart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'audio'
+    );
+}
+
 export function isFilePart(part: unknown): part is FilePart {
     return (
         typeof part === 'object' &&
@@ -77,7 +93,7 @@ export function isFilePart(part: unknown): part is FilePart {
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
     imageData?: { base64: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
@@ -105,8 +121,7 @@ const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).s
 export function useChat(wsUrl: string) {
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
-    // Store the last toolResult image URI to attach to the next AI response
-    const lastImageUriRef = useRef<string | null>(null);
+
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
@@ -159,9 +174,10 @@ export function useChat(wsUrl: string) {
                         );
                         const last = cleaned[cleaned.length - 1];
                         if (last && last.role === 'assistant') {
-                            // Only concatenate if existing content is a string
-                            const newContent =
-                                typeof last.content === 'string' ? last.content + text : text;
+                            // Ensure content is always a string for streaming
+                            const currentContent =
+                                typeof last.content === 'string' ? last.content : '';
+                            const newContent = currentContent + text;
                             const updated = {
                                 ...last,
                                 content: newContent,
@@ -194,33 +210,34 @@ export function useChat(wsUrl: string) {
                         const cleaned = ms.filter(
                             (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
                         );
-                        // Embed image part in content if available
-                        let content: string | Array<TextPart | ImagePart> = text;
-                        if (lastImageUriRef.current) {
-                            const uri = lastImageUriRef.current;
-                            const [, base64] = uri.split(',');
-                            const mimeMatch = uri.match(/data:(.*);base64/);
-                            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
-                            const imagePart: ImagePart = { type: 'image', base64, mimeType };
-                            content = text.trim()
-                                ? [{ type: 'text', text }, imagePart]
-                                : [imagePart];
+
+                        // Check if this response is updating an existing message
+                        const lastMsg = cleaned[cleaned.length - 1];
+                        if (lastMsg && lastMsg.role === 'assistant') {
+                            // Update existing message with final content and metadata
+                            // Ensure content is always a string for consistency
+                            const finalContent = typeof text === 'string' ? text : '';
+                            const updatedMsg = {
+                                ...lastMsg,
+                                content: finalContent,
+                                tokenCount,
+                                model,
+                                createdAt: Date.now(),
+                                sessionId: sessionId ?? lastMsg.sessionId,
+                            };
+                            return [...cleaned.slice(0, -1), updatedMsg];
                         }
-                        // Prepare new AI message
+
+                        // Create new message if no existing assistant message
                         const newMsg: Message = {
                             id: generateUniqueId(),
                             role: 'assistant',
-                            content,
+                            content: text,
                             createdAt: Date.now(),
                             tokenCount,
                             model,
                             sessionId,
                         };
-                        // Check if this response is updating an existing message
-                        const lastMsg = cleaned[cleaned.length - 1];
-                        if (lastMsg && lastMsg.role === 'assistant') {
-                            return [...cleaned.slice(0, -1), newMsg];
-                        }
                         return [...cleaned, newMsg];
                     });
 
@@ -239,13 +256,10 @@ export function useChat(wsUrl: string) {
                         );
                     }
 
-                    // Clear the last image for the next message
-                    lastImageUriRef.current = null;
                     break;
                 }
                 case 'conversationReset':
                     setMessages([]);
-                    lastImageUriRef.current = null;
                     lastUserMessageIdRef.current = null;
                     break;
                 case 'toolCall': {
@@ -267,49 +281,65 @@ export function useChat(wsUrl: string) {
                 case 'toolResult': {
                     const name = payload.toolName;
                     const result = payload.result;
-                    // Extract image URI from tool result, supporting data+mimetype
-                    let uri: string | null = null;
+
+                    // Process and normalize the tool result to ensure proper image handling
+                    let processedResult = result;
+
                     if (result && Array.isArray(result.content)) {
-                        const imgPart = result.content.find(
-                            (
-                                p: unknown
-                            ): p is {
-                                type: 'image';
-                                data?: string;
-                                image?: string;
-                                url?: string;
-                                mimeType?: string;
-                            } =>
-                                typeof p === 'object' &&
-                                p !== null &&
-                                (p as { type?: unknown }).type === 'image' &&
-                                ('data' in (p as Record<string, unknown>) ||
-                                    'image' in (p as Record<string, unknown>) ||
-                                    'url' in (p as Record<string, unknown>))
-                        );
-                        if (imgPart) {
-                            if (imgPart.data && imgPart.mimeType) {
-                                // Assemble data URI
-                                uri = `data:${imgPart.mimeType};base64,${imgPart.data}`;
-                            } else if (imgPart.image || imgPart.url) {
-                                uri = imgPart.image || imgPart.url;
+                        // Normalize media parts in tool result content
+                        const normalizedContent = result.content.map((part: unknown) => {
+                            if (
+                                typeof part === 'object' &&
+                                part !== null &&
+                                (part as { type?: unknown }).type === 'image'
+                            ) {
+                                const imgPart = part as any;
+                                // Ensure consistent format for image parts
+                                if (imgPart.data && imgPart.mimeType) {
+                                    return {
+                                        type: 'image',
+                                        base64: imgPart.data,
+                                        mimeType: imgPart.mimeType,
+                                    };
+                                } else if (imgPart.base64 && imgPart.mimeType) {
+                                    return {
+                                        type: 'image',
+                                        base64: imgPart.base64,
+                                        mimeType: imgPart.mimeType,
+                                    };
+                                } else if (imgPart.image || imgPart.url) {
+                                    return part; // Keep original format for URL-based images
+                                }
+                            } else if (
+                                typeof part === 'object' &&
+                                part !== null &&
+                                (part as { type?: unknown }).type === 'audio'
+                            ) {
+                                const audioPart = part as any;
+                                // Ensure consistent format for audio parts
+                                if (audioPart.data && audioPart.mimeType) {
+                                    return {
+                                        type: 'audio',
+                                        base64: audioPart.data,
+                                        mimeType: audioPart.mimeType,
+                                        filename: audioPart.filename,
+                                    };
+                                } else if (audioPart.base64 && audioPart.mimeType) {
+                                    return {
+                                        type: 'audio',
+                                        base64: audioPart.base64,
+                                        mimeType: audioPart.mimeType,
+                                        filename: audioPart.filename,
+                                    };
+                                } else if (audioPart.audio || audioPart.url) {
+                                    return part; // Keep original format for URL-based audio
+                                }
                             }
-                        }
-                    } else if (typeof result === 'string' && result.startsWith('data:image')) {
-                        uri = result;
-                    } else if (result && typeof result === 'object') {
-                        // Older or fallback image fields
-                        if ('data' in result && 'mimeType' in result) {
-                            uri = `data:${result.mimeType};base64,${result.data}`;
-                        } else if (result.screenshot) {
-                            uri = result.screenshot;
-                        } else if (result.image) {
-                            uri = result.image;
-                        } else if (result.url && String(result.url).startsWith('data:image')) {
-                            uri = result.url;
-                        }
+                            return part;
+                        });
+                        processedResult = { ...result, content: normalizedContent };
                     }
-                    lastImageUriRef.current = uri;
+
                     // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
                         const idx = ms.findIndex(
@@ -319,7 +349,7 @@ export function useChat(wsUrl: string) {
                                 m.toolResult === undefined
                         );
                         if (idx !== -1) {
-                            const updatedMsg = { ...ms[idx], toolResult: result };
+                            const updatedMsg = { ...ms[idx], toolResult: processedResult };
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
                         console.warn(`No matching tool call found for result of ${name}`);
@@ -336,7 +366,7 @@ export function useChat(wsUrl: string) {
                     // Extract meaningful error messages from potentially nested error payloads
                     const errMsg = extractErrorMessage(payload);
 
-                    // Clean up thinking messages like other terminal events
+                    // Clean up thinking messages and any incomplete assistant messages
                     setMessages((ms) =>
                         ms.filter(
                             (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
@@ -426,7 +456,6 @@ export function useChat(wsUrl: string) {
         }
         setMessages([]);
         setActiveError(null); // Clear errors on reset
-        lastImageUriRef.current = null;
         lastUserMessageIdRef.current = null;
     }, []);
 

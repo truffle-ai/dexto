@@ -5,16 +5,16 @@ import { cn } from "@/lib/utils";
 import { 
     Message, 
     TextPart, 
-    ImagePart, 
     isToolResultError, 
     isToolResultContent, 
     isTextPart, 
     isImagePart, 
+    isAudioPart,
     isFilePart, 
     ErrorMessage
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
+import { User, Bot, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, File, FileAudio, X, ZoomIn, Volume2 } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
@@ -34,10 +34,85 @@ function isValidDataUri(src: string): boolean {
   return dataUriRegex.test(src);
 }
 
+// Helper to validate safe HTTP/HTTPS URLs for media
+function isSafeHttpUrl(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'localhost';
+  } catch {
+    return false;
+  }
+}
+
+// Helper to check if a URL is safe for media rendering
+function isSafeMediaUrl(src: string): boolean {
+  return (src.startsWith('data:') && isValidDataUri(src)) || 
+         src.startsWith('blob:') || 
+         isSafeHttpUrl(src);
+}
+
+// Helper to check if a URL is safe for audio rendering  
+function isSafeAudioUrl(src: string): boolean {
+  return src.startsWith('data:audio/') || 
+         src.startsWith('blob:') || 
+         isSafeHttpUrl(src);
+}
+
+// Helper to resolve media source from different formats
+function resolveMediaSrc(part: any): string {
+  // Check for base64 data first
+  if (part.base64 && part.mimeType) {
+    return `data:${part.mimeType};base64,${part.base64}`;
+  }
+  if (typeof part.base64 === 'string') {
+    return part.base64;
+  }
+  
+  // Check for URL-based sources
+  const urlSrc = part.url ?? part.image ?? part.audio;
+  return typeof urlSrc === 'string' ? urlSrc : '';
+}
+
 export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [imageModal, setImageModal] = useState<{ isOpen: boolean; src: string; alt: string }>({
+    isOpen: false,
+    src: '',
+    alt: ''
+  });
+
+  // Add CSS for audio controls overflow handling
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .audio-controls-container audio {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 32px;
+      }
+      .audio-controls-container audio::-webkit-media-controls-panel {
+        max-width: 100% !important;
+      }
+      .audio-controls-container audio::-webkit-media-controls-timeline {
+        max-width: 100% !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  const openImageModal = (src: string, alt: string) => {
+    setImageModal({ isOpen: true, src, alt });
+  };
+
+  const closeImageModal = () => {
+    setImageModal({ isOpen: false, src: '', alt: '' });
+  };
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -63,18 +138,46 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         const isToolResult = !!(msg.toolName && msg.toolResult);
         const isToolRelated = isToolCall || isToolResult;
 
-        const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msg.id];
+        const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
+
+        // Extract image and audio parts from tool results for separate rendering
+        const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
+        const toolResultAudios: Array<{ src: string; filename?: string; index: number }> = [];
+        if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
+          msg.toolResult.content.forEach((part, index) => {
+            if (isImagePart(part)) {
+              const src = resolveMediaSrc(part);
+              
+              if (src && isSafeMediaUrl(src)) {
+                toolResultImages.push({
+                  src,
+                  alt: `Tool result image ${index + 1}`,
+                  index
+                });
+              }
+            } else if (isAudioPart(part)) {
+              const src = resolveMediaSrc(part);
+              
+              if (src && isSafeAudioUrl(src)) {
+                toolResultAudios.push({
+                  src,
+                  filename: part.filename,
+                  index
+                });
+              }
+            }
+          });
+        }
 
         const toggleManualExpansion = () => {
           if (isToolRelated) {
             setManuallyExpanded(prev => ({
               ...prev,
-              [msg.id]: !prev[msg.id]
+              [msgKey]: !prev[msgKey]
             }));
           }
         };
 
-        const showAvatar = isUser || isAi;
         const AvatarComponent = isUser ? User : Bot;
 
         const messageContainerClass = cn(
@@ -150,16 +253,9 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                                 </pre>
                               ) : isToolResultContent(msg.toolResult) ? (
                                 msg.toolResult.content.map((part, index) => {
-                                  if (isImagePart(part)) {
-                                    const src = part.base64 && part.mimeType
-                                      ? `data:${part.mimeType};base64,${part.base64}`
-                                      : part.base64;
-                                    if (src && src.startsWith('data:') && !isValidDataUri(src)) {
-                                      return null;
-                                    }
-                                    return (
-                                      <img key={index} src={src} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" />
-                                    );
+                                  // Skip image and audio parts as they will be rendered separately
+                                  if (isImagePart(part) || isAudioPart(part)) {
+                                    return null;
                                   }
                                   if (isTextPart(part)) {
                                     return (
@@ -213,23 +309,8 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                         if (part.type === 'text') {
                           return <p key={partKey} className="whitespace-pre-wrap">{(part as TextPart).text}</p>;
                         }
-                        if (part.type === 'image' && 'base64' in part && 'mimeType' in part) {
-                          const imagePart = part as ImagePart;
-                          const src = `data:${imagePart.mimeType};base64,${imagePart.base64}`;
-                          if (!isValidDataUri(src)) {
-                            return null;
-                          }
-                          return (
-                            <img
-                              key={partKey}
-                              src={src}
-                              alt="attachment"
-                              className="my-2 max-h-60 w-full rounded-lg border border-border object-contain"
-                            />
-                          );
-                        }
-                        if ((part as any).type === 'file' && 'data' in part && 'mimeType' in part) {
-                          const filePart = part as any;
+                        if (isFilePart(part)) {
+                          const filePart = part;
                           if (filePart.mimeType.startsWith('audio/')) {
                             const src = `data:${filePart.mimeType};base64,${filePart.data}`;
                             return (
@@ -341,6 +422,76 @@ export default function MessageList({ messages, activeError, onDismissError }: M
               </div>
               {isUser && <AvatarComponent className="h-7 w-7 ml-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
             </div>
+            {/* Render tool result images as separate message bubbles */}
+            {toolResultImages.map((image, imageIndex) => (
+              <div key={`${msgKey}-image-${imageIndex}`} className="w-full mt-2">
+                <div className="flex items-end w-full justify-start">
+                  <ImageIcon className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
+                  <div className="flex flex-col items-start">
+                    <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <ImageIcon className="h-3 w-3" />
+                          <span>Tool Result Image</span>
+                        </div>
+                        <div className="relative group cursor-pointer" onClick={() => openImageModal(image.src, image.alt)}>
+                          <img
+                            src={image.src}
+                            alt={image.alt}
+                            className="max-h-80 w-auto rounded border border-border object-contain transition-transform group-hover:scale-[1.02]"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded border border-border flex items-center justify-center">
+                            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 px-1">
+                      <span>{timestampStr}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {/* Render tool result audio as separate message bubbles */}
+            {toolResultAudios.map((audio, audioIndex) => (
+              <div key={`${msgKey}-audio-${audioIndex}`} className="w-full mt-2">
+                <div className="flex items-end w-full justify-start">
+                  <Volume2 className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
+                  <div className="flex flex-col items-start">
+                    <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm overflow-hidden">
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Volume2 className="h-3 w-3" />
+                          <span>Tool Result Audio</span>
+                        </div>
+                        <div className="flex flex-col gap-2 p-2 rounded border border-border bg-muted/30 min-w-0 audio-controls-container">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileAudio className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <audio 
+                              controls 
+                              src={audio.src} 
+                              className="flex-1 min-w-0"
+                            />
+                          </div>
+                          {audio.filename && (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs text-muted-foreground truncate">
+                                {audio.filename}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 px-1">
+                      <span>{timestampStr}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
             {errorAnchoredHere && (
               <div className="mt-2 ml-12 mr-4">{/* indent to align under bubbles */}
                 <ErrorBanner error={activeError!} onDismiss={onDismissError || (() => {})} />
@@ -350,6 +501,39 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         );
       })}
       <div key="end-anchor" ref={endRef} className="h-px" />
+      
+      {/* Image Modal */}
+      {imageModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="relative max-w-[90vw] max-h-[90vh] bg-background rounded-lg shadow-2xl border border-border">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-lg font-semibold">Tool Result Image</h3>
+              <button
+                onClick={closeImageModal}
+                className="p-2 hover:bg-muted rounded-md transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Image Container */}
+            <div className="p-4 flex items-center justify-center">
+              <img
+                src={imageModal.src}
+                alt={imageModal.alt}
+                className="max-w-full max-h-[70vh] object-contain rounded"
+              />
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-border text-sm text-muted-foreground">
+              <p>{imageModal.alt}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
