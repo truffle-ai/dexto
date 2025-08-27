@@ -457,18 +457,22 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         {/* Unified pill input with send button */}
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }}>
           <ChatInputContainer>
-            <TextareaAutosize
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder="Ask Dexto anything..."
-              minRows={1}
-              maxRows={8}
-              className="w-full px-4 py-4 pb-12 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
-            />
-            
+            {/* Editor area: scrollable, independent from footer */}
+            <div className="flex-auto overflow-y-auto">
+              <TextareaAutosize
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder="Ask Dexto anything..."
+                minRows={1}
+                maxRows={8}
+                className="w-full px-4 py-4 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
+              />
+            </div>
+
+            {/* Footer row: normal flow */}
             <ButtonFooter
               leftButtons={
                 <div className="flex items-center gap-2">

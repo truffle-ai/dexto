@@ -12,7 +12,9 @@ export function ChatInputContainer({ children, className }: ChatInputContainerPr
   return (
     <div className={cn(
       "relative",
-      "w-full", 
+      "w-full",
+      // Vertical layout: editor (scrollable) + footer (fixed)
+      "flex flex-col overflow-hidden",
       "max-h-[max(35svh,5rem)]", // ChatGPT's responsive height
       "border-2 border-border/50",
       "bg-background/50 backdrop-blur-sm",
