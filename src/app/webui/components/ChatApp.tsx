@@ -667,7 +667,7 @@ export default function ChatApp() {
               /* Messages Area */
               <div className="flex-1 min-h-0 overflow-hidden">
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
-                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto pb-40">
                     <MessageList 
                       messages={messages}
                       activeError={activeError}
@@ -687,11 +687,11 @@ export default function ChatApp() {
               </div>
             )}
             
-            {/* Input Area - Only show when in chat state */}
+            {/* Floating Input - Only show when in chat state */}
             {!isWelcomeState && messages.length > 0 && (
-              <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm sticky bottom-0">
-                <div className="p-4">
-                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+              <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">
+                <div className="w-full max-w-[var(--thread-max-width)] mx-auto px-4 pb-4">
+                  <div className="pointer-events-auto">
                     <InputArea
                       onSend={handleSend}
                       isSending={isSendingMessage}

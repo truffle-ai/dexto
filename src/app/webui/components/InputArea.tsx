@@ -457,6 +457,56 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         {/* Unified pill input with send button */}
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }}>
           <ChatInputContainer>
+            {/* Attachments strip (inside bubble, above editor) */}
+            {(imageData || fileData) && (
+              <div className="px-4 pt-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {imageData && (
+                    <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group">
+                      <img
+                        src={`data:${imageData.mimeType};base64,${imageData.base64}`}
+                        alt="preview"
+                        className="h-12 w-auto rounded-md"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={removeImage}
+                        className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                        aria-label="Remove image"
+                      >
+                        <X className="h-2 w-2" />
+                      </Button>
+                    </div>
+                  )}
+                  {fileData && (
+                    <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                      {fileData.mimeType.startsWith('audio') ? (
+                        <>
+                          <FileAudio className="h-4 w-4" />
+                          <audio controls src={`data:${fileData.mimeType};base64,${fileData.base64}`} className="h-8" />
+                        </>
+                      ) : (
+                        <>
+                          <File className="h-4 w-4" />
+                          <span className="text-xs font-medium max-w-[160px] truncate">{fileData.filename || 'attachment'}</span>
+                        </>
+                      )}
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => setFileData(null)}
+                        className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
+                        aria-label="Remove attachment"
+                      >
+                        <X className="h-2 w-2" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Editor area: scrollable, independent from footer */}
             <div className="flex-auto overflow-y-auto">
               <TextareaAutosize
@@ -520,53 +570,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           </ChatInputContainer>
         </form>
 
-        {/* Previews below input */}
-        {(imageData || fileData) && (
-          <div className="mt-3 flex items-center gap-2">
-            {imageData && (
-              <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group">
-                <img
-                  src={`data:${imageData.mimeType};base64,${imageData.base64}`}
-                  alt="preview"
-                  className="h-12 w-auto rounded-md"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={removeImage}
-                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                  aria-label="Remove image"
-                >
-                  <X className="h-2 w-2" />
-                </Button>
-              </div>
-            )}
-            {fileData && (
-              <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
-                {fileData.mimeType.startsWith('audio') ? (
-                  <>
-                    <FileAudio className="h-4 w-4" />
-                    <audio controls src={`data:${fileData.mimeType};base64,${fileData.base64}`} className="h-8" />
-                  </>
-                ) : (
-                  <>
-                    <File className="h-4 w-4" />
-                    <span className="text-xs font-medium max-w-[160px] truncate">{fileData.filename || 'attachment'}</span>
-                  </>
-                )}
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => setFileData(null)}
-                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                  aria-label="Remove attachment"
-                >
-                  <X className="h-2 w-2" />
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Previews moved inside bubble above editor */}
 
 
         {/* Hidden inputs */}
