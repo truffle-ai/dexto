@@ -109,7 +109,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     // Height handled by CSS; no imperative adjustments.
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -125,7 +125,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       return btoa(str);
     }
   };
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
     if (pasted.length <= LARGE_PASTE_THRESHOLD) return;
