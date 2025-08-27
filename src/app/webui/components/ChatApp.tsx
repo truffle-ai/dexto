@@ -667,7 +667,7 @@ export default function ChatApp() {
               /* Messages Area */
               <div className="flex-1 min-h-0 overflow-hidden">
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
-                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto pb-40">
+                  <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
                     <MessageList 
                       messages={messages}
                       activeError={activeError}
@@ -675,9 +675,13 @@ export default function ChatApp() {
                       outerRef={listContentRef}
                     />
                   </div>
+                  {/* Bottom occluder: reserves space and hides content under the floating input */}
+                  <div className="sticky bottom-0 z-10 pointer-events-none">
+                    <div className="h-[calc(env(safe-area-inset-bottom)+6.5rem)] bg-background" />
+                  </div>
                   {/* Scroll to bottom button */}
                   {!isAtBottom && (
-                    <div className="absolute bottom-20 right-4 z-10">
+                    <div className="absolute right-4 z-20 bottom-[calc(env(safe-area-inset-bottom)+7.5rem)]">
                       <Button size="sm" variant="outline" onClick={() => scrollToBottom('smooth')}>
                         Jump to latest
                       </Button>
