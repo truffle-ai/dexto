@@ -16,6 +16,54 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
       <ReactMarkdown 
         remarkPlugins={[remarkGfm]}
         components={{
+          table: ({ className, children, ...props }) => (
+            <div className="my-4 overflow-x-auto -mx-1 px-1">
+              <table
+                className={[
+                  "w-full border-separate border-spacing-0",
+                  className,
+                ].filter(Boolean).join(" ")}
+                {...props}
+              >
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ className, ...props }) => (
+            <thead className={className} {...props} />
+          ),
+          tr: ({ className, ...props }) => (
+            <tr
+              className={[
+                "m-0 border-b first:border-t",
+                "[&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg",
+                className,
+              ].filter(Boolean).join(" ")}
+              {...props}
+            />
+          ),
+          th: ({ className, ...props }) => (
+            <th
+              className={[
+                "bg-muted text-left font-bold align-top",
+                "px-4 py-2 first:rounded-tl-lg last:rounded-tr-lg",
+                "[&[align=center]]:text-center [&[align=right]]:text-right",
+                className,
+              ].filter(Boolean).join(" ")}
+              {...props}
+            />
+          ),
+          td: ({ className, ...props }) => (
+            <td
+              className={[
+                "border-b border-l last:border-r text-left align-top",
+                "px-4 py-2 whitespace-normal break-words",
+                "[&[align=center]]:text-center [&[align=right]]:text-right",
+                className,
+              ].filter(Boolean).join(" ")}
+              {...props}
+            />
+          ),
           code: ({ className, children, ...props }) => {
             const [copied, setCopied] = useState(false);
             const text = String(children ?? '').replace(/\n$/, '');
