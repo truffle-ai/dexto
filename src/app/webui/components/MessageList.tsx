@@ -36,6 +36,16 @@ function isValidDataUri(src: string): boolean {
   return dataUriRegex.test(src);
 }
 
+// Helper to validate safe HTTP/HTTPS URLs for media
+function isSafeHttpUrl(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'localhost';
+  } catch {
+    return false;
+  }
+}
+
 export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
@@ -109,10 +119,13 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
           msg.toolResult.content.forEach((part, index) => {
             if (isImagePart(part)) {
-              const src = part.base64 && part.mimeType
+              const dataSrc = part.base64 && part.mimeType
                 ? `data:${part.mimeType};base64,${part.base64}`
                 : part.base64;
-              if (src && src.startsWith('data:') && isValidDataUri(src)) {
+              const urlSrc = (part as any).url || (part as any).image;
+              const src = typeof dataSrc === 'string' ? dataSrc : (typeof urlSrc === 'string' ? urlSrc : '');
+              
+              if (src && ((src.startsWith('data:') && isValidDataUri(src)) || isSafeHttpUrl(src))) {
                 toolResultImages.push({
                   src,
                   alt: `Tool result image ${index + 1}`,
@@ -120,10 +133,13 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                 });
               }
             } else if (isAudioPart(part)) {
-              const src = part.base64 && part.mimeType
+              const dataSrc = part.base64 && part.mimeType
                 ? `data:${part.mimeType};base64,${part.base64}`
                 : part.base64;
-              if (src && src.startsWith('data:audio/')) {
+              const urlSrc = (part as any).url || (part as any).audio;
+              const src = typeof dataSrc === 'string' ? dataSrc : (typeof urlSrc === 'string' ? urlSrc : '');
+              
+              if (src && (src.startsWith('data:audio/') || isSafeHttpUrl(src))) {
                 toolResultAudios.push({
                   src,
                   filename: part.filename,
