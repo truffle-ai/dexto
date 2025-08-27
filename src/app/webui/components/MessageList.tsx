@@ -238,21 +238,6 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                         if (part.type === 'text') {
                           return <p key={partKey} className="whitespace-pre-wrap">{(part as TextPart).text}</p>;
                         }
-                        if (part.type === 'image' && 'base64' in part && 'mimeType' in part) {
-                          const imagePart = part as ImagePart;
-                          const src = `data:${imagePart.mimeType};base64,${imagePart.base64}`;
-                          if (!isValidDataUri(src)) {
-                            return null;
-                          }
-                          return (
-                            <img
-                              key={partKey}
-                              src={src}
-                              alt="attachment"
-                              className="my-2 max-h-60 w-full rounded-lg border border-border object-contain"
-                            />
-                          );
-                        }
                         if ((part as any).type === 'file' && 'data' in part && 'mimeType' in part) {
                           const filePart = part as any;
                           if (filePart.mimeType.startsWith('audio/')) {
