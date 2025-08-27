@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import ContentEditableInput from './ContentEditableInput';
+import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { 
@@ -29,6 +29,7 @@ interface InputAreaProps {
 
 export default function InputArea({ onSend, isSending, variant = 'chat' }: InputAreaProps) {
   const [text, setText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [imageData, setImageData] = useState<{ base64: string; mimeType: string } | null>(null);
   const [fileData, setFileData] = useState<{ base64: string; mimeType: string; filename?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,7 +110,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     // Height handled by CSS; no imperative adjustments.
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -125,7 +126,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       return btoa(str);
     }
   };
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
     if (pasted.length <= LARGE_PASTE_THRESHOLD) return;
@@ -455,14 +456,17 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         {/* Unified pill input with send button */}
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative">
           <div className="relative">
-            <Search className="absolute left-4 top-[28px] -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
-            <ContentEditableInput
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
+            <TextareaAutosize
+              ref={textareaRef}
               value={text}
-              onChange={setText}
+              onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder="Ask Dexto anything..."
-              className=""
+              minRows={1}
+              maxRows={8}
+              className="min-h-14 w-full pl-12 pr-24 py-4 text-lg leading-7 placeholder:text-lg border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm rounded-3xl shadow-sm resize-none outline-none focus:ring-0"
             />
             <Button
               type="submit"
