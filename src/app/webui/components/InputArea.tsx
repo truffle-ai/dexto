@@ -468,7 +468,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 placeholder="Ask Dexto anything..."
                 minRows={1}
                 maxRows={8}
-                className="w-full px-4 py-4 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
+                className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
               />
             </div>
 
