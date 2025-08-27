@@ -13,11 +13,12 @@ interface ServersPanelProps {
   onClose: () => void;
   onOpenConnectModal: () => void;
   variant?: 'overlay' | 'inline';
+  refreshTrigger?: number; // Add a trigger to force refresh
 }
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
 
-export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, variant = 'overlay' }: ServersPanelProps) {
+export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -150,6 +151,17 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, vari
       controller.abort();
     };
   }, [isOpen, fetchServers]);
+
+  // Effect to handle external refresh triggers
+  useEffect(() => {
+    if (refreshTrigger && isOpen) {
+      const controller = new AbortController();
+      fetchServers(controller.signal);
+      return () => {
+        controller.abort();
+      };
+    }
+  }, [refreshTrigger, isOpen, fetchServers]);
 
   const handleServerSelect = useCallback(async (serverId: string, signal?: AbortSignal) => {
     const server = servers.find(s => s.id === serverId);

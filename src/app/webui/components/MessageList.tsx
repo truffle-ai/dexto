@@ -14,7 +14,7 @@ import {
     ErrorMessage
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown } from 'lucide-react';
+import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, X, ZoomIn } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
@@ -38,6 +38,19 @@ export default function MessageList({ messages, activeError, onDismissError }: M
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [imageModal, setImageModal] = useState<{ isOpen: boolean; src: string; alt: string }>({
+    isOpen: false,
+    src: '',
+    alt: ''
+  });
+
+  const openImageModal = (src: string, alt: string) => {
+    setImageModal({ isOpen: true, src, alt });
+  };
+
+  const closeImageModal = () => {
+    setImageModal({ isOpen: false, src: '', alt: '' });
+  };
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -64,6 +77,25 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         const isToolRelated = isToolCall || isToolResult;
 
         const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msg.id];
+
+        // Extract image parts from tool results for separate rendering
+        const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
+        if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
+          msg.toolResult.content.forEach((part, index) => {
+            if (isImagePart(part)) {
+              const src = part.base64 && part.mimeType
+                ? `data:${part.mimeType};base64,${part.base64}`
+                : part.base64;
+              if (src && src.startsWith('data:') && isValidDataUri(src)) {
+                toolResultImages.push({
+                  src,
+                  alt: `Tool result image ${index + 1}`,
+                  index
+                });
+              }
+            }
+          });
+        }
 
         const toggleManualExpansion = () => {
           if (isToolRelated) {
@@ -150,16 +182,9 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                                 </pre>
                               ) : isToolResultContent(msg.toolResult) ? (
                                 msg.toolResult.content.map((part, index) => {
+                                  // Skip image parts as they will be rendered separately
                                   if (isImagePart(part)) {
-                                    const src = part.base64 && part.mimeType
-                                      ? `data:${part.mimeType};base64,${part.base64}`
-                                      : part.base64;
-                                    if (src && src.startsWith('data:') && !isValidDataUri(src)) {
-                                      return null;
-                                    }
-                                    return (
-                                      <img key={index} src={src} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" />
-                                    );
+                                    return null;
                                   }
                                   if (isTextPart(part)) {
                                     return (
@@ -341,6 +366,37 @@ export default function MessageList({ messages, activeError, onDismissError }: M
               </div>
               {isUser && <AvatarComponent className="h-7 w-7 ml-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
             </div>
+            {/* Render tool result images as separate message bubbles */}
+            {toolResultImages.map((image, imageIndex) => (
+              <div key={`${msgKey}-image-${imageIndex}`} className="w-full mt-2">
+                <div className="flex items-end w-full justify-start">
+                  <ImageIcon className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
+                  <div className="flex flex-col items-start">
+                    <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <ImageIcon className="h-3 w-3" />
+                          <span>Tool Result Image</span>
+                        </div>
+                        <div className="relative group cursor-pointer" onClick={() => openImageModal(image.src, image.alt)}>
+                          <img
+                            src={image.src}
+                            alt={image.alt}
+                            className="max-h-80 w-auto rounded border border-border object-contain transition-transform group-hover:scale-[1.02]"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded border border-border flex items-center justify-center">
+                            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 px-1">
+                      <span>{timestampStr}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
             {errorAnchoredHere && (
               <div className="mt-2 ml-12 mr-4">{/* indent to align under bubbles */}
                 <ErrorBanner error={activeError!} onDismiss={onDismissError || (() => {})} />
@@ -350,6 +406,39 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         );
       })}
       <div key="end-anchor" ref={endRef} className="h-px" />
+      
+      {/* Image Modal */}
+      {imageModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="relative max-w-[90vw] max-h-[90vh] bg-background rounded-lg shadow-2xl border border-border">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-lg font-semibold">Tool Result Image</h3>
+              <button
+                onClick={closeImageModal}
+                className="p-2 hover:bg-muted rounded-md transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Image Container */}
+            <div className="p-4 flex items-center justify-center">
+              <img
+                src={imageModal.src}
+                alt={imageModal.alt}
+                className="max-w-full max-h-[70vh] object-contain rounded"
+              />
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-border text-sm text-muted-foreground">
+              <p>{imageModal.alt}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

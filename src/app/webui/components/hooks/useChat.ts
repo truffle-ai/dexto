@@ -159,9 +159,29 @@ export function useChat(wsUrl: string) {
                         );
                         const last = cleaned[cleaned.length - 1];
                         if (last && last.role === 'assistant') {
-                            // Only concatenate if existing content is a string
-                            const newContent =
-                                typeof last.content === 'string' ? last.content + text : text;
+                            // Handle both string and array content types
+                            let newContent: string | Array<TextPart | ImagePart>;
+                            if (typeof last.content === 'string') {
+                                newContent = last.content + text;
+                            } else if (Array.isArray(last.content)) {
+                                // If content is an array, update the text part or add a new text part
+                                const textPart = last.content.find((part) =>
+                                    isTextPart(part)
+                                ) as TextPart;
+                                if (textPart) {
+                                    // Update existing text part
+                                    newContent = last.content.map((part) =>
+                                        isTextPart(part)
+                                            ? { ...part, text: part.text + text }
+                                            : part
+                                    );
+                                } else {
+                                    // Add new text part
+                                    newContent = [...last.content, { type: 'text', text }];
+                                }
+                            } else {
+                                newContent = text;
+                            }
                             const updated = {
                                 ...last,
                                 content: newContent,
@@ -194,7 +214,70 @@ export function useChat(wsUrl: string) {
                         const cleaned = ms.filter(
                             (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
                         );
-                        // Embed image part in content if available
+
+                        // Check if this response is updating an existing message
+                        const lastMsg = cleaned[cleaned.length - 1];
+                        if (lastMsg && lastMsg.role === 'assistant') {
+                            // Update existing message with final content and metadata
+                            let updatedContent: string | Array<TextPart | ImagePart>;
+
+                            if (lastImageUriRef.current) {
+                                // Handle image content
+                                const uri = lastImageUriRef.current;
+                                const [, base64] = uri.split(',');
+                                const mimeMatch = uri.match(/data:(.*);base64/);
+                                const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+                                const imagePart: ImagePart = { type: 'image', base64, mimeType };
+
+                                if (typeof lastMsg.content === 'string') {
+                                    // Convert string content to array with text and image
+                                    updatedContent = text.trim()
+                                        ? [{ type: 'text', text }, imagePart]
+                                        : [imagePart];
+                                } else if (Array.isArray(lastMsg.content)) {
+                                    // Update existing array content
+                                    const textPart = lastMsg.content.find((part) =>
+                                        isTextPart(part)
+                                    ) as TextPart;
+                                    if (textPart) {
+                                        // Update existing text part and ensure image part exists
+                                        const updatedParts = lastMsg.content.map((part) =>
+                                            isTextPart(part) ? { ...part, text } : part
+                                        );
+                                        const hasImage = updatedParts.some((part) =>
+                                            isImagePart(part)
+                                        );
+                                        if (!hasImage) {
+                                            updatedParts.push(imagePart);
+                                        }
+                                        updatedContent = updatedParts;
+                                    } else {
+                                        // Add text part and image part
+                                        updatedContent = text.trim()
+                                            ? [{ type: 'text', text }, imagePart]
+                                            : [imagePart];
+                                    }
+                                } else {
+                                    updatedContent = text.trim()
+                                        ? [{ type: 'text', text }, imagePart]
+                                        : [imagePart];
+                                }
+                            } else {
+                                // No image, just use text content
+                                updatedContent = text;
+                            }
+
+                            const updatedMsg = {
+                                ...lastMsg,
+                                content: updatedContent,
+                                tokenCount,
+                                model,
+                                createdAt: Date.now(),
+                            };
+                            return [...cleaned.slice(0, -1), updatedMsg];
+                        }
+
+                        // Create new message if no existing assistant message
                         let content: string | Array<TextPart | ImagePart> = text;
                         if (lastImageUriRef.current) {
                             const uri = lastImageUriRef.current;
@@ -206,7 +289,7 @@ export function useChat(wsUrl: string) {
                                 ? [{ type: 'text', text }, imagePart]
                                 : [imagePart];
                         }
-                        // Prepare new AI message
+
                         const newMsg: Message = {
                             id: generateUniqueId(),
                             role: 'assistant',
@@ -216,11 +299,6 @@ export function useChat(wsUrl: string) {
                             model,
                             sessionId,
                         };
-                        // Check if this response is updating an existing message
-                        const lastMsg = cleaned[cleaned.length - 1];
-                        if (lastMsg && lastMsg.role === 'assistant') {
-                            return [...cleaned.slice(0, -1), newMsg];
-                        }
                         return [...cleaned, newMsg];
                     });
 
@@ -267,38 +345,48 @@ export function useChat(wsUrl: string) {
                 case 'toolResult': {
                     const name = payload.toolName;
                     const result = payload.result;
-                    // Extract image URI from tool result, supporting data+mimetype
+
+                    // Process and normalize the tool result to ensure proper image handling
+                    let processedResult = result;
+
+                    // Extract image URI from tool result for potential use in AI response
                     let uri: string | null = null;
                     if (result && Array.isArray(result.content)) {
-                        const imgPart = result.content.find(
-                            (
-                                p: unknown
-                            ): p is {
-                                type: 'image';
-                                data?: string;
-                                image?: string;
-                                url?: string;
-                                mimeType?: string;
-                            } =>
-                                typeof p === 'object' &&
-                                p !== null &&
-                                (p as { type?: unknown }).type === 'image' &&
-                                ('data' in (p as Record<string, unknown>) ||
-                                    'image' in (p as Record<string, unknown>) ||
-                                    'url' in (p as Record<string, unknown>))
-                        );
-                        if (imgPart) {
-                            if (imgPart.data && imgPart.mimeType) {
-                                // Assemble data URI
-                                uri = `data:${imgPart.mimeType};base64,${imgPart.data}`;
-                            } else if (imgPart.image || imgPart.url) {
-                                uri = imgPart.image || imgPart.url;
+                        // Normalize image parts in tool result content
+                        const normalizedContent = result.content.map((part: unknown) => {
+                            if (
+                                typeof part === 'object' &&
+                                part !== null &&
+                                (part as { type?: unknown }).type === 'image'
+                            ) {
+                                const imgPart = part as any;
+                                // Ensure consistent format for image parts
+                                if (imgPart.data && imgPart.mimeType) {
+                                    uri = `data:${imgPart.mimeType};base64,${imgPart.data}`;
+                                    return {
+                                        type: 'image',
+                                        base64: imgPart.data,
+                                        mimeType: imgPart.mimeType,
+                                    };
+                                } else if (imgPart.base64 && imgPart.mimeType) {
+                                    uri = `data:${imgPart.mimeType};base64,${imgPart.base64}`;
+                                    return {
+                                        type: 'image',
+                                        base64: imgPart.base64,
+                                        mimeType: imgPart.mimeType,
+                                    };
+                                } else if (imgPart.image || imgPart.url) {
+                                    uri = imgPart.image || imgPart.url;
+                                    return part; // Keep original format for URL-based images
+                                }
                             }
-                        }
+                            return part;
+                        });
+                        processedResult = { ...result, content: normalizedContent };
                     } else if (typeof result === 'string' && result.startsWith('data:image')) {
                         uri = result;
                     } else if (result && typeof result === 'object') {
-                        // Older or fallback image fields
+                        // Handle legacy image formats
                         if ('data' in result && 'mimeType' in result) {
                             uri = `data:${result.mimeType};base64,${result.data}`;
                         } else if (result.screenshot) {
@@ -309,7 +397,10 @@ export function useChat(wsUrl: string) {
                             uri = result.url;
                         }
                     }
+
+                    // Store image URI for potential use in AI response
                     lastImageUriRef.current = uri;
+
                     // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
                         const idx = ms.findIndex(
@@ -319,7 +410,7 @@ export function useChat(wsUrl: string) {
                                 m.toolResult === undefined
                         );
                         if (idx !== -1) {
-                            const updatedMsg = { ...ms[idx], toolResult: result };
+                            const updatedMsg = { ...ms[idx], toolResult: processedResult };
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
                         console.warn(`No matching tool call found for result of ${name}`);
