@@ -52,10 +52,10 @@ systemPrompt:
       enabled: true
 
 # # describes the llm configuration
-llm:
-  provider: openai
-  model: gpt-5-mini
-  apiKey: $OPENAI_API_KEY
+# llm:
+#   provider: openai
+#   model: gpt-5-mini
+#   apiKey: $OPENAI_API_KEY
 
 # Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
 # Memory cache with file-based database (good for development with persistence)
@@ -68,7 +68,14 @@ storage:
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
-# llm:
-#   provider: google
-#   model: gemini-2.0-flash
-#   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+llm:
+  provider: google
+  model: gemini-2.0-flash
+  apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+
+telemetry:
+  serviceName: dexto-default-agent
+  enabled: true
+  tracerName: dexto-tracer
+  export:
+    type: console
