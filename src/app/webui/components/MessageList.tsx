@@ -114,9 +114,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
         const AvatarComponent = isUser ? User : Bot;
 
         const messageContainerClass = cn(
-          "flex items-end w-full",
-          isUser ? "justify-end" : "justify-start",
-          isSystem && "justify-center"
+          isUser
+            ? "grid w-full grid-cols-[1fr_auto] gap-x-2 items-start"
+            : "grid w-full grid-cols-[auto_1fr] gap-x-2 items-start",
         );
 
         // Bubble styling: users and AI are speech bubbles; tools are full-width transient blocks
@@ -140,12 +140,25 @@ export default function MessageList({ messages, activeError, onDismissError, out
         return (
           <div key={msgKey} className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
             <div className={messageContainerClass}>
-              {isAi && <AvatarComponent className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
-              {msg.role === 'tool' && <Wrench className="h-7 w-7 p-1 mr-3 mt-1 rounded-full border border-border text-muted-foreground self-start flex-shrink-0" />}
-              
-              <div className={cn("flex flex-col group w-full", isUser ? "items-end" : "items-start", isSystem && "items-center")}> 
-              <div className={bubbleSpecificClass}>
-                <div className={contentWrapperClass}>
+              {isAi && (
+                <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-1" />
+              )}
+              {msg.role === 'tool' && (
+                <Wrench className="h-7 w-7 p-1 mt-1 rounded-full border border-border text-muted-foreground col-start-1" />
+              )}
+
+              <div
+                className={cn(
+                  "flex flex-col group",
+                  isSystem
+                    ? "col-span-2 items-center"
+                    : isUser
+                    ? "col-start-1 justify-self-end items-end"
+                    : "col-start-2 justify-self-start items-start",
+                )}
+              >
+                <div className={bubbleSpecificClass}>
+                  <div className={contentWrapperClass}>
                   {/* Reasoning panel (assistant only) - display at top */}
                   {isAi && typeof msg.reasoning === 'string' && msg.reasoning.trim().length > 0 && (
                     <div className="mb-3 border border-orange-200/50 dark:border-orange-400/20 rounded-lg bg-gradient-to-br from-orange-50/30 to-amber-50/20 dark:from-orange-900/20 dark:to-amber-900/10">
@@ -490,7 +503,10 @@ export default function MessageList({ messages, activeError, onDismissError, out
                 </div>
               )}
               </div>
-              {isUser && <AvatarComponent className="h-7 w-7 ml-2 mb-1 text-muted-foreground self-start flex-shrink-0" />}
+              
+              {isUser && (
+                <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-2" />
+              )}
             </div>
             {errorAnchoredHere && (
               <div className="mt-2 ml-12 mr-4">{/* indent to align under bubbles */}

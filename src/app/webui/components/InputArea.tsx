@@ -465,7 +465,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               onPaste={handlePaste}
               placeholder="Ask Dexto anything..."
               rows={1}
-              className="h-14 overflow-auto pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
+              className="h-14 overflow-hidden pl-12 pr-24 py-0 flex items-center text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
             />
             <Button
               type="submit"

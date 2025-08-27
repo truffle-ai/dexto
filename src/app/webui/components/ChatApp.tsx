@@ -432,7 +432,7 @@ export default function ChatApp() {
 
       <main
         className="flex-1 flex flex-col relative"
-        style={{ ['--thread-max-width']: '54rem' }}
+        style={{ '--thread-max-width': '54rem' } as React.CSSProperties & { '--thread-max-width': string }}
       >
         {/** Shared centered content width for welcome, messages, and composer */}
         {/** Keep this in sync to unify UI width like ChatGPT */}
@@ -527,7 +527,7 @@ export default function ChatApp() {
                     size="sm" 
                     onClick={() => setServersPanelOpen(!isServersPanelOpen)}
                     className={cn(
-                      "h-8 px-2 text-xs transition-colors",
+                      "h-8 px-2 text-sm transition-colors",
                       isServersPanelOpen && "bg-muted"
                     )}
                   >
@@ -546,7 +546,7 @@ export default function ChatApp() {
                     variant="ghost"
                     size="sm"
                     asChild
-                    className="h-8 px-2 text-xs"
+                    className="h-8 px-2 text-sm"
                   >
                     <Link href="/playground" target="_blank">
                       <Wrench className="h-3.5 w-3.5" />
@@ -640,7 +640,7 @@ export default function ChatApp() {
                       >
                         <div className="flex items-center space-x-1.5">
                           <span className="text-sm">{action.icon}</span>
-                          <span className="font-medium text-xs text-primary group-hover:text-primary/80 transition-colors">
+                          <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
                             {action.title}
                           </span>
                         </div>
