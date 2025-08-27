@@ -5,8 +5,6 @@ import { cn } from "@/lib/utils";
 import { 
     Message, 
     TextPart, 
-    ImagePart, 
-    AudioPart,
     isToolResultError, 
     isToolResultContent, 
     isTextPart, 
@@ -16,7 +14,7 @@ import {
     ErrorMessage
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, X, ZoomIn, Volume2 } from 'lucide-react';
+import { User, Bot, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, File, FileAudio, X, ZoomIn, Volume2 } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
@@ -44,6 +42,35 @@ function isSafeHttpUrl(src: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Helper to check if a URL is safe for media rendering
+function isSafeMediaUrl(src: string): boolean {
+  return (src.startsWith('data:') && isValidDataUri(src)) || 
+         src.startsWith('blob:') || 
+         isSafeHttpUrl(src);
+}
+
+// Helper to check if a URL is safe for audio rendering  
+function isSafeAudioUrl(src: string): boolean {
+  return src.startsWith('data:audio/') || 
+         src.startsWith('blob:') || 
+         isSafeHttpUrl(src);
+}
+
+// Helper to resolve media source from different formats
+function resolveMediaSrc(part: any): string {
+  // Check for base64 data first
+  if (part.base64 && part.mimeType) {
+    return `data:${part.mimeType};base64,${part.base64}`;
+  }
+  if (typeof part.base64 === 'string') {
+    return part.base64;
+  }
+  
+  // Check for URL-based sources
+  const urlSrc = part.url ?? part.image ?? part.audio;
+  return typeof urlSrc === 'string' ? urlSrc : '';
 }
 
 export default function MessageList({ messages, activeError, onDismissError }: MessageListProps) {
@@ -111,7 +138,7 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         const isToolResult = !!(msg.toolName && msg.toolResult);
         const isToolRelated = isToolCall || isToolResult;
 
-        const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msg.id];
+        const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
 
         // Extract image and audio parts from tool results for separate rendering
         const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
@@ -119,13 +146,9 @@ export default function MessageList({ messages, activeError, onDismissError }: M
         if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
           msg.toolResult.content.forEach((part, index) => {
             if (isImagePart(part)) {
-              const dataSrc = part.base64 && part.mimeType
-                ? `data:${part.mimeType};base64,${part.base64}`
-                : part.base64;
-              const urlSrc = (part as any).url || (part as any).image;
-              const src = typeof dataSrc === 'string' ? dataSrc : (typeof urlSrc === 'string' ? urlSrc : '');
+              const src = resolveMediaSrc(part);
               
-              if (src && ((src.startsWith('data:') && isValidDataUri(src)) || isSafeHttpUrl(src))) {
+              if (src && isSafeMediaUrl(src)) {
                 toolResultImages.push({
                   src,
                   alt: `Tool result image ${index + 1}`,
@@ -133,13 +156,9 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                 });
               }
             } else if (isAudioPart(part)) {
-              const dataSrc = part.base64 && part.mimeType
-                ? `data:${part.mimeType};base64,${part.base64}`
-                : part.base64;
-              const urlSrc = (part as any).url || (part as any).audio;
-              const src = typeof dataSrc === 'string' ? dataSrc : (typeof urlSrc === 'string' ? urlSrc : '');
+              const src = resolveMediaSrc(part);
               
-              if (src && (src.startsWith('data:audio/') || isSafeHttpUrl(src))) {
+              if (src && isSafeAudioUrl(src)) {
                 toolResultAudios.push({
                   src,
                   filename: part.filename,
@@ -154,12 +173,11 @@ export default function MessageList({ messages, activeError, onDismissError }: M
           if (isToolRelated) {
             setManuallyExpanded(prev => ({
               ...prev,
-              [msg.id]: !prev[msg.id]
+              [msgKey]: !prev[msgKey]
             }));
           }
         };
 
-        const showAvatar = isUser || isAi;
         const AvatarComponent = isUser ? User : Bot;
 
         const messageContainerClass = cn(
@@ -291,8 +309,8 @@ export default function MessageList({ messages, activeError, onDismissError }: M
                         if (part.type === 'text') {
                           return <p key={partKey} className="whitespace-pre-wrap">{(part as TextPart).text}</p>;
                         }
-                        if ((part as any).type === 'file' && 'data' in part && 'mimeType' in part) {
-                          const filePart = part as any;
+                        if (isFilePart(part)) {
+                          const filePart = part;
                           if (filePart.mimeType.startsWith('audio/')) {
                             const src = `data:${filePart.mimeType};base64,${filePart.data}`;
                             return (

@@ -93,7 +93,7 @@ export function isFilePart(part: unknown): part is FilePart {
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
     imageData?: { base64: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
@@ -223,7 +223,7 @@ export function useChat(wsUrl: string) {
                                 tokenCount,
                                 model,
                                 createdAt: Date.now(),
-                                sessionId,
+                                sessionId: sessionId ?? lastMsg.sessionId,
                             };
                             return [...cleaned.slice(0, -1), updatedMsg];
                         }
