@@ -16,8 +16,7 @@ export function ButtonFooter({ leftButtons, rightButtons, className }: ButtonFoo
       "flex items-center justify-between",
       // Fixed footer height
       "h-12 px-2",
-      // Visual separation from editor area
-      "border-t border-border/50",
+      // No visual separator; seamless with editor area
       // Ensure interactions work normally
       className
     )}>
