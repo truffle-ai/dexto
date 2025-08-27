@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
+import { ChatInputContainer, ButtonFooter, StreamToggle, ModelSelector, AttachButton, RecordButton } from './ChatInput';
 import { Badge } from './ui/badge';
 import { 
   DropdownMenu,
@@ -454,9 +455,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
       <div className="w-full">
         {/* Unified pill input with send button */}
-        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }}>
+          <ChatInputContainer>
             <TextareaAutosize
               ref={textareaRef}
               value={text}
@@ -466,21 +466,54 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               placeholder="Ask Dexto anything..."
               minRows={1}
               maxRows={8}
-              className="min-h-14 w-full pl-12 pr-24 py-4 text-lg leading-7 placeholder:text-lg border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm rounded-3xl shadow-sm resize-none outline-none focus:ring-0"
+              className="w-full px-4 py-4 pb-12 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus:outline-none"
             />
-            <Button
-              type="submit"
-              disabled={!text.trim() && !imageData && !fileData || isSending}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
-              aria-label="Send message"
-            >
-              {isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <SendHorizontal className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+            
+            <ButtonFooter
+              leftButtons={
+                <div className="flex items-center gap-2">
+                  <AttachButton
+                    onImageAttach={triggerFileInput}
+                    onPdfAttach={triggerPdfInput}
+                    onAudioAttach={triggerAudioInput}
+                  />
+                  
+                  <RecordButton
+                    isRecording={isRecording}
+                    onToggleRecording={isRecording ? stopRecording : startRecording}
+                  />
+                </div>
+              }
+              rightButtons={
+                <div className="flex items-center gap-2">
+                  <StreamToggle 
+                    isStreaming={isStreaming}
+                    onStreamingChange={setStreaming}
+                  />
+                  
+                  <ModelSelector
+                    currentModel={currentModel}
+                    isLoading={isLoadingModel}
+                    models={coreModels}
+                    onModelChange={handleModelSwitch}
+                  />
+
+                  <Button
+                    type="submit"
+                    disabled={!text.trim() && !imageData && !fileData || isSending}
+                    className="h-10 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
+                    aria-label="Send message"
+                  >
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <SendHorizontal className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              }
+            />
+          </ChatInputContainer>
         </form>
 
         {/* Previews below input */}
@@ -531,98 +564,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           </div>
         )}
 
-        {/* Controls row: attach/record on left, streaming/model on right */}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full"
-                  aria-label="Attach File"
-                >
-                  <Paperclip className="h-3 w-3 mr-1.5" />
-                  Attach
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start">
-                <DropdownMenuItem onClick={triggerFileInput}>
-                  <Paperclip className="h-4 w-4 mr-2" /> Image
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={triggerPdfInput}>
-                  <File className="h-4 w-4 mr-2" /> PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={triggerAudioInput}>
-                  <FileAudio className="h-4 w-4 mr-2" /> Audio file
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={isRecording ? stopRecording : startRecording}
-              className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full"
-              aria-label={isRecording ? 'Stop recording' : 'Record audio'}
-            >
-              {isRecording ? <StopCircle className="h-3 w-3 mr-1.5 text-red-500" /> : <Mic className="h-3 w-3 mr-1.5" />}
-              {isRecording ? 'Stop' : 'Record'}
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5 cursor-pointer">
-                    <Zap className={`h-3 w-3 ${isStreaming ? 'text-blue-500' : 'text-muted-foreground'}`} />
-                    <Switch
-                      checked={isStreaming}
-                      onCheckedChange={setStreaming}
-                      className="scale-75"
-                      aria-label="Toggle streaming"
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{isStreaming ? 'Streaming enabled' : 'Streaming disabled'}</p>
-                  <p className="text-xs opacity-75">
-                    {isStreaming ? 'Responses will stream in real-time' : 'Responses will arrive all at once'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full"
-                  disabled={isLoadingModel}
-                >
-                  <Bot className="h-3 w-3 mr-1.5" />
-                  <span className="hidden sm:inline">
-                    {isLoadingModel ? '...' : currentModel}
-                  </span>
-                  <ChevronDown className="h-3 w-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {coreModels.map((model) => (
-                  <DropdownMenuItem 
-                    key={model.model}
-                    onClick={() => handleModelSwitch(model)}
-                  >
-                    <Bot className="h-4 w-4 mr-2" />
-                    {model.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
 
         {/* Hidden inputs */}
         <input
