@@ -465,7 +465,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               onPaste={handlePaste}
               placeholder="Ask Dexto anything..."
               rows={1}
-              className="min-h-[42px] max-h-[40vh] overflow-auto pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
+              className="h-14 overflow-auto pl-12 pr-24 text-base border-2 border-border/50 focus:border-primary/50 transition-all duration-200 bg-background/50 backdrop-blur-sm resize-none rounded-full shadow-sm"
             />
             <Button
               type="submit"
@@ -538,7 +538,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                  className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full"
                   aria-label="Attach File"
                 >
                   <Paperclip className="h-3 w-3 mr-1.5" />
@@ -562,7 +562,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               variant="outline"
               size="sm"
               onClick={isRecording ? stopRecording : startRecording}
-              className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+              className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full"
               aria-label={isRecording ? 'Stop recording' : 'Record audio'}
             >
               {isRecording ? <StopCircle className="h-3 w-3 mr-1.5 text-red-500" /> : <Mic className="h-3 w-3 mr-1.5" />}
@@ -598,7 +598,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-full"
+                  className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full"
                   disabled={isLoadingModel}
                 >
                   <Bot className="h-3 w-3 mr-1.5" />

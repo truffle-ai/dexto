@@ -122,11 +122,11 @@ export default function MessageList({ messages, activeError, onDismissError, out
         // Bubble styling: users and AI are speech bubbles; tools are full-width transient blocks
         const bubbleSpecificClass = cn(
           msg.role === 'tool'
-            ? "w-full text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-sm"
+            ? "w-full text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base"
             : isUser
-            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-primary text-primary-foreground rounded-br-none text-sm break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-primary text-primary-foreground rounded-br-none text-base break-normal hyphens-none"
             : isAi
-            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-card text-card-foreground border border-border rounded-bl-none text-sm break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
             ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
@@ -297,7 +297,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
                         <div className="relative">
                           {isUser ? (
-                            <p className="text-sm whitespace-pre-line break-normal">
+                            <p className="text-base whitespace-pre-line break-normal">
                               {msg.content}
                             </p>
                           ) : (
@@ -318,7 +318,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           return (
                             <div key={partKey} className="relative">
                               {isUser ? (
-                                <p className="text-sm whitespace-pre-line break-normal">
+                                <p className="text-base whitespace-pre-line break-normal">
                                   {(part as TextPart).text}
                                 </p>
                               ) : (

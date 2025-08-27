@@ -118,7 +118,8 @@
 
 @layer base {
   html {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    /* Match ChatGPT: 16px ui-sans-serif system stack */
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
     font-weight: 400;
     font-feature-settings: 'cv11', 'ss01';
     font-variation-settings: 'opsz' 32;

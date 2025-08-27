@@ -432,7 +432,7 @@ export default function ChatApp() {
 
       <main
         className="flex-1 flex flex-col relative"
-        style={{ ["--thread-max-width" as any]: "48rem" }}
+        style={{ ['--thread-max-width']: '54rem' }}
       >
         {/** Shared centered content width for welcome, messages, and composer */}
         {/** Keep this in sync to unify UI width like ChatGPT */}
