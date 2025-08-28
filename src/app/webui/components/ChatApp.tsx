@@ -505,10 +505,15 @@ export default function ChatApp() {
               )}
               
               {/* TODO: improve the non text part of logo */}
-              <div className="flex items-center space-x-3">
+              <a 
+                href="https://dexto.ai" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+              >
                 <img src="/logo.svg" alt="Dexto" className="h-8 w-auto" />
                 <span className="sr-only">Dexto</span>
-              </div>
+              </a>
               
               {/* Current Session Indicator - Only show when there's an active session */}
               {currentSessionId && !isWelcomeState && (

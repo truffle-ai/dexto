@@ -153,11 +153,13 @@ export class VercelMessageFormatter implements IMessageFormatter {
             adaptedResponse as GenerateTextResult<VercelToolSet, unknown>
         );
 
-        // Attach final reasoning and usage, if available, to the last assistant message
+        // Attach final reasoning, usage, and model, if available, to the last assistant message
         const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
         if (lastAssistant) {
             const usage = await response.totalUsage;
             const reasoningText = await response.reasoningText;
+            const resolvedResp = await response.response;
+            const modelId = resolvedResp?.modelId;
             if (reasoningText) {
                 lastAssistant.reasoning = reasoningText;
             }
@@ -170,6 +172,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     }),
                     ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
                 };
+            }
+            if (modelId) {
+                lastAssistant.model = modelId;
             }
         }
         return internal;
@@ -299,11 +304,12 @@ export class VercelMessageFormatter implements IMessageFormatter {
             }
         }
 
-        // Attach final reasoning and usage, if available, to the last assistant message
+        // Attach final reasoning, usage, and model, if available, to the last assistant message
         const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
         const anyResp = response;
         const usage = anyResp.totalUsage;
         const reasoningText = anyResp.reasoningText;
+        const modelId = response.response?.modelId;
         if (lastAssistant) {
             if (typeof reasoningText === 'string' && reasoningText.length > 0) {
                 lastAssistant.reasoning = reasoningText;
@@ -317,6 +323,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     }),
                     ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
                 };
+            }
+            if (modelId) {
+                lastAssistant.model = modelId;
             }
         }
         return internal;

@@ -68,6 +68,12 @@ export interface InternalMessage {
     };
 
     /**
+     * Optional model identifier for assistant messages.
+     * Indicates which LLM model generated this response.
+     */
+    model?: string;
+
+    /**
      * Tool calls made by the assistant.
      * Only present in assistant messages when the LLM requests tool execution.
      */

@@ -391,11 +391,17 @@ export class ContextManager<TMessage = unknown> {
      *
      * @param content The assistant's response text (can be null if only tool calls)
      * @param toolCalls Optional tool calls requested by the assistant
+     * @param metadata Optional metadata including token usage, reasoning, and model info
      * @throws Error if neither content nor toolCalls are provided
      */
     async addAssistantMessage(
         content: string | null,
-        toolCalls?: InternalMessage['toolCalls']
+        toolCalls?: InternalMessage['toolCalls'],
+        metadata?: {
+            tokenUsage?: InternalMessage['tokenUsage'];
+            reasoning?: string;
+            model?: string;
+        }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
@@ -406,6 +412,9 @@ export class ContextManager<TMessage = unknown> {
             role: 'assistant' as const,
             content,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
+            ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
+            ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
+            ...(metadata?.model && { model: metadata.model }),
         });
     }
 
