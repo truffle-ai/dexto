@@ -2,7 +2,12 @@ import { ChatCompletionMessageParam, ChatCompletionContentPart } from 'openai/re
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
-import { getImageData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
+import {
+    getImageData,
+    filterMessagesByLLMCapabilities,
+    summarizeToolContentForText,
+    isLikelyBase64String,
+} from '@core/context/utils.js';
 import { logger } from '@core/logger/index.js';
 
 /**
@@ -81,12 +86,25 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     break;
 
                 case 'tool':
-                    // Tool results for OpenAI
-                    formatted.push({
-                        role: 'tool',
-                        content: String(msg.content || ''),
-                        tool_call_id: msg.toolCallId || '',
-                    });
+                    // Tool results for OpenAI — only text field is supported.
+                    // Convert media/file parts to a concise text summary and avoid raw base64.
+                    {
+                        let text: string;
+                        if (Array.isArray(msg.content)) {
+                            text = summarizeToolContentForText(msg.content);
+                        } else if (typeof msg.content === 'string') {
+                            text = isLikelyBase64String(msg.content)
+                                ? '[binary data omitted]'
+                                : msg.content;
+                        } else {
+                            text = String(msg.content || '');
+                        }
+                        formatted.push({
+                            role: 'tool',
+                            content: text,
+                            tool_call_id: msg.toolCallId || '',
+                        });
+                    }
                     break;
             }
         }
