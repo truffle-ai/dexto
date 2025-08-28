@@ -614,16 +614,16 @@ export default function ChatApp() {
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex items-center justify-center p-6 -mt-20">
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
-                  <div className="space-y-4 text-center">
-                    <img src="/logo_no_text.png" alt="Dexto" className="h-10 w-auto mx-auto" />
-                    <div className="space-y-2">
+                  <div className="text-center space-y-3">
+                    <div className="flex items-center justify-center gap-3">
+                      <img src="/logo_no_text.png" alt="Dexto" className="h-8 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         Welcome to Dexto
                       </h2>
-                      <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
-                        Your AI assistant with powerful tools. Ask anything or connect new capabilities.
-                      </p>
                     </div>
+                    <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
+                      Your AI assistant with powerful tools. Ask anything or connect new capabilities.
+                    </p>
                   </div>
 
                   {/* Quick Actions Grid - Compact */}
