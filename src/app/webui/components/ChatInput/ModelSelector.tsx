@@ -3,6 +3,7 @@
 import React from 'react';
 import { Bot, ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +18,7 @@ interface ModelOption {
 }
 
 interface ModelSelectorProps {
-  currentModel: string;
+  currentModel: ModelOption | null;
   isLoading: boolean;
   models: ModelOption[];
   onModelChange: (model: ModelOption) => void;
@@ -37,12 +38,17 @@ export function ModelSelector({
         <Button 
           variant="ghost" 
           size="sm" 
-          className={`h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full ${className || ''}`}
+          className={cn(
+            "h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full",
+            className
+          )}
           disabled={isLoading}
         >
           <Bot className="h-3 w-3 mr-1.5" />
           <span className="hidden sm:inline">
-            {isLoading ? '...' : currentModel}
+            {isLoading
+              ? '...'
+              : (currentModel?.name ?? 'Select model')}
           </span>
           <ChevronDown className="h-3 w-3 ml-1" />
         </Button>

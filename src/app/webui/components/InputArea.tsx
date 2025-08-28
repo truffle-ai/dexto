@@ -19,6 +19,12 @@ import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 
+interface ModelOption {
+  name: string;
+  provider: string;
+  model: string;
+}
+
 interface InputAreaProps {
   onSend: (
     content: string,
@@ -52,7 +58,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const { currentSessionId, isStreaming, setStreaming } = useChatContext();
   
   // LLM selector state
-  const [currentModel, setCurrentModel] = useState('Loading...');
+  const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
@@ -89,15 +95,19 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           // Try to match with core models first
           const matchedModel = coreModels.find(m => m.model === config.config.model);
           if (matchedModel) {
-            setCurrentModel(matchedModel.name);
+            setCurrentModel(matchedModel);
           } else {
-            // Fallback to provider/model display
-            setCurrentModel(`${config.config.provider}/${config.config.model}`);
+            // Fallback to provider/model display - create a ModelOption
+            setCurrentModel({
+              name: `${config.config.provider}/${config.config.model}`,
+              provider: config.config.provider,
+              model: config.config.model
+            });
           }
         }
       } catch (error) {
         console.error('Failed to fetch current model:', error);
-        setCurrentModel('Unknown');
+        setCurrentModel(null);
       }
     };
 
@@ -307,7 +317,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const triggerPdfInput = () => pdfInputRef.current?.click();
   const triggerAudioInput = () => audioInputRef.current?.click();
 
-  const handleModelSwitch = async (model: { name: string; provider: string; model: string }) => {
+  const handleModelSwitch = async (model: ModelOption) => {
     setIsLoadingModel(true);
     setModelSwitchError(null); // Clear any previous errors
     try {
@@ -332,7 +342,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       const result = await response.json();
 
       if (response.ok) {
-        setCurrentModel(model.name);
+        setCurrentModel(model);
         setModelSwitchError(null); // Clear any errors on success
       } else {
         // Handle new validation error format

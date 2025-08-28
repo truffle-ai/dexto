@@ -289,6 +289,7 @@ export function useChat(wsUrl: string) {
                                 detail: {
                                     text,
                                     sessionId,
+                                    reasoning,
                                     tokenUsage,
                                     model,
                                     timestamp: Date.now(),
