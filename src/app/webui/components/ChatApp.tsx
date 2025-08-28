@@ -119,7 +119,7 @@ export default function ChatApp() {
     // Initial compute in case of restored sessions
     recomputeIsAtBottom();
     return () => el.removeEventListener('scroll', onScroll);
-  }, [recomputeIsAtBottom, followStreaming, isScrollingToBottom]);
+  }, [recomputeIsAtBottom, followStreaming, isScrollingToBottom, isWelcomeState]);
 
   // Content resize observer to autoscroll on content growth
   useEffect(() => {

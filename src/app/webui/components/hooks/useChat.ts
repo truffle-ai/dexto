@@ -166,6 +166,7 @@ export function useChat(wsUrl: string) {
                     break;
                 case 'chunk': {
                     const text = typeof payload.content === 'string' ? payload.content : '';
+                    if (!text) break;
                     const chunkType = payload.type as 'text' | 'reasoning' | undefined;
                     if (chunkType === 'reasoning') {
                         // Update reasoning on the last assistant message if present,
@@ -416,7 +417,9 @@ export function useChat(wsUrl: string) {
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
-                        detailedIssues: payload.issues || [],
+                        detailedIssues: Array.isArray(payload.issues)
+                            ? (payload.issues as Issue[])
+                            : [],
                     });
                     break;
                 }

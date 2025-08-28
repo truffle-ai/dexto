@@ -16,15 +16,18 @@ export function SpeechReset() {
     cancel();
 
     // Cancel on page hide/unload as well
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") cancel();
+    };
+    
     window.addEventListener("pagehide", cancel);
     window.addEventListener("beforeunload", cancel);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") cancel();
-    });
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       window.removeEventListener("pagehide", cancel);
       window.removeEventListener("beforeunload", cancel);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
