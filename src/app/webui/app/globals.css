@@ -226,21 +226,4 @@
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.2);
   }
   
-  /* ContentEditable placeholder styles */
-  [contenteditable]:empty::before,
-  [contenteditable][data-empty="true"]::before {
-    content: attr(data-placeholder);
-    color: var(--muted-foreground);
-    pointer-events: none;
-    position: absolute;
-  }
-  
-  /* Ensure contenteditable divs behave nicely */
-  [contenteditable] {
-    cursor: text;
-  }
-  
-  [contenteditable]:focus {
-    outline: none;
-  }
 }
