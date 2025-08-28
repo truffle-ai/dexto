@@ -16,7 +16,9 @@ export function useTheme() {
         document.documentElement.classList.toggle('dark', theme === 'dark');
         try {
             localStorage.setItem('theme', theme);
-            document.cookie = `theme=${theme}; path=/; max-age=31536000`;
+            const isSecure =
+                typeof window !== 'undefined' && window.location?.protocol === 'https:';
+            document.cookie = `theme=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax${isSecure ? '; Secure' : ''}`;
         } catch {
             // Ignore storage errors in restrictive environments
         }

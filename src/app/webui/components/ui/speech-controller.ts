@@ -115,6 +115,7 @@ class SpeechController {
             this.notify();
         };
         const end = () => {
+            if (this.utterance !== utter) return; // ignore events from stale utterances
             this._speaking = false;
             this.utterance = null;
             this.notify();
@@ -123,8 +124,9 @@ class SpeechController {
         utter.onerror = end;
 
         try {
-            window.speechSynthesis.speak(utter);
+            // mark current first to correlate with handlers
             this.utterance = utter;
+            window.speechSynthesis.speak(utter);
             if (!this._speaking) {
                 this._speaking = true;
                 this.notify();
@@ -169,8 +171,9 @@ class SpeechController {
         if (ukFemale) return ukFemale;
         const score = (v: SpeechSynthesisVoice) => {
             const n = v.name.toLowerCase();
+            const lang = (v.lang ?? '').toLowerCase();
             let s = 0;
-            if (/en\b|en-/.test(v.lang.toLowerCase())) s += 3;
+            if (lang === 'en' || lang.startsWith('en-')) s += 3;
             if (n.includes('google')) s += 5;
             if (n.includes('microsoft') || n.includes('azure')) s += 4;
             if (n.includes('natural') || n.includes('neural') || n.includes('premium')) s += 4;
@@ -183,7 +186,9 @@ class SpeechController {
     }
 }
 
-export const speechController = new SpeechController();
+const g = globalThis as any;
+export const speechController =
+    g.__speechController ?? (g.__speechController = new SpeechController());
 
 export function useSpeechVoices(): {
     voices: SpeechSynthesisVoice[];

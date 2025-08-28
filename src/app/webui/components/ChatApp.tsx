@@ -131,7 +131,7 @@ export default function ChatApp() {
     });
     ro.observe(content);
     return () => ro.disconnect();
-  }, [isAtBottom, isScrollingToBottom, followStreaming, scrollToBottom]);
+  }, [isAtBottom, isScrollingToBottom, followStreaming, scrollToBottom, isWelcomeState]);
 
   // Fallback: if messages change during streaming, ensure we keep following
   useEffect(() => {
