@@ -59,6 +59,7 @@ import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.j
 import { createAgentCard } from '@core/agent/agentCard.js';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
+import { Telemetry } from '@core/telemetry/index.js';
 
 const program = new Command();
 
@@ -476,6 +477,12 @@ program
 
             // DextoAgent will parse/validate again (parse-twice pattern)
             agent = new DextoAgent(validatedConfig, opts.agent);
+
+            // Initialize Telemetry
+            if (validatedConfig.telemetry) {
+                await Telemetry.init(validatedConfig.telemetry);
+                console.log('Telemetry initialized from agent.yml');
+            }
 
             // Start the agent (initialize async services)
             await agent.start();
