@@ -100,9 +100,9 @@ export class OpenAIService implements ILLMService {
 
                 // Track token usage
                 if (usage) {
-                    totalTokens += usage.total_tokens;
-                    inputTokens += usage.prompt_tokens;
-                    outputTokens += usage.completion_tokens;
+                    totalTokens += usage.total_tokens ?? 0;
+                    inputTokens += usage.prompt_tokens ?? 0;
+                    outputTokens += usage.completion_tokens ?? 0;
                     reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
                 }
 
@@ -352,7 +352,6 @@ export class OpenAIService implements ILLMService {
                     messages: formattedMessages,
                     tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
                     tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
-                    reasoning_effort: 'low',
                 });
 
                 logger.silly(
@@ -466,11 +465,15 @@ export class OpenAIService implements ILLMService {
 
                             // Initialize tool call if needed
                             if (!toolCalls[index]) {
+                                // Initialize with a placeholder; update once a real id arrives
                                 toolCalls[index] = {
-                                    id: toolCall.id!,
+                                    id: `pending-${index}`,
                                     type: 'function',
                                     function: { name: '', arguments: '' },
                                 };
+                            }
+                            if (toolCall.id) {
+                                toolCalls[index].id = toolCall.id;
                             }
 
                             // Accumulate tool call data

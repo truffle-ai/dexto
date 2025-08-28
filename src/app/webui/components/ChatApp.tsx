@@ -571,7 +571,7 @@ export default function ChatApp() {
                     asChild
                     className="h-8 px-2 text-sm"
                   >
-                    <Link href="/playground" target="_blank">
+                    <Link href="/playground" target="_blank" rel="noopener noreferrer">
                       <FlaskConical className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline ml-1.5">Playground</span>
                     </Link>

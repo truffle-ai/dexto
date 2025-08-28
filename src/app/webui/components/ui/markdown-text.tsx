@@ -15,6 +15,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
     >
       <ReactMarkdown 
         remarkPlugins={[remarkGfm]}
+        skipHtml={true}
         components={{
           table: ({ className, children, ...props }) => (
             <div className="my-4 overflow-x-auto -mx-1 px-1">
