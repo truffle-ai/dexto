@@ -15,7 +15,7 @@ export function ChatInputContainer({ children, className }: ChatInputContainerPr
       "w-full",
       // Vertical layout: editor (scrollable) + footer (fixed)
       "flex flex-col overflow-hidden",
-      "max-h-[max(35svh,5rem)]", // ChatGPT's responsive height
+      "max-h-[max(35svh,5rem)]", // commonly used responsive height
       "border-2 border-border/50",
       // Opaque background to prevent underlying text/blur artifacts
       "bg-background",

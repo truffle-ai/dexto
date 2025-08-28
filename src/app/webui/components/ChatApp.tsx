@@ -141,7 +141,7 @@ export default function ChatApp() {
     if (followStreaming) scrollToBottom('auto');
   }, [followStreaming, messages, scrollToBottom]);
 
-  // Position the last user message near the top (ChatGPT-like) then follow streaming
+  // Position the last user message near the top then follow streaming
   const positionLastUserNearTop = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -454,7 +454,7 @@ export default function ChatApp() {
         style={{ '--thread-max-width': '54rem' } as React.CSSProperties & { '--thread-max-width': string }}
       >
         {/** Shared centered content width for welcome, messages, and composer */}
-        {/** Keep this in sync to unify UI width like ChatGPT */}
+        {/** Keep this in sync to unify UI width like other chat apps */}
         {/** 720px base, expand to ~2xl on sm, ~3xl on lg */}
         {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
         {(() => {
