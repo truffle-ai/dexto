@@ -486,10 +486,8 @@ export default function ChatApp() {
               )}
               
               <div className="flex items-center space-x-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-primary/20 bg-primary/5 text-primary-foreground shadow-sm">
-                  <img src="/logo.png" alt="Dexto" className="w-5 h-5" />
-                </div>
-                <h1 className="text-lg font-semibold tracking-tight text-foreground">Dexto</h1>
+                <img src="/logo.svg" alt="Dexto" className="h-8 w-auto" />
+                <span className="sr-only">Dexto</span>
               </div>
               
               {/* Current Session Indicator - Only show when there's an active session */}
@@ -618,7 +616,7 @@ export default function ChatApp() {
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="space-y-4 text-center">
                     <div className="flex items-center justify-center w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary shadow-sm">
-                      <img src="/logo.png" alt="Dexto" className="w-6 h-6" />
+                      <img src="/logo.svg" alt="Dexto" className="w-6 h-6" />
                     </div>
                     <div className="space-y-2">
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
