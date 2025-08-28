@@ -615,9 +615,7 @@ export default function ChatApp() {
               <div className="flex-1 flex items-center justify-center p-6 -mt-20">
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="space-y-4 text-center">
-                    <div className="flex items-center justify-center w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary shadow-sm">
-                      <img src="/logo.svg" alt="Dexto" className="w-6 h-6" />
-                    </div>
+                    <img src="/logo_no_text.png" alt="Dexto" className="h-10 w-auto mx-auto" />
                     <div className="space-y-2">
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         Welcome to Dexto
