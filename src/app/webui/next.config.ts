@@ -34,6 +34,7 @@ const nextConfig: NextConfig = {
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
             '@core': path.resolve(__dirname, '../../core'),
+            '@sdk': path.resolve(__dirname, '../../client'),
         };
         // Map requested .js to .ts/.tsx during development/build
         // while still allowing actual .js files
@@ -47,15 +48,8 @@ const nextConfig: NextConfig = {
     },
     // Allow static asset requests from these origins in dev mode
     allowedDevOrigins: allowedOrigins,
-    async rewrites() {
-        const apiPort = process.env.API_PORT ?? '3001';
-        return [
-            {
-                source: '/api/:path*',
-                destination: `http://localhost:${apiPort}/api/:path*`, // Proxy to backend
-            },
-        ];
-    },
+    // All /api routes are now implemented within Next.js using the internal Client SDK.
+    // The prior proxy-based rewrite has been removed as part of the migration.
     // Allow cross-origin requests for Next.js static and HMR assets during dev
     async headers() {
         return [

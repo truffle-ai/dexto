@@ -21,7 +21,9 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@core/*": ["../../core/*"]
+      "@core/*": ["../../core/*"],
+      "@sdk": ["../../client/index.ts"],
+      "@sdk/*": ["../../client/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

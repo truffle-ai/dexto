@@ -12,6 +12,16 @@ export default defineConfig([
         noExternal: ['chalk', 'boxen'],
         external: ['better-sqlite3', 'pg', 'redis'],
     },
+    // Client SDK entry: bundle CJS, external ESM
+    {
+        entry: ['src/client/index.ts'],
+        format: ['cjs', 'esm'],
+        outDir: 'dist/src/client',
+        dts: true,
+        shims: true,
+        bundle: true,
+        external: [],
+    },
     // App entry: only ESM, no bundling needed
     {
         entry: ['src/app/index.ts'],

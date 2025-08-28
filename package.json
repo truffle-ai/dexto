@@ -19,6 +19,11 @@
             "import": "./dist/src/core/index.js",
             "require": "./dist/src/core/index.cjs"
         },
+        "./client": {
+            "types": "./dist/src/client/index.d.ts",
+            "import": "./dist/src/client/index.js",
+            "require": "./dist/src/client/index.cjs"
+        },
         "./package.json": "./package.json"
     },
     "scripts": {
