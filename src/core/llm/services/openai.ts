@@ -83,6 +83,9 @@ export class OpenAIService implements ILLMService {
 
         let iterationCount = 0;
         let totalTokens = 0;
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let reasoningTokens = 0;
         let fullResponse = '';
         const context = stream ? 'OpenAI streaming API call' : 'OpenAI API call';
 
@@ -98,6 +101,9 @@ export class OpenAIService implements ILLMService {
                 // Track token usage
                 if (usage) {
                     totalTokens += usage.total_tokens;
+                    inputTokens += usage.prompt_tokens;
+                    outputTokens += usage.completion_tokens;
+                    reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
                 }
 
                 // If there are no tool calls, we're done
@@ -117,7 +123,7 @@ export class OpenAIService implements ILLMService {
                     this.sessionEventBus.emit('llmservice:response', {
                         content: finalContent,
                         model: this.config.model,
-                        tokenUsage: { totalTokens },
+                        tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                     });
                     return finalContent;
                 }
@@ -215,7 +221,7 @@ export class OpenAIService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
                 model: this.config.model,
-                tokenUsage: { totalTokens },
+                tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
             });
             return finalResponse;
         } catch (error) {
@@ -314,6 +320,7 @@ export class OpenAIService implements ILLMService {
                     messages: formattedMessages,
                     tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
                     tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
+                    reasoning_effort: 'low',
                 });
 
                 logger.silly(
