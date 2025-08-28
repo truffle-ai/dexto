@@ -126,7 +126,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
             : isUser
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-normal hyphens-none"
             : isAi
-            ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm w-fit max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
             ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
