@@ -1,6 +1,7 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, SessionMetadata, ChatSession, SessionError } from '../session/index.js';
@@ -36,6 +37,7 @@ import { getDextoPath } from '../utils/path.js';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
+    'resourceManager',
     'promptManager',
     'agentEventBus',
     'stateManager',
@@ -105,6 +107,7 @@ export class DextoAgent {
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -165,6 +168,7 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
+                resourceManager: services.resourceManager,
                 promptManager: services.promptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
@@ -356,7 +360,37 @@ export class DextoAgent {
             logger.debug(
                 `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+
+            // Expand @ resource references in the message
+            let processedTextInput = textInput;
+            try {
+                const resources = await this.resourceManager.list();
+                const expansion = await expandMessageReferences(
+                    textInput,
+                    resources,
+                    (uri: string) => this.resourceManager.read(uri)
+                );
+
+                if (expansion.expandedReferences.length > 0) {
+                    processedTextInput = expansion.expandedMessage;
+                    logger.info(
+                        `Expanded ${expansion.expandedReferences.length} resource references`
+                    );
+                }
+            } catch (error) {
+                // Log error but don't fail the entire message processing
+                logger.error(
+                    `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}`,
+                    {}
+                );
+            }
+
+            const response = await session.run(
+                processedTextInput,
+                imageDataInput,
+                fileDataInput,
+                stream
+            );
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -940,6 +974,129 @@ export class DextoAgent {
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
         return this.mcpManager.getFailedConnections();
+    }
+
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Lists all available resources with their info.
+     * This includes resources from MCP servers and any custom resource providers.
+     * @returns Promise resolving to a map of resource URIs to resource metadata
+     */
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.list();
+    }
+
+    /**
+     * Checks if a resource exists.
+     * @param uri The resource URI to check
+     * @returns Promise resolving to true if the resource exists, false otherwise
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.has(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource.
+     * @param uri The resource URI to read
+     * @returns Promise resolving to the resource content
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     * @param serverId The MCP server ID to list resources for
+     * @returns Promise resolving to an array of resources for the server
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+
+        // Filter resources by server name and map to API format
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+
+                return {
+                    uri: original,
+                    name: name,
+                    originalUri: original,
+                    serverName: serverName,
+                };
+            });
+
+        return serverResources;
+    }
+
+    /**
+     * Adds a filesystem resource configuration dynamically.
+     * @param paths Array of file paths or directories to expose as resources
+     */
+    public async addFileSystemResource(paths: string[]): Promise<void> {
+        this.ensureStarted();
+
+        // Validate paths
+        if (!paths || paths.length === 0) {
+            throw new Error('At least one path must be provided');
+        }
+
+        // Basic path validation to prevent directory traversal
+        for (const path of paths) {
+            if (path.includes('..') || path.startsWith('/')) {
+                throw new Error(
+                    `Invalid path: ${path}. Paths must be relative and not contain '..'`
+                );
+            }
+        }
+
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw new Error('Internal resources are not enabled');
+        }
+
+        await internalProvider.addResourceConfig({
+            type: 'filesystem',
+            paths,
+        });
+
+        // Refresh the resource cache
+        await this.resourceManager.refresh();
+        logger.info(`Added filesystem resource with paths: ${paths.join(', ')}`);
+    }
+
+    /**
+     * Removes a resource handler by type.
+     * @param type Resource handler type to remove
+     */
+    public async removeResourceHandler(type: string): Promise<void> {
+        this.ensureStarted();
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw new Error('Internal resources are not enabled');
+        }
+
+        await internalProvider.removeResourceHandler(type);
+
+        // Refresh the resource cache
+        await this.resourceManager.refresh();
+        logger.info(`Removed resource handler: ${type}`);
     }
 
     // ============= PROMPT MANAGEMENT =============
