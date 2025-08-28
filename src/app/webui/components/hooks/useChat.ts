@@ -180,18 +180,10 @@ export function useChat(wsUrl: string) {
                     ]);
                     break;
                 case 'chunk': {
-                    // Use correct field names based on chunk type
-                    const chunkType = payload.type as 'text' | 'reasoning' | undefined;
-                    const text =
-                        chunkType === 'reasoning'
-                            ? typeof payload.content === 'string'
-                                ? payload.content
-                                : ''
-                            : typeof payload.text === 'string'
-                              ? payload.text
-                              : '';
-
+                    // All chunk types use payload.content
+                    const text = typeof payload.content === 'string' ? payload.content : '';
                     if (!text) break;
+                    const chunkType = payload.type as 'text' | 'reasoning' | undefined;
 
                     if (chunkType === 'reasoning') {
                         // Update reasoning on the last assistant message if present,
