@@ -508,8 +508,7 @@ export class OpenAIService implements ILLMService {
                 function: {
                     name,
                     description: tool.description || '',
-                    parameters:
-                        tool.parameters as OpenAI.Chat.Completions.ChatCompletionTool['function']['parameters'],
+                    parameters: tool.parameters as OpenAI.FunctionParameters,
                 },
             };
         });

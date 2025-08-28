@@ -553,7 +553,7 @@ describe('LLMConfigSchema', () => {
     });
 
     describe('LLMUpdatesSchema', () => {
-        describe('Model/Provider Requirement', () => {
+        describe('Update Requirements', () => {
             it('should pass validation when model is provided', () => {
                 const updates = { model: 'gpt-4o' };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
@@ -571,16 +571,17 @@ describe('LLMConfigSchema', () => {
 
             it('should reject empty updates object', () => {
                 const updates = {};
-                expect(() => LLMUpdatesSchema.parse(updates)).toThrow(
-                    'At least model or provider must be specified for LLM switch'
-                );
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
 
-            it('should reject updates with only other fields', () => {
-                const updates = { maxIterations: 10, router: 'vercel' };
-                expect(() => LLMUpdatesSchema.parse(updates)).toThrow(
-                    'At least model or provider must be specified for LLM switch'
-                );
+            it('should pass validation when only router is provided', () => {
+                const updates = { router: 'vercel' } as const;
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('should reject updates with only non-key fields (no model/provider/router)', () => {
+                const updates = { maxIterations: 10 } as const;
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
 
             it('should pass validation when model/provider with other fields', () => {
