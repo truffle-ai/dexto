@@ -342,7 +342,8 @@ export class AnthropicService implements ILLMService {
             messages: formattedMessages,
             ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
             tools: formattedTools,
-            max_tokens: 4096,
+            max_tokens: this.config.maxOutputTokens ?? 4096,
+            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
         });
 
         return { message: response, usage: response.usage };
@@ -361,7 +362,8 @@ export class AnthropicService implements ILLMService {
             messages: formattedMessages,
             ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
             tools: formattedTools,
-            max_tokens: 4096,
+            max_tokens: this.config.maxOutputTokens ?? 4096,
+            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
             stream: true,
         });
 

@@ -105,8 +105,8 @@ export class OpenAIService implements ILLMService {
                     const responseText = message.content || '';
                     const finalContent = stream ? fullResponse + responseText : responseText;
 
-                    // Add assistant message to history
-                    await this.contextManager.addAssistantMessage(responseText);
+                    // Add assistant message to history (include streamed prefix if any)
+                    await this.contextManager.addAssistantMessage(finalContent);
 
                     // Update ContextManager with actual token count
                     if (totalTokens > 0) {
@@ -419,7 +419,11 @@ export class OpenAIService implements ILLMService {
                     if (delta?.tool_calls) {
                         // Handle streaming tool calls
                         for (const toolCall of delta.tool_calls) {
-                            const index = toolCall.index!;
+                            const index = toolCall.index;
+                            if (typeof index !== 'number') {
+                                // Skip malformed tool call delta until index materializes
+                                continue;
+                            }
 
                             // Initialize tool call if needed
                             if (!toolCalls[index]) {
