@@ -301,9 +301,9 @@ export class VercelMessageFormatter implements IMessageFormatter {
 
         // Attach final reasoning and usage, if available, to the last assistant message
         const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
-        const anyResp: any = response as any;
-        const usage = anyResp?.totalUsage;
-        const reasoningText = anyResp?.reasoningText;
+        const anyResp = response;
+        const usage = anyResp.totalUsage;
+        const reasoningText = anyResp.reasoningText;
         if (lastAssistant) {
             if (typeof reasoningText === 'string' && reasoningText.length > 0) {
                 lastAssistant.reasoning = reasoningText;
