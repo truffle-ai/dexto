@@ -11,7 +11,7 @@ import SessionPanel from './SessionPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -398,7 +398,7 @@ export default function ChatApp() {
         e.stopPropagation();
         setSearchOpen(true);
       }
-      // Ctrl/Cmd + L to open playground
+      // Ctrl/Cmd + L to open MCP playground
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'l') {
         e.preventDefault();
         window.open('/playground', '_blank');
@@ -549,7 +549,7 @@ export default function ChatApp() {
                       isServersPanelOpen && "bg-muted"
                     )}
                   >
-                    <Server className="h-3.5 w-3.5" />
+                    <Wrench className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline ml-1.5">Tools</span>
                   </Button>
                 </TooltipTrigger>
@@ -567,13 +567,13 @@ export default function ChatApp() {
                     className="h-8 px-2 text-sm"
                   >
                     <Link href="/playground" target="_blank">
-                      <Wrench className="h-3.5 w-3.5" />
+                      <FlaskConical className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline ml-1.5">Playground</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Open playground (⌘L)
+                  Open MCP playground (⌘L)
                 </TooltipContent>
               </Tooltip>
             
@@ -871,7 +871,7 @@ export default function ChatApp() {
                 { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
-                { key: '⌘L', desc: 'Open playground' },
+                { key: '⌘L', desc: 'Open MCP playground' },
                 { key: '⌘⇧E', desc: 'Export config' },
                 { key: '⌘/', desc: 'Show shortcuts' },
                 { key: 'Esc', desc: 'Close panels' },
