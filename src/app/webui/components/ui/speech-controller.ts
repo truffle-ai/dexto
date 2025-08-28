@@ -72,7 +72,13 @@ class SpeechController {
     }
 
     private notify() {
-        for (const cb of this.subscribers) cb();
+        for (const cb of this.subscribers) {
+            try {
+                cb();
+            } catch {
+                /* noop: subscriber error */
+            }
+        }
     }
 
     stop() {
@@ -96,13 +102,14 @@ class SpeechController {
         this.stop();
 
         const utter = new window.SpeechSynthesisUtterance(text);
-        if (opts?.rate) utter.rate = opts.rate;
-        if (opts?.pitch) utter.pitch = opts.pitch;
+        if (opts?.rate != null) utter.rate = opts.rate;
+        if (opts?.pitch != null) utter.pitch = opts.pitch;
         const voice = this.resolveVoice();
         if (voice) {
             try {
                 utter.voice = voice;
-                utter.lang = voice.lang || opts?.lang || utter.lang;
+                if (opts?.lang) utter.lang = opts.lang;
+                else if (voice.lang) utter.lang = voice.lang;
             } catch {
                 /* noop */
             }
@@ -111,6 +118,7 @@ class SpeechController {
         }
 
         utter.onstart = () => {
+            if (this.utterance !== utter) return;
             this._speaking = true;
             this.notify();
         };
@@ -186,7 +194,10 @@ class SpeechController {
     }
 }
 
-const g = globalThis as any;
+declare global {
+    var __speechController: SpeechController | undefined;
+}
+const g = globalThis as typeof globalThis & { __speechController?: SpeechController };
 export const speechController =
     g.__speechController ?? (g.__speechController = new SpeechController());
 
