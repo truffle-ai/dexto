@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { LLMProvider } from '../llm/registry.js';
+import { LLMProvider, LLMRouter } from '../llm/registry.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 
 /**
@@ -94,6 +94,7 @@ export interface AgentEventMap {
         content: string;
         reasoning?: string;
         model?: string;
+        router?: LLMRouter;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;
@@ -232,6 +233,7 @@ export interface SessionEventMap {
         content: string;
         reasoning?: string;
         model?: string;
+        router?: LLMRouter;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;

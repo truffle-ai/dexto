@@ -318,6 +318,7 @@ export class VercelLLMService implements ILLMService {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
                 model: this.getModelId(),
+                router: 'vercel',
                 tokenUsage: {
                     ...(response.totalUsage.inputTokens !== undefined && {
                         inputTokens: response.totalUsage.inputTokens,
@@ -526,6 +527,7 @@ export class VercelLLMService implements ILLMService {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
             model: this.getModelId(),
+            router: 'vercel',
             tokenUsage: {
                 ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
                 ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),

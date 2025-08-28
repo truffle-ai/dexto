@@ -324,7 +324,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       const requestBody: any = {
         provider: model.provider,
         model: model.model,
-        router: 'vercel'
       };
 
       // Include current session ID to ensure model switch applies to the correct session

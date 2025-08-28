@@ -555,9 +555,21 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     </Tooltip>
                   )}
                   {isAi && msg.model && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs">
-                      {msg.model}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs cursor-default">
+                          {msg.model}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="space-y-1">
+                          <div className="font-medium">Model: {msg.model}</div>
+                          {msg.router && (
+                            <div className="text-muted-foreground">Router: {msg.router}</div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                   {/* {msg.sessionId && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono bg-muted/20">

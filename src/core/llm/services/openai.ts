@@ -135,6 +135,7 @@ export class OpenAIService implements ILLMService {
                     this.sessionEventBus.emit('llmservice:response', {
                         content: finalContent,
                         model: this.config.model,
+                        router: 'in-built',
                         tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                     });
                     return finalContent;
@@ -248,6 +249,7 @@ export class OpenAIService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
                 model: this.config.model,
+                router: 'in-built',
                 tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
             });
             return finalResponse;

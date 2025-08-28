@@ -263,6 +263,7 @@ export function useChat(wsUrl: string) {
                               })
                             : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
+                    const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
 
@@ -284,6 +285,7 @@ export function useChat(wsUrl: string) {
                                 tokenUsage,
                                 reasoning,
                                 model,
+                                router,
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
                             };
@@ -299,6 +301,7 @@ export function useChat(wsUrl: string) {
                             tokenUsage,
                             reasoning,
                             model,
+                            router,
                             sessionId,
                         };
                         return [...cleaned, newMsg];
