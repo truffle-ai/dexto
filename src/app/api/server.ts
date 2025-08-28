@@ -374,11 +374,12 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 const redactedMessage = redactSensitiveData(parsedMessage);
                 logger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
             } catch {
-                // If JSON parsing fails, log first 200 chars to avoid huge logs
+                // If JSON parsing fails, redact then log first 200 chars to avoid huge logs
+                const redacted = String(redactSensitiveData(messageString));
                 const truncated =
-                    messageString.length > 200
-                        ? `${messageString.substring(0, 200)}... (${messageString.length} total chars)`
-                        : messageString;
+                    redacted.length > 200
+                        ? `${redacted.substring(0, 200)}... (${redacted.length} total chars)`
+                        : redacted;
                 logger.debug(`WebSocket received message: ${truncated}`);
             }
             try {
@@ -428,10 +429,11 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     );
 
                     if (!validation.ok) {
+                        const redactedIssues = redactSensitiveData(validation.issues);
                         logger.error(`Invalid input for current LLM configuration`, {
                             provider: currentConfig.llm.provider,
                             model: currentConfig.llm.model,
-                            issues: validation.issues,
+                            issues: redactedIssues,
                         });
                         // Create a hierarchical error structure: generic top-level + detailed nested issues
                         // This allows the UI to show "Invalid input for LLM config" with expandable specifics

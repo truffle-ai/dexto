@@ -56,14 +56,20 @@ function isLargeBase64Data(value: string): boolean {
  * Truncates large file data for logging purposes
  * @param value - The value to potentially truncate
  * @param key - The field name
+ * @param parent - The parent object for context checking
  * @returns Truncated value with metadata or original value
  */
-function truncateFileData(value: unknown, key: string): unknown {
-    if (typeof value === 'string' && FILE_DATA_FIELDS.includes(key.toLowerCase())) {
-        if (isLargeBase64Data(value)) {
-            const preview = value.substring(0, 100);
-            return `${FILE_DATA_TRUNCATED} (${value.length} chars): ${preview}...`;
-        }
+function truncateFileData(value: unknown, key: string, parent?: Record<string, unknown>): unknown {
+    if (typeof value !== 'string') return value;
+    const lowerKey = key.toLowerCase();
+    // Gate "data" by presence of file-ish sibling metadata to avoid false positives
+    const hasFileContext =
+        !!parent && ('mimeType' in parent || 'filename' in parent || 'fileName' in parent);
+    const looksLikeFileField =
+        FILE_DATA_FIELDS.includes(lowerKey) || (lowerKey === 'data' && hasFileContext);
+    if (looksLikeFileField && isLargeBase64Data(value)) {
+        // Only log a concise marker + size; no content preview to prevent leakage
+        return `${FILE_DATA_TRUNCATED} (${value.length} chars)`;
     }
     return value;
 }
@@ -96,8 +102,12 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
             if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
                 result[key] = REDACTED;
             } else {
-                // First truncate file data, then recursively redact
-                const truncatedValue = truncateFileData(value, key);
+                // First truncate file data (with parent context), then recursively redact
+                const truncatedValue = truncateFileData(
+                    value,
+                    key,
+                    input as Record<string, unknown>
+                );
                 result[key] = redactSensitiveData(truncatedValue, seen);
             }
         }
