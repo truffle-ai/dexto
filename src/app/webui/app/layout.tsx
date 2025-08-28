@@ -22,8 +22,35 @@ const geistMono = Geist_Mono({
 // and then remove the fonts-ready autosize workaround in InputArea.
 
 export const metadata: Metadata = {
-  title: "Dexto",
-  description: "Interactive playground for testing MCP tools and talking to AI agents",
+  // Use a default title and a template for nested routes
+  title: {
+    default: "Dexto Web UI",
+    template: "%s · Dexto",
+  },
+  description:
+    "Interactive playground for testing MCP tools and talking to AI agents",
+  icons: {
+    // Prefer the no-text PNG explicitly (provide common sizes and bust cache)
+    icon: [
+      { url: "/logo_no_text.png?v=2", type: "image/png", sizes: "32x32" },
+      { url: "/logo_no_text.png?v=2", type: "image/png", sizes: "16x16" },
+      //{ url: "/favicon2.ico", type: "image/x-icon"}
+    ],
+    shortcut: [{ url: "/logo_no_text.png?v=2", type: "image/png" }],
+    apple: [{ url: "/logo_no_text.png?v=2", type: "image/png" }],
+  },
+  openGraph: {
+    title: "Dexto",
+    description:
+      "Interactive playground for testing MCP tools and talking to AI agents",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Dexto",
+    description:
+      "Interactive playground for testing MCP tools and talking to AI agents",
+  },
 };
 
 export default async function RootLayout({
