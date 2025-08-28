@@ -65,6 +65,9 @@ export default function ChatApp() {
   const [isScrollingToBottom, setIsScrollingToBottom] = useState(false);
   const [followStreaming, setFollowStreaming] = useState(false);
   const lastScrollTopRef = React.useRef(0);
+  // Improved "Scroll to bottom" hint
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  const scrollIdleTimerRef = React.useRef<number | null>(null);
 
   const recomputeIsAtBottom = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -95,6 +98,22 @@ export default function ChatApp() {
       }
       lastScrollTopRef.current = curr;
       recomputeIsAtBottom();
+
+      // Debounced hint: show when not at bottom after scrolling stops
+      const nearBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
+      if (nearBottom) {
+        setShowScrollHint(false);
+        if (scrollIdleTimerRef.current) {
+          window.clearTimeout(scrollIdleTimerRef.current);
+          scrollIdleTimerRef.current = null;
+        }
+      } else {
+        setShowScrollHint(false);
+        if (scrollIdleTimerRef.current) window.clearTimeout(scrollIdleTimerRef.current);
+        scrollIdleTimerRef.current = window.setTimeout(() => {
+          setShowScrollHint(true);
+        }, 180);
+      }
     };
     el.addEventListener('scroll', onScroll);
     // Initial compute in case of restored sessions
@@ -675,7 +694,20 @@ export default function ChatApp() {
                       />
                     </div>
                     {/* Sticky input dock inside scroll viewport */}
-                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] bg-background">
+                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] bg-background relative">
+                      {showScrollHint && (
+                        <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
+                          <button
+                            onClick={() => {
+                              setShowScrollHint(false);
+                              scrollToBottom('smooth');
+                            }}
+                            className="pointer-events-auto px-3 py-1.5 rounded-full shadow-sm bg-background/95 border border-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Scroll to bottom
+                          </button>
+                        </div>
+                      )}
                       <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
                         <InputArea
                           onSend={handleSend}
@@ -686,13 +718,7 @@ export default function ChatApp() {
                     </div>
                   </div>
                   {/* Scroll to bottom button */}
-                  {!isAtBottom && (
-                    <div className="absolute right-4 z-20 bottom-[calc(env(safe-area-inset-bottom)+9rem)]">
-                      <Button size="sm" variant="outline" onClick={() => scrollToBottom('smooth')}>
-                        Jump to latest
-                      </Button>
-                    </div>
-                  )}
+                  {/* Scroll hint now rendered inside sticky dock */}
                 </div>
               </div>
             )}
