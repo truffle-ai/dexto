@@ -69,6 +69,9 @@ export default function ChatApp() {
   const [showScrollHint, setShowScrollHint] = useState(false);
   const scrollIdleTimerRef = React.useRef<number | null>(null);
 
+  // Server refresh trigger
+  const [serversRefreshTrigger, setServersRefreshTrigger] = useState(0);
+
   const recomputeIsAtBottom = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -274,12 +277,9 @@ export default function ChatApp() {
         throw new Error('Failed to install server');
       }
       
-      // Close the modal and refresh servers panel if open
+      // Close the modal and refresh servers panel
       setServerRegistryOpen(false);
-      if (isServersPanelOpen) {
-        // Trigger a refresh of the servers panel
-        window.dispatchEvent(new CustomEvent('refresh-servers'));
-      }
+      setServersRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Failed to install server:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to install server');
@@ -736,6 +736,7 @@ export default function ChatApp() {
                 onClose={() => setServersPanelOpen(false)}
                 onOpenConnectModal={() => setModalOpen(true)}
                 variant="inline"
+                refreshTrigger={serversRefreshTrigger}
               />
             )}
           </div>
@@ -745,6 +746,10 @@ export default function ChatApp() {
         <ConnectServerModal 
           isOpen={isModalOpen} 
           onClose={() => setModalOpen(false)} 
+          onServerConnected={() => {
+            // Trigger a refresh of the servers panel
+            setServersRefreshTrigger(prev => prev + 1);
+          }}
         />
 
         {/* Server Registry Modal */}
