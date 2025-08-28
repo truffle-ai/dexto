@@ -124,9 +124,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
           msg.role === 'tool'
             ? "w-full text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base"
             : isUser
-            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-primary text-primary-foreground rounded-br-none text-base break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-normal hyphens-none"
             : isAi
-            ? "p-3 rounded-xl shadow-sm max-w-[75%] w-fit bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
             ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
@@ -149,7 +149,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
 
               <div
                 className={cn(
-                  "flex flex-col group",
+                  "flex flex-col group w-full",
                   isSystem
                     ? "col-span-2 items-center"
                     : isUser

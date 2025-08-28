@@ -26,13 +26,14 @@ export const metadata: Metadata = {
   description: "Interactive playground for testing MCP tools and talking to AI agents",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // Read initial theme from cookie so SSR markup matches client hydration
-  const themeCookie = cookies().get('theme')?.value;
+  const cookieStore = await cookies();
+  const themeCookie = cookieStore.get('theme')?.value;
   const isDark = themeCookie ? themeCookie === 'dark' : true; // default dark
   return (
     <html lang="en" className={isDark ? 'dark' : ''}>
