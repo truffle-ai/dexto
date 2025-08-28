@@ -485,6 +485,7 @@ export default function ChatApp() {
                 </Tooltip>
               )}
               
+              {/* TODO: improve the non text part of logo */}
               <div className="flex items-center space-x-3">
                 <img src="/logo.svg" alt="Dexto" className="h-8 w-auto" />
                 <span className="sr-only">Dexto</span>
