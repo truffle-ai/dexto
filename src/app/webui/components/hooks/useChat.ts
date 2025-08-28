@@ -2,7 +2,9 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
-import { extractErrorMessage } from '@core/utils/error-conversion.js';
+import { toError } from '@core/utils/error-conversion.js';
+import { Issue } from '@core/errors/types.js';
+import type { LLMRouter } from '@core/llm/registry.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -99,8 +101,15 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     toolName?: string;
     toolArgs?: Record<string, unknown>;
     toolResult?: ToolResult;
-    tokenCount?: number;
+    tokenUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        reasoningTokens?: number;
+        totalTokens?: number;
+    };
+    reasoning?: string;
     model?: string;
+    router?: LLMRouter;
     sessionId?: string;
 }
 
@@ -114,6 +123,8 @@ export interface ErrorMessage {
     sessionId?: string;
     // Message id this error relates to (e.g., last user input)
     anchorMessageId?: string;
+    // Raw validation issues for hierarchical display
+    detailedIssues?: Issue[];
 }
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -144,12 +155,17 @@ export function useChat(wsUrl: string) {
             });
         };
         ws.onmessage = (event: globalThis.MessageEvent) => {
+            // TODO: Replace untyped WebSocket payloads with a shared, typed schema
+            // Define a union for { event: 'chunk' | 'response' | ...; data: ... } and
+            // use proper type guards instead of `any` casting here.
             let msg: any;
             try {
                 msg = JSON.parse(event.data);
             } catch (err: unknown) {
-                const em = extractErrorMessage(err);
-                console.error(`[useChat] WebSocket message parse error: ${em}`);
+                const error = toError(err);
+                console.error(`[useChat] WebSocket message parse error: ${error.message}`, {
+                    error,
+                });
                 return; // Skip malformed message
             }
             const payload = msg.data || {};
@@ -166,42 +182,88 @@ export function useChat(wsUrl: string) {
                     ]);
                     break;
                 case 'chunk': {
-                    const text = typeof payload.text === 'string' ? payload.text : '';
-                    setMessages((ms) => {
-                        // Remove any existing 'thinking' system messages
-                        const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        );
-                        const last = cleaned[cleaned.length - 1];
-                        if (last && last.role === 'assistant') {
-                            // Ensure content is always a string for streaming
-                            const currentContent =
-                                typeof last.content === 'string' ? last.content : '';
-                            const newContent = currentContent + text;
-                            const updated = {
-                                ...last,
-                                content: newContent,
-                                createdAt: Date.now(),
-                            };
-                            return [...cleaned.slice(0, -1), updated];
-                        }
-                        return [
-                            ...cleaned,
-                            {
-                                id: generateUniqueId(),
-                                role: 'assistant',
-                                content: text,
-                                createdAt: Date.now(),
-                            },
-                        ];
-                    });
+                    // All chunk types use payload.content
+                    const text = typeof payload.content === 'string' ? payload.content : '';
+                    if (!text) break;
+                    const chunkType = payload.type as 'text' | 'reasoning' | undefined;
+
+                    if (chunkType === 'reasoning') {
+                        // Update reasoning on the last assistant message if present,
+                        // otherwise create a placeholder assistant message to host the reasoning stream.
+                        setMessages((ms) => {
+                            const cleaned = ms.filter(
+                                (m) =>
+                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                            );
+                            const last = cleaned[cleaned.length - 1];
+                            if (last && last.role === 'assistant') {
+                                const updated = {
+                                    ...last,
+                                    reasoning: (last.reasoning || '') + text,
+                                    createdAt: Date.now(),
+                                };
+                                return [...cleaned.slice(0, -1), updated];
+                            }
+                            // No assistant yet; create one with empty content and initial reasoning
+                            return [
+                                ...cleaned,
+                                {
+                                    id: generateUniqueId(),
+                                    role: 'assistant',
+                                    content: '',
+                                    reasoning: text,
+                                    createdAt: Date.now(),
+                                },
+                            ];
+                        });
+                    } else {
+                        setMessages((ms) => {
+                            // Remove any existing 'thinking' system messages
+                            const cleaned = ms.filter(
+                                (m) =>
+                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                            );
+                            const last = cleaned[cleaned.length - 1];
+                            if (last && last.role === 'assistant') {
+                                // Ensure content is always a string for streaming
+                                const currentContent =
+                                    typeof last.content === 'string' ? last.content : '';
+                                const newContent = currentContent + text;
+                                const updated = {
+                                    ...last,
+                                    content: newContent,
+                                    createdAt: Date.now(),
+                                };
+                                return [...cleaned.slice(0, -1), updated];
+                            }
+                            return [
+                                ...cleaned,
+                                {
+                                    id: generateUniqueId(),
+                                    role: 'assistant',
+                                    content: text,
+                                    createdAt: Date.now(),
+                                },
+                            ];
+                        });
+                    }
                     break;
                 }
                 case 'response': {
                     const text = typeof payload.text === 'string' ? payload.text : '';
-                    const tokenCount =
-                        typeof payload.tokenCount === 'number' ? payload.tokenCount : undefined;
+                    const reasoning =
+                        typeof payload.reasoning === 'string' ? payload.reasoning : undefined;
+                    const tokenUsage =
+                        payload && typeof payload.tokenUsage === 'object'
+                            ? (payload.tokenUsage as {
+                                  inputTokens?: number;
+                                  outputTokens?: number;
+                                  reasoningTokens?: number;
+                                  totalTokens?: number;
+                              })
+                            : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
+                    const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
 
@@ -220,8 +282,10 @@ export function useChat(wsUrl: string) {
                             const updatedMsg = {
                                 ...lastMsg,
                                 content: finalContent,
-                                tokenCount,
+                                tokenUsage,
+                                reasoning,
                                 model,
+                                router,
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
                             };
@@ -234,8 +298,10 @@ export function useChat(wsUrl: string) {
                             role: 'assistant',
                             content: text,
                             createdAt: Date.now(),
-                            tokenCount,
+                            tokenUsage,
+                            reasoning,
                             model,
+                            router,
                             sessionId,
                         };
                         return [...cleaned, newMsg];
@@ -248,7 +314,8 @@ export function useChat(wsUrl: string) {
                                 detail: {
                                     text,
                                     sessionId,
-                                    tokenCount,
+                                    reasoning,
+                                    tokenUsage,
                                     model,
                                     timestamp: Date.now(),
                                 },
@@ -363,8 +430,12 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'error': {
-                    // Extract meaningful error messages from potentially nested error payloads
-                    const errMsg = extractErrorMessage(payload);
+                    // TODO: Replace untyped WebSocket payloads with a shared, typed schema
+                    // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
+                    // use proper type guards instead of manual payload inspection here.
+
+                    // Keep the hierarchical top-level message, don't override with detailed issue message
+                    let errorMessage = toError(payload).message;
 
                     // Clean up thinking messages and any incomplete assistant messages
                     setMessages((ms) =>
@@ -376,12 +447,15 @@ export function useChat(wsUrl: string) {
                     // Set error as separate state, not as a message
                     setActiveError({
                         id: generateUniqueId(),
-                        message: errMsg,
+                        message: errorMessage,
                         timestamp: Date.now(),
                         context: payload.context,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        detailedIssues: Array.isArray(payload.issues)
+                            ? (payload.issues as Issue[])
+                            : [],
                     });
                     break;
                 }

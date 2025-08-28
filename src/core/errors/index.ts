@@ -6,6 +6,6 @@
 export { DextoBaseError } from './DextoBaseError.js';
 export { DextoRuntimeError } from './DextoRuntimeError.js';
 export { DextoValidationError } from './DextoValidationError.js';
-export { ErrorScope, ErrorType, DextoErrorCode } from './types.js';
-export type { Issue, Severity } from './types.js';
+export { ErrorScope, ErrorType } from './types.js';
+export type { Issue, Severity, DextoErrorCode } from './types.js';
 export { ensureOk } from './result-bridge.js';

@@ -94,7 +94,7 @@ export class AgentStateManager {
             field: 'llm',
             oldValue,
             newValue: validatedConfig,
-            sessionId,
+            ...(sessionId && { sessionId }),
         });
 
         logger.info('LLM config updated', {
@@ -129,7 +129,7 @@ export class AgentStateManager {
             field: 'mcpServers',
             oldValue: isUpdate ? 'updated' : 'added',
             newValue: validatedConfig,
-            sessionId: undefined, // MCP servers are global
+            // sessionId omitted - MCP servers are global
         });
 
         logger.info(`MCP server '${serverName}' ${isUpdate ? 'updated' : 'added'} successfully`);
@@ -149,7 +149,7 @@ export class AgentStateManager {
                 field: 'mcpServers',
                 oldValue: 'removed',
                 newValue: undefined,
-                sessionId: undefined, // MCP servers are global
+                // sessionId omitted - MCP servers are global
             });
 
             logger.info(`MCP server '${serverName}' removed successfully`);
@@ -221,7 +221,9 @@ export class AgentStateManager {
             mcpServers: structuredClone(this.runtimeConfig.mcpServers),
         };
 
-        this.agentEventBus.emit('dexto:stateExported', { config: exportedConfig });
+        this.agentEventBus.emit('dexto:stateExported', {
+            config: exportedConfig,
+        });
 
         logger.info('Runtime state exported as config', {
             exportedConfig,

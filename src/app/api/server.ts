@@ -7,6 +7,7 @@ import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
 import { logger } from '@core/index.js';
+import { redactSensitiveData } from '@core/utils/redactor.js';
 import type { AgentCard } from '@core/index.js';
 import { setupA2ARoutes } from './a2a.js';
 import {
@@ -34,6 +35,9 @@ import {
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
+import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { AgentErrorCode } from '@core/agent/error-codes.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -50,14 +54,8 @@ function sendJsonResponse(res: any, data: any, statusCode = 200) {
     }
 }
 
-/**
- * Schema for LLM switch API requests
- */
-const LLMSwitchRequestSchema = z
-    .object({
-        sessionId: z.string().optional(),
-    })
-    .and(LLMUpdatesSchema);
+// Note: Request body may include a sessionId alongside LLM updates.
+// We parse sessionId separately and validate the rest against LLMUpdatesSchema
 
 /**
  * API request validation schemas based on actual usage
@@ -352,7 +350,19 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
         ws.on('message', async (messageBuffer) => {
             const messageString = messageBuffer.toString();
-            logger.debug(`WebSocket received message: ${messageString}`);
+            try {
+                const parsedMessage = JSON.parse(messageString);
+                const redactedMessage = redactSensitiveData(parsedMessage);
+                logger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
+            } catch {
+                // If JSON parsing fails, redact then log first 200 chars to avoid huge logs
+                const redacted = String(redactSensitiveData(messageString));
+                const truncated =
+                    redacted.length > 200
+                        ? `${redacted.substring(0, 200)}... (${redacted.length} total chars)`
+                        : redacted;
+                logger.debug(`WebSocket received message: ${truncated}`);
+            }
             try {
                 const data = JSON.parse(messageString);
                 if (data.type === 'toolConfirmationResponse' && data.data) {
@@ -400,15 +410,29 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     );
 
                     if (!validation.ok) {
-                        sendWebSocketValidationError(
-                            ws,
-                            'Invalid input for current LLM configuration',
+                        const redactedIssues = redactSensitiveData(validation.issues);
+                        logger.error(`Invalid input for current LLM configuration`, {
+                            provider: currentConfig.llm.provider,
+                            model: currentConfig.llm.model,
+                            issues: redactedIssues,
+                        });
+                        // Create a hierarchical error structure: generic top-level + detailed nested issues
+                        // This allows the UI to show "Invalid input for LLM config" with expandable specifics
+                        const hierarchicalError = new DextoValidationError([
                             {
-                                provider: currentConfig.llm.provider,
-                                model: currentConfig.llm.model,
-                                issues: validation.issues,
-                            }
-                        );
+                                code: AgentErrorCode.API_VALIDATION_ERROR,
+                                message: 'Invalid input for current LLM configuration',
+                                scope: ErrorScope.AGENT,
+                                type: ErrorType.USER,
+                                severity: 'error' as const,
+                                context: {
+                                    provider: currentConfig.llm.provider,
+                                    model: currentConfig.llm.model,
+                                    detailedIssues: validation.issues, // Nest the specific validation details
+                                },
+                            },
+                        ]);
+                        sendWebSocketError(ws, hierarchicalError);
                         return;
                     }
 
@@ -602,7 +626,11 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Switch LLM configuration
     app.post('/api/llm/switch', express.json(), async (req, res, next) => {
         try {
-            const { sessionId, ...llmConfig } = LLMSwitchRequestSchema.parse(req.body);
+            const body = (req.body ?? {}) as Record<string, unknown>;
+            const sessionId =
+                typeof body.sessionId === 'string' ? (body.sessionId as string) : undefined;
+            const { sessionId: _omit, ...llmCandidate } = body;
+            const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
             const config = await agent.switchLLM(llmConfig, sessionId);
             return res.status(200).json({ config, sessionId });
         } catch (error) {

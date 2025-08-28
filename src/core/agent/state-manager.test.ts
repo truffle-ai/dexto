@@ -157,6 +157,8 @@ describe('AgentStateManager Events', () => {
 
         const exported = stateManager.exportAsConfig();
 
-        expect(eventSpy).toHaveBeenCalledWith({ config: exported });
+        expect(eventSpy).toHaveBeenCalledWith({
+            config: exported,
+        });
     });
 });

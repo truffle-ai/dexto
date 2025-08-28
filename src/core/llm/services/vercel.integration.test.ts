@@ -1,10 +1,9 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import {
     createTestEnvironment,
     TestConfigs,
     requiresApiKey,
     cleanupTestEnvironment,
-    TestEnvironment,
 } from './test-utils.integration.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
@@ -16,124 +15,136 @@ import { LLMErrorCode } from '../error-codes.js';
  * They test multiple providers through the Vercel AI SDK router.
  */
 describe('Vercel AI SDK LLM Service Integration', () => {
-    let testEnv: TestEnvironment;
-
     // Test with OpenAI through Vercel AI SDK by default
     const defaultProvider = 'openai';
     const skipTests = !requiresApiKey(defaultProvider);
-
-    beforeEach(async () => {
-        if (skipTests) return;
-
-        const config = TestConfigs.createVercelConfig(defaultProvider);
-        testEnv = await createTestEnvironment(config);
-    });
-
-    afterEach(async () => {
-        if (testEnv) {
-            await cleanupTestEnvironment(testEnv);
-        }
-    });
+    const t = skipTests ? test.skip : test.concurrent;
 
     // Normal operation tests
-    test.skipIf(skipTests)(
+    t(
         'generate works normally',
         async () => {
-            const response = await testEnv.agent.run(
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
+            );
+            try {
+                const response = await env.agent.run('Hello', undefined, undefined, env.sessionId);
+
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+                expect(response.length).toBeGreaterThan(0);
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
+
+    t(
+        'multi-turn generate works normally',
+        async () => {
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
+            );
+            try {
+                const response1 = await env.agent.run(
+                    'My name is Bob',
+                    undefined,
+                    undefined,
+                    env.sessionId
+                );
+                const response2 = await env.agent.run(
+                    'What is my name?',
+                    undefined,
+                    undefined,
+                    env.sessionId
+                );
+
+                expect(response1).toBeTruthy();
+                expect(response2).toBeTruthy();
+                expect(typeof response1).toBe('string');
+                expect(typeof response2).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
+
+    t('stream works normally', async () => {
+        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
+        try {
+            const response = await env.agent.run(
                 'Hello',
                 undefined,
                 undefined,
-                testEnv.sessionId
+                env.sessionId,
+                true
             );
 
             expect(response).toBeTruthy();
             expect(typeof response).toBe('string');
             expect(response.length).toBeGreaterThan(0);
-        },
-        20000
-    );
-
-    test.skipIf(skipTests)(
-        'multi-turn generate works normally',
-        async () => {
-            const response1 = await testEnv.agent.run(
-                'My name is Bob',
-                undefined,
-                undefined,
-                testEnv.sessionId
-            );
-            const response2 = await testEnv.agent.run(
-                'What is my name?',
-                undefined,
-                undefined,
-                testEnv.sessionId
-            );
-
-            expect(response1).toBeTruthy();
-            expect(response2).toBeTruthy();
-            expect(typeof response1).toBe('string');
-            expect(typeof response2).toBe('string');
-        },
-        20000
-    );
-
-    test.skipIf(skipTests)('stream works normally', async () => {
-        const response = await testEnv.agent.run(
-            'Hello',
-            undefined,
-            undefined,
-            testEnv.sessionId,
-            true
-        );
-
-        expect(response).toBeTruthy();
-        expect(typeof response).toBe('string');
-        expect(response.length).toBeGreaterThan(0);
+        } finally {
+            await cleanupTestEnvironment(env);
+        }
     });
 
-    test.skipIf(skipTests)(
+    t(
         'multi-turn stream works normally',
         async () => {
-            const response1 = await testEnv.agent.run(
-                'I like pizza',
-                undefined,
-                undefined,
-                testEnv.sessionId,
-                true
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
             );
-            const response2 = await testEnv.agent.run(
-                'What do I like?',
-                undefined,
-                undefined,
-                testEnv.sessionId,
-                true
-            );
+            try {
+                const response1 = await env.agent.run(
+                    'I like pizza',
+                    undefined,
+                    undefined,
+                    env.sessionId,
+                    true
+                );
+                const response2 = await env.agent.run(
+                    'What do I like?',
+                    undefined,
+                    undefined,
+                    env.sessionId,
+                    true
+                );
 
-            expect(response1).toBeTruthy();
-            expect(response2).toBeTruthy();
-            expect(typeof response1).toBe('string');
-            expect(typeof response2).toBe('string');
+                expect(response1).toBeTruthy();
+                expect(response2).toBeTruthy();
+                expect(typeof response1).toBe('string');
+                expect(typeof response2).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
         },
-        30000
+        20000
     );
 
-    test.skipIf(skipTests)('creating sessions works normally', async () => {
-        const newSession = await testEnv.agent.createSession('test-vercel-session');
-        const response = await testEnv.agent.run(
-            'Hello in new session',
-            undefined,
-            undefined,
-            newSession.id
-        );
+    t('creating sessions works normally', async () => {
+        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
+        try {
+            const newSession = await env.agent.createSession('test-vercel-session');
+            const response = await env.agent.run(
+                'Hello in new session',
+                undefined,
+                undefined,
+                newSession.id
+            );
 
-        expect(newSession).toBeTruthy();
-        expect(newSession.id).toBe('test-vercel-session');
-        expect(response).toBeTruthy();
-        expect(typeof response).toBe('string');
+            expect(newSession).toBeTruthy();
+            expect(newSession.id).toBe('test-vercel-session');
+            expect(response).toBeTruthy();
+            expect(typeof response).toBe('string');
+        } finally {
+            await cleanupTestEnvironment(env);
+        }
     });
 
     // Multiple Provider Support through Vercel AI SDK
-    test.skipIf(!requiresApiKey('anthropic'))(
+    (requiresApiKey('anthropic') ? test.concurrent : test.skip)(
         'anthropic through vercel works normally',
         async () => {
             const anthropicConfig = TestConfigs.createVercelConfig('anthropic');
@@ -156,55 +167,63 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         }
     );
 
-    test.skipIf(!requiresApiKey('google'))('google through vercel works normally', async () => {
-        const googleConfig = TestConfigs.createVercelConfig('google');
-        const googleEnv = await createTestEnvironment(googleConfig);
+    (requiresApiKey('google') ? test.concurrent : test.skip)(
+        'google through vercel works normally',
+        async () => {
+            const googleConfig = TestConfigs.createVercelConfig('google');
+            const googleEnv = await createTestEnvironment(googleConfig);
 
-        try {
-            const response = await googleEnv.agent.run(
-                'Hello',
-                undefined,
-                undefined,
-                googleEnv.sessionId
-            );
+            try {
+                const response = await googleEnv.agent.run(
+                    'Hello',
+                    undefined,
+                    undefined,
+                    googleEnv.sessionId
+                );
 
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-            expect(response.length).toBeGreaterThan(0);
-        } finally {
-            await cleanupTestEnvironment(googleEnv);
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+                expect(response.length).toBeGreaterThan(0);
+            } finally {
+                await cleanupTestEnvironment(googleEnv);
+            }
         }
-    });
+    );
 
     // Error handling tests
-    test.skipIf(skipTests)('errors handled with correct error codes', async () => {
+    t('errors handled with correct error codes', async () => {
         // Test with unsupported file type to trigger validation error
         const invalidFileData = Buffer.from('test data').toString('base64');
 
-        await expect(
-            testEnv.agent.run(
-                'Process this file',
-                undefined,
-                {
-                    data: invalidFileData,
-                    mimeType: 'application/unknown-type',
-                    filename: 'test.unknown',
-                },
-                testEnv.sessionId
-            )
-        ).rejects.toMatchObject({
-            issues: [
-                expect.objectContaining({
-                    code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                }),
-            ],
-        });
+        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
+        try {
+            await expect(
+                env.agent.run(
+                    'Process this file',
+                    undefined,
+                    {
+                        data: invalidFileData,
+                        mimeType: 'application/unknown-type',
+                        filename: 'test.unknown',
+                    },
+                    env.sessionId
+                )
+            ).rejects.toMatchObject({
+                issues: [
+                    expect.objectContaining({
+                        code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    }),
+                ],
+            });
+        } finally {
+            await cleanupTestEnvironment(env);
+        }
     });
 
     // Positive media/file tests (OpenAI via Vercel)
-    test.skipIf(!requiresApiKey('openai'))(
+    (requiresApiKey('openai') ? test.concurrent : test.skip)(
         'openai via vercel: image input works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -242,7 +261,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         30000
     );
 
-    test.skipIf(!requiresApiKey('openai'))(
+    (requiresApiKey('openai') ? test.concurrent : test.skip)(
         'openai via vercel: pdf file input works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');
@@ -279,7 +298,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         30000
     );
 
-    test.skipIf(!requiresApiKey('openai'))(
+    (requiresApiKey('openai') ? test.concurrent : test.skip)(
         'openai via vercel: streaming with image works',
         async () => {
             const openaiConfig = TestConfigs.createVercelConfig('openai');

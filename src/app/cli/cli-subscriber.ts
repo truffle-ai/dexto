@@ -22,7 +22,12 @@ export class CLISubscriber implements EventSubscriber {
 
     subscribe(eventBus: AgentEventBus): void {
         eventBus.on('llmservice:thinking', this.onThinking.bind(this));
-        eventBus.on('llmservice:chunk', (payload) => this.onChunk(payload.content));
+        eventBus.on('llmservice:chunk', (payload) => {
+            if (payload.type === 'text') {
+                this.onChunk(payload.content);
+            }
+            // Ignore reasoning chunks in CLI for now
+        });
         eventBus.on('llmservice:toolCall', (payload) =>
             this.onToolCall(payload.toolName, payload.args)
         );

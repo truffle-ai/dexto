@@ -149,7 +149,37 @@ export class VercelMessageFormatter implements IMessageFormatter {
         };
 
         // Reuse the existing parseResponse logic
-        return this.parseResponse(adaptedResponse as GenerateTextResult<VercelToolSet, unknown>);
+        const internal = this.parseResponse(
+            adaptedResponse as GenerateTextResult<VercelToolSet, unknown>
+        );
+
+        // Attach final reasoning, usage, and model, if available, to the last assistant message
+        const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
+        if (lastAssistant) {
+            const usage = await response.totalUsage;
+            const reasoningText = await response.reasoningText;
+            const resolvedResp = await response.response;
+            const modelId = resolvedResp?.modelId;
+            if (reasoningText) {
+                lastAssistant.reasoning = reasoningText;
+            }
+            if (usage) {
+                lastAssistant.tokenUsage = {
+                    ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                    ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
+                    ...(usage.reasoningTokens !== undefined && {
+                        reasoningTokens: usage.reasoningTokens,
+                    }),
+                    ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+                };
+            }
+            if (modelId) {
+                lastAssistant.model = modelId;
+            }
+            // Vercel formatter always uses 'vercel' router
+            lastAssistant.router = 'vercel';
+        }
+        return internal;
     }
 
     /**
@@ -274,6 +304,33 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     // ignore system or unknown
                     break;
             }
+        }
+
+        // Attach final reasoning, usage, and model, if available, to the last assistant message
+        const lastAssistant = [...internal].reverse().find((m) => m.role === 'assistant');
+        const anyResp = response;
+        const usage = anyResp.totalUsage;
+        const reasoningText = anyResp.reasoningText;
+        const modelId = response.response?.modelId;
+        if (lastAssistant) {
+            if (typeof reasoningText === 'string' && reasoningText.length > 0) {
+                lastAssistant.reasoning = reasoningText;
+            }
+            if (usage) {
+                lastAssistant.tokenUsage = {
+                    ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                    ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
+                    ...(usage.reasoningTokens !== undefined && {
+                        reasoningTokens: usage.reasoningTokens,
+                    }),
+                    ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+                };
+            }
+            if (modelId) {
+                lastAssistant.model = modelId;
+            }
+            // Vercel formatter always uses 'vercel' router
+            lastAssistant.router = 'vercel';
         }
         return internal;
     }
