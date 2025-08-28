@@ -13,7 +13,11 @@ class SpeechController {
     private preferredVoiceName: string | null = null;
 
     get supported() {
-        return typeof window !== 'undefined' && 'speechSynthesis' in window;
+        return (
+            typeof window !== 'undefined' &&
+            'speechSynthesis' in window &&
+            'SpeechSynthesisUtterance' in window
+        );
     }
 
     constructor() {
