@@ -54,10 +54,74 @@ main() {
   run_test "POST /api/llm/switch empty" POST "/api/llm/switch" 400 '{}' || failures=$((failures+1))
   run_test "POST /api/llm/switch model wrong type" POST "/api/llm/switch" 400 '{"model":123}' || failures=$((failures+1))
   run_test "POST /api/llm/switch unknown provider" POST "/api/llm/switch" 400 '{"provider":"unknown_vendor"}' || failures=$((failures+1))
+  # Router-only tweak should be allowed
+  run_test "POST /api/llm/switch router only" POST "/api/llm/switch" 200 '{"router":"vercel"}' || failures=$((failures+1))
   run_test "POST /api/llm/switch valid openai" POST "/api/llm/switch" 200 '{"provider":"openai","model":"gpt-4o"}' || failures=$((failures+1))
   run_test "POST /api/llm/switch session not found" POST "/api/llm/switch" 404 '{"model":"gpt-4o","sessionId":"does-not-exist-123"}' || failures=$((failures+1))
   # Test missing API key scenario by using empty API key  
   run_test "POST /api/llm/switch missing API key" POST "/api/llm/switch" 400 '{"provider":"cohere","apiKey":""}' || failures=$((failures+1))
+
+  # -------- Advanced LLM switching checks (stateful) --------
+  # Utilities: JSON parsing helpers (prefer jq, fallback to node)
+  json_get() {
+    local json="$1" expr="$2"
+    if command -v jq >/dev/null 2>&1; then
+      echo "${json}" | jq -r "${expr}"
+    else
+      node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const o=JSON.parse(s);function pick(o,expr){return expr.split('.').slice(1).reduce((a,k)=>a?.[k],o)};const v=pick(o,'${expr}');if (v===undefined||v===null) { console.log(''); } else if (typeof v==='object'){ console.log(JSON.stringify(v)); } else { console.log(String(v)); }});" <<< "${json}"
+    fi
+  }
+
+  echo "$(yellow '[Stateful]') Router-only update preserves other fields" 
+  # Get baseline config
+  base_resp=$(curl -sS "${BASE_URL}/api/llm/current")
+  base_provider=$(json_get "${base_resp}" '.config.provider')
+  base_model=$(json_get "${base_resp}" '.config.model')
+  base_router=$(json_get "${base_resp}" '.config.router')
+  base_max_iter=$(json_get "${base_resp}" '.config.maxIterations')
+  base_temp=$(json_get "${base_resp}" '.config.temperature')
+
+  # Determine a target router for this provider
+  prov_resp=$(curl -sS "${BASE_URL}/api/llm/providers")
+  routers=$(json_get "${prov_resp}" ".providers.${base_provider}.supportedRouters")
+  # Pick the other router if available; otherwise reuse current
+  target_router="${base_router}"
+  if echo "${routers}" | grep -q "in-built" && [ "${base_router}" != "in-built" ]; then
+    target_router="in-built"
+  elif echo "${routers}" | grep -q "vercel" && [ "${base_router}" != "vercel" ]; then
+    target_router="vercel"
+  fi
+
+  # Perform router-only switch
+  switch_payload=$(printf '{"router":"%s"}' "${target_router}")
+  run_test "POST /api/llm/switch router-only -> ${target_router}" POST "/api/llm/switch" 200 "${switch_payload}" || failures=$((failures+1))
+
+  # Verify post-switch config
+  after_resp=$(curl -sS "${BASE_URL}/api/llm/current")
+  after_provider=$(json_get "${after_resp}" '.config.provider')
+  after_model=$(json_get "${after_resp}" '.config.model')
+  after_router=$(json_get "${after_resp}" '.config.router')
+  after_max_iter=$(json_get "${after_resp}" '.config.maxIterations')
+  after_temp=$(json_get "${after_resp}" '.config.temperature')
+
+  if [ "${after_provider}" != "${base_provider}" ] || [ "${after_model}" != "${base_model}" ]; then
+    echo "$(red 'FAIL') provider/model changed unexpectedly on router-only switch"; failures=$((failures+1))
+  fi
+  if [ "${after_router}" != "${target_router}" ]; then
+    echo "$(red 'FAIL') router not updated to target (${target_router}); actual: ${after_router}"; failures=$((failures+1))
+  fi
+  if [ "${after_max_iter}" != "${base_max_iter}" ]; then
+    echo "$(red 'FAIL') maxIterations changed unexpectedly (${base_max_iter} -> ${after_max_iter})"; failures=$((failures+1))
+  fi
+  if [ "${after_temp}" != "${base_temp}" ]; then
+    echo "$(red 'FAIL') temperature changed unexpectedly (${base_temp} -> ${after_temp})"; failures=$((failures+1))
+  fi
+
+  # Revert router to baseline for isolation
+  if [ "${after_router}" != "${base_router}" ]; then
+    revert_payload=$(printf '{"router":"%s"}' "${base_router}")
+    run_test "POST /api/llm/switch revert router -> ${base_router}" POST "/api/llm/switch" 200 "${revert_payload}" || failures=$((failures+1))
+  fi
 
   # Message endpoints (basic validation)
   run_test "POST /api/message no data" POST "/api/message" 400 '{}' || failures=$((failures+1))
@@ -107,4 +171,3 @@ main() {
 }
 
 main "$@"
-

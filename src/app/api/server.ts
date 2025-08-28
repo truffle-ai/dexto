@@ -23,7 +23,7 @@ import os from 'os';
 import { resolveBundledScript } from '@core/index.js';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
 import { z } from 'zod';
-import { LLMConfigBaseSchema } from '@core/llm/schemas.js';
+import { LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { validateInputForLLM } from '@core/llm/validation.js';
 import {
@@ -54,27 +54,8 @@ function sendJsonResponse(res: any, data: any, statusCode = 200) {
     }
 }
 
-/**
- * Schema for LLM switch API requests
- * Note: LLMUpdatesSchema is strict(), so intersecting with a separate
- * { sessionId } object would reject the sessionId key. Build a single
- * object schema that includes sessionId and the updatable LLM fields.
- */
-const LLMSwitchRequestSchema = LLMConfigBaseSchema.partial()
-    .extend({
-        sessionId: z.string().optional(),
-    })
-    .strict()
-    .superRefine((data, ctx) => {
-        // Mirror LLMUpdatesSchema rule: require at least model or provider
-        if (!data.model && !data.provider) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: 'At least model or provider must be specified for LLM switch',
-                path: [],
-            });
-        }
-    });
+// Note: Request body may include a sessionId alongside LLM updates.
+// We parse sessionId separately and validate the rest against LLMUpdatesSchema
 
 /**
  * API request validation schemas based on actual usage
@@ -645,7 +626,11 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // Switch LLM configuration
     app.post('/api/llm/switch', express.json(), async (req, res, next) => {
         try {
-            const { sessionId, ...llmConfig } = LLMSwitchRequestSchema.parse(req.body);
+            const body = (req.body ?? {}) as Record<string, unknown>;
+            const sessionId =
+                typeof body.sessionId === 'string' ? (body.sessionId as string) : undefined;
+            const { sessionId: _omit, ...llmCandidate } = body;
+            const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
             const config = await agent.switchLLM(llmConfig, sessionId);
             return res.status(200).json({ config, sessionId });
         } catch (error) {
