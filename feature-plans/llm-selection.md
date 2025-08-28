@@ -1,0 +1,296 @@
+# LLM Model Selection UI (T3.chat–style) + API Key Integration
+
+Status: Draft
+Owner: Web UI / Core Platform
+Target: Next Web UI release
+
+## Summary
+
+Add a modern model selection experience to the Dexto web UI, inspired by T3.chat’s selector. The picker will:
+
+- Present models grouped by provider with search, favorites, and capability badges.
+- Integrate with API key detection: if a provider’s key is missing, prompt the user in‑app and persist it (no CLI required).
+- Reuse core logic for environment key storage so CLI and Web share a single implementation.
+- Respect router and baseURL constraints from our registry and schemas.
+
+This plan covers UI/UX, backend endpoints, shared core helpers, security, testing, rollout, and migration notes.
+
+---
+
+## Goals
+
+- Fast, discoverable model switching with minimal friction.
+- Zero-copy secret handling: never echo keys back to client, redact logs.
+- Shared core implementation for saving provider API keys; avoid duplication between CLI and Web.
+- Replaces existing `LLMSelector` in the Web UI.
+
+## Non-Goals
+
+- Payment/upgrade banner logic (placeholder only if needed).
+- Server-side license entitlement checks.
+- Adding/curating new models in the registry beyond small UI metadata (optional tags/displayName only).
+
+---
+
+## UX Overview
+
+Entry points:
+- Button in the top bar (replaces or complements current `LLMSelector`).
+- Keyboard shortcut (e.g., `Cmd/Ctrl+K` then “Models”).
+
+Layout (modal/drawer):
+- Search bar with debounce.
+- Banner slot (optional) for upgrade/promotions.
+- Sections:
+  - Favorites (pinned models) – stored locally for now.
+  - All providers – grid/list of model cards grouped by provider.
+- Model card contents:
+  - Provider brand/icon, model display name, optional subtitle.
+  - Capability badges: vision/image/audio/pdf/reasoning/experimental/new.
+  - Disabled/locked state when provider key is missing (tooltip explains).
+
+Interaction:
+- Click a model:
+  - If provider key exists → POST `/api/llm/switch` → success toast → close.
+  - If provider key missing → open ApiKeyModal → on submit, POST `/api/llm/key` → then POST `/api/llm/switch`.
+- Advanced panel:
+  - Router select (when multiple supported).
+  - Base URL input for OpenAI‑compatible or any provider where `supportsBaseURL` is true.
+
+Accessibility:
+- Keyboard navigable grid, ARIA labels on buttons, tooltips not required to get critical info, focus management within modal.
+
+Responsive behavior:
+- Drawer on mobile, modal dialog on desktop; grid collapses to 1–2 columns.
+
+---
+
+## Data Model & Sources
+
+- Registry: `src/core/llm/registry.ts` is the single source of truth for providers/models.
+  - We will optionally add UI-only metadata (tags, displayName) without breaking existing semantics.
+- Key status: derived from `resolveApiKeyForProvider(provider)` in core.
+- Router support: via `getSupportedRoutersForProvider` / `isRouterSupportedForModel`.
+- File support badges: `supportedFileTypes` at model level.
+
+Optional registry enhancements (non-breaking):
+- `ModelInfo` optional fields:
+  - `displayName?: string`
+  - `tags?: Array<'vision'|'image'|'audio'|'pdf'|'reasoning'|'realtime'|'tool_use'|'experimental'|'new'>`
+
+If we avoid touching core types, the UI can map tags/display names in a frontend map keyed by `provider/model`.
+
+---
+
+## Backend
+
+New endpoints (Express in `src/app/api/server.ts`):
+
+1) GET `/api/llm/catalog`
+- Returns providers, models, and key presence.
+- Response shape:
+  ```ts
+  type CatalogResponse = {
+    providers: Record<string, {
+      name: string;                 // Display name (e.g., "OpenAI")
+      hasApiKey: boolean;           // Key present in layered env
+      primaryEnvVar: string;        // e.g., OPENAI_API_KEY
+      supportedRouters: string[];   // from registry
+      supportsBaseURL: boolean;     // from registry
+      models: Array<{
+        name: string;
+        displayName?: string;
+        default?: boolean;
+        maxInputTokens: number;
+        supportedRouters?: string[];
+        supportedFileTypes: Array<'audio'|'pdf'>;
+        tags?: string[];
+      }>;
+    }>;
+  };
+  ```
+
+2) POST `/api/llm/key`
+- Saves a provider API key securely and makes it available immediately.
+- Request body:
+  ```ts
+  type SaveKeyRequest = {
+    provider: LLMProvider;
+    apiKey: string;               // never logged or echoed back
+    scope?: 'project' | 'global'; // optional; default: infer from execution context
+  };
+  ```
+- Response: `{ ok: true, provider: string, envVar: string }`
+- Behavior:
+  - Uses shared core helper (see below) to update the correct `.env` and mutate `process.env`.
+  - Validates non-empty key, redacts logs.
+
+Notes:
+- Keep existing `/api/llm/providers`, `/api/llm/current`, `/api/llm/switch` unchanged.
+- Ensure redaction middleware applies to `/api/llm/*` routes (already present).
+
+---
+
+## Shared Core Helper (New)
+
+Add `src/core/utils/api-key-store.ts`:
+
+```ts
+import { LLMProvider } from '../llm/registry.js';
+
+export async function saveProviderApiKey(
+  provider: LLMProvider,
+  apiKey: string,
+  opts?: { scope?: 'project'|'global'; startPath?: string }
+): Promise<{ envVar: string; targetEnvPath: string }>; // never return the key
+
+export function getProviderKeyStatus(provider: LLMProvider): { hasApiKey: boolean; envVar: string };
+
+export function listProviderKeyStatus(): Record<string, { hasApiKey: boolean; envVar: string }>;
+```
+
+Implementation details:
+- Resolve env var name via `getPrimaryApiKeyEnvVar(provider)`.
+- Resolve target file path via `getDextoEnvPath(startPath)` if `scope` not specified; otherwise force `project` or `global`.
+- Persist via `updateEnvFile(targetEnvPath, { [envVar]: apiKey })`.
+- Immediately set `process.env[envVar] = apiKey` to avoid restart.
+- Never log or return the key; return metadata only.
+
+CLI migration:
+- Update `src/app/cli/utils/env-utils.ts:updateEnvFileWithLLMKeys` to call `saveProviderApiKey` (keep function and tests intact).
+
+---
+
+## Frontend
+
+New components in `src/app/webui/components`:
+
+- `ModelPickerModal.tsx`
+  - Fetches `/api/llm/catalog` and `/api/llm/current` on open.
+  - Search input, Favorites section, Provider groups, Model cards.
+  - Capability badges from `supportedFileTypes` and optional tags.
+  - Click handler: if `hasApiKey` then POST `/api/llm/switch`; else open `ApiKeyModal`.
+  - Advanced panel: router select (enforced by `isRouterSupportedForModel`), baseURL when `supportsBaseURL`.
+
+- `ApiKeyModal.tsx`
+  - Shows provider display name and `primaryEnvVar` hint.
+  - Input: password field for API key.
+  - Optional: scope select (Project / Global) – default based on context.
+  - On submit: POST `/api/llm/key`; then reattempt switch.
+
+Integration points:
+- Add an entry button in the top bar replacing the existing `LLMSelector` (full replacement).
+
+Local storage:
+- `dexto:modelFavorites` – string[] of `provider|model` pairs.
+
+ 
+
+---
+
+## Security & Privacy
+
+- Do not send API keys back to the client; only return `{ ok, provider, envVar }`.
+- Redact request bodies and logs under `/api/llm/*` (middleware already in place).
+- Mutate `process.env` on the server after save to enable immediate usage without restart.
+- Validate/sanitize inputs; limit body size for `/api/llm/key`.
+
+---
+
+## Edge Cases & Behavior
+
+- Router mismatch: If the current router isn’t supported by the selected model, auto-select the first supported router; show a small notice.
+- `openai-compatible` / custom baseURL:
+  - Show baseURL field with validation (http/https, includes `/v1`).
+  - Require baseURL when provider `requiresBaseURL(provider)`.
+- Unknown model names (if registry updated later): fallback to provider default or disable card.
+- File support badges: reflect `supportedFileTypes` exactly; present warnings if a user attempts to attach unsupported files.
+
+---
+
+## API/Type Contracts (Reference)
+
+- POST `/api/llm/switch` body (existing):
+  ```ts
+  type LLMSwitchRequest = {
+    provider: string;
+    model: string;
+    router: string;
+    apiKey?: string;   // still supported; with new flow we prefer `/api/llm/key`
+    baseURL?: string;
+    sessionId?: string;
+  };
+  ```
+
+- GET `/api/llm/current` (existing): returns `{ config: LLMConfig }`.
+
+- GET `/api/llm/providers` (existing): new UI will use `/api/llm/catalog` instead.
+
+---
+
+## Implementation Steps
+
+1) Core helper
+- [ ] Add `src/core/utils/api-key-store.ts` with functions above and unit tests.
+- [ ] Refactor CLI `updateEnvFileWithLLMKeys` to delegate; keep test suite green.
+
+2) Backend endpoints
+- [ ] Add `GET /api/llm/catalog` (compose from `LLM_REGISTRY`, router utilities, and key status).
+- [ ] Add `POST /api/llm/key` (use `saveProviderApiKey`).
+- [ ] Ensure redaction middleware covers new routes; add validation with Zod.
+- [ ] Add minimal integration tests for both.
+
+3) Frontend UI
+- [ ] Build `ModelPickerModal` + `ApiKeyModal`.
+- [ ] Wire to `/api/llm/catalog`, `/api/llm/key`, `/api/llm/switch`.
+- [ ] Replace all usages of `LLMSelector` with the new modal and remove the old component.
+- [ ] Provider branding icons (SVGs in `public/` or icon set fallback).
+
+4) QA & Rollout
+- [ ] Manual flows: no-key → prompt → save → switch; existing key → switch; openai-compatible; router mismatch.
+- [ ] Accessibility pass; mobile layout.
+- [ ] Replace old selector in all entry points and remove legacy code.
+
+---
+
+## Testing Plan
+
+Core
+- Unit tests for `saveProviderApiKey` (scope resolution, env var name, process.env mutation, no secret leakage).
+
+API
+- Integration tests for `/api/llm/catalog` (shape, key status) and `/api/llm/key` (success, validation errors, redaction).
+
+UI (manual)
+- Search & filtering behave correctly.
+- Favorites persist and render.
+- Disabled state when key missing; tooltip visible.
+- ApiKeyModal saves key and immediately allows switching.
+- Router/baseURL advanced options behave per provider.
+
+---
+
+## Risks & Mitigations
+
+- Secret leakage in logs → use existing `/api/llm/*` redaction middleware; double-check no manual logs include raw bodies.
+- Stale env values → set `process.env` after save; return clear success to UI.
+- Registry drift → UI guards against unsupported router/fileTypes; fallbacks where safe.
+
+
+---
+
+## Open Questions
+
+- Default key persistence scope in web UI (project vs global). Proposal: infer via `getExecutionContext`; allow override in ApiKeyModal.
+- Do we want to store Favorites in global preferences instead of localStorage later?
+- Should we add server-generated tags (e.g., `experimental`, `new`) to registry for consistent UI?
+
+---
+
+## Acceptance Criteria
+
+- Users can pick a model from a searchable, grouped UI.
+- If an API key is missing, users are prompted, can save, and immediately switch models without CLI.
+- Keys are stored securely in the right `.env`, not exposed to the client, and available at runtime.
+- Router/baseURL constraints are enforced and explained.
+- New selector is the default; old selector removed.
