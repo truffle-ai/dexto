@@ -434,9 +434,6 @@ export function useChat(wsUrl: string) {
                     // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
                     // use proper type guards instead of manual payload inspection here.
 
-                    // Debug logging to see what we're actually receiving
-                    console.log('[useChat] Error payload:', JSON.stringify(payload, null, 2));
-
                     // Keep the hierarchical top-level message, don't override with detailed issue message
                     let errorMessage = toError(payload).message;
 
