@@ -146,10 +146,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           content: msg.content,
           createdAt: Date.now() - (history.length - index) * 1000, // Approximate timestamps
           sessionId: sessionId,
-          // Preserve token usage, reasoning, and model metadata from storage
+          // Preserve token usage, reasoning, model, and router metadata from storage
           tokenUsage: msg.tokenUsage,
           reasoning: msg.reasoning,
           model: msg.model,
+          router: msg.router,
         };
 
         if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {

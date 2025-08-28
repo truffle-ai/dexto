@@ -1,3 +1,5 @@
+import type { LLMRouter } from '../llm/registry.js';
+
 /**
  * Internal representation of a message in a conversation.
  * Standardizes message format across different LLM providers.
@@ -72,6 +74,12 @@ export interface InternalMessage {
      * Indicates which LLM model generated this response.
      */
     model?: string;
+
+    /**
+     * Optional router metadata for assistant messages.
+     * Indicates which router was used to route the request.
+     */
+    router?: LLMRouter;
 
     /**
      * Tool calls made by the assistant.

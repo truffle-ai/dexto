@@ -401,6 +401,7 @@ export class ContextManager<TMessage = unknown> {
             tokenUsage?: InternalMessage['tokenUsage'];
             reasoning?: string;
             model?: string;
+            router?: InternalMessage['router'];
         }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
@@ -415,6 +416,7 @@ export class ContextManager<TMessage = unknown> {
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
             ...(metadata?.model && { model: metadata.model }),
+            ...(metadata?.router && { router: metadata.router }),
         });
     }
 

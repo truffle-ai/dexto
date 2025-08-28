@@ -114,6 +114,7 @@ export class OpenAIService implements ILLMService {
                     // Add assistant message to history (include streamed prefix if any)
                     await this.contextManager.addAssistantMessage(finalContent, undefined, {
                         model: this.config.model,
+                        router: 'in-built',
                         tokenUsage:
                             totalTokens > 0
                                 ? {
@@ -142,6 +143,7 @@ export class OpenAIService implements ILLMService {
                 // Add assistant message with tool calls to history
                 await this.contextManager.addAssistantMessage(message.content, message.tool_calls, {
                     model: this.config.model,
+                    router: 'in-built',
                 });
 
                 // Accumulate response for streaming mode
@@ -225,6 +227,7 @@ export class OpenAIService implements ILLMService {
                 fullResponse || 'Task completed but reached maximum tool call iterations.';
             await this.contextManager.addAssistantMessage(finalResponse, undefined, {
                 model: this.config.model,
+                router: 'in-built',
                 tokenUsage:
                     totalTokens > 0
                         ? {
@@ -269,6 +272,7 @@ export class OpenAIService implements ILLMService {
             const errorResponse = `Error processing ${stream ? 'streaming ' : ''}request: ${errorMessage}`;
             await this.contextManager.addAssistantMessage(errorResponse, undefined, {
                 model: this.config.model,
+                router: 'in-built',
             });
             return errorResponse;
         }

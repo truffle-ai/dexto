@@ -176,6 +176,8 @@ export class VercelMessageFormatter implements IMessageFormatter {
             if (modelId) {
                 lastAssistant.model = modelId;
             }
+            // Vercel formatter always uses 'vercel' router
+            lastAssistant.router = 'vercel';
         }
         return internal;
     }
@@ -327,6 +329,8 @@ export class VercelMessageFormatter implements IMessageFormatter {
             if (modelId) {
                 lastAssistant.model = modelId;
             }
+            // Vercel formatter always uses 'vercel' router
+            lastAssistant.router = 'vercel';
         }
         return internal;
     }

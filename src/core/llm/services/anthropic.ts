@@ -161,12 +161,14 @@ export class AnthropicService implements ILLMService {
                     // Add assistant message with all tool calls
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
                         model: this.config.model,
+                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 } else {
                     // Add regular assistant message
                     await this.contextManager.addAssistantMessage(textContent, undefined, {
                         model: this.config.model,
+                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 }

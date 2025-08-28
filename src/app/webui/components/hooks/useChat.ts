@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
 import { toError } from '@core/utils/error-conversion.js';
 import { Issue } from '@core/errors/types.js';
+import type { LLMRouter } from '@core/llm/registry.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -108,6 +109,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     };
     reasoning?: string;
     model?: string;
+    router?: LLMRouter;
     sessionId?: string;
 }
 
