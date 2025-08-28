@@ -17,7 +17,9 @@ export function useTheme() {
         try {
             localStorage.setItem('theme', theme);
             document.cookie = `theme=${theme}; path=/; max-age=31536000`;
-        } catch {}
+        } catch {
+            // Ignore storage errors in restrictive environments
+        }
     }, [theme]);
 
     const toggleTheme = (checked: boolean) => {
