@@ -103,8 +103,8 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:response',
             (payload) => {
-                logger.info(
-                    `in websocket-subscriber: llmservice:response: ${JSON.stringify(payload)}`
+                logger.debug(
+                    `[websocket-subscriber]: llmservice:response: ${JSON.stringify(payload)}`
                 );
                 this.broadcast({
                     event: 'response',
