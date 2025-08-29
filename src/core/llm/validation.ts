@@ -144,6 +144,8 @@ function validateFileInput(
     fileData: FileData,
     config: ValidationLLMConfig
 ): NonNullable<ValidationData['fileValidation']> {
+    logger.info(`Validating file input: ${fileData.mimeType}`);
+
     // Security validation: file size check (max 64MB for base64)
     if (typeof fileData.data === 'string' && fileData.data.length > MAX_FILE_SIZE) {
         return {
@@ -198,6 +200,8 @@ function validateImageInput(
     imageData: ImageData,
     _config: ValidationLLMConfig
 ): NonNullable<ValidationData['imageValidation']> {
+    logger.info(`Validating image input: ${imageData.mimeType}`);
+
     // Check image size if available
     if (typeof imageData.image === 'string' && imageData.image.length > MAX_IMAGE_SIZE) {
         return {

@@ -500,18 +500,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   {msg.fileData && !Array.isArray(msg.content) && (
                     <div className="mt-2">
                       {msg.fileData.mimeType.startsWith('audio/') ? (
-                         <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                           <FileAudio className="h-5 w-5 text-muted-foreground" />
+                         <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                           <FileAudio className="h-4 w-4" />
                            <audio 
                              controls 
                              src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`} 
-                             className="flex-1 h-8"
+                             className="h-8"
                            />
-                           {msg.fileData.filename && (
-                             <span className="text-sm text-muted-foreground truncate max-w-[120px]">
-                               {msg.fileData.filename}
-                             </span>
-                           )}
                          </div>
                        ) : (
                          <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
