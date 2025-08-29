@@ -511,7 +511,8 @@ export default function ChatApp() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
               >
-                <img src="/logo.svg" alt="Dexto" className="h-8 w-auto" />
+                <img src="/logos/dexto_logo_light.svg" alt="Dexto" className="h-8 w-auto dark:hidden" />
+                <img src="/logos/dexto_logo.svg" alt="Dexto" className="h-8 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
               
@@ -641,7 +642,7 @@ export default function ChatApp() {
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
-                      <img src="/logo_no_text.png" alt="Dexto" className="h-8 w-auto" />
+                      <img src="/logos/dexto_logo_no_text.png" alt="Dexto" className="h-8 w-auto dark:invert dark:brightness-0 dark:contrast-200" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         Welcome to Dexto
                       </h2>

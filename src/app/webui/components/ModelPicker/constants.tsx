@@ -13,6 +13,14 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
   cohere: "/logos/cohere-color.svg",
 };
 
+// Logos that have hardcoded colors and don't need dark mode inversion
+export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere'] as const;
+
+// Helper to check if a logo needs dark mode inversion
+export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
+  return !COLORED_LOGOS.includes(provider);
+};
+
 // Model capability icons - single source of truth
 export const CAPABILITY_ICONS = {
   vision: <Eye className="h-3 w-3" />,

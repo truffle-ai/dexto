@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { LLMProvider } from "../../../../core/llm/registry.js";
-import { PROVIDER_LOGOS, CAPABILITY_ICONS } from "./constants";
+import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion } from "./constants";
 
 type Props = {
   providerId: string;
@@ -49,7 +49,7 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                 className={cn(
                   "object-contain",
                   // Apply invert filter in dark mode for monochrome logos
-                  providerId !== 'google' && providerId !== 'cohere' && "dark:invert dark:brightness-0 dark:contrast-200"
+                  needsDarkModeInversion(providerId as LLMProvider) && "dark:invert dark:brightness-0 dark:contrast-200"
                 )}
               />
             ) : (

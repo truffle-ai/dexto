@@ -22,10 +22,10 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { LLMProvider } from "../../../../core/llm/registry.js";
-import { PROVIDER_LOGOS, CAPABILITY_ICONS } from "./constants";
+import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion } from "./constants";
 
 interface CompactModelCardProps {
-  provider: string;
+  provider: LLMProvider;
   model: ModelInfo;
   providerInfo: ProviderCatalog;
   isFavorite: boolean;
@@ -60,16 +60,16 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
           >
             {/* Provider Logo */}
             <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-              {PROVIDER_LOGOS[provider as LLMProvider] ? (
+              {PROVIDER_LOGOS[provider] ? (
                 <Image 
-                  src={PROVIDER_LOGOS[provider as LLMProvider]} 
+                  src={PROVIDER_LOGOS[provider]} 
                   alt={`${provider} logo`} 
                   width={20} 
                   height={20}
                   className={cn(
                     "object-contain",
                     // Apply invert filter in dark mode for monochrome logos
-                    provider !== 'google' && provider !== 'cohere' && "dark:invert dark:brightness-0 dark:contrast-200"
+                    needsDarkModeInversion(provider) && "dark:invert dark:brightness-0 dark:contrast-200"
                   )}
                 />
               ) : (
@@ -349,7 +349,7 @@ export default function ModelPickerModal() {
                 {favoriteModels.map(({ providerId, provider, model }) => (
                   <CompactModelCard
                     key={favKey(providerId, model.name)}
-                    provider={providerId}
+                    provider={providerId as LLMProvider}
                     model={model}
                     providerInfo={provider}
                     isFavorite={true}
