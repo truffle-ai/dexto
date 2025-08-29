@@ -487,8 +487,7 @@ describe('Provider-Specific Tests', () => {
                 'command-a-03-2025',
                 'command-r-plus',
                 'command-r',
-                'command',
-                'command-light',
+                'command-r7b',
             ];
             cohereModels.forEach((model) => {
                 expect(isValidProviderModel('cohere', model)).toBe(true);
@@ -499,7 +498,8 @@ describe('Provider-Specific Tests', () => {
         it('returns correct maxInputTokens for cohere models', () => {
             expect(getMaxInputTokensForModel('cohere', 'command-a-03-2025')).toBe(256000);
             expect(getMaxInputTokensForModel('cohere', 'command-r-plus')).toBe(128000);
-            expect(getMaxInputTokensForModel('cohere', 'command')).toBe(4000);
+            expect(getMaxInputTokensForModel('cohere', 'command-r')).toBe(128000);
+            expect(getMaxInputTokensForModel('cohere', 'command-r7b')).toBe(128000);
         });
     });
 });

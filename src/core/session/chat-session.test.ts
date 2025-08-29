@@ -276,7 +276,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             // Clear previous calls to createLLMService
@@ -300,7 +300,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             const eventSpy = vi.spyOn(chatSession.eventBus, 'emit');

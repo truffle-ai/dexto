@@ -335,7 +335,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
-                name: 'claude-3-5-haiku-20240620',
+                name: 'claude-3-5-haiku-20241022',
                 displayName: 'Claude 3.5 Haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
