@@ -13,7 +13,9 @@ export interface ModelInfo {
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
-export type SupportedFileType = 'audio' | 'pdf';
+// Central list of supported file type identifiers used across server/UI
+export const SUPPORTED_FILE_TYPES = ['audio', 'pdf'] as const;
+export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
 // Central MIME type to file type mapping
 export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {

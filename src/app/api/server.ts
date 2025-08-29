@@ -29,10 +29,13 @@ import { validateInputForLLM } from '@core/llm/validation.js';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
+    LLM_ROUTERS,
+    SUPPORTED_FILE_TYPES,
     getSupportedRoutersForProvider,
     supportsBaseURL,
+    isRouterSupportedForModel,
 } from '@core/llm/registry.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import type { ProviderInfo, LLMProvider } from '@core/llm/registry.js';
 import { getProviderKeyStatus, saveProviderApiKey } from '@core/utils/api-key-store.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
@@ -594,23 +597,52 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
     // (Deprecated) /api/llm/providers has been replaced by /api/llm/catalog
 
-    // LLM Catalog: providers, models, and API key presence
+    // LLM Catalog: providers, models, and API key presence (with filters)
     app.get('/api/llm/catalog', async (req, res, next) => {
         try {
-            type ProviderCatalog = {
+            type ProviderCatalog = Pick<ProviderInfo, 'supportedRouters' | 'models'> & {
                 name: string;
                 hasApiKey: boolean;
                 primaryEnvVar: string;
-                supportedRouters: string[];
                 supportsBaseURL: boolean;
-                models: Array<{
-                    name: string;
-                    default: boolean;
-                    maxInputTokens: number;
-                    supportedRouters?: string[];
-                    supportedFileTypes: string[];
-                }>;
             };
+
+            type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
+
+            // Parse query parameters with Zod
+            const QuerySchema = z.object({
+                provider: z
+                    .union([z.string(), z.array(z.string())])
+                    .optional()
+                    .transform((value): string[] | undefined =>
+                        Array.isArray(value) ? value : value ? value.split(',') : undefined
+                    ),
+                hasKey: z
+                    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+                    .optional()
+                    .transform((raw): boolean | undefined =>
+                        raw === 'true' || raw === '1'
+                            ? true
+                            : raw === 'false' || raw === '0'
+                              ? false
+                              : undefined
+                    ),
+                router: z.enum(LLM_ROUTERS).optional(),
+                fileType: z.enum(SUPPORTED_FILE_TYPES).optional(),
+                defaultOnly: z
+                    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+                    .optional()
+                    .transform((raw): boolean | undefined =>
+                        raw === 'true' || raw === '1'
+                            ? true
+                            : raw === 'false' || raw === '0'
+                              ? false
+                              : undefined
+                    ),
+                mode: z.enum(['grouped', 'flat']).optional().default('grouped'),
+            });
+
+            const queryParams: z.output<typeof QuerySchema> = QuerySchema.parse(req.query);
 
             const providers: Record<string, ProviderCatalog> = {};
             for (const provider of LLM_PROVIDERS) {
@@ -621,27 +653,105 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 providers[provider] = {
                     name: displayName,
                     hasApiKey: keyStatus.hasApiKey,
-                    primaryEnvVar: getPrimaryApiKeyEnvVar(provider),
+                    primaryEnvVar: keyStatus.envVar,
                     supportedRouters: getSupportedRoutersForProvider(provider),
                     supportsBaseURL: supportsBaseURL(provider),
-                    models: info.models.map((m) => ({
-                        name: m.name,
-                        default: Boolean(m.default),
-                        maxInputTokens: m.maxInputTokens,
-                        supportedRouters: m.supportedRouters || undefined,
-                        supportedFileTypes: m.supportedFileTypes,
-                    })),
+                    models: info.models,
                 };
             }
 
-            return sendJsonResponse(res, { providers }, 200);
+            // --- Apply filters ---
+            let filtered: Record<string, ProviderCatalog> = { ...providers };
+
+            // provider filter
+            if (queryParams.provider && queryParams.provider.length > 0) {
+                const allowedProviders = new Set(
+                    queryParams.provider.filter((p) =>
+                        (LLM_PROVIDERS as readonly string[]).includes(p)
+                    )
+                );
+                const filteredByProvider: Record<string, ProviderCatalog> = {};
+                for (const providerId of Object.keys(filtered)) {
+                    const providerCatalog = filtered[providerId];
+                    if (providerCatalog && allowedProviders.has(providerId)) {
+                        filteredByProvider[providerId] = providerCatalog;
+                    }
+                }
+                filtered = filteredByProvider;
+            }
+
+            // hasKey filter
+            if (typeof queryParams.hasKey === 'boolean') {
+                const filteredByKey: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    if (providerCatalog.hasApiKey === queryParams.hasKey) {
+                        filteredByKey[providerId] = providerCatalog;
+                    }
+                }
+                filtered = filteredByKey;
+            }
+
+            // router filter (keep providers that support router and filter models)
+            if (queryParams.router) {
+                const filteredByRouter: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    if (!providerCatalog.supportedRouters.includes(queryParams.router)) continue;
+                    const models = providerCatalog.models.filter((model) =>
+                        isRouterSupportedForModel(
+                            providerId as LLMProvider,
+                            model.name,
+                            queryParams.router!
+                        )
+                    );
+                    if (models.length > 0)
+                        filteredByRouter[providerId] = { ...providerCatalog, models };
+                }
+                filtered = filteredByRouter;
+            }
+
+            // fileType filter
+            if (queryParams.fileType) {
+                const filteredByFileType: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    const models = providerCatalog.models.filter((model) =>
+                        model.supportedFileTypes.includes(queryParams.fileType!)
+                    );
+                    if (models.length > 0)
+                        filteredByFileType[providerId] = { ...providerCatalog, models };
+                }
+                filtered = filteredByFileType;
+            }
+
+            // defaultOnly filter
+            if (queryParams.defaultOnly) {
+                const filteredByDefault: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    const models = providerCatalog.models.filter((model) => model.default === true);
+                    if (models.length > 0)
+                        filteredByDefault[providerId] = { ...providerCatalog, models };
+                }
+                filtered = filteredByDefault;
+            }
+
+            // mode
+            if (queryParams.mode === 'flat') {
+                const flat: ModelFlat[] = [];
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    for (const model of providerCatalog.models) {
+                        flat.push({ provider: providerId as LLMProvider, ...model });
+                    }
+                }
+                return sendJsonResponse(res, { models: flat }, 200);
+            }
+
+            return sendJsonResponse(res, { providers: filtered }, 200);
         } catch (error) {
             return next(error);
         }
     });
 
     // Save provider API key (never echoes the key back)
-    app.post('/api/llm/key', express.json(), async (req, res, next) => {
+    app.post('/api/llm/key', express.json({ limit: '4kb' }), async (req, res, next) => {
         try {
             const schema = z.object({
                 provider: z.enum(LLM_PROVIDERS),

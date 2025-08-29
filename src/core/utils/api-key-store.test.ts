@@ -70,8 +70,10 @@ describe('api-key-store', () => {
         expect(after.hasApiKey).toBe(true);
 
         const map = listProviderKeyStatus();
-        expect(map.openai.envVar).toBe('OPENAI_API_KEY');
-        expect(map.openai.hasApiKey).toBe(true);
+        const openaiStatus = map['openai'];
+        expect(openaiStatus).toBeDefined();
+        expect(openaiStatus!.envVar).toBe('OPENAI_API_KEY');
+        expect(openaiStatus!.hasApiKey).toBe(true);
     });
 
     it('throws for missing inputs', async () => {
