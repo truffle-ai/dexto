@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import Image from "next/image";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
@@ -8,7 +9,7 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ApiKeyModal } from "../ApiKeyModal";
 import { useChatContext } from "../hooks/ChatContext";
-import { Bot, ChevronDown, ChevronUp, Loader2, Star, Eye, FileAudio, FileText, Brain, Image, Sparkles, FlaskConical, Zap, Lock } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
 import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL, SupportedRouter } from "./types";
@@ -20,31 +21,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-
-// Provider logos mapping
-const PROVIDER_LOGOS: Record<string, string> = {
-  openai: "🤖",
-  anthropic: "🧠",
-  google: "🔷",
-  groq: "⚡",
-  perplexity: "🔍",
-  xai: "✖️",
-  mistral: "Ⓜ️",
-  openrouter: "🌐",
-  'openai-compatible': "🔧",
-};
-
-// Model capability icons
-const CAPABILITY_ICONS = {
-  vision: <Eye className="h-3 w-3" />,
-  image: <Image className="h-3 w-3" />,
-  audio: <FileAudio className="h-3 w-3" />,
-  pdf: <FileText className="h-3 w-3" />,
-  reasoning: <Brain className="h-3 w-3" />,
-  experimental: <FlaskConical className="h-3 w-3" />,
-  new: <Sparkles className="h-3 w-3" />,
-  realtime: <Zap className="h-3 w-3" />,
-};
+import type { LLMProvider } from "../../../../core/llm/registry.js";
+import { PROVIDER_LOGOS, CAPABILITY_ICONS } from "./constants";
 
 interface CompactModelCardProps {
   provider: string;
@@ -81,9 +59,19 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
             )}
           >
             {/* Provider Logo */}
-            <span className="text-lg w-6 text-center flex-shrink-0">
-              {PROVIDER_LOGOS[provider] || "🤖"}
-            </span>
+            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+              {PROVIDER_LOGOS[provider as LLMProvider] ? (
+                <Image 
+                  src={PROVIDER_LOGOS[provider as LLMProvider]} 
+                  alt={`${provider} logo`} 
+                  width={20} 
+                  height={20}
+                  className="object-contain"
+                />
+              ) : (
+                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
             
             {/* Model Name */}
             <div className="flex-1 text-left">

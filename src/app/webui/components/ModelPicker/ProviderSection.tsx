@@ -1,8 +1,9 @@
 "use client";
 
 import React from 'react';
+import Image from "next/image";
 import { Badge } from "../ui/badge";
-import { Star, Eye, FileAudio, FileText, Brain, Image, Sparkles, FlaskConical, Zap, Lock } from "lucide-react";
+import { Star, Lock, HelpCircle } from "lucide-react";
 import type { ProviderCatalog, ModelInfo } from "./types";
 import { cn } from "../../lib/utils";
 import {
@@ -11,31 +12,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-
-// Provider logos mapping (same as in ModelPickerModal)
-const PROVIDER_LOGOS: Record<string, string> = {
-  openai: "🤖",
-  anthropic: "🧠",
-  google: "🔷",
-  groq: "⚡",
-  perplexity: "🔍",
-  xai: "✖️",
-  mistral: "Ⓜ️",
-  openrouter: "🌐",
-  'openai-compatible': "🔧",
-};
-
-// Model capability icons
-const CAPABILITY_ICONS = {
-  vision: <Eye className="h-3 w-3" />,
-  image: <Image className="h-3 w-3" />,
-  audio: <FileAudio className="h-3 w-3" />,
-  pdf: <FileText className="h-3 w-3" />,
-  reasoning: <Brain className="h-3 w-3" />,
-  experimental: <FlaskConical className="h-3 w-3" />,
-  new: <Sparkles className="h-3 w-3" />,
-  realtime: <Zap className="h-3 w-3" />,
-};
+import type { LLMProvider } from "../../../../core/llm/registry.js";
+import { PROVIDER_LOGOS, CAPABILITY_ICONS } from "./constants";
 
 type Props = {
   providerId: string;
@@ -61,7 +39,19 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
       {/* Provider Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{PROVIDER_LOGOS[providerId] || "🤖"}</span>
+          <div className="w-5 h-5 flex items-center justify-center">
+            {PROVIDER_LOGOS[providerId as LLMProvider] ? (
+              <Image 
+                src={PROVIDER_LOGOS[providerId as LLMProvider]} 
+                alt={`${providerId} logo`} 
+                width={20} 
+                height={20}
+                className="object-contain"
+              />
+            ) : (
+              <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
           <span className="text-base font-medium">{provider.name}</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
