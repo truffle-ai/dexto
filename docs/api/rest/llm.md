@@ -25,6 +25,14 @@ sidebar_position: 4
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/llm/catalog</code></p>
 
+#### Query Parameters
+- `provider`: comma-separated providers (e.g., `openai,anthropic`).
+- `hasKey`: filter by key presence (`true` | `false`).
+- `router`: `vercel` | `in-built`.
+- `fileType`: `audio` | `pdf`.
+- `defaultOnly`: include only default models (`true` | `false`).
+- `mode`: `grouped` (default) or `flat`.
+
 #### Responses
 **Success (200)**
 ```json
@@ -44,6 +52,22 @@ sidebar_position: 4
 }
 ```
 
+When `mode=flat`, response is:
+```json
+{
+  "models": [
+    {
+      "provider": "openai",
+      "name": "gpt-4o",
+      "default": false,
+      "maxInputTokens": 128000,
+      "supportedFileTypes": ["pdf"],
+      "supportedRouters": ["vercel", "in-built"]
+    }
+  ]
+}
+```
+
 ### Save Provider API Key
 *Stores an API key for a provider in .env and makes it available immediately.*
 
@@ -59,6 +83,8 @@ sidebar_position: 4
 ```json
 {"ok":true,"provider":"openai","envVar":"OPENAI_API_KEY"}
 ```
+
+Note: request body size is limited (4KB).
 
 ### Switch LLM
 *Switches the LLM configuration.*
