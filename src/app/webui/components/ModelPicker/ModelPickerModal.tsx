@@ -22,7 +22,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { LLMProvider } from "../../../../core/llm/registry.js";
-import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion } from "./constants";
+import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion, formatPricingLines } from "./constants";
 
 interface CompactModelCardProps {
   provider: LLMProvider;
@@ -38,12 +38,14 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
   const displayName = model.displayName || model.name;
   const hasApiKey = providerInfo.hasApiKey;
   
-  // Build description for tooltip
-  const description = [
+  // Build description lines for tooltip
+  const priceLines = formatPricingLines(model.pricing || undefined);
+  const descriptionLines = [
     `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
     model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
-    !hasApiKey && '⚠️ API key required'
-  ].filter(Boolean).join(' • ');
+    !hasApiKey && '⚠️ API key required',
+    ...priceLines
+  ].filter(Boolean) as string[];
 
   return (
     <TooltipProvider>
@@ -117,7 +119,11 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
           </div>
         </TooltipTrigger>
         <TooltipContent side="right" className="max-w-xs">
-          <p className="text-xs">{description}</p>
+          <div className="text-xs space-y-0.5">
+            {descriptionLines.map((line, idx) => (
+              <div key={idx}>{line}</div>
+            ))}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

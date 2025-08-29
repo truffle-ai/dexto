@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { LLMProvider } from "../../../../core/llm/registry.js";
-import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion } from "./constants";
+import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion, PROVIDER_PRICING_URLS, formatPricingLines } from "./constants";
 
 type Props = {
   providerId: string;
@@ -66,6 +66,17 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
           {!provider.hasApiKey && (
             <Badge variant="destructive" className="text-xs">Key Required</Badge>
           )}
+          {PROVIDER_PRICING_URLS[providerId as LLMProvider] && (
+            <a
+              href={PROVIDER_PRICING_URLS[providerId as LLMProvider]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:underline"
+              title="View provider pricing"
+            >
+              Pricing ↗
+            </a>
+          )}
         </div>
       </div>
       
@@ -77,13 +88,15 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
           const favorite = isFavorite(model.name);
           const hasApiKey = provider.hasApiKey;
           
-          // Build description for tooltip
-          const description = [
+          // Build description lines for tooltip
+          const priceLines = formatPricingLines(model.pricing || undefined);
+          const descriptionLines = [
             `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
             model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
             model.default && 'Default model',
-            !hasApiKey && '⚠️ API key required'
-          ].filter(Boolean).join(' • ');
+            !hasApiKey && '⚠️ API key required',
+            ...priceLines,
+          ].filter(Boolean) as string[];
           
           return (
             <TooltipProvider key={model.name}>
@@ -148,7 +161,11 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs">
-                  <p className="text-xs">{description}</p>
+                  <div className="text-xs space-y-0.5">
+                    {descriptionLines.map((line, idx) => (
+                      <div key={idx}>{line}</div>
+                    ))}
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

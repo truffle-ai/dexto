@@ -11,6 +11,15 @@ export interface ModelInfo {
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
     displayName?: string;
+    // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
+    pricing?: {
+        inputPerM: number;
+        outputPerM: number;
+        cacheReadPerM?: number;
+        cacheWritePerM?: number;
+        currency?: 'USD';
+        unit?: 'per_million_tokens';
+    };
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
@@ -77,24 +86,52 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'GPT-5',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-5-mini',
                 displayName: 'GPT-5 Mini',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.25,
+                    outputPerM: 2.0,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-5-nano',
                 displayName: 'GPT-5 Nano',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.05,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.005,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-4.1',
                 displayName: 'GPT-4.1',
                 maxInputTokens: 1047576,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 8.0,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-4.1-mini',
@@ -102,36 +139,77 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 maxInputTokens: 1047576,
                 default: true,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.4,
+                    outputPerM: 1.6,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-4.1-nano',
                 displayName: 'GPT-4.1 Nano',
                 maxInputTokens: 1047576,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.1,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-4o',
                 displayName: 'GPT-4o',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 1.25,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-4o-mini',
                 displayName: 'GPT-4o Mini',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    cacheReadPerM: 0.075,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-4o-audio-preview',
                 displayName: 'GPT-4o Audio Preview',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 10.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'o4-mini',
                 displayName: 'O4 Mini',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 1.1,
+                    outputPerM: 4.4,
+                    cacheReadPerM: 0.275,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             { name: 'o3', displayName: 'O3', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
             {
@@ -139,8 +217,27 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'O3 Mini',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 1.1,
+                    outputPerM: 4.4,
+                    cacheReadPerM: 0.55,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
-            { name: 'o1', displayName: 'O1', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'o1',
+                displayName: 'O1',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 60.0,
+                    cacheReadPerM: 7.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
@@ -155,10 +252,32 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     anthropic: {
         models: [
             {
+                name: 'claude-opus-4-1-20250805',
+                displayName: 'Claude 4.1 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'claude-4-opus-20250514',
                 displayName: 'Claude 4 Opus',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-4-sonnet-20250514',
@@ -166,36 +285,98 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-7-sonnet-20250219',
                 displayName: 'Claude 3.7 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-5-sonnet-20240620',
                 displayName: 'Claude 3.5 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-3-5-haiku-20240620',
+                displayName: 'Claude 3.5 Haiku',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 4,
+                    cacheWritePerM: 1,
+                    cacheReadPerM: 0.08,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-haiku-20240307',
                 displayName: 'Claude 3 Haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.25,
+                    outputPerM: 1.25,
+                    cacheWritePerM: 0.3,
+                    cacheReadPerM: 0.03,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-opus-20240229',
                 displayName: 'Claude 3 Opus',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-sonnet-20240229',
                 displayName: 'Claude 3 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
         ],
         supportedRouters: ['vercel', 'in-built'],
@@ -210,24 +391,51 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 maxInputTokens: 1048576,
                 default: true,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.31,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-2.5-flash',
                 displayName: 'Gemini 2.5 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.3,
+                    outputPerM: 2.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-2.0-flash',
                 displayName: 'Gemini 2.0 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    cacheReadPerM: 0.025,
+                    cacheWritePerM: 1.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-2.0-flash-lite',
                 displayName: 'Gemini 2.0 Flash Lite',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.075,
+                    outputPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-1.5-pro-latest',
@@ -240,6 +448,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Gemini 1.5 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.075,
+                    outputPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
         ],
         supportedRouters: ['vercel'],
@@ -254,6 +468,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Gemma 2 9B Instruct',
                 maxInputTokens: 8192,
                 supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.2,
+                    outputPerM: 0.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'llama-3.3-70b-versatile',
@@ -261,6 +481,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 maxInputTokens: 128000,
                 default: true,
                 supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.59,
+                    outputPerM: 0.79,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
         ],
         supportedRouters: ['vercel'],

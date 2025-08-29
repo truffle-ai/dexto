@@ -8,6 +8,14 @@ export type ModelInfo = {
     maxInputTokens: number;
     supportedFileTypes: SupportedFileType[];
     supportedRouters?: SupportedRouter[];
+    pricing?: {
+        inputPerM: number;
+        outputPerM: number;
+        cacheReadPerM?: number;
+        cacheWritePerM?: number;
+        currency?: 'USD';
+        unit?: 'per_million_tokens';
+    };
 };
 
 export type ProviderCatalog = {
