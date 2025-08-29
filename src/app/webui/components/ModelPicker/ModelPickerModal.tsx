@@ -1,19 +1,130 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ApiKeyModal } from "../ApiKeyModal";
 import { useChatContext } from "../hooks/ChatContext";
-import { Bot, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, Loader2, Star, Eye, FileAudio, FileText, Brain, Image, Sparkles, FlaskConical, Zap, Lock } from "lucide-react";
 import { SearchBar } from "./SearchBar";
-import { FavoritesBar } from "./FavoritesBar";
 import { ProviderSection } from "./ProviderSection";
-import { FAVORITES_STORAGE_KEY, CatalogResponse, CurrentLLMConfigResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL, SupportedRouter } from "./types";
+import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL, SupportedRouter } from "./types";
 import { Input } from "../ui/input";
+import { cn } from "../../lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+
+// Provider logos mapping
+const PROVIDER_LOGOS: Record<string, string> = {
+  openai: "🤖",
+  anthropic: "🧠",
+  google: "🔷",
+  groq: "⚡",
+  perplexity: "🔍",
+  xai: "✖️",
+  mistral: "Ⓜ️",
+  openrouter: "🌐",
+  'openai-compatible': "🔧",
+};
+
+// Model capability icons
+const CAPABILITY_ICONS = {
+  vision: <Eye className="h-3 w-3" />,
+  image: <Image className="h-3 w-3" />,
+  audio: <FileAudio className="h-3 w-3" />,
+  pdf: <FileText className="h-3 w-3" />,
+  reasoning: <Brain className="h-3 w-3" />,
+  experimental: <FlaskConical className="h-3 w-3" />,
+  new: <Sparkles className="h-3 w-3" />,
+  realtime: <Zap className="h-3 w-3" />,
+};
+
+interface CompactModelCardProps {
+  provider: string;
+  model: ModelInfo;
+  providerInfo: ProviderCatalog;
+  isFavorite: boolean;
+  isActive: boolean;
+  onClick: () => void;
+  onToggleFavorite: (e: React.MouseEvent) => void;
+}
+
+function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive, onClick, onToggleFavorite }: CompactModelCardProps) {
+  const displayName = model.displayName || model.name;
+  const hasApiKey = providerInfo.hasApiKey;
+  
+  // Build description for tooltip
+  const description = [
+    `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
+    model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
+    !hasApiKey && '⚠️ API key required'
+  ].filter(Boolean).join(' • ');
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onClick}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-100",
+              "hover:bg-accent hover:shadow-sm",
+              isActive && "bg-accent shadow-sm ring-1 ring-accent-foreground/10",
+              !hasApiKey && "opacity-60"
+            )}
+          >
+            {/* Provider Logo */}
+            <span className="text-lg w-6 text-center flex-shrink-0">
+              {PROVIDER_LOGOS[provider] || "🤖"}
+            </span>
+            
+            {/* Model Name */}
+            <div className="flex-1 text-left">
+              <div className="text-sm font-medium">{displayName}</div>
+            </div>
+            
+            {/* Capability Icons */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {model.supportedFileTypes.includes('pdf') && (
+                <span className="text-muted-foreground" title="PDF support">
+                  {CAPABILITY_ICONS.pdf}
+                </span>
+              )}
+              {model.supportedFileTypes.includes('audio') && (
+                <span className="text-muted-foreground" title="Audio support">
+                  {CAPABILITY_ICONS.audio}
+                </span>
+              )}
+              {!hasApiKey && (
+                <span className="text-muted-foreground" title="API key required">
+                  <Lock className="h-3 w-3" />
+                </span>
+              )}
+            </div>
+            
+            {/* Favorite Star */}
+            <button
+              onClick={onToggleFavorite}
+              className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Star className={cn("h-4 w-4", isFavorite && "fill-current text-yellow-500")} />
+            </button>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-xs">
+          <p className="text-xs">{description}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export default function ModelPickerModal() {
   const [open, setOpen] = useState(false);
@@ -25,8 +136,8 @@ export default function ModelPickerModal() {
   const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | "">("");
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
-
+  const [showAll, setShowAll] = useState(false);
+  
   // API key modal
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [pendingKeyProvider, setPendingKeyProvider] = useState<string | null>(null);
@@ -68,25 +179,30 @@ export default function ModelPickerModal() {
     return () => { cancelled = true; };
   }, [open]);
 
-  const favorites = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as string[]) : [];
-    } catch {
-      return [];
+  const [favorites, setFavorites] = useState<string[]>([]);
+  
+  // Load favorites from localStorage
+  useEffect(() => {
+    if (open) {
+      try {
+        const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+        setFavorites(raw ? (JSON.parse(raw) as string[]) : []);
+      } catch {
+        setFavorites([]);
+      }
     }
   }, [open]);
 
-  function toggleFavorite(providerId: string, modelName: string) {
-    try {
-      const key = favKey(providerId, modelName);
-      const set = new Set(favorites);
-      if (set.has(key)) set.delete(key); else set.add(key);
-      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(set)));
-    } catch {
-      // ignore
-    }
-  }
+  const toggleFavorite = useCallback((providerId: string, modelName: string) => {
+    const key = favKey(providerId, modelName);
+    setFavorites(prev => {
+      const newFavs = prev.includes(key) 
+        ? prev.filter(f => f !== key)
+        : [...prev, key];
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(newFavs));
+      return newFavs;
+    });
+  }, []);
 
   function modelMatchesSearch(providerId: string, model: ModelInfo): boolean {
     const q = search.trim().toLowerCase();
@@ -111,7 +227,6 @@ export default function ModelPickerModal() {
   async function performSwitch(providerId: string, model: ModelInfo, useBaseURL?: string) {
     setSaving(true);
     setError(null);
-    setSuccess(null);
     try {
       const router = pickRouterFor(providerId, model);
       const body: Record<string, any> = { provider: providerId, model: model.name, router };
@@ -131,8 +246,8 @@ export default function ModelPickerModal() {
       }
       // Update context config immediately so the trigger label updates
       await refreshCurrentLLM();
-      setSuccess(`Switched to ${providerId}/${model.name}`);
-      setTimeout(() => setOpen(false), 800);
+      // Close immediately for snappy feel
+      setOpen(false);
     } catch {
       setError('Network error while switching');
     } finally {
@@ -178,6 +293,38 @@ export default function ModelPickerModal() {
   const providerIds = Object.keys(providers);
   const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
 
+  // Build favorites list
+  const favoriteModels = useMemo(() => {
+    return favorites
+      .map(key => {
+        const [providerId, modelName] = key.split('|');
+        const provider = providers[providerId];
+        const model = provider?.models.find(m => m.name === modelName);
+        if (!provider || !model) return null;
+        return { providerId, provider, model };
+      })
+      .filter(Boolean) as Array<{ providerId: string; provider: ProviderCatalog; model: ModelInfo }>;
+  }, [favorites, providers]);
+
+  // Filter all models for search
+  const filteredProviders = useMemo(() => {
+    if (!search) return providers;
+    const filtered: Record<string, ProviderCatalog> = {};
+    providerIds.forEach(pid => {
+      const matchingModels = providers[pid].models.filter(m => modelMatchesSearch(pid, m));
+      if (matchingModels.length > 0) {
+        filtered[pid] = {
+          ...providers[pid],
+          models: matchingModels
+        };
+      }
+    });
+    return filtered;
+  }, [providers, search, providerIds]);
+
+  const isCurrentModel = (providerId: string, modelName: string) => 
+    currentLLM?.provider === providerId && currentLLM?.model === modelName;
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -191,46 +338,93 @@ export default function ModelPickerModal() {
 
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Model Picker</DialogTitle>
-            <DialogDescription>Search and choose a model; set a key if needed.</DialogDescription>
+            <DialogTitle>Select Model</DialogTitle>
+            <DialogDescription>Choose from your favorite models or explore all available options</DialogDescription>
           </DialogHeader>
 
           {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
-          {success && (<Alert className="border-green-200 bg-green-50 text-green-800"><AlertDescription>{success}</AlertDescription></Alert>)}
 
-          <SearchBar value={search} onChange={setSearch} />
+          <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
 
-          <FavoritesBar 
-            favorites={favorites}
-            providers={providers}
-            onPick={(pid, m) => {
-              const model = providers[pid]?.models.find((x) => x.name === m);
-              if (model) onPickModel(pid, model);
-            }}
-          />
+          {/* Favorites Section - Always visible when there are favorites */}
+          {favoriteModels.length > 0 && !search && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Favorites</span>
+              </div>
+              <div className="grid gap-1">
+                {favoriteModels.map(({ providerId, provider, model }) => (
+                  <CompactModelCard
+                    key={favKey(providerId, model.name)}
+                    provider={providerId}
+                    model={model}
+                    providerInfo={provider}
+                    isFavorite={true}
+                    isActive={isCurrentModel(providerId, model.name)}
+                    onClick={() => onPickModel(providerId, model)}
+                    onToggleFavorite={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(providerId, model.name);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-          <div className="space-y-6 max-h-[60vh] overflow-auto pr-1">
-            {loading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-            ) : providerIds.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No providers available.</div>
-            ) : (
-              providerIds.map((providerId) => (
-                <ProviderSection
-                  key={providerId}
-                  providerId={providerId}
-                  provider={providers[providerId]}
-                  models={providers[providerId].models.filter((m) => (search ? (m.displayName?.toLowerCase().includes(search.toLowerCase()) || m.name.toLowerCase().includes(search.toLowerCase()) || providers[providerId].name.toLowerCase().includes(search.toLowerCase())) : true))}
-                  favorites={favorites}
-                  onToggleFavorite={(pid, m) => { toggleFavorite(pid, m); setSearch((s) => s); }}
-                  onUse={onPickModel}
-                />
-              ))
-            )}
-          </div>
+          {/* Show All / Collapse Toggle */}
+          {!search && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAll(!showAll)}
+              className="w-full justify-center gap-2"
+            >
+              {showAll ? (
+                <>Hide All Models <ChevronUp className="h-4 w-4" /></>
+              ) : (
+                <>Show All Models <ChevronDown className="h-4 w-4" /></>
+              )}
+            </Button>
+          )}
 
-          <div className="mt-4 space-y-3">
-            <Button variant="ghost" onClick={() => setAdvancedOpen((v) => !v)} className="flex items-center justify-between w-full p-0 h-auto">
+          {/* All Models Section - Show when searching or "Show All" is clicked */}
+          {(showAll || search) && (
+            <div className="space-y-6 max-h-[50vh] overflow-auto pr-1">
+              {loading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
+                </div>
+              ) : Object.keys(filteredProviders).length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  {search ? 'No models found matching your search' : 'No providers available'}
+                </div>
+              ) : (
+                Object.entries(filteredProviders).map(([providerId, provider]) => (
+                  <ProviderSection
+                    key={providerId}
+                    providerId={providerId}
+                    provider={provider}
+                    models={provider.models}
+                    favorites={favorites}
+                    currentModel={currentLLM || undefined}
+                    onToggleFavorite={toggleFavorite}
+                    onUse={onPickModel}
+                  />
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Advanced Options */}
+          <div className="mt-4 space-y-3 border-t pt-3">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setAdvancedOpen(!advancedOpen)} 
+              className="flex items-center justify-between w-full p-0 h-auto"
+            >
               <span className="text-sm text-muted-foreground">Advanced Options</span>
               {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
@@ -257,10 +451,6 @@ export default function ModelPickerModal() {
               </div>
             )}
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Close</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

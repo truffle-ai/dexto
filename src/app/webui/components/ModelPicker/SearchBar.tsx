@@ -7,13 +7,14 @@ import { Search } from "lucide-react";
 type Props = {
   value: string;
   onChange: (v: string) => void;
+  placeholder?: string;
 };
 
-export function SearchBar({ value, onChange }: Props) {
+export function SearchBar({ value, onChange, placeholder = "Search providers or models" }: Props) {
   return (
     <div className="flex items-center gap-2 mb-4">
       <Search className="h-4 w-4 text-muted-foreground" />
-      <Input placeholder="Search providers or models" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
