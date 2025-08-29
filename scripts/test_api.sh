@@ -48,6 +48,7 @@ main() {
 
   run_test "GET /health" GET "/health" 200 || failures=$((failures+1))
   run_test "GET /api/llm/providers" GET "/api/llm/providers" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog" GET "/api/llm/catalog" 200 || failures=$((failures+1))
   run_test "GET /api/llm/current" GET "/api/llm/current" 200 || failures=$((failures+1))
 
   # LLM switch scenarios
@@ -75,6 +76,20 @@ main() {
   }
 
   echo "$(yellow '[Stateful]') Router-only update preserves other fields" 
+  # Pre-validate catalog content for openai provider structure
+  cat_before=$(curl -sS "${BASE_URL}/api/llm/catalog")
+  env_var_before=$(json_get "${cat_before}" '.providers.openai.primaryEnvVar')
+  supports_base_before=$(json_get "${cat_before}" '.providers.openai.supportsBaseURL')
+  routers_before=$(json_get "${cat_before}" '.providers.openai.supportedRouters')
+  if [ "${env_var_before}" != "OPENAI_API_KEY" ]; then
+    echo "$(red 'FAIL') catalog.openai.primaryEnvVar expected OPENAI_API_KEY, got: ${env_var_before}"; failures=$((failures+1))
+  fi
+  if [ "${supports_base_before}" != "false" ]; then
+    echo "$(red 'FAIL') catalog.openai.supportsBaseURL expected false, got: ${supports_base_before}"; failures=$((failures+1))
+  fi
+  if ! echo "${routers_before}" | grep -q "vercel"; then
+    echo "$(red 'FAIL') catalog.openai.supportedRouters missing 'vercel'"; failures=$((failures+1))
+  fi
   # Get baseline config
   base_resp=$(curl -sS "${BASE_URL}/api/llm/current")
   base_provider=$(json_get "${base_resp}" '.config.provider')
@@ -117,6 +132,30 @@ main() {
   fi
   if [ "${after_temp}" != "${base_temp}" ]; then
     echo "$(red 'FAIL') temperature changed unexpectedly (${base_temp} -> ${after_temp})"; failures=$((failures+1))
+  fi
+
+  # -------- New LLM key APIs --------
+  run_test "POST /api/llm/key invalid provider" POST "/api/llm/key" 400 '{"provider":"invalid","apiKey":"x"}' || failures=$((failures+1))
+  run_test "POST /api/llm/key missing apiKey" POST "/api/llm/key" 400 '{"provider":"openai","apiKey":""}' || failures=$((failures+1))
+  # Save key and validate response content
+  save_resp=$(curl -sS -H 'Content-Type: application/json' -d '{"provider":"openai","apiKey":"sk-test-from-script"}' -X POST "${BASE_URL}/api/llm/key" -w "\n%{http_code}")
+  save_code=${save_resp##*$'\n'}
+  save_body=${save_resp%$'\n'*}
+  if [ "${save_code}" != "200" ]; then
+    echo "$(red 'FAIL') POST /api/llm/key expected 200, got ${save_code}"; failures=$((failures+1))
+  fi
+  save_ok=$(json_get "${save_body}" '.ok')
+  save_provider=$(json_get "${save_body}" '.provider')
+  save_env=$(json_get "${save_body}" '.envVar')
+  if [ "${save_ok}" != "true" ] || [ "${save_provider}" != "openai" ] || [ "${save_env}" != "OPENAI_API_KEY" ]; then
+    echo "$(red 'FAIL') POST /api/llm/key response content invalid: ${save_body}"; failures=$((failures+1))
+  fi
+
+  # Ensure catalog reflects key presence for openai
+  cat_resp=$(curl -sS "${BASE_URL}/api/llm/catalog")
+  has_key_val=$(json_get "${cat_resp}" '.providers.openai.hasApiKey')
+  if [ "${has_key_val}" != "true" ]; then
+    echo "$(red 'FAIL') catalog.openai.hasApiKey not true after saving key"; failures=$((failures+1))
   fi
 
   # Revert router to baseline for isolation

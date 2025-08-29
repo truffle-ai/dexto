@@ -13,7 +13,7 @@ Add a modern model selection experience to the Dexto web UI, inspired by T3.chat
 - Reuse core logic for environment key storage so CLI and Web share a single implementation.
 - Respect router and baseURL constraints from our registry and schemas.
 
-This plan covers UI/UX, backend endpoints, shared core helpers, security, testing, rollout, and migration notes.
+This plan covers UI/UX, backend endpoints, shared core helpers, security, testing, rollout, and migration notes. APIs will not expose or depend on TypeScript types; use runtime validation (Zod) and document responses with JSON examples only.
 
 ---
 
@@ -88,39 +88,28 @@ New endpoints (Express in `src/app/api/server.ts`):
 
 1) GET `/api/llm/catalog`
 - Returns providers, models, and key presence.
-- Response shape:
-  ```ts
-  type CatalogResponse = {
-    providers: Record<string, {
-      name: string;                 // Display name (e.g., "OpenAI")
-      hasApiKey: boolean;           // Key present in layered env
-      primaryEnvVar: string;        // e.g., OPENAI_API_KEY
-      supportedRouters: string[];   // from registry
-      supportsBaseURL: boolean;     // from registry
-      models: Array<{
-        name: string;
-        displayName?: string;
-        default?: boolean;
-        maxInputTokens: number;
-        supportedRouters?: string[];
-        supportedFileTypes: Array<'audio'|'pdf'>;
-        tags?: string[];
-      }>;
-    }>;
-  };
+- Example response (JSON):
+  ```json
+  {
+    "providers": {
+      "openai": {
+        "name": "Openai",
+        "hasApiKey": false,
+        "primaryEnvVar": "OPENAI_API_KEY",
+        "supportedRouters": ["vercel", "in-built"],
+        "supportsBaseURL": false,
+        "models": [
+          { "name": "gpt-4o", "default": false, "maxInputTokens": 128000, "supportedFileTypes": ["pdf"] }
+        ]
+      }
+    }
+  }
   ```
 
 2) POST `/api/llm/key`
 - Saves a provider API key securely and makes it available immediately.
-- Request body:
-  ```ts
-  type SaveKeyRequest = {
-    provider: LLMProvider;
-    apiKey: string;               // never logged or echoed back
-    scope?: 'project' | 'global'; // optional; default: infer from execution context
-  };
-  ```
-- Response: `{ ok: true, provider: string, envVar: string }`
+- Request body (JSON): `{ "provider": "openai", "apiKey": "..." }` (never logged or echoed back)
+- Response (JSON): `{ "ok": true, "provider": "openai", "envVar": "OPENAI_API_KEY" }`
 - Behavior:
   - Uses shared core helper (see below) to update the correct `.env` and mutate `process.env`.
   - Validates non-empty key, redacts logs.
@@ -209,30 +198,20 @@ Local storage:
 ---
 
 ## API/Type Contracts (Reference)
+No TypeScript type exports. Runtime validation only.
 
-- POST `/api/llm/switch` body (existing):
-  ```ts
-  type LLMSwitchRequest = {
-    provider: string;
-    model: string;
-    router: string;
-    apiKey?: string;   // still supported; with new flow we prefer `/api/llm/key`
-    baseURL?: string;
-    sessionId?: string;
-  };
-  ```
-
-- GET `/api/llm/current` (existing): returns `{ config: LLMConfig }`.
-
-- GET `/api/llm/providers` (existing): new UI will use `/api/llm/catalog` instead.
+- POST `/api/llm/switch` (existing) body (JSON): `{ "provider": "...", "model": "...", "router": "...", "apiKey": "?", "baseURL": "?", "sessionId": "?" }`
+- GET `/api/llm/current` (existing): `{ "config": { ... } }`
+- GET `/api/llm/providers` (existing): superseded by `/api/llm/catalog` for the new UI
 
 ---
 
 ## Implementation Steps
 
 1) Core helper
-- [ ] Add `src/core/utils/api-key-store.ts` with functions above and unit tests.
-- [ ] Refactor CLI `updateEnvFileWithLLMKeys` to delegate; keep test suite green.
+- [x] Add `src/core/utils/api-key-store.ts` with functions above and unit tests.
+- [x] Remove duplicate CLI helper `env-utils` and update CLI to use the core helper.
+- [x] Add unit tests (`api-key-store.test.ts`) that mock `getDextoEnvPath`, write to a temp `.env`, and assert `process.env` is updated. Do not call `applyLayeredEnvironmentLoading` inside the helper; keep it at app startup only.
 
 2) Backend endpoints
 - [ ] Add `GET /api/llm/catalog` (compose from `LLM_REGISTRY`, router utilities, and key status).

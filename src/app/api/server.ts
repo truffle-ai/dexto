@@ -32,6 +32,8 @@ import {
     getSupportedRoutersForProvider,
     supportsBaseURL,
 } from '@core/llm/registry.js';
+import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { getProviderKeyStatus, saveProviderApiKey } from '@core/utils/api-key-store.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
@@ -619,6 +621,72 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
 
             res.json({ providers });
         } catch (error: any) {
+            return next(error);
+        }
+    });
+
+    // LLM Catalog: providers, models, and API key presence
+    app.get('/api/llm/catalog', async (req, res, next) => {
+        try {
+            type ProviderCatalog = {
+                name: string;
+                hasApiKey: boolean;
+                primaryEnvVar: string;
+                supportedRouters: string[];
+                supportsBaseURL: boolean;
+                models: Array<{
+                    name: string;
+                    default: boolean;
+                    maxInputTokens: number;
+                    supportedRouters?: string[];
+                    supportedFileTypes: string[];
+                }>;
+            };
+
+            const providers: Record<string, ProviderCatalog> = {};
+            for (const provider of LLM_PROVIDERS) {
+                const info = LLM_REGISTRY[provider];
+                const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                const keyStatus = getProviderKeyStatus(provider);
+
+                providers[provider] = {
+                    name: displayName,
+                    hasApiKey: keyStatus.hasApiKey,
+                    primaryEnvVar: getPrimaryApiKeyEnvVar(provider),
+                    supportedRouters: getSupportedRoutersForProvider(provider),
+                    supportsBaseURL: supportsBaseURL(provider),
+                    models: info.models.map((m) => ({
+                        name: m.name,
+                        default: Boolean(m.default),
+                        maxInputTokens: m.maxInputTokens,
+                        supportedRouters: m.supportedRouters || undefined,
+                        supportedFileTypes: m.supportedFileTypes,
+                    })),
+                };
+            }
+
+            return sendJsonResponse(res, { providers }, 200);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Save provider API key (never echoes the key back)
+    app.post('/api/llm/key', express.json(), async (req, res, next) => {
+        try {
+            const schema = z.object({
+                provider: z.enum(LLM_PROVIDERS),
+                apiKey: z.string().min(1, 'API key is required'),
+            });
+            const body = schema.parse(req.body);
+
+            const meta = await saveProviderApiKey(body.provider, body.apiKey, process.cwd());
+            return sendJsonResponse(
+                res,
+                { ok: true, provider: body.provider, envVar: meta.envVar },
+                200
+            );
+        } catch (error) {
             return next(error);
         }
     });

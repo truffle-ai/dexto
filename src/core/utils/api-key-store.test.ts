@@ -3,14 +3,14 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { tmpdir } from 'os';
+import type { MockInstance } from 'vitest';
 
 describe('api-key-store', () => {
     const ORIGINAL_ENV = { ...process.env };
     let tempDir: string;
     let tempEnvPath: string;
     let apiKeyStore: typeof import('./api-key-store.js');
-    let pathUtils: any;
-    let pathSpy: any;
+    let pathSpy: MockInstance;
     let prevOpenAI: string | undefined;
     let prevOpenAIAlt: string | undefined;
 
@@ -20,7 +20,7 @@ describe('api-key-store', () => {
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'apikey-store-'));
         tempEnvPath = path.join(tempDir, '.env');
 
-        pathUtils = await import('@core/utils/path.js');
+        const pathUtils = await import('@core/utils/path.js');
         pathSpy = vi.spyOn(pathUtils, 'getDextoEnvPath').mockReturnValue(tempEnvPath);
 
         // Import module under test after mocks are set up
