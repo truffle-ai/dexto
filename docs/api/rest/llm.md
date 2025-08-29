@@ -15,7 +15,8 @@ sidebar_position: 4
 {
   "config": {
     "provider": "openai",
-    "model": "gpt-4o"
+    "model": "gpt-4o",
+    "displayName": "GPT-4o"
   }
 }
 ```
@@ -45,7 +46,7 @@ sidebar_position: 4
       "supportedRouters": ["in-built", "vercel"],
       "supportsBaseURL": false,
       "models": [
-        {"name":"gpt-4o","default":false,"maxInputTokens":128000,"supportedFileTypes":["pdf"]}
+        {"name":"gpt-4o","displayName":"GPT-4o","default":false,"maxInputTokens":128000,"supportedFileTypes":["pdf"]}
       ]
     }
   }
@@ -59,6 +60,7 @@ When `mode=flat`, response is:
     {
       "provider": "openai",
       "name": "gpt-4o",
+      "displayName": "GPT-4o",
       "default": false,
       "maxInputTokens": 128000,
       "supportedFileTypes": ["pdf"],

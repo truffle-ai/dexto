@@ -68,17 +68,14 @@ Responsive behavior:
 ## Data Model & Sources
 
 - Registry: `src/core/llm/registry.ts` is the single source of truth for providers/models.
-  - We will optionally add UI-only metadata (tags, displayName) without breaking existing semantics.
+  - Implemented: `displayName` for all current models (UI prefers this; raw slug is fallback).
 - Key status: derived from `resolveApiKeyForProvider(provider)` in core.
 - Router support: via `getSupportedRoutersForProvider` / `isRouterSupportedForModel`.
 - File support badges: `supportedFileTypes` at model level.
 
 Optional registry enhancements (non-breaking):
 - `ModelInfo` optional fields:
-  - `displayName?: string`
   - `tags?: Array<'vision'|'image'|'audio'|'pdf'|'reasoning'|'realtime'|'tool_use'|'experimental'|'new'>`
-
-If we avoid touching core types, the UI can map tags/display names in a frontend map keyed by `provider/model`.
 
 ---
 
@@ -115,7 +112,7 @@ New endpoints (Express in `src/app/api/server.ts`):
   - Validates non-empty key, redacts logs.
 
 Notes:
-- Keep existing `/api/llm/providers`, `/api/llm/current`, `/api/llm/switch` unchanged.
+- `/api/llm/current` includes `displayName` for known models.
 - Ensure redaction middleware applies to `/api/llm/*` routes (already present).
 
 ---
@@ -154,8 +151,8 @@ CLI migration:
 
 New components in `src/app/webui/components`:
 
-- `ModelPickerModal.tsx`
-  - Fetches `/api/llm/catalog` and `/api/llm/current` on open.
+- `ModelPickerModal`
+  - Loads `/api/llm/catalog` on open; reads current model from `ChatContext` to avoid flicker.
   - Search input, Favorites section, Provider groups, Model cards.
   - Capability badges from `supportedFileTypes` and optional tags.
   - Click handler: if `hasApiKey` then POST `/api/llm/switch`; else open `ApiKeyModal`.
@@ -168,7 +165,7 @@ New components in `src/app/webui/components`:
   - On submit: POST `/api/llm/key`; then reattempt switch.
 
 Integration points:
-- Add an entry button in the top bar replacing the existing `LLMSelector` (full replacement).
+- Entry button placed in chat footer; replaces previous `ModelSelector` UX (old component to be removed).
 
 Local storage:
 - `dexto:modelFavorites` – string[] of `provider|model` pairs.
@@ -201,7 +198,7 @@ Local storage:
 No TypeScript type exports. Runtime validation only.
 
 - POST `/api/llm/switch` (existing) body (JSON): `{ "provider": "...", "model": "...", "router": "...", "apiKey": "?", "baseURL": "?", "sessionId": "?" }`
-- GET `/api/llm/current` (existing): `{ "config": { ... } }`
+- GET `/api/llm/current` (existing): `{ "config": { provider, model, displayName?, router?, baseURL?, ... } }`
 - GET `/api/llm/providers` (existing): superseded by `/api/llm/catalog` for the new UI
 
 ---
@@ -220,16 +217,17 @@ No TypeScript type exports. Runtime validation only.
 - [ ] Add minimal integration tests for both. (Script coverage exists; promote to Vitest + Supertest.)
 
 3) Frontend UI
-- [ ] Build `ModelPickerModal` (search, grouped view, favorites).
+- [x] Build `ModelPickerModal` (search, grouped view, favorites).
 - [x] Build `ApiKeyModal` (POST `/api/llm/key`, immediate retry).
-- [ ] Wire to `/api/llm/catalog`, `/api/llm/key`, `/api/llm/switch`.
-- [ ] Replace all usages of `LLMSelector` (deprecated `/api/llm/providers`) with the new modal and remove the old component.
+- [x] Wire to `/api/llm/catalog`, `/api/llm/key`, `/api/llm/switch`.
+- [ ] Remove legacy `ChatInput/ModelSelector` (no callers left) and its export.
 - [ ] Provider branding icons (SVGs in `public/` or icon set fallback).
 
 4) QA & Rollout
-- [ ] Manual flows: no-key → prompt → save → switch; existing key → switch; openai-compatible; router mismatch.
+- [x] Manual flows: no-key → prompt → save → switch; existing key → switch; router mismatch auto-select.
+- [ ] Manual flow: openai-compatible/custom baseURL (validation + switch).
 - [ ] Accessibility pass; mobile layout.
-- [ ] Replace old selector in all entry points and remove legacy code.
+- [ ] Remove legacy selector code.
 
 ---
 
