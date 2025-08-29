@@ -114,6 +114,7 @@ export class OpenAIService implements ILLMService {
                     // Add assistant message to history (include streamed prefix if any)
                     await this.contextManager.addAssistantMessage(finalContent, undefined, {
                         model: this.config.model,
+                        provider: this.config.provider,
                         router: 'in-built',
                         tokenUsage:
                             totalTokens > 0
@@ -134,6 +135,7 @@ export class OpenAIService implements ILLMService {
                     // Always emit token usage
                     this.sessionEventBus.emit('llmservice:response', {
                         content: finalContent,
+                        provider: this.config.provider,
                         model: this.config.model,
                         router: 'in-built',
                         tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
@@ -144,6 +146,7 @@ export class OpenAIService implements ILLMService {
                 // Add assistant message with tool calls to history
                 await this.contextManager.addAssistantMessage(message.content, message.tool_calls, {
                     model: this.config.model,
+                    provider: this.config.provider,
                     router: 'in-built',
                 });
 
@@ -228,6 +231,7 @@ export class OpenAIService implements ILLMService {
                 fullResponse || 'Task completed but reached maximum tool call iterations.';
             await this.contextManager.addAssistantMessage(finalResponse, undefined, {
                 model: this.config.model,
+                provider: this.config.provider,
                 router: 'in-built',
                 tokenUsage:
                     totalTokens > 0
@@ -248,6 +252,7 @@ export class OpenAIService implements ILLMService {
             // Always emit token usage
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
+                provider: this.config.provider,
                 model: this.config.model,
                 router: 'in-built',
                 tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
@@ -274,6 +279,7 @@ export class OpenAIService implements ILLMService {
             const errorResponse = `Error processing ${stream ? 'streaming ' : ''}request: ${errorMessage}`;
             await this.contextManager.addAssistantMessage(errorResponse, undefined, {
                 model: this.config.model,
+                provider: this.config.provider,
                 router: 'in-built',
             });
             return errorResponse;
@@ -291,7 +297,10 @@ export class OpenAIService implements ILLMService {
         // Fetching max tokens from LLM registry - default to configured max tokens if not found
         // Max tokens may not be found if the model is supplied by user
         try {
-            modelMaxInputTokens = getMaxInputTokensForModel('openai', this.config.model);
+            modelMaxInputTokens = getMaxInputTokensForModel(
+                this.config.provider,
+                this.config.model
+            );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
@@ -307,7 +316,7 @@ export class OpenAIService implements ILLMService {
 
         return {
             router: 'in-built',
-            provider: 'openai',
+            provider: this.config.provider,
             model: this.config.model,
             configuredMaxInputTokens: configuredMaxInputTokens,
             modelMaxInputTokens,
@@ -338,7 +347,7 @@ export class OpenAIService implements ILLMService {
                     tokensUsed,
                 } = await this.contextManager.getFormattedMessagesWithCompression(
                     { mcpManager: this.toolManager.getMcpManager() },
-                    { provider: 'openai' as const, model: this.config.model }
+                    { provider: this.config.provider, model: this.config.model }
                 );
 
                 logger.silly(
@@ -416,7 +425,7 @@ export class OpenAIService implements ILLMService {
                     tokensUsed,
                 } = await this.contextManager.getFormattedMessagesWithCompression(
                     { mcpManager: this.toolManager.getMcpManager() },
-                    { provider: 'openai' as const, model: this.config.model }
+                    { provider: this.config.provider, model: this.config.model }
                 );
 
                 logger.silly(

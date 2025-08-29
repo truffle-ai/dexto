@@ -15,6 +15,9 @@ interface ChatContextType {
   currentSessionId: string | null;
   switchSession: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string) => Promise<void>;
+  // Active LLM config for the current session (UI source of truth)
+  currentLLM: { provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null;
+  refreshCurrentLLM: () => Promise<void>;
   isWelcomeState: boolean;
   returnToWelcome: () => void;
   isStreaming: boolean;
@@ -47,6 +50,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
   const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError } = useChat(wsUrl);
+  const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
@@ -196,6 +200,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       
       setMessages(uiMessages);
+      // Update currentLLM from last assistant message if available
+      for (let i = uiMessages.length - 1; i >= 0; i--) {
+        const msg = uiMessages[i] as any;
+        if (msg.role === 'assistant' && msg.model) {
+          setCurrentLLM({ provider: (msg.model || '').includes('/') ? (msg.model as string).split('/')[0] : '', model: msg.model, router: msg.router });
+          break;
+        }
+      }
     } catch (error) {
       console.error('Error loading session history:', error);
       // On error, just clear messages and continue
@@ -221,6 +233,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
       await loadSessionHistory(sessionId);
+      // After loading history, sync backend LLM to last used in this session (if present)
+      try {
+        const histRes = await fetch(`/api/sessions/${sessionId}/history`);
+        if (histRes.ok) {
+          const data = await histRes.json();
+          const history = (data.history || []) as any[];
+          let applied = false;
+          for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            if (msg.role === 'assistant' && msg.model) {
+              const body: any = { provider: msg.provider || undefined, model: msg.model, router: msg.router || undefined, sessionId };
+              await fetch('/api/llm/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+              }).catch(() => {});
+              // Update UI state immediately
+              setCurrentLLM({ provider: msg.provider || '', model: msg.model, router: msg.router });
+              applied = true;
+              break;
+            }
+          }
+          if (!applied) {
+            // Fallback to server's effective config for this session
+            try {
+              const url = `/api/llm/current?sessionId=${sessionId}`;
+              const res = await fetch(url);
+              if (res.ok) {
+                const data = await res.json();
+                const cfg = data.config || data;
+                setCurrentLLM({ provider: cfg.provider, model: cfg.model, displayName: cfg.displayName, router: cfg.router, baseURL: cfg.baseURL });
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        // Best-effort sync; ignore errors
+      }
     } catch (error) {
       console.error('Error switching session:', error);
       throw error; // Re-throw so UI can handle the error
@@ -232,6 +282,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentSessionId(null);
     setIsWelcomeState(true);
     setMessages([]);
+    setCurrentLLM(null);
     
     // Reset the backend to no default session
     fetch('/api/sessions/null/load', {
@@ -245,8 +296,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Listen for config-related WebSocket events via DOM events
   useEffect(() => {
     const handleConfigChange = (event: any) => {
-      console.log('Config changed:', event.detail);
-      // Here you could trigger UI updates, but for now just log
+      // Attempt to update current LLM from event if payload includes it
+      const detail = event?.detail || {};
+      if (detail.config?.llm) {
+        const llm = detail.config.llm;
+        setCurrentLLM({ provider: llm.provider, model: llm.model, router: llm.router, baseURL: llm.baseURL });
+      }
     };
 
     const handleServersChange = (event: any) => {
@@ -288,6 +343,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isStreaming,
       setStreaming: setIsStreaming,
       websocket,
+      currentLLM,
+      refreshCurrentLLM: async () => {
+        try {
+          const url = currentSessionId ? `/api/llm/current?sessionId=${currentSessionId}` : '/api/llm/current';
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            const cfg = data.config || data;
+            setCurrentLLM({ provider: cfg.provider, model: cfg.model, displayName: cfg.displayName, router: cfg.router, baseURL: cfg.baseURL });
+          }
+        } catch {}
+      },
       // Error state
       activeError,
       clearError

@@ -241,6 +241,8 @@ export default function MessageList({ messages, activeError, onDismissError, out
 
         const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
 
+        // (Provider not available on Message type)
+
         return (
           <div key={msgKey} className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
             <div className={messageContainerClass}>
@@ -564,8 +566,11 @@ export default function MessageList({ messages, activeError, onDismissError, out
                       <TooltipContent>
                         <div className="space-y-1">
                           <div className="font-medium">Model: {msg.model}</div>
+                          {msg.provider && (
+                            <div className="font-medium">Provider: {msg.provider}</div>
+                          )}
                           {msg.router && (
-                            <div className="text-muted-foreground">Router: {msg.router}</div>
+                            <div className="font-medium">Router: {msg.router}</div>
                           )}
                         </div>
                       </TooltipContent>

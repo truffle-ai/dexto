@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
 import { toError } from '@core/utils/error-conversion.js';
 import { Issue } from '@core/errors/types.js';
-import type { LLMRouter } from '@core/llm/registry.js';
+import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -109,6 +109,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     };
     reasoning?: string;
     model?: string;
+    provider?: LLMProvider;
     router?: LLMRouter;
     sessionId?: string;
 }
@@ -263,6 +264,10 @@ export function useChat(wsUrl: string) {
                               })
                             : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
+                    const provider =
+                        typeof payload.provider === 'string'
+                            ? (payload.provider as LLMProvider)
+                            : undefined;
                     const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
@@ -279,12 +284,13 @@ export function useChat(wsUrl: string) {
                             // Update existing message with final content and metadata
                             // Ensure content is always a string for consistency
                             const finalContent = typeof text === 'string' ? text : '';
-                            const updatedMsg = {
+                            const updatedMsg: Message = {
                                 ...lastMsg,
                                 content: finalContent,
                                 tokenUsage,
                                 reasoning,
                                 model,
+                                provider,
                                 router,
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
@@ -301,6 +307,7 @@ export function useChat(wsUrl: string) {
                             tokenUsage,
                             reasoning,
                             model,
+                            provider,
                             router,
                             sessionId,
                         };

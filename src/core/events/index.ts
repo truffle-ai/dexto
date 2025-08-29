@@ -93,6 +93,7 @@ export interface AgentEventMap {
     'llmservice:response': {
         content: string;
         reasoning?: string;
+        provider?: LLMProvider;
         model?: string;
         router?: LLMRouter;
         tokenUsage?: {
@@ -232,6 +233,7 @@ export interface SessionEventMap {
     'llmservice:response': {
         content: string;
         reasoning?: string;
+        provider?: LLMProvider;
         model?: string;
         router?: LLMRouter;
         tokenUsage?: {

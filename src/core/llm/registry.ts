@@ -10,6 +10,7 @@ export interface ModelInfo {
     default?: boolean;
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
+    displayName?: string;
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
@@ -63,6 +64,9 @@ export const LLM_ROUTERS = ['vercel', 'in-built'] as const;
 
 export type LLMRouter = (typeof LLM_ROUTERS)[number];
 
+// Provider display names for UI
+// (UI can format provider and model display if needed.)
+
 // Central registry of supported LLM providers and their models
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
@@ -70,38 +74,73 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // TODO: might need to upgrade vercel to v5 to support these models
             {
                 name: 'gpt-5',
+                displayName: 'GPT-5',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
             },
             {
                 name: 'gpt-5-mini',
+                displayName: 'GPT-5 Mini',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
             },
             {
                 name: 'gpt-5-nano',
+                displayName: 'GPT-5 Nano',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
             },
-            { name: 'gpt-4.1', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
+            {
+                name: 'gpt-4.1',
+                displayName: 'GPT-4.1',
+                maxInputTokens: 1047576,
+                supportedFileTypes: ['pdf'],
+            },
             {
                 name: 'gpt-4.1-mini',
+                displayName: 'GPT-4.1 Mini',
                 maxInputTokens: 1047576,
                 default: true,
                 supportedFileTypes: ['pdf'],
             },
-            { name: 'gpt-4.1-nano', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-4o', maxInputTokens: 128000, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-4o-mini', maxInputTokens: 128000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'gpt-4.1-nano',
+                displayName: 'GPT-4.1 Nano',
+                maxInputTokens: 1047576,
+                supportedFileTypes: ['pdf'],
+            },
+            {
+                name: 'gpt-4o',
+                displayName: 'GPT-4o',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['pdf'],
+            },
+            {
+                name: 'gpt-4o-mini',
+                displayName: 'GPT-4o Mini',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['pdf'],
+            },
             {
                 name: 'gpt-4o-audio-preview',
+                displayName: 'GPT-4o Audio Preview',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf', 'audio'],
             },
-            { name: 'o4-mini', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o3', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o3-mini', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o1', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'o4-mini',
+                displayName: 'O4 Mini',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+            },
+            { name: 'o3', displayName: 'O3', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'o3-mini',
+                displayName: 'O3 Mini',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+            },
+            { name: 'o1', displayName: 'O1', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
         ],
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
@@ -115,31 +154,46 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     },
     anthropic: {
         models: [
-            { name: 'claude-4-opus-20250514', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'claude-4-opus-20250514',
+                displayName: 'Claude 4 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+            },
             {
                 name: 'claude-4-sonnet-20250514',
+                displayName: 'Claude 4 Sonnet',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf'],
             },
             {
                 name: 'claude-3-7-sonnet-20250219',
+                displayName: 'Claude 3.7 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
             },
             {
                 name: 'claude-3-5-sonnet-20240620',
+                displayName: 'Claude 3.5 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
             },
             {
                 name: 'claude-3-haiku-20240307',
+                displayName: 'Claude 3 Haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
             },
-            { name: 'claude-3-opus-20240229', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'claude-3-opus-20240229',
+                displayName: 'Claude 3 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+            },
             {
                 name: 'claude-3-sonnet-20240229',
+                displayName: 'Claude 3 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
             },
@@ -152,32 +206,38 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [
             {
                 name: 'gemini-2.5-pro',
+                displayName: 'Gemini 2.5 Pro',
                 maxInputTokens: 1048576,
                 default: true,
                 supportedFileTypes: ['pdf', 'audio'],
             },
             {
                 name: 'gemini-2.5-flash',
+                displayName: 'Gemini 2.5 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
             },
             {
                 name: 'gemini-2.0-flash',
+                displayName: 'Gemini 2.0 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
             },
             {
                 name: 'gemini-2.0-flash-lite',
+                displayName: 'Gemini 2.0 Flash Lite',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
             },
             {
                 name: 'gemini-1.5-pro-latest',
+                displayName: 'Gemini 1.5 Pro',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
             },
             {
                 name: 'gemini-1.5-flash-latest',
+                displayName: 'Gemini 1.5 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
             },
@@ -189,9 +249,15 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // https://console.groq.com/docs/models
     groq: {
         models: [
-            { name: 'gemma-2-9b-it', maxInputTokens: 8192, supportedFileTypes: [] },
+            {
+                name: 'gemma-2-9b-it',
+                displayName: 'Gemma 2 9B Instruct',
+                maxInputTokens: 8192,
+                supportedFileTypes: [],
+            },
             {
                 name: 'llama-3.3-70b-versatile',
+                displayName: 'Llama 3.3 70B Versatile',
                 maxInputTokens: 128000,
                 default: true,
                 supportedFileTypes: [],
@@ -204,9 +270,25 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // https://docs.x.ai/docs/models
     xai: {
         models: [
-            { name: 'grok-4', maxInputTokens: 256000, default: true, supportedFileTypes: [] },
-            { name: 'grok-3', maxInputTokens: 131072, supportedFileTypes: [] },
-            { name: 'grok-3-mini', maxInputTokens: 131072, supportedFileTypes: [] },
+            {
+                name: 'grok-4',
+                displayName: 'Grok 4',
+                maxInputTokens: 256000,
+                default: true,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'grok-3',
+                displayName: 'Grok 3',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'grok-3-mini',
+                displayName: 'Grok 3 Mini',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+            },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',
@@ -217,14 +299,35 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [
             {
                 name: 'command-a-03-2025',
+                displayName: 'Command A (03-2025)',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: [],
             },
-            { name: 'command-r-plus', maxInputTokens: 128000, supportedFileTypes: [] },
-            { name: 'command-r', maxInputTokens: 128000, supportedFileTypes: [] },
-            { name: 'command', maxInputTokens: 4000, supportedFileTypes: [] },
-            { name: 'command-light', maxInputTokens: 4000, supportedFileTypes: [] },
+            {
+                name: 'command-r-plus',
+                displayName: 'Command R+',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'command-r',
+                displayName: 'Command R',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'command',
+                displayName: 'Command',
+                maxInputTokens: 4000,
+                supportedFileTypes: [],
+            },
+            {
+                name: 'command-light',
+                displayName: 'Command Light',
+                maxInputTokens: 4000,
+                supportedFileTypes: [],
+            },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',

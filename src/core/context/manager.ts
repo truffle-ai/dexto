@@ -401,6 +401,7 @@ export class ContextManager<TMessage = unknown> {
             tokenUsage?: InternalMessage['tokenUsage'];
             reasoning?: string;
             model?: string;
+            provider?: import('../llm/registry.js').LLMProvider;
             router?: InternalMessage['router'];
         }
     ): Promise<void> {
@@ -416,6 +417,7 @@ export class ContextManager<TMessage = unknown> {
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
             ...(metadata?.model && { model: metadata.model }),
+            ...(metadata?.provider && { provider: metadata.provider }),
             ...(metadata?.router && { router: metadata.router }),
         });
     }

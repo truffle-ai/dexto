@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
-import { ChatInputContainer, ButtonFooter, StreamToggle, ModelSelector, AttachButton, RecordButton } from './ChatInput';
+import { ChatInputContainer, ButtonFooter, StreamToggle, AttachButton, RecordButton } from './ChatInput';
+import ModelPickerModal from './ModelPicker';
 import { Badge } from './ui/badge';
 import { 
   DropdownMenu,
@@ -574,12 +575,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onStreamingChange={setStreaming}
                   />
                   
-                  <ModelSelector
-                    currentModel={currentModel}
-                    isLoading={isLoadingModel}
-                    models={coreModels}
-                    onModelChange={handleModelSwitch}
-                  />
+                  <ModelPickerModal />
 
                   <Button
                     type="submit"

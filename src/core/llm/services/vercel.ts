@@ -317,6 +317,7 @@ export class VercelLLMService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
+                provider: this.config.provider,
                 model: this.getModelId(),
                 router: 'vercel',
                 tokenUsage: {
@@ -526,6 +527,7 @@ export class VercelLLMService implements ILLMService {
         this.sessionEventBus.emit('llmservice:response', {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
+            provider: this.config.provider,
             model: this.getModelId(),
             router: 'vercel',
             tokenUsage: {

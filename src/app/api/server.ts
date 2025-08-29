@@ -589,7 +589,18 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 ? agent.getEffectiveConfig(sessionId as string).llm
                 : agent.getCurrentLLMConfig();
 
-            res.json({ config: currentConfig });
+            // Attach displayName for the current model if available in registry
+            let displayName: string | undefined;
+            try {
+                const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
+                    (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
+                );
+                displayName = model?.displayName || undefined;
+            } catch (_) {
+                // ignore
+            }
+
+            res.json({ config: { ...currentConfig, ...(displayName ? { displayName } : {}) } });
         } catch (error) {
             return next(error);
         }
