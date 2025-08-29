@@ -33,6 +33,7 @@ import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
+import { safeStringify } from '@core/utils/safe-stringify.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -647,6 +648,7 @@ export class DextoAgent {
         this.ensureStarted();
 
         // Validate input using schema (single source of truth)
+        logger.debug(`DextoAgent.switchLLM: llmUpdates: ${safeStringify(llmUpdates)}`);
         const parseResult = LLMUpdatesSchema.safeParse(llmUpdates);
         if (!parseResult.success) {
             const validation = fail(zodToIssues(parseResult.error, 'error'));
@@ -666,6 +668,7 @@ export class DextoAgent {
 
         // Perform the actual LLM switch with validated config
         await this.performLLMSwitch(validatedConfig, sessionId);
+        logger.info(`DextoAgent.switchLLM: LLM switched to: ${safeStringify(validatedConfig)}`);
 
         // Log warnings if present
         const warnings = result.issues.filter((issue) => issue.severity === 'warning');
