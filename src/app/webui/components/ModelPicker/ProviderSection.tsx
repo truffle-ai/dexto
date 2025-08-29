@@ -89,14 +89,16 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
             <TooltipProvider key={model.name}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  <div
                     onClick={() => onUse(providerId, model)}
                     className={cn(
-                      "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-100",
+                      "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-100 cursor-pointer",
                       "hover:bg-accent hover:border-accent-foreground/20 hover:shadow-sm",
                       isActive && "bg-accent border-accent-foreground/20 shadow-sm ring-1 ring-accent-foreground/10",
                       !hasApiKey && "opacity-60"
                     )}
+                    role="button"
+                    tabIndex={0}
                   >
                     {/* Model Name and Badges */}
                     <div className="flex-1 text-left">
@@ -134,6 +136,7 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                         onToggleFavorite(providerId, model.name);
                       }}
                       className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
                     >
                       <Star className={cn("h-4 w-4", favorite && "fill-current text-yellow-500")} />
                     </button>
@@ -142,7 +145,7 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                     {isActive && (
                       <div className="absolute inset-y-0 left-0 w-0.5 bg-primary rounded-l-lg" />
                     )}
-                  </button>
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs">
                   <p className="text-xs">{description}</p>

@@ -31,7 +31,7 @@ interface CompactModelCardProps {
   isFavorite: boolean;
   isActive: boolean;
   onClick: () => void;
-  onToggleFavorite: (e: React.MouseEvent) => void;
+  onToggleFavorite: () => void;
 }
 
 function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive, onClick, onToggleFavorite }: CompactModelCardProps) {
@@ -49,14 +49,16 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
+          <div
             onClick={onClick}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-100",
+              "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-100 cursor-pointer",
               "hover:bg-accent hover:shadow-sm",
               isActive && "bg-accent shadow-sm ring-1 ring-accent-foreground/10",
               !hasApiKey && "opacity-60"
             )}
+            role="button"
+            tabIndex={0}
           >
             {/* Provider Logo */}
             <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
@@ -103,12 +105,16 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
             
             {/* Favorite Star */}
             <button
-              onClick={onToggleFavorite}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
               className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
             >
               <Star className={cn("h-4 w-4", isFavorite && "fill-current text-yellow-500")} />
             </button>
-          </button>
+          </div>
         </TooltipTrigger>
         <TooltipContent side="right" className="max-w-xs">
           <p className="text-xs">{description}</p>
@@ -355,10 +361,7 @@ export default function ModelPickerModal() {
                     isFavorite={true}
                     isActive={isCurrentModel(providerId, model.name)}
                     onClick={() => onPickModel(providerId, model)}
-                    onToggleFavorite={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(providerId, model.name);
-                    }}
+                    onToggleFavorite={() => toggleFavorite(providerId, model.name)}
                   />
                 ))}
               </div>
