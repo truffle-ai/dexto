@@ -214,15 +214,16 @@ No TypeScript type exports. Runtime validation only.
 - [x] Add unit tests (`api-key-store.test.ts`) that mock `getDextoEnvPath`, write to a temp `.env`, and assert `process.env` is updated. Do not call `applyLayeredEnvironmentLoading` inside the helper; keep it at app startup only.
 
 2) Backend endpoints
-- [ ] Add `GET /api/llm/catalog` (compose from `LLM_REGISTRY`, router utilities, and key status).
-- [ ] Add `POST /api/llm/key` (use `saveProviderApiKey`).
-- [ ] Ensure redaction middleware covers new routes; add validation with Zod.
-- [ ] Add minimal integration tests for both.
+- [x] Add `GET /api/llm/catalog` (compose from `LLM_REGISTRY`, router utilities, and key status).
+- [x] Add `POST /api/llm/key` (use `saveProviderApiKey`).
+- [x] Ensure redaction middleware covers new routes; add validation with Zod.
+- [ ] Add minimal integration tests for both. (Script coverage exists; promote to Vitest + Supertest.)
 
 3) Frontend UI
-- [ ] Build `ModelPickerModal` + `ApiKeyModal`.
+- [ ] Build `ModelPickerModal` (search, grouped view, favorites).
+- [x] Build `ApiKeyModal` (POST `/api/llm/key`, immediate retry).
 - [ ] Wire to `/api/llm/catalog`, `/api/llm/key`, `/api/llm/switch`.
-- [ ] Replace all usages of `LLMSelector` with the new modal and remove the old component.
+- [ ] Replace all usages of `LLMSelector` (deprecated `/api/llm/providers`) with the new modal and remove the old component.
 - [ ] Provider branding icons (SVGs in `public/` or icon set fallback).
 
 4) QA & Rollout
