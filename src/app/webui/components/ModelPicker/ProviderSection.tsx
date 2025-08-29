@@ -46,7 +46,11 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                 alt={`${providerId} logo`} 
                 width={20} 
                 height={20}
-                className="object-contain"
+                className={cn(
+                  "object-contain",
+                  // Apply invert filter in dark mode for monochrome logos
+                  providerId !== 'google' && providerId !== 'cohere' && "dark:invert dark:brightness-0 dark:contrast-200"
+                )}
               />
             ) : (
               <HelpCircle className="h-4 w-4 text-muted-foreground" />

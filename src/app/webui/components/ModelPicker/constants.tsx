@@ -10,7 +10,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
   groq: "/logos/groq.svg",
   xai: "/logos/grok.svg",
   'openai-compatible': "/logos/openai.svg",
-  cohere: "/logos/cohere-color.svg", // No logo file yet
+  cohere: "/logos/cohere-color.svg",
 };
 
 // Model capability icons - single source of truth
