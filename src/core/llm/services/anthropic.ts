@@ -57,7 +57,7 @@ export class AnthropicService implements ILLMService {
         );
     }
 
-    getAllTools(): Promise<any> {
+    getAllTools(): Promise<ToolSet> {
         return this.toolManager.getAllTools();
     }
 
@@ -65,7 +65,7 @@ export class AnthropicService implements ILLMService {
         textInput: string,
         imageData?: ImageData,
         fileData?: FileData,
-        _stream?: boolean
+        stream?: boolean
     ): Promise<string> {
         // Add user message with optional image and file data
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
@@ -116,24 +116,29 @@ export class AnthropicService implements ILLMService {
                 logger.debug(`Messages: ${JSON.stringify(formattedMessages, null, 2)}`);
                 logger.debug(`Estimated tokens being sent to Anthropic: ${tokensUsed}`);
 
-                const response = await this.anthropic.messages.create({
-                    model: this.config.model,
-                    messages: formattedMessages,
-                    ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
-                    tools: formattedTools,
-                    max_tokens: 4096,
-                });
+                // Get response with appropriate method
+                const { message, usage } = stream
+                    ? await this.getAnthropicStreamingResponse(
+                          formattedMessages,
+                          formattedSystemPrompt || null,
+                          formattedTools
+                      )
+                    : await this.getAnthropicResponse(
+                          formattedMessages,
+                          formattedSystemPrompt || null,
+                          formattedTools
+                      );
 
                 // Track token usage
-                if (response.usage) {
-                    totalTokens += response.usage.input_tokens + response.usage.output_tokens;
+                if (usage) {
+                    totalTokens += usage.input_tokens + usage.output_tokens;
                 }
 
-                // Extract text content and tool uses
+                // Extract text content and tool uses from message
                 let textContent = '';
                 const toolUses = [];
 
-                for (const content of response.content) {
+                for (const content of message.content) {
                     if (content.type === 'text') {
                         textContent += content.text;
                     } else if (content.type === 'tool_use') {
@@ -154,10 +159,18 @@ export class AnthropicService implements ILLMService {
                     }));
 
                     // Add assistant message with all tool calls
-                    await this.contextManager.addAssistantMessage(textContent, formattedToolCalls);
+                    await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
+                        model: this.config.model,
+                        router: 'in-built',
+                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+                    });
                 } else {
                     // Add regular assistant message
-                    await this.contextManager.addAssistantMessage(textContent);
+                    await this.contextManager.addAssistantMessage(textContent, undefined, {
+                        model: this.config.model,
+                        router: 'in-built',
+                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+                    });
                 }
 
                 // If no tools were used, we're done
@@ -172,7 +185,8 @@ export class AnthropicService implements ILLMService {
                     this.sessionEventBus.emit('llmservice:response', {
                         content: fullResponse,
                         model: this.config.model,
-                        tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                        router: 'in-built',
+                        ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     });
                     return fullResponse;
                 }
@@ -232,8 +246,7 @@ export class AnthropicService implements ILLMService {
                     }
                 }
 
-                // Notify thinking for next iteration
-                this.sessionEventBus.emit('llmservice:thinking');
+                // Continue to next iteration without additional thinking notification
             }
 
             // If we reached max iterations
@@ -247,7 +260,8 @@ export class AnthropicService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: fullResponse,
                 model: this.config.model,
-                tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                router: 'in-built',
+                ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             });
             return (
                 fullResponse ||
@@ -284,9 +298,13 @@ export class AnthropicService implements ILLMService {
         };
     }
 
-    private formatToolsForClaude(tools: ToolSet): any[] {
+    private formatToolsForClaude(tools: ToolSet): Anthropic.Tool[] {
         return Object.entries(tools).map(([toolName, tool]) => {
-            const input_schema: { type: string; properties: any; required: string[] } = {
+            const input_schema: {
+                type: 'object';
+                properties: Record<string, any>;
+                required: string[];
+            } = {
                 type: 'object',
                 properties: {},
                 required: [],
@@ -295,7 +313,7 @@ export class AnthropicService implements ILLMService {
             // Map tool parameters to JSON Schema format
             if (tool.parameters) {
                 // The actual parameters structure appears to be a JSON Schema object
-                const jsonSchemaParams = tool.parameters as any;
+                const jsonSchemaParams = tool.parameters as Record<string, any>;
 
                 if (jsonSchemaParams.type === 'object' && jsonSchemaParams.properties) {
                     input_schema.properties = jsonSchemaParams.properties;
@@ -315,10 +333,146 @@ export class AnthropicService implements ILLMService {
 
             return {
                 name: toolName,
-                description: tool.description,
+                description: tool.description || '',
                 input_schema: input_schema,
             };
         });
+    }
+
+    private async getAnthropicResponse(
+        formattedMessages: MessageParam[],
+        formattedSystemPrompt: string | null,
+        formattedTools: Anthropic.Tool[]
+    ): Promise<{
+        message: Anthropic.Messages.Message;
+        usage?: Anthropic.Messages.Usage;
+    }> {
+        const response = await this.anthropic.messages.create({
+            model: this.config.model,
+            messages: formattedMessages,
+            ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
+            tools: formattedTools,
+            max_tokens: this.config.maxOutputTokens ?? 4096,
+            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
+        });
+
+        return { message: response, usage: response.usage };
+    }
+
+    private async getAnthropicStreamingResponse(
+        formattedMessages: MessageParam[],
+        formattedSystemPrompt: string | null,
+        formattedTools: Anthropic.Tool[]
+    ): Promise<{
+        message: Anthropic.Messages.Message;
+        usage?: Anthropic.Messages.Usage;
+    }> {
+        const stream = await this.anthropic.messages.create({
+            model: this.config.model,
+            messages: formattedMessages,
+            ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
+            tools: formattedTools,
+            max_tokens: this.config.maxOutputTokens ?? 4096,
+            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
+            stream: true,
+        });
+
+        // Collect streaming response
+        let content: Anthropic.Messages.ContentBlock[] = [];
+        let usage: Anthropic.Messages.Usage | undefined;
+        let textAccumulator = '';
+        let jsonAccumulators: Record<number, string> = {}; // Track JSON for each content block
+
+        for await (const chunk of stream) {
+            if (chunk.type === 'content_block_start') {
+                content.push(chunk.content_block);
+                // Reset text accumulator for new blocks
+                if (chunk.content_block.type === 'text') {
+                    textAccumulator = '';
+                } else if (chunk.content_block.type === 'tool_use') {
+                    // Initialize JSON accumulator for tool use block
+                    jsonAccumulators[chunk.index] = '';
+                }
+            } else if (chunk.type === 'content_block_delta') {
+                if (chunk.delta.type === 'text_delta') {
+                    textAccumulator += chunk.delta.text;
+                    // Emit chunk event for real-time streaming
+                    this.sessionEventBus.emit('llmservice:chunk', {
+                        type: 'text',
+                        content: chunk.delta.text,
+                        isComplete: false,
+                    });
+
+                    // Update the text content block
+                    const lastContent = content[content.length - 1];
+                    if (lastContent && lastContent.type === 'text') {
+                        lastContent.text = textAccumulator;
+                    }
+                } else if (chunk.delta.type === 'input_json_delta') {
+                    // Accumulate JSON string for tool use input
+                    const blockIndex = chunk.index;
+                    if (!(blockIndex in jsonAccumulators)) {
+                        jsonAccumulators[blockIndex] = '';
+                    }
+
+                    jsonAccumulators[blockIndex] += chunk.delta.partial_json || '';
+
+                    // Update the tool use content block
+                    const toolContent = content[blockIndex];
+                    if (toolContent && toolContent.type === 'tool_use') {
+                        // Try to parse the accumulated JSON
+                        try {
+                            const jsonStr = jsonAccumulators[blockIndex];
+                            if (jsonStr) {
+                                toolContent.input = JSON.parse(jsonStr);
+                            }
+                        } catch {
+                            // JSON is still incomplete, keep accumulating
+                            logger.debug(
+                                `Accumulating JSON for tool ${toolContent.name}: ${jsonAccumulators[blockIndex]}`
+                            );
+                        }
+                    }
+                }
+            } else if (chunk.type === 'message_delta' && chunk.usage) {
+                usage = {
+                    input_tokens: usage?.input_tokens || 0,
+                    output_tokens: chunk.usage.output_tokens || 0,
+                    cache_creation_input_tokens: usage?.cache_creation_input_tokens || null,
+                    cache_read_input_tokens: usage?.cache_read_input_tokens || null,
+                };
+            } else if (chunk.type === 'message_start' && chunk.message.usage) {
+                usage = chunk.message.usage;
+            }
+        }
+
+        // Emit completion chunk
+        if (textAccumulator) {
+            this.sessionEventBus.emit('llmservice:chunk', {
+                type: 'text',
+                content: '',
+                isComplete: true,
+            });
+        }
+
+        // Construct the final message
+        const message: Anthropic.Messages.Message = {
+            id: 'streaming_response',
+            type: 'message',
+            role: 'assistant',
+            content,
+            model: this.config.model,
+            stop_reason: null,
+            stop_sequence: null,
+            usage: usage || {
+                input_tokens: 0,
+                output_tokens: 0,
+                cache_creation_input_tokens: null,
+                cache_read_input_tokens: null,
+            },
+        };
+
+        return { message, ...(usage && { usage }) };
     }
 
     /**

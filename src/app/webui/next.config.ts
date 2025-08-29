@@ -39,8 +39,8 @@ const nextConfig: NextConfig = {
         // Map requested .js to .ts/.tsx during development/build
         // while still allowing actual .js files
         // This supports our .js import convention in TS source files
-        (config.resolve as any).extensionAlias = {
-            ...(config.resolve as any).extensionAlias,
+        config.resolve.extensionAlias = {
+            ...(config.resolve.extensionAlias || {}),
             '.js': ['.ts', '.tsx', '.js'],
             '.mjs': ['.mts', '.mjs'],
         };
