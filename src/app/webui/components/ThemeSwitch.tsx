@@ -1,11 +1,24 @@
 import * as Switch from '@radix-ui/react-switch';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
+import { useState, useEffect } from 'react';
 
 export function ThemeSwitch() {
   const { theme, toggleTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isDark = theme === 'dark';
+
+  // Don't render switch until after hydration to avoid mismatch
+  if (!mounted) {
+    return (
+      <div className="w-12 h-6 bg-gray-300 dark:bg-gray-700 rounded-full" />
+    );
+  }
 
   return (
     <Switch.Root
