@@ -20,10 +20,10 @@ sidebar_position: 4
 }
 ```
 
-### List LLM Providers
-*Gets a list of all available LLM providers and their models.*
+### LLM Catalog
+*Providers, models, capabilities, and API key status.*
 
-<p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/llm/providers</code></p>
+<p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/llm/catalog</code></p>
 
 #### Responses
 **Success (200)**
@@ -32,18 +32,32 @@ sidebar_position: 4
   "providers": {
     "openai": {
       "name": "Openai",
-      "models": ["gpt-4o", "gpt-4-turbo"],
+      "hasApiKey": false,
+      "primaryEnvVar": "OPENAI_API_KEY",
       "supportedRouters": ["in-built", "vercel"],
-      "supportsBaseURL": true
-    },
-    "cohere": {
-      "name": "Cohere",
-      "models": ["command-r-plus", "command-r", "command", "command-light"],
-      "supportedRouters": ["vercel"],
-      "supportsBaseURL": false
+      "supportsBaseURL": false,
+      "models": [
+        {"name":"gpt-4o","default":false,"maxInputTokens":128000,"supportedFileTypes":["pdf"]}
+      ]
     }
   }
 }
+```
+
+### Save Provider API Key
+*Stores an API key for a provider in .env and makes it available immediately.*
+
+<p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/llm/key</code></p>
+
+#### Request Body
+```json
+{"provider":"openai","apiKey":"sk-..."}
+```
+
+#### Responses
+**Success (200)**
+```json
+{"ok":true,"provider":"openai","envVar":"OPENAI_API_KEY"}
 ```
 
 ### Switch LLM

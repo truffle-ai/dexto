@@ -592,38 +592,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
-    // Get available LLM providers and models
-    app.get('/api/llm/providers', async (req, res, next) => {
-        try {
-            // Build providers object from the LLM registry
-            const providers: Record<
-                string,
-                {
-                    name: string;
-                    models: string[];
-                    supportedRouters: string[];
-                    supportsBaseURL: boolean;
-                }
-            > = {};
-
-            for (const provider of LLM_PROVIDERS) {
-                const providerInfo = LLM_REGISTRY[provider];
-                // Convert provider key to display name
-                const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
-
-                providers[provider] = {
-                    name: displayName,
-                    models: providerInfo.models.map((model) => model.name),
-                    supportedRouters: getSupportedRoutersForProvider(provider),
-                    supportsBaseURL: supportsBaseURL(provider),
-                };
-            }
-
-            res.json({ providers });
-        } catch (error: any) {
-            return next(error);
-        }
-    });
+    // (Deprecated) /api/llm/providers has been replaced by /api/llm/catalog
 
     // LLM Catalog: providers, models, and API key presence
     app.get('/api/llm/catalog', async (req, res, next) => {

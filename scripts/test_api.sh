@@ -47,7 +47,8 @@ main() {
   local failures=0
 
   run_test "GET /health" GET "/health" 200 || failures=$((failures+1))
-  run_test "GET /api/llm/providers" GET "/api/llm/providers" 200 || failures=$((failures+1))
+  # Catalog replaces legacy providers endpoint
+  run_test "GET /api/llm/catalog" GET "/api/llm/catalog" 200 || failures=$((failures+1))
   run_test "GET /api/llm/catalog" GET "/api/llm/catalog" 200 || failures=$((failures+1))
   run_test "GET /api/llm/current" GET "/api/llm/current" 200 || failures=$((failures+1))
 
@@ -99,8 +100,8 @@ main() {
   base_temp=$(json_get "${base_resp}" '.config.temperature')
 
   # Determine a target router for this provider
-  prov_resp=$(curl -sS "${BASE_URL}/api/llm/providers")
-  routers=$(json_get "${prov_resp}" ".providers.${base_provider}.supportedRouters")
+  cat_for_router=$(curl -sS "${BASE_URL}/api/llm/catalog")
+  routers=$(json_get "${cat_for_router}" ".providers.${base_provider}.supportedRouters")
   # Pick the other router if available; otherwise reuse current
   target_router="${base_router}"
   if echo "${routers}" | grep -q "in-built" && [ "${base_router}" != "in-built" ]; then
