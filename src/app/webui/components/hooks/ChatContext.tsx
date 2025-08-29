@@ -52,6 +52,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError } = useChat(wsUrl);
   const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
+  // On initial mount (welcome state), fetch default LLM to populate UI label
+  useEffect(() => {
+    if (!currentLLM) {
+      // Fire and forget; UI can still render if this fails
+      (async () => {
+        try {
+          const res = await fetch('/api/llm/current');
+          if (res.ok) {
+            const data = await res.json();
+            const cfg = data.config || data;
+            setCurrentLLM({
+              provider: cfg.provider,
+              model: cfg.model,
+              displayName: cfg.displayName,
+              router: cfg.router,
+              baseURL: cfg.baseURL,
+            });
+          }
+        } catch {}
+      })();
+    }
+  }, []);
+
+  // Helper to fetch current LLM (session-scoped if applicable)
+  const fetchCurrentLLM = useCallback(async () => {
+    try {
+      const url = currentSessionId ? `/api/llm/current?sessionId=${currentSessionId}` : '/api/llm/current';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config || data;
+        setCurrentLLM({
+          provider: cfg.provider,
+          model: cfg.model,
+          displayName: cfg.displayName,
+          router: cfg.router,
+          baseURL: cfg.baseURL,
+        });
+      }
+    } catch {
+      // ignore fetch errors here; UI can still operate
+    }
+  }, [currentSessionId]);
+
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
     try {
@@ -98,6 +142,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false);
+
+      // Prime currentLLM for this session to avoid UI flicker
+      await fetchCurrentLLM();
     }
     
     if (sessionId) {
@@ -344,17 +391,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setStreaming: setIsStreaming,
       websocket,
       currentLLM,
-      refreshCurrentLLM: async () => {
-        try {
-          const url = currentSessionId ? `/api/llm/current?sessionId=${currentSessionId}` : '/api/llm/current';
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            const cfg = data.config || data;
-            setCurrentLLM({ provider: cfg.provider, model: cfg.model, displayName: cfg.displayName, router: cfg.router, baseURL: cfg.baseURL });
-          }
-        } catch {}
-      },
+      refreshCurrentLLM: fetchCurrentLLM,
       // Error state
       activeError,
       clearError
@@ -370,4 +407,6 @@ export function useChatContext(): ChatContextType {
     throw new Error('useChatContext must be used within a ChatProvider');
   }
   return context;
-} 
+}
+
+// Initialize default LLM on mount to avoid empty label in welcome state

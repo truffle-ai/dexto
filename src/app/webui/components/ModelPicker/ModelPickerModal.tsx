@@ -20,7 +20,6 @@ export default function ModelPickerModal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<Record<string, ProviderCatalog>>({});
-  const [current, setCurrent] = useState<CurrentLLMConfigResponse | null>(null);
   const [search, setSearch] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | "">("");
@@ -35,30 +34,16 @@ export default function ModelPickerModal() {
 
   const { currentSessionId, currentLLM, refreshCurrentLLM } = useChatContext();
 
-  // Load current config so the trigger shows the correct label initially
+  // When opening, initialize advanced panel inputs from current session LLM
   useEffect(() => {
-    let cancelled = false;
-    async function loadCurrent() {
-      try {
-        const url = currentSessionId ? `/api/llm/current?sessionId=${currentSessionId}` : '/api/llm/current';
-        const res = await fetch(url);
-        if (res.ok) {
-          const cc = (await res.json()) as CurrentLLMConfigResponse;
-          if (!cancelled) {
-            setCurrent(cc);
-            setSelectedRouter((cc.config.router as SupportedRouter) || 'vercel');
-            setBaseURL(cc.config.baseURL || '');
-          }
-        }
-      } catch {
-        // ignore
-      }
+    if (!open) return;
+    if (currentLLM) {
+      setSelectedRouter((currentLLM.router as SupportedRouter) || 'vercel');
+      setBaseURL(currentLLM.baseURL || '');
     }
-    loadCurrent();
-    return () => { cancelled = true; };
-  }, [currentSessionId]);
+  }, [open, currentLLM]);
 
-  // Load catalog (and refresh current) when opening
+  // Load catalog when opening
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -66,21 +51,11 @@ export default function ModelPickerModal() {
       setLoading(true);
       setError(null);
       try {
-        const currentUrl = currentSessionId ? `/api/llm/current?sessionId=${currentSessionId}` : '/api/llm/current';
-        const [catRes, curRes] = await Promise.all([
-          fetch('/api/llm/catalog'),
-          fetch(currentUrl),
-        ]);
+        const catRes = await fetch('/api/llm/catalog');
         if (!cancelled) {
           if (catRes.ok) {
             const body = (await catRes.json()) as CatalogResponse;
             setProviders(body.providers || {});
-          }
-          if (curRes.ok) {
-            const cc = (await curRes.json()) as CurrentLLMConfigResponse;
-            setCurrent(cc);
-            setSelectedRouter((cc.config.router as SupportedRouter) || 'vercel');
-            setBaseURL(cc.config.baseURL || '');
           }
         }
       } catch (e) {
@@ -91,7 +66,7 @@ export default function ModelPickerModal() {
     }
     load();
     return () => { cancelled = true; };
-  }, [open, currentSessionId]);
+  }, [open]);
 
   const favorites = useMemo(() => {
     try {
@@ -125,7 +100,7 @@ export default function ModelPickerModal() {
   }
 
   function pickRouterFor(providerId: string, model: ModelInfo): SupportedRouter {
-    const currentRouter = (current?.config.router as SupportedRouter) || 'vercel';
+    const currentRouter = (currentLLM?.router as SupportedRouter) || 'vercel';
     const providerRouters = providers[providerId]?.supportedRouters ?? ['vercel'];
     const modelRouters = model.supportedRouters ?? providerRouters;
     const preferred = selectedRouter || currentRouter;
@@ -154,11 +129,8 @@ export default function ModelPickerModal() {
         setError(msg);
         return;
       }
-      // Update local and context config immediately so the trigger label updates
-      if (json && json.config) {
-        setCurrent({ config: json.config });
-        await refreshCurrentLLM();
-      }
+      // Update context config immediately so the trigger label updates
+      await refreshCurrentLLM();
       setSuccess(`Switched to ${providerId}/${model.name}`);
       setTimeout(() => setOpen(false), 800);
     } catch {
@@ -204,15 +176,7 @@ export default function ModelPickerModal() {
   }
 
   const providerIds = Object.keys(providers);
-  const triggerLabel = currentLLM?.displayName
-    ? currentLLM.displayName
-    : current?.config.displayName
-    ? current.config.displayName
-    : currentLLM?.model
-    ? currentLLM.model
-    : current?.config.model
-    ? current.config.model
-    : 'Choose Model';
+  const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
 
   return (
     <>
