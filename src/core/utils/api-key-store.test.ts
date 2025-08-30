@@ -11,8 +11,6 @@ describe('api-key-store', () => {
     let tempEnvPath: string;
     let apiKeyStore: typeof import('./api-key-store.js');
     let pathSpy: MockInstance;
-    let prevOpenAI: string | undefined;
-    let prevOpenAIAlt: string | undefined;
 
     beforeEach(async () => {
         vi.clearAllMocks();
@@ -26,9 +24,6 @@ describe('api-key-store', () => {
         // Import module under test after mocks are set up
         apiKeyStore = await import('./api-key-store.js');
 
-        // Ensure a clean env for assertions that depend on absence of keys
-        prevOpenAI = process.env.OPENAI_API_KEY;
-        prevOpenAIAlt = process.env.OPENAI_KEY;
         delete process.env.OPENAI_API_KEY;
         delete process.env.OPENAI_KEY;
     });

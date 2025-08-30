@@ -335,27 +335,10 @@ export class DextoAgent {
             // Validate input and throw if invalid
             ensureOk(validation);
 
-            let session: ChatSession;
-
-            if (sessionId) {
-                // Use specific session or create it if it doesn't exist
-                const existingSession = await this.sessionManager.getSession(sessionId);
-                session = existingSession || (await this.sessionManager.createSession(sessionId));
-            } else {
-                // Use loaded default session for backward compatibility
-                if (
-                    !this.defaultSession ||
-                    this.defaultSession.id !== this.currentDefaultSessionId
-                ) {
-                    this.defaultSession = await this.sessionManager.createSession(
-                        this.currentDefaultSessionId
-                    );
-                    logger.debug(
-                        `DextoAgent.run: created/loaded default session ${this.defaultSession.id}`
-                    );
-                }
-                session = this.defaultSession;
-            }
+            // Resolve the concrete ChatSession for the target session id
+            const existingSession = await this.sessionManager.getSession(targetSessionId);
+            const session: ChatSession =
+                existingSession || (await this.sessionManager.createSession(targetSessionId));
 
             logger.debug(
                 `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`

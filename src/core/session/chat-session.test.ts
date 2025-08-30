@@ -49,7 +49,6 @@ describe('ChatSession', () => {
     let chatSession: ChatSession;
     let mockServices: any;
     let mockHistoryProvider: any;
-    let mockContextManager: any;
     let mockLLMService: any;
     let mockTokenizer: any;
     let mockFormatter: any;
@@ -73,19 +72,6 @@ describe('ChatSession', () => {
             getMessages: vi.fn().mockResolvedValue([]),
             clearHistory: vi.fn().mockResolvedValue(undefined),
             getMessageCount: vi.fn().mockResolvedValue(0),
-        };
-
-        // Mock message manager
-        mockContextManager = {
-            addUserMessage: vi.fn(),
-            processLLMResponse: vi.fn(),
-            getHistory: vi.fn().mockResolvedValue([]),
-            clearHistory: vi.fn().mockResolvedValue(undefined),
-            resetConversation: vi.fn().mockResolvedValue(undefined),
-            updateConfig: vi.fn(),
-            getMessageCount: vi.fn().mockReturnValue(0),
-            getTokenCount: vi.fn().mockResolvedValue(100),
-            switchLLM: vi.fn().mockResolvedValue(undefined),
         };
 
         // Mock LLM service

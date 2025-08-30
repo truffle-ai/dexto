@@ -11,7 +11,6 @@ import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
-import { LLMProvider } from '../llm/registry.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
 /**

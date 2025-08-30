@@ -116,7 +116,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
             expect(result).toEqual({
                 mode: 'event-based',
-                timeout: 30000,
+                timeout: 120000,
                 allowedToolsStorage: 'storage',
             });
         });
@@ -125,7 +125,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const result1 = ToolConfirmationConfigSchema.parse({ mode: 'auto-approve' });
             expect(result1).toEqual({
                 mode: 'auto-approve',
-                timeout: 30000,
+                timeout: 120000,
                 allowedToolsStorage: 'storage',
             });
 
@@ -139,7 +139,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
             expect(result3).toEqual({
                 mode: 'event-based',
-                timeout: 30000,
+                timeout: 120000,
                 allowedToolsStorage: 'memory',
             });
         });
