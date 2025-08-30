@@ -198,7 +198,7 @@ function validateFileInput(
  */
 function validateImageInput(
     imageData: ImageData,
-    _config: ValidationLLMConfig
+    config: ValidationLLMConfig
 ): NonNullable<ValidationData['imageValidation']> {
     logger.info(`Validating image input: ${imageData.mimeType}`);
 
@@ -210,24 +210,36 @@ function validateImageInput(
         };
     }
 
-    // Basic MIME type validation for images
-    // Extract base MIME type by removing parameters (e.g., "image/jpeg;quality=85" -> "image/jpeg")
-    const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (imageData.mimeType) {
-        const baseMimeType =
-            imageData.mimeType.toLowerCase().split(';')[0]?.trim() ||
-            imageData.mimeType.toLowerCase();
-        if (!supportedImageTypes.includes(baseMimeType)) {
-            return {
-                isSupported: false,
-                error: `Unsupported image format: ${imageData.mimeType}`,
-            };
+    // Resolve image MIME type from either explicit field or data URL
+    // Example: callers may only provide a data URL like
+    // image: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..."
+    // without setting imageData.mimeType. In that case, parse the MIME from the prefix.
+    let resolvedMime: string | undefined = imageData.mimeType?.toLowerCase();
+    if (!resolvedMime && typeof imageData.image === 'string') {
+        const dataUrlMatch = /^data:([^;]+);base64,/i.exec(imageData.image);
+        if (dataUrlMatch && dataUrlMatch[1]) {
+            resolvedMime = dataUrlMatch[1].toLowerCase();
         }
     }
 
-    // For now, assume images are supported (existing behavior)
-    // This can be expanded later with proper image capability validation
+    if (!resolvedMime) {
+        return { isSupported: false, error: 'Missing image MIME type' };
+    }
+
+    if (!config.model) {
+        return {
+            isSupported: false,
+            error: 'Model must be specified for image capability validation',
+        };
+    }
+
+    // Extract base MIME type by removing parameters (e.g., "image/jpeg;quality=85" -> "image/jpeg")
+    const baseMimeType = resolvedMime.split(';')[0]?.trim() || resolvedMime;
+
+    // Delegate both allowed-MIME and model capability to registry helper
+    const res = validateModelFileSupport(config.provider, config.model, baseMimeType);
     return {
-        isSupported: true,
+        isSupported: res.isSupported,
+        ...(res.error ? { error: res.error } : {}),
     };
 }

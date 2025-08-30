@@ -264,10 +264,9 @@ describe('File Support Functions', () => {
     describe('getSupportedFileTypesForModel', () => {
         it('returns correct file types for models with specific support', () => {
             expect(getSupportedFileTypesForModel('openai', 'gpt-4o-audio-preview')).toEqual([
-                'pdf',
                 'audio',
             ]);
-            expect(getSupportedFileTypesForModel('openai', 'gpt-4o')).toEqual(['pdf']);
+            expect(getSupportedFileTypesForModel('openai', 'gpt-4o')).toEqual(['pdf', 'image']);
         });
 
         it('returns empty array for models without file support', () => {

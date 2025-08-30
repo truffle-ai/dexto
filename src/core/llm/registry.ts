@@ -841,7 +841,7 @@ export function modelSupportsFileType(
 }
 
 /**
- * Validates if file data is supported by a specific model.
+ * Validates if file data is supported by a specific model by checking the mimetype
  * @param provider The LLM provider name.
  * @param model The model name.
  * @param mimeType The MIME type of the file to validate.
