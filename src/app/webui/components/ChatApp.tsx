@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { ThemeSwitch } from './ThemeSwitch';
+import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 
@@ -445,6 +446,7 @@ export default function ChatApp() {
             returnToWelcome={returnToWelcome}
             variant="inline"
             onSearchOpen={() => setSearchOpen(true)}
+            onNewChat={createAndSwitchSession}
           />
         )}
       </div>
@@ -485,23 +487,9 @@ export default function ChatApp() {
                 </TooltipContent>
               </Tooltip>
               
-              {/* New Chat Button - Only show when panel is closed */}
+              {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={createAndSwitchSession}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    New Chat (⌘K)
-                  </TooltipContent>
-                </Tooltip>
+                <NewChatButton onClick={createAndSwitchSession} />
               )}
               
               {/* TODO: improve the non text part of logo */}

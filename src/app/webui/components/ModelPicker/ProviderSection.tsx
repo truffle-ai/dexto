@@ -70,7 +70,7 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                   <Badge variant="destructive" className="text-xs cursor-default">Key Required</Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Click any {provider.name} model to set up the API key
+                  Click any {provider.name} model to setup the API key
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
