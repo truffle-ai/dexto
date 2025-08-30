@@ -130,7 +130,7 @@ export interface ErrorMessage {
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-export function useChat(wsUrl: string) {
+export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -139,6 +139,19 @@ export function useChat(wsUrl: string) {
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
     // Separate error state - not part of message flow
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
+
+    // Track the active session id from the host (ChatContext)
+    const activeSessionGetterRef = useRef<typeof getActiveSessionId>();
+    useEffect(() => {
+        activeSessionGetterRef.current = getActiveSessionId;
+    }, [getActiveSessionId]);
+
+    const isForActiveSession = useCallback((sessionId?: string): boolean => {
+        if (!sessionId) return false;
+        const getter = activeSessionGetterRef.current;
+        const current = getter ? getter() : null;
+        return !!current && sessionId === current;
+    }, []);
 
     useEffect(() => {
         const ws = new globalThis.WebSocket(wsUrl);
@@ -172,6 +185,8 @@ export function useChat(wsUrl: string) {
             const payload = msg.data || {};
             switch (msg.event) {
                 case 'thinking':
+                    // Only handle events for the active session
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     setMessages((ms) => [
                         ...ms,
                         {
@@ -183,6 +198,7 @@ export function useChat(wsUrl: string) {
                     ]);
                     break;
                 case 'chunk': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     // All chunk types use payload.content
                     const text = typeof payload.content === 'string' ? payload.content : '';
                     if (!text) break;
@@ -251,6 +267,7 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'response': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     const text = typeof payload.text === 'string' ? payload.text : '';
                     const reasoning =
                         typeof payload.reasoning === 'string' ? payload.reasoning : undefined;
@@ -333,10 +350,12 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'conversationReset':
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     setMessages([]);
                     lastUserMessageIdRef.current = null;
                     break;
                 case 'toolCall': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const args = payload.args;
                     setMessages((ms) => [
@@ -353,6 +372,7 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'toolResult': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const result = payload.result;
 
@@ -437,6 +457,7 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'error': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     // TODO: Replace untyped WebSocket payloads with a shared, typed schema
                     // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
                     // use proper type guards instead of manual payload inspection here.
