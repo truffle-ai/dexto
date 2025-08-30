@@ -5,7 +5,7 @@ import type { LLMProvider } from "../../../../core/llm/registry.js";
 // Provider logo file mapping - single source of truth
 export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
   openai: "/logos/openai.svg",
-  anthropic: "/logos/anthropic.svg",
+  anthropic: "/logos/claude-color.svg",
   google: "/logos/gemini-color.svg",
   groq: "/logos/groq.svg",
   xai: "/logos/grok.svg",
@@ -48,7 +48,7 @@ export function formatPricingLines(pricing?: {
 }
 
 // Logos that have hardcoded colors and don't need dark mode inversion
-export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere'] as const;
+export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere', 'anthropic'] as const;
 
 // Helper to check if a logo needs dark mode inversion
 export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
