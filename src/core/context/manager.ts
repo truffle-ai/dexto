@@ -12,6 +12,8 @@ import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { SessionEventBus } from '../events/index.js';
 import { ContextError } from './errors.js';
+import { LLMProvider } from '../llm/registry.js';
+
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -35,11 +37,6 @@ export class ContextManager<TMessage = unknown> {
      * PromptManager used to generate/manage the system prompt
      */
     private promptManager: PromptManager;
-
-    /**
-     * Event bus for session events
-     */
-    private sessionEventBus: SessionEventBus;
 
     /**
      * Formatter used to convert internal messages to LLM-specific format
@@ -83,7 +80,6 @@ export class ContextManager<TMessage = unknown> {
      *
      * @param formatter Formatter implementation for the target LLM provider
      * @param promptManager PromptManager instance for the conversation
-     * @param sessionEventBus Session-level event bus for emitting message-related events
      * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
      * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
@@ -93,7 +89,6 @@ export class ContextManager<TMessage = unknown> {
     constructor(
         formatter: IMessageFormatter,
         promptManager: PromptManager,
-        sessionEventBus: SessionEventBus,
         maxInputTokens: number,
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
@@ -105,7 +100,6 @@ export class ContextManager<TMessage = unknown> {
     ) {
         this.formatter = formatter;
         this.promptManager = promptManager;
-        this.sessionEventBus = sessionEventBus;
         this.maxInputTokens = maxInputTokens;
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
@@ -401,7 +395,7 @@ export class ContextManager<TMessage = unknown> {
             tokenUsage?: InternalMessage['tokenUsage'];
             reasoning?: string;
             model?: string;
-            provider?: import('../llm/registry.js').LLMProvider;
+            provider?: LLMProvider;
             router?: InternalMessage['router'];
         }
     ): Promise<void> {

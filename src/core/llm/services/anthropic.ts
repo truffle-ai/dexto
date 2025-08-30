@@ -49,7 +49,6 @@ export class AnthropicService implements ILLMService {
         this.contextManager = new ContextManager<MessageParam>(
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,

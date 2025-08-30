@@ -7,9 +7,6 @@ import { LLMConfigSchema } from '@core/llm/schemas.js';
 vi.mock('./history/factory.js', () => ({
     createDatabaseHistoryProvider: vi.fn(),
 }));
-vi.mock('../context/factory.js', () => ({
-    createContextManager: vi.fn(),
-}));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
 }));
@@ -37,14 +34,12 @@ vi.mock('../logger/index.js', () => ({
 }));
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createContextManager } from '../context/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { createTokenizer } from '../llm/tokenizer/factory.js';
 import { createMessageFormatter } from '../llm/formatters/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
-const mockCreateContextManager = vi.mocked(createContextManager);
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockCreateTokenizer = vi.mocked(createTokenizer);
 const mockCreateFormatter = vi.mocked(createMessageFormatter);
@@ -159,7 +154,6 @@ describe('ChatSession', () => {
 
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
-        mockCreateContextManager.mockReturnValue(mockContextManager);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockCreateTokenizer.mockReturnValue(mockTokenizer);
         mockCreateFormatter.mockReturnValue(mockFormatter);
@@ -401,9 +395,6 @@ describe('ChatSession', () => {
     describe('Session Isolation', () => {
         test('should create session-specific services with proper isolation', async () => {
             await chatSession.init();
-
-            // Context managers are now created internally by services
-            // so we don't need to verify createContextManager calls
 
             // Verify session-specific LLM service creation with new signature
             expect(mockCreateLLMService).toHaveBeenCalledWith(

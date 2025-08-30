@@ -51,7 +51,6 @@ export class OpenAIService implements ILLMService {
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,

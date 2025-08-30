@@ -69,7 +69,6 @@ export class VercelLLMService implements ILLMService {
         this.contextManager = new ContextManager<ModelMessage>(
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,
