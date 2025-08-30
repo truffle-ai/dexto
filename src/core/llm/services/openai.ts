@@ -49,6 +49,7 @@ export class OpenAIService implements ILLMService {
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
+            config,
             formatter,
             promptManager,
             maxInputTokens,
@@ -112,9 +113,6 @@ export class OpenAIService implements ILLMService {
 
                     // Add assistant message to history (include streamed prefix if any)
                     await this.contextManager.addAssistantMessage(finalContent, undefined, {
-                        model: this.config.model,
-                        provider: this.config.provider,
-                        router: 'in-built',
                         tokenUsage:
                             totalTokens > 0
                                 ? {
@@ -143,11 +141,11 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // Add assistant message with tool calls to history
-                await this.contextManager.addAssistantMessage(message.content, message.tool_calls, {
-                    model: this.config.model,
-                    provider: this.config.provider,
-                    router: 'in-built',
-                });
+                await this.contextManager.addAssistantMessage(
+                    message.content,
+                    message.tool_calls,
+                    {}
+                );
 
                 // Accumulate response for streaming mode
                 if (stream && message.content) {
@@ -229,9 +227,6 @@ export class OpenAIService implements ILLMService {
             const finalResponse =
                 fullResponse || 'Task completed but reached maximum tool call iterations.';
             await this.contextManager.addAssistantMessage(finalResponse, undefined, {
-                model: this.config.model,
-                provider: this.config.provider,
-                router: 'in-built',
                 tokenUsage:
                     totalTokens > 0
                         ? {
@@ -276,11 +271,7 @@ export class OpenAIService implements ILLMService {
             });
 
             const errorResponse = `Error processing ${stream ? 'streaming ' : ''}request: ${errorMessage}`;
-            await this.contextManager.addAssistantMessage(errorResponse, undefined, {
-                model: this.config.model,
-                provider: this.config.provider,
-                router: 'in-built',
-            });
+            await this.contextManager.addAssistantMessage(errorResponse, undefined, {});
             return errorResponse;
         }
     }

@@ -47,6 +47,7 @@ export class AnthropicService implements ILLMService {
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<MessageParam>(
+            config,
             formatter,
             promptManager,
             maxInputTokens,
@@ -159,17 +160,11 @@ export class AnthropicService implements ILLMService {
 
                     // Add assistant message with all tool calls
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
-                        model: this.config.model,
-                        provider: this.config.provider,
-                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 } else {
                     // Add regular assistant message
                     await this.contextManager.addAssistantMessage(textContent, undefined, {
-                        model: this.config.model,
-                        provider: this.config.provider,
-                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 }

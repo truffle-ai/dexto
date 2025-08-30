@@ -67,6 +67,7 @@ export class VercelLLMService implements ILLMService {
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<ModelMessage>(
+            config,
             formatter,
             promptManager,
             maxInputTokens,

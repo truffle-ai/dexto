@@ -10,9 +10,9 @@ import { getImageData, countMessagesTokens } from './utils.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
-import { SessionEventBus } from '../events/index.js';
 import { ContextError } from './errors.js';
 import { LLMProvider } from '../llm/registry.js';
+import { ValidatedLLMConfig } from '../llm/schemas.js';
 
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
@@ -33,6 +33,11 @@ import { LLMProvider } from '../llm/registry.js';
  * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, ModelMessage)
  */
 export class ContextManager<TMessage = unknown> {
+    /**
+     * The validated LLM configuration.
+     */
+    private llmConfig: ValidatedLLMConfig;
+
     /**
      * PromptManager used to generate/manage the system prompt
      */
@@ -77,7 +82,7 @@ export class ContextManager<TMessage = unknown> {
 
     /**
      * Creates a new ContextManager instance
-     *
+     * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
      * @param promptManager PromptManager instance for the conversation
      * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
@@ -87,6 +92,7 @@ export class ContextManager<TMessage = unknown> {
      * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
      */
     constructor(
+        llmConfig: ValidatedLLMConfig,
         formatter: IMessageFormatter,
         promptManager: PromptManager,
         maxInputTokens: number,
@@ -98,6 +104,7 @@ export class ContextManager<TMessage = unknown> {
             new OldestRemovalStrategy(),
         ]
     ) {
+        this.llmConfig = llmConfig;
         this.formatter = formatter;
         this.promptManager = promptManager;
         this.maxInputTokens = maxInputTokens;
@@ -268,6 +275,7 @@ export class ContextManager<TMessage = unknown> {
                 }
                 // Optional: Add validation for the structure of array parts if needed
                 break;
+
             case 'assistant':
                 // Content can be null if toolCalls are present, but one must exist
                 if (
@@ -286,12 +294,19 @@ export class ContextManager<TMessage = unknown> {
                         throw ContextError.assistantMessageToolCallsInvalid();
                     }
                 }
+
+                // Enrich assistant messages with LLM config metadata
+                message.provider = this.llmConfig.provider;
+                message.router = this.llmConfig.router;
+                message.model = this.llmConfig.model;
                 break;
+
             case 'tool':
                 if (!message.toolCallId || !message.name || message.content === null) {
                     throw ContextError.toolMessageFieldsMissing();
                 }
                 break;
+
             case 'system':
                 // System messages should ideally be handled via setSystemPrompt
                 logger.warn(
@@ -394,9 +409,6 @@ export class ContextManager<TMessage = unknown> {
         metadata?: {
             tokenUsage?: InternalMessage['tokenUsage'];
             reasoning?: string;
-            model?: string;
-            provider?: LLMProvider;
-            router?: InternalMessage['router'];
         }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
@@ -404,15 +416,13 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.assistantMessageContentOrToolsRequired();
         }
         // Further validation happens within addMessage
+        // addMessage will populate llm config metadata also
         await this.addMessage({
             role: 'assistant' as const,
             content,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
-            ...(metadata?.model && { model: metadata.model }),
-            ...(metadata?.provider && { provider: metadata.provider }),
-            ...(metadata?.router && { router: metadata.router }),
         });
     }
 
