@@ -1,4 +1,4 @@
-import { InternalMessage } from './types.js';
+import { InternalMessage, TextPart, ImagePart, FilePart } from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { logger } from '@core/logger/index.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
@@ -324,7 +324,7 @@ export function sanitizeToolResultToContent(result: unknown): InternalMessage['c
         // Case 2: array of parts or mixed
         if (Array.isArray(result)) {
             // Ensure only supported part types (text|image|file) appear in the array
-            const parts: Array<InternalMessage['content'][number]> = [];
+            const parts: Array<TextPart | ImagePart | FilePart> = [];
             for (const item of result as any[]) {
                 if (item == null) continue;
                 // Strings: decide if base64/file or plain text
@@ -481,4 +481,20 @@ export function summarizeToolContentForText(content: InternalMessage['content'])
 function base64LengthToBytes(charLength: number): number {
     // 4 base64 chars -> 3 bytes; ignore padding for approximation
     return Math.floor((charLength * 3) / 4);
+}
+
+/**
+ * Convert arbitrary tool content to safe text for providers that only accept textual tool messages.
+ * - If content is an array of parts, summarize it.
+ * - If content is a string that looks like base64/data URI, replace with a short placeholder.
+ * - Otherwise pass text through.
+ */
+export function toTextForToolMessage(content: InternalMessage['content'] | string | null): string {
+    if (Array.isArray(content)) {
+        return summarizeToolContentForText(content);
+    }
+    if (typeof content === 'string') {
+        return isLikelyBase64String(content) ? '[binary data omitted]' : content;
+    }
+    return String(content ?? '');
 }

@@ -5,8 +5,7 @@ import { InternalMessage } from '@core/context/types.js';
 import {
     getImageData,
     filterMessagesByLLMCapabilities,
-    summarizeToolContentForText,
-    isLikelyBase64String,
+    toTextForToolMessage,
 } from '@core/context/utils.js';
 import { logger } from '@core/logger/index.js';
 
@@ -87,24 +86,11 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
 
                 case 'tool':
                     // Tool results for OpenAI — only text field is supported.
-                    // Convert media/file parts to a concise text summary and avoid raw base64.
-                    {
-                        let text: string;
-                        if (Array.isArray(msg.content)) {
-                            text = summarizeToolContentForText(msg.content);
-                        } else if (typeof msg.content === 'string') {
-                            text = isLikelyBase64String(msg.content)
-                                ? '[binary data omitted]'
-                                : msg.content;
-                        } else {
-                            text = String(msg.content || '');
-                        }
-                        formatted.push({
-                            role: 'tool',
-                            content: text,
-                            tool_call_id: msg.toolCallId || '',
-                        });
-                    }
+                    formatted.push({
+                        role: 'tool',
+                        content: toTextForToolMessage(msg.content),
+                        tool_call_id: msg.toolCallId || '',
+                    });
                     break;
             }
         }

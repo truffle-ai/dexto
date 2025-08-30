@@ -13,8 +13,7 @@ import {
     getImageData,
     getFileData,
     filterMessagesByLLMCapabilities,
-    summarizeToolContentForText,
-    isLikelyBase64String,
+    toTextForToolMessage,
 } from '@core/context/utils.js';
 
 /**
@@ -97,16 +96,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     }
 
                     // Then add the tool result as a user message
-                    let safeContent: string = '';
-                    if (Array.isArray(msg.content)) {
-                        safeContent = summarizeToolContentForText(msg.content);
-                    } else if (typeof msg.content === 'string') {
-                        safeContent = isLikelyBase64String(msg.content)
-                            ? '[binary data omitted]'
-                            : msg.content;
-                    } else {
-                        safeContent = String(msg.content || '');
-                    }
+                    const safeContent: string = toTextForToolMessage(msg.content);
                     const toolResultMsg: MessageParam = {
                         role: 'user',
                         content: [
@@ -124,16 +114,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                 } else {
                     // This shouldn't normally happen
                     logger.warn(`Tool result found without matching tool call: ${msg.toolCallId}`);
-                    let orphanSafe: string = '';
-                    if (Array.isArray(msg.content)) {
-                        orphanSafe = summarizeToolContentForText(msg.content);
-                    } else if (typeof msg.content === 'string') {
-                        orphanSafe = isLikelyBase64String(msg.content)
-                            ? '[binary data omitted]'
-                            : msg.content;
-                    } else {
-                        orphanSafe = String(msg.content || '');
-                    }
+                    const orphanSafe: string = toTextForToolMessage(msg.content);
                     const orphanToolResult: MessageParam = {
                         role: 'user',
                         content: [
