@@ -535,7 +535,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           {msg.tokenUsage.totalTokens} tokens
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>
+                      <TooltipContent side="bottom">
                         <div className="flex flex-col gap-0.5">
                           {msg.tokenUsage.inputTokens !== undefined && (
                             <div>Input: {msg.tokenUsage.inputTokens}</div>
@@ -558,7 +558,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           {msg.model}
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>
+                      <TooltipContent side="bottom">
                         <div className="space-y-1">
                           <div className="font-medium">Model: {msg.model}</div>
                           {msg.provider && (
