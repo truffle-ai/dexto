@@ -64,7 +64,16 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
           ))}
           {provider.supportsBaseURL && <Badge variant="secondary" className="text-xs">baseURL</Badge>}
           {!provider.hasApiKey && (
-            <Badge variant="destructive" className="text-xs">Key Required</Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive" className="text-xs cursor-default">Key Required</Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Click any {provider.name} model to set up the API key
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           {PROVIDER_PRICING_URLS[providerId as LLMProvider] && (
             <a
