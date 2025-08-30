@@ -1,5 +1,4 @@
-export type SupportedRouter = 'vercel' | 'in-built';
-export type SupportedFileType = 'audio' | 'pdf';
+import type { LLMRouter, SupportedFileType } from '@core/llm/registry.js';
 
 export type ModelInfo = {
     name: string;
@@ -7,7 +6,7 @@ export type ModelInfo = {
     default: boolean;
     maxInputTokens: number;
     supportedFileTypes: SupportedFileType[];
-    supportedRouters?: SupportedRouter[];
+    supportedRouters?: LLMRouter[];
     pricing?: {
         inputPerM: number;
         outputPerM: number;
@@ -22,7 +21,7 @@ export type ProviderCatalog = {
     name: string;
     hasApiKey: boolean;
     primaryEnvVar: string;
-    supportedRouters: SupportedRouter[];
+    supportedRouters: LLMRouter[];
     supportsBaseURL: boolean;
     models: ModelInfo[];
 };
@@ -34,7 +33,7 @@ export type CurrentLLMConfigResponse = {
         provider: string;
         model: string;
         displayName?: string;
-        router?: SupportedRouter;
+        router?: LLMRouter;
         baseURL?: string;
         apiKey?: string;
         maxInputTokens?: number;

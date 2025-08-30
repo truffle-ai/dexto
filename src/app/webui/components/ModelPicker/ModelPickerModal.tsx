@@ -12,7 +12,8 @@ import { useChatContext } from "../hooks/ChatContext";
 import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
-import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL, SupportedRouter } from "./types";
+import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL } from "./types";
+import type { LLMRouter as SupportedRouter } from "@core/llm/registry.js";
 import { Input } from "../ui/input";
 import { cn } from "../../lib/utils";
 import {
@@ -21,7 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMProvider } from "../../../../core/llm/registry.js";
+import type { LLMProvider } from "@core/llm/registry.js";
 import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion, formatPricingLines } from "./constants";
 
 interface CompactModelCardProps {
