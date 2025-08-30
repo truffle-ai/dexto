@@ -334,8 +334,27 @@ export default function ModelPickerModal() {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="hidden lg:flex items-center gap-2" title="Choose model">
-            <Bot className="h-4 w-4" />
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="hidden lg:flex items-center gap-2 cursor-pointer" 
+            title="Choose model"
+          >
+            {/* Provider logo (or fallback icon) */}
+            {currentLLM?.provider && PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
+              <Image
+                src={PROVIDER_LOGOS[currentLLM.provider as LLMProvider]}
+                alt={`${currentLLM.provider} logo`}
+                width={16}
+                height={16}
+                className={cn(
+                  "object-contain",
+                  needsDarkModeInversion(currentLLM.provider as LLMProvider) && "dark:invert dark:brightness-0 dark:contrast-200"
+                )}
+              />
+            ) : (
+              <Bot className="h-4 w-4" />
+            )}
             <span className="text-sm">{triggerLabel}</span>
             <ChevronDown className="h-3 w-3" />
           </Button>
