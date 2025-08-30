@@ -9,20 +9,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface AttachButtonProps {
   onImageAttach: () => void;
   onPdfAttach: () => void;
   onAudioAttach: () => void;
   className?: string;
+  supports?: {
+    pdf?: boolean;
+    audio?: boolean;
+  };
 }
 
 export function AttachButton({ 
   onImageAttach, 
   onPdfAttach, 
   onAudioAttach, 
-  className 
+  className,
+  supports,
 }: AttachButtonProps) {
+  const pdfSupported = supports?.pdf !== false; // default to true if unknown
+  const audioSupported = supports?.audio !== false;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -40,11 +48,37 @@ export function AttachButton({
         <DropdownMenuItem onClick={onImageAttach}>
           <Paperclip className="h-4 w-4 mr-2" /> Image
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onPdfAttach}>
-          <File className="h-4 w-4 mr-2" /> PDF
+        <DropdownMenuItem 
+          onSelect={(e) => { if (!pdfSupported) e.preventDefault(); }}
+          onClick={pdfSupported ? onPdfAttach : undefined}
+          className={!pdfSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+        >
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center">
+                  <File className="h-4 w-4 mr-2" /> PDF
+                </div>
+              </TooltipTrigger>
+              {!pdfSupported && <TooltipContent>Unsupported for this model</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onAudioAttach}>
-          <FileAudio className="h-4 w-4 mr-2" /> Audio file
+        <DropdownMenuItem 
+          onSelect={(e) => { if (!audioSupported) e.preventDefault(); }}
+          onClick={audioSupported ? onAudioAttach : undefined}
+          className={!audioSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+        >
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center">
+                  <FileAudio className="h-4 w-4 mr-2" /> Audio file
+                </div>
+              </TooltipTrigger>
+              {!audioSupported && <TooltipContent>Unsupported for this model</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

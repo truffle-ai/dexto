@@ -56,13 +56,14 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   
   // Get current session context to ensure model switch applies to the correct session
-  const { currentSessionId, isStreaming, setStreaming } = useChatContext();
+  const { currentSessionId, isStreaming, setStreaming, currentLLM } = useChatContext() as any;
   
   // LLM selector state
   const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
@@ -114,6 +115,27 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
     fetchCurrentModel();
   }, [currentSessionId]); // Re-fetch whenever the session changes
+
+  // Fetch supported file types for the active model to drive Attach menu
+  useEffect(() => {
+    const loadSupportedFileTypes = async () => {
+      try {
+        const res = await fetch('/api/llm/catalog?mode=flat');
+        if (!res.ok) return;
+        const data = await res.json();
+        const models: Array<{ provider: string; name: string; supportedFileTypes?: string[] }> = data.models || [];
+        const provider = currentLLM?.provider;
+        const model = currentLLM?.model;
+        if (!provider || !model) return;
+        const match = models.find(m => m.provider === provider && m.name === model);
+        setSupportedFileTypes(match?.supportedFileTypes || []);
+      } catch (e) {
+        // ignore – default to []
+        setSupportedFileTypes([]);
+      }
+    };
+    loadSupportedFileTypes();
+  }, [currentLLM?.provider, currentLLM?.model]);
 
   // NOTE: We intentionally do not manually resize the textarea. We rely on
   // CSS max-height + overflow to keep layout stable.
@@ -560,11 +582,16 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onImageAttach={triggerFileInput}
                     onPdfAttach={triggerPdfInput}
                     onAudioAttach={triggerAudioInput}
+                    supports={{
+                      pdf: supportedFileTypes.length === 0 || supportedFileTypes.includes('pdf'),
+                      audio: supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'),
+                    }}
                   />
                   
                   <RecordButton
                     isRecording={isRecording}
                     onToggleRecording={isRecording ? stopRecording : startRecording}
+                    disabled={!(supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'))}
                   />
                 </div>
               }
