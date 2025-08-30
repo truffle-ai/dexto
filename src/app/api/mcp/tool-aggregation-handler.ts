@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { MCPManager } from '@core/mcp/manager.js';
 import { logger } from '@core/index.js';
-import { ServerConfigs } from '@core/mcp/schemas.js';
+import { ValidatedServerConfigs } from '@core/mcp/schemas.js';
 import { NoOpConfirmationProvider } from '@core/tools/confirmation/noop-confirmation-provider.js';
 import { jsonSchemaToZodShape } from '@core/utils/index.js';
 
@@ -11,7 +11,7 @@ import { jsonSchemaToZodShape } from '@core/utils/index.js';
  * Instead of exposing an AI agent, this directly exposes all tools from connected MCP servers.
  */
 export async function initializeMcpToolAggregationServer(
-    serverConfigs: ServerConfigs,
+    serverConfigs: ValidatedServerConfigs,
     mcpTransport: Transport,
     serverName: string,
     serverVersion: string,

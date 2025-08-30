@@ -279,9 +279,10 @@ program
                 globalOpts.autoInstall !== false,
                 true
             );
-            const config = await loadAgentConfig(configPath);
             console.log(`📄 Loading Dexto config from: ${configPath}`);
+            const config = await loadAgentConfig(configPath);
 
+            logger.info(`Validating MCP servers...`);
             // Validate that MCP servers are configured
             if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
                 console.error(
@@ -290,6 +291,12 @@ program
                 process.exit(1);
             }
 
+            const { ServerConfigsSchema } = await import('@core/mcp/schemas.js');
+            const validatedServers = ServerConfigsSchema.parse(config.mcpServers);
+            logger.info(
+                `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
+            );
+
             // Logs are already redirected to file by default to prevent interference with stdio transport
             const currentLogPath = logger.getLogFilePath();
             logger.info(`MCP mode using log file: ${currentLogPath || 'default .dexto location'}`);
@@ -297,14 +304,12 @@ program
             logger.info(
                 `Starting MCP tool aggregation server: ${options.name} v${options.version}`
             );
-            logger.info(`Configured MCP servers: ${Object.keys(config.mcpServers).join(', ')}`);
 
             // Create stdio transport for MCP tool aggregation
             const mcpTransport = await createMcpTransport('stdio');
-
             // Initialize tool aggregation server
             await initializeMcpToolAggregationServer(
-                config.mcpServers,
+                validatedServers,
                 mcpTransport,
                 options.name,
                 options.version,

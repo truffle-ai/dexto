@@ -4,6 +4,7 @@ import type { DextoAgent } from '@core/index.js';
 import { AgentEventBus } from '@core/events/index.js';
 import type { Express } from 'express';
 import type { Server as HttpServer } from 'http';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 
 type SupportedRouter = 'vercel' | 'in-built';
 type SupportedFileType = 'audio' | 'pdf';

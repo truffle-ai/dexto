@@ -4,7 +4,6 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { LLMProvider, logger } from '@core/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
-import { getDextoEnvPath } from '@core/utils/path.js';
 import { getExecutionContext } from '@core/utils/execution-context.js';
 import { saveProviderApiKey } from '@core/utils/api-key-store.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
