@@ -39,8 +39,8 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
-    // Queue raw results per tool name; emitted later from step handlers
-    private rawResultsQueueByToolName: Map<string, any[]> = new Map();
+    // Map of toolCallId -> queue of raw results to emit with that callId
+    private rawResultsByCallId: Map<string, any[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -103,10 +103,11 @@ export class VercelLLMService implements ILLMService {
                                 this.sessionId
                             );
 
-                            // Queue raw, unfiltered result for later emission from step handlers
-                            const rq = this.rawResultsQueueByToolName.get(toolName) ?? [];
-                            rq.push(rawResult);
-                            this.rawResultsQueueByToolName.set(toolName, rq);
+                            // Queue raw, unfiltered result under the specific toolCallId
+                            const callId = _options?.toolCallId ?? this.sessionId;
+                            const queue = this.rawResultsByCallId.get(callId) ?? [];
+                            queue.push(rawResult);
+                            this.rawResultsByCallId.set(callId, queue);
 
                             // Sanitize tool result to prevent large/base64 media from exploding context
                             // Convert arbitrary result -> InternalMessage content (media as structured parts)
@@ -338,15 +339,18 @@ export class VercelLLMService implements ILLMService {
                             });
                         }
                     }
-                    // Emit tool results: prefer queued raw (for UI rendering), fallback to sanitized output
+                    // Emit tool results: prefer raw mapped by callId; fallback to sanitized output
                     if (step.toolResults && step.toolResults.length > 0) {
                         for (const toolResult of step.toolResults) {
                             const callId = toolResult.toolCallId;
                             const sanitized = toolResult.output;
-                            const rq =
-                                this.rawResultsQueueByToolName.get(toolResult.toolName) ?? [];
-                            const raw = rq.shift();
-                            this.rawResultsQueueByToolName.set(toolResult.toolName, rq);
+                            let raw: any | undefined;
+                            if (callId) {
+                                const q = this.rawResultsByCallId.get(callId) ?? [];
+                                raw = q.shift();
+                                if (q.length > 0) this.rawResultsByCallId.set(callId, q);
+                                else this.rawResultsByCallId.delete(callId);
+                            }
                             this.sessionEventBus.emit('llmservice:toolResult', {
                                 toolName: toolResult.toolName,
                                 result: raw ?? sanitized,
@@ -535,14 +539,18 @@ export class VercelLLMService implements ILLMService {
                     }
                 }
                 // Emit tool results during streaming as well (prefer queued raw)
-                // Emit tool results during streaming as well (prefer queued raw)
+                // Emit tool results during streaming as well (prefer raw mapped by callId)
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {
                         const callId = toolResult.toolCallId;
                         const sanitized = toolResult.output;
-                        const rq = this.rawResultsQueueByToolName.get(toolResult.toolName) ?? [];
-                        const raw = rq.shift();
-                        this.rawResultsQueueByToolName.set(toolResult.toolName, rq);
+                        let raw: any | undefined;
+                        if (callId) {
+                            const q = this.rawResultsByCallId.get(callId) ?? [];
+                            raw = q.shift();
+                            if (q.length > 0) this.rawResultsByCallId.set(callId, q);
+                            else this.rawResultsByCallId.delete(callId);
+                        }
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName: toolResult.toolName,
                             result: raw ?? sanitized,
