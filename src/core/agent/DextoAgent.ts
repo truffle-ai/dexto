@@ -282,9 +282,11 @@ export class DextoAgent {
      */
     private ensureStarted(): void {
         if (this._isStopped) {
+            logger.warn('Agent is stopped');
             throw AgentError.stopped();
         }
         if (!this._isStarted) {
+            logger.warn('Agent is not started');
             throw AgentError.notStarted();
         }
     }
@@ -500,15 +502,15 @@ export class DextoAgent {
      * @example
      * ```typescript
      * // Load a specific session as default
-     * await agent.loadSession('project-alpha');
+     * await agent.loadSessionAsDefault('project-alpha');
      * await agent.run("What's the status?"); // Uses project-alpha session
      *
      * // Reset to original default
-     * await agent.loadSession(null);
+     * await agent.loadSessionAsDefault(null);
      * await agent.run("Hello"); // Uses 'default' session
      * ```
      */
-    public async loadSession(sessionId: string | null = null): Promise<void> {
+    public async loadSessionAsDefault(sessionId: string | null = null): Promise<void> {
         this.ensureStarted();
         if (sessionId === null) {
             this.currentDefaultSessionId = 'default';
@@ -525,7 +527,7 @@ export class DextoAgent {
 
         this.currentDefaultSessionId = sessionId;
         this.defaultSession = null; // Clear cached session to force reload
-        logger.debug(`Agent default session changed to: ${sessionId}`);
+        logger.info(`Agent default session changed to: ${sessionId}`);
     }
 
     /**

@@ -115,16 +115,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!sessionId && isWelcomeState) {
       sessionId = await createAutoSession();
       
-      // Load the new session as the current working session
-      try {
-        await fetch(`/api/sessions/${sessionId}/load`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-      } catch (error) {
-        console.error('Error loading auto-created session:', error);
-      }
-      
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false);
 
@@ -233,16 +223,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       
       setMessages(uiMessages);
-      // Update currentLLM from last assistant message if available
-      for (let i = uiMessages.length - 1; i >= 0; i--) {
-        const msg = uiMessages[i] as any;
-        if (msg.role === 'assistant' && msg.model) {
-          // Set provider/model immediately; then sync displayName/baseURL from server for this session
-          setCurrentLLM({ provider: msg.provider || '', model: msg.model, router: msg.router });
-          void fetchCurrentLLM(sessionId);
-          break;
-        }
-      }
     } catch (error) {
       console.error('Error loading session history:', error);
       // On error, just clear messages and continue
@@ -255,50 +235,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (sessionId === currentSessionId) return;
     
     try {
-      // Load the session as the current working session on the backend
-      const loadResponse = await fetch(`/api/sessions/${sessionId}/load`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (!loadResponse.ok) {
-        throw new Error('Failed to load session on backend');
-      }
-      
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
       await loadSessionHistory(sessionId);
-      // After loading history, sync backend LLM to last used in this session (if present)
-      try {
-        const histRes = await fetch(`/api/sessions/${sessionId}/history`);
-        if (histRes.ok) {
-          const data = await histRes.json();
-          const history = (data.history || []) as any[];
-          let applied = false;
-          for (let i = history.length - 1; i >= 0; i--) {
-            const msg = history[i];
-            if (msg.role === 'assistant' && msg.model) {
-              const body: any = { provider: msg.provider || undefined, model: msg.model, router: msg.router || undefined, sessionId };
-              await fetch('/api/llm/switch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-              }).catch(() => {});
-              // Update UI state immediately; then fetch server-effective config to fill displayName/baseURL
-              setCurrentLLM({ provider: msg.provider || '', model: msg.model, router: msg.router });
-              await fetchCurrentLLM(sessionId);
-              applied = true;
-              break;
-            }
-          }
-          if (!applied) {
-            // Fallback to server's effective config for this session
-            await fetchCurrentLLM(sessionId);
-          }
-        }
-      } catch (e) {
-        // Best-effort sync; ignore errors
-      }
+      // After switching sessions, simply hydrate UI from the server's
+      // authoritative per-session LLM config (no client-side switching)
+      await fetchCurrentLLM(sessionId);
     } catch (error) {
       console.error('Error switching session:', error);
       throw error; // Re-throw so UI can handle the error
@@ -311,14 +253,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setIsWelcomeState(true);
     setMessages([]);
     setCurrentLLM(null);
-    
-    // Reset the backend to no default session
-    fetch('/api/sessions/null/load', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }).catch(error => {
-      console.warn('Error resetting backend session:', error);
-    });
   }, [setMessages]);
 
   // Listen for config-related WebSocket events via DOM events

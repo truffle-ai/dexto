@@ -942,14 +942,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
-    // Load session as current working session
+    // Load session as current working session and set as default
     app.post('/api/sessions/:sessionId/load', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
 
             // Handle null/reset case
             if (sessionId === 'null' || sessionId === 'undefined') {
-                await agent.loadSession(null);
+                await agent.loadSessionAsDefault(null);
                 res.json({
                     status: 'reset',
                     sessionId: null,
@@ -959,7 +959,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             }
 
             // loadSession already checks session existence
-            await agent.loadSession(sessionId);
+            await agent.loadSessionAsDefault(sessionId);
             return res.json({
                 status: 'loaded',
                 sessionId,

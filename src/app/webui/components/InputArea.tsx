@@ -340,63 +340,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const triggerPdfInput = () => pdfInputRef.current?.click();
   const triggerAudioInput = () => audioInputRef.current?.click();
 
-  const handleModelSwitch = async (model: ModelOption) => {
-    setIsLoadingModel(true);
-    setModelSwitchError(null); // Clear any previous errors
-    try {
-      const requestBody: any = {
-        provider: model.provider,
-        model: model.model,
-      };
-
-      // Include current session ID to ensure model switch applies to the correct session
-      // If there's no active session, it will fall back to the default session behavior
-      if (currentSessionId) {
-        requestBody.sessionId = currentSessionId;
-      }
-
-      const response = await fetch('/api/llm/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-      
-      const result = await response.json();
-
-      if (response.ok) {
-        setCurrentModel(model);
-        setModelSwitchError(null); // Clear any errors on success
-      } else {
-        // Handle new validation error format
-        let errorMessage = 'Failed to switch model';
-        if (result.issues && result.issues.length > 0) {
-          const errors = result.issues.filter((issue: any) => issue.severity === 'error');
-          if (errors.length > 0) {
-            errorMessage = errors[0].message;
-          }
-        } else if (result.error) {
-          // Fallback to old format
-          errorMessage = result.error;
-        }
-        
-        console.error('Failed to switch model:', errorMessage);
-        setModelSwitchError(errorMessage);
-        
-        // Auto-clear error after 10 seconds
-        setTimeout(() => setModelSwitchError(null), 10000);
-      }
-    } catch (error) {
-      console.error('Network error while switching model:', error);
-      const errorMessage = 'Network error while switching model';
-      setModelSwitchError(errorMessage);
-      
-      // Auto-clear error after 10 seconds
-      setTimeout(() => setModelSwitchError(null), 10000);
-    } finally {
-      setIsLoadingModel(false);
-    }
-  };
-
   // Clear model switch error when user starts typing
   useEffect(() => {
     if (text && modelSwitchError) {

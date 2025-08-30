@@ -141,7 +141,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
 
     // Track the active session id from the host (ChatContext)
-    const activeSessionGetterRef = useRef<typeof getActiveSessionId>();
+    const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
     useEffect(() => {
         activeSessionGetterRef.current = getActiveSessionId;
     }, [getActiveSessionId]);
