@@ -87,6 +87,10 @@ export type ValidatedAgentCard = z.output<typeof AgentCardSchema>;
 export const AgentConfigSchema = z
     .object({
         agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
+        greeting: z
+            .string()
+            .optional()
+            .describe('Default greeting text to show when a chat starts (for UI consumption)'),
         systemPrompt: SystemPromptConfigSchema.describe(
             'System prompt: string shorthand or structured config'
         ),
