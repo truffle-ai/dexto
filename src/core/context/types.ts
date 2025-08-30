@@ -1,3 +1,5 @@
+import type { LLMRouter } from '../llm/registry.js';
+
 /**
  * Internal representation of a message in a conversation.
  * Standardizes message format across different LLM providers.
@@ -50,6 +52,34 @@ export interface InternalMessage {
      * - null if an assistant message only contains tool calls.
      */
     content: string | null | Array<TextPart | ImagePart | FilePart>;
+
+    /**
+     * Optional model reasoning text associated with an assistant response.
+     * Present when the provider supports reasoning and returns a final reasoning trace.
+     */
+    reasoning?: string;
+
+    /**
+     * Optional token usage accounting for this assistant response.
+     */
+    tokenUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        reasoningTokens?: number;
+        totalTokens?: number;
+    };
+
+    /**
+     * Optional model identifier for assistant messages.
+     * Indicates which LLM model generated this response.
+     */
+    model?: string;
+
+    /**
+     * Optional router metadata for assistant messages.
+     * Indicates which router was used to route the request.
+     */
+    router?: LLMRouter;
 
     /**
      * Tool calls made by the assistant.

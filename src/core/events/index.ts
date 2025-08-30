@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
-import { LLMProvider } from '../llm/registry.js';
+import { LLMProvider, LLMRouter } from '../llm/registry.js';
+import { ValidatedAgentConfig } from '../agent/schemas.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -82,6 +83,7 @@ export interface AgentEventMap {
 
     /** LLM service sent a streaming chunk */
     'llmservice:chunk': {
+        type: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
         sessionId: string;
@@ -90,8 +92,15 @@ export interface AgentEventMap {
     /** LLM service final response */
     'llmservice:response': {
         content: string;
-        tokenCount?: number;
+        reasoning?: string;
         model?: string;
+        router?: LLMRouter;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
         sessionId: string;
     };
 
@@ -149,8 +158,7 @@ export interface AgentEventMap {
 
     /** Fired when agent state is exported as config */
     'dexto:stateExported': {
-        config: any; // AgentConfig type
-        runtimeSettings: any;
+        config: ValidatedAgentConfig;
     };
 
     /** Fired when agent state is reset to baseline */
@@ -215,6 +223,7 @@ export interface SessionEventMap {
 
     /** LLM service sent a streaming chunk */
     'llmservice:chunk': {
+        type: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
     };
@@ -222,8 +231,15 @@ export interface SessionEventMap {
     /** LLM service final response */
     'llmservice:response': {
         content: string;
-        tokenCount?: number;
+        reasoning?: string;
         model?: string;
+        router?: LLMRouter;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
     };
 
     /** LLM service requested a tool call */
@@ -305,30 +321,26 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends Event
     // Store listeners with their abort controllers for cleanup
     private _abortListeners = new WeakMap<AbortSignal, Set<{ event: any; listener: any }>>();
 
-    // Method overloads for typed events
+    // Strict typed overload - will match first for known event types
     override emit<K extends keyof TEventMap>(
         event: K,
         ...args: TEventMap[K] extends void ? [] : [TEventMap[K]]
     ): boolean;
-    // Method overload for untyped events (compatibility)
-    override emit(event: string | symbol, ...args: any[]): boolean;
+    // Fallback for unknown events - this creates a compile error for known events with wrong payload
+    override emit(event: string, ...args: never[]): boolean;
     // Implementation
     override emit(event: any, ...args: any[]): boolean {
         return super.emit(event, ...args);
     }
 
-    // Method overloads for typed events with AbortController support
+    // Strict typed overload for known events
     override on<K extends keyof TEventMap>(
         event: K,
         listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void,
         options?: { signal?: AbortSignal }
     ): this;
-    // Method overload for untyped events (compatibility)
-    override on(
-        event: string | symbol,
-        listener: (...args: any[]) => void,
-        options?: { signal?: AbortSignal }
-    ): this;
+    // Compatibility overload for unknown events
+    override on(event: string | symbol, listener: (...args: any[]) => void): this;
     // Implementation
     override on(event: any, listener: any, options?: { signal?: AbortSignal }): this {
         // If signal is already aborted, don't add the listener
@@ -369,18 +381,14 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends Event
         return this;
     }
 
-    // Method overloads for typed events with AbortController support
+    // Strict typed overload for known events
     override once<K extends keyof TEventMap>(
         event: K,
         listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void,
         options?: { signal?: AbortSignal }
     ): this;
-    // Method overload for untyped events (compatibility)
-    override once(
-        event: string | symbol,
-        listener: (...args: any[]) => void,
-        options?: { signal?: AbortSignal }
-    ): this;
+    // Compatibility overload for unknown events
+    override once(event: string | symbol, listener: (...args: any[]) => void): this;
     // Implementation
     override once(event: any, listener: any, options?: { signal?: AbortSignal }): this {
         // If signal is already aborted, don't add the listener
@@ -436,12 +444,12 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends Event
         return this;
     }
 
-    // Method overloads for typed events
+    // Strict typed overload for known events
     override off<K extends keyof TEventMap>(
         event: K,
         listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void
     ): this;
-    // Method overload for untyped events (compatibility)
+    // Compatibility overload for unknown events
     override off(event: string | symbol, listener: (...args: any[]) => void): this;
     // Implementation
     override off(event: any, listener: any): this {

@@ -292,7 +292,6 @@ export class VercelLLMService implements ILLMService {
         maxSteps: number = 50
     ): Promise<string> {
         let stepIteration = 0;
-        let totalTokens = 0;
 
         const estimatedTokens = Math.ceil(JSON.stringify(messages, null, 2).length / 4);
         logger.debug(
@@ -329,22 +328,12 @@ export class VercelLLMService implements ILLMService {
                         `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
                     );
 
-                    if (step.usage?.totalTokens !== undefined) {
-                        totalTokens += step.usage.totalTokens;
-                    }
-
-                    if (step.text) {
-                        this.sessionEventBus.emit('llmservice:response', {
-                            content: step.text,
-                            model: this.getModelId(),
-                            tokenCount: totalTokens > 0 ? totalTokens : undefined,
-                        });
-                    }
+                    // Do not emit intermediate llmservice:response; generateText is non-stream so we only emit once after completion.
                     if (step.toolCalls && step.toolCalls.length > 0) {
                         for (const toolCall of step.toolCalls) {
                             this.sessionEventBus.emit('llmservice:toolCall', {
                                 toolName: toolCall.toolName,
-                                args: toolCall.input,
+                                args: toolCall.input as Record<string, any>,
                                 callId: toolCall.toolCallId,
                             });
                         }
@@ -371,14 +360,32 @@ export class VercelLLMService implements ILLMService {
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
                 ...(temperature !== undefined && { temperature }),
             });
+            // Emit final response with reasoning and token usage (authoritative)
+            this.sessionEventBus.emit('llmservice:response', {
+                content: response.text,
+                ...(response.reasoningText && { reasoning: response.reasoningText }),
+                model: this.getModelId(),
+                router: 'vercel',
+                tokenUsage: {
+                    ...(response.totalUsage.inputTokens !== undefined && {
+                        inputTokens: response.totalUsage.inputTokens,
+                    }),
+                    ...(response.totalUsage.outputTokens !== undefined && {
+                        outputTokens: response.totalUsage.outputTokens,
+                    }),
+                    ...(response.totalUsage.reasoningTokens !== undefined && {
+                        reasoningTokens: response.totalUsage.reasoningTokens,
+                    }),
+                    ...(response.totalUsage.totalTokens !== undefined && {
+                        totalTokens: response.totalUsage.totalTokens,
+                    }),
+                },
+            });
 
-            // Response received successfully
-            // Parse and append each new InternalMessage from the formatter using ContextManager
+            // Persist and update token count
             await this.contextManager.processLLMResponse(response);
-
-            // Update ContextManager with actual token count for hybrid approach
-            if (totalTokens > 0) {
-                this.contextManager.updateActualTokenCount(totalTokens);
+            if (typeof response.totalUsage.totalTokens === 'number') {
+                this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
             }
 
             // Return the plain text of the response
@@ -458,7 +465,6 @@ export class VercelLLMService implements ILLMService {
         maxSteps: number = 10
     ): Promise<string> {
         let stepIteration = 0;
-        let totalTokens = 0;
 
         const temperature = this.config.temperature;
         const maxOutputTokens = this.config.maxOutputTokens;
@@ -484,6 +490,13 @@ export class VercelLLMService implements ILLMService {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
                     this.sessionEventBus.emit('llmservice:chunk', {
+                        type: 'text',
+                        content: chunk.chunk.text,
+                        isComplete: false,
+                    });
+                } else if (chunk.chunk.type === 'reasoning-delta') {
+                    this.sessionEventBus.emit('llmservice:chunk', {
+                        type: 'reasoning',
                         content: chunk.chunk.text,
                         isComplete: false,
                     });
@@ -495,7 +508,6 @@ export class VercelLLMService implements ILLMService {
                     error: toError(error),
                     context: 'streamText',
                     recoverable: false,
-                    model: this.getModelId(),
                 });
                 streamErr = error;
             },
@@ -510,34 +522,19 @@ export class VercelLLMService implements ILLMService {
                     `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
                 );
 
-                // Track token usage from each step as fallback for providers that don't report final usage
-                if (step.usage?.totalTokens !== undefined) {
-                    totalTokens += step.usage.totalTokens;
-                    logger.debug(
-                        `Step ${stepIteration} tokens: ${step.usage.totalTokens}, running total: ${totalTokens}`
-                    );
-                }
-
-                // Emit response event for step text (without token count until final)
-                if (step.text) {
-                    this.sessionEventBus.emit('llmservice:response', {
-                        content: step.text,
-                        model: this.getModelId(),
-                        tokenCount: totalTokens > 0 ? totalTokens : undefined,
-                    });
-                }
+                // Do not emit intermediate llmservice:response; chunks update the UI during streaming.
 
                 // Process tool calls (same as generateText)
                 if (step.toolCalls && step.toolCalls.length > 0) {
                     for (const toolCall of step.toolCalls) {
                         this.sessionEventBus.emit('llmservice:toolCall', {
                             toolName: toolCall.toolName,
-                            args: toolCall.input,
+                            args: toolCall.input as Record<string, any>,
                             callId: toolCall.toolCallId,
                         });
                     }
                 }
-
+                // Emit tool results during streaming as well (prefer queued raw)
                 // Emit tool results during streaming as well (prefer queued raw)
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {
@@ -555,45 +552,17 @@ export class VercelLLMService implements ILLMService {
                     }
                 }
             },
-            onFinish: (result) => {
-                logger.debug(`Stream finished, result finishReason: ${result.finishReason}`);
-                logger.debug(`Stream finished, result text: ${result.text}`);
-                logger.debug(
-                    `Stream finished, result tool calls: ${JSON.stringify(result.toolCalls, null, 2)}`
-                );
-                logger.debug(
-                    `Stream finished, result tool results: ${JSON.stringify(
-                        result.toolResults,
-                        null,
-                        2
-                    )}`
-                );
-
-                // Use final result usage if available (authoritative), otherwise keep accumulated count
-                // Some providers may not report final usage, so we maintain both approaches:
-                // 1. Accumulate step tokens as fallback (done in onStepFinish above)
-                // 2. Use final result tokens if provided (more accurate for providers that support it)
-                if (result.usage && result.usage.totalTokens !== undefined) {
-                    const accumulatedTokens = totalTokens;
-                    totalTokens = result.usage.totalTokens;
-                    logger.debug(
-                        `Token count - Accumulated: ${accumulatedTokens}, Final result: ${totalTokens}`
-                    );
-                } else {
-                    logger.debug(
-                        `Using accumulated token count: ${totalTokens} (no final usage provided)`
-                    );
-                }
-            },
+            // No onFinish: we finalize after the stream completes below.
             stopWhen: stepCountIs(maxSteps),
             ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
             ...(temperature !== undefined && { temperature }),
         });
-        // Consume the stream to get the final text
-        let fullResponse = '';
-        for await (const textPart of response.textStream) {
-            fullResponse += textPart;
-        }
+        // Consume to completion via helpers and prepare final payload
+        const [finalText, usage, reasoningText] = await Promise.all([
+            response.text,
+            response.totalUsage,
+            response.reasoningText,
+        ]);
 
         // If streaming reported an error, return early since we already emitted llmservice:error event
         if (streamErr) {
@@ -606,27 +575,34 @@ export class VercelLLMService implements ILLMService {
             // Don't re-throw to prevent duplicate error messages in WebSocket
             return '';
         }
+        // Emit final response with reasoning and full token usage (authoritative)
+        this.sessionEventBus.emit('llmservice:response', {
+            content: finalText,
+            ...(reasoningText && { reasoning: reasoningText }),
+            model: this.getModelId(),
+            router: 'vercel',
+            tokenUsage: {
+                ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
+                ...(usage.reasoningTokens !== undefined && {
+                    reasoningTokens: usage.reasoningTokens,
+                }),
+                ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+            },
+        });
 
-        // Process the LLM response through ContextManager using the new stream method
-        await this.contextManager.processLLMStreamResponse(response);
-
-        // Update ContextManager with actual token count for hybrid approach
-        if (totalTokens > 0) {
-            logger.debug(`Stream finished, updating actual token count: ${totalTokens}`);
-            this.contextManager.updateActualTokenCount(totalTokens);
+        // Update ContextManager with actual token count
+        if (typeof usage.totalTokens === 'number') {
+            this.contextManager.updateActualTokenCount(usage.totalTokens);
         }
 
-        // Emit final response event with token count
-        this.sessionEventBus.emit('llmservice:response', {
-            content: fullResponse,
-            model: this.getModelId(),
-            tokenCount: totalTokens > 0 ? totalTokens : undefined,
-        });
+        // Persist the messages via formatter
+        await this.contextManager.processLLMStreamResponse(response);
 
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 
-        // Return the final text string (same as generateText)
-        return fullResponse;
+        // Return the final text string
+        return finalText;
     }
 
     /**

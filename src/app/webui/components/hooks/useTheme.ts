@@ -1,46 +1,33 @@
 import { useEffect, useState } from 'react';
 
 export function useTheme() {
-    const [theme, setTheme] = useState<'light' | 'dark'>('light');
-    const [hasMounted, setHasMounted] = useState(false);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const storedValue = localStorage.getItem('theme');
-                const stored =
-                    storedValue === 'light' || storedValue === 'dark' ? storedValue : null;
-
-                const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-                const resolvedTheme = stored || (prefersDark ? 'dark' : 'light');
-
-                setTheme(resolvedTheme);
-
-                document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
-            } catch (error) {
-                console.error('Failed to access localStorage for theme:', error);
-
-                const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-                const fallbackTheme = prefersDark ? 'dark' : 'light';
-
-                setTheme(fallbackTheme);
-                document.documentElement.classList.toggle('dark', fallbackTheme === 'dark');
-            } finally {
-                setHasMounted(true);
-            }
+    // Initialize from SSR-provided class on <html> to avoid flicker
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        if (typeof document !== 'undefined') {
+            return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
         }
-    }, []);
+        // Match SSR default from layout (dark)
+        return 'dark';
+    });
 
+    // Sync DOM class, localStorage and cookie when theme changes
     useEffect(() => {
-        if (!hasMounted || typeof window === 'undefined') return;
-
-        localStorage.setItem('theme', theme);
+        if (typeof document === 'undefined') return;
         document.documentElement.classList.toggle('dark', theme === 'dark');
-    }, [theme, hasMounted]);
+        try {
+            localStorage.setItem('theme', theme);
+            const isSecure =
+                typeof window !== 'undefined' && window.location?.protocol === 'https:';
+            document.cookie = `theme=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+        } catch {
+            // Ignore storage errors in restrictive environments
+        }
+    }, [theme]);
 
     const toggleTheme = (checked: boolean) => {
         setTheme(checked ? 'dark' : 'light');
     };
 
-    return { theme, toggleTheme, hasMounted };
+    // Keep API shape backward-compatible
+    return { theme, toggleTheme, hasMounted: true } as const;
 }
