@@ -12,6 +12,7 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResultToContent, summarizeToolContentForText } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -38,6 +39,14 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
+    // Track toolCallIds per toolName so we can attach IDs to raw tool results emitted from execute()
+    private pendingToolCallIds: Map<string, string[]> = new Map();
+    // Store raw tool results keyed by callId to re-emit from step handlers if needed
+    private rawToolResults: Map<string, any> = new Map();
+    // Track which callIds we've already emitted to avoid duplicates
+    private emittedToolResultIds: Set<string> = new Set();
+    // Queue raw results per tool name for cases where execute() doesn't receive toolCallId yet
+    private rawToolResultsByToolName: Map<string, any[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -92,29 +101,139 @@ export class VercelLLMService implements ILLMService {
             if (tool) {
                 acc[toolName] = {
                     inputSchema: jsonSchema(tool.parameters),
-                    execute: async (args: unknown) => {
+                    execute: async (args: unknown, options?: { toolCallId?: string }) => {
                         try {
-                            return await this.toolManager.executeTool(
+                            const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
                                 this.sessionId
                             );
+
+                            // Emit raw, unfiltered result for UI/consumers (do not add to context)
+                            try {
+                                // Try to attach the most recent pending toolCallId for this tool
+                                let callId: string | undefined = options?.toolCallId;
+                                if (!callId) {
+                                    const q = this.pendingToolCallIds.get(toolName);
+                                    if (q && q.length > 0) {
+                                        callId = q.shift();
+                                        this.pendingToolCallIds.set(toolName, q);
+                                    }
+                                }
+                                if (callId) {
+                                    this.rawToolResults.set(callId, rawResult);
+                                }
+                                // Always queue by tool name as fallback for missing callId
+                                const rq = this.rawToolResultsByToolName.get(toolName) ?? [];
+                                rq.push(rawResult);
+                                this.rawToolResultsByToolName.set(toolName, rq);
+                                this.sessionEventBus.emit('llmservice:toolResult', {
+                                    toolName,
+                                    result: rawResult,
+                                    callId,
+                                    success: true,
+                                });
+                                if (callId) this.emittedToolResultIds.add(callId);
+                            } catch {}
+
+                            // Sanitize tool result to prevent large/base64 media from exploding context
+                            // Convert arbitrary result -> InternalMessage content (media as structured parts)
+                            // then summarize to concise text suitable for Vercel tool output.
+                            try {
+                                const safeContent = sanitizeToolResultToContent(rawResult);
+                                const summaryText = summarizeToolContentForText(safeContent);
+                                return summaryText;
+                            } catch (sanErr) {
+                                // Fallback: stringify/truncate to keep context safe
+                                const asString =
+                                    typeof rawResult === 'string'
+                                        ? rawResult
+                                        : (() => {
+                                              try {
+                                                  return JSON.stringify(rawResult);
+                                              } catch {
+                                                  return String(rawResult);
+                                              }
+                                          })();
+                                const MAX_LEN = 4000;
+                                const truncated =
+                                    asString.length > MAX_LEN
+                                        ? `${asString.slice(0, MAX_LEN)}... [truncated]`
+                                        : asString;
+                                logger.warn(
+                                    `Vercel tool result sanitization failed for ${toolName}: ${String(
+                                        sanErr
+                                    )}. Returning truncated text.`
+                                );
+                                return truncated;
+                            }
                         } catch (err: unknown) {
-                            if (
-                                err instanceof DextoRuntimeError &&
-                                err.code === ToolErrorCode.EXECUTION_DENIED
-                            ) {
-                                return { error: err.message, denied: true };
+                            // Emit error toolResult for UI with best-effort callId mapping
+                            try {
+                                let callId: string | undefined = options?.toolCallId;
+                                if (!callId) {
+                                    const q = this.pendingToolCallIds.get(toolName);
+                                    if (q && q.length > 0) {
+                                        callId = q.shift();
+                                        this.pendingToolCallIds.set(toolName, q);
+                                    }
+                                }
+                                const toResult = (payload: any) => ({
+                                    toolName: toolName,
+                                    result: payload,
+                                    callId,
+                                    success: false,
+                                });
+                                if (
+                                    err instanceof DextoRuntimeError &&
+                                    err.code === ToolErrorCode.EXECUTION_DENIED
+                                ) {
+                                    const payload = { error: err.message, denied: true };
+                                    this.sessionEventBus.emit(
+                                        'llmservice:toolResult',
+                                        toResult(payload)
+                                    );
+                                    return payload;
+                                }
+                                if (
+                                    err instanceof DextoRuntimeError &&
+                                    err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
+                                ) {
+                                    const payload = {
+                                        error: err.message,
+                                        denied: true,
+                                        timeout: true,
+                                    };
+                                    this.sessionEventBus.emit(
+                                        'llmservice:toolResult',
+                                        toResult(payload)
+                                    );
+                                    return payload;
+                                }
+                                const message = err instanceof Error ? err.message : String(err);
+                                const payload = { error: message };
+                                this.sessionEventBus.emit(
+                                    'llmservice:toolResult',
+                                    toResult(payload)
+                                );
+                                return payload;
+                            } catch (emitErr) {
+                                // If emitting fails, still return structured error to the SDK
+                                if (
+                                    err instanceof DextoRuntimeError &&
+                                    err.code === ToolErrorCode.EXECUTION_DENIED
+                                ) {
+                                    return { error: err.message, denied: true };
+                                }
+                                if (
+                                    err instanceof DextoRuntimeError &&
+                                    err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
+                                ) {
+                                    return { error: err.message, denied: true, timeout: true };
+                                }
+                                const message = err instanceof Error ? err.message : String(err);
+                                return { error: message };
                             }
-                            if (
-                                err instanceof DextoRuntimeError &&
-                                err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
-                            ) {
-                                return { error: err.message, denied: true, timeout: true };
-                            }
-                            // Other failures
-                            const message = err instanceof Error ? err.message : String(err);
-                            return { error: message };
                         }
                     },
                     ...(tool.description && { description: tool.description }),
@@ -302,6 +421,10 @@ export class VercelLLMService implements ILLMService {
                     }
                     if (step.toolCalls && step.toolCalls.length > 0) {
                         for (const toolCall of step.toolCalls) {
+                            // Queue the toolCallId for mapping with the raw result from execute()
+                            const q = this.pendingToolCallIds.get(toolCall.toolName) ?? [];
+                            q.push(toolCall.toolCallId);
+                            this.pendingToolCallIds.set(toolCall.toolName, q);
                             this.sessionEventBus.emit('llmservice:toolCall', {
                                 toolName: toolCall.toolName,
                                 args: toolCall.input,
@@ -309,14 +432,31 @@ export class VercelLLMService implements ILLMService {
                             });
                         }
                     }
+                    // Emit sanitized tool results from steps to ensure UI receives at least one result
                     if (step.toolResults && step.toolResults.length > 0) {
                         for (const toolResult of step.toolResults) {
+                            const callId = toolResult.toolCallId;
+                            const sanitized = toolResult.output;
+                            let raw = this.rawToolResults.get(callId);
+                            if (raw === undefined) {
+                                // Fallback: pull from toolName queue in FIFO order
+                                const rq =
+                                    this.rawToolResultsByToolName.get(toolResult.toolName) ?? [];
+                                if (rq.length > 0) {
+                                    raw = rq.shift();
+                                    this.rawToolResultsByToolName.set(toolResult.toolName, rq);
+                                }
+                            }
                             this.sessionEventBus.emit('llmservice:toolResult', {
                                 toolName: toolResult.toolName,
-                                result: toolResult.output,
-                                callId: toolResult.toolCallId,
+                                result: raw ?? sanitized,
+                                ...(raw !== undefined
+                                    ? { sanitizedResult: sanitized, raw: true }
+                                    : {}),
+                                callId,
                                 success: true,
                             });
+                            if (raw !== undefined) this.rawToolResults.delete(callId);
                         }
                     }
                 },
@@ -483,6 +623,9 @@ export class VercelLLMService implements ILLMService {
                 // Process tool calls (same as generateText)
                 if (step.toolCalls && step.toolCalls.length > 0) {
                     for (const toolCall of step.toolCalls) {
+                        const q = this.pendingToolCallIds.get(toolCall.toolName) ?? [];
+                        q.push(toolCall.toolCallId);
+                        this.pendingToolCallIds.set(toolCall.toolName, q);
                         this.sessionEventBus.emit('llmservice:toolCall', {
                             toolName: toolCall.toolName,
                             args: toolCall.input,
@@ -491,15 +634,27 @@ export class VercelLLMService implements ILLMService {
                     }
                 }
 
-                // Process tool results (same condition as generateText)
+                // Emit sanitized tool results from streaming steps as well
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {
+                        const callId = toolResult.toolCallId;
+                        const sanitized = toolResult.output;
+                        let raw = this.rawToolResults.get(callId);
+                        if (raw === undefined) {
+                            const rq = this.rawToolResultsByToolName.get(toolResult.toolName) ?? [];
+                            if (rq.length > 0) {
+                                raw = rq.shift();
+                                this.rawToolResultsByToolName.set(toolResult.toolName, rq);
+                            }
+                        }
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName: toolResult.toolName,
-                            result: toolResult.output,
-                            callId: toolResult.toolCallId,
+                            result: raw ?? sanitized,
+                            ...(raw !== undefined ? { sanitizedResult: sanitized, raw: true } : {}),
+                            callId,
                             success: true,
                         });
+                        if (raw !== undefined) this.rawToolResults.delete(callId);
                     }
                 }
             },
