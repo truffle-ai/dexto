@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { 
@@ -198,6 +198,9 @@ export default function GlobalSearchModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl p-0 top-[20%] transform translate-y-0">
+        <DialogHeader>
+          <DialogTitle className="sr-only">Search Conversations</DialogTitle>
+        </DialogHeader>
         <div className="flex flex-col max-h-[70vh]">
           {/* Search Header */}
           <div className="p-6 pb-4">
