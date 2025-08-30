@@ -2,7 +2,11 @@ import { ChatCompletionMessageParam, ChatCompletionContentPart } from 'openai/re
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
-import { getImageData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
+import {
+    getImageData,
+    filterMessagesByLLMCapabilities,
+    toTextForToolMessage,
+} from '@core/context/utils.js';
 import { logger } from '@core/logger/index.js';
 
 /**
@@ -81,10 +85,10 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     break;
 
                 case 'tool':
-                    // Tool results for OpenAI
+                    // Tool results for OpenAI — only text field is supported.
                     formatted.push({
                         role: 'tool',
-                        content: String(msg.content || ''),
+                        content: toTextForToolMessage(msg.content),
                         tool_call_id: msg.toolCallId || '',
                     });
                     break;

@@ -12,6 +12,7 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResultToContent, summarizeToolContentForText } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -38,6 +39,8 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
+    // Map of toolCallId -> queue of raw results to emit with that callId
+    private rawResultsByCallId: Map<string, any[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -92,14 +95,53 @@ export class VercelLLMService implements ILLMService {
             if (tool) {
                 acc[toolName] = {
                     inputSchema: jsonSchema(tool.parameters),
-                    execute: async (args: unknown) => {
+                    execute: async (args: unknown, _options?: { toolCallId?: string }) => {
                         try {
-                            return await this.toolManager.executeTool(
+                            const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
                                 this.sessionId
                             );
+
+                            // Queue raw, unfiltered result under the specific toolCallId
+                            const callId = _options?.toolCallId ?? this.sessionId;
+                            const queue = this.rawResultsByCallId.get(callId) ?? [];
+                            queue.push(rawResult);
+                            this.rawResultsByCallId.set(callId, queue);
+
+                            // Sanitize tool result to prevent large/base64 media from exploding context
+                            // Convert arbitrary result -> InternalMessage content (media as structured parts)
+                            // then summarize to concise text suitable for Vercel tool output.
+                            try {
+                                const safeContent = sanitizeToolResultToContent(rawResult);
+                                const summaryText = summarizeToolContentForText(safeContent);
+                                return summaryText;
+                            } catch (sanErr) {
+                                // Fallback: stringify/truncate to keep context safe
+                                const asString =
+                                    typeof rawResult === 'string'
+                                        ? rawResult
+                                        : (() => {
+                                              try {
+                                                  return JSON.stringify(rawResult);
+                                              } catch {
+                                                  return String(rawResult);
+                                              }
+                                          })();
+                                const MAX_LEN = 4000;
+                                const truncated =
+                                    asString.length > MAX_LEN
+                                        ? `${asString.slice(0, MAX_LEN)}... [truncated]`
+                                        : asString;
+                                logger.warn(
+                                    `Vercel tool result sanitization failed for ${toolName}: ${String(
+                                        sanErr
+                                    )}. Returning truncated text.`
+                                );
+                                return truncated;
+                            }
                         } catch (err: unknown) {
+                            // Return structured error to SDK so a toolResult step is produced
                             if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.EXECUTION_DENIED
@@ -112,7 +154,6 @@ export class VercelLLMService implements ILLMService {
                             ) {
                                 return { error: err.message, denied: true, timeout: true };
                             }
-                            // Other failures
                             const message = err instanceof Error ? err.message : String(err);
                             return { error: message };
                         }
@@ -298,12 +339,22 @@ export class VercelLLMService implements ILLMService {
                             });
                         }
                     }
+                    // Emit tool results: prefer raw mapped by callId; fallback to sanitized output
                     if (step.toolResults && step.toolResults.length > 0) {
                         for (const toolResult of step.toolResults) {
+                            const callId = toolResult.toolCallId;
+                            const sanitized = toolResult.output;
+                            let raw: any | undefined;
+                            if (callId) {
+                                const q = this.rawResultsByCallId.get(callId) ?? [];
+                                raw = q.shift();
+                                if (q.length > 0) this.rawResultsByCallId.set(callId, q);
+                                else this.rawResultsByCallId.delete(callId);
+                            }
                             this.sessionEventBus.emit('llmservice:toolResult', {
                                 toolName: toolResult.toolName,
-                                result: toolResult.output,
-                                callId: toolResult.toolCallId,
+                                result: raw ?? sanitized,
+                                callId,
                                 success: true,
                             });
                         }
@@ -487,13 +538,23 @@ export class VercelLLMService implements ILLMService {
                         });
                     }
                 }
-                // Process tool results (same condition as generateText)
+                // Emit tool results during streaming as well (prefer queued raw)
+                // Emit tool results during streaming as well (prefer raw mapped by callId)
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {
+                        const callId = toolResult.toolCallId;
+                        const sanitized = toolResult.output;
+                        let raw: any | undefined;
+                        if (callId) {
+                            const q = this.rawResultsByCallId.get(callId) ?? [];
+                            raw = q.shift();
+                            if (q.length > 0) this.rawResultsByCallId.set(callId, q);
+                            else this.rawResultsByCallId.delete(callId);
+                        }
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName: toolResult.toolName,
-                            result: toolResult.output,
-                            callId: toolResult.toolCallId,
+                            result: raw ?? sanitized,
+                            callId,
                             success: true,
                         });
                     }

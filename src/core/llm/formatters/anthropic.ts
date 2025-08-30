@@ -9,7 +9,12 @@ import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
 import { logger } from '@core/logger/index.js';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
+import {
+    getImageData,
+    getFileData,
+    filterMessagesByLLMCapabilities,
+    toTextForToolMessage,
+} from '@core/context/utils.js';
 
 /**
  * Message formatter for Anthropic's Claude API.
@@ -91,13 +96,14 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     }
 
                     // Then add the tool result as a user message
+                    const safeContent: string = toTextForToolMessage(msg.content);
                     const toolResultMsg: MessageParam = {
                         role: 'user',
                         content: [
                             {
                                 type: 'tool_result',
                                 tool_use_id: msg.toolCallId,
-                                content: String(msg.content || ''),
+                                content: safeContent,
                             } as ToolResultBlockParam,
                         ],
                     };
@@ -108,13 +114,14 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                 } else {
                     // This shouldn't normally happen
                     logger.warn(`Tool result found without matching tool call: ${msg.toolCallId}`);
+                    const orphanSafe: string = toTextForToolMessage(msg.content);
                     const orphanToolResult: MessageParam = {
                         role: 'user',
                         content: [
                             {
                                 type: 'tool_result',
                                 tool_use_id: msg.toolCallId!,
-                                content: String(msg.content || ''),
+                                content: orphanSafe,
                             } as ToolResultBlockParam,
                         ],
                     };
