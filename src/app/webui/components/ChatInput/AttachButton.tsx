@@ -60,7 +60,7 @@ export function AttachButton({
                   <File className="h-4 w-4 mr-2" /> PDF
                 </div>
               </TooltipTrigger>
-              {!pdfSupported && <TooltipContent>Unsupported for this model</TooltipContent>}
+              {!pdfSupported && <TooltipContent side="bottom">Unsupported for this model</TooltipContent>}
             </Tooltip>
           </TooltipProvider>
         </DropdownMenuItem>
@@ -76,7 +76,7 @@ export function AttachButton({
                   <FileAudio className="h-4 w-4 mr-2" /> Audio file
                 </div>
               </TooltipTrigger>
-              {!audioSupported && <TooltipContent>Unsupported for this model</TooltipContent>}
+              {!audioSupported && <TooltipContent side="bottom">Unsupported for this model</TooltipContent>}
             </Tooltip>
           </TooltipProvider>
         </DropdownMenuItem>

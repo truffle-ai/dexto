@@ -30,7 +30,7 @@ export function RecordButton({ isRecording, onToggleRecording, className, disabl
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>{btn}</TooltipTrigger>
-        <TooltipContent>Unsupported for this model</TooltipContent>
+        <TooltipContent side="bottom">Unsupported for this model</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   ) : btn;
