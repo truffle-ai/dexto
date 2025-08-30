@@ -24,7 +24,7 @@ export interface ModelInfo {
 }
 
 // Central list of supported file type identifiers used across server/UI
-export const SUPPORTED_FILE_TYPES = ['audio', 'pdf'] as const;
+export const SUPPORTED_FILE_TYPES = ['pdf', 'image', 'audio'] as const;
 export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
 // Central MIME type to file type mapping
@@ -39,6 +39,12 @@ export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
     'audio/ogg': 'audio',
     'audio/m4a': 'audio',
     'audio/aac': 'audio',
+    // Common image MIME types
+    'image/jpeg': 'image',
+    'image/jpg': 'image',
+    'image/png': 'image',
+    'image/webp': 'image',
+    'image/gif': 'image',
 };
 
 // Helper function to get array of allowed MIME types
@@ -80,12 +86,11 @@ export type LLMRouter = (typeof LLM_ROUTERS)[number];
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
-            // TODO: might need to upgrade vercel to v5 to support these models
             {
                 name: 'gpt-5',
                 displayName: 'GPT-5',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 1.25,
                     outputPerM: 10.0,
@@ -98,7 +103,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-5-mini',
                 displayName: 'GPT-5 Mini',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.25,
                     outputPerM: 2.0,
@@ -111,7 +116,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-5-nano',
                 displayName: 'GPT-5 Nano',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.05,
                     outputPerM: 0.4,
@@ -124,7 +129,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-4.1',
                 displayName: 'GPT-4.1',
                 maxInputTokens: 1047576,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 2.0,
                     outputPerM: 8.0,
@@ -138,7 +143,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'GPT-4.1 Mini',
                 maxInputTokens: 1047576,
                 default: true,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.4,
                     outputPerM: 1.6,
@@ -151,7 +156,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-4.1-nano',
                 displayName: 'GPT-4.1 Nano',
                 maxInputTokens: 1047576,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.1,
                     outputPerM: 0.4,
@@ -164,7 +169,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-4o',
                 displayName: 'GPT-4o',
                 maxInputTokens: 128000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 2.5,
                     outputPerM: 10.0,
@@ -177,7 +182,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-4o-mini',
                 displayName: 'GPT-4o Mini',
                 maxInputTokens: 128000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.15,
                     outputPerM: 0.6,
@@ -190,7 +195,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-4o-audio-preview',
                 displayName: 'GPT-4o Audio Preview',
                 maxInputTokens: 128000,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['audio'],
                 pricing: {
                     inputPerM: 2.5,
                     outputPerM: 10.0,
@@ -202,7 +207,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'o4-mini',
                 displayName: 'O4 Mini',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 1.1,
                     outputPerM: 4.4,
@@ -215,7 +220,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'o3',
                 displayName: 'O3',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 2.0,
                     outputPerM: 8.0,
@@ -228,7 +233,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'o3-mini',
                 displayName: 'O3 Mini',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: [],
                 pricing: {
                     inputPerM: 1.1,
                     outputPerM: 4.4,
@@ -241,7 +246,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'o1',
                 displayName: 'O1',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 15.0,
                     outputPerM: 60.0,
@@ -267,7 +272,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'claude-opus-4-1-20250805',
                 displayName: 'Claude 4.1 Opus',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 15.0,
                     outputPerM: 75.0,
@@ -281,7 +286,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'claude-4-opus-20250514',
                 displayName: 'Claude 4 Opus',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 15.0,
                     outputPerM: 75.0,
@@ -296,7 +301,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Claude 4 Sonnet',
                 maxInputTokens: 200000,
                 default: true,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -310,7 +315,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'claude-3-7-sonnet-20250219',
                 displayName: 'Claude 3.7 Sonnet',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -324,7 +329,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'claude-3-5-sonnet-20240620',
                 displayName: 'Claude 3.5 Sonnet',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -338,7 +343,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'claude-3-5-haiku-20241022',
                 displayName: 'Claude 3.5 Haiku',
                 maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.8,
                     outputPerM: 4,
@@ -360,7 +365,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Gemini 2.5 Pro',
                 maxInputTokens: 1048576,
                 default: true,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 1.25,
                     outputPerM: 10.0,
@@ -373,7 +378,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.5-flash',
                 displayName: 'Gemini 2.5 Flash',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 0.3,
                     outputPerM: 2.5,
@@ -385,7 +390,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.5-flash-lite',
                 displayName: 'Gemini 2.5 Flash Lite',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 0.1,
                     outputPerM: 0.4,
@@ -398,7 +403,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.0-flash',
                 displayName: 'Gemini 2.0 Flash',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 0.15,
                     outputPerM: 0.6,
@@ -412,7 +417,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gemini-2.0-flash-lite',
                 displayName: 'Gemini 2.0 Flash Lite',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
                     inputPerM: 0.075,
                     outputPerM: 0.3,
@@ -543,6 +548,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: [], // Groq currently doesn't support file uploads
     },
     // https://docs.x.ai/docs/models
+    // TODO: verify pdf support
     xai: {
         models: [
             {
@@ -550,7 +556,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Grok 4',
                 maxInputTokens: 256000,
                 default: true,
-                supportedFileTypes: [],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -563,7 +569,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'grok-3',
                 displayName: 'Grok 3',
                 maxInputTokens: 131072,
-                supportedFileTypes: [],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -576,7 +582,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'grok-3-mini',
                 displayName: 'Grok 3 Mini',
                 maxInputTokens: 131072,
-                supportedFileTypes: [],
+                supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.3,
                     outputPerM: 0.5,

@@ -144,6 +144,11 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                           {CAPABILITY_ICONS.audio}
                         </span>
                       )}
+                      {model.supportedFileTypes.includes('image') && (
+                        <span className="text-muted-foreground" title="Image support">
+                          {CAPABILITY_ICONS.image}
+                        </span>
+                      )}
                       {!hasApiKey && (
                         <span className="text-muted-foreground" title="API key required">
                           <Lock className="h-3 w-3" />

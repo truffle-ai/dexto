@@ -17,6 +17,7 @@ interface AttachButtonProps {
   onAudioAttach: () => void;
   className?: string;
   supports?: {
+    image?: boolean;
     pdf?: boolean;
     audio?: boolean;
   };
@@ -29,6 +30,7 @@ export function AttachButton({
   className,
   supports,
 }: AttachButtonProps) {
+  const imageSupported = supports?.image !== false; // default to true if unknown
   const pdfSupported = supports?.pdf !== false; // default to true if unknown
   const audioSupported = supports?.audio !== false;
   return (
@@ -45,8 +47,21 @@ export function AttachButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start">
-        <DropdownMenuItem onClick={onImageAttach}>
-          <Paperclip className="h-4 w-4 mr-2" /> Image
+        <DropdownMenuItem 
+          onSelect={(e) => { if (!imageSupported) e.preventDefault(); }}
+          onClick={imageSupported ? onImageAttach : undefined}
+          className={!imageSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+        >
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center">
+                  <Paperclip className="h-4 w-4 mr-2" /> Image
+                </div>
+              </TooltipTrigger>
+              {!imageSupported && <TooltipContent side="bottom">Unsupported for this model</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
         </DropdownMenuItem>
         <DropdownMenuItem 
           onSelect={(e) => { if (!pdfSupported) e.preventDefault(); }}

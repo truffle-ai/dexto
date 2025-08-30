@@ -526,6 +526,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onPdfAttach={triggerPdfInput}
                     onAudioAttach={triggerAudioInput}
                     supports={{
+                      image: supportedFileTypes.length === 0 || supportedFileTypes.includes('image'),
                       pdf: supportedFileTypes.length === 0 || supportedFileTypes.includes('pdf'),
                       audio: supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'),
                     }}
