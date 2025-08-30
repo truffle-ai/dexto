@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
-import { ChatInputContainer, ButtonFooter, StreamToggle, ModelSelector, AttachButton, RecordButton } from './ChatInput';
+import { ChatInputContainer, ButtonFooter, StreamToggle, AttachButton, RecordButton } from './ChatInput';
+import ModelPickerModal from './ModelPicker';
 import { Badge } from './ui/badge';
 import { 
   DropdownMenu,
@@ -55,13 +56,14 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   
   // Get current session context to ensure model switch applies to the correct session
-  const { currentSessionId, isStreaming, setStreaming } = useChatContext();
+  const { currentSessionId, isStreaming, setStreaming, currentLLM } = useChatContext() as any;
   
   // LLM selector state
   const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
@@ -113,6 +115,27 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
     fetchCurrentModel();
   }, [currentSessionId]); // Re-fetch whenever the session changes
+
+  // Fetch supported file types for the active model to drive Attach menu
+  useEffect(() => {
+    const loadSupportedFileTypes = async () => {
+      try {
+        const res = await fetch('/api/llm/catalog?mode=flat');
+        if (!res.ok) return;
+        const data = await res.json();
+        const models: Array<{ provider: string; name: string; supportedFileTypes?: string[] }> = data.models || [];
+        const provider = currentLLM?.provider;
+        const model = currentLLM?.model;
+        if (!provider || !model) return;
+        const match = models.find(m => m.provider === provider && m.name === model);
+        setSupportedFileTypes(match?.supportedFileTypes || []);
+      } catch (e) {
+        // ignore – default to []
+        setSupportedFileTypes([]);
+      }
+    };
+    loadSupportedFileTypes();
+  }, [currentLLM?.provider, currentLLM?.model]);
 
   // NOTE: We intentionally do not manually resize the textarea. We rely on
   // CSS max-height + overflow to keep layout stable.
@@ -317,63 +340,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const triggerPdfInput = () => pdfInputRef.current?.click();
   const triggerAudioInput = () => audioInputRef.current?.click();
 
-  const handleModelSwitch = async (model: ModelOption) => {
-    setIsLoadingModel(true);
-    setModelSwitchError(null); // Clear any previous errors
-    try {
-      const requestBody: any = {
-        provider: model.provider,
-        model: model.model,
-      };
-
-      // Include current session ID to ensure model switch applies to the correct session
-      // If there's no active session, it will fall back to the default session behavior
-      if (currentSessionId) {
-        requestBody.sessionId = currentSessionId;
-      }
-
-      const response = await fetch('/api/llm/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-      
-      const result = await response.json();
-
-      if (response.ok) {
-        setCurrentModel(model);
-        setModelSwitchError(null); // Clear any errors on success
-      } else {
-        // Handle new validation error format
-        let errorMessage = 'Failed to switch model';
-        if (result.issues && result.issues.length > 0) {
-          const errors = result.issues.filter((issue: any) => issue.severity === 'error');
-          if (errors.length > 0) {
-            errorMessage = errors[0].message;
-          }
-        } else if (result.error) {
-          // Fallback to old format
-          errorMessage = result.error;
-        }
-        
-        console.error('Failed to switch model:', errorMessage);
-        setModelSwitchError(errorMessage);
-        
-        // Auto-clear error after 10 seconds
-        setTimeout(() => setModelSwitchError(null), 10000);
-      }
-    } catch (error) {
-      console.error('Network error while switching model:', error);
-      const errorMessage = 'Network error while switching model';
-      setModelSwitchError(errorMessage);
-      
-      // Auto-clear error after 10 seconds
-      setTimeout(() => setModelSwitchError(null), 10000);
-    } finally {
-      setIsLoadingModel(false);
-    }
-  };
-
   // Clear model switch error when user starts typing
   useEffect(() => {
     if (text && modelSwitchError) {
@@ -559,11 +525,16 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onImageAttach={triggerFileInput}
                     onPdfAttach={triggerPdfInput}
                     onAudioAttach={triggerAudioInput}
+                    supports={{
+                      pdf: supportedFileTypes.length === 0 || supportedFileTypes.includes('pdf'),
+                      audio: supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'),
+                    }}
                   />
                   
                   <RecordButton
                     isRecording={isRecording}
                     onToggleRecording={isRecording ? stopRecording : startRecording}
+                    disabled={!(supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'))}
                   />
                 </div>
               }
@@ -574,12 +545,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onStreamingChange={setStreaming}
                   />
                   
-                  <ModelSelector
-                    currentModel={currentModel}
-                    isLoading={isLoadingModel}
-                    models={coreModels}
-                    onModelChange={handleModelSwitch}
-                  />
+                  <ModelPickerModal />
 
                   <Button
                     type="submit"

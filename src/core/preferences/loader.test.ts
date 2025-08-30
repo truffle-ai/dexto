@@ -49,7 +49,7 @@ describe('Preferences Loader', () => {
         samplePreferences = {
             llm: {
                 provider: 'anthropic',
-                model: 'claude-3-sonnet-20240229',
+                model: 'claude-4-sonnet-20250514',
                 apiKey: '$ANTHROPIC_API_KEY',
             },
             defaults: {
@@ -100,7 +100,7 @@ describe('Preferences Loader', () => {
             // Verify content is valid YAML with correct values
             const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
             expect(fileContent).toContain('provider: anthropic');
-            expect(fileContent).toContain('model: claude-3-sonnet-20240229');
+            expect(fileContent).toContain('model: claude-4-sonnet-20250514');
             expect(fileContent).toContain('apiKey: $ANTHROPIC_API_KEY');
             expect(fileContent).toContain('defaultAgent: test-agent');
             expect(fileContent).toContain('completed: true');
@@ -307,7 +307,7 @@ setup:
         it('should use default agent name when not provided', () => {
             const preferences = createInitialPreferences(
                 'anthropic',
-                'claude-3-sonnet-20240229',
+                'claude-4-sonnet-20250514',
                 'ANTHROPIC_API_KEY'
             );
 
@@ -386,7 +386,7 @@ setup:
             const updates = {
                 llm: {
                     provider: 'anthropic' as const,
-                    model: 'claude-3-opus-20240229',
+                    model: 'claude-4-opus-20250514',
                     apiKey: '$ANTHROPIC_API_KEY',
                 },
             };
@@ -395,7 +395,7 @@ setup:
 
             // Verify file was updated
             const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
-            expect(fileContent).toContain('model: claude-3-opus-20240229');
+            expect(fileContent).toContain('model: claude-4-opus-20250514');
         });
 
         it('should throw validation error for invalid merged preferences', async () => {

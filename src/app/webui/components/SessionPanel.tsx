@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface Session {
   id: string;
@@ -46,7 +47,10 @@ interface SessionPanelProps {
   returnToWelcome: () => void;
   variant?: 'inline' | 'modal';
   onSearchOpen?: () => void;
+  onNewChat?: () => void;
 }
+
+import NewChatButton from './NewChatButton';
 
 export default function SessionPanel({ 
   isOpen, 
@@ -55,7 +59,8 @@ export default function SessionPanel({
   onSessionChange,
   returnToWelcome,
   variant = 'modal',
-  onSearchOpen
+  onSearchOpen,
+  onNewChat,
 }: SessionPanelProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
@@ -236,25 +241,26 @@ export default function SessionPanel({
         </div>
         <div className="flex items-center space-x-1">
           {onSearchOpen && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onSearchOpen}
-              className="h-7 w-7 p-0"
-              title="Search Conversations (⌘⇧S)"
-            >
-              <Search className="h-3.5 w-3.5" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onSearchOpen}
+                    className="h-7 w-7 p-0"
+                    aria-label="Search conversations"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Search conversations (⌘⇧S)</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setNewSessionOpen(true)}
-            className="h-7 px-2"
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            <span className="text-xs">New</span>
-          </Button>
+          {onNewChat && (
+            <NewChatButton onClick={onNewChat} variant="outline" />
+          )}
         </div>
       </div>
 

@@ -67,9 +67,9 @@ export class VercelLLMService implements ILLMService {
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<ModelMessage>(
+            config,
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,
@@ -317,6 +317,7 @@ export class VercelLLMService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
+                provider: this.config.provider,
                 model: this.getModelId(),
                 router: 'vercel',
                 tokenUsage: {
@@ -511,6 +512,8 @@ export class VercelLLMService implements ILLMService {
             response.reasoningText,
         ]);
 
+        response.totalUsage;
+
         // If streaming reported an error, return early since we already emitted llmservice:error event
         if (streamErr) {
             // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
@@ -526,6 +529,7 @@ export class VercelLLMService implements ILLMService {
         this.sessionEventBus.emit('llmservice:response', {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
+            provider: this.config.provider,
             model: this.getModelId(),
             router: 'vercel',
             tokenUsage: {

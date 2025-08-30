@@ -221,7 +221,7 @@ describe('DextoAgent Lifecycle Management', () => {
             { name: 'deleteSession', args: ['session-id'] },
             { name: 'resetConversation', args: [] },
             { name: 'getCurrentLLMConfig', args: [] },
-            { name: 'switchLLM', args: [{ model: 'gpt-4' }] },
+            { name: 'switchLLM', args: [{ model: 'gpt-5' }] },
             { name: 'connectMcpServer', args: ['test', { type: 'stdio', command: 'test' }] },
             { name: 'getAllMcpTools', args: [] },
         ];

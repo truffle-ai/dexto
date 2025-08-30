@@ -306,7 +306,7 @@ describe('AgentConfigSchema', () => {
                 internalTools: ['search_history'],
                 llm: {
                     provider: 'anthropic',
-                    model: 'claude-3-haiku-20240307',
+                    model: 'claude-3-5-haiku-20241022',
                     apiKey: 'test-anthropic-key',
                     router: 'in-built',
                     maxIterations: 25,

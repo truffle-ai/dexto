@@ -10,10 +10,22 @@ export interface ModelInfo {
     default?: boolean;
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
+    displayName?: string;
+    // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
+    pricing?: {
+        inputPerM: number;
+        outputPerM: number;
+        cacheReadPerM?: number;
+        cacheWritePerM?: number;
+        currency?: 'USD';
+        unit?: 'per_million_tokens';
+    };
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
-export type SupportedFileType = 'audio' | 'pdf';
+// Central list of supported file type identifiers used across server/UI
+export const SUPPORTED_FILE_TYPES = ['audio', 'pdf'] as const;
+export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
 // Central MIME type to file type mapping
 export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
@@ -61,6 +73,9 @@ export const LLM_ROUTERS = ['vercel', 'in-built'] as const;
 
 export type LLMRouter = (typeof LLM_ROUTERS)[number];
 
+// Provider display names for UI
+// (UI can format provider and model display if needed.)
+
 // Central registry of supported LLM providers and their models
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
@@ -68,38 +83,173 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // TODO: might need to upgrade vercel to v5 to support these models
             {
                 name: 'gpt-5',
+                displayName: 'GPT-5',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-5-mini',
+                displayName: 'GPT-5 Mini',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.25,
+                    outputPerM: 2.0,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gpt-5-nano',
+                displayName: 'GPT-5 Nano',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.05,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.005,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
-            { name: 'gpt-4.1', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
+            {
+                name: 'gpt-4.1',
+                displayName: 'GPT-4.1',
+                maxInputTokens: 1047576,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 8.0,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             {
                 name: 'gpt-4.1-mini',
+                displayName: 'GPT-4.1 Mini',
                 maxInputTokens: 1047576,
                 default: true,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.4,
+                    outputPerM: 1.6,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
-            { name: 'gpt-4.1-nano', maxInputTokens: 1047576, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-4o', maxInputTokens: 128000, supportedFileTypes: ['pdf'] },
-            { name: 'gpt-4o-mini', maxInputTokens: 128000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'gpt-4.1-nano',
+                displayName: 'GPT-4.1 Nano',
+                maxInputTokens: 1047576,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.1,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-4o',
+                displayName: 'GPT-4o',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 1.25,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-4o-mini',
+                displayName: 'GPT-4o Mini',
+                maxInputTokens: 128000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    cacheReadPerM: 0.075,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             {
                 name: 'gpt-4o-audio-preview',
+                displayName: 'GPT-4o Audio Preview',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 10.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
-            { name: 'o4-mini', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o3', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o3-mini', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            { name: 'o1', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'o4-mini',
+                displayName: 'O4 Mini',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 1.1,
+                    outputPerM: 4.4,
+                    cacheReadPerM: 0.275,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'o3',
+                displayName: 'O3',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 8.0,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'o3-mini',
+                displayName: 'O3 Mini',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 1.1,
+                    outputPerM: 4.4,
+                    cacheReadPerM: 0.55,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'o1',
+                displayName: 'O1',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 60.0,
+                    cacheReadPerM: 7.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
@@ -113,33 +263,90 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     },
     anthropic: {
         models: [
-            { name: 'claude-4-opus-20250514', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
+            {
+                name: 'claude-opus-4-1-20250805',
+                displayName: 'Claude 4.1 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'claude-4-opus-20250514',
+                displayName: 'Claude 4 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 75.0,
+                    cacheWritePerM: 18.75,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             {
                 name: 'claude-4-sonnet-20250514',
+                displayName: 'Claude 4 Sonnet',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-7-sonnet-20250219',
+                displayName: 'Claude 3.7 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'claude-3-5-sonnet-20240620',
+                displayName: 'Claude 3.5 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
-                name: 'claude-3-haiku-20240307',
+                name: 'claude-3-5-haiku-20241022',
+                displayName: 'Claude 3.5 Haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf'],
-            },
-            { name: 'claude-3-opus-20240229', maxInputTokens: 200000, supportedFileTypes: ['pdf'] },
-            {
-                name: 'claude-3-sonnet-20240229',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf'],
+                pricing: {
+                    inputPerM: 0.8,
+                    outputPerM: 4,
+                    cacheWritePerM: 1,
+                    cacheReadPerM: 0.08,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
         ],
         supportedRouters: ['vercel', 'in-built'],
@@ -150,34 +357,68 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [
             {
                 name: 'gemini-2.5-pro',
+                displayName: 'Gemini 2.5 Pro',
                 maxInputTokens: 1048576,
                 default: true,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.31,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-2.5-flash',
+                displayName: 'Gemini 2.5 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.3,
+                    outputPerM: 2.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-2.5-flash-lite',
+                displayName: 'Gemini 2.5 Flash Lite',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.1,
+                    outputPerM: 0.4,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-2.0-flash',
+                displayName: 'Gemini 2.0 Flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    cacheReadPerM: 0.025,
+                    cacheWritePerM: 1.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
             {
                 name: 'gemini-2.0-flash-lite',
+                displayName: 'Gemini 2.0 Flash Lite',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'audio'],
-            },
-            {
-                name: 'gemini-1.5-pro-latest',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
-            },
-            {
-                name: 'gemini-1.5-flash-latest',
-                maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'audio'],
+                pricing: {
+                    inputPerM: 0.075,
+                    outputPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
         ],
         supportedRouters: ['vercel'],
@@ -187,12 +428,114 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // https://console.groq.com/docs/models
     groq: {
         models: [
-            { name: 'gemma-2-9b-it', maxInputTokens: 8192, supportedFileTypes: [] },
+            {
+                name: 'gemma-2-9b-it',
+                displayName: 'Gemma 2 9B Instruct',
+                maxInputTokens: 8192,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.2,
+                    outputPerM: 0.2,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'openai/gpt-oss-20b',
+                displayName: 'GPT OSS 20B 128k',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.1,
+                    outputPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'openai/gpt-oss-120b',
+                displayName: 'GPT OSS 120B 128k',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.75,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'moonshotai/kimi-k2-instruct',
+                displayName: 'Kimi K2 1T 128k',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 3.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                displayName: 'Llama 4 Scout (17Bx16E) 128k',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.11,
+                    outputPerM: 0.34,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+                displayName: 'Llama 4 Maverick (17Bx128E) 128k',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.2,
+                    outputPerM: 0.6,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'deepseek-r1-distill-llama-70b',
+                displayName: 'DeepSeek R1 Distill Llama 70B 128k',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.75,
+                    outputPerM: 0.9,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'qwen/qwen3-32b',
+                displayName: 'Qwen3 32B 131k',
+                maxInputTokens: 131000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.29,
+                    outputPerM: 0.59,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             {
                 name: 'llama-3.3-70b-versatile',
+                displayName: 'Llama 3.3 70B Versatile',
                 maxInputTokens: 128000,
                 default: true,
                 supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.59,
+                    outputPerM: 0.79,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
         ],
         supportedRouters: ['vercel'],
@@ -202,9 +545,59 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // https://docs.x.ai/docs/models
     xai: {
         models: [
-            { name: 'grok-4', maxInputTokens: 256000, default: true, supportedFileTypes: [] },
-            { name: 'grok-3', maxInputTokens: 131072, supportedFileTypes: [] },
-            { name: 'grok-3-mini', maxInputTokens: 131072, supportedFileTypes: [] },
+            {
+                name: 'grok-4',
+                displayName: 'Grok 4',
+                maxInputTokens: 256000,
+                default: true,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheReadPerM: 0.75,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'grok-3',
+                displayName: 'Grok 3',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheReadPerM: 0.75,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'grok-3-mini',
+                displayName: 'Grok 3 Mini',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.3,
+                    outputPerM: 0.5,
+                    cacheReadPerM: 0.075,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'grok-code-fast-1',
+                displayName: 'Grok Code Fast',
+                maxInputTokens: 131072,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.2,
+                    outputPerM: 1.5,
+                    cacheReadPerM: 0.02,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',
@@ -215,14 +608,53 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [
             {
                 name: 'command-a-03-2025',
+                displayName: 'Command A (03-2025)',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 10.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
             },
-            { name: 'command-r-plus', maxInputTokens: 128000, supportedFileTypes: [] },
-            { name: 'command-r', maxInputTokens: 128000, supportedFileTypes: [] },
-            { name: 'command', maxInputTokens: 4000, supportedFileTypes: [] },
-            { name: 'command-light', maxInputTokens: 4000, supportedFileTypes: [] },
+            {
+                name: 'command-r-plus',
+                displayName: 'Command R+',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 2.5,
+                    outputPerM: 10.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'command-r',
+                displayName: 'Command R',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.15,
+                    outputPerM: 0.6,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'command-r7b',
+                displayName: 'Command R7B',
+                maxInputTokens: 128000,
+                supportedFileTypes: [],
+                pricing: {
+                    inputPerM: 0.0375,
+                    outputPerM: 0.15,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
         ],
         supportedRouters: ['vercel'],
         baseURLSupport: 'none',

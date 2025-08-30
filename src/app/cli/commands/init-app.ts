@@ -8,7 +8,7 @@ import { executeWithTimeout } from '../utils/execute.js';
 import { createRequire } from 'module';
 import { LLMProvider, logger } from '@core/index.js';
 import { updateDextoConfigFile } from '../utils/project-utils.js';
-import { updateEnvFileWithLLMKeys } from '../utils/env-utils.js';
+import { saveProviderApiKey } from '@core/utils/api-key-store.js';
 import {
     getProviderDisplayName,
     isValidApiKeyFormat,
@@ -198,15 +198,15 @@ export async function initDexto(
             logger.debug('Dexto example file created successfully!');
         }
 
-        // add/update .env file
-        spinner.start('Updating .env file with dexto env variables...');
+        // add/update .env file (only if user provided a key)
+        spinner.start('Saving API key to .env file...');
         logger.debug(
-            `Updating .env file with dexto env variables: directory ${directory}, llmProvider: ${llmProvider}, llmApiKey: [REDACTED]`
+            `Saving API key: provider=${llmProvider ?? 'none'}, hasApiKey=${Boolean(llmApiKey)}`
         );
-        // Use the core helper function directly
-        const envFilePath = path.join(process.cwd(), '.env');
-        await updateEnvFileWithLLMKeys(envFilePath, llmProvider, llmApiKey);
-        spinner.stop('Updated .env file with dexto env variables...');
+        if (llmProvider && llmApiKey) {
+            await saveProviderApiKey(llmProvider, llmApiKey, process.cwd());
+        }
+        spinner.stop('Saved .env updates');
         return { success: true };
     } catch (err) {
         spinner.stop(chalk.inverse('An error occurred initializing Dexto project'));

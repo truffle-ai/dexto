@@ -24,9 +24,9 @@ export const ToolConfirmationConfigSchema = z
             .number()
             .int()
             .positive()
-            .default(30000)
+            .default(120000)
             .describe(
-                'Timeout for tool confirmation requests in milliseconds, defaults to 30000ms (30 seconds)'
+                'Timeout for tool confirmation requests in milliseconds, defaults to 120000ms (2 mins)'
             ),
         allowedToolsStorage: z
             .enum(['memory', 'storage'])

@@ -4,6 +4,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+!feature-plans/llm-selection.md
 feature-plans/
 technical-plans/
 
@@ -61,5 +62,4 @@ test-temp/
 
 # Temporarily ignore module READMEs in src/core
 src/core/*/README.md
-
 

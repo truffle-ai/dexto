@@ -43,13 +43,13 @@ export class AnthropicService implements ILLMService {
 
         // Create properly-typed ContextManager for Anthropic
         const formatter = new AnthropicMessageFormatter();
-        const tokenizer = createTokenizer('anthropic', config.model);
+        const tokenizer = createTokenizer(config.provider, config.model);
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<MessageParam>(
+            config,
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,
@@ -96,7 +96,7 @@ export class AnthropicService implements ILLMService {
                 };
 
                 const llmContext = {
-                    provider: 'anthropic' as const,
+                    provider: this.config.provider,
                     model: this.config.model,
                 };
 
@@ -160,15 +160,11 @@ export class AnthropicService implements ILLMService {
 
                     // Add assistant message with all tool calls
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
-                        model: this.config.model,
-                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 } else {
                     // Add regular assistant message
                     await this.contextManager.addAssistantMessage(textContent, undefined, {
-                        model: this.config.model,
-                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 }
@@ -184,6 +180,7 @@ export class AnthropicService implements ILLMService {
 
                     this.sessionEventBus.emit('llmservice:response', {
                         content: fullResponse,
+                        provider: this.config.provider,
                         model: this.config.model,
                         router: 'in-built',
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
@@ -259,6 +256,7 @@ export class AnthropicService implements ILLMService {
 
             this.sessionEventBus.emit('llmservice:response', {
                 content: fullResponse,
+                provider: this.config.provider,
                 model: this.config.model,
                 router: 'in-built',
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
@@ -287,11 +285,14 @@ export class AnthropicService implements ILLMService {
      */
     getConfig(): LLMServiceConfig {
         const configuredMaxInputTokens = this.contextManager.getMaxInputTokens();
-        const modelMaxInputTokens = getMaxInputTokensForModel('anthropic', this.config.model);
+        const modelMaxInputTokens = getMaxInputTokensForModel(
+            this.config.provider,
+            this.config.model
+        );
 
         return {
             router: 'in-built',
-            provider: 'anthropic',
+            provider: this.config.provider,
             model: this.config.model,
             configuredMaxInputTokens: configuredMaxInputTokens,
             modelMaxInputTokens: modelMaxInputTokens,

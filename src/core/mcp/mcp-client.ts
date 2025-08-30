@@ -5,10 +5,10 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 import { logger } from '../logger/index.js';
 import type {
-    McpServerConfig,
-    StdioServerConfig,
-    SseServerConfig,
-    HttpServerConfig,
+    ValidatedMcpServerConfig,
+    ValidatedStdioServerConfig,
+    ValidatedSseServerConfig,
+    ValidatedHttpServerConfig,
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
 import { IMCPClient } from './types.js';
@@ -34,10 +34,10 @@ export class MCPClient implements IMCPClient {
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
 
-    async connect(config: McpServerConfig, serverName: string): Promise<Client> {
+    async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
-            const stdioConfig: StdioServerConfig = config;
+            const stdioConfig: ValidatedStdioServerConfig = config;
 
             // Auto-resolve npx path on Windows
             let command = stdioConfig.command;
@@ -47,10 +47,10 @@ export class MCPClient implements IMCPClient {
 
             return this.connectViaStdio(command, stdioConfig.args, stdioConfig.env, serverName);
         } else if (config.type === 'sse') {
-            const sseConfig: SseServerConfig = config;
+            const sseConfig: ValidatedSseServerConfig = config;
             return this.connectViaSSE(sseConfig.url, sseConfig.headers, serverName);
         } else if (config.type === 'http') {
-            const httpConfig: HttpServerConfig = config;
+            const httpConfig: ValidatedHttpServerConfig = config;
             return this.connectViaHttp(httpConfig.url, httpConfig.headers || {}, serverName);
         } else {
             // TypeScript exhaustiveness check - should never reach here

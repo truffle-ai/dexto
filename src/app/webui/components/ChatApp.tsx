@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { ThemeSwitch } from './ThemeSwitch';
+import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 
@@ -445,6 +446,7 @@ export default function ChatApp() {
             returnToWelcome={returnToWelcome}
             variant="inline"
             onSearchOpen={() => setSearchOpen(true)}
+            onNewChat={createAndSwitchSession}
           />
         )}
       </div>
@@ -485,23 +487,9 @@ export default function ChatApp() {
                 </TooltipContent>
               </Tooltip>
               
-              {/* New Chat Button - Only show when panel is closed */}
+              {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={createAndSwitchSession}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    New Chat (⌘K)
-                  </TooltipContent>
-                </Tooltip>
+                <NewChatButton onClick={createAndSwitchSession} />
               )}
               
               {/* TODO: improve the non text part of logo */}
@@ -511,7 +499,8 @@ export default function ChatApp() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
               >
-                <img src="/logo.svg" alt="Dexto" className="h-8 w-auto" />
+                <img src="/logos/dexto_logo_light.svg" alt="Dexto" className="h-8 w-auto dark:hidden" />
+                <img src="/logos/dexto_logo.svg" alt="Dexto" className="h-8 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
               
@@ -641,7 +630,7 @@ export default function ChatApp() {
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
-                      <img src="/logo_no_text.png" alt="Dexto" className="h-8 w-auto" />
+                      <img src="/logos/dexto_logo_no_text.png" alt="Dexto" className="h-8 w-auto invert dark:invert-0" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         Welcome to Dexto
                       </h2>

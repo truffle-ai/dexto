@@ -112,6 +112,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                         text: payload.content,
                         reasoning: payload.reasoning,
                         tokenUsage: payload.tokenUsage,
+                        provider: payload.provider,
                         model: payload.model,
                         router: payload.router,
                         sessionId: payload.sessionId,

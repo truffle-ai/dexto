@@ -32,12 +32,12 @@ export const metadata: Metadata = {
   icons: {
     // Prefer the no-text PNG explicitly (provide common sizes and bust cache)
     icon: [
-      { url: "/logo_no_text.png?v=2", type: "image/png", sizes: "32x32" },
-      { url: "/logo_no_text.png?v=2", type: "image/png", sizes: "16x16" },
+      { url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png", sizes: "32x32" },
+      { url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png", sizes: "16x16" },
       //{ url: "/favicon2.ico", type: "image/x-icon"}
     ],
-    shortcut: [{ url: "/logo_no_text.png?v=2", type: "image/png" }],
-    apple: [{ url: "/logo_no_text.png?v=2", type: "image/png" }],
+    shortcut: [{ url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png" }],
+    apple: [{ url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png" }],
   },
   openGraph: {
     title: "Dexto",

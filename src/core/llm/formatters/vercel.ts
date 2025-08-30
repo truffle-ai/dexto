@@ -158,8 +158,6 @@ export class VercelMessageFormatter implements IMessageFormatter {
         if (lastAssistant) {
             const usage = await response.totalUsage;
             const reasoningText = await response.reasoningText;
-            const resolvedResp = await response.response;
-            const modelId = resolvedResp?.modelId;
             if (reasoningText) {
                 lastAssistant.reasoning = reasoningText;
             }
@@ -173,11 +171,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
                 };
             }
-            if (modelId) {
-                lastAssistant.model = modelId;
-            }
-            // Vercel formatter always uses 'vercel' router
-            lastAssistant.router = 'vercel';
+            // provider/router/model is enriched by ContextManager from current config
         }
         return internal;
     }
@@ -329,8 +323,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
             if (modelId) {
                 lastAssistant.model = modelId;
             }
-            // Vercel formatter always uses 'vercel' router
-            lastAssistant.router = 'vercel';
+            // Router is enriched by ContextManager from current config
         }
         return internal;
     }

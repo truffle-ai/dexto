@@ -202,7 +202,7 @@ describe('LocalAgentRegistry', () => {
             fs.mkdirSync(bundledAgentsPath, { recursive: true });
             fs.writeFileSync(
                 path.join(bundledAgentsPath, 'test-agent.yml'),
-                'llm:\n  provider: anthropic\n  model: claude-3-5-sonnet'
+                'llm:\n  provider: anthropic\n  model: claude-3-5-sonnet-20240620'
             );
 
             // Mock resolveBundledScript to return our test files
@@ -242,7 +242,7 @@ describe('LocalAgentRegistry', () => {
             fs.mkdirSync(bundledAgentsPath, { recursive: true });
             fs.writeFileSync(
                 path.join(bundledAgentsPath, 'test-agent.yml'),
-                'llm:\n  provider: anthropic\n  model: claude-3-5-sonnet'
+                'llm:\n  provider: anthropic\n  model: claude-3-5-sonnet-20240620'
             );
 
             // Mock resolveBundledScript

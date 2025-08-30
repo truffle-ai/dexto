@@ -490,7 +490,7 @@ program
                             : undefined; // Let agent generate random ID
 
                     const session = await agent.createSession(sessionId);
-                    await agent.loadSession(session.id);
+                    await agent.loadSessionAsDefault(session.id);
 
                     logger.info(`Created and loaded new session: ${session.id}`, null, 'green');
                 } catch (err) {

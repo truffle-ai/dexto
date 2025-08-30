@@ -26,7 +26,7 @@ export function StreamToggle({ isStreaming, onStreamingChange, className }: Stre
             />
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top">
+        <TooltipContent side="bottom">
           <p>{isStreaming ? 'Streaming enabled' : 'Streaming disabled'}</p>
           <p className="text-xs opacity-75">
             {isStreaming ? 'Responses will stream in real-time' : 'Responses will arrive all at once'}
