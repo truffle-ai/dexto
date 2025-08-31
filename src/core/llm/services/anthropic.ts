@@ -63,10 +63,10 @@ export class AnthropicService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
-        stream?: boolean,
-        options?: { signal?: AbortSignal }
+        stream?: boolean
     ): Promise<string> {
         // Add user message with optional image and file data
         await this.contextManager.addUserMessage(textInput, imageData, fileData);

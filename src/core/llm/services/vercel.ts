@@ -186,10 +186,10 @@ export class VercelLLMService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
-        stream?: boolean,
-        options?: { signal?: AbortSignal }
+        stream?: boolean
     ): Promise<string> {
         // Add user message, with optional image and file data
         logger.debug(
@@ -467,27 +467,17 @@ export class VercelLLMService implements ILLMService {
                     });
                 }
             },
+            // TODO: Add onAbort handler when we implement partial response handling.
+            // Vercel triggers onAbort instead of onError for cancelled streams.
+            // This is where cancellation logic should be handled properly.
             onError: (error) => {
                 const err = toError(error);
-                const aborted =
-                    err.name === 'AbortError' ||
-                    (err as any).aborted === true ||
-                    /abort/i.test(err.message || '');
-                if (aborted) {
-                    // Tag as user-cancelled so UIs can ignore showing errors
-                    this.sessionEventBus.emit('llmservice:error', {
-                        error: err,
-                        context: 'user_cancelled',
-                        recoverable: true,
-                    });
-                } else {
-                    logger.error(`Error in streamText: ${err?.stack ?? err}`, null, 'red');
-                    this.sessionEventBus.emit('llmservice:error', {
-                        error: err,
-                        context: 'streamText',
-                        recoverable: false,
-                    });
-                }
+                logger.error(`Error in streamText: ${err?.stack ?? err}`, null, 'red');
+                this.sessionEventBus.emit('llmservice:error', {
+                    error: err,
+                    context: 'streamText',
+                    recoverable: false,
+                });
                 streamErr = error;
             },
             onStepFinish: (step) => {

@@ -200,7 +200,7 @@ export async function startAiCli(agent: DextoAgent) {
                             cancelling = true;
                             console.log(chalk.yellow('\n(… cancelling current run)'));
                             // Handle both sync/async cancel; swallow any rejection.
-                            void Promise.resolve(agent.cancel()).catch(() => {});
+                            void agent.cancel().catch(() => {});
                         }
                     };
                     readline.emitKeypressEvents(process.stdin);
@@ -227,6 +227,7 @@ export async function startAiCli(agent: DextoAgent) {
                     }
                 } catch (error) {
                     const err = error instanceof Error ? error : new Error(String(error));
+                    // TODO: revert this when we handle partials properly
                     const aborted =
                         err.name === 'AbortError' ||
                         (err as any).aborted === true ||

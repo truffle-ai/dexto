@@ -553,13 +553,6 @@ export function useChat(wsUrl: string) {
     const cancel = useCallback((sessionId?: string) => {
         if (wsRef.current?.readyState === globalThis.WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: 'cancel', sessionId }));
-        } else {
-            // Fallback to REST if needed
-            fetch('/api/cancel', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId }),
-            }).catch(() => void 0);
         }
         // Optimistically clear processing state; server will also send events
         setProcessing(false);

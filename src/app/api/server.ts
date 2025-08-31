@@ -110,6 +110,11 @@ const SearchQuerySchema = z.object({
     role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
 });
 
+// Schema for cancel request parameters
+const CancelRequestSchema = z.object({
+    sessionId: z.string().min(1, 'Session ID is required'),
+});
+
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
     return schema.parse(body); // ZodError handled by error middleware
@@ -183,24 +188,18 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
-    // Cancel an in-flight run for a session (or default session)
-    app.post('/api/cancel', express.json(), async (req, res) => {
-        const sessionId =
-            req.body && typeof req.body.sessionId === 'string' ? req.body.sessionId : undefined;
-        const cancelled = agent.cancel(sessionId);
-        if (!cancelled) {
-            logger.debug(`No in-flight run to cancel for session: ${sessionId || 'default'}`);
+    // Cancel an in-flight run for a session
+    app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
+        try {
+            const { sessionId } = parseQuery(CancelRequestSchema, req.params);
+            const cancelled = await agent.cancel(sessionId);
+            if (!cancelled) {
+                logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+            }
+            return res.status(200).json({ cancelled, sessionId });
+        } catch (error) {
+            return next(error);
         }
-        return res.status(200).json({ cancelled, sessionId: sessionId || 'default' });
-    });
-
-    app.post('/api/sessions/:sessionId/cancel', async (req, res) => {
-        const { sessionId } = req.params;
-        const cancelled = agent.cancel(sessionId);
-        if (!cancelled) {
-            logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
-        }
-        return res.status(200).json({ cancelled, sessionId });
     });
 
     // Synchronous endpoint: await the full AI response and return it in one go
@@ -468,7 +467,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     logger.info(
                         `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
-                    const cancelled = agent.cancel(sessionId);
+                    const cancelled = await agent.cancel(sessionId);
                     if (!cancelled) {
                         logger.debug('No in-flight run to cancel');
                     }

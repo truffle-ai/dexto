@@ -384,17 +384,15 @@ export class DextoAgent {
      * @param sessionId Optional session id; defaults to current default session
      * @returns true if a run was in progress and was signaled to abort; false otherwise
      */
-    public cancel(sessionId?: string): boolean {
+    public async cancel(sessionId?: string): Promise<boolean> {
         this.ensureStarted();
         const targetSessionId = sessionId || this.currentDefaultSessionId;
         // Try to use in-memory default session if applicable
         if (!sessionId && this.defaultSession && this.defaultSession.id === targetSessionId) {
             return this.defaultSession.cancel();
         }
-        // If specific session is requested, attempt to fetch from sessionManager cache
-        const existing = this.sessionManager.peekSession?.(targetSessionId) as
-            | ChatSession
-            | undefined;
+        // If specific session is requested, attempt to fetch from sessionManager cache (memory only)
+        const existing = await this.sessionManager.getSession(targetSessionId, false);
         if (existing) {
             return existing.cancel();
         }

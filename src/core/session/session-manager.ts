@@ -264,9 +264,13 @@ export class SessionManager {
      * Retrieves an existing session by ID.
      *
      * @param sessionId The session ID to retrieve
+     * @param restoreFromStorage Whether to restore from storage if not in memory (default: true)
      * @returns The ChatSession if found, undefined otherwise
      */
-    public async getSession(sessionId: string): Promise<ChatSession | undefined> {
+    public async getSession(
+        sessionId: string,
+        restoreFromStorage: boolean = true
+    ): Promise<ChatSession | undefined> {
         await this.ensureInitialized();
 
         // Check if there's a pending creation for this session ID
@@ -279,26 +283,20 @@ export class SessionManager {
             return this.sessions.get(sessionId)!;
         }
 
-        // Check storage
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
-        if (sessionData) {
-            // Restore session to memory
-            const session = new ChatSession(this.services, sessionId);
-            await session.init();
-            this.sessions.set(sessionId, session);
-            return session;
+        // Conditionally check storage if restoreFromStorage is true
+        if (restoreFromStorage) {
+            const sessionKey = `session:${sessionId}`;
+            const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+            if (sessionData) {
+                // Restore session to memory
+                const session = new ChatSession(this.services, sessionId);
+                await session.init();
+                this.sessions.set(sessionId, session);
+                return session;
+            }
         }
 
         return undefined;
-    }
-
-    /**
-     * Returns an in-memory session without loading from storage.
-     * Useful for fast checks (e.g., cancellation) when we do not want to create or restore a session.
-     */
-    public peekSession(sessionId: string): ChatSession | undefined {
-        return this.sessions.get(sessionId);
     }
 
     /**

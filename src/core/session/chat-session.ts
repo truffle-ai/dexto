@@ -240,10 +240,10 @@ export class ChatSession {
         try {
             const response = await this.llmService.completeTask(
                 input,
+                { signal },
                 imageDataInput,
                 fileDataInput,
-                stream,
-                { signal }
+                stream
             );
             return response;
         } catch (error) {
@@ -252,6 +252,9 @@ export class ChatSession {
                 (error instanceof Error && error.name === 'AbortError') ||
                 (typeof error === 'object' && error !== null && (error as any).aborted === true);
             if (aborted) {
+                // TODO: Remove emit errors, cancellation is a normal state and not an error state.
+                // LLMService.completeTask should return the partial computed response till then
+                // and not error out in case the execution was cancelled.
                 this.eventBus.emit('llmservice:error', {
                     error: new Error('Run cancelled'),
                     context: 'user_cancelled',
@@ -259,6 +262,8 @@ export class ChatSession {
                 });
                 return '';
             }
+            // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
+            // We should remove this error handling when we handle partial responses properly in all services.
             throw error;
         } finally {
             // Clear controller after run completes or is cancelled

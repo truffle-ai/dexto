@@ -14,16 +14,18 @@ export interface ILLMService {
      * Handles potential tool calls and conversation management internally.
      *
      * @param textInput The primary text input from the user.
+     * @param options Options object with signal for cancellation. Always passed from chat session.
      * @param imageData Optional image data associated with the user input.
      * @param fileData Optional file data associated with the user input.
+     * @param stream Optional flag to enable streaming response.
      * @returns A promise that resolves with the final text response from the AI.
      */
     completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
-        stream?: boolean,
-        options?: { signal?: AbortSignal }
+        stream?: boolean
     ): Promise<string>;
 
     // Get all available tools
