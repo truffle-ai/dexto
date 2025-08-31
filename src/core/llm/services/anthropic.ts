@@ -369,14 +369,19 @@ export class AnthropicService implements ILLMService {
         message: Anthropic.Messages.Message;
         usage?: Anthropic.Messages.Usage;
     }> {
-        const response = await this.anthropic.messages.create({
-            model: this.config.model,
-            messages: formattedMessages,
-            ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
-            tools: formattedTools,
-            max_tokens: this.config.maxOutputTokens ?? 4096,
-            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
-        });
+        const response = await this.anthropic.messages.create(
+            {
+                model: this.config.model,
+                messages: formattedMessages,
+                ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
+                tools: formattedTools,
+                max_tokens: this.config.maxOutputTokens ?? 4096,
+                ...(this.config.temperature !== undefined && {
+                    temperature: this.config.temperature,
+                }),
+            },
+            signal ? { signal } : undefined
+        );
 
         return { message: response, usage: response.usage };
     }
@@ -390,15 +395,20 @@ export class AnthropicService implements ILLMService {
         message: Anthropic.Messages.Message;
         usage?: Anthropic.Messages.Usage;
     }> {
-        const stream = await this.anthropic.messages.create({
-            model: this.config.model,
-            messages: formattedMessages,
-            ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
-            tools: formattedTools,
-            max_tokens: this.config.maxOutputTokens ?? 4096,
-            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
-            stream: true,
-        });
+        const stream = await this.anthropic.messages.create(
+            {
+                model: this.config.model,
+                messages: formattedMessages,
+                ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
+                tools: formattedTools,
+                max_tokens: this.config.maxOutputTokens ?? 4096,
+                ...(this.config.temperature !== undefined && {
+                    temperature: this.config.temperature,
+                }),
+                stream: true,
+            },
+            signal ? { signal } : undefined
+        );
 
         // Collect streaming response
         let content: Anthropic.Messages.ContentBlock[] = [];

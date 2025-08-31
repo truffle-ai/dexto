@@ -378,7 +378,8 @@ describe('ChatSession', () => {
                 userMessage,
                 undefined,
                 undefined,
-                undefined
+                undefined,
+                expect.objectContaining({ signal: expect.any(AbortSignal) })
             );
         });
 
