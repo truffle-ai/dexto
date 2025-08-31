@@ -193,7 +193,9 @@ export class VercelLLMService implements ILLMService {
     ): Promise<string> {
         // Add user message, with optional image and file data
         logger.debug(
-            `VercelLLMService: Adding user message: ${textInput}, imageData: ${imageData}, fileData: ${fileData}`
+            `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
+                imageData
+            )}, file=${Boolean(fileData)})`
         );
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
@@ -217,7 +219,6 @@ export class VercelLLMService implements ILLMService {
             { provider: this.config.provider, model: this.getModelId() }
         );
         const formattedMessages: ModelMessage[] = prepared.formattedMessages as ModelMessage[];
-        const _systemPrompt: string | undefined = prepared.systemPrompt;
         const tokensUsed: number = prepared.tokensUsed;
 
         logger.silly(
@@ -243,6 +244,10 @@ export class VercelLLMService implements ILLMService {
             );
         }
 
+        // If the run was cancelled, don't emit the "max steps" fallback.
+        if (options?.signal?.aborted) {
+            return fullResponse; // likely '', which upstream can treat as "no content"
+        }
         return (
             fullResponse ||
             `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
@@ -281,7 +286,7 @@ export class VercelLLMService implements ILLMService {
                 model: this.model,
                 messages,
                 tools: effectiveTools,
-                ...(signal ? { abortSignal: signal as any } : {}),
+                ...(signal ? { abortSignal: signal } : {}),
                 onStepFinish: (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
@@ -445,7 +450,7 @@ export class VercelLLMService implements ILLMService {
             model: this.model,
             messages,
             tools: effectiveTools,
-            ...(signal ? { abortSignal: signal as any } : {}),
+            ...(signal ? { abortSignal: signal } : {}),
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
@@ -476,7 +481,7 @@ export class VercelLLMService implements ILLMService {
                         recoverable: true,
                     });
                 } else {
-                    logger.error(`Error in streamText: ${err?.stack ?? err}`);
+                    logger.error(`Error in streamText: ${err?.stack ?? err}`, null, 'red');
                     this.sessionEventBus.emit('llmservice:error', {
                         error: err,
                         context: 'streamText',

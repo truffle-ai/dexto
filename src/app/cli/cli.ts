@@ -195,15 +195,12 @@ export async function startAiCli(agent: DextoAgent) {
                 try {
                     // Allow Esc to cancel in-flight runs without exiting the CLI
                     let cancelling = false;
-                    const keypress = (str: string, key: readline.Key) => {
-                        if (key.name === 'escape' && !cancelling) {
+                    const keypress = (_str: string, key?: readline.Key) => {
+                        if (key?.name === 'escape' && !cancelling) {
                             cancelling = true;
                             console.log(chalk.yellow('\n(… cancelling current run)'));
-                            try {
-                                agent.cancel();
-                            } catch (_) {
-                                // ignore
-                            }
+                            // Handle both sync/async cancel; swallow any rejection.
+                            void Promise.resolve(agent.cancel()).catch(() => {});
                         }
                     };
                     readline.emitKeypressEvents(process.stdin);
@@ -229,9 +226,14 @@ export async function startAiCli(agent: DextoAgent) {
                         restoreRaw();
                     }
                 } catch (error) {
-                    logger.error(
-                        `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    const err = error instanceof Error ? error : new Error(String(error));
+                    const aborted =
+                        err.name === 'AbortError' ||
+                        (err as any).aborted === true ||
+                        /abort/i.test(err.message || '');
+                    if (!aborted) {
+                        logger.error(`Error in processing input: ${err.message}`);
+                    }
                 }
             }
         } finally {
