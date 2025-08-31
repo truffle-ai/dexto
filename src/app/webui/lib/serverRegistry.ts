@@ -133,6 +133,65 @@ export class ServerRegistryService {
     }
 
     /**
+     * Sync registry installed status with current server states
+     * This handles both disconnected and deleted servers
+     */
+    async syncWithServerStatus(): Promise<void> {
+        try {
+            // Fetch current server states
+            const response = await fetch('/api/mcp/servers');
+            if (!response.ok) return; // Graceful failure
+
+            const data = await response.json();
+            const servers = data.servers || [];
+
+            // Create sets for connected and all server IDs
+            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const connectedIds = new Set<string>();
+            const allServerIds = new Set<string>();
+
+            servers.forEach((server: any) => {
+                const normalizedId = normalize(server.id);
+                allServerIds.add(normalizedId);
+                if (server.status === 'connected') {
+                    connectedIds.add(normalizedId);
+                }
+            });
+
+            // Update registry entries based on server status
+            let hasChanges = false;
+            for (const entry of this.registryEntries) {
+                const aliases = [entry.id, entry.name, ...(entry.matchIds || [])]
+                    .filter(Boolean)
+                    .map((x) => normalize(String(x)));
+
+                const hasMatchingServer = aliases.some((alias) => allServerIds.has(alias));
+                // Note: We could also track connection status separately in the future
+                // const isConnected = aliases.some(alias => connectedIds.has(alias));
+
+                // Update installed status:
+                // - If no matching server exists, mark as uninstalled
+                // - If server exists but is not connected, still consider as installed (just disconnected)
+                // - If server is connected, mark as installed
+                const shouldBeInstalled = hasMatchingServer;
+
+                if (entry.isInstalled !== shouldBeInstalled) {
+                    entry.isInstalled = shouldBeInstalled;
+                    hasChanges = true;
+                }
+            }
+
+            // Save changes if any were made
+            if (hasChanges) {
+                await this.saveCustomEntries();
+            }
+        } catch (error) {
+            // Non-fatal error, log and continue
+            console.warn('Failed to sync registry with server status:', error);
+        }
+    }
+
+    /**
      * Get server configuration for connecting
      */
     async getServerConfig(id: string): Promise<ServerRegistryEntry | null> {
@@ -147,7 +206,7 @@ export class ServerRegistryService {
         return [
             {
                 id: 'filesystem',
-                name: 'File System',
+                name: 'Filesystem',
                 description:
                     'Secure file operations with configurable access controls for reading and writing files',
                 category: 'productivity',
@@ -155,11 +214,7 @@ export class ServerRegistryService {
                 config: {
                     type: 'stdio',
                     command: 'npx',
-                    args: [
-                        '-y',
-                        '@modelcontextprotocol/server-filesystem',
-                        '/path/to/allowed/directory',
-                    ],
+                    args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
                     timeout: 30000,
                 },
                 tags: ['file', 'directory', 'filesystem', 'io'],
@@ -174,305 +229,173 @@ export class ServerRegistryService {
                 author: 'Anthropic',
                 version: '0.6.0',
                 homepage: 'https://github.com/modelcontextprotocol/servers',
+                matchIds: ['filesystem'],
             },
             {
-                id: 'github',
-                name: 'GitHub',
-                description:
-                    'Repository management, file operations, search repositories, manage issues and pull requests',
-                category: 'development',
-                icon: '🐙',
+                id: 'meme-mcp',
+                name: 'Meme Generator',
+                description: 'Create memes using Imgflip templates',
+                category: 'creative',
+                icon: '🖼️',
                 config: {
                     type: 'stdio',
                     command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-github'],
+                    args: ['-y', 'meme-mcp'],
                     env: {
-                        GITHUB_PERSONAL_ACCESS_TOKEN: '',
+                        IMGFLIP_USERNAME: '',
+                        IMGFLIP_PASSWORD: '',
                     },
                     timeout: 30000,
                 },
-                tags: ['git', 'repository', 'version-control', 'issues', 'pr'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 92,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'GitHub',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'brave-search',
-                name: 'Brave Search',
-                description:
-                    "Web and local search using Brave's Search API for real-time information retrieval",
-                category: 'research',
-                icon: '🔍',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-brave-search'],
-                    env: {
-                        BRAVE_SEARCH_API_KEY: '',
-                    },
-                    timeout: 30000,
-                },
-                tags: ['search', 'web', 'research', 'information'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 88,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'sqlite',
-                name: 'SQLite',
-                description:
-                    'Database interaction and business intelligence capabilities for SQLite databases',
-                category: 'data',
-                icon: '🗄️',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-sqlite', '/path/to/database.db'],
-                    timeout: 30000,
-                },
-                tags: ['database', 'sql', 'sqlite', 'query'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 85,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'puppeteer',
-                name: 'Puppeteer',
-                description:
-                    'Browser automation and web scraping with Puppeteer for automated testing and data extraction',
-                category: 'research',
-                icon: '🎭',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-puppeteer'],
-                    timeout: 30000,
-                },
-                tags: ['browser', 'automation', 'scraping', 'web', 'testing'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 80,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'postgresql',
-                name: 'PostgreSQL',
-                description:
-                    'Read-only database access with schema inspection for PostgreSQL databases',
-                category: 'data',
-                icon: '🐘',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: [
-                        '-y',
-                        '@modelcontextprotocol/server-postgres',
-                        'postgresql://localhost/mydb',
-                    ],
-                    timeout: 30000,
-                },
-                tags: ['database', 'sql', 'postgresql', 'postgres', 'query'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 83,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'slack',
-                name: 'Slack',
-                description: 'Channel management and messaging capabilities for Slack workspaces',
-                category: 'communication',
-                icon: '💬',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-slack'],
-                    env: {
-                        SLACK_BOT_TOKEN: '',
-                    },
-                    timeout: 30000,
-                },
-                tags: ['slack', 'messaging', 'team', 'communication', 'channels'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 75,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'fetch',
-                name: 'Fetch',
-                description: 'Web content fetching and conversion for efficient LLM usage',
-                category: 'research',
-                icon: '🌐',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-fetch'],
-                    timeout: 30000,
-                },
-                tags: ['web', 'fetch', 'content', 'http', 'download'],
-                isOfficial: true,
-                isInstalled: false,
-                popularity: 78,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-            },
-            {
-                id: 'http-example',
-                name: 'HTTP MCP Server',
-                description: 'Example HTTP-based MCP server for API integrations',
-                category: 'development',
-                icon: '🌐',
-                config: {
-                    type: 'http',
-                    baseUrl: 'http://localhost:8080',
-                    headers: {
-                        Authorization: 'Bearer your-api-key',
-                        'Content-Type': 'application/json',
-                    },
-                    timeout: 30000,
-                },
-                tags: ['http', 'api', 'integration', 'web'],
+                tags: ['meme', 'image', 'creative'],
                 isOfficial: false,
                 isInstalled: false,
                 popularity: 70,
                 lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                },
+                requirements: { platform: 'all', node: '>=18.0.0' },
                 author: 'Community',
                 version: '1.0.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
+                homepage: 'https://www.npmjs.com/package/meme-mcp',
+                matchIds: ['meme-mcp'],
             },
             {
-                id: 'memory',
-                name: 'Memory',
+                id: 'product-name-scout',
+                name: 'Product Name Scout',
                 description:
-                    'Knowledge graph-based persistent memory system for storing and retrieving information',
-                category: 'productivity',
-                icon: '🧠',
+                    'SERP analysis, autocomplete, dev collisions, and scoring for product names',
+                category: 'research',
+                icon: '🔎',
                 config: {
                     type: 'stdio',
                     command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-memory'],
+                    args: ['-y', '@truffle-ai/product-name-scout-mcp'],
                     timeout: 30000,
                 },
-                tags: ['memory', 'knowledge', 'graph', 'persistence', 'storage'],
+                tags: ['research', 'naming', 'brand'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 87,
+                popularity: 80,
                 lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
+                requirements: { platform: 'all', node: '>=18.0.0' },
+                author: 'Truffle AI',
+                version: '1.0.0',
+                homepage: 'https://github.com/truffle-ai/mcp-servers',
+                matchIds: ['product-name-scout'],
             },
             {
-                id: 'google-drive',
-                name: 'Google Drive',
-                description: 'File access and search capabilities for Google Drive integration',
+                id: 'duckduckgo',
+                name: 'DuckDuckGo Search',
+                description: 'Search the web using DuckDuckGo',
+                category: 'research',
+                icon: '🦆',
+                config: {
+                    type: 'stdio',
+                    command: 'uvx',
+                    args: ['duckduckgo-mcp-server'],
+                    timeout: 30000,
+                },
+                tags: ['search', 'web', 'research'],
+                isOfficial: false,
+                isInstalled: false,
+                popularity: 78,
+                lastUpdated: new Date(),
+                requirements: { platform: 'all', python: '>=3.10' },
+                author: 'Community',
+                version: '1.0.0',
+                homepage: 'https://github.com/duckduckgo/mcp-server',
+                matchIds: ['duckduckgo'],
+            },
+            {
+                id: 'domain-checker',
+                name: 'Domain Checker',
+                description: 'Check domain availability across TLDs',
+                category: 'research',
+                icon: '🌐',
+                config: {
+                    type: 'stdio',
+                    command: 'uvx',
+                    args: ['truffle-ai-domain-checker-mcp'],
+                    timeout: 30000,
+                },
+                tags: ['domains', 'availability', 'research'],
+                isOfficial: true,
+                isInstalled: false,
+                popularity: 76,
+                lastUpdated: new Date(),
+                requirements: { platform: 'all', python: '>=3.10' },
+                author: 'Truffle AI',
+                version: '1.0.0',
+                homepage: 'https://github.com/truffle-ai/mcp-servers',
+                matchIds: ['domain-checker'],
+            },
+            {
+                id: 'linear',
+                name: 'Linear',
+                description: 'Manage Linear issues, projects, and workflows',
                 category: 'productivity',
                 icon: '📋',
                 config: {
                     type: 'stdio',
                     command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-gdrive'],
-                    env: {
-                        GOOGLE_APPLICATION_CREDENTIALS: '',
-                    },
+                    args: ['-y', 'mcp-remote', 'https://mcp.linear.app/sse'],
                     timeout: 30000,
                 },
-                tags: ['google', 'drive', 'files', 'cloud', 'storage'],
+                tags: ['linear', 'tasks', 'projects'],
                 isOfficial: true,
                 isInstalled: false,
                 popularity: 82,
                 lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
+                requirements: { platform: 'all', node: '>=18.0.0' },
+                author: 'Linear',
+                version: '1.0.0',
+                homepage: 'https://mcp.linear.app',
+                matchIds: ['linear'],
             },
             {
-                id: 'git',
-                name: 'Git',
-                description: 'Tools to read, search, and manipulate Git repositories',
-                category: 'development',
-                icon: '🌿',
+                id: 'image-editor',
+                name: 'Image Editor',
+                description: 'Comprehensive image processing and manipulation tools',
+                category: 'creative',
+                icon: '🖌️',
                 config: {
                     type: 'stdio',
                     command: 'uvx',
-                    args: ['mcp-server-git', '--repository', '/path/to/git/repo'],
+                    args: ['truffle-ai-image-editor-mcp'],
                     timeout: 30000,
                 },
-                tags: ['git', 'version-control', 'repository', 'commits', 'diff'],
+                tags: ['image', 'edit', 'opencv', 'pillow'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 90,
+                popularity: 88,
                 lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    python: '>=3.8',
+                requirements: { platform: 'all', python: '>=3.10' },
+                author: 'Truffle AI',
+                version: '1.0.0',
+                homepage: 'https://github.com/truffle-ai/mcp-servers',
+                matchIds: ['image_editor', 'image-editor'],
+            },
+            {
+                id: 'music-creator',
+                name: 'Music Creator',
+                description: 'Create, analyze, and transform music and audio',
+                category: 'creative',
+                icon: '🎵',
+                config: {
+                    type: 'stdio',
+                    command: 'uvx',
+                    args: ['truffle-ai-music-creator-mcp'],
+                    timeout: 30000,
                 },
-                author: 'Anthropic',
-                version: '0.6.0',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
+                tags: ['audio', 'music', 'effects'],
+                isOfficial: true,
+                isInstalled: false,
+                popularity: 84,
+                lastUpdated: new Date(),
+                requirements: { platform: 'all', python: '>=3.10' },
+                author: 'Truffle AI',
+                version: '1.0.0',
+                homepage: 'https://github.com/truffle-ai/mcp-servers',
+                matchIds: ['music_creator', 'music-creator'],
             },
         ];
     }
@@ -496,7 +419,26 @@ export class ServerRegistryService {
             if (stored) {
                 try {
                     const customEntries = JSON.parse(stored) as ServerRegistryEntry[];
-                    this.registryEntries.push(...customEntries);
+                    // De-duplicate against existing built-ins by normalized aliases (id/name/matchIds)
+                    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    const existingAliases = new Set<string>();
+                    for (const e of this.registryEntries) {
+                        [e.id, e.name, ...((e.matchIds as string[] | undefined) || [])]
+                            .filter(Boolean)
+                            .map(normalize)
+                            .forEach((a) => existingAliases.add(a));
+                    }
+                    const deduped = customEntries.filter((e) => {
+                        const aliases = [
+                            e.id,
+                            e.name,
+                            ...((e.matchIds as string[] | undefined) || []),
+                        ]
+                            .filter(Boolean)
+                            .map(normalize);
+                        return !aliases.some((a) => existingAliases.has(a));
+                    });
+                    this.registryEntries.push(...deduped);
                 } catch (error) {
                     console.warn('Failed to load custom server entries:', error);
                 }

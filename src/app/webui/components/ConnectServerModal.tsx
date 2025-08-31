@@ -23,6 +23,9 @@ interface ConnectServerModalProps {
     isOpen: boolean;
     onClose: () => void;
     onServerConnected?: () => void;
+    initialName?: string;
+    initialConfig?: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
+    lockName?: boolean;
 }
 
 interface HeaderPair {
@@ -31,13 +34,14 @@ interface HeaderPair {
     id: string;
 }
 
-export default function ConnectServerModal({ isOpen, onClose, onServerConnected }: ConnectServerModalProps) {
+export default function ConnectServerModal({ isOpen, onClose, onServerConnected, initialName, initialConfig, lockName }: ConnectServerModalProps) {
     const [serverName, setServerName] = useState('');
     const [serverType, setServerType] = useState<'stdio' | 'sse' | 'http'>('stdio');
     const [command, setCommand] = useState('');
     const [args, setArgs] = useState('');
     const [url, setUrl] = useState('');
     const [headerPairs, setHeaderPairs] = useState<HeaderPair[]>([]);
+    const [envPairs, setEnvPairs] = useState<HeaderPair[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -61,12 +65,45 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected 
                 setArgs('');
                 setUrl('');
                 setHeaderPairs([]);
+                setEnvPairs([]);
                 setError(null);
                 setIsSubmitting(false);
             }, 300);
             return () => clearTimeout(timer);
         }
     }, [isOpen]);
+
+    // Apply initialName/initialConfig when they change and modal opens
+    useEffect(() => {
+        if (!isOpen) return;
+        if (initialName) setServerName(initialName);
+        if (initialConfig?.type) {
+            setServerType(initialConfig.type);
+        }
+        if (initialConfig?.type === 'stdio') {
+            if (typeof initialConfig.command === 'string') setCommand(initialConfig.command);
+            if (Array.isArray(initialConfig.args)) setArgs(initialConfig.args.join(', '));
+            const envEntries = Object.entries((initialConfig as any).env || {});
+            setEnvPairs(
+                envEntries.map(([key, value], idx) => ({
+                    key,
+                    value: String(value ?? ''),
+                    id: `env-${idx}`,
+                }))
+            );
+        } else if (initialConfig?.type === 'http' || initialConfig?.type === 'sse') {
+            if (typeof (initialConfig as any).url === 'string') setUrl((initialConfig as any).url);
+            const hdrEntries = Object.entries((initialConfig as any).headers || {});
+            setHeaderPairs(
+                hdrEntries.map(([key, value], idx) => ({
+                    key,
+                    value: String(value ?? ''),
+                    id: `hdr-${idx}`,
+                }))
+            );
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, initialName, initialConfig?.type]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,6 +115,17 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected 
             setIsSubmitting(false);
             return;
         }
+
+        // Convert env pairs to record
+        const envToRecord = (pairs: HeaderPair[]): Record<string, string> => {
+            const env: Record<string, string> = {};
+            pairs.forEach((pair) => {
+                if (pair.key.trim()) {
+                    env[pair.key.trim()] = pair.value.trim();
+                }
+            });
+            return env;
+        };
 
         let config: McpServerConfig;
         if (serverType === 'stdio') {
@@ -93,7 +141,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected 
                     .split(',')
                     .map((s) => s.trim())
                     .filter(Boolean),
-                env: {},
+                env: envToRecord(envPairs),
                 timeout: 30000,
                 connectionMode: 'lenient',
             };
@@ -138,6 +186,20 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected 
                 timeout: 30000,
                 connectionMode: 'lenient',
             };
+        }
+
+        // Validate required env variables if any are present (from prefill)
+        if (serverType === 'stdio') {
+            // If any keys exist, ensure non-empty values
+            const requiredKeys = envPairs.map((p) => p.key.trim()).filter(Boolean);
+            if (requiredKeys.length) {
+                const missing = envPairs.filter((p) => p.key.trim() && !p.value.trim()).map((p) => p.key.trim());
+                if (missing.length) {
+                    setError(`Please set required environment variables: ${missing.join(', ')}`);
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
         }
 
         try {
@@ -192,7 +254,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected 
                             className="col-span-3"
                             placeholder="e.g., My Local Tools"
                             required
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || !!lockName}
                         />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -245,6 +307,22 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected 
                                     placeholder="Comma-separated, e.g., -m,script.py,--port,8080"
                                     disabled={isSubmitting}
                                 />
+                            </div>
+                            <div className="grid grid-cols-4 items-start gap-4">
+                                <Label className="text-right mt-2">Environment</Label>
+                                <div className="col-span-3">
+                                    <KeyValueEditor
+                                        pairs={envPairs}
+                                        onChange={setEnvPairs}
+                                        placeholder={{
+                                            key: 'API_KEY',
+                                            value: 'your-secret-key',
+                                        }}
+                                        disabled={isSubmitting}
+                                        keyLabel="Variable"
+                                        valueLabel="Value"
+                                    />
+                                </div>
                             </div>
                         </>
                     ) : serverType === 'sse' ? (

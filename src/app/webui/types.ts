@@ -145,6 +145,8 @@ export interface ServerRegistryEntry {
         python?: string;
         dependencies?: string[];
     };
+    // Optional identifiers used to detect if this server is already connected
+    matchIds?: string[];
 }
 
 export interface ServerRegistryFilter {

@@ -112,8 +112,11 @@ export default function ServerRegistryModal({
             setIsLoading(true);
             setError(null);
             try {
-                const registryEntries = await serverRegistry.getEntries();
+                // Sync registry with current server status first
+                await serverRegistry.syncWithServerStatus();
                 
+                const registryEntries = await serverRegistry.getEntries();
+
                 // Check if component is still mounted and request wasn't aborted
                 if (isMountedRef.current && !abortController.signal.aborted) {
                     setEntries(registryEntries);
@@ -146,9 +149,7 @@ export default function ServerRegistryModal({
                 search: currentSearchInput || undefined,
             });
             
-            if (isMountedRef.current) {
-                setFilteredEntries(filtered);
-            }
+            if (isMountedRef.current) setFilteredEntries(filtered);
         } catch (err: unknown) {
             if (isMountedRef.current) {
                 const errorMessage = err instanceof Error ? err.message : 'Failed to filter entries';

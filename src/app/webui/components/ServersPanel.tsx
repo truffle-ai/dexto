@@ -6,19 +6,21 @@ import { X, PlusCircle, Server, ListChecks, ChevronRight, RefreshCw, AlertTriang
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
+import { serverRegistry } from '@/lib/serverRegistry';
 import ServerRegistryModal from './ServerRegistryModal';
 
 interface ServersPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenConnectModal: () => void;
+  onOpenConnectWithPrefill?: (opts: { name: string; config: any; lockName?: boolean; registryEntryId?: string }) => void;
   variant?: 'overlay' | 'inline';
   refreshTrigger?: number; // Add a trigger to force refresh
 }
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
 
-export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
+export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -78,32 +80,49 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, vari
   const handleInstallServer = async (entry: ServerRegistryEntry) => {
     // Close the registry modal first
     setIsRegistryModalOpen(false);
-    
-    // Prepare the config for the connect API
-    const config = {
-      type: entry.config.type,
-      command: entry.config.command,
-      args: entry.config.args || [],
-      url: entry.config.url,
-      env: entry.config.env || {},
-      headers: entry.config.headers || {},
-      timeout: entry.config.timeout || 30000,
-    };
 
+    // If parent supports prefilled connect modal, use it instead of immediate connect
+    if (typeof onOpenConnectWithPrefill === 'function') {
+      const config = {
+        type: entry.config.type,
+        command: entry.config.command,
+        args: entry.config.args || [],
+        url: entry.config.url,
+        env: entry.config.env || {},
+        headers: entry.config.headers || {},
+        timeout: entry.config.timeout || 30000,
+      };
+      onOpenConnectWithPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
+      return;
+    }
+
+    // Fallback: connect immediately via API
     try {
       const res = await fetch('/api/connect-server', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: entry.name, config }),
+        body: JSON.stringify({ name: entry.name, config: {
+          type: entry.config.type,
+          command: entry.config.command,
+          args: entry.config.args || [],
+          url: entry.config.url,
+          env: entry.config.env || {},
+          headers: entry.config.headers || {},
+          timeout: entry.config.timeout || 30000,
+        } }),
       });
-      
       const result = await res.json();
       if (!res.ok) {
         throw new Error(result.error || `Server returned status ${res.status}`);
       }
-      
-      // Refresh the servers list
       await fetchServers();
+      
+      // Sync registry after installation
+      try {
+        await serverRegistry.syncWithServerStatus();
+      } catch (e) {
+        console.warn('Failed to sync registry after server install:', e);
+      }
     } catch (error: any) {
       throw new Error(error.message || 'Failed to install server');
     }
@@ -126,14 +145,41 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, vari
         const errorData = await response.json().catch(() => ({ error: 'Failed to remove server' }));
         throw new Error(errorData.message || errorData.error || `Server Removal: ${response.statusText}`);
       }
-      
+
       // If this was the selected server, deselect it
       if (selectedServerId === serverId) {
         setSelectedServerId(null);
         setTools([]);
       }
-      
+
+      // Mark corresponding registry entry as uninstalled if any alias matches this server id
+      try {
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const currentId = normalize(serverId);
+        const entries = await serverRegistry.getEntries();
+        const match = entries.find((e) => {
+          const aliases = [e.id, e.name, ...(e.matchIds || [])]
+            .filter(Boolean)
+            .map((x) => normalize(String(x)));
+          return aliases.includes(currentId);
+        });
+        if (match) {
+          await serverRegistry.setInstalled(match.id, false);
+        }
+      } catch (e) {
+        // non-fatal if registry update fails
+        console.warn('Failed to update registry installed state on delete:', e);
+      }
+
       await fetchServers(); // Refresh server list
+      
+      // Sync registry with updated server status
+      try {
+        await serverRegistry.syncWithServerStatus();
+      } catch (e) {
+        // Non-fatal; continue
+        console.warn('Failed to sync registry status after server deletion:', e);
+      }
     } catch (err: any) {
       handleError(err.message, 'servers');
     } finally {

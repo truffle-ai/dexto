@@ -11,7 +11,7 @@ import SessionPanel from './SessionPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -30,6 +30,7 @@ import {
 import { ThemeSwitch } from './ThemeSwitch';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import { serverRegistry } from '@/lib/serverRegistry';
 
 export default function ChatApp() {
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError } = useChatContext();
@@ -45,6 +46,7 @@ export default function ChatApp() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // Enhanced features
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -71,6 +73,13 @@ export default function ChatApp() {
 
   // Server refresh trigger
   const [serversRefreshTrigger, setServersRefreshTrigger] = useState(0);
+  // Prefill config for ConnectServerModal
+  const [connectPrefill, setConnectPrefill] = useState<{
+    name: string;
+    config: any;
+    lockName?: boolean;
+    registryEntryId?: string;
+  } | null>(null);
 
   const recomputeIsAtBottom = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -266,26 +275,20 @@ export default function ChatApp() {
   }, [switchSession]);
 
   const handleInstallServer = useCallback(async (entry: any) => {
-    try {
-      const response = await fetch('/api/mcp/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverId: entry.id }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to install server');
-      }
-      
-      // Close the modal and refresh servers panel
-      setServerRegistryOpen(false);
-      setServersRefreshTrigger(prev => prev + 1);
-    } catch (error) {
-      console.error('Failed to install server:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to install server');
-      setTimeout(() => setErrorMessage(null), 5000);
-    }
-  }, [isServersPanelOpen]);
+    // Open Connect modal with prefilled config
+    const config = {
+      type: entry.config.type,
+      command: entry.config.command,
+      args: entry.config.args || [],
+      url: entry.config.url,
+      env: entry.config.env || {},
+      headers: entry.config.headers || {},
+      timeout: entry.config.timeout || 30000,
+    };
+    setConnectPrefill({ name: entry.name, config, lockName: true });
+    setServerRegistryOpen(false);
+    setModalOpen(true);
+  }, []);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
@@ -626,6 +629,13 @@ export default function ChatApp() {
         
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
+          {/* Toasts */}
+          {successMessage && (
+            <div className="fixed bottom-4 right-4 z-50 border border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-foreground px-3 py-2 rounded-md shadow-md inline-flex items-center gap-2">
+              <Check className="h-4 w-4 text-green-600" />
+              <span className="text-sm">{successMessage}</span>
+            </div>
+          )}
           {/* Error Message */}
           {errorMessage && (
             <div className="absolute top-4 right-4 z-50 bg-destructive text-destructive-foreground px-4 py-2 rounded-md shadow-lg">
@@ -740,6 +750,10 @@ export default function ChatApp() {
                 isOpen={isServersPanelOpen}
                 onClose={() => setServersPanelOpen(false)}
                 onOpenConnectModal={() => setModalOpen(true)}
+                onOpenConnectWithPrefill={(opts) => {
+                  setConnectPrefill(opts);
+                  setModalOpen(true);
+                }}
                 variant="inline"
                 refreshTrigger={serversRefreshTrigger}
               />
@@ -750,11 +764,30 @@ export default function ChatApp() {
         {/* Connect Server Modal */}
         <ConnectServerModal 
           isOpen={isModalOpen} 
-          onClose={() => setModalOpen(false)} 
-          onServerConnected={() => {
+          onClose={() => {
+            setModalOpen(false);
+            setConnectPrefill(null);
+          }} 
+          onServerConnected={async () => {
+            // Mark the associated registry entry as installed, if applicable
+            if (connectPrefill?.registryEntryId) {
+              try {
+                await serverRegistry.setInstalled(connectPrefill.registryEntryId, true);
+              } catch (e) {
+                // non-fatal; continue
+                console.warn('Failed to mark registry entry installed:', e);
+              }
+            }
             // Trigger a refresh of the servers panel
             setServersRefreshTrigger(prev => prev + 1);
+            // Show success toast
+            const name = connectPrefill?.name || 'Server';
+            setSuccessMessage(`Added ${name}`);
+            setTimeout(() => setSuccessMessage(null), 4000);
           }}
+          initialName={connectPrefill?.name}
+          initialConfig={connectPrefill?.config}
+          lockName={connectPrefill?.lockName}
         />
 
         {/* Server Registry Modal */}
