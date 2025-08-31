@@ -209,7 +209,7 @@ export async function startAiCli(agent: DextoAgent) {
                     readline.emitKeypressEvents(process.stdin);
                     const restoreRaw = process.stdin.isTTY
                         ? (() => {
-                              const wasRaw = (process.stdin as any).isRaw === true;
+                              const wasRaw = process.stdin.isRaw === true;
                               process.stdin.setRawMode(true);
                               return () => {
                                   try {

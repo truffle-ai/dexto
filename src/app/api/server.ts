@@ -188,12 +188,18 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         const sessionId =
             req.body && typeof req.body.sessionId === 'string' ? req.body.sessionId : undefined;
         const cancelled = agent.cancel(sessionId);
-        return res.status(200).json({ cancelled, sessionId: sessionId ?? 'default' });
+        if (!cancelled) {
+            logger.debug(`No in-flight run to cancel for session: ${sessionId || 'default'}`);
+        }
+        return res.status(200).json({ cancelled, sessionId: sessionId || 'default' });
     });
 
     app.post('/api/sessions/:sessionId/cancel', async (req, res) => {
         const { sessionId } = req.params;
         const cancelled = agent.cancel(sessionId);
+        if (!cancelled) {
+            logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+        }
         return res.status(200).json({ cancelled, sessionId });
     });
 

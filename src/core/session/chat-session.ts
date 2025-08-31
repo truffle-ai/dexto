@@ -444,10 +444,16 @@ export class ChatSession {
      * Returns true if a run was in progress and was signaled to abort.
      */
     public cancel(): boolean {
-        if (this.currentRunController && !this.currentRunController.signal.aborted) {
-            this.currentRunController.abort();
-            return true;
+        const controller = this.currentRunController;
+        if (!controller || controller.signal.aborted) {
+            return false;
         }
-        return false;
+        try {
+            controller.abort();
+            return true;
+        } catch {
+            // Already aborted or abort failed
+            return false;
+        }
     }
 }

@@ -476,7 +476,7 @@ export class VercelLLMService implements ILLMService {
                         recoverable: true,
                     });
                 } else {
-                    logger.error(`Error in streamText: ${JSON.stringify(error, null, 2)}`);
+                    logger.error(`Error in streamText: ${err?.stack ?? err}`);
                     this.sessionEventBus.emit('llmservice:error', {
                         error: err,
                         context: 'streamText',
