@@ -126,9 +126,10 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                     <div className="flex-1 text-left">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{displayName}</span>
-                        {model.default && (
+                        {/* remove default badge for now */}
+                        {/* {model.default && (
                           <Badge variant="secondary" className="text-[10px] px-1 py-0">default</Badge>
-                        )}
+                        )} */}
                       </div>
                     </div>
                     
