@@ -294,6 +294,14 @@ export class SessionManager {
     }
 
     /**
+     * Returns an in-memory session without loading from storage.
+     * Useful for fast checks (e.g., cancellation) when we do not want to create or restore a session.
+     */
+    public peekSession(sessionId: string): ChatSession | undefined {
+        return this.sessions.get(sessionId);
+    }
+
+    /**
      * Ends a session by removing it from memory without deleting conversation history.
      * Used for cleanup, agent shutdown, and session expiry.
      *

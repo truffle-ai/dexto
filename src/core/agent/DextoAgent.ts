@@ -378,6 +378,30 @@ export class DextoAgent {
         }
     }
 
+    /**
+     * Cancels the currently running turn for a session (or the default session).
+     * Safe to call even if no run is in progress.
+     * @param sessionId Optional session id; defaults to current default session
+     * @returns true if a run was in progress and was signaled to abort; false otherwise
+     */
+    public cancel(sessionId?: string): boolean {
+        this.ensureStarted();
+        const targetSessionId = sessionId || this.currentDefaultSessionId;
+        // Try to use in-memory default session if applicable
+        if (!sessionId && this.defaultSession && this.defaultSession.id === targetSessionId) {
+            return this.defaultSession.cancel();
+        }
+        // If specific session is requested, attempt to fetch from sessionManager cache
+        const existing = this.sessionManager.peekSession?.(targetSessionId) as
+            | ChatSession
+            | undefined;
+        if (existing) {
+            return existing.cancel();
+        }
+        // If not found, nothing to cancel
+        return false;
+    }
+
     // ============= SESSION MANAGEMENT =============
 
     /**

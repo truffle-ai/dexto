@@ -183,6 +183,20 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
+    // Cancel an in-flight run for a session (or default session)
+    app.post('/api/cancel', express.json(), async (req, res) => {
+        const sessionId =
+            req.body && typeof req.body.sessionId === 'string' ? req.body.sessionId : undefined;
+        const cancelled = agent.cancel(sessionId);
+        return res.status(200).json({ cancelled, sessionId: sessionId ?? 'default' });
+    });
+
+    app.post('/api/sessions/:sessionId/cancel', async (req, res) => {
+        const { sessionId } = req.params;
+        const cancelled = agent.cancel(sessionId);
+        return res.status(200).json({ cancelled, sessionId });
+    });
+
     // Synchronous endpoint: await the full AI response and return it in one go
     app.post('/api/message-sync', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message-sync');
@@ -443,6 +457,15 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
                     await agent.resetConversation(sessionId);
+                } else if (data.type === 'cancel') {
+                    const sessionId = data.sessionId as string | undefined;
+                    logger.info(
+                        `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
+                    );
+                    const cancelled = agent.cancel(sessionId);
+                    if (!cancelled) {
+                        logger.debug('No in-flight run to cancel');
+                    }
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
                     sendWebSocketValidationError(ws, 'Unknown message type', {

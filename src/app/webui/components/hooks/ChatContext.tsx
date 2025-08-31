@@ -20,6 +20,8 @@ interface ChatContextType {
   isStreaming: boolean;
   setStreaming: (streaming: boolean) => void;
   websocket: WebSocket | null;
+  processing: boolean;
+  cancel: (sessionId?: string) => void;
   // Error state
   activeError: ErrorMessage | null;
   clearError: () => void;
@@ -46,7 +48,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
-  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError } = useChat(wsUrl);
+  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl);
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
@@ -288,6 +290,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isStreaming,
       setStreaming: setIsStreaming,
       websocket,
+      processing,
+      cancel,
       // Error state
       activeError,
       clearError

@@ -188,7 +188,8 @@ export class VercelLLMService implements ILLMService {
         textInput: string,
         imageData?: ImageData,
         fileData?: FileData,
-        stream?: boolean
+        stream?: boolean,
+        options?: { signal?: AbortSignal }
     ): Promise<string> {
         // Add user message, with optional image and file data
         logger.debug(
@@ -230,13 +231,15 @@ export class VercelLLMService implements ILLMService {
             fullResponse = await this.streamText(
                 formattedMessages,
                 formattedTools,
-                this.config.maxIterations
+                this.config.maxIterations,
+                options?.signal
             );
         } else {
             fullResponse = await this.generateText(
                 formattedMessages,
                 formattedTools,
-                this.config.maxIterations
+                this.config.maxIterations,
+                options?.signal
             );
         }
 
@@ -249,7 +252,8 @@ export class VercelLLMService implements ILLMService {
     async generateText(
         messages: ModelMessage[],
         tools: VercelToolSet,
-        maxSteps: number = 50
+        maxSteps: number = 50,
+        signal?: AbortSignal
     ): Promise<string> {
         let stepIteration = 0;
 
@@ -277,6 +281,7 @@ export class VercelLLMService implements ILLMService {
                 model: this.model,
                 messages,
                 tools: effectiveTools,
+                ...(signal ? { abortSignal: signal as any } : {}),
                 onStepFinish: (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
@@ -415,7 +420,8 @@ export class VercelLLMService implements ILLMService {
     async streamText(
         messages: ModelMessage[],
         tools: VercelToolSet,
-        maxSteps: number = 10
+        maxSteps: number = 10,
+        signal?: AbortSignal
     ): Promise<string> {
         let stepIteration = 0;
 
@@ -439,6 +445,7 @@ export class VercelLLMService implements ILLMService {
             model: this.model,
             messages,
             tools: effectiveTools,
+            ...(signal ? { abortSignal: signal as any } : {}),
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
@@ -456,12 +463,26 @@ export class VercelLLMService implements ILLMService {
                 }
             },
             onError: (error) => {
-                logger.error(`Error in streamText: ${JSON.stringify(error, null, 2)}`);
-                this.sessionEventBus.emit('llmservice:error', {
-                    error: toError(error),
-                    context: 'streamText',
-                    recoverable: false,
-                });
+                const err = toError(error);
+                const aborted =
+                    err.name === 'AbortError' ||
+                    (err as any).aborted === true ||
+                    /abort/i.test(err.message || '');
+                if (aborted) {
+                    // Tag as user-cancelled so UIs can ignore showing errors
+                    this.sessionEventBus.emit('llmservice:error', {
+                        error: err,
+                        context: 'user_cancelled',
+                        recoverable: true,
+                    });
+                } else {
+                    logger.error(`Error in streamText: ${JSON.stringify(error, null, 2)}`);
+                    this.sessionEventBus.emit('llmservice:error', {
+                        error: err,
+                        context: 'streamText',
+                        recoverable: false,
+                    });
+                }
                 streamErr = error;
             },
             onStepFinish: (step) => {

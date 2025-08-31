@@ -65,7 +65,8 @@ export class AnthropicService implements ILLMService {
         textInput: string,
         imageData?: ImageData,
         fileData?: FileData,
-        stream?: boolean
+        stream?: boolean,
+        options?: { signal?: AbortSignal }
     ): Promise<string> {
         // Add user message with optional image and file data
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
@@ -85,6 +86,12 @@ export class AnthropicService implements ILLMService {
 
         try {
             while (iterationCount < this.config.maxIterations) {
+                if (options?.signal?.aborted) {
+                    throw Object.assign(new Error('Aborted'), {
+                        name: 'AbortError',
+                        aborted: true,
+                    });
+                }
                 iterationCount++;
                 logger.debug(`Iteration ${iterationCount}`);
 
@@ -121,12 +128,14 @@ export class AnthropicService implements ILLMService {
                     ? await this.getAnthropicStreamingResponse(
                           formattedMessages,
                           formattedSystemPrompt || null,
-                          formattedTools
+                          formattedTools,
+                          options?.signal
                       )
                     : await this.getAnthropicResponse(
                           formattedMessages,
                           formattedSystemPrompt || null,
-                          formattedTools
+                          formattedTools,
+                          options?.signal
                       );
 
                 // Track token usage
@@ -198,6 +207,12 @@ export class AnthropicService implements ILLMService {
 
                 // Handle tool uses
                 for (const toolUse of toolUses) {
+                    if (options?.signal?.aborted) {
+                        throw Object.assign(new Error('Aborted'), {
+                            name: 'AbortError',
+                            aborted: true,
+                        });
+                    }
                     const toolName = toolUse.name;
                     const args = toolUse.input as Record<string, unknown>;
                     const toolUseId = toolUse.id;
@@ -268,6 +283,12 @@ export class AnthropicService implements ILLMService {
                 'Reached maximum number of tool call iterations without a final response.'
             );
         } catch (error) {
+            if (
+                error instanceof Error &&
+                (error.name === 'AbortError' || (error as any).aborted === true)
+            ) {
+                throw error;
+            }
             // Handle API errors
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error in Anthropic service API call: ${errorMessage}`, { error });
@@ -342,7 +363,8 @@ export class AnthropicService implements ILLMService {
     private async getAnthropicResponse(
         formattedMessages: MessageParam[],
         formattedSystemPrompt: string | null,
-        formattedTools: Anthropic.Tool[]
+        formattedTools: Anthropic.Tool[],
+        signal?: AbortSignal
     ): Promise<{
         message: Anthropic.Messages.Message;
         usage?: Anthropic.Messages.Usage;
@@ -362,7 +384,8 @@ export class AnthropicService implements ILLMService {
     private async getAnthropicStreamingResponse(
         formattedMessages: MessageParam[],
         formattedSystemPrompt: string | null,
-        formattedTools: Anthropic.Tool[]
+        formattedTools: Anthropic.Tool[],
+        signal?: AbortSignal
     ): Promise<{
         message: Anthropic.Messages.Message;
         usage?: Anthropic.Messages.Usage;
@@ -384,6 +407,9 @@ export class AnthropicService implements ILLMService {
         let jsonAccumulators: Record<number, string> = {}; // Track JSON for each content block
 
         for await (const chunk of stream) {
+            if (signal?.aborted) {
+                throw Object.assign(new Error('Aborted'), { name: 'AbortError', aborted: true });
+            }
             if (chunk.type === 'content_block_start') {
                 content.push(chunk.content_block);
                 // Reset text accumulator for new blocks

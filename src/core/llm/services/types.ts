@@ -22,7 +22,8 @@ export interface ILLMService {
         textInput: string,
         imageData?: ImageData,
         fileData?: FileData,
-        stream?: boolean
+        stream?: boolean,
+        options?: { signal?: AbortSignal }
     ): Promise<string>;
 
     // Get all available tools
