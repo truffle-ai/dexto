@@ -487,14 +487,9 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
                     if (typeof data.sessionId === 'string') {
-                        sendWebSocketValidationError(
-                            ws,
-                            'Unknown message type',
-                            {
-                                messageType: data.type,
-                            },
-                            data.sessionId
-                        );
+                        sendWebSocketValidationError(ws, 'Unknown message type', data.sessionId, {
+                            messageType: data.type,
+                        });
                     } else {
                         // No session id; log only.
                         logger.error(

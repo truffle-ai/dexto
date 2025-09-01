@@ -68,8 +68,8 @@ export function sendWebSocketError(ws: WebSocket, error: unknown, sessionId: str
 export function sendWebSocketValidationError(
     ws: WebSocket,
     message: string,
-    context?: Record<string, unknown>,
-    sessionId: string
+    sessionId: string,
+    context?: Record<string, unknown>
 ): void {
     const dexErr = new DextoValidationError([
         {
