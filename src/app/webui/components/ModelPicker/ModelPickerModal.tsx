@@ -356,18 +356,19 @@ export default function ModelPickerModal() {
           </Button>
         </DialogTrigger>
 
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden">
-          <DialogHeader className="pb-4">
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="pb-4 flex-shrink-0">
             <DialogTitle className="text-xl">Select Model</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               Choose from your favorite models or explore all available options
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 overflow-y-auto pr-2">
-            {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
-
-            <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
+          <div className="flex flex-col min-h-0 flex-1 space-y-6">
+            <div className="flex-shrink-0 space-y-4">
+              {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
+              <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
+            </div>
 
           {/* Favorites Section - Always visible when there are favorites */}
           {favoriteModels.length > 0 && !search && (
