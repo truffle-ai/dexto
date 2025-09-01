@@ -17,16 +17,15 @@ export default function markdownRoutePlugin(
     const API_PREFIX = `${normalizedBase}/api/`;
     // Helper function to find markdown file (try .md then .mdx)
     function findMarkdownFile(basePath: string): string | null {
-        const mdPath = basePath + '.md';
-        const mdxPath = basePath + '.mdx';
-
-        if (fs.existsSync(mdPath)) {
-            return mdPath;
-        }
-        if (fs.existsSync(mdxPath)) {
-            return mdxPath;
-        }
-        return null;
+        const candidates = [
+            `${basePath}.md`,
+            `${basePath}.mdx`,
+            path.join(basePath, 'index.md'),
+            path.join(basePath, 'index.mdx'),
+            path.join(basePath, 'README.md'),
+            path.join(basePath, 'README.mdx'),
+        ];
+        return candidates.find(p => fs.existsSync(p)) ?? null;
     }
 
     // Helper function to copy markdown files to build folder for production
