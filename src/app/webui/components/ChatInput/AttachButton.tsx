@@ -30,11 +30,12 @@ export function AttachButton({
   className,
   supports,
 }: AttachButtonProps) {
+  const [open, setOpen] = React.useState(false);
   const imageSupported = supports?.image !== false; // default to true if unknown
   const pdfSupported = supports?.pdf !== false; // default to true if unknown
   const audioSupported = supports?.audio !== false;
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -48,8 +49,11 @@ export function AttachButton({
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start">
         <DropdownMenuItem 
-          onSelect={(e) => { if (!imageSupported) e.preventDefault(); }}
-          onClick={imageSupported ? onImageAttach : undefined}
+          onClick={() => {
+            if (!imageSupported) return;
+            onImageAttach();
+            setOpen(false);
+          }}
           className={!imageSupported ? 'opacity-50 cursor-not-allowed' : undefined}
           aria-disabled={!imageSupported}
         >
@@ -65,8 +69,11 @@ export function AttachButton({
           </TooltipProvider>
         </DropdownMenuItem>
         <DropdownMenuItem 
-          onSelect={(e) => { if (!pdfSupported) e.preventDefault(); }}
-          onClick={pdfSupported ? onPdfAttach : undefined}
+          onClick={() => {
+            if (!pdfSupported) return;
+            onPdfAttach();
+            setOpen(false);
+          }}
           className={!pdfSupported ? 'opacity-50 cursor-not-allowed' : undefined}
           aria-disabled={!pdfSupported}
         >
@@ -82,8 +89,11 @@ export function AttachButton({
           </TooltipProvider>
         </DropdownMenuItem>
         <DropdownMenuItem 
-          onSelect={(e) => { if (!audioSupported) e.preventDefault(); }}
-          onClick={audioSupported ? onAudioAttach : undefined}
+          onClick={() => {
+            if (!audioSupported) return;
+            onAudioAttach();
+            setOpen(false);
+          }}
           className={!audioSupported ? 'opacity-50 cursor-not-allowed' : undefined}
           aria-disabled={!audioSupported}
         >

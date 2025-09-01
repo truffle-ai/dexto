@@ -527,9 +527,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onPdfAttach={triggerPdfInput}
                     onAudioAttach={triggerAudioInput}
                     supports={{
-                      image: supportedFileTypes.includes('image'),
-                      pdf: supportedFileTypes.includes('pdf'),
-                      audio: supportedFileTypes.includes('audio'),
+                      // If not yet loaded (length===0), pass undefined so AttachButton defaults to enabled
+                      image: supportedFileTypes.length ? supportedFileTypes.includes('image') : undefined,
+                      pdf: supportedFileTypes.length ? supportedFileTypes.includes('pdf') : undefined,
+                      audio: supportedFileTypes.length ? supportedFileTypes.includes('audio') : undefined,
                     }}
                   />
                   

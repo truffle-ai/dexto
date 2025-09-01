@@ -445,14 +445,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             const src = `data:${filePart.mimeType};base64,${filePart.data}`;
                             return (
                               <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                <FileAudio className="h-5 w-5 text-muted-foreground" />
+                                <FileAudio className={cn("h-5 w-5", isUser ? undefined : "text-muted-foreground")} />
                                 <audio 
                                   controls 
                                   src={src} 
                                   className="flex-1 h-8"
                                 />
                                 {filePart.filename && (
-                                  <span className="text-sm text-muted-foreground truncate max-w-[120px]">
+                                  <span className={cn("text-sm truncate max-w-[120px]", isUser ? "text-primary-foreground/80" : "text-muted-foreground")}>
                                     {filePart.filename}
                                   </span>
                                 )}
@@ -462,11 +462,11 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             // Non-audio files (PDFs, etc.)
                             return (
                               <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                <File className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm font-medium">
+                                <File className={cn("h-5 w-5", isUser ? undefined : "text-muted-foreground")} />
+                                <span className={cn("text-sm font-medium", isUser ? undefined : undefined)}>
                                   {filePart.filename || `${filePart.mimeType} file`}
                                 </span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className={cn("text-xs", isUser ? "text-primary-foreground/70" : "text-muted-foreground")}>
                                   {filePart.mimeType}
                                 </span>
                               </div>
@@ -510,11 +510,11 @@ export default function MessageList({ messages, activeError, onDismissError, out
                          </div>
                        ) : (
                          <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                           <File className="h-5 w-5 text-muted-foreground" />
+                           <File className="h-5 w-5" />
                            <span className="text-sm font-medium">
                              {msg.fileData.filename || `${msg.fileData.mimeType} file`}
                            </span>
-                           <span className="text-xs text-muted-foreground">
+                           <span className="text-xs text-primary-foreground/70">
                              {msg.fileData.mimeType}
                            </span>
                          </div>
