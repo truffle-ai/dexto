@@ -115,8 +115,17 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                   <div
                     onClick={() => onUse(providerId, model)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
+                      // Ignore keyboard events from inner buttons
+                      const target = e.target as HTMLElement | null;
+                      if (target && target.closest('button')) return;
+                      
+                      const isEnter = e.key === 'Enter';
+                      const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
+                      
+                      // Only preventDefault for Space to avoid scrolling
+                      if (isSpace) e.preventDefault();
+                      
+                      if (isEnter || isSpace) {
                         onUse(providerId, model);
                       }
                     }}
@@ -152,6 +161,15 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
+                            onKeyDown={(e) => {
+                              const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
+                              const isEnter = e.key === 'Enter';
+                              if (isEnter || isSpace) {
+                                e.stopPropagation(); // Prevent bubbling to the tile
+                                if (isSpace) e.preventDefault(); // Prevent scrolling
+                                // Default button behavior will fire click -> onToggleFavorite
+                              }
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleFavorite(providerId, model.name);

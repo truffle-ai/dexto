@@ -269,7 +269,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name for custom endpoints
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'required',
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Unknown capabilities for custom endpoints, so we allow all
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
     },
     anthropic: {
         models: [
@@ -817,7 +817,9 @@ export function getSupportedFileTypesForModel(
 
     // Special case: providers that accept any model name (e.g., openai-compatible)
     if (acceptsAnyModel(provider)) {
-        return []; // Unknown capabilities for custom models - assume no file support for security
+        // For custom endpoints, use the provider-level supportedFileTypes declaration
+        // This allows attachments despite unknown model capabilities (user assumes responsibility)
+        return providerInfo.supportedFileTypes;
     }
 
     // Find the specific model
