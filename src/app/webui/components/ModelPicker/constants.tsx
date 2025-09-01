@@ -55,14 +55,30 @@ export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
   return !COLORED_LOGOS.includes(provider);
 };
 
-// Model capability icons - single source of truth
+// Model capability icons - enhanced with better visual design
 export const CAPABILITY_ICONS = {
-  vision: <Eye className="h-3 w-3" />,
-  image: <Image className="h-3 w-3" />,
-  audio: <FileAudio className="h-3 w-3" />,
-  pdf: <FileText className="h-3 w-3" />,
-  reasoning: <Brain className="h-3 w-3" />,
-  experimental: <FlaskConical className="h-3 w-3" />,
-  new: <Sparkles className="h-3 w-3" />,
-  realtime: <Zap className="h-3 w-3" />,
+  vision: <Eye className="h-3.5 w-3.5" />,
+  image: (
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+      <Image className="h-2 w-2 text-white" />
+    </div>
+  ),
+  audio: (
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+      <FileAudio className="h-2 w-2 text-white" />
+    </div>
+  ),
+  pdf: (
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center">
+      <FileText className="h-2 w-2 text-white" />
+    </div>
+  ),
+  reasoning: (
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+      <Brain className="h-2 w-2 text-white" />
+    </div>
+  ),
+  experimental: <FlaskConical className="h-3.5 w-3.5 text-orange-500" />,
+  new: <Sparkles className="h-3.5 w-3.5 text-yellow-500" />,
+  realtime: <Zap className="h-3.5 w-3.5 text-blue-500" />,
 };

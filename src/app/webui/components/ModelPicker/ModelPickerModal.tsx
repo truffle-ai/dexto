@@ -55,22 +55,22 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
           <div
             onClick={onClick}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-100 cursor-pointer",
-              "hover:bg-accent hover:shadow-sm",
-              isActive && "bg-accent shadow-sm ring-1 ring-accent-foreground/10",
+              "w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 cursor-pointer group",
+              "hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]",
+              isActive && "bg-primary/10 shadow-md ring-2 ring-primary/20 scale-[1.01]",
               !hasApiKey && "opacity-60"
             )}
             role="button"
             tabIndex={0}
           >
             {/* Provider Logo */}
-            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+            <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
               {PROVIDER_LOGOS[provider] ? (
                 <Image 
                   src={PROVIDER_LOGOS[provider]} 
                   alt={`${provider} logo`} 
-                  width={20} 
-                  height={20}
+                  width={24} 
+                  height={24}
                   className={cn(
                     "object-contain",
                     // Apply invert filter in dark mode for monochrome logos
@@ -78,36 +78,37 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
                   )}
                 />
               ) : (
-                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                <HelpCircle className="h-5 w-5 text-muted-foreground" />
               )}
             </div>
             
             {/* Model Name */}
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium">{displayName}</div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-sm font-semibold text-foreground truncate">{displayName}</div>
+              <div className="text-xs text-muted-foreground">{provider}</div>
             </div>
             
             {/* Capability Icons */}
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               {model.supportedFileTypes.includes('pdf') && (
-                <span className="text-muted-foreground" title="PDF support">
+                <div title="PDF support" className="transition-transform group-hover:scale-110">
                   {CAPABILITY_ICONS.pdf}
-                </span>
+                </div>
               )}
               {model.supportedFileTypes.includes('audio') && (
-                <span className="text-muted-foreground" title="Audio support">
+                <div title="Audio support" className="transition-transform group-hover:scale-110">
                   {CAPABILITY_ICONS.audio}
-                </span>
+                </div>
               )}
               {model.supportedFileTypes.includes('image') && (
-                <span className="text-muted-foreground" title="Image support">
+                <div title="Image support" className="transition-transform group-hover:scale-110">
                   {CAPABILITY_ICONS.image}
-                </span>
+                </div>
               )}
               {!hasApiKey && (
-                <span className="text-muted-foreground" title="API key required">
-                  <Lock className="h-3 w-3" />
-                </span>
+                <div title="API key required" className="transition-transform group-hover:scale-110">
+                  <Lock className="h-3.5 w-3.5 text-amber-500" />
+                </div>
               )}
             </div>
             
@@ -117,10 +118,16 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
                 e.stopPropagation();
                 onToggleFavorite();
               }}
-              className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              className={cn(
+                "flex-shrink-0 transition-all duration-200",
+                "hover:scale-110 active:scale-95",
+                isFavorite 
+                  ? "text-yellow-500 hover:text-yellow-400" 
+                  : "text-muted-foreground hover:text-yellow-500"
+              )}
               aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
             >
-              <Star className={cn("h-4 w-4", isFavorite && "fill-current text-yellow-500")} />
+              <Star className={cn("h-4 w-4", isFavorite && "fill-current")} />
             </button>
           </div>
         </TooltipTrigger>
@@ -365,24 +372,30 @@ export default function ModelPickerModal() {
           </Button>
         </DialogTrigger>
 
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Select Model</DialogTitle>
-            <DialogDescription>Choose from your favorite models or explore all available options</DialogDescription>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-xl">Select Model</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Choose from your favorite models or explore all available options
+            </DialogDescription>
           </DialogHeader>
 
-          {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
+          <div className="space-y-6 overflow-y-auto pr-2">
+            {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
 
-          <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
+            <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
 
           {/* Favorites Section - Always visible when there are favorites */}
           {favoriteModels.length > 0 && !search && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Star className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Favorites</span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                  <span className="text-sm font-medium">Favorites</span>
+                  <span className="text-xs text-muted-foreground">({favoriteModels.length})</span>
+                </div>
               </div>
-              <div className="grid gap-1">
+              <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1">
                 {favoriteModels.map(({ providerId, provider, model }) => (
                   <CompactModelCard
                     key={favKey(providerId, model.name)}
@@ -396,6 +409,11 @@ export default function ModelPickerModal() {
                   />
                 ))}
               </div>
+              {favoriteModels.length > 6 && (
+                <div className="text-xs text-muted-foreground text-center">
+                  Scroll to see all {favoriteModels.length} favorites
+                </div>
+              )}
             </div>
           )}
 
@@ -443,39 +461,45 @@ export default function ModelPickerModal() {
             </div>
           )}
 
-          {/* Advanced Options */}
-          <div className="mt-4 space-y-3 border-t pt-3">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setAdvancedOpen(!advancedOpen)} 
-              className="flex items-center justify-between w-full p-0 h-auto"
-            >
-              <span className="text-sm text-muted-foreground">Advanced Options</span>
-              {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            {advancedOpen && (
-              <div className="space-y-4 pl-4 border-l">
-                <div className="space-y-2">
-                  <Label>Router</Label>
-                  <Select value={selectedRouter} onValueChange={(v) => setSelectedRouter(v as SupportedRouter)}>
-                    <SelectTrigger><SelectValue placeholder="Select router" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(providerIds.flatMap((id) => providers[id].supportedRouters))).map((router) => (
-                        <SelectItem key={router} value={router}>
-                          <span className="capitalize">{router}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Advanced Options */}
+            <div className="space-y-3 border-t pt-4 mt-4">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setAdvancedOpen(!advancedOpen)} 
+                className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
+              >
+                <span className="text-sm font-medium text-muted-foreground">Advanced Options</span>
+                {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              {advancedOpen && (
+                <div className="space-y-4 pl-4 border-l-2 border-muted">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Router</Label>
+                    <Select value={selectedRouter} onValueChange={(v) => setSelectedRouter(v as SupportedRouter)}>
+                      <SelectTrigger><SelectValue placeholder="Select router" /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from(new Set(providerIds.flatMap((id) => providers[id].supportedRouters))).map((router) => (
+                          <SelectItem key={router} value={router}>
+                            <span className="capitalize">{router}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Custom Base URL</Label>
+                    <Input 
+                      value={baseURL} 
+                      onChange={(e) => setBaseURL(e.target.value)} 
+                      placeholder="https://api.openai.com/v1" 
+                      className="text-sm"
+                    />
+                    <div className="text-xs text-muted-foreground">Only used for providers that support baseURL.</div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Custom Base URL</Label>
-                  <Input value={baseURL} onChange={(e) => setBaseURL(e.target.value)} placeholder="https://api.openai.com/v1" />
-                  <div className="text-xs text-muted-foreground">Only used for providers that support baseURL.</div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
