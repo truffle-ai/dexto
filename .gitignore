@@ -10,7 +10,6 @@ technical-plans/
 # Build output
 dist/
 build/
-docs/build/
 
 # Environment files
 .env
