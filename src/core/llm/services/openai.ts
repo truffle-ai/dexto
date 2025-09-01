@@ -177,7 +177,8 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // Handle tool calls (using robust non-streaming approach)
-                for (const toolCall of message.tool_calls) {
+                // Only process function tool calls that we've added to history
+                for (const toolCall of functionToolCalls) {
                     if (options?.signal?.aborted) {
                         throw Object.assign(new Error('Aborted'), {
                             name: 'AbortError',
@@ -186,17 +187,12 @@ export class OpenAIService implements ILLMService {
                     }
                     logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
                     logger.debug(`Tool call details: ${JSON.stringify(toolCall, null, 2)}`);
-                    const toolName =
-                        toolCall.type === 'function'
-                            ? toolCall.function.name
-                            : toolCall.custom.name;
+                    // Since we're only processing function tool calls now
+                    const toolName = toolCall.function.name;
                     let args: Record<string, any> = {};
 
                     try {
-                        args =
-                            toolCall.type === 'function'
-                                ? JSON.parse(toolCall.function.arguments)
-                                : JSON.parse(toolCall.custom.input);
+                        args = JSON.parse(toolCall.function.arguments);
                     } catch (e) {
                         logger.error(`Error parsing arguments for ${toolName}:`, e);
                         await this.contextManager.addToolResult(toolCall.id, toolName, {
@@ -539,23 +535,21 @@ export class OpenAIService implements ILLMService {
                             }
 
                             // Accumulate tool call data
-                            // Check the type of the existing tool call to handle correctly
                             const existingToolCall = toolCalls[index];
 
+                            // We only support function tool calls in streaming
+                            // Tool calls are initialized with type: 'function' above
                             if (existingToolCall.type === 'function' && toolCall.function) {
                                 // Handle function type tool calls
                                 if (toolCall.function.name) {
-                                    existingToolCall.function.name += toolCall.function.name;
+                                    // Tool names come as complete tokens, not chunks - use assignment
+                                    existingToolCall.function.name = toolCall.function.name;
                                 }
                                 if (toolCall.function.arguments) {
+                                    // Arguments are streamed in chunks, so concatenate them
                                     existingToolCall.function.arguments +=
                                         toolCall.function.arguments;
                                 }
-                            } else if (existingToolCall.type === 'custom') {
-                                // We don't support custom tools in streaming yet
-                                logger.warn(
-                                    `Custom tool call detected in streaming at index ${index} - not supported`
-                                );
                             }
                         }
                     }
