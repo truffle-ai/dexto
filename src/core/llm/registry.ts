@@ -561,7 +561,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 displayName: 'Grok 4',
                 maxInputTokens: 256000,
                 default: true,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -574,7 +574,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'grok-3',
                 displayName: 'Grok 3',
                 maxInputTokens: 131072,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['image'],
                 pricing: {
                     inputPerM: 3.0,
                     outputPerM: 15.0,
@@ -587,7 +587,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'grok-3-mini',
                 displayName: 'Grok 3 Mini',
                 maxInputTokens: 131072,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['image'],
                 pricing: {
                     inputPerM: 0.3,
                     outputPerM: 0.5,
