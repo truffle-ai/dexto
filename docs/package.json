@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
+    "build:plugins": "tsc src/plugins/*.ts --outDir src/plugins --target es2020 --module commonjs --skipLibCheck",
+    "prestart": "npm run build:plugins",
     "start": "docusaurus start",
+    "prebuild": "npm run build:plugins",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",

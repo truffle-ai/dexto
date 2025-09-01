@@ -1,11 +1,19 @@
-const path = require('path');
-const fs = require('fs');
+import * as path from 'path';
+import * as fs from 'fs';
+import type { Plugin, LoadContext } from '@docusaurus/types';
 
-module.exports = function markdownRoutePlugin(context, _options) {
+interface MarkdownRoutePluginOptions {
+    enabled?: boolean;
+}
+
+export default function markdownRoutePlugin(
+    context: LoadContext,
+    _options: MarkdownRoutePluginOptions = {}
+): Plugin {
     const { siteDir } = context;
 
     // Helper function to find markdown file (try .md then .mdx)
-    function findMarkdownFile(basePath) {
+    function findMarkdownFile(basePath: string): string | null {
         const mdPath = basePath + '.md';
         const mdxPath = basePath + '.mdx';
 
@@ -19,7 +27,7 @@ module.exports = function markdownRoutePlugin(context, _options) {
     }
 
     // Helper function to copy markdown files to build folder for production
-    function copyMarkdownFiles(buildDir) {
+    function copyMarkdownFiles(buildDir: string): void {
         // Copy docs markdown files
         const docsDir = path.join(siteDir, 'docs');
         const buildDocsDir = path.join(buildDir, 'docs');
@@ -35,7 +43,11 @@ module.exports = function markdownRoutePlugin(context, _options) {
         }
     }
 
-    function copyDirectoryMarkdown(sourceDir, targetDir, prefix = '') {
+    function copyDirectoryMarkdown(
+        sourceDir: string,
+        targetDir: string,
+        prefix: string = ''
+    ): void {
         if (!fs.existsSync(sourceDir)) return;
 
         // Create target directory
@@ -76,7 +88,7 @@ module.exports = function markdownRoutePlugin(context, _options) {
             copyMarkdownFiles(outDir);
         },
 
-        configureWebpack(_config, isServer) {
+        configureWebpack(_config: any, isServer: boolean): any {
             // Only add devServer middleware for client-side development builds
             if (isServer || process.env.NODE_ENV === 'production') {
                 return {};
@@ -84,7 +96,7 @@ module.exports = function markdownRoutePlugin(context, _options) {
 
             return {
                 devServer: {
-                    setupMiddlewares: (middlewares, devServer) => {
+                    setupMiddlewares: (middlewares: any, devServer: any) => {
                         if (!devServer) {
                             throw new Error('webpack-dev-server is not defined');
                         }
@@ -94,7 +106,7 @@ module.exports = function markdownRoutePlugin(context, _options) {
                         // Add middleware at the beginning to intercept before other routes
                         middlewares.unshift({
                             name: 'markdown-route-middleware',
-                            middleware: (req, res, next) => {
+                            middleware: (req: any, res: any, next: any) => {
                                 // Only handle .md requests
                                 if (!req.path.endsWith('.md')) {
                                     return next();
