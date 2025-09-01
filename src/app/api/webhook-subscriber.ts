@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { setMaxListeners } from 'events';
 import { AgentEventBus, type AgentEventName, type AgentEventMap } from '@core/events/index.js';
 import { logger } from '@core/index.js';
 import { EventSubscriber } from './types.js';
@@ -42,12 +43,17 @@ export class WebhookEventSubscriber implements EventSubscriber {
      * Subscribe to agent events and deliver them to registered webhooks
      */
     subscribe(eventBus: AgentEventBus): void {
+        // Abort any previous subscription before creating a new one
+        this.abortController?.abort();
+
         // Create new AbortController for this subscription
         this.abortController = new AbortController();
         const { signal } = this.abortController;
 
-        // Note: This will generate MaxListenersExceededWarning since we subscribe to 11+ events
-        // with the same AbortSignal. This is expected and harmless.
+        // Increase max listeners since we intentionally share this signal across multiple events
+        // This prevents the MaxListenersExceededWarning
+        const MAX_SHARED_SIGNAL_LISTENERS = 20;
+        setMaxListeners(MAX_SHARED_SIGNAL_LISTENERS, signal);
 
         // Subscribe to all relevant events with abort signal (same as WebSocket subscriber)
         const eventNames: AgentEventName[] = [

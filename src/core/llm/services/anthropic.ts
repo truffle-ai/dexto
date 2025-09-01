@@ -477,6 +477,9 @@ export class AnthropicService implements ILLMService {
                     output_tokens: chunk.usage.output_tokens || 0,
                     cache_creation_input_tokens: usage?.cache_creation_input_tokens || null,
                     cache_read_input_tokens: usage?.cache_read_input_tokens || null,
+                    cache_creation: usage?.cache_creation || null,
+                    server_tool_use: usage?.server_tool_use || null,
+                    service_tier: usage?.service_tier || null,
                 };
             } else if (chunk.type === 'message_start' && chunk.message.usage) {
                 usage = chunk.message.usage;
@@ -506,6 +509,9 @@ export class AnthropicService implements ILLMService {
                 output_tokens: 0,
                 cache_creation_input_tokens: null,
                 cache_read_input_tokens: null,
+                cache_creation: null,
+                server_tool_use: null,
+                service_tier: null,
             },
         };
 

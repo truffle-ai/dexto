@@ -148,9 +148,26 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // Add assistant message with tool calls to history
+                // OpenAI v5 supports both function and custom tool types
+                // We currently only handle function types, so filter for those
+                const functionToolCalls = message.tool_calls.filter(
+                    (
+                        toolCall
+                    ): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => {
+                        logger.debug(`Tool call type received: ${toolCall.type}`);
+                        return toolCall.type === 'function';
+                    }
+                );
+
+                if (message.tool_calls.length > functionToolCalls.length) {
+                    logger.warn(
+                        `Filtered out ${message.tool_calls.length - functionToolCalls.length} non-function tool calls`
+                    );
+                }
+
                 await this.contextManager.addAssistantMessage(
                     message.content,
-                    message.tool_calls,
+                    functionToolCalls.length > 0 ? functionToolCalls : undefined,
                     {}
                 );
 
@@ -160,14 +177,17 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // Handle tool calls (using robust non-streaming approach)
-                for (const toolCall of message.tool_calls) {
+                // Only process function tool calls that we've added to history
+                for (const toolCall of functionToolCalls) {
                     if (options?.signal?.aborted) {
                         throw Object.assign(new Error('Aborted'), {
                             name: 'AbortError',
                             aborted: true,
                         });
                     }
-                    logger.debug(`Tool call initiated: ${JSON.stringify(toolCall, null, 2)}`);
+                    logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
+                    logger.debug(`Tool call details: ${JSON.stringify(toolCall, null, 2)}`);
+                    // Since we're only processing function tool calls now
                     const toolName = toolCall.function.name;
                     let args: Record<string, any> = {};
 
@@ -515,11 +535,21 @@ export class OpenAIService implements ILLMService {
                             }
 
                             // Accumulate tool call data
-                            if (toolCall.function?.name) {
-                                toolCalls[index].function.name += toolCall.function.name;
-                            }
-                            if (toolCall.function?.arguments) {
-                                toolCalls[index].function.arguments += toolCall.function.arguments;
+                            const existingToolCall = toolCalls[index];
+
+                            // We only support function tool calls in streaming
+                            // Tool calls are initialized with type: 'function' above
+                            if (existingToolCall.type === 'function' && toolCall.function) {
+                                // Handle function type tool calls
+                                if (toolCall.function.name) {
+                                    // Tool names come as complete tokens, not chunks - use assignment
+                                    existingToolCall.function.name = toolCall.function.name;
+                                }
+                                if (toolCall.function.arguments) {
+                                    // Arguments are streamed in chunks, so concatenate them
+                                    existingToolCall.function.arguments +=
+                                        toolCall.function.arguments;
+                                }
                             }
                         }
                     }
