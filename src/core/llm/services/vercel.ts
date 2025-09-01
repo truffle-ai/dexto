@@ -186,13 +186,16 @@ export class VercelLLMService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
         // Add user message, with optional image and file data
         logger.debug(
-            `VercelLLMService: Adding user message: ${textInput}, imageData: ${imageData}, fileData: ${fileData}`
+            `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
+                imageData
+            )}, file=${Boolean(fileData)})`
         );
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
@@ -216,7 +219,6 @@ export class VercelLLMService implements ILLMService {
             { provider: this.config.provider, model: this.getModelId() }
         );
         const formattedMessages: ModelMessage[] = prepared.formattedMessages as ModelMessage[];
-        const _systemPrompt: string | undefined = prepared.systemPrompt;
         const tokensUsed: number = prepared.tokensUsed;
 
         logger.silly(
@@ -230,16 +232,22 @@ export class VercelLLMService implements ILLMService {
             fullResponse = await this.streamText(
                 formattedMessages,
                 formattedTools,
-                this.config.maxIterations
+                this.config.maxIterations,
+                options?.signal
             );
         } else {
             fullResponse = await this.generateText(
                 formattedMessages,
                 formattedTools,
-                this.config.maxIterations
+                this.config.maxIterations,
+                options?.signal
             );
         }
 
+        // If the run was cancelled, don't emit the "max steps" fallback.
+        if (options?.signal?.aborted) {
+            return fullResponse; // likely '', which upstream can treat as "no content"
+        }
         return (
             fullResponse ||
             `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
@@ -249,7 +257,8 @@ export class VercelLLMService implements ILLMService {
     async generateText(
         messages: ModelMessage[],
         tools: VercelToolSet,
-        maxSteps: number = 50
+        maxSteps: number = 50,
+        signal?: AbortSignal
     ): Promise<string> {
         let stepIteration = 0;
 
@@ -277,6 +286,7 @@ export class VercelLLMService implements ILLMService {
                 model: this.model,
                 messages,
                 tools: effectiveTools,
+                ...(signal ? { abortSignal: signal } : {}),
                 onStepFinish: (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
@@ -415,7 +425,8 @@ export class VercelLLMService implements ILLMService {
     async streamText(
         messages: ModelMessage[],
         tools: VercelToolSet,
-        maxSteps: number = 10
+        maxSteps: number = 10,
+        signal?: AbortSignal
     ): Promise<string> {
         let stepIteration = 0;
 
@@ -439,6 +450,7 @@ export class VercelLLMService implements ILLMService {
             model: this.model,
             messages,
             tools: effectiveTools,
+            ...(signal ? { abortSignal: signal } : {}),
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
@@ -455,10 +467,14 @@ export class VercelLLMService implements ILLMService {
                     });
                 }
             },
+            // TODO: Add onAbort handler when we implement partial response handling.
+            // Vercel triggers onAbort instead of onError for cancelled streams.
+            // This is where cancellation logic should be handled properly.
             onError: (error) => {
-                logger.error(`Error in streamText: ${JSON.stringify(error, null, 2)}`);
+                const err = toError(error);
+                logger.error(`Error in streamText: ${err?.stack ?? err}`, null, 'red');
                 this.sessionEventBus.emit('llmservice:error', {
-                    error: toError(error),
+                    error: err,
                     context: 'streamText',
                     recoverable: false,
                 });

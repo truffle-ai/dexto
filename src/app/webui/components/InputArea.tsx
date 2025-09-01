@@ -55,7 +55,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   
   // Get current session context to ensure model switch applies to the correct session
-  const { currentSessionId, isStreaming, setStreaming } = useChatContext();
+  const { currentSessionId, isStreaming, setStreaming, cancel, processing } = useChatContext();
   
   // LLM selector state
   const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
@@ -581,13 +581,18 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onModelChange={handleModelSwitch}
                   />
 
+                  {/* Stop/Cancel button shown when a run is in progress */}
                   <Button
-                    type="submit"
-                    disabled={!text.trim() && !imageData && !fileData || isSending}
+                    type={processing ? 'button' : 'submit'}
+                    onClick={processing ? () => cancel(currentSessionId || undefined) : undefined}
+                    disabled={processing ? false : ((!text.trim() && !imageData && !fileData) || isSending)}
                     className="h-10 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
-                    aria-label="Send message"
+                    aria-label={processing ? 'Stop' : 'Send message'}
+                    title={processing ? 'Stop' : 'Send'}
                   >
-                    {isSending ? (
+                    {processing ? (
+                      <StopCircle className="h-4 w-4" />
+                    ) : isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <SendHorizontal className="h-4 w-4" />

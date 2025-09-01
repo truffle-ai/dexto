@@ -193,12 +193,48 @@ export async function startAiCli(agent: DextoAgent) {
                 }
 
                 try {
-                    // Simply call run - all updates happen via events
-                    await agent.run(userInput);
+                    // Allow Esc to cancel in-flight runs without exiting the CLI
+                    let cancelling = false;
+                    const keypress = (_str: string, key?: readline.Key) => {
+                        if (key?.name === 'escape' && !cancelling) {
+                            cancelling = true;
+                            console.log(chalk.yellow('\n(… cancelling current run)'));
+                            // Handle both sync/async cancel; swallow any rejection.
+                            void agent.cancel().catch(() => {});
+                        }
+                    };
+                    readline.emitKeypressEvents(process.stdin);
+                    const restoreRaw = process.stdin.isTTY
+                        ? (() => {
+                              const wasRaw = process.stdin.isRaw === true;
+                              process.stdin.setRawMode(true);
+                              return () => {
+                                  try {
+                                      process.stdin.setRawMode(wasRaw);
+                                  } catch {
+                                      // ignore
+                                  }
+                              };
+                          })()
+                        : () => {};
+                    process.stdin.on('keypress', keypress);
+
+                    try {
+                        await agent.run(userInput);
+                    } finally {
+                        process.stdin.removeListener('keypress', keypress);
+                        restoreRaw();
+                    }
                 } catch (error) {
-                    logger.error(
-                        `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    const err = error instanceof Error ? error : new Error(String(error));
+                    // TODO: revert this when we handle partials properly
+                    const aborted =
+                        err.name === 'AbortError' ||
+                        (err as any).aborted === true ||
+                        /abort/i.test(err.message || '');
+                    if (!aborted) {
+                        logger.error(`Error in processing input: ${err.message}`);
+                    }
                 }
             }
         } finally {

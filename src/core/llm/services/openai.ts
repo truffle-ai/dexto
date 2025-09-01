@@ -65,6 +65,7 @@ export class OpenAIService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
         stream?: boolean
@@ -91,12 +92,18 @@ export class OpenAIService implements ILLMService {
 
         try {
             while (iterationCount < this.config.maxIterations) {
+                if (options?.signal?.aborted) {
+                    throw Object.assign(new Error('Aborted'), {
+                        name: 'AbortError',
+                        aborted: true,
+                    });
+                }
                 iterationCount++;
 
                 // Get response with appropriate method
                 const { message, usage } = stream
-                    ? await this.getAIStreamingResponseWithRetries(formattedTools)
-                    : await this.getAIResponseWithRetries(formattedTools);
+                    ? await this.getAIStreamingResponseWithRetries(formattedTools, options?.signal)
+                    : await this.getAIResponseWithRetries(formattedTools, options?.signal);
 
                 // Track token usage
                 if (usage) {
@@ -154,6 +161,12 @@ export class OpenAIService implements ILLMService {
 
                 // Handle tool calls (using robust non-streaming approach)
                 for (const toolCall of message.tool_calls) {
+                    if (options?.signal?.aborted) {
+                        throw Object.assign(new Error('Aborted'), {
+                            name: 'AbortError',
+                            aborted: true,
+                        });
+                    }
                     logger.debug(`Tool call initiated: ${JSON.stringify(toolCall, null, 2)}`);
                     const toolName = toolCall.function.name;
                     let args: Record<string, any> = {};
@@ -254,6 +267,12 @@ export class OpenAIService implements ILLMService {
             });
             return finalResponse;
         } catch (error) {
+            if (
+                error instanceof Error &&
+                (error.name === 'AbortError' || (error as any).aborted === true)
+            ) {
+                throw error;
+            }
             // Handle API errors
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error in ${context}: ${errorMessage}`, { error });
@@ -316,7 +335,8 @@ export class OpenAIService implements ILLMService {
 
     // Helper methods
     private async getAIResponseWithRetries(
-        tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+        tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+        signal?: AbortSignal
     ): Promise<{
         message: OpenAI.Chat.Completions.ChatCompletionMessage;
         usage?: OpenAI.Completions.CompletionUsage;
@@ -347,12 +367,15 @@ export class OpenAIService implements ILLMService {
                 logger.debug(`Estimated tokens being sent to OpenAI: ${tokensUsed}`);
 
                 // Call OpenAI API
-                const response = await this.openai.chat.completions.create({
-                    model: this.config.model,
-                    messages: formattedMessages,
-                    tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
-                    tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
-                });
+                const response = await this.openai.chat.completions.create(
+                    {
+                        model: this.config.model,
+                        messages: formattedMessages,
+                        tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
+                        tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
+                    },
+                    signal ? { signal } : undefined
+                );
 
                 logger.silly(
                     'OPENAI CHAT COMPLETION RESPONSE: ',
@@ -370,6 +393,12 @@ export class OpenAIService implements ILLMService {
 
                 return { message, ...(usage && { usage }) };
             } catch (error) {
+                if (
+                    error instanceof Error &&
+                    (error.name === 'AbortError' || (error as any).aborted === true)
+                ) {
+                    throw error;
+                }
                 const apiError = error as APIError;
                 logger.error(
                     `Error in OpenAI API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
@@ -397,7 +426,8 @@ export class OpenAIService implements ILLMService {
     }
 
     private async getAIStreamingResponseWithRetries(
-        tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+        tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+        signal?: AbortSignal
     ): Promise<{
         message: OpenAI.Chat.Completions.ChatCompletionMessage;
         usage?: OpenAI.Completions.CompletionUsage;
@@ -425,16 +455,19 @@ export class OpenAIService implements ILLMService {
                 logger.debug(`Estimated tokens being sent to OpenAI streaming: ${tokensUsed}`);
 
                 // Create streaming chat completion
-                const stream = await this.openai.chat.completions.create({
-                    model: this.config.model,
-                    messages: formattedMessages,
-                    tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
-                    tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
-                    stream: true,
-                    stream_options: {
-                        include_usage: true,
+                const stream = await this.openai.chat.completions.create(
+                    {
+                        model: this.config.model,
+                        messages: formattedMessages,
+                        tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
+                        tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
+                        stream: true,
+                        stream_options: {
+                            include_usage: true,
+                        },
                     },
-                });
+                    signal ? { signal } : undefined
+                );
 
                 // Collect the streaming response
                 let content = '';
@@ -442,6 +475,12 @@ export class OpenAIService implements ILLMService {
                 let usage: OpenAI.Completions.CompletionUsage | undefined;
 
                 for await (const chunk of stream) {
+                    if (signal?.aborted) {
+                        throw Object.assign(new Error('Aborted'), {
+                            name: 'AbortError',
+                            aborted: true,
+                        });
+                    }
                     const delta = chunk.choices[0]?.delta;
 
                     if (delta?.content) {

@@ -95,6 +95,12 @@ export class ChatSession {
     private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
 
     /**
+     * AbortController for the currently running turn, if any.
+     * Calling cancel() aborts the in-flight LLM request and tool execution checks.
+     */
+    private currentRunController: AbortController | null = null;
+
+    /**
      * Creates a new ChatSession instance.
      *
      * Each session creates its own isolated services:
@@ -228,14 +234,41 @@ export class ChatSession {
         );
 
         // Input validation is now handled at DextoAgent.run() level
-
-        const response = await this.llmService.completeTask(
-            input,
-            imageDataInput,
-            fileDataInput,
-            stream
-        );
-        return response;
+        // Create an AbortController for this run and expose for cancellation
+        this.currentRunController = new AbortController();
+        const signal = this.currentRunController.signal;
+        try {
+            const response = await this.llmService.completeTask(
+                input,
+                { signal },
+                imageDataInput,
+                fileDataInput,
+                stream
+            );
+            return response;
+        } catch (error) {
+            // If this was an intentional cancellation, emit a recoverable error event and return empty string
+            const aborted =
+                (error instanceof Error && error.name === 'AbortError') ||
+                (typeof error === 'object' && error !== null && (error as any).aborted === true);
+            if (aborted) {
+                // TODO: Remove emit errors, cancellation is a normal state and not an error state.
+                // LLMService.completeTask should return the partial computed response till then
+                // and not error out in case the execution was cancelled.
+                this.eventBus.emit('llmservice:error', {
+                    error: new Error('Run cancelled'),
+                    context: 'user_cancelled',
+                    recoverable: true,
+                });
+                return '';
+            }
+            // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
+            // We should remove this error handling when we handle partial responses properly in all services.
+            throw error;
+        } finally {
+            // Clear controller after run completes or is cancelled
+            this.currentRunController = null;
+        }
     }
 
     /**
@@ -409,5 +442,23 @@ export class ChatSession {
         this.forwarders.clear();
 
         logger.debug(`Session ${this.id} disposed successfully`);
+    }
+
+    /**
+     * Cancel the currently running turn for this session, if any.
+     * Returns true if a run was in progress and was signaled to abort.
+     */
+    public cancel(): boolean {
+        const controller = this.currentRunController;
+        if (!controller || controller.signal.aborted) {
+            return false;
+        }
+        try {
+            controller.abort();
+            return true;
+        } catch {
+            // Already aborted or abort failed
+            return false;
+        }
     }
 }
