@@ -148,9 +148,26 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // Add assistant message with tool calls to history
+                // OpenAI v5 supports both function and custom tool types
+                // We currently only handle function types, so filter for those
+                const functionToolCalls = message.tool_calls.filter(
+                    (
+                        toolCall
+                    ): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => {
+                        logger.debug(`Tool call type received: ${toolCall.type}`);
+                        return toolCall.type === 'function';
+                    }
+                );
+
+                if (message.tool_calls.length > functionToolCalls.length) {
+                    logger.warn(
+                        `Filtered out ${message.tool_calls.length - functionToolCalls.length} non-function tool calls`
+                    );
+                }
+
                 await this.contextManager.addAssistantMessage(
                     message.content,
-                    message.tool_calls,
+                    functionToolCalls.length > 0 ? functionToolCalls : undefined,
                     {}
                 );
 
@@ -167,12 +184,19 @@ export class OpenAIService implements ILLMService {
                             aborted: true,
                         });
                     }
-                    logger.debug(`Tool call initiated: ${JSON.stringify(toolCall, null, 2)}`);
-                    const toolName = toolCall.function.name;
+                    logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
+                    logger.debug(`Tool call details: ${JSON.stringify(toolCall, null, 2)}`);
+                    const toolName =
+                        toolCall.type === 'function'
+                            ? toolCall.function.name
+                            : toolCall.custom.name;
                     let args: Record<string, any> = {};
 
                     try {
-                        args = JSON.parse(toolCall.function.arguments);
+                        args =
+                            toolCall.type === 'function'
+                                ? JSON.parse(toolCall.function.arguments)
+                                : JSON.parse(toolCall.custom.input);
                     } catch (e) {
                         logger.error(`Error parsing arguments for ${toolName}:`, e);
                         await this.contextManager.addToolResult(toolCall.id, toolName, {
@@ -515,11 +539,23 @@ export class OpenAIService implements ILLMService {
                             }
 
                             // Accumulate tool call data
-                            if (toolCall.function?.name) {
-                                toolCalls[index].function.name += toolCall.function.name;
-                            }
-                            if (toolCall.function?.arguments) {
-                                toolCalls[index].function.arguments += toolCall.function.arguments;
+                            // Check the type of the existing tool call to handle correctly
+                            const existingToolCall = toolCalls[index];
+
+                            if (existingToolCall.type === 'function' && toolCall.function) {
+                                // Handle function type tool calls
+                                if (toolCall.function.name) {
+                                    existingToolCall.function.name += toolCall.function.name;
+                                }
+                                if (toolCall.function.arguments) {
+                                    existingToolCall.function.arguments +=
+                                        toolCall.function.arguments;
+                                }
+                            } else if (existingToolCall.type === 'custom') {
+                                // We don't support custom tools in streaming yet
+                                logger.warn(
+                                    `Custom tool call detected in streaming at index ${index} - not supported`
+                                );
                             }
                         }
                     }
