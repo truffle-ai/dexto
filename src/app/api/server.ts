@@ -413,7 +413,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                           }
                         : undefined;
 
-                    const sessionId = data.sessionId as string | undefined;
+                    const sessionId =
+                        typeof data.sessionId === 'string' ? (data.sessionId as string) : undefined;
+                    if (!sessionId) {
+                        logger.error(
+                            'Received WebSocket message without sessionId. Dropping message and not sending error (sessionId is mandatory).'
+                        );
+                        return;
+                    }
                     const stream = data.stream === true; // Extract stream preference, default to false
                     if (imageDataInput) logger.info('Image data included in message.');
                     if (fileDataInput) logger.info('File data included in message.');
@@ -456,7 +463,8 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                                 },
                             },
                         ]);
-                        sendWebSocketError(ws, hierarchicalError);
+                        // Always include sessionId for client-side routing of errors
+                        sendWebSocketError(ws, hierarchicalError, sessionId);
                         return;
                     }
 
@@ -478,15 +486,41 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     }
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
-                    sendWebSocketValidationError(ws, 'Unknown message type', {
-                        messageType: data.type,
-                    });
+                    if (typeof data.sessionId === 'string') {
+                        sendWebSocketValidationError(
+                            ws,
+                            'Unknown message type',
+                            {
+                                messageType: data.type,
+                            },
+                            data.sessionId
+                        );
+                    } else {
+                        // No session id; log only.
+                        logger.error(
+                            'Cannot send error for unknown message type without sessionId.'
+                        );
+                    }
                 }
             } catch (error) {
                 logger.error(
                     `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
-                sendWebSocketError(ws, error);
+                // Try to parse sessionId; if absent, do not send an error (cannot route it reliably)
+                try {
+                    const maybe = JSON.parse(messageBuffer.toString());
+                    if (typeof maybe.sessionId === 'string') {
+                        sendWebSocketError(ws, error, maybe.sessionId);
+                    } else {
+                        logger.error(
+                            'Cannot send WebSocket error without sessionId. Error will be logged only.'
+                        );
+                    }
+                } catch {
+                    logger.error(
+                        'Cannot parse incoming message to extract sessionId for error reporting.'
+                    );
+                }
             }
         });
         ws.on('close', () => {
