@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import { setMaxListeners } from 'events';
 import { AgentEventBus } from '@core/events/index.js';
 import { logger } from '@core/index.js';
 import { EventSubscriber } from './types.js';
@@ -36,6 +37,10 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         // Create new AbortController for this subscription
         this.abortController = new AbortController();
         const { signal } = this.abortController;
+
+        // Increase max listeners since we intentionally share this signal across multiple events
+        // This prevents the MaxListenersExceededWarning
+        setMaxListeners(20, signal);
 
         // Subscribe to all relevant events with abort signal
         eventBus.on(
