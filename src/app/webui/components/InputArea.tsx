@@ -13,12 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, StopCircle, FileAudio, File, Search } from 'lucide-react';
+import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, Square, FileAudio, File, Search } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
+import { cn } from '../lib/utils';
 
 interface ModelOption {
   name: string;
@@ -553,12 +554,17 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     type={processing ? 'button' : 'submit'}
                     onClick={processing ? () => cancel(currentSessionId || undefined) : undefined}
                     disabled={processing ? false : ((!text.trim() && !imageData && !fileData) || isSending)}
-                    className="h-10 w-10 p-0 rounded-full shadow-sm hover:shadow-md transition-shadow"
+                    className={cn(
+                      "h-10 w-10 p-0 rounded-full transition-all duration-200",
+                      processing
+                        ? "bg-secondary/80 text-secondary-foreground hover:bg-secondary shadow-sm hover:shadow-md border border-border/50"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-lg"
+                    )}
                     aria-label={processing ? 'Stop' : 'Send message'}
                     title={processing ? 'Stop' : 'Send'}
                   >
                     {processing ? (
-                      <StopCircle className="h-4 w-4" />
+                      <Square className="h-3.5 w-3.5 fill-current" />
                     ) : isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
