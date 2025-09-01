@@ -10,9 +10,7 @@ export default function markdownRoutePlugin(
     context: LoadContext,
     _options: MarkdownRoutePluginOptions = {}
 ): Plugin {
-    // Before:
--    const { siteDir } = context;
-    // After:
+    // Consolidate context destructuring without stray diff markers
     const { siteDir, baseUrl = '/' } = context;
     const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const DOCS_PREFIX = `${normalizedBase}/docs/`;
