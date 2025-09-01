@@ -286,7 +286,7 @@ If you don't specify a `toolConfirmation` section, Dexto uses these defaults:
 ```yaml
 toolConfirmation:
   mode: "event-based"           # Interactive confirmation
-  timeout: 30000               # 30 second timeout
+  timeout: 120000               # 2 minute timeout
   allowedToolsStorage: "storage" # Persistent storage
 ```
 
