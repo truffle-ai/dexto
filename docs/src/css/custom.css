@@ -637,6 +637,83 @@ code {
   }
 }
 
+/* Responsive Copy Markdown Button Layout */
+.mdx-content-wrapper {
+  position: relative;
+}
+
+.copy-markdown-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  min-height: 40px;
+  position: relative;
+  z-index: 10;
+}
+
+/* On larger screens, position button absolutely to overlay nicely */
+@media (min-width: 1200px) {
+  .copy-markdown-header {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    margin-bottom: 0;
+    width: auto;
+  }
+
+  /* Add right margin to first heading to prevent overlap */
+  .mdx-content-wrapper h1:first-of-type {
+    margin-right: 200px;
+  }
+}
+
+/* On medium screens, keep button at top but allow wrapping */
+@media (max-width: 1199px) and (min-width: 769px) {
+  .copy-markdown-header {
+    position: sticky;
+    top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Reduce margin for medium screens */
+  .mdx-content-wrapper h1:first-of-type {
+    margin-right: 180px;
+  }
+}
+
+/* On small screens, position button normally in flow */
+@media (max-width: 768px) {
+  .copy-markdown-header {
+    position: static;
+    margin-bottom: 1rem;
+    justify-content: center;
+  }
+
+  /* Remove margin on small screens */
+  .mdx-content-wrapper h1:first-of-type {
+    margin-right: 0;
+  }
+
+  /* Make button smaller on mobile */
+  .copy-markdown-header .copy-markdown-container {
+    transform: scale(0.9);
+  }
+}
+
+/* Handle very long titles that would still cause overlap */
+@container (max-width: 800px) {
+  .mdx-content-wrapper h1:first-of-type {
+    margin-right: 0;
+  }
+
+  .copy-markdown-header {
+    position: static;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+  }
+}
+
 /* Enhanced mobile sidebar with proper full-page overlay */
 @media (max-width: 996px) {
   /* Mobile sidebar backdrop - covers entire viewport */
