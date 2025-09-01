@@ -40,7 +40,7 @@ export class VercelLLMService implements ILLMService {
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
     // Map of toolCallId -> queue of raw results to emit with that callId
-    private rawResultsByCallId: Map<string, any[]> = new Map();
+    private rawResultsByCallId: Map<string, unknown[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -95,7 +95,7 @@ export class VercelLLMService implements ILLMService {
             if (tool) {
                 acc[toolName] = {
                     inputSchema: jsonSchema(tool.parameters),
-                    execute: async (args: unknown, _options?: { toolCallId?: string }) => {
+                    execute: async (args: unknown, options: { toolCallId: string }) => {
                         try {
                             const rawResult = await this.toolManager.executeTool(
                                 toolName,
@@ -104,7 +104,7 @@ export class VercelLLMService implements ILLMService {
                             );
 
                             // Queue raw, unfiltered result under the specific toolCallId
-                            const callId = _options?.toolCallId ?? this.sessionId;
+                            const callId = options.toolCallId;
                             const queue = this.rawResultsByCallId.get(callId) ?? [];
                             queue.push(rawResult);
                             this.rawResultsByCallId.set(callId, queue);
@@ -112,34 +112,9 @@ export class VercelLLMService implements ILLMService {
                             // Sanitize tool result to prevent large/base64 media from exploding context
                             // Convert arbitrary result -> InternalMessage content (media as structured parts)
                             // then summarize to concise text suitable for Vercel tool output.
-                            try {
-                                const safeContent = sanitizeToolResultToContent(rawResult);
-                                const summaryText = summarizeToolContentForText(safeContent);
-                                return summaryText;
-                            } catch (sanErr) {
-                                // Fallback: stringify/truncate to keep context safe
-                                const asString =
-                                    typeof rawResult === 'string'
-                                        ? rawResult
-                                        : (() => {
-                                              try {
-                                                  return JSON.stringify(rawResult);
-                                              } catch {
-                                                  return String(rawResult);
-                                              }
-                                          })();
-                                const MAX_LEN = 4000;
-                                const truncated =
-                                    asString.length > MAX_LEN
-                                        ? `${asString.slice(0, MAX_LEN)}... [truncated]`
-                                        : asString;
-                                logger.warn(
-                                    `Vercel tool result sanitization failed for ${toolName}: ${String(
-                                        sanErr
-                                    )}. Returning truncated text.`
-                                );
-                                return truncated;
-                            }
+                            const safeContent = sanitizeToolResultToContent(rawResult);
+                            const summaryText = summarizeToolContentForText(safeContent);
+                            return summaryText;
                         } catch (err: unknown) {
                             // Return structured error to SDK so a toolResult step is produced
                             if (
@@ -344,7 +319,7 @@ export class VercelLLMService implements ILLMService {
                         for (const toolResult of step.toolResults) {
                             const callId = toolResult.toolCallId;
                             const sanitized = toolResult.output;
-                            let raw: any | undefined;
+                            let raw: unknown | undefined;
                             if (callId) {
                                 const q = this.rawResultsByCallId.get(callId) ?? [];
                                 raw = q.shift();
@@ -394,12 +369,12 @@ export class VercelLLMService implements ILLMService {
 
             // Return the plain text of the response
             return response.text;
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.mapProviderError(err, 'generate');
         }
     }
 
-    private mapProviderError(err: any, phase: 'generate' | 'stream'): never {
+    private mapProviderError(err: unknown, phase: 'generate' | 'stream'): never {
         // APICallError from Vercel AI SDK
         if (APICallError.isInstance?.(err)) {
             const status = err.statusCode;
@@ -544,7 +519,7 @@ export class VercelLLMService implements ILLMService {
                     for (const toolResult of step.toolResults) {
                         const callId = toolResult.toolCallId;
                         const sanitized = toolResult.output;
-                        let raw: any | undefined;
+                        let raw: unknown | undefined;
                         if (callId) {
                             const q = this.rawResultsByCallId.get(callId) ?? [];
                             raw = q.shift();

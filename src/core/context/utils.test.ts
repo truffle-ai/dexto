@@ -1,5 +1,10 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { filterMessagesByLLMCapabilities } from './utils.js';
+import {
+    filterMessagesByLLMCapabilities,
+    parseDataUri,
+    isLikelyBase64String,
+    sanitizeToolResultToContent,
+} from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '@core/llm/types.js';
 import * as registry from '@core/llm/registry.js';
@@ -265,5 +270,269 @@ describe('filterMessagesByLLMCapabilities', () => {
         expect(result[0]!.content).toEqual([
             { type: 'text', text: '[File attachment removed - not supported by gpt-4]' },
         ]);
+    });
+});
+
+describe('parseDataUri', () => {
+    test('should parse valid data URI with image/png', () => {
+        const dataUri =
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+        const result = parseDataUri(dataUri);
+
+        expect(result).toEqual({
+            mediaType: 'image/png',
+            base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+        });
+    });
+
+    test('should parse valid data URI with application/pdf', () => {
+        const dataUri =
+            'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKdHJhaWxlcgo8PAovU2l6ZSAxCi9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo5CiUlRU9G';
+        const result = parseDataUri(dataUri);
+
+        expect(result).toEqual({
+            mediaType: 'application/pdf',
+            base64: 'JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKdHJhaWxlcgo8PAovU2l6ZSAxCi9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo5CiUlRU9G',
+        });
+    });
+
+    test('should default to application/octet-stream when no mediaType specified', () => {
+        const dataUri = 'data:;base64,SGVsbG9Xb3JsZA==';
+        const result = parseDataUri(dataUri);
+
+        expect(result).toEqual({
+            mediaType: 'application/octet-stream',
+            base64: 'SGVsbG9Xb3JsZA==',
+        });
+    });
+
+    test('should return null for non-data URI strings', () => {
+        expect(parseDataUri('https://example.com/image.png')).toBeNull();
+        expect(parseDataUri('SGVsbG9Xb3JsZA==')).toBeNull();
+        expect(parseDataUri('plain text')).toBeNull();
+    });
+
+    test('should return null for malformed data URIs without comma', () => {
+        expect(parseDataUri('data:image/png;base64')).toBeNull();
+        expect(parseDataUri('data:image/png')).toBeNull();
+    });
+
+    test('should return null for data URIs without base64 encoding', () => {
+        expect(parseDataUri('data:text/plain,Hello World')).toBeNull();
+        expect(parseDataUri('data:image/png;charset=utf8,test')).toBeNull();
+    });
+
+    test('should handle case insensitive base64 suffix', () => {
+        const dataUri =
+            'data:image/png;BASE64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+        const result = parseDataUri(dataUri);
+
+        expect(result).toEqual({
+            mediaType: 'image/png',
+            base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+        });
+    });
+});
+
+describe('isLikelyBase64String', () => {
+    test('should identify valid base64 strings above minimum length', () => {
+        // Valid base64 string longer than default minimum (512 chars)
+        const longBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='.repeat(
+                10
+            );
+        expect(isLikelyBase64String(longBase64)).toBe(true);
+    });
+
+    test('should reject regular text even if long', () => {
+        const longText = 'This is a regular sentence with normal words and punctuation. '.repeat(
+            10
+        );
+        expect(isLikelyBase64String(longText)).toBe(false);
+    });
+
+    test('should reject short strings regardless of content', () => {
+        expect(isLikelyBase64String('SGVsbG8=')).toBe(false); // Short but valid base64
+        expect(isLikelyBase64String('abc123')).toBe(false);
+    });
+
+    test('should accept custom minimum length', () => {
+        const shortBase64 = 'SGVsbG9Xb3JsZA=='; // "HelloWorld" in base64
+        expect(isLikelyBase64String(shortBase64, 10)).toBe(true);
+        expect(isLikelyBase64String(shortBase64, 20)).toBe(false);
+    });
+
+    test('should handle null and undefined gracefully', () => {
+        expect(isLikelyBase64String('')).toBe(false);
+        expect(isLikelyBase64String(null as any)).toBe(false);
+        expect(isLikelyBase64String(undefined as any)).toBe(false);
+    });
+
+    test('should identify data URIs as base64-like content', () => {
+        const dataUri =
+            'data:image/png;base64,' +
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='.repeat(
+                10
+            );
+        expect(isLikelyBase64String(dataUri)).toBe(true);
+    });
+
+    test('should use heuristic to distinguish base64 from natural text', () => {
+        // Base64 has high ratio of alphanumeric chars and specific padding
+        const base64Like =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=='.repeat(10);
+        expect(isLikelyBase64String(base64Like)).toBe(true);
+
+        // Natural text has more variety and word boundaries
+        const naturalText =
+            'The quick brown fox jumps over the lazy dog multiple times in this long sentence that repeats itself.'.repeat(
+                5
+            );
+        expect(isLikelyBase64String(naturalText)).toBe(false);
+    });
+});
+
+describe('sanitizeToolResultToContent', () => {
+    test('should convert data URI to image part for image types', () => {
+        const imageDataUri =
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+        const result = sanitizeToolResultToContent(imageDataUri);
+
+        expect(result).toEqual([
+            {
+                type: 'image',
+                image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+                mimeType: 'image/png',
+            },
+        ]);
+    });
+
+    test('should convert data URI to file part for non-image types', () => {
+        const pdfDataUri =
+            'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKdHJhaWxlcgo8PAovU2l6ZSAxCi9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo5CiUlRU9G';
+        const result = sanitizeToolResultToContent(pdfDataUri);
+
+        expect(result).toEqual([
+            {
+                type: 'file',
+                data: 'JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKdHJhaWxlcgo8PAovU2l6ZSAxCi9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo5CiUlRU9G',
+                mimeType: 'application/pdf',
+            },
+        ]);
+    });
+
+    test('should convert base64-like strings to file parts', () => {
+        const longBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='.repeat(
+                10
+            );
+        const result = sanitizeToolResultToContent(longBase64);
+
+        expect(result).toEqual([
+            {
+                type: 'file',
+                data: longBase64,
+                mimeType: 'application/octet-stream',
+                filename: 'tool-output.bin',
+            },
+        ]);
+    });
+
+    test('should preserve regular text strings as-is', () => {
+        const textResult = 'This is a normal tool output with some information.';
+        const result = sanitizeToolResultToContent(textResult);
+
+        expect(result).toBe(textResult);
+    });
+
+    test('should handle array of mixed content types', () => {
+        const mixedArray = [
+            'Regular text',
+            'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD',
+            { type: 'text', text: 'Structured text' },
+            { type: 'image', image: 'base64data', mimeType: 'image/png' },
+        ];
+
+        const result = sanitizeToolResultToContent(mixedArray);
+
+        expect(Array.isArray(result)).toBe(true);
+        const parts = result as any[];
+        expect(parts[0]).toEqual({ type: 'text', text: 'Regular text' });
+        expect(parts[1]).toEqual({
+            type: 'image',
+            image: '/9j/4AAQSkZJRgABAQEAYABgAAD',
+            mimeType: 'image/jpeg',
+        });
+        expect(parts[2]).toEqual({ type: 'text', text: 'Structured text' });
+        expect(parts[3]).toEqual({
+            type: 'image',
+            image: expect.any(String),
+            mimeType: 'image/png',
+        });
+    });
+
+    test('should handle objects with image properties', () => {
+        const objectWithImage = { image: 'base64imagedata', mimeType: 'image/png' };
+        const result = sanitizeToolResultToContent(objectWithImage);
+
+        expect(Array.isArray(result)).toBe(true);
+        const parts = result as any[];
+        expect(parts).toHaveLength(1);
+        expect(parts[0].type).toBe('image');
+        expect(parts[0].mimeType).toBe('image/png');
+    });
+
+    test('should handle objects with file properties', () => {
+        const objectWithFile = {
+            type: 'file',
+            data: 'filedata',
+            mimeType: 'application/pdf',
+            filename: 'document.pdf',
+        };
+        const result = sanitizeToolResultToContent(objectWithFile);
+
+        expect(Array.isArray(result)).toBe(true);
+        const parts = result as any[];
+        expect(parts).toHaveLength(1);
+        expect(parts[0]).toEqual({
+            type: 'file',
+            data: expect.any(String),
+            mimeType: 'application/pdf',
+            filename: 'document.pdf',
+        });
+    });
+
+    test('should gracefully handle null and undefined', () => {
+        expect(sanitizeToolResultToContent(null)).toBe('""');
+        expect(sanitizeToolResultToContent(undefined)).toBe('""');
+    });
+
+    test('should handle complex nested objects safely', () => {
+        const complexObject = {
+            status: 'success',
+            data: {
+                results: [
+                    { id: 1, name: 'Item 1' },
+                    {
+                        id: 2,
+                        name: 'Item 2',
+                        attachment: 'data:text/plain;base64,SGVsbG8gV29ybGQ=',
+                    },
+                ],
+            },
+        };
+
+        const result = sanitizeToolResultToContent(complexObject);
+        expect(typeof result).toBe('string'); // Falls back to JSON string for complex objects
+    });
+
+    test('should handle errors gracefully and provide fallback', () => {
+        // Create an object that will cause JSON.stringify to throw
+        const circularObject: any = { name: 'test' };
+        circularObject.self = circularObject;
+
+        const result = sanitizeToolResultToContent(circularObject);
+        expect(typeof result).toBe('string');
+        expect(result).toContain('[object Object]'); // String() fallback
     });
 });

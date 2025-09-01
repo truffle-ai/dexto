@@ -325,7 +325,7 @@ export function sanitizeToolResultToContent(result: unknown): InternalMessage['c
         if (Array.isArray(result)) {
             // Ensure only supported part types (text|image|file) appear in the array
             const parts: Array<TextPart | ImagePart | FilePart> = [];
-            for (const item of result as any[]) {
+            for (const item of result as unknown[]) {
                 if (item == null) continue;
                 // Strings: decide if base64/file or plain text
                 if (typeof item === 'string') {
@@ -358,15 +358,7 @@ export function sanitizeToolResultToContent(result: unknown): InternalMessage['c
                         continue;
                     }
                     // Image-like
-                    if (obj.type === 'image' && obj.image !== undefined) {
-                        parts.push({
-                            type: 'image',
-                            image: getImageData({ image: obj.image }),
-                            mimeType: obj.mimeType || 'image/jpeg',
-                        });
-                        continue;
-                    }
-                    if ('image' in obj) {
+                    if ((obj.type === 'image' && obj.image !== undefined) || 'image' in obj) {
                         parts.push({
                             type: 'image',
                             image: getImageData({ image: obj.image }),
@@ -489,7 +481,7 @@ function base64LengthToBytes(charLength: number): number {
  * - If content is a string that looks like base64/data URI, replace with a short placeholder.
  * - Otherwise pass text through.
  */
-export function toTextForToolMessage(content: InternalMessage['content'] | string | null): string {
+export function toTextForToolMessage(content: InternalMessage['content']): string {
     if (Array.isArray(content)) {
         return summarizeToolContentForText(content);
     }

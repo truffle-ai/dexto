@@ -12,6 +12,12 @@ import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { SessionEventBus } from '../events/index.js';
 import { ContextError } from './errors.js';
+
+// TODO: Unify LLM response handling approaches across providers
+// Currently vercel vs anthropic/openai handle getting LLM responses quite differently:
+// - anthropic/openai add tool responses and assistant responses using individual methods
+// - vercel uses processLLMResponse and processStreamResponse
+// This should be unified to make the codebase more consistent and easier to maintain
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
