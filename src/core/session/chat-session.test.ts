@@ -356,6 +356,7 @@ describe('ChatSession', () => {
             expect(response).toBe(expectedResponse);
             expect(mockLLMService.completeTask).toHaveBeenCalledWith(
                 userMessage,
+                expect.objectContaining({ signal: expect.any(AbortSignal) }),
                 undefined,
                 undefined,
                 undefined

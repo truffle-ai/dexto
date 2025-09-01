@@ -23,6 +23,8 @@ interface ChatContextType {
   isStreaming: boolean;
   setStreaming: (streaming: boolean) => void;
   websocket: WebSocket | null;
+  processing: boolean;
+  cancel: (sessionId?: string) => void;
   // Error state
   activeError: ErrorMessage | null;
   clearError: () => void;
@@ -49,7 +51,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
-  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError } = useChat(wsUrl, () => currentSessionId);
+  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl, () => currentSessionId);
   const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
   // Helper to fetch current LLM (session-scoped if applicable)
@@ -307,6 +309,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       websocket,
       currentLLM,
       refreshCurrentLLM: fetchCurrentLLM,
+      processing,
+      cancel,
       // Error state
       activeError,
       clearError
@@ -323,5 +327,3 @@ export function useChatContext(): ChatContextType {
   }
   return context;
 }
-
-// Initialize default LLM on mount to avoid empty label in welcome state

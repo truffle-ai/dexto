@@ -137,8 +137,10 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
+    const [processing, setProcessing] = useState<boolean>(false);
     // Separate error state - not part of message flow
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
+    const suppressNextErrorRef = useRef<boolean>(false);
 
     // Track the active session id from the host (ChatContext)
     const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
@@ -187,6 +189,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 case 'thinking':
                     // Only handle events for the active session
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(true);
                     setMessages((ms) => [
                         ...ms,
                         {
@@ -268,6 +271,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 }
                 case 'response': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(false);
                     const text = typeof payload.text === 'string' ? payload.text : '';
                     const reasoning =
                         typeof payload.reasoning === 'string' ? payload.reasoning : undefined;
@@ -351,6 +355,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 }
                 case 'conversationReset':
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(false);
                     setMessages([]);
                     lastUserMessageIdRef.current = null;
                     break;
@@ -458,21 +463,31 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 }
                 case 'error': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(false);
                     // TODO: Replace untyped WebSocket payloads with a shared, typed schema
                     // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
                     // use proper type guards instead of manual payload inspection here.
 
-                    // Keep the hierarchical top-level message, don't override with detailed issue message
-                    let errorMessage = toError(payload).message;
-
-                    // Clean up thinking messages and any incomplete assistant messages
+                    // Clean up thinking messages first
                     setMessages((ms) =>
                         ms.filter(
                             (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
                         )
                     );
 
-                    // Set error as separate state, not as a message
+                    // If we recently triggered cancel locally, suppress the next provider error
+                    if (suppressNextErrorRef.current) {
+                        suppressNextErrorRef.current = false;
+                        break;
+                    }
+
+                    // If this is a user-initiated cancel, do not surface an error UI.
+                    if (payload?.context === 'user_cancelled') {
+                        break;
+                    }
+
+                    // Otherwise, set an error banner (separate from messages)
+                    const errorMessage = toError(payload).message;
                     setActiveError({
                         id: generateUniqueId(),
                         message: errorMessage,
@@ -514,6 +529,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     stream,
                 };
                 wsRef.current.send(JSON.stringify(message));
+                setProcessing(true);
 
                 // Add user message to local state immediately
                 const userId = generateUniqueId();
@@ -559,6 +575,17 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         setMessages([]);
         setActiveError(null); // Clear errors on reset
         lastUserMessageIdRef.current = null;
+        setProcessing(false);
+    }, []);
+
+    const cancel = useCallback((sessionId?: string) => {
+        if (wsRef.current?.readyState === globalThis.WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'cancel', sessionId }));
+        }
+        // Optimistically clear processing state; server will also send events
+        setProcessing(false);
+        // Ensure any ensuing provider stream error from abort does not surface as banner
+        suppressNextErrorRef.current = true;
     }, []);
 
     const clearError = useCallback(() => {
@@ -572,6 +599,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         reset,
         setMessages,
         websocket: wsRef.current,
+        processing,
+        cancel,
         // Error state
         activeError,
         clearError,

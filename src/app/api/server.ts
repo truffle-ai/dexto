@@ -115,6 +115,11 @@ const SearchQuerySchema = z.object({
     role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
 });
 
+// Schema for cancel request parameters
+const CancelRequestSchema = z.object({
+    sessionId: z.string().min(1, 'Session ID is required'),
+});
+
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
     return schema.parse(body); // ZodError handled by error middleware
@@ -183,6 +188,20 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 stream || false
             );
             return res.status(202).send({ response, sessionId });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Cancel an in-flight run for a session
+    app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
+        try {
+            const { sessionId } = parseQuery(CancelRequestSchema, req.params);
+            const cancelled = await agent.cancel(sessionId);
+            if (!cancelled) {
+                logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+            }
+            return res.status(200).json({ cancelled, sessionId });
         } catch (error) {
             return next(error);
         }
@@ -448,6 +467,15 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
                     await agent.resetConversation(sessionId);
+                } else if (data.type === 'cancel') {
+                    const sessionId = data.sessionId as string | undefined;
+                    logger.info(
+                        `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
+                    );
+                    const cancelled = await agent.cancel(sessionId);
+                    if (!cancelled) {
+                        logger.debug('No in-flight run to cancel');
+                    }
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
                     sendWebSocketValidationError(ws, 'Unknown message type', {

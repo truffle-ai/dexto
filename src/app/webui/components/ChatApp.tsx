@@ -33,7 +33,7 @@ import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 
 export default function ChatApp() {
-  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError } = useChatContext();
+  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -414,7 +414,7 @@ export default function ChatApp() {
         e.preventDefault();
         setShowShortcuts(true);
       }
-      // Escape to close panels
+      // Escape to close panels or cancel run
       if (e.key === 'Escape') {
         if (isServersPanelOpen) setServersPanelOpen(false);
         else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
@@ -423,6 +423,7 @@ export default function ChatApp() {
         else if (showShortcuts) setShowShortcuts(false);
         else if (isDeleteDialogOpen) setDeleteDialogOpen(false);
         else if (errorMessage) setErrorMessage(null);
+        else if (processing) cancel(currentSessionId || undefined);
       }
     };
 
