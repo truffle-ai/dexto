@@ -121,7 +121,6 @@ export interface ServerRegistryEntry {
         | 'communication'
         | 'custom';
     icon?: string;
-    version?: string;
     author?: string;
     homepage?: string;
     config: {
@@ -137,8 +136,6 @@ export interface ServerRegistryEntry {
     tags: string[];
     isOfficial: boolean;
     isInstalled: boolean;
-    popularity?: number;
-    lastUpdated: Date;
     requirements?: {
         platform?: 'win32' | 'darwin' | 'linux' | 'all';
         node?: string;

@@ -75,15 +75,12 @@ export class ServerRegistryService {
         }
 
         return filtered.sort((a, b) => {
-            // Sort by: installed first, then official, then popularity, then name
+            // Sort by: installed first, then official, then name
             if (a.isInstalled !== b.isInstalled) {
                 return a.isInstalled ? -1 : 1;
             }
             if (a.isOfficial !== b.isOfficial) {
                 return a.isOfficial ? -1 : 1;
-            }
-            if (a.popularity !== b.popularity) {
-                return (b.popularity || 0) - (a.popularity || 0);
             }
             return a.name.localeCompare(b.name);
         });
@@ -93,13 +90,12 @@ export class ServerRegistryService {
      * Add a custom server to the registry
      */
     async addCustomEntry(
-        entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial' | 'lastUpdated'>
+        entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial'>
     ): Promise<ServerRegistryEntry> {
         const newEntry: ServerRegistryEntry = {
             ...entry,
             id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             isOfficial: false,
-            lastUpdated: new Date(),
         };
 
         this.registryEntries.push(newEntry);
@@ -118,7 +114,6 @@ export class ServerRegistryService {
         this.registryEntries[index] = {
             ...this.registryEntries[index],
             ...updates,
-            lastUpdated: new Date(),
         };
 
         await this.saveCustomEntries();
@@ -220,14 +215,7 @@ export class ServerRegistryService {
                 tags: ['file', 'directory', 'filesystem', 'io'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 95,
-                lastUpdated: new Date(),
-                requirements: {
-                    platform: 'all',
-                    node: '>=18.0.0',
-                },
                 author: 'Anthropic',
-                version: '0.6.0',
                 homepage: 'https://github.com/modelcontextprotocol/servers',
                 matchIds: ['filesystem'],
             },
@@ -250,11 +238,8 @@ export class ServerRegistryService {
                 tags: ['meme', 'image', 'creative'],
                 isOfficial: false,
                 isInstalled: false,
-                popularity: 70,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', node: '>=18.0.0' },
                 author: 'Community',
-                version: '1.0.0',
                 homepage: 'https://www.npmjs.com/package/meme-mcp',
                 matchIds: ['meme-mcp'],
             },
@@ -274,11 +259,8 @@ export class ServerRegistryService {
                 tags: ['research', 'naming', 'brand'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 80,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', node: '>=18.0.0' },
                 author: 'Truffle AI',
-                version: '1.0.0',
                 homepage: 'https://github.com/truffle-ai/mcp-servers',
                 matchIds: ['product-name-scout'],
             },
@@ -297,11 +279,8 @@ export class ServerRegistryService {
                 tags: ['search', 'web', 'research'],
                 isOfficial: false,
                 isInstalled: false,
-                popularity: 78,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', python: '>=3.10' },
                 author: 'Community',
-                version: '1.0.0',
                 homepage: 'https://github.com/duckduckgo/mcp-server',
                 matchIds: ['duckduckgo'],
             },
@@ -320,11 +299,8 @@ export class ServerRegistryService {
                 tags: ['domains', 'availability', 'research'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 76,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', python: '>=3.10' },
                 author: 'Truffle AI',
-                version: '1.0.0',
                 homepage: 'https://github.com/truffle-ai/mcp-servers',
                 matchIds: ['domain-checker'],
             },
@@ -343,11 +319,8 @@ export class ServerRegistryService {
                 tags: ['linear', 'tasks', 'projects'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 82,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', node: '>=18.0.0' },
                 author: 'Linear',
-                version: '1.0.0',
                 homepage: 'https://mcp.linear.app',
                 matchIds: ['linear'],
             },
@@ -366,11 +339,8 @@ export class ServerRegistryService {
                 tags: ['image', 'edit', 'opencv', 'pillow'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 88,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', python: '>=3.10' },
                 author: 'Truffle AI',
-                version: '1.0.0',
                 homepage: 'https://github.com/truffle-ai/mcp-servers',
                 matchIds: ['image_editor', 'image-editor'],
             },
@@ -389,13 +359,53 @@ export class ServerRegistryService {
                 tags: ['audio', 'music', 'effects'],
                 isOfficial: true,
                 isInstalled: false,
-                popularity: 84,
-                lastUpdated: new Date(),
                 requirements: { platform: 'all', python: '>=3.10' },
                 author: 'Truffle AI',
-                version: '1.0.0',
                 homepage: 'https://github.com/truffle-ai/mcp-servers',
                 matchIds: ['music_creator', 'music-creator'],
+            },
+            {
+                id: 'elevenlabs',
+                name: 'ElevenLabs',
+                description: 'Text-to-speech and voice synthesis using ElevenLabs API',
+                category: 'creative',
+                icon: '🎤',
+                config: {
+                    type: 'stdio',
+                    command: 'uvx',
+                    args: ['elevenlabs-mcp'],
+                    env: {
+                        ELEVENLABS_API_KEY: '',
+                    },
+                    timeout: 30000,
+                },
+                tags: ['tts', 'voice', 'audio', 'synthesis'],
+                isOfficial: true,
+                isInstalled: false,
+                requirements: { platform: 'all', python: '>=3.10' },
+                author: 'Community',
+                homepage: 'https://github.com/elevenlabs/elevenlabs-mcp',
+                matchIds: ['elevenlabs'],
+            },
+            {
+                id: 'hf',
+                name: 'Hugging Face',
+                description: 'Access Hugging Face models and datasets',
+                category: 'development',
+                icon: '🤗',
+                config: {
+                    type: 'stdio',
+                    command: 'npx',
+                    args: ['-y', '@llmindset/mcp-hfspace'],
+                    timeout: 30000,
+                },
+                tags: ['huggingface', 'models', 'ai', 'ml'],
+                isOfficial: false,
+                isInstalled: false,
+                requirements: { platform: 'all', node: '>=18.0.0' },
+                author: 'LLMindset',
+                homepage: 'https://github.com/llmindset/mcp-hfspace',
+                matchIds: ['hf', 'huggingface'],
             },
         ];
     }
