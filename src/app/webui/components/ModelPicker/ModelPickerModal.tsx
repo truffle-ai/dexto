@@ -429,73 +429,76 @@ export default function ModelPickerModal() {
             </Button>
           )}
 
-          {/* All Models Section - Show when searching or "Show All" is clicked */}
-          {(showAll || search) && (
-            <div className="space-y-6 max-h-[50vh] overflow-auto pr-1">
-              {loading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
+            {/* All Models Section - Show when searching or "Show All" is clicked */}
+            {(showAll || search) && (
+              <div className="flex-1 overflow-auto pr-1 min-h-0">
+                <div className="space-y-6">
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
+                    </div>
+                  ) : Object.keys(filteredProviders).length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      {search ? 'No models found matching your search' : 'No providers available'}
+                    </div>
+                  ) : (
+                    Object.entries(filteredProviders).map(([providerId, provider]) => (
+                      <ProviderSection
+                        key={providerId}
+                        providerId={providerId}
+                        provider={provider}
+                        models={provider.models}
+                        favorites={favorites}
+                        currentModel={currentLLM || undefined}
+                        onToggleFavorite={toggleFavorite}
+                        onUse={onPickModel}
+                      />
+                    ))
+                  )}
                 </div>
-              ) : Object.keys(filteredProviders).length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  {search ? 'No models found matching your search' : 'No providers available'}
-                </div>
-              ) : (
-                Object.entries(filteredProviders).map(([providerId, provider]) => (
-                  <ProviderSection
-                    key={providerId}
-                    providerId={providerId}
-                    provider={provider}
-                    models={provider.models}
-                    favorites={favorites}
-                    currentModel={currentLLM || undefined}
-                    onToggleFavorite={toggleFavorite}
-                    onUse={onPickModel}
-                  />
-                ))
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-            {/* Advanced Options */}
-            <div className="space-y-3 border-t pt-4 mt-4">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setAdvancedOpen(!advancedOpen)} 
-                className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Advanced Options</span>
-                {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-              {advancedOpen && (
-                <div className="space-y-4 pl-4 border-l-2 border-muted">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Router</Label>
-                    <Select value={selectedRouter} onValueChange={(v) => setSelectedRouter(v as SupportedRouter)}>
-                      <SelectTrigger><SelectValue placeholder="Select router" /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from(new Set(providerIds.flatMap((id) => providers[id].supportedRouters))).map((router) => (
-                          <SelectItem key={router} value={router}>
-                            <span className="capitalize">{router}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Custom Base URL</Label>
-                    <Input 
-                      value={baseURL} 
-                      onChange={(e) => setBaseURL(e.target.value)} 
-                      placeholder="https://api.openai.com/v1" 
-                      className="text-sm"
-                    />
-                    <div className="text-xs text-muted-foreground">Only used for providers that support baseURL.</div>
-                  </div>
+          </div>
+          
+          {/* Advanced Options */}
+          <div className="flex-shrink-0 space-y-3 border-t pt-4 mt-4">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setAdvancedOpen(!advancedOpen)} 
+              className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
+            >
+              <span className="text-sm font-medium text-muted-foreground">Advanced Options</span>
+              {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            {advancedOpen && (
+              <div className="space-y-4 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Router</Label>
+                  <Select value={selectedRouter} onValueChange={(v) => setSelectedRouter(v as SupportedRouter)}>
+                    <SelectTrigger><SelectValue placeholder="Select router" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(providerIds.flatMap((id) => providers[id].supportedRouters))).map((router) => (
+                        <SelectItem key={router} value={router}>
+                          <span className="capitalize">{router}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Custom Base URL</Label>
+                  <Input 
+                    value={baseURL} 
+                    onChange={(e) => setBaseURL(e.target.value)} 
+                    placeholder="https://api.openai.com/v1" 
+                    className="text-sm"
+                  />
+                  <div className="text-xs text-muted-foreground">Only used for providers that support baseURL.</div>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
