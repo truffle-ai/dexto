@@ -79,10 +79,15 @@ export const LLM_ROUTERS = ['vercel', 'in-built'] as const;
 
 export type LLMRouter = (typeof LLM_ROUTERS)[number];
 
-// Provider display names for UI
-// (UI can format provider and model display if needed.)
-
-// Central registry of supported LLM providers and their models
+/**
+ * LLM Model Registry - Single Source of Truth for Supported models and their capabilities
+ *
+ * IMPORTANT: supportedFileTypes is the SINGLE SOURCE OF TRUTH for file upload capabilities:
+ * - Empty array [] = Model does NOT support file uploads (UI will hide all attach buttons)
+ * - Specific types ['image', 'pdf'] = Model supports ONLY those file types
+ * - DO NOT use empty arrays as "unknown" - research the model's actual capabilities
+ * - The web UI directly reflects these capabilities without fallback logic
+ */
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
@@ -264,7 +269,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: [], // Empty - accepts any model name for custom endpoints
         supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'required',
-        supportedFileTypes: [], // Unknown capabilities for custom endpoints
+        supportedFileTypes: ['pdf', 'image', 'audio'], // Unknown capabilities for custom endpoints, so we allow all
     },
     anthropic: {
         models: [

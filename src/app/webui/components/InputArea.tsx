@@ -527,16 +527,16 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onPdfAttach={triggerPdfInput}
                     onAudioAttach={triggerAudioInput}
                     supports={{
-                      image: supportedFileTypes.length === 0 || supportedFileTypes.includes('image'),
-                      pdf: supportedFileTypes.length === 0 || supportedFileTypes.includes('pdf'),
-                      audio: supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'),
+                      image: supportedFileTypes.includes('image'),
+                      pdf: supportedFileTypes.includes('pdf'),
+                      audio: supportedFileTypes.includes('audio'),
                     }}
                   />
                   
                   <RecordButton
                     isRecording={isRecording}
                     onToggleRecording={isRecording ? stopRecording : startRecording}
-                    disabled={!(supportedFileTypes.length === 0 || supportedFileTypes.includes('audio'))}
+                    disabled={!supportedFileTypes.includes('audio')}
                   />
                 </div>
               }
