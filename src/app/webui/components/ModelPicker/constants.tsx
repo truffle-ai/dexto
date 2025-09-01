@@ -55,7 +55,7 @@ export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
   return !COLORED_LOGOS.includes(provider);
 };
 
-// Model capability icons - T3-inspired with sleek emojis for current capabilities
+// Model capability icons - sleek emojis for current capabilities
 export const CAPABILITY_ICONS = {
   // File type capabilities (what we currently use)
   image: <span className="text-sm">🖼️</span>,
