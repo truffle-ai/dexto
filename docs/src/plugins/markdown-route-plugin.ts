@@ -10,8 +10,13 @@ export default function markdownRoutePlugin(
     context: LoadContext,
     _options: MarkdownRoutePluginOptions = {}
 ): Plugin {
-    const { siteDir } = context;
-
+    // Before:
+-    const { siteDir } = context;
+    // After:
+    const { siteDir, baseUrl = '/' } = context;
+    const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const DOCS_PREFIX = `${normalizedBase}/docs/`;
+    const API_PREFIX = `${normalizedBase}/api/`;
     // Helper function to find markdown file (try .md then .mdx)
     function findMarkdownFile(basePath: string): string | null {
         const mdPath = basePath + '.md';
