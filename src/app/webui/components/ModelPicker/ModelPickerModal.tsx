@@ -96,22 +96,31 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
             />
             
             {/* Favorite Star */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite();
-              }}
-              className={cn(
-                "flex-shrink-0 transition-all duration-200",
-                "hover:scale-110 active:scale-95",
-                isFavorite 
-                  ? "text-yellow-500 hover:text-yellow-400" 
-                  : "text-muted-foreground hover:text-yellow-500"
-              )}
-              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-            >
-              <Star className={cn("h-4 w-4", isFavorite && "fill-current")} />
-            </button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavorite();
+                    }}
+                    className={cn(
+                      "flex-shrink-0 transition-all duration-200",
+                      "hover:scale-110 active:scale-95",
+                      isFavorite 
+                        ? "text-yellow-500 hover:text-yellow-400" 
+                        : "text-muted-foreground hover:text-yellow-500"
+                    )}
+                    aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    <Star className={cn("h-4 w-4", isFavorite && "fill-current")} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <span>{isFavorite ? "Remove from favorites" : "Add to favorites"}</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </TooltipTrigger>
         <TooltipContent side="right" className="max-w-xs">
@@ -389,7 +398,7 @@ export default function ModelPickerModal() {
               
               {!favoritesCollapsed && (
                 <div className="space-y-1">
-                  <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1">
+                  <div className="max-h-[280px] overflow-y-auto px-1 py-1 space-y-1">
                     {favoriteModels.map(({ providerId, provider, model }) => (
                       <CompactModelCard
                         key={favKey(providerId, model.name)}
@@ -431,8 +440,8 @@ export default function ModelPickerModal() {
 
             {/* All Models Section - Show when searching or "Show All" is clicked */}
             {(showAll || search) && (
-              <div className="flex-1 overflow-auto pr-1 min-h-0">
-                <div className="space-y-6">
+              <div className="flex-1 overflow-auto px-1 min-h-0">
+                <div className="space-y-6 pb-2">
                   {loading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" /> Loading models...

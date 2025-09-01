@@ -91,7 +91,7 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
       </div>
       
       {/* Models Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {models.map((model) => {
           const displayName = model.displayName || model.name;
           const isActive = isCurrentModel(model.name);
@@ -114,9 +114,16 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                 <TooltipTrigger asChild>
                   <div
                     onClick={() => onUse(providerId, model)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onUse(providerId, model);
+                      }
+                    }}
                     className={cn(
-                      "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-100 cursor-pointer",
+                      "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-100 cursor-pointer outline-none",
                       "hover:bg-accent hover:border-accent-foreground/20 hover:shadow-sm",
+                      "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
                       isActive && "bg-accent border-accent-foreground/20 shadow-sm ring-1 ring-accent-foreground/10",
                       !hasApiKey && "opacity-60"
                     )}
@@ -141,16 +148,25 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                     />
                     
                     {/* Favorite Star */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite(providerId, model.name);
-                      }}
-                      className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      <Star className={cn("h-4 w-4", favorite && "fill-current text-yellow-500")} />
-                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleFavorite(providerId, model.name);
+                            }}
+                            className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+                          >
+                            <Star className={cn("h-4 w-4", favorite && "fill-current text-yellow-500")} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <span>{favorite ? "Remove from favorites" : "Add to favorites"}</span>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     
                     {/* Active Indicator */}
                     {isActive && (
