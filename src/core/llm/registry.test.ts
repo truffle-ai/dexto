@@ -273,8 +273,12 @@ describe('File Support Functions', () => {
             expect(getSupportedFileTypesForModel('groq', 'gemma-2-9b-it')).toEqual([]);
         });
 
-        it('returns empty array for openai-compatible with any model', () => {
-            expect(getSupportedFileTypesForModel('openai-compatible', 'custom-model')).toEqual([]);
+        it('returns provider supportedFileTypes for openai-compatible with any model', () => {
+            expect(getSupportedFileTypesForModel('openai-compatible', 'custom-model')).toEqual([
+                'pdf',
+                'image',
+                'audio',
+            ]);
         });
 
         it('throws DextoRuntimeError for unknown model', () => {
@@ -300,8 +304,10 @@ describe('File Support Functions', () => {
             expect(modelSupportsFileType('openai', 'gpt-4o', 'audio')).toBe(false);
         });
 
-        it('returns false for openai-compatible models (unknown capabilities)', () => {
-            expect(modelSupportsFileType('openai-compatible', 'custom-model', 'pdf')).toBe(false);
+        it('returns true for openai-compatible models (uses provider capabilities)', () => {
+            expect(modelSupportsFileType('openai-compatible', 'custom-model', 'pdf')).toBe(true);
+            expect(modelSupportsFileType('openai-compatible', 'custom-model', 'image')).toBe(true);
+            expect(modelSupportsFileType('openai-compatible', 'custom-model', 'audio')).toBe(true);
         });
 
         it('throws error for unknown model', () => {
@@ -377,17 +383,24 @@ describe('File Support Functions', () => {
             );
         });
 
-        it('rejects files for openai-compatible provider', () => {
-            const result = validateModelFileSupport(
+        it('accepts files for openai-compatible provider', () => {
+            const pdfResult = validateModelFileSupport(
                 'openai-compatible',
                 'custom-model',
                 'application/pdf'
             );
-            expect(result.isSupported).toBe(false);
-            expect(result.fileType).toBe('pdf');
-            expect(result.error).toBe(
-                "Model 'custom-model' (openai-compatible) does not support pdf files"
+            expect(pdfResult.isSupported).toBe(true);
+            expect(pdfResult.fileType).toBe('pdf');
+            expect(pdfResult.error).toBeUndefined();
+
+            const imageResult = validateModelFileSupport(
+                'openai-compatible',
+                'custom-model',
+                'image/jpeg'
             );
+            expect(imageResult.isSupported).toBe(true);
+            expect(imageResult.fileType).toBe('image');
+            expect(imageResult.error).toBeUndefined();
         });
 
         // Case sensitivity already tested in main Case Sensitivity section
