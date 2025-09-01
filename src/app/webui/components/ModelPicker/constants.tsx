@@ -55,29 +55,15 @@ export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
   return !COLORED_LOGOS.includes(provider);
 };
 
-// Model capability icons - softer colors with hover states
+// Model capability icons - T3-inspired with sleek emojis for current capabilities
 export const CAPABILITY_ICONS = {
-  vision: <Eye className="h-3.5 w-3.5" />,
-  image: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-slate-300 hover:to-slate-400 transition-all cursor-help">
-      <Image className="h-2 w-2 text-white" />
-    </div>
-  ),
-  audio: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-emerald-400 hover:to-emerald-500 transition-all cursor-help">
-      <FileAudio className="h-2 w-2 text-white" />
-    </div>
-  ),
-  pdf: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-rose-400 hover:to-rose-500 transition-all cursor-help">
-      <FileText className="h-2 w-2 text-white" />
-    </div>
-  ),
-  reasoning: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-indigo-400 hover:to-indigo-500 transition-all cursor-help">
-      <Brain className="h-2 w-2 text-white" />
-    </div>
-  ),
+  // File type capabilities (what we currently use)
+  image: <span className="text-sm">🖼️</span>,
+  audio: <span className="text-sm">🎵</span>,
+  pdf: <span className="text-sm">📄</span>,
+  
+  // Other capabilities we currently have
+  reasoning: <span className="text-sm">🧠</span>,
   experimental: <FlaskConical className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-500 transition-colors cursor-help" />,
   new: <Sparkles className="h-3.5 w-3.5 text-muted-foreground hover:text-yellow-500 transition-colors cursor-help" />,
   realtime: <Zap className="h-3.5 w-3.5 text-muted-foreground hover:text-blue-500 transition-colors cursor-help" />,
