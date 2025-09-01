@@ -1,5 +1,5 @@
 import { MCPClient } from './mcp-client.js';
-import { ServerConfigs, McpServerConfig } from './schemas.js';
+import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
 import { IMCPClient } from './types.js';
 import { ToolSet } from '../tools/types.js';
@@ -437,7 +437,7 @@ export class MCPManager {
      * @param serverConfigs Server configurations with individual connection modes
      * @returns Promise resolving when initialization is complete
      */
-    async initializeFromConfig(serverConfigs: ServerConfigs): Promise<void> {
+    async initializeFromConfig(serverConfigs: ValidatedServerConfigs): Promise<void> {
         // Handle empty server configurations gracefully
         if (Object.keys(serverConfigs).length === 0) {
             logger.info('No MCP servers configured - running without external tools');
@@ -494,7 +494,7 @@ export class MCPManager {
      * @returns Promise resolving when the connection attempt is complete.
      * @throws Error if the connection fails.
      */
-    async connectServer(name: string, config: McpServerConfig): Promise<void> {
+    async connectServer(name: string, config: ValidatedMcpServerConfig): Promise<void> {
         if (this.clients.has(name)) {
             logger.warn(`Client '${name}' is already connected or registered.`);
             return;

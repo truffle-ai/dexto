@@ -43,13 +43,13 @@ export class AnthropicService implements ILLMService {
 
         // Create properly-typed ContextManager for Anthropic
         const formatter = new AnthropicMessageFormatter();
-        const tokenizer = createTokenizer('anthropic', config.model);
+        const tokenizer = createTokenizer(config.provider, config.model);
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<MessageParam>(
+            config,
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,
@@ -63,6 +63,7 @@ export class AnthropicService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
         stream?: boolean
@@ -85,6 +86,12 @@ export class AnthropicService implements ILLMService {
 
         try {
             while (iterationCount < this.config.maxIterations) {
+                if (options?.signal?.aborted) {
+                    throw Object.assign(new Error('Aborted'), {
+                        name: 'AbortError',
+                        aborted: true,
+                    });
+                }
                 iterationCount++;
                 logger.debug(`Iteration ${iterationCount}`);
 
@@ -96,7 +103,7 @@ export class AnthropicService implements ILLMService {
                 };
 
                 const llmContext = {
-                    provider: 'anthropic' as const,
+                    provider: this.config.provider,
                     model: this.config.model,
                 };
 
@@ -121,12 +128,14 @@ export class AnthropicService implements ILLMService {
                     ? await this.getAnthropicStreamingResponse(
                           formattedMessages,
                           formattedSystemPrompt || null,
-                          formattedTools
+                          formattedTools,
+                          options?.signal
                       )
                     : await this.getAnthropicResponse(
                           formattedMessages,
                           formattedSystemPrompt || null,
-                          formattedTools
+                          formattedTools,
+                          options?.signal
                       );
 
                 // Track token usage
@@ -160,15 +169,11 @@ export class AnthropicService implements ILLMService {
 
                     // Add assistant message with all tool calls
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
-                        model: this.config.model,
-                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 } else {
                     // Add regular assistant message
                     await this.contextManager.addAssistantMessage(textContent, undefined, {
-                        model: this.config.model,
-                        router: 'in-built',
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
                 }
@@ -184,6 +189,7 @@ export class AnthropicService implements ILLMService {
 
                     this.sessionEventBus.emit('llmservice:response', {
                         content: fullResponse,
+                        provider: this.config.provider,
                         model: this.config.model,
                         router: 'in-built',
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
@@ -198,6 +204,12 @@ export class AnthropicService implements ILLMService {
 
                 // Handle tool uses
                 for (const toolUse of toolUses) {
+                    if (options?.signal?.aborted) {
+                        throw Object.assign(new Error('Aborted'), {
+                            name: 'AbortError',
+                            aborted: true,
+                        });
+                    }
                     const toolName = toolUse.name;
                     const args = toolUse.input as Record<string, unknown>;
                     const toolUseId = toolUse.id;
@@ -259,6 +271,7 @@ export class AnthropicService implements ILLMService {
 
             this.sessionEventBus.emit('llmservice:response', {
                 content: fullResponse,
+                provider: this.config.provider,
                 model: this.config.model,
                 router: 'in-built',
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
@@ -268,6 +281,12 @@ export class AnthropicService implements ILLMService {
                 'Reached maximum number of tool call iterations without a final response.'
             );
         } catch (error) {
+            if (
+                error instanceof Error &&
+                (error.name === 'AbortError' || (error as any).aborted === true)
+            ) {
+                throw error;
+            }
             // Handle API errors
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error in Anthropic service API call: ${errorMessage}`, { error });
@@ -287,11 +306,14 @@ export class AnthropicService implements ILLMService {
      */
     getConfig(): LLMServiceConfig {
         const configuredMaxInputTokens = this.contextManager.getMaxInputTokens();
-        const modelMaxInputTokens = getMaxInputTokensForModel('anthropic', this.config.model);
+        const modelMaxInputTokens = getMaxInputTokensForModel(
+            this.config.provider,
+            this.config.model
+        );
 
         return {
             router: 'in-built',
-            provider: 'anthropic',
+            provider: this.config.provider,
             model: this.config.model,
             configuredMaxInputTokens: configuredMaxInputTokens,
             modelMaxInputTokens: modelMaxInputTokens,
@@ -342,19 +364,25 @@ export class AnthropicService implements ILLMService {
     private async getAnthropicResponse(
         formattedMessages: MessageParam[],
         formattedSystemPrompt: string | null,
-        formattedTools: Anthropic.Tool[]
+        formattedTools: Anthropic.Tool[],
+        signal?: AbortSignal
     ): Promise<{
         message: Anthropic.Messages.Message;
         usage?: Anthropic.Messages.Usage;
     }> {
-        const response = await this.anthropic.messages.create({
-            model: this.config.model,
-            messages: formattedMessages,
-            ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
-            tools: formattedTools,
-            max_tokens: this.config.maxOutputTokens ?? 4096,
-            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
-        });
+        const response = await this.anthropic.messages.create(
+            {
+                model: this.config.model,
+                messages: formattedMessages,
+                ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
+                tools: formattedTools,
+                max_tokens: this.config.maxOutputTokens ?? 4096,
+                ...(this.config.temperature !== undefined && {
+                    temperature: this.config.temperature,
+                }),
+            },
+            signal ? { signal } : undefined
+        );
 
         return { message: response, usage: response.usage };
     }
@@ -362,20 +390,26 @@ export class AnthropicService implements ILLMService {
     private async getAnthropicStreamingResponse(
         formattedMessages: MessageParam[],
         formattedSystemPrompt: string | null,
-        formattedTools: Anthropic.Tool[]
+        formattedTools: Anthropic.Tool[],
+        signal?: AbortSignal
     ): Promise<{
         message: Anthropic.Messages.Message;
         usage?: Anthropic.Messages.Usage;
     }> {
-        const stream = await this.anthropic.messages.create({
-            model: this.config.model,
-            messages: formattedMessages,
-            ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
-            tools: formattedTools,
-            max_tokens: this.config.maxOutputTokens ?? 4096,
-            ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
-            stream: true,
-        });
+        const stream = await this.anthropic.messages.create(
+            {
+                model: this.config.model,
+                messages: formattedMessages,
+                ...(formattedSystemPrompt && { system: formattedSystemPrompt }),
+                tools: formattedTools,
+                max_tokens: this.config.maxOutputTokens ?? 4096,
+                ...(this.config.temperature !== undefined && {
+                    temperature: this.config.temperature,
+                }),
+                stream: true,
+            },
+            signal ? { signal } : undefined
+        );
 
         // Collect streaming response
         let content: Anthropic.Messages.ContentBlock[] = [];
@@ -384,6 +418,9 @@ export class AnthropicService implements ILLMService {
         let jsonAccumulators: Record<number, string> = {}; // Track JSON for each content block
 
         for await (const chunk of stream) {
+            if (signal?.aborted) {
+                throw Object.assign(new Error('Aborted'), { name: 'AbortError', aborted: true });
+            }
             if (chunk.type === 'content_block_start') {
                 content.push(chunk.content_block);
                 // Reset text accumulator for new blocks
