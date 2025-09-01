@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from "next/image";
 import { Badge } from "../ui/badge";
-import { Star, Lock, HelpCircle } from "lucide-react";
+import { Star, HelpCircle } from "lucide-react";
 import type { ProviderCatalog, ModelInfo } from "./types";
 import { cn } from "../../lib/utils";
 import {
@@ -13,7 +13,8 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { LLMProvider } from "../../../../core/llm/registry.js";
-import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion, PROVIDER_PRICING_URLS, formatPricingLines } from "./constants";
+import { PROVIDER_LOGOS, needsDarkModeInversion, PROVIDER_PRICING_URLS, formatPricingLines } from "./constants";
+import { CapabilityIcons } from "./CapabilityIcons";
 
 type Props = {
   providerId: string;
@@ -134,28 +135,10 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
                     </div>
                     
                     {/* Capability Icons */}
-                    <div className="flex items-center gap-1.5">
-                      {model.supportedFileTypes.includes('pdf') && (
-                        <span className="text-muted-foreground" title="PDF support">
-                          {CAPABILITY_ICONS.pdf}
-                        </span>
-                      )}
-                      {model.supportedFileTypes.includes('audio') && (
-                        <span className="text-muted-foreground" title="Audio support">
-                          {CAPABILITY_ICONS.audio}
-                        </span>
-                      )}
-                      {model.supportedFileTypes.includes('image') && (
-                        <span className="text-muted-foreground" title="Image support">
-                          {CAPABILITY_ICONS.image}
-                        </span>
-                      )}
-                      {!hasApiKey && (
-                        <span className="text-muted-foreground" title="API key required">
-                          <Lock className="h-3 w-3" />
-                        </span>
-                      )}
-                    </div>
+                    <CapabilityIcons 
+                      supportedFileTypes={model.supportedFileTypes}
+                      hasApiKey={hasApiKey}
+                    />
                     
                     {/* Favorite Star */}
                     <button

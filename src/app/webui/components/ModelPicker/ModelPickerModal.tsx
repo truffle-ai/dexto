@@ -23,7 +23,8 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { LLMProvider } from "@core/llm/registry.js";
-import { PROVIDER_LOGOS, CAPABILITY_ICONS, needsDarkModeInversion, formatPricingLines } from "./constants";
+import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from "./constants";
+import { CapabilityIcons } from "./CapabilityIcons";
 
 interface CompactModelCardProps {
   provider: LLMProvider;
@@ -89,56 +90,10 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
             </div>
             
             {/* Capability Icons */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {model.supportedFileTypes.includes('pdf') && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="transition-transform hover:scale-125">
-                      {CAPABILITY_ICONS.pdf}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <span>PDF support</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {model.supportedFileTypes.includes('audio') && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="transition-transform hover:scale-125">
-                      {CAPABILITY_ICONS.audio}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <span>Audio support</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {model.supportedFileTypes.includes('image') && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="transition-transform hover:scale-125">
-                      {CAPABILITY_ICONS.image}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <span>Image support</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {!hasApiKey && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="transition-transform hover:scale-125">
-                      <Lock className="h-3.5 w-3.5 text-amber-500 hover:text-amber-400 transition-colors cursor-help" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <span>API key required</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
+            <CapabilityIcons 
+              supportedFileTypes={model.supportedFileTypes}
+              hasApiKey={hasApiKey}
+            />
             
             {/* Favorite Star */}
             <button
