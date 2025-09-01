@@ -51,6 +51,7 @@ export function AttachButton({
           onSelect={(e) => { if (!imageSupported) e.preventDefault(); }}
           onClick={imageSupported ? onImageAttach : undefined}
           className={!imageSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+          aria-disabled={!imageSupported}
         >
           <TooltipProvider>
             <Tooltip>
@@ -67,6 +68,7 @@ export function AttachButton({
           onSelect={(e) => { if (!pdfSupported) e.preventDefault(); }}
           onClick={pdfSupported ? onPdfAttach : undefined}
           className={!pdfSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+          aria-disabled={!pdfSupported}
         >
           <TooltipProvider>
             <Tooltip>
@@ -83,6 +85,7 @@ export function AttachButton({
           onSelect={(e) => { if (!audioSupported) e.preventDefault(); }}
           onClick={audioSupported ? onAudioAttach : undefined}
           className={!audioSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+          aria-disabled={!audioSupported}
         >
           <TooltipProvider>
             <Tooltip>

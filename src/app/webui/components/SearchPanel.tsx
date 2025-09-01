@@ -416,7 +416,7 @@ export default function SearchPanel({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl h-[80vh] p-0">
         {content}
       </DialogContent>

@@ -196,7 +196,7 @@ export default function GlobalSearchModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl p-0 top-[20%] transform translate-y-0">
         <DialogHeader>
           <DialogTitle className="sr-only">Search Conversations</DialogTitle>

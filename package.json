@@ -118,7 +118,6 @@
         "@types/node": "^20.17.36",
         "@types/pg": "^8.15.4",
         "@types/readline-sync": "^1.4.8",
-        "@types/supertest": "^6.0.3",
         "@typescript-eslint/eslint-plugin": "^8.28.0",
         "@typescript-eslint/parser": "^8.28.0",
         "@vitest/coverage-v8": "^3.1.3",

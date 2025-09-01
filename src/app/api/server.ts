@@ -639,7 +639,10 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
     // LLM Catalog: providers, models, and API key presence (with filters)
     app.get('/api/llm/catalog', async (req, res, next) => {
         try {
-            type ProviderCatalog = Pick<ProviderInfo, 'supportedRouters' | 'models'> & {
+            type ProviderCatalog = Pick<
+                ProviderInfo,
+                'supportedRouters' | 'models' | 'supportedFileTypes'
+            > & {
                 name: string;
                 hasApiKey: boolean;
                 primaryEnvVar: string;
@@ -696,6 +699,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     supportedRouters: getSupportedRoutersForProvider(provider),
                     supportsBaseURL: supportsBaseURL(provider),
                     models: info.models,
+                    supportedFileTypes: info.supportedFileTypes,
                 };
             }
 
@@ -752,9 +756,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             if (queryParams.fileType) {
                 const filteredByFileType: Record<string, ProviderCatalog> = {};
                 for (const [providerId, providerCatalog] of Object.entries(filtered)) {
-                    const models = providerCatalog.models.filter((model) =>
-                        model.supportedFileTypes.includes(queryParams.fileType!)
-                    );
+                    const models = providerCatalog.models.filter((model) => {
+                        const modelTypes =
+                            Array.isArray(model.supportedFileTypes) &&
+                            model.supportedFileTypes.length > 0
+                                ? model.supportedFileTypes
+                                : providerCatalog.supportedFileTypes || [];
+                        return modelTypes.includes(queryParams.fileType!);
+                    });
                     if (models.length > 0)
                         filteredByFileType[providerId] = { ...providerCatalog, models };
                 }
