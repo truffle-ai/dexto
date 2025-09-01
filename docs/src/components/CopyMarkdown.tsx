@@ -229,10 +229,10 @@ export default function CopyMarkdown({ className }: CopyMarkdownProps) {
   const handleViewMarkdown = () => {
     const currentUrl = window.location.pathname;
     const markdownUrl = currentUrl + '.md';
-    window.open(markdownUrl, '_blank');
+   const win = window.open(markdownUrl, '_blank', 'noopener,noreferrer');
+   if (win) win.opener = null;
     setIsDropdownOpen(false);
   };
-
   const handleCopyMarkdown = async () => {
     await handleCopy();
     setIsDropdownOpen(false);
