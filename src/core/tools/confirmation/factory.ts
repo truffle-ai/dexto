@@ -9,7 +9,7 @@
  *   const provider = createToolConfirmationProvider({
  *     mode: 'event-based',
  *     allowedToolsProvider,
- *     confirmationTimeout: 30000,
+ *     confirmationTimeout: 120000,
  *     agentEventBus
  *   });
  */
