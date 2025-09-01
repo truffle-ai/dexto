@@ -31,11 +31,11 @@ export class EventBasedConfirmationProvider implements ToolConfirmationProvider 
         public allowedToolsProvider: IAllowedToolsProvider,
         agentEventBus: AgentEventBus,
         options: {
-            confirmationTimeout?: number;
-        } = {}
+            confirmationTimeout: number;
+        }
     ) {
         this.agentEventBus = agentEventBus;
-        this.confirmationTimeout = options.confirmationTimeout ?? 30000; // 30 seconds default
+        this.confirmationTimeout = options.confirmationTimeout;
 
         // Listen for confirmation responses from application layers
         this.agentEventBus.on(

@@ -39,7 +39,7 @@ async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
         // Load the most recent session if it's not already current
         const currentSessionId = agent.getCurrentSessionId();
         if (mostRecentSession !== currentSessionId) {
-            await agent.loadSession(mostRecentSession);
+            await agent.loadSessionAsDefault(mostRecentSession);
             logger.info(`Loaded session: ${mostRecentSession}`, null, 'cyan');
         }
     } catch (error) {

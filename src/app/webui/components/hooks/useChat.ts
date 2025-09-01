@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
 import { toError } from '@core/utils/error-conversion.js';
 import { Issue } from '@core/errors/types.js';
-import type { LLMRouter } from '@core/llm/registry.js';
+import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -109,6 +109,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     };
     reasoning?: string;
     model?: string;
+    provider?: LLMProvider;
     router?: LLMRouter;
     sessionId?: string;
 }
@@ -129,7 +130,7 @@ export interface ErrorMessage {
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-export function useChat(wsUrl: string) {
+export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -140,6 +141,19 @@ export function useChat(wsUrl: string) {
     // Separate error state - not part of message flow
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
     const suppressNextErrorRef = useRef<boolean>(false);
+
+    // Track the active session id from the host (ChatContext)
+    const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
+    useEffect(() => {
+        activeSessionGetterRef.current = getActiveSessionId;
+    }, [getActiveSessionId]);
+
+    const isForActiveSession = useCallback((sessionId?: string): boolean => {
+        if (!sessionId) return false;
+        const getter = activeSessionGetterRef.current;
+        const current = getter ? getter() : null;
+        return !!current && sessionId === current;
+    }, []);
 
     useEffect(() => {
         const ws = new globalThis.WebSocket(wsUrl);
@@ -173,6 +187,8 @@ export function useChat(wsUrl: string) {
             const payload = msg.data || {};
             switch (msg.event) {
                 case 'thinking':
+                    // Only handle events for the active session
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     setProcessing(true);
                     setMessages((ms) => [
                         ...ms,
@@ -185,6 +201,7 @@ export function useChat(wsUrl: string) {
                     ]);
                     break;
                 case 'chunk': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     // All chunk types use payload.content
                     const text = typeof payload.content === 'string' ? payload.content : '';
                     if (!text) break;
@@ -253,6 +270,7 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'response': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     setProcessing(false);
                     const text = typeof payload.text === 'string' ? payload.text : '';
                     const reasoning =
@@ -267,6 +285,10 @@ export function useChat(wsUrl: string) {
                               })
                             : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
+                    const provider =
+                        typeof payload.provider === 'string'
+                            ? (payload.provider as LLMProvider)
+                            : undefined;
                     const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
@@ -283,12 +305,13 @@ export function useChat(wsUrl: string) {
                             // Update existing message with final content and metadata
                             // Ensure content is always a string for consistency
                             const finalContent = typeof text === 'string' ? text : '';
-                            const updatedMsg = {
+                            const updatedMsg: Message = {
                                 ...lastMsg,
                                 content: finalContent,
                                 tokenUsage,
                                 reasoning,
                                 model,
+                                provider,
                                 router,
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
@@ -305,6 +328,7 @@ export function useChat(wsUrl: string) {
                             tokenUsage,
                             reasoning,
                             model,
+                            provider,
                             router,
                             sessionId,
                         };
@@ -330,11 +354,13 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'conversationReset':
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     setProcessing(false);
                     setMessages([]);
                     lastUserMessageIdRef.current = null;
                     break;
                 case 'toolCall': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const args = payload.args;
                     setMessages((ms) => [
@@ -351,6 +377,7 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'toolResult': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const result = payload.result;
 
@@ -435,6 +462,7 @@ export function useChat(wsUrl: string) {
                     break;
                 }
                 case 'error': {
+                    if (!isForActiveSession((payload as any).sessionId)) return;
                     setProcessing(false);
                     // TODO: Replace untyped WebSocket payloads with a shared, typed schema
                     // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and

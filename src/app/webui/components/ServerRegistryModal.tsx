@@ -235,7 +235,7 @@ export default function ServerRegistryModal({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-2xl max-h-[70vh] overflow-hidden flex flex-col border-0 shadow-2xl">
                 <DialogHeader className="pb-6">
                     <DialogTitle className="flex items-center gap-3 text-lg">

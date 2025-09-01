@@ -92,6 +92,8 @@ export async function updateEnvFile(
         'ANTHROPIC_API_KEY',
         'GOOGLE_GENERATIVE_AI_API_KEY',
         'GROQ_API_KEY',
+        'COHERE_API_KEY',
+        'XAI_API_KEY',
         'DEXTO_LOG_LEVEL',
     ];
 
@@ -125,6 +127,8 @@ export async function updateEnvFile(
             currentValues.GOOGLE_GENERATIVE_AI_API_KEY ??
             '',
         GROQ_API_KEY: updates.GROQ_API_KEY ?? currentValues.GROQ_API_KEY ?? '',
+        COHERE_API_KEY: updates.COHERE_API_KEY ?? currentValues.COHERE_API_KEY ?? '',
+        XAI_API_KEY: updates.XAI_API_KEY ?? currentValues.XAI_API_KEY ?? '',
         DEXTO_LOG_LEVEL: updates.DEXTO_LOG_LEVEL ?? currentValues.DEXTO_LOG_LEVEL ?? 'info',
     };
 

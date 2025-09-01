@@ -33,6 +33,7 @@ import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
+import { safeStringify } from '@core/utils/safe-stringify.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -281,9 +282,11 @@ export class DextoAgent {
      */
     private ensureStarted(): void {
         if (this._isStopped) {
+            logger.warn('Agent is stopped');
             throw AgentError.stopped();
         }
         if (!this._isStarted) {
+            logger.warn('Agent is not started');
             throw AgentError.notStarted();
         }
     }
@@ -332,27 +335,10 @@ export class DextoAgent {
             // Validate input and throw if invalid
             ensureOk(validation);
 
-            let session: ChatSession;
-
-            if (sessionId) {
-                // Use specific session or create it if it doesn't exist
-                const existingSession = await this.sessionManager.getSession(sessionId);
-                session = existingSession || (await this.sessionManager.createSession(sessionId));
-            } else {
-                // Use loaded default session for backward compatibility
-                if (
-                    !this.defaultSession ||
-                    this.defaultSession.id !== this.currentDefaultSessionId
-                ) {
-                    this.defaultSession = await this.sessionManager.createSession(
-                        this.currentDefaultSessionId
-                    );
-                    logger.debug(
-                        `DextoAgent.run: created/loaded default session ${this.defaultSession.id}`
-                    );
-                }
-                session = this.defaultSession;
-            }
+            // Resolve the concrete ChatSession for the target session id
+            const existingSession = await this.sessionManager.getSession(targetSessionId);
+            const session: ChatSession =
+                existingSession || (await this.sessionManager.createSession(targetSessionId));
 
             logger.debug(
                 `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${sessionId || this.currentDefaultSessionId}`
@@ -521,15 +507,15 @@ export class DextoAgent {
      * @example
      * ```typescript
      * // Load a specific session as default
-     * await agent.loadSession('project-alpha');
+     * await agent.loadSessionAsDefault('project-alpha');
      * await agent.run("What's the status?"); // Uses project-alpha session
      *
      * // Reset to original default
-     * await agent.loadSession(null);
+     * await agent.loadSessionAsDefault(null);
      * await agent.run("Hello"); // Uses 'default' session
      * ```
      */
-    public async loadSession(sessionId: string | null = null): Promise<void> {
+    public async loadSessionAsDefault(sessionId: string | null = null): Promise<void> {
         this.ensureStarted();
         if (sessionId === null) {
             this.currentDefaultSessionId = 'default';
@@ -546,7 +532,7 @@ export class DextoAgent {
 
         this.currentDefaultSessionId = sessionId;
         this.defaultSession = null; // Clear cached session to force reload
-        logger.debug(`Agent default session changed to: ${sessionId}`);
+        logger.info(`Agent default session changed to: ${sessionId}`);
     }
 
     /**
@@ -669,6 +655,7 @@ export class DextoAgent {
         this.ensureStarted();
 
         // Validate input using schema (single source of truth)
+        logger.debug(`DextoAgent.switchLLM: llmUpdates: ${safeStringify(llmUpdates)}`);
         const parseResult = LLMUpdatesSchema.safeParse(llmUpdates);
         if (!parseResult.success) {
             const validation = fail(zodToIssues(parseResult.error, 'error'));
@@ -688,6 +675,7 @@ export class DextoAgent {
 
         // Perform the actual LLM switch with validated config
         await this.performLLMSwitch(validatedConfig, sessionId);
+        logger.info(`DextoAgent.switchLLM: LLM switched to: ${safeStringify(validatedConfig)}`);
 
         // Log warnings if present
         const warnings = result.issues.filter((issue) => issue.severity === 'warning');

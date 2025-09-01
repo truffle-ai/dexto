@@ -47,7 +47,14 @@ main() {
   local failures=0
 
   run_test "GET /health" GET "/health" 200 || failures=$((failures+1))
-  run_test "GET /api/llm/providers" GET "/api/llm/providers" 200 || failures=$((failures+1))
+  # Catalog replaces legacy providers endpoint
+  run_test "GET /api/llm/catalog" GET "/api/llm/catalog" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog?provider=openai,anthropic" GET "/api/llm/catalog?provider=openai,anthropic" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog?router=vercel" GET "/api/llm/catalog?router=vercel" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog?fileType=audio" GET "/api/llm/catalog?fileType=audio" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog?defaultOnly=true" GET "/api/llm/catalog?defaultOnly=true" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog?mode=flat" GET "/api/llm/catalog?mode=flat" 200 || failures=$((failures+1))
+  run_test "GET /api/llm/catalog" GET "/api/llm/catalog" 200 || failures=$((failures+1))
   run_test "GET /api/llm/current" GET "/api/llm/current" 200 || failures=$((failures+1))
 
   # LLM switch scenarios
@@ -75,6 +82,53 @@ main() {
   }
 
   echo "$(yellow '[Stateful]') Router-only update preserves other fields" 
+  # Pre-validate catalog content for openai provider structure
+  cat_before=$(curl -sS "${BASE_URL}/api/llm/catalog")
+  env_var_before=$(json_get "${cat_before}" '.providers.openai.primaryEnvVar')
+  supports_base_before=$(json_get "${cat_before}" '.providers.openai.supportsBaseURL')
+  routers_before=$(json_get "${cat_before}" '.providers.openai.supportedRouters')
+  if [ "${env_var_before}" != "OPENAI_API_KEY" ]; then
+    echo "$(red 'FAIL') catalog.openai.primaryEnvVar expected OPENAI_API_KEY, got: ${env_var_before}"; failures=$((failures+1))
+  fi
+
+  # Validate provider filter (only openai + anthropic present)
+  cat_filtered=$(curl -sS "${BASE_URL}/api/llm/catalog?provider=openai,anthropic")
+  if echo "${cat_filtered}" | grep -q '"google"'; then
+    echo "$(red 'FAIL') provider filter returned unexpected provider 'google'"; failures=$((failures+1))
+  fi
+
+  # Validate router filter (all providers must include router)
+  cat_router=$(curl -sS "${BASE_URL}/api/llm/catalog?router=vercel")
+  # quick sanity check: ensure each provider advertises vercel
+  for p in openai anthropic google groq cohere xai; do
+    adv=$(json_get "${cat_router}" ".providers.${p}.supportedRouters")
+    if [ -n "${adv}" ] && ! echo "${adv}" | grep -q "vercel"; then
+      echo "$(red 'FAIL') provider ${p} missing 'vercel' in router filter"; failures=$((failures+1))
+    fi
+  done
+
+  # Validate defaultOnly
+  cat_defaults=$(curl -sS "${BASE_URL}/api/llm/catalog?defaultOnly=true")
+  # verify that for openai (if present) all models are default=true
+  if echo "${cat_defaults}" | grep -q '"openai"'; then
+    defaults_list=$(json_get "${cat_defaults}" '.providers.openai.models')
+    if echo "${defaults_list}" | grep -q '"default": false'; then
+      echo "$(red 'FAIL') defaultOnly returned non-default model for openai"; failures=$((failures+1))
+    fi
+  fi
+
+  # Validate flat mode response shape
+  flat_resp=$(curl -sS "${BASE_URL}/api/llm/catalog?mode=flat")
+  flat_first=$(json_get "${flat_resp}" '.models[0].provider')
+  if [ -z "${flat_first}" ]; then
+    echo "$(red 'FAIL') flat mode missing models array or provider field"; failures=$((failures+1))
+  fi
+  if [ "${supports_base_before}" != "false" ]; then
+    echo "$(red 'FAIL') catalog.openai.supportsBaseURL expected false, got: ${supports_base_before}"; failures=$((failures+1))
+  fi
+  if ! echo "${routers_before}" | grep -q "vercel"; then
+    echo "$(red 'FAIL') catalog.openai.supportedRouters missing 'vercel'"; failures=$((failures+1))
+  fi
   # Get baseline config
   base_resp=$(curl -sS "${BASE_URL}/api/llm/current")
   base_provider=$(json_get "${base_resp}" '.config.provider')
@@ -84,8 +138,8 @@ main() {
   base_temp=$(json_get "${base_resp}" '.config.temperature')
 
   # Determine a target router for this provider
-  prov_resp=$(curl -sS "${BASE_URL}/api/llm/providers")
-  routers=$(json_get "${prov_resp}" ".providers.${base_provider}.supportedRouters")
+  cat_for_router=$(curl -sS "${BASE_URL}/api/llm/catalog")
+  routers=$(json_get "${cat_for_router}" ".providers.${base_provider}.supportedRouters")
   # Pick the other router if available; otherwise reuse current
   target_router="${base_router}"
   if echo "${routers}" | grep -q "in-built" && [ "${base_router}" != "in-built" ]; then
@@ -118,6 +172,10 @@ main() {
   if [ "${after_temp}" != "${base_temp}" ]; then
     echo "$(red 'FAIL') temperature changed unexpectedly (${base_temp} -> ${after_temp})"; failures=$((failures+1))
   fi
+
+  # -------- New LLM key APIs (only invalid input cases; avoid mutating .env) --------
+  run_test "POST /api/llm/key invalid provider" POST "/api/llm/key" 400 '{"provider":"invalid","apiKey":"x"}' || failures=$((failures+1))
+  run_test "POST /api/llm/key missing apiKey" POST "/api/llm/key" 400 '{"provider":"openai","apiKey":""}' || failures=$((failures+1))
 
   # Revert router to baseline for isolation
   if [ "${after_router}" != "${base_router}" ]; then
