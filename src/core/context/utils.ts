@@ -4,6 +4,7 @@ import { logger } from '@core/logger/index.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
+import { safeStringify } from '@core/utils/safe-stringify.js';
 
 // Tunable heuristics and shared constants
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
@@ -47,8 +48,15 @@ export function countMessagesTokens(
                         } else if (part.type === 'image') {
                             // Approximate tokens for images: estimate ~1 token per 1KB or based on Base64 length
                             if (typeof part.image === 'string') {
-                                const byteLength = base64LengthToBytes(part.image.length);
-                                total += Math.ceil(byteLength / 1024);
+                                if (isDataUri(part.image)) {
+                                    // Extract base64 payload and compute byte length
+                                    const base64Payload = extractBase64FromDataUri(part.image);
+                                    const byteLength = base64LengthToBytes(base64Payload.length);
+                                    total += Math.ceil(byteLength / 1024);
+                                } else {
+                                    // Treat as URL/text: estimate token cost based on string length
+                                    total += estimateTextTokens(part.image);
+                                }
                             } else if (
                                 part.image instanceof Uint8Array ||
                                 part.image instanceof Buffer ||
@@ -63,8 +71,15 @@ export function countMessagesTokens(
                         } else if (part.type === 'file') {
                             // Approximate tokens for files: estimate ~1 token per 1KB or based on Base64 length
                             if (typeof part.data === 'string') {
-                                const byteLength = base64LengthToBytes(part.data.length);
-                                total += Math.ceil(byteLength / 1024);
+                                if (isDataUri(part.data)) {
+                                    // Extract base64 payload and compute byte length
+                                    const base64Payload = extractBase64FromDataUri(part.data);
+                                    const byteLength = base64LengthToBytes(base64Payload.length);
+                                    total += Math.ceil(byteLength / 1024);
+                                } else {
+                                    // Treat as URL/text: estimate token cost based on string length
+                                    total += estimateTextTokens(part.data);
+                                }
                             } else if (
                                 part.data instanceof Uint8Array ||
                                 part.data instanceof Buffer ||
@@ -387,7 +402,7 @@ export function sanitizeToolResultToContent(result: unknown): InternalMessage['c
                     }
                     // Unknown object -> stringify a sanitized copy as text
                     const cleaned = sanitizeDeepObject(obj);
-                    parts.push({ type: 'text', text: JSON.stringify(cleaned) });
+                    parts.push({ type: 'text', text: safeStringify(cleaned) });
                     continue;
                 }
                 // Other primitives -> coerce to text
@@ -421,15 +436,15 @@ export function sanitizeToolResultToContent(result: unknown): InternalMessage['c
             }
             // Generic object: remove huge base64 fields and stringify
             const cleaned = sanitizeDeepObject(anyObj);
-            return JSON.stringify(cleaned);
+            return safeStringify(cleaned);
         }
 
         // Fallback
-        return JSON.stringify(result ?? '');
+        return safeStringify(result ?? '');
     } catch (err) {
         logger.warn(`sanitizeToolResultToContent failed, falling back to string: ${String(err)}`);
         try {
-            return JSON.stringify(result ?? '');
+            return safeStringify(result ?? '');
         } catch {
             return String(result ?? '');
         }
@@ -473,6 +488,36 @@ export function summarizeToolContentForText(content: InternalMessage['content'])
 function base64LengthToBytes(charLength: number): number {
     // 4 base64 chars -> 3 bytes; ignore padding for approximation
     return Math.floor((charLength * 3) / 4);
+}
+
+/**
+ * Detects if a string is a data URI (base64 encoded).
+ * @param str The string to check
+ * @returns True if the string is a valid data URI with base64 encoding
+ */
+function isDataUri(str: string): boolean {
+    return str.startsWith('data:') && str.includes(';base64,');
+}
+
+/**
+ * Extracts the base64 payload from a data URI.
+ * @param dataUri The data URI string
+ * @returns The base64 payload after the comma, or empty string if malformed
+ */
+function extractBase64FromDataUri(dataUri: string): string {
+    const commaIndex = dataUri.indexOf(',');
+    return commaIndex !== -1 ? dataUri.substring(commaIndex + 1) : '';
+}
+
+/**
+ * Estimates token count for text strings using a character-per-token heuristic.
+ * @param text The text string to estimate
+ * @returns Estimated token count (conservative estimate: ~4 chars per token)
+ */
+function estimateTextTokens(text: string): number {
+    // Rough heuristic: ~4 characters per token for typical text
+    // This is a conservative estimate that can be adjusted based on actual usage
+    return Math.ceil(text.length / 4);
 }
 
 /**

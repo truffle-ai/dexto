@@ -533,6 +533,8 @@ describe('sanitizeToolResultToContent', () => {
 
         const result = sanitizeToolResultToContent(circularObject);
         expect(typeof result).toBe('string');
-        expect(result).toContain('[object Object]'); // String() fallback
+        // safeStringify now handles circular references gracefully
+        expect(result).toContain('test'); // Should contain the actual data
+        expect(result).toContain('[REDACTED_CIRCULAR]'); // Should show circular reference was detected
     });
 });

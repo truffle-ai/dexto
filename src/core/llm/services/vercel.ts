@@ -319,7 +319,7 @@ export class VercelLLMService implements ILLMService {
                         for (const toolCall of step.toolCalls) {
                             this.sessionEventBus.emit('llmservice:toolCall', {
                                 toolName: toolCall.toolName,
-                                args: toolCall.input as Record<string, any>,
+                                args: toolCall.input as Record<string, unknown>,
                                 callId: toolCall.toolCallId,
                             });
                         }
@@ -525,7 +525,7 @@ export class VercelLLMService implements ILLMService {
                     for (const toolCall of step.toolCalls) {
                         this.sessionEventBus.emit('llmservice:toolCall', {
                             toolName: toolCall.toolName,
-                            args: toolCall.input as Record<string, any>,
+                            args: toolCall.input as Record<string, unknown>,
                             callId: toolCall.toolCallId,
                         });
                     }
