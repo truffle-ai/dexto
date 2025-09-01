@@ -91,24 +91,52 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
             {/* Capability Icons */}
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {model.supportedFileTypes.includes('pdf') && (
-                <div title="PDF support" className="transition-transform group-hover:scale-110">
-                  {CAPABILITY_ICONS.pdf}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="transition-transform hover:scale-125">
+                      {CAPABILITY_ICONS.pdf}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <span>PDF support</span>
+                  </TooltipContent>
+                </Tooltip>
               )}
               {model.supportedFileTypes.includes('audio') && (
-                <div title="Audio support" className="transition-transform group-hover:scale-110">
-                  {CAPABILITY_ICONS.audio}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="transition-transform hover:scale-125">
+                      {CAPABILITY_ICONS.audio}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <span>Audio support</span>
+                  </TooltipContent>
+                </Tooltip>
               )}
               {model.supportedFileTypes.includes('image') && (
-                <div title="Image support" className="transition-transform group-hover:scale-110">
-                  {CAPABILITY_ICONS.image}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="transition-transform hover:scale-125">
+                      {CAPABILITY_ICONS.image}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <span>Image support</span>
+                  </TooltipContent>
+                </Tooltip>
               )}
               {!hasApiKey && (
-                <div title="API key required" className="transition-transform group-hover:scale-110">
-                  <Lock className="h-3.5 w-3.5 text-amber-500" />
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="transition-transform hover:scale-125">
+                      <Lock className="h-3.5 w-3.5 text-amber-500 hover:text-amber-400 transition-colors cursor-help" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <span>API key required</span>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
             
@@ -154,6 +182,7 @@ export default function ModelPickerModal() {
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [favoritesCollapsed, setFavoritesCollapsed] = useState(false);
   
   // API key modal
   const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -388,30 +417,41 @@ export default function ModelPickerModal() {
           {/* Favorites Section - Always visible when there are favorites */}
           {favoriteModels.length > 0 && !search && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFavoritesCollapsed(!favoritesCollapsed)}
+                className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
+              >
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4 text-yellow-500 fill-current" />
                   <span className="text-sm font-medium">Favorites</span>
                   <span className="text-xs text-muted-foreground">({favoriteModels.length})</span>
                 </div>
-              </div>
-              <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1">
-                {favoriteModels.map(({ providerId, provider, model }) => (
-                  <CompactModelCard
-                    key={favKey(providerId, model.name)}
-                    provider={providerId as LLMProvider}
-                    model={model}
-                    providerInfo={provider}
-                    isFavorite={true}
-                    isActive={isCurrentModel(providerId, model.name)}
-                    onClick={() => onPickModel(providerId, model)}
-                    onToggleFavorite={() => toggleFavorite(providerId, model.name)}
-                  />
-                ))}
-              </div>
-              {favoriteModels.length > 6 && (
-                <div className="text-xs text-muted-foreground text-center">
-                  Scroll to see all {favoriteModels.length} favorites
+                {favoritesCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              </Button>
+              
+              {!favoritesCollapsed && (
+                <div className="space-y-1">
+                  <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1">
+                    {favoriteModels.map(({ providerId, provider, model }) => (
+                      <CompactModelCard
+                        key={favKey(providerId, model.name)}
+                        provider={providerId as LLMProvider}
+                        model={model}
+                        providerInfo={provider}
+                        isFavorite={true}
+                        isActive={isCurrentModel(providerId, model.name)}
+                        onClick={() => onPickModel(providerId, model)}
+                        onToggleFavorite={() => toggleFavorite(providerId, model.name)}
+                      />
+                    ))}
+                  </div>
+                  {favoriteModels.length > 6 && (
+                    <div className="text-xs text-muted-foreground text-center">
+                      Scroll to see all {favoriteModels.length} favorites
+                    </div>
+                  )}
                 </div>
               )}
             </div>

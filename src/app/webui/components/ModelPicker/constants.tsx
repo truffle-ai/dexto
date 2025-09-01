@@ -55,30 +55,30 @@ export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
   return !COLORED_LOGOS.includes(provider);
 };
 
-// Model capability icons - enhanced with better visual design
+// Model capability icons - softer colors with hover states
 export const CAPABILITY_ICONS = {
   vision: <Eye className="h-3.5 w-3.5" />,
   image: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-slate-300 hover:to-slate-400 transition-all cursor-help">
       <Image className="h-2 w-2 text-white" />
     </div>
   ),
   audio: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-emerald-400 hover:to-emerald-500 transition-all cursor-help">
       <FileAudio className="h-2 w-2 text-white" />
     </div>
   ),
   pdf: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center">
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-rose-400 hover:to-rose-500 transition-all cursor-help">
       <FileText className="h-2 w-2 text-white" />
     </div>
   ),
   reasoning: (
-    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+    <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center hover:from-indigo-400 hover:to-indigo-500 transition-all cursor-help">
       <Brain className="h-2 w-2 text-white" />
     </div>
   ),
-  experimental: <FlaskConical className="h-3.5 w-3.5 text-orange-500" />,
-  new: <Sparkles className="h-3.5 w-3.5 text-yellow-500" />,
-  realtime: <Zap className="h-3.5 w-3.5 text-blue-500" />,
+  experimental: <FlaskConical className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-500 transition-colors cursor-help" />,
+  new: <Sparkles className="h-3.5 w-3.5 text-muted-foreground hover:text-yellow-500 transition-colors cursor-help" />,
+  realtime: <Zap className="h-3.5 w-3.5 text-muted-foreground hover:text-blue-500 transition-colors cursor-help" />,
 };
