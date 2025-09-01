@@ -133,7 +133,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4.1',
                 displayName: 'GPT-4.1',
-                maxInputTokens: 1047576,
+                maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 2.0,
@@ -146,7 +146,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4.1-mini',
                 displayName: 'GPT-4.1 Mini',
-                maxInputTokens: 1047576,
+                maxInputTokens: 1048576,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -160,7 +160,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4.1-nano',
                 displayName: 'GPT-4.1 Nano',
-                maxInputTokens: 1047576,
+                maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.1,
@@ -553,7 +553,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: [], // Groq currently doesn't support file uploads
     },
     // https://docs.x.ai/docs/models
-    // TODO: verify pdf support
+    // Note: XAI API only supports image uploads (JPG/PNG up to 20MB), not PDFs
     xai: {
         models: [
             {

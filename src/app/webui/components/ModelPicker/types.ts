@@ -3,7 +3,7 @@ import type { LLMRouter, SupportedFileType } from '@core/llm/registry.js';
 export type ModelInfo = {
     name: string;
     displayName?: string;
-    default: boolean;
+    default?: boolean;
     maxInputTokens: number;
     supportedFileTypes: SupportedFileType[];
     supportedRouters?: LLMRouter[];

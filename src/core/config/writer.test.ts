@@ -175,7 +175,7 @@ describe('Config Writer', () => {
 
         it('should apply partial overrides correctly', async () => {
             const overrides: LLMOverrides = {
-                model: 'gpt-5',
+                model: 'claude-3-5-sonnet-20241022',
                 // provider and apiKey from preferences
             };
 
@@ -183,7 +183,7 @@ describe('Config Writer', () => {
 
             const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
             expect(updatedContent).toContain('provider: anthropic'); // from preferences
-            expect(updatedContent).toContain('model: gpt-5'); // from override
+            expect(updatedContent).toContain('model: claude-3-5-sonnet-20241022'); // from override
             expect(updatedContent).toContain('apiKey: $ANTHROPIC_API_KEY'); // from preferences
         });
 

@@ -1,3 +1,5 @@
+'use client';
+
 import * as Switch from '@radix-ui/react-switch';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';

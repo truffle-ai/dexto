@@ -89,8 +89,8 @@ describe('ToolConfirmationConfigSchema', () => {
             const valid1 = ToolConfirmationConfigSchema.parse({ timeout: 1000 });
             expect(valid1.timeout).toBe(1000);
 
-            const valid2 = ToolConfirmationConfigSchema.parse({ timeout: 30000 });
-            expect(valid2.timeout).toBe(30000);
+            const valid2 = ToolConfirmationConfigSchema.parse({ timeout: 120000 });
+            expect(valid2.timeout).toBe(120000);
         });
 
         it('should validate allowedToolsStorage enum values', () => {

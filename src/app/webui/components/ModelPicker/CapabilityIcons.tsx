@@ -8,9 +8,10 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import { CAPABILITY_ICONS } from "./constants";
+import type { ModelInfo } from "./types.js";
 
 interface CapabilityIconsProps {
-  supportedFileTypes: string[];
+  supportedFileTypes: ModelInfo["supportedFileTypes"];
   hasApiKey: boolean;
   className?: string;
 }
