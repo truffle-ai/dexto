@@ -49,9 +49,6 @@ logs/
 docs/.docusaurus/
 docs/.cache-loader/
 
-# Compiled TypeScript plugins (auto-generated from .ts files)
-docs/src/plugins/*.js
-
 # Optional npm cache directory
 .npm
 

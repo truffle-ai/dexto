@@ -258,7 +258,7 @@ const config: Config = {
                 breadcrumbs: true,
             },
         ],
-        './src/plugins/markdown-route-plugin',
+        './src/plugins/markdown-route-plugin.ts',
     ],
 
     headTags: [
