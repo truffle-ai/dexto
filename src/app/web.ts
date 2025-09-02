@@ -37,10 +37,19 @@ export async function startNextJsWebServer(
     }
 
     // Check if we have a built standalone app
-    const standaloneServerPath = path.join(webuiPath, '.next', 'standalone', 'server.js');
     const serverScriptPath = path.join(webuiPath, 'server.js');
+    const standaloneRoot = path.join(webuiPath, '.next', 'standalone');
 
-    if (!existsSync(standaloneServerPath) && !existsSync(serverScriptPath)) {
+    // Next.js standalone entry can live in different places depending on app subpath/version
+    const standaloneCandidates = [
+        path.join(standaloneRoot, 'server.js'),
+        // When app is nested under src/app/webui, Next 15.5 places server here
+        path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
+    ];
+
+    const resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));
+
+    if (!resolvedStandalone && !existsSync(serverScriptPath)) {
         logger.warn(
             'Built WebUI not found. This may indicate the package was not built correctly.',
             null,
@@ -64,8 +73,14 @@ export async function startNextJsWebServer(
 
         logger.info(`Starting Next.js production server on ${frontUrl}`, null, 'cyanBright');
 
-        // Use the server.js script if it exists, otherwise use the standalone server directly
-        const serverToUse = existsSync(serverScriptPath) ? serverScriptPath : standaloneServerPath;
+        // Use the server.js script if it exists, otherwise use the resolved standalone server directly
+        const serverToUse = existsSync(serverScriptPath)
+            ? serverScriptPath
+            : (resolvedStandalone as string);
+
+        // Allow HOSTNAME/PORT overrides; default to CLI-provided frontPort
+        const resolvedHostname = process.env.HOSTNAME ?? '0.0.0.0';
+        const resolvedPort = process.env.FRONTEND_PORT ?? process.env.PORT ?? String(frontPort);
 
         const nextProc = spawn('node', [serverToUse], {
             cwd: webuiPath,
@@ -73,8 +88,8 @@ export async function startNextJsWebServer(
             env: {
                 ...process.env,
                 NODE_ENV: 'production',
-                HOSTNAME: '0.0.0.0',
-                PORT: String(frontPort),
+                HOSTNAME: resolvedHostname,
+                PORT: String(resolvedPort),
                 API_PORT: String(apiPort),
                 API_URL: apiUrl,
                 FRONTEND_URL: frontUrl,

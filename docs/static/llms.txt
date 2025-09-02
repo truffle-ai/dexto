@@ -1,0 +1,89 @@
+# Dexto
+
+Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capable of reasoning, executing tools, and completing complex tasks.
+
+## Documentation
+
+### Getting Started
+
+- [Build Your First Agent](https://docs.dexto.ai/docs/getting-started/first-agent-tutorial.md): Build Your First Agent
+- [Installation](https://docs.dexto.ai/docs/getting-started/installation.md): Installation
+- [Introduction](https://docs.dexto.ai/docs/getting-started/intro.md): Introduction
+
+### Guides
+
+- [CLI Guide](https://docs.dexto.ai/docs/guides/cli.md): CLI Guide
+- [agent.yml – Annotated Example](https://docs.dexto.ai/docs/guides/configuring-dexto/agent-yml.md): agent.yml – Annotated Example
+- [Agent Card Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/agentCard.md): Agent Card Configuration
+- [Runtime / Dynamic Configuration Changes](https://docs.dexto.ai/docs/guides/configuring-dexto/dynamic-changes.md): Runtime / Dynamic Configuration Changes
+- [Configuration Reference](https://docs.dexto.ai/docs/guides/configuring-dexto/llm/configuration.md): Configuration Reference
+- [LLM Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/llm/index.md): LLM Configuration
+- [Supported Providers](https://docs.dexto.ai/docs/guides/configuring-dexto/llm/providers.md): Supported Providers
+- [MCP Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/mcp.md): MCP Configuration
+- [Configuring Dexto](https://docs.dexto.ai/docs/guides/configuring-dexto/overview.md): Configuring Dexto
+- [Sessions Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/sessions.md): Sessions Configuration
+- [Storage Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/storage.md): Storage Configuration
+- [System Prompt Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/systemPrompt.md): System Prompt Configuration
+- [Tool Confirmation Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/toolConfirmation.md): Tool Confirmation Configuration
+- [Deployment Guide](https://docs.dexto.ai/docs/guides/deployment.md): Deployment Guide
+- [Using Dexto as an MCP Server](https://docs.dexto.ai/docs/guides/dexto-as-mcp-server.md): Using Dexto as an MCP Server
+- [Using Dexto CLI to group MCP servers together](https://docs.dexto.ai/docs/guides/dexto-group-mcp-servers.md): Using Dexto CLI to group MCP servers together
+- [Dexto SDK Guide](https://docs.dexto.ai/docs/guides/dexto-sdk.md): Dexto SDK Guide
+- [MCP Manager](https://docs.dexto.ai/docs/guides/mcp-manager.md): MCP Manager
+- [Web playground](https://docs.dexto.ai/docs/guides/web-playground.md): Web playground
+
+### MCP
+
+- [Configure MCP Connections](https://docs.dexto.ai/docs/mcp/connecting-servers.md): Configure MCP Connections
+- [Expose Dexto as an MCP Server](https://docs.dexto.ai/docs/mcp/dexto-as-mcp-server.md): Expose Dexto as an MCP Server
+- [Aggregate Multiple MCP Servers](https://docs.dexto.ai/docs/mcp/grouping-servers.md): Aggregate Multiple MCP Servers
+- [MCP Manager](https://docs.dexto.ai/docs/mcp/mcp-manager.md): MCP Manager
+- [MCP Overview](https://docs.dexto.ai/docs/mcp/overview.md): MCP Overview
+
+### Tutorials
+
+- [Advanced Patterns and Best Practices](https://docs.dexto.ai/docs/tutorials/advanced-patterns.md): Advanced Patterns and Best Practices
+- [React Chat App using Dexto](https://docs.dexto.ai/docs/tutorials/backend-server.md): React Chat App using Dexto
+- [Customer Support Triage System](https://docs.dexto.ai/docs/tutorials/building-triage-system.md): Customer Support Triage System
+- [Database Agent Tutorial](https://docs.dexto.ai/docs/tutorials/database-agent.md): Database Agent Tutorial
+- [Image Editor Agent](https://docs.dexto.ai/docs/tutorials/image-editor-agent.md): Image Editor Agent
+- [Building Applications](https://docs.dexto.ai/docs/tutorials/index.md): Building Applications
+- [Integrating Existing Agents: Dexto + LangChain](https://docs.dexto.ai/docs/tutorials/langchain-integration.md): Integrating Existing Agents: Dexto + LangChain
+- [Building Multi-Agent Systems](https://docs.dexto.ai/docs/tutorials/multi-agent-systems.md): Building Multi-Agent Systems
+- [Music Creator Agent](https://docs.dexto.ai/docs/tutorials/music-agent.md): Music Creator Agent
+- [Product Name Scout Agent](https://docs.dexto.ai/docs/tutorials/product-name-scout-agent.md): Product Name Scout Agent
+- [Talk2PDF Agent](https://docs.dexto.ai/docs/tutorials/talk2pdf-agent.md): Talk2PDF Agent
+
+### Examples & Demos
+
+- [Amazon shopping assistant](https://docs.dexto.ai/docs/examples-demos/amazon-shopping.md): Amazon shopping assistant
+- [Email summaries in slack](https://docs.dexto.ai/docs/examples-demos/email-slack.md): Email summaries in slack
+- [Design a website with dexto](https://docs.dexto.ai/docs/examples-demos/website-designer.md): Design a website with dexto
+
+### Concepts
+
+- [AI Agents vs. LLM Workflows](https://docs.dexto.ai/docs/concepts/agents-vs-workflows.md): AI Agents vs. LLM Workflows
+- [How do AI Agents work?](https://docs.dexto.ai/docs/concepts/how-do-ai-agents-work.md): How do AI Agents work?
+- [What is MCP (Model Context Protocol)?](https://docs.dexto.ai/docs/concepts/mcp.md): What is MCP (Model Context Protocol)?
+- [Tools](https://docs.dexto.ai/docs/concepts/tools.md): Tools
+- [What is an AI Agent?](https://docs.dexto.ai/docs/concepts/what-is-an-ai-agent.md): What is an AI Agent?
+
+### Architecture
+
+- [Overview](https://docs.dexto.ai/docs/architecture/overview.md): Overview
+
+### API Reference
+
+- [DextoAgent API](https://docs.dexto.ai/api/dexto-agent.md): DextoAgent API
+- [Events Reference](https://docs.dexto.ai/api/events.md): Events Reference
+- [Getting Started](https://docs.dexto.ai/api/getting-started.md): Getting Started
+- [MCPManager](https://docs.dexto.ai/api/mcp-manager.md): MCPManager
+- [Conversation](https://docs.dexto.ai/api/rest/conversation.md): Conversation
+- [LLM Configuration](https://docs.dexto.ai/api/rest/llm.md): LLM Configuration
+- [MCP Management](https://docs.dexto.ai/api/rest/mcp.md): MCP Management
+- [Search API](https://docs.dexto.ai/api/rest/search.md): Search API
+- [Session Management](https://docs.dexto.ai/api/rest/sessions.md): Session Management
+- [System](https://docs.dexto.ai/api/rest/system.md): System
+- [SDK Types for TypeScript](https://docs.dexto.ai/api/types.md): SDK Types for TypeScript
+- [WebSocket API](https://docs.dexto.ai/api/websocket.md): WebSocket API
+
