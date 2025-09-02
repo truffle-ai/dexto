@@ -633,7 +633,7 @@ export default function ChatApp() {
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto_logo_no_text.png" alt="Dexto" className="h-8 w-auto invert dark:invert-0" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        {greeting || "Welcome to Dexto"}
+                        {greeting ?? "Welcome to Dexto"}
                       </h2>
                     </div>
                     <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">

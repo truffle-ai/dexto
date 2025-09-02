@@ -89,6 +89,7 @@ export const AgentConfigSchema = z
         agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
         greeting: z
             .string()
+            .max(500)
             .optional()
             .describe('Default greeting text to show when a chat starts (for UI consumption)'),
         systemPrompt: SystemPromptConfigSchema.describe(

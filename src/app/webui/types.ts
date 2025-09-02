@@ -89,9 +89,9 @@ export interface LLMProvider {
     supportsBaseURL: boolean;
 }
 
-// Greeting type for custom welcome messages
-export interface Greeting {
-    greeting?: string;
+// Greeting API response
+export interface GreetingResponse {
+    greeting: string | null;
 }
 
 export interface LLMConfig {
