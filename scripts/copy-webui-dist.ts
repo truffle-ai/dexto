@@ -59,27 +59,12 @@ async function copyWebUIBuild(): Promise<void> {
             console.log('✅ Copied public files to standalone root');
         }
 
-        // Also ensure each standalone server directory has its own .next and public
-        // Some Next.js versions place server.js under nested paths (e.g., Projects/dexto/...)
-        // and expect distDir './.next' and './public' relative to that directory.
-        const serverFiles = await (async () => {
-            try {
-                const files: string[] = [];
-                const walk = async (dir: string, depth: number = 0) => {
-                    if (depth > 6) return;
-                    const entries = await fs.readdir(dir, { withFileTypes: true });
-                    for (const e of entries) {
-                        const full = path.join(dir, e.name);
-                        if (e.isDirectory()) await walk(full, depth + 1);
-                        else if (e.isFile() && e.name === 'server.js') files.push(full);
-                    }
-                };
-                await walk(standaloneRoot);
-                return files;
-            } catch {
-                return [];
-            }
-        })();
+        // Ensure each known standalone server directory has its own .next and public.
+        const candidateServers = [
+            path.join(standaloneRoot, 'server.js'),
+            path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
+        ];
+        const serverFiles = candidateServers.filter((p) => fs.existsSync(p));
 
         const manifestFiles = [
             'BUILD_ID',
@@ -127,36 +112,11 @@ const candidates = [
   path.join(standaloneRoot, 'server.js'),
   path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
 ];
-
-let standaloneServer = candidates.find((p) => fs.existsSync(p));
-
-if (!standaloneServer && fs.existsSync(standaloneRoot)) {
-  const preferredSuffix = path.join('src', 'app', 'webui', 'server.js');
-  function findServer(dir, depth = 0) {
-    if (depth > 6) return null;
-    let fallback = null;
-    try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const e of entries) {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) {
-          const res = findServer(full, depth + 1);
-          if (res) return res;
-        } else if (e.isFile()) {
-          if (full.endsWith(preferredSuffix)) return full;
-          if (!fallback && e.name === 'server.js') fallback = full;
-        }
-      }
-    } catch {}
-    return fallback;
-  }
-  standaloneServer = findServer(standaloneRoot);
-}
+const standaloneServer = candidates.find((p) => fs.existsSync(p));
 
 if (!standaloneServer) {
   console.error('Dexto WebUI standalone server not found. Tried:');
   for (const c of candidates) console.error('  -', c);
-  console.error('Searched recursively under:', standaloneRoot);
   console.error('Please rebuild: npm run build (which builds the WebUI).');
   process.exit(1);
 }

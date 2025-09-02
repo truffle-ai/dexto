@@ -47,36 +47,7 @@ export async function startNextJsWebServer(
         path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
     ];
 
-    let resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));
-
-    // As a last resort, recursively search under standalone root for src/app/webui/server.js or any server.js
-    if (!resolvedStandalone && existsSync(standaloneRoot)) {
-        const fs = await import('fs');
-        const preferredSuffix = path.join('src', 'app', 'webui', 'server.js');
-
-        function findServer(dir: string, depth: number = 0): string | null {
-            if (depth > 6) return null;
-            let found: string | null = null;
-            try {
-                const entries = fs.readdirSync(dir, { withFileTypes: true });
-                for (const entry of entries) {
-                    const full = path.join(dir, entry.name);
-                    if (entry.isDirectory()) {
-                        const res = findServer(full, depth + 1);
-                        if (res) return res;
-                    } else if (entry.isFile()) {
-                        if (full.endsWith(preferredSuffix)) return full;
-                        if (!found && entry.name === 'server.js') found = full;
-                    }
-                }
-            } catch {
-                // ignore
-            }
-            return found;
-        }
-
-        resolvedStandalone = findServer(standaloneRoot) ?? undefined;
-    }
+    const resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));
 
     if (!resolvedStandalone && !existsSync(serverScriptPath)) {
         logger.warn(
@@ -107,14 +78,18 @@ export async function startNextJsWebServer(
             ? serverScriptPath
             : (resolvedStandalone as string);
 
+        // Allow HOSTNAME/PORT overrides; default to CLI-provided frontPort
+        const resolvedHostname = process.env.HOSTNAME ?? '0.0.0.0';
+        const resolvedPort = process.env.FRONTEND_PORT ?? process.env.PORT ?? String(frontPort);
+
         const nextProc = spawn('node', [serverToUse], {
             cwd: webuiPath,
             stdio: ['inherit', 'pipe', 'inherit'],
             env: {
                 ...process.env,
                 NODE_ENV: 'production',
-                HOSTNAME: '0.0.0.0',
-                PORT: String(frontPort),
+                HOSTNAME: resolvedHostname,
+                PORT: String(resolvedPort),
                 API_PORT: String(apiPort),
                 API_URL: apiUrl,
                 FRONTEND_URL: frontUrl,
