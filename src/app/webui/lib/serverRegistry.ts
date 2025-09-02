@@ -124,6 +124,12 @@ export class ServerRegistryService {
      */
     async syncWithServerStatus(): Promise<void> {
         try {
+            // Ensure registry is initialized before syncing
+            await this.initialize();
+            if (this.registryEntries.length === 0) {
+                console.warn('Registry entries not available for status sync');
+                return;
+            }
             // Fetch current server states
             const controller = new AbortController();
             const t = setTimeout(() => controller.abort(), 10000);
@@ -134,16 +140,13 @@ export class ServerRegistryService {
             const data = await response.json();
             const servers = data.servers || [];
 
-            // Create sets for connected and all server IDs
-            const connectedIds = new Set<string>();
+            // Create set for all server IDs
             const allServerIds = new Set<string>();
 
-            servers.forEach((server: any) => {
+            servers.forEach((server: { id?: string; status?: string }) => {
+                if (!server?.id || typeof server.id !== 'string') return;
                 const normalizedId = ServerRegistryService.normalizeId(server.id);
                 allServerIds.add(normalizedId);
-                if (server.status === 'connected') {
-                    connectedIds.add(normalizedId);
-                }
             });
 
             // Update registry entries based on server status
@@ -153,8 +156,7 @@ export class ServerRegistryService {
                     .map((x) => ServerRegistryService.normalizeId(String(x)));
 
                 const hasMatchingServer = aliases.some((alias) => allServerIds.has(alias));
-                // Note: We could also track connection status separately in the future
-                // const isConnected = aliases.some(alias => connectedIds.has(alias));
+                // Note: We could also track connection status separately in the future (e.g., maintain a connectedIds set)
 
                 // Update installed status:
                 // - If no matching server exists, mark as uninstalled

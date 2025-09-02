@@ -238,7 +238,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                         Configure connection details for a new MCP server (stdio, SSE, or HTTP).
                     </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+                <form id="connectServerForm" onSubmit={handleSubmit} className="grid gap-4 py-4">
                     {error && (
                         <Alert variant="destructive">
                             <AlertDescription>{error}</AlertDescription>
@@ -402,7 +402,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                             Cancel
                         </Button>
                     </DialogClose>
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button type="submit" form="connectServerForm" disabled={isSubmitting}>
                         {isSubmitting ? 'Connecting...' : 'Connect'}
                     </Button>
                 </DialogFooter>
