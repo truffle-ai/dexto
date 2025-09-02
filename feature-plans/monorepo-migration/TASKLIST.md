@@ -4,10 +4,10 @@ Track progress here. Update checkboxes as tasks complete.
 
 ## Global Setup
 - [ ] Enforce pnpm via root `preinstall: npx only-allow pnpm`
-- [ ] Add `pnpm-workspace.yaml` (targets `src/packages/*`)
-- [ ] Add `turbo.json` (build/test/lint/typecheck pipelines, outputs)
-- [ ] Add `tsconfig.base.json`
-- [ ] Initialize Changesets (`.changeset/`), configure fixed group for lockstep
+- [x] Add `pnpm-workspace.yaml` (targets `src/packages/*`)
+- [x] Add `turbo.json` (build/test/lint/typecheck pipelines, outputs)
+- [x] Add `tsconfig.base.json`
+- [x] Initialize Changesets (`.changeset/`), configure fixed group for lockstep
 - [ ] Add root scripts: `build`, `test`, `lint`, `typecheck`
 
 ## Phase 2 — Package `@dexto/core`
@@ -58,4 +58,3 @@ Track progress here. Update checkboxes as tasks complete.
 - [ ] Draft Vite SPA scaffold and static-serve integration
 - [ ] Replace Next-only APIs; update copy/start logic to use `dist/`
 - [ ] Decide timeline post-monorepo stabilization
-
