@@ -2,8 +2,9 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope } from '@core/errors/types.js';
 import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
-import type { LLMProvider, LLMRouter } from './registry.js';
+// Use types solely from types.ts to avoid duplication
 import { getSupportedProviders, getSupportedRoutersForProvider } from './registry.js';
+import type { LLMProvider, LLMRouter } from './types.js';
 
 /**
  * LLM runtime error factory methods

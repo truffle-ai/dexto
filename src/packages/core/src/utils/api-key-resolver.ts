@@ -1,4 +1,4 @@
-import { LLMProvider } from '../llm/registry.js';
+import type { LLMProvider } from '../llm/types.js';
 
 /**
  * Utility for resolving API keys from environment variables.

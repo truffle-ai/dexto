@@ -1,7 +1,8 @@
 // src/packages/core/src/preferences/schemas.ts
 
 import { z } from 'zod';
-import { LLM_PROVIDERS, isValidProviderModel, getSupportedModels } from '@core/llm/registry.js';
+import { isValidProviderModel, getSupportedModels } from '@core/llm/registry.js';
+import { LLM_PROVIDERS } from '@core/llm/types.js';
 import { NonEmptyTrimmed } from '@core/utils/result.js';
 import { PreferenceErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';

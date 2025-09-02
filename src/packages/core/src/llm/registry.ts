@@ -11,6 +11,14 @@ import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import {
+    LLM_PROVIDERS,
+    LLM_ROUTERS,
+    SUPPORTED_FILE_TYPES,
+    type LLMProvider,
+    type LLMRouter,
+    type SupportedFileType,
+} from './types.js';
 
 export interface ModelInfo {
     name: string;
@@ -32,8 +40,8 @@ export interface ModelInfo {
 }
 
 // Central list of supported file type identifiers used across server/UI
-export const SUPPORTED_FILE_TYPES = ['pdf', 'image', 'audio'] as const;
-export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
+// Re-exported constants are defined in types.ts for single source of truth
+// (imported above): LLM_PROVIDERS, LLM_ROUTERS, SUPPORTED_FILE_TYPES
 
 // Central MIME type to file type mapping
 export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
@@ -71,21 +79,7 @@ export interface ProviderInfo {
 /** Fallback when we cannot determine the model's input-token limit */
 export const DEFAULT_MAX_INPUT_TOKENS = 128000;
 
-export const LLM_PROVIDERS = [
-    'openai',
-    'openai-compatible',
-    'anthropic',
-    'google',
-    'groq',
-    'xai',
-    'cohere',
-] as const;
-
-export type LLMProvider = (typeof LLM_PROVIDERS)[number];
-
-export const LLM_ROUTERS = ['vercel', 'in-built'] as const;
-
-export type LLMRouter = (typeof LLM_ROUTERS)[number];
+// Use imported constants LLM_PROVIDERS, LLM_ROUTERS
 
 /**
  * LLM Model Registry - Single Source of Truth for Supported models and their capabilities

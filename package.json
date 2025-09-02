@@ -30,7 +30,7 @@
         "prepack": "pnpm run build",
         "build:check": "pnpm run typecheck && pnpm run build",
         "build:strict": "pnpm run typecheck && pnpm run build",
-        "typecheck": "tsc --project tsconfig.typecheck.json",
+        "typecheck": "turbo run typecheck",
         "typecheck:core": "tsc --noEmit src/packages/core/src/**/*.ts",
         "typecheck:watch": "tsc --project tsconfig.typecheck.json --watch",
         "prepare": "husky",

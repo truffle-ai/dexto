@@ -1,19 +1,20 @@
-// Browser-safe LLM type definitions
-// Keep these in this file (no imports) so consumers can import types
-// from the package root without pulling in Node-only modules.
+// Derive types from registry constants without creating runtime imports.
+export const LLM_PROVIDERS = [
+    'openai',
+    'openai-compatible',
+    'anthropic',
+    'google',
+    'groq',
+    'xai',
+    'cohere',
+] as const;
+export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 
-// Known providers (align with registry constants)
-export type LLMProvider =
-    | 'openai'
-    | 'openai-compatible'
-    | 'anthropic'
-    | 'google'
-    | 'groq'
-    | 'xai'
-    | 'cohere';
+export const LLM_ROUTERS = ['vercel', 'in-built'] as const;
+export type LLMRouter = (typeof LLM_ROUTERS)[number];
 
-// Known routers
-export type LLMRouter = 'vercel' | 'in-built';
+export const SUPPORTED_FILE_TYPES = ['pdf', 'image', 'audio'] as const;
+export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
 /**
  * LLMRouter defines the routing backend for LLM service instantiation.

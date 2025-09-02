@@ -3,7 +3,7 @@ import { VercelMessageFormatter } from './vercel.js';
 import { OpenAIMessageFormatter } from './openai.js';
 import { AnthropicMessageFormatter } from './anthropic.js';
 import { logger } from '@core/logger/index.js';
-import { LLMProvider, LLMRouter } from '../registry.js';
+import type { LLMProvider, LLMRouter } from '../types.js';
 import { LLMError } from '../errors.js';
 
 /**

@@ -5,8 +5,6 @@ import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '@core/utils/res
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { z } from 'zod';
 import {
-    LLM_PROVIDERS,
-    LLM_ROUTERS,
     supportsBaseURL,
     requiresBaseURL,
     acceptsAnyModel,
@@ -16,6 +14,7 @@ import {
     isRouterSupportedForModel,
     getSupportedRoutersForModel,
 } from './registry.js';
+import { LLM_PROVIDERS, LLM_ROUTERS } from './types.js';
 
 /**
  * Default-free field definitions for LLM configuration.

@@ -12,7 +12,7 @@ import { OpenAIService } from './openai.js';
 import { AnthropicService } from './anthropic.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
-import { LLMRouter } from '../registry.js';
+import type { LLMRouter } from '../types.js';
 import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';

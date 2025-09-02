@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { LLMProvider, LLMRouter } from '../llm/registry.js';
+import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 
 /**

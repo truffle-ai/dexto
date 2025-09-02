@@ -1,6 +1,6 @@
 import { DextoAgent } from '../../agent/DextoAgent.js';
 import { resolveApiKeyForProvider, getPrimaryApiKeyEnvVar } from '../../utils/api-key-resolver.js';
-import type { LLMProvider } from '../registry.js';
+import type { LLMProvider } from '../types.js';
 import type { AgentConfig } from '../../agent/schemas.js';
 
 /**

@@ -37,4 +37,5 @@ export {
     getEffectiveMaxInputTokens,
 } from './llm/registry.js';
 
-export type { ProviderInfo, ModelInfo, SupportedFileType } from './llm/registry.js';
+export type { ProviderInfo, ModelInfo } from './llm/registry.js';
+export type { SupportedFileType } from './llm/types.js';

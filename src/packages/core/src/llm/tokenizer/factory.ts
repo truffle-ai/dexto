@@ -3,7 +3,7 @@ import { OpenAITokenizer } from './openai.js';
 import { AnthropicTokenizer } from './anthropic.js';
 import { GoogleTokenizer } from './google.js';
 import { DefaultTokenizer } from './default.js';
-import { LLMProvider } from '../registry.js';
+import type { LLMProvider } from '../types.js';
 
 /**
  * Creates the appropriate tokenizer for the specified provider and model

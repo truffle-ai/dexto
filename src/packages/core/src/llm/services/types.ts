@@ -1,7 +1,7 @@
 import { LanguageModel } from 'ai';
 import { ToolSet } from '../../tools/types.js';
 import { ImageData, FileData } from '../../context/types.js';
-import { LLMProvider, LLMRouter } from '../registry.js';
+import type { LLMProvider, LLMRouter } from '../types.js';
 import type { ContextManager } from '../../context/manager.js';
 
 /**

@@ -6,7 +6,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { getDextoGlobalPath } from '@core/utils/path.js';
 import { logger } from '@core/logger/index.js';
 import { DextoValidationError, DextoRuntimeError } from '@core/errors/index.js';
-import { type LLMProvider } from '@core/llm/registry.js';
+import type { LLMProvider } from '@core/llm/types.js';
 import { GlobalPreferencesSchema, type GlobalPreferences } from './schemas.js';
 import { PREFERENCES_FILE } from './constants.js';
 import { PreferenceError } from './errors.js';

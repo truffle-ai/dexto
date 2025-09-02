@@ -1,4 +1,5 @@
-import { type LLMProvider, LLM_PROVIDERS } from '../llm/registry.js';
+import type { LLMProvider } from '../llm/types.js';
+import { LLM_PROVIDERS } from '../llm/types.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from './api-key-resolver.js';
 import { updateEnvFile } from './env.js';
 import { getDextoEnvPath } from './path.js';

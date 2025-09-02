@@ -20,10 +20,10 @@ import {
     getSupportedProviders,
     getDefaultModelForProvider,
     getProviderFromModel,
-    LLMProvider,
     LLM_REGISTRY,
     ModelInfo,
 } from '../llm/registry.js';
+import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
