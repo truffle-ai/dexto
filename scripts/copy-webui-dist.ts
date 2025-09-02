@@ -8,7 +8,7 @@ const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
 const rootDir: string = path.resolve(__dirname, '..');
 
 // Define source and target paths
-const sourceWebUIDir: string = path.join(rootDir, 'src', 'packages', 'cli', 'src', 'webui');
+const sourceWebUIDir: string = path.join(rootDir, 'src', 'packages', 'webui');
 const targetDir: string = path.join(rootDir, 'dist', 'src', 'cli', 'webui');
 
 async function copyWebUIBuild(): Promise<void> {
@@ -63,6 +63,8 @@ async function copyWebUIBuild(): Promise<void> {
         const candidateServers = [
             path.join(standaloneRoot, 'server.js'),
             path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
+            path.join(standaloneRoot, 'webui', 'server.js'),
+            path.join(standaloneRoot, 'src', 'packages', 'webui', 'server.js'),
         ];
         const serverFiles = candidateServers.filter((p) => fs.existsSync(p));
 
@@ -92,6 +94,8 @@ const standaloneRoot = path.join(__dirname, '.next', 'standalone');
 const candidates = [
   path.join(standaloneRoot, 'server.js'),
   path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
+  path.join(standaloneRoot, 'webui', 'server.js'),
+  path.join(standaloneRoot, 'src', 'packages', 'webui', 'server.js'),
 ];
 const standaloneServer = candidates.find((p) => fs.existsSync(p));
 

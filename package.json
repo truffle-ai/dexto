@@ -22,18 +22,18 @@
         "./package.json": "./package.json"
     },
     "scripts": {
-        "clean": "npx rimraf dist build public coverage logs .eslintcache test-temp && npm run clean:storage && npx tsx scripts/clean-build-files.ts",
-        "clean:storage": "npx rimraf .dexto",
+        "clean": "rimraf dist build public coverage logs .eslintcache test-temp && pnpm run clean:storage && tsx scripts/clean-build-files.ts",
+        "clean:storage": "rimraf .dexto",
         "prebuild": "",
-        "build": "npm run clean && npm run build-webui && tsup && npm run copy-webui-dist",
-        "prepack": "npm run build",
-        "build:check": "npm run typecheck && npm run build",
-        "build:strict": "npm run typecheck && npm run build",
+        "build": "pnpm run clean && pnpm run build-webui && tsup && pnpm run copy-webui-dist",
+        "prepack": "pnpm run build",
+        "build:check": "pnpm run typecheck && pnpm run build",
+        "build:strict": "pnpm run typecheck && pnpm run build",
         "typecheck": "tsc --project tsconfig.typecheck.json",
         "typecheck:core": "tsc --noEmit src/packages/core/src/**/*.ts",
         "typecheck:watch": "tsc --project tsconfig.typecheck.json --watch",
         "prepare": "husky",
-        "build-webui": "cd src/packages/cli/src/webui && npm install && npx cross-env BUILD_STANDALONE=true npm run build",
+        "build-webui": "npx rimraf src/packages/webui/node_modules src/packages/webui/package-lock.json && pnpm -C src/packages/webui install && pnpm -C src/packages/webui build",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
         "start": "node dist/src/cli/index.js",
         "dev": "tsc --watch",
@@ -47,7 +47,11 @@
         "test:ci": "vitest run --coverage",
         "test:watch": "vitest watch",
         "test:unit:watch": "vitest watch --exclude '**/*.integration.test.ts'",
-        "test:integ:watch": "vitest watch --config vitest.integration.config.ts"
+        "test:integ:watch": "vitest watch --config vitest.integration.config.ts",
+        "repo:build": "turbo run build",
+        "repo:test": "turbo run test",
+        "repo:lint": "turbo run lint",
+        "repo:typecheck": "turbo run typecheck"
     },
     "keywords": [
         "mcp",
@@ -140,5 +144,6 @@
     },
     "overrides": {
         "tough-cookie": "^4.1.3"
-    }
+    },
+    "preinstall": "npx only-allow pnpm"
 }

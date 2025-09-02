@@ -19,7 +19,7 @@
     ],
     "exclude": [
         "node_modules",
-        "src/packages/cli/src/webui/**/*",
+        "src/packages/webui/**/*",
         "dist",
         "**/*.d.ts"
     ]
