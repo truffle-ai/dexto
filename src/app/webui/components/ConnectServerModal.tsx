@@ -211,11 +211,14 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             };
         }
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
             const res = await fetch('/api/connect-server', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: serverName.trim(), config }),
+                signal: controller.signal,
             });
             const result = await res.json();
             if (!res.ok) {
@@ -239,9 +242,18 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 onServerConnected();
             }
             onClose();
-        } catch (err: any) {
-            setError(err.message || 'Failed to connect server');
+        } catch (err: unknown) {
+            let message = 'Failed to connect server';
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                message = 'Connection timed out';
+            } else if (err instanceof Error) {
+                message = err.message || message;
+            } else if (typeof err === 'string') {
+                message = err;
+            }
+            setError(message);
         } finally {
+            clearTimeout(timeoutId);
             setIsSubmitting(false);
         }
     };
