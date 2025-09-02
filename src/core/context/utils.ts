@@ -1,12 +1,15 @@
-import { InternalMessage } from './types.js';
+import { InternalMessage, TextPart, ImagePart, FilePart } from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { logger } from '@core/logger/index.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
+import { safeStringify } from '@core/utils/safe-stringify.js';
 
-// Approximation for message format overhead
-const DEFAULT_OVERHEAD_PER_MESSAGE = 4;
+// Tunable heuristics and shared constants
+const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
+const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
+const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
 /**
  * Counts the total tokens in an array of InternalMessages using a provided tokenizer.
@@ -45,9 +48,15 @@ export function countMessagesTokens(
                         } else if (part.type === 'image') {
                             // Approximate tokens for images: estimate ~1 token per 1KB or based on Base64 length
                             if (typeof part.image === 'string') {
-                                // Base64 string length -> bytes -> tokens (~4 bytes per token)
-                                const byteLength = Math.floor((part.image.length * 3) / 4);
-                                total += Math.ceil(byteLength / 1024);
+                                if (isDataUri(part.image)) {
+                                    // Extract base64 payload and compute byte length
+                                    const base64Payload = extractBase64FromDataUri(part.image);
+                                    const byteLength = base64LengthToBytes(base64Payload.length);
+                                    total += Math.ceil(byteLength / 1024);
+                                } else {
+                                    // Treat as URL/text: estimate token cost based on string length
+                                    total += estimateTextTokens(part.image);
+                                }
                             } else if (
                                 part.image instanceof Uint8Array ||
                                 part.image instanceof Buffer ||
@@ -62,9 +71,15 @@ export function countMessagesTokens(
                         } else if (part.type === 'file') {
                             // Approximate tokens for files: estimate ~1 token per 1KB or based on Base64 length
                             if (typeof part.data === 'string') {
-                                // Base64 string length -> bytes -> tokens (~4 bytes per token)
-                                const byteLength = Math.floor((part.data.length * 3) / 4);
-                                total += Math.ceil(byteLength / 1024);
+                                if (isDataUri(part.data)) {
+                                    // Extract base64 payload and compute byte length
+                                    const base64Payload = extractBase64FromDataUri(part.data);
+                                    const byteLength = base64LengthToBytes(base64Payload.length);
+                                    total += Math.ceil(byteLength / 1024);
+                                } else {
+                                    // Treat as URL/text: estimate token cost based on string length
+                                    total += estimateTextTokens(part.data);
+                                }
                             } else if (
                                 part.data instanceof Uint8Array ||
                                 part.data instanceof Buffer ||
@@ -125,7 +140,7 @@ export function getImageData(imagePart: {
     } else if (image instanceof URL) {
         return image.toString();
     }
-    console.warn('Unexpected image data type in getImageData:', typeof image);
+    logger.warn(`Unexpected image data type in getImageData: ${typeof image}`);
     return '';
 }
 
@@ -149,7 +164,7 @@ export function getFileData(filePart: {
     } else if (data instanceof URL) {
         return data.toString();
     }
-    console.warn('Unexpected file data type in getFileData:', typeof data);
+    logger.warn(`Unexpected file data type in getFileData: ${typeof data}`);
     return '';
 }
 
@@ -206,7 +221,317 @@ export function filterMessagesByLLMCapabilities(
         });
     } catch (error) {
         // If filtering fails, return original messages to avoid breaking the flow
-        console.warn('Failed to filter messages by LLM capabilities:', error);
+        logger.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);
         return messages;
     }
+}
+
+/**
+ * Detect if a string is likely a Base64 blob (not a typical sentence/text).
+ * Uses a length threshold and character set heuristic.
+ */
+export function isLikelyBase64String(
+    value: string,
+    minLength: number = MIN_BASE64_HEURISTIC_LENGTH
+): boolean {
+    if (!value || value.length < minLength) return false;
+    // Fast-path for data URIs which embed base64
+    if (value.startsWith('data:') && value.includes(';base64,')) return true;
+    // Heuristic: base64 characters only and length divisible by 4 (allow small remainder due to padding)
+    const b64Regex = /^[A-Za-z0-9+/=\r\n]+$/;
+    if (!b64Regex.test(value)) return false;
+    // Low whitespace / punctuation typical for base64
+    const nonWordRatio = (value.match(/[^A-Za-z0-9+/=]/g)?.length || 0) / value.length;
+    return nonWordRatio < 0.01;
+}
+
+/**
+ * Parse data URI and return { mediaType, base64 } or null if not a data URI.
+ */
+export function parseDataUri(value: string): { mediaType: string; base64: string } | null {
+    if (!value.startsWith('data:')) return null;
+    const commaIdx = value.indexOf(',');
+    if (commaIdx === -1) return null;
+    const meta = value.slice(5, commaIdx); // skip 'data:'
+    if (!/;base64$/i.test(meta)) return null;
+    const mediaType = meta.replace(/;base64$/i, '') || 'application/octet-stream';
+    const base64 = value.slice(commaIdx + 1);
+    return { mediaType, base64 };
+}
+
+/**
+ * Recursively sanitize objects by replacing suspiciously-large base64 strings
+ * with placeholders to avoid blowing up the context window.
+ */
+function sanitizeDeepObject(obj: unknown): unknown {
+    if (obj == null) return obj;
+    if (typeof obj === 'string') {
+        if (isLikelyBase64String(obj)) {
+            // Replace with short placeholder; do not keep raw data
+            const approxBytes = Math.floor((obj.length * 3) / 4);
+            logger.debug(
+                `sanitizeDeepObject: replaced large base64 string (~${approxBytes} bytes) with placeholder`
+            );
+            return `[binary data omitted ~${approxBytes} bytes]`;
+        }
+        return obj;
+    }
+    if (Array.isArray(obj)) return obj.map((x) => sanitizeDeepObject(x));
+    if (typeof obj === 'object') {
+        const out: Record<string, any> = {};
+        for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+            out[k] = sanitizeDeepObject(v);
+        }
+        return out;
+    }
+    return obj;
+}
+
+/**
+ * Convert an arbitrary tool result into safe InternalMessage content.
+ * - Converts data URIs and base64 blobs to media/file parts
+ * - Removes huge binary blobs inside objects
+ * - Truncates extremely long raw text
+ */
+export function sanitizeToolResultToContent(result: unknown): InternalMessage['content'] {
+    try {
+        // Case 1: string outputs
+        if (typeof result === 'string') {
+            // Data URI
+            const dataUri = parseDataUri(result);
+            if (dataUri) {
+                const mediaType = dataUri.mediaType;
+                logger.debug(
+                    `sanitizeToolResultToContent: detected data URI (${mediaType}), converting to media part`
+                );
+                if (mediaType.startsWith('image/')) {
+                    return [{ type: 'image', image: dataUri.base64, mimeType: mediaType }];
+                }
+                // Use a generic file part for non-image media types
+                return [{ type: 'file', data: dataUri.base64, mimeType: mediaType }];
+            }
+            // Raw base64-like blob
+            if (isLikelyBase64String(result)) {
+                logger.debug(
+                    'sanitizeToolResultToContent: detected base64-like string, converting to file part'
+                );
+                return [
+                    {
+                        type: 'file',
+                        data: result,
+                        mimeType: 'application/octet-stream',
+                        filename: 'tool-output.bin',
+                    },
+                ];
+            }
+            // Long text: truncate with ellipsis to keep context sane
+            if (result.length > MAX_TOOL_TEXT_CHARS) {
+                const head = result.slice(0, 4000);
+                const tail = result.slice(-1000);
+                logger.debug(
+                    `sanitizeToolResultToContent: truncating long text tool output (len=${result.length})`
+                );
+                return `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`;
+            }
+            return result;
+        }
+
+        // Case 2: array of parts or mixed
+        if (Array.isArray(result)) {
+            // Ensure only supported part types (text|image|file) appear in the array
+            const parts: Array<TextPart | ImagePart | FilePart> = [];
+            for (const item of result as unknown[]) {
+                if (item == null) continue;
+                // Strings: decide if base64/file or plain text
+                if (typeof item === 'string') {
+                    const dataUri = parseDataUri(item);
+                    if (dataUri) {
+                        const mt = dataUri.mediaType;
+                        if (mt.startsWith('image/'))
+                            parts.push({ type: 'image', image: dataUri.base64, mimeType: mt });
+                        else parts.push({ type: 'file', data: dataUri.base64, mimeType: mt });
+                        continue;
+                    }
+                    if (isLikelyBase64String(item)) {
+                        parts.push({
+                            type: 'file',
+                            data: item,
+                            mimeType: 'application/octet-stream',
+                            filename: 'tool-output.bin',
+                        });
+                        continue;
+                    }
+                    parts.push({ type: 'text', text: item });
+                    continue;
+                }
+                // Objects: try coercions, else stringify as text
+                if (typeof item === 'object') {
+                    const obj = item as Record<string, any>;
+                    // Explicitly-typed text part
+                    if (obj.type === 'text' && typeof obj.text === 'string') {
+                        parts.push({ type: 'text', text: obj.text });
+                        continue;
+                    }
+                    // Image-like
+                    if ((obj.type === 'image' && obj.image !== undefined) || 'image' in obj) {
+                        parts.push({
+                            type: 'image',
+                            image: getImageData({ image: obj.image }),
+                            mimeType: obj.mimeType || 'image/jpeg',
+                        });
+                        continue;
+                    }
+                    // File-like
+                    if (obj.type === 'file' && obj.data !== undefined) {
+                        parts.push({
+                            type: 'file',
+                            data: getFileData({ data: obj.data }),
+                            mimeType: obj.mimeType || 'application/octet-stream',
+                            filename: obj.filename,
+                        });
+                        continue;
+                    }
+                    if ('data' in obj && (typeof obj.mimeType === 'string' || obj.filename)) {
+                        parts.push({
+                            type: 'file',
+                            data: getFileData({ data: obj.data }),
+                            mimeType: obj.mimeType || 'application/octet-stream',
+                            filename: obj.filename,
+                        });
+                        continue;
+                    }
+                    // Unknown object -> stringify a sanitized copy as text
+                    const cleaned = sanitizeDeepObject(obj);
+                    parts.push({ type: 'text', text: safeStringify(cleaned) });
+                    continue;
+                }
+                // Other primitives -> coerce to text
+                parts.push({ type: 'text', text: String(item) });
+            }
+            return parts as InternalMessage['content'];
+        }
+
+        // Case 3: object — attempt to infer media, otherwise stringify safely
+        if (result && typeof result === 'object') {
+            // Common shapes: { image, mimeType? } or { data, mimeType }
+            const anyObj = result as Record<string, any>;
+            if ('image' in anyObj) {
+                return [
+                    {
+                        type: 'image',
+                        image: getImageData({ image: anyObj.image }),
+                        mimeType: anyObj.mimeType || 'image/jpeg',
+                    },
+                ];
+            }
+            if ('data' in anyObj && anyObj.mimeType) {
+                return [
+                    {
+                        type: 'file',
+                        data: getFileData({ data: anyObj.data }),
+                        mimeType: anyObj.mimeType,
+                        filename: anyObj.filename,
+                    },
+                ];
+            }
+            // Generic object: remove huge base64 fields and stringify
+            const cleaned = sanitizeDeepObject(anyObj);
+            return safeStringify(cleaned);
+        }
+
+        // Fallback
+        return safeStringify(result ?? '');
+    } catch (err) {
+        logger.warn(`sanitizeToolResultToContent failed, falling back to string: ${String(err)}`);
+        try {
+            return safeStringify(result ?? '');
+        } catch {
+            return String(result ?? '');
+        }
+    }
+}
+
+/**
+ * Produce a short textual summary for tool content, to be used with providers
+ * that only accept text for tool messages (e.g., OpenAI/Anthropic tool role).
+ */
+export function summarizeToolContentForText(content: InternalMessage['content']): string {
+    if (!Array.isArray(content)) return String(content || '');
+    const parts: string[] = [];
+    for (const p of content) {
+        if (p.type === 'text') {
+            parts.push(p.text);
+        } else if (p.type === 'image') {
+            // Try estimating size
+            let bytes = 0;
+            if (typeof p.image === 'string') bytes = Math.floor((p.image.length * 3) / 4);
+            else if (p.image instanceof ArrayBuffer) bytes = p.image.byteLength;
+            else if (p.image instanceof Uint8Array) bytes = p.image.length;
+            else if (p.image instanceof Buffer) bytes = p.image.length;
+            parts.push(`[image ${p.mimeType || 'image'} ~${Math.ceil(bytes / 1024)}KB]`);
+        } else if (p.type === 'file') {
+            let bytes = 0;
+            if (typeof p.data === 'string') bytes = Math.floor((p.data.length * 3) / 4);
+            else if (p.data instanceof ArrayBuffer) bytes = p.data.byteLength;
+            else if (p.data instanceof Uint8Array) bytes = p.data.length;
+            else if (p.data instanceof Buffer) bytes = p.data.length;
+            const label = p.filename ? `${p.filename}` : `${p.mimeType || 'file'}`;
+            parts.push(`[file ${label} ~${Math.ceil(bytes / 1024)}KB]`);
+        }
+    }
+    const summary = parts.join('\n');
+    // Avoid passing enormous text anyway
+    return summary.slice(0, 4000);
+}
+
+// Helper: estimate base64 byte length from string length
+function base64LengthToBytes(charLength: number): number {
+    // 4 base64 chars -> 3 bytes; ignore padding for approximation
+    return Math.floor((charLength * 3) / 4);
+}
+
+/**
+ * Detects if a string is a data URI (base64 encoded).
+ * @param str The string to check
+ * @returns True if the string is a valid data URI with base64 encoding
+ */
+function isDataUri(str: string): boolean {
+    return str.startsWith('data:') && str.includes(';base64,');
+}
+
+/**
+ * Extracts the base64 payload from a data URI.
+ * @param dataUri The data URI string
+ * @returns The base64 payload after the comma, or empty string if malformed
+ */
+function extractBase64FromDataUri(dataUri: string): string {
+    const commaIndex = dataUri.indexOf(',');
+    return commaIndex !== -1 ? dataUri.substring(commaIndex + 1) : '';
+}
+
+/**
+ * Estimates token count for text strings using a character-per-token heuristic.
+ * @param text The text string to estimate
+ * @returns Estimated token count (conservative estimate: ~4 chars per token)
+ */
+function estimateTextTokens(text: string): number {
+    // Rough heuristic: ~4 characters per token for typical text
+    // This is a conservative estimate that can be adjusted based on actual usage
+    return Math.ceil(text.length / 4);
+}
+
+/**
+ * Convert arbitrary tool content to safe text for providers that only accept textual tool messages.
+ * - If content is an array of parts, summarize it.
+ * - If content is a string that looks like base64/data URI, replace with a short placeholder.
+ * - Otherwise pass text through.
+ */
+export function toTextForToolMessage(content: InternalMessage['content']): string {
+    if (Array.isArray(content)) {
+        return summarizeToolContentForText(content);
+    }
+    if (typeof content === 'string') {
+        return isLikelyBase64String(content) ? '[binary data omitted]' : content;
+    }
+    return String(content ?? '');
 }

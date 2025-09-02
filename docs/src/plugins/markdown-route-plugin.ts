@@ -25,7 +25,7 @@ export default function markdownRoutePlugin(
             path.join(basePath, 'README.md'),
             path.join(basePath, 'README.mdx'),
         ];
-        return candidates.find(p => fs.existsSync(p)) ?? null;
+        return candidates.find((p) => fs.existsSync(p)) ?? null;
     }
 
     // Helper function to copy markdown files to build folder for production
@@ -128,27 +128,27 @@ export default function markdownRoutePlugin(
                                 const apiRoot = path.join(siteDir, 'api');
 
                                 const matchPrefix = (p: string, prefix: string) =>
-                                  p.startsWith(prefix) ? p.slice(prefix.length) : null;
+                                    p.startsWith(prefix) ? p.slice(prefix.length) : null;
 
                                 let relativePath = matchPrefix(originalPath, DOCS_PREFIX);
                                 let root = docsRoot;
                                 if (relativePath == null) {
-                                  relativePath = matchPrefix(originalPath, API_PREFIX);
-                                  root = apiRoot;
+                                    relativePath = matchPrefix(originalPath, API_PREFIX);
+                                    root = apiRoot;
                                 }
 
                                 if (relativePath != null) {
-                                  // Normalize and ensure the resolved path stays within root
-                                  const resolvedBase = path.resolve(root, relativePath);
-                                  const rootResolved = path.resolve(root);
-                                  if (
-                                    resolvedBase !== rootResolved &&
-                                    !resolvedBase.startsWith(rootResolved + path.sep)
-                                  ) {
-                                    res.status(400).send('Invalid path');
-                                    return;
-                                  }
-                                  filePath = findMarkdownFile(resolvedBase);
+                                    // Normalize and ensure the resolved path stays within root
+                                    const resolvedBase = path.resolve(root, relativePath);
+                                    const rootResolved = path.resolve(root);
+                                    if (
+                                        resolvedBase !== rootResolved &&
+                                        !resolvedBase.startsWith(rootResolved + path.sep)
+                                    ) {
+                                        res.status(400).send('Invalid path');
+                                        return;
+                                    }
+                                    filePath = findMarkdownFile(resolvedBase);
                                 }
 
                                 if (filePath) {
