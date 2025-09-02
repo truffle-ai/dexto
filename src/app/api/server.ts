@@ -636,6 +636,17 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
+    // Get default greeting (for UI consumption)
+    app.get('/api/greeting', async (req, res, next) => {
+        try {
+            const sessionId = req.query.sessionId as string | undefined;
+            const config = agent.getEffectiveConfig(sessionId);
+            res.json({ greeting: config.greeting });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     // Get current LLM configuration
     app.get('/api/llm/current', async (req, res, next) => {
         try {
