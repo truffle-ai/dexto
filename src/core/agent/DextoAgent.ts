@@ -1,7 +1,7 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
@@ -39,7 +39,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'promptManager',
+    'systemPromptManager',
     'promptsManager',
     'agentEventBus',
     'stateManager',
@@ -104,7 +104,7 @@ export class DextoAgent {
      * But the main recommended entry points/functions would still be the wrapper methods we define below
      */
     public readonly mcpManager!: MCPManager;
-    public readonly promptManager!: PromptManager;
+    public readonly systemPromptManager!: SystemPromptManager;
     public readonly promptsManager!: PromptsManager;
     public readonly agentEventBus!: AgentEventBus;
     public readonly stateManager!: AgentStateManager;
@@ -170,7 +170,7 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
-                promptManager: services.promptManager,
+                systemPromptManager: services.systemPromptManager,
                 promptsManager: services.promptsManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
@@ -988,7 +988,7 @@ export class DextoAgent {
         const context = {
             mcpManager: this.mcpManager,
         };
-        return await this.promptManager.build(context);
+        return await this.systemPromptManager.build(context);
     }
 
     // ============= CONFIGURATION ACCESS =============
