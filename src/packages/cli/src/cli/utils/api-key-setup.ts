@@ -2,7 +2,8 @@
 
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { LLMProvider, logger } from '@core/index.js';
+import type { LLMProvider } from '@core/llm/types.js';
+import { logger } from '@core/logger/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
 import { getExecutionContext } from '@core/utils/execution-context.js';
 import { saveProviderApiKey } from '@core/utils/api-key-store.js';

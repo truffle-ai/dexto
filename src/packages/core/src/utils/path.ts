@@ -9,7 +9,7 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-import { logger } from '@core/index.js';
+import { logger } from '../logger/index.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects

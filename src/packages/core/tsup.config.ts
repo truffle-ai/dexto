@@ -3,13 +3,14 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
-        web: 'src/web.ts',
+        'logger/index': 'src/logger/index.ts',
+        'storage/index': 'src/storage/index.ts',
     },
     format: ['cjs', 'esm'],
     outDir: 'dist',
     dts: true,
     shims: true,
-    bundle: true,
+    bundle: false,
     noExternal: ['chalk', 'boxen'],
     external: ['better-sqlite3', 'pg', 'redis'],
 });

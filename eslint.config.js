@@ -102,6 +102,8 @@ export default [
             '**/dist/**',
             '.cursor/**',
             'public/**',
+            // Use the package-local ESLint config for Web UI instead of root config
+            'src/packages/webui/**',
             'src/packages/webui/.next/**',
             'src/packages/webui/out/**',
             '**/build/**',
@@ -126,4 +128,52 @@ export default [
     },
 
     prettier,
+    // Web UI safety rules: keep browser builds safe by restricting imports
+    // to types (and `toError`) from '@dexto/core' and forbidding internal '@core/*'.
+    // If this fails, it means an import would pull Node-only modules (fs/path/winston) into the UI bundle.
+    {
+        files: ['src/packages/webui/**/*.ts', 'src/packages/webui/**/*.tsx'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            group: ['@core/*'],
+                            message:
+                                "Web UI must not import from '@core/*'. Use '@dexto/core' for types, and call the API for runtime. This avoids bundling Node-only modules (fs/path/winston).",
+                        },
+                    ],
+                    paths: [
+                        {
+                            name: '@dexto/core/logger',
+                            message:
+                                'Web UI must not import the Node logger. Use the API for runtime or rely on browser console logging.',
+                        },
+                    ],
+                },
+            ],
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector:
+                        "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportDefaultSpecifier",
+                    message:
+                        "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
+                },
+                {
+                    selector:
+                        "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportNamespaceSpecifier",
+                    message:
+                        "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
+                },
+                {
+                    selector:
+                        "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportSpecifier:not([imported.name='toError'])",
+                    message:
+                        "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
+                },
+            ],
+        },
+    },
 ];

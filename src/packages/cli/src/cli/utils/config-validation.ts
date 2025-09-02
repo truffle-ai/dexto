@@ -4,7 +4,7 @@ import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
 import { interactiveApiKeySetup } from './api-key-setup.js';
 import { LLMErrorCode } from '@core/llm/error-codes.js';
 import type { LLMProvider } from '@core/index.js';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 
 /**
  * Validates agent config with optional interactive fixes for user experience.

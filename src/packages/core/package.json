@@ -12,25 +12,15 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./context/types": {
-      "types": "./dist/context/types.d.ts",
-      "import": "./dist/context/types.js"
+    "./logger": {
+      "types": "./dist/logger/index.d.ts",
+      "import": "./dist/logger/index.js",
+      "require": "./dist/logger/index.cjs"
     },
-    "./utils/error-conversion": {
-      "types": "./dist/utils/error-conversion.d.ts",
-      "import": "./dist/utils/error-conversion.js"
-    },
-    "./errors/types": {
-      "types": "./dist/errors/types.d.ts",
-      "import": "./dist/errors/types.js"
-    },
-    "./llm/registry": {
-      "types": "./dist/llm/registry.d.ts",
-      "import": "./dist/llm/registry.js"
-    },
-    "./mcp/schemas": {
-      "types": "./dist/mcp/schemas.d.ts",
-      "import": "./dist/mcp/schemas.js"
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js",
+      "require": "./dist/storage/index.cjs"
     },
     "./package.json": "./package.json"
   },
@@ -39,6 +29,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts"
   }
 }

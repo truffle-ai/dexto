@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 import { redactSensitiveData } from '@core/utils/redactor.js';
 import type { AgentCard } from '@core/index.js';
 import { setupA2ARoutes } from './a2a.js';

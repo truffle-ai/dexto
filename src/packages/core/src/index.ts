@@ -1,13 +1,40 @@
-export * from './logger/index.js';
-export * from './utils/index.js';
-export * from './errors/index.js';
-export * from './agent/index.js';
-export * from './llm/index.js';
-export * from './search/index.js';
-export * from './systemPrompt/index.js';
-export * from './config/index.js';
-export * from './mcp/index.js';
-export * from './events/index.js';
-export * from './storage/index.js';
-export * from './tools/index.js';
-export * from './session/index.js';
+// Browser-safe root exports
+// IMPORTANT: Only export runtime-safe utilities here. Everything else should be type-only
+// to avoid pulling Node-only modules (logger, storage, config, agent registry) into the browser.
+
+// Runtime-safe utility
+export { toError } from './utils/error-conversion.js';
+
+// Type-only exports (no runtime code included in JS output)
+export type { Issue, Severity, DextoErrorCode, ErrorScope, ErrorType } from './errors/types.js';
+
+export type { InternalMessage, TextPart, ImagePart, FilePart } from './context/types.js';
+
+export type { LLMContext, LLMUpdateContext, LLMProvider, LLMRouter } from './llm/types.js';
+
+export type {
+    McpServerConfig,
+    ValidatedMcpServerConfig,
+    ServerConfigs,
+    ValidatedServerConfigs,
+} from './mcp/schemas.js';
+
+// Public LLM Registry API (browser-safe)
+export {
+    getSupportedProviders,
+    getSupportedModels,
+    getDefaultModelForProvider,
+    getMaxInputTokensForModel,
+    isValidProviderModel,
+    getProviderFromModel,
+    getAllSupportedModels,
+    getSupportedRoutersForProvider,
+    supportsBaseURL,
+    requiresBaseURL,
+    acceptsAnyModel,
+    isRouterSupportedForProvider,
+    getSupportedFileTypesForModel,
+    getEffectiveMaxInputTokens,
+} from './llm/registry.js';
+
+export type { ProviderInfo, ModelInfo, SupportedFileType } from './llm/registry.js';

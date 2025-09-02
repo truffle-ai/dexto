@@ -1,3 +1,45 @@
+/**
+ * TODO(logger-browser-safety): Make logging environment-safe without breaking consumers
+ *
+ * Problem
+ * - The core logger is Node-only (winston + fs/path + file IO). If any module that depends on this
+ *   logger is included in a browser bundle (directly or via an overly broad root export), Web UI builds
+ *   can fail. Today our Web UI only imports types and a small util, so bundlers tree‑shake away the
+ *   Node logger, but this is fragile if future UI imports include runtime modules.
+ *
+ * Constraints/Goals
+ * - Keep file-based logging as the default for Node (excellent DX/UX).
+ * - Keep logs visible in the browser (console-based), never a no‑op.
+ * - Avoid touching “a lot of files” or changing call sites for consumers.
+ * - Keep `@dexto/core` ergonomic; browser consumers should not have to learn a separate API.
+ *
+ * Plan (incremental)
+ * 1) Introduce an environment-aware logging boundary:
+ *    - Create a browser-safe logger implementation (console-based) that matches the logger API.
+ *    - Expose logging via a subpath `@dexto/core/logger` and add conditional exports so that:
+ *      - Browser resolves to the console logger
+ *      - Node resolves to this file-based logger (current Winston version)
+ *    - Alternative: use the `browser` field in package.json to alias the Node logger file to a
+ *      browser-safe implementation at bundle time. Subpath conditional exports are preferred for clarity.
+ *
+ * 2) Keep the root export of `@dexto/core` browser-safe by default:
+ *    - Continue to expose types and UI-safe helpers from the root.
+ *    - Keep Node-only modules (storage/config/agent-registry/etc.) on explicit subpaths so browser
+ *      builds do not pull them accidentally.
+ *
+ * 3) Optional API ergonomics:
+ *    - Provide a top-level `Dexto` object (runtime orchestrator) that accepts a `logger` in its config
+ *      and propagates it to sub-services (MCP manager, storage, etc.). This allows injection without
+ *      consumers needing to import Node-only loggers.
+ *
+ * 4) UI safety now (tactical):
+ *    - Ensure the Web UI imports types with `import type { ... } from '@dexto/core'` and uses API calls
+ *      for runtime. This avoids bundling Node code until the logger split is implemented.
+ *
+ * Verification & Guardrails
+ * - Add a CI check that building a minimal Next/Vite app that imports root `@dexto/core` types succeeds.
+ * - Mark side-effect status appropriately and keep top-level Node-only side effects out of root paths.
+ */
 import * as winston from 'winston';
 import chalk from 'chalk';
 import boxen from 'boxen';

@@ -1,4 +1,12 @@
-import { logger } from '../logger/index.js';
+// Lightweight console-backed logger (browser-safe)
+const logger = {
+    debug: (...args: any[]) =>
+        typeof console !== 'undefined' ? console.debug(...args) : undefined,
+    info: (...args: any[]) => (typeof console !== 'undefined' ? console.info(...args) : undefined),
+    warn: (...args: any[]) => (typeof console !== 'undefined' ? console.warn(...args) : undefined),
+    error: (...args: any[]) =>
+        typeof console !== 'undefined' ? console.error(...args) : undefined,
+};
 import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';

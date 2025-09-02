@@ -1,5 +1,5 @@
 /** File for all web server starting up code */
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';

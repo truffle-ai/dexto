@@ -1,4 +1,19 @@
-import { LLMProvider, LLMRouter } from './registry.js';
+// Browser-safe LLM type definitions
+// Keep these in this file (no imports) so consumers can import types
+// from the package root without pulling in Node-only modules.
+
+// Known providers (align with registry constants)
+export type LLMProvider =
+    | 'openai'
+    | 'openai-compatible'
+    | 'anthropic'
+    | 'google'
+    | 'groq'
+    | 'xai'
+    | 'cohere';
+
+// Known routers
+export type LLMRouter = 'vercel' | 'in-built';
 
 /**
  * LLMRouter defines the routing backend for LLM service instantiation.

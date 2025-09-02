@@ -1,4 +1,4 @@
-import type { LLMRouter, LLMProvider } from '../llm/registry.js';
+import type { LLMRouter, LLMProvider } from '../llm/types.js';
 
 /**
  * Internal representation of a message in a conversation.

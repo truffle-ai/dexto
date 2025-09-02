@@ -459,7 +459,7 @@ export default function ChatApp() {
         {/** Shared centered content width for welcome, messages, and composer */}
         {/** Keep this in sync to unify UI width like other chat apps */}
         {/** 720px base, expand to ~2xl on sm, ~3xl on lg */}
-        {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
+        {/* Unused var directive removed; keep code clean */}
         {(() => {
           /* no-op to allow inline constant-like usage below via variable */
           return null;

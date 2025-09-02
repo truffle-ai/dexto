@@ -10,6 +10,7 @@
     "main": "dist/src/core/index.cjs",
     "module": "dist/src/core/index.js",
     "types": "dist/src/core/index.d.ts",
+    "packageManager": "pnpm@10.12.4",
     "bin": {
         "dexto": "./dist/src/cli/index.js"
     },
@@ -37,7 +38,7 @@
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
         "start": "node dist/src/cli/index.js",
         "dev": "tsc --watch",
-        "lint": "eslint .",
+        "lint": "turbo run lint",
         "lint:fix": "eslint . --fix",
         "format": "prettier --write \"src/**/*.ts\"",
         "format:check": "prettier --check \"src/**/*.ts\"",
@@ -135,7 +136,8 @@
         "ts-node": "^10.9.2",
         "tsup": "^8.4.0",
         "tsx": "^4.19.2",
-        "vitest": "^3.1.3"
+        "vitest": "^3.1.3",
+        "turbo": "^2.0.14"
     },
     "lint-staged": {
         "*.ts": [

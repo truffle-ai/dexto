@@ -2,7 +2,7 @@ import { findPackageRoot } from '@core/utils/path.js';
 import fsExtra from 'fs-extra';
 import path from 'path';
 import { PackageJson } from 'type-fest';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 
 /**
  * Returns the install command for the given package manager

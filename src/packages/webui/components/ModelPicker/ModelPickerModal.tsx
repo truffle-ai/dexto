@@ -13,7 +13,7 @@ import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lu
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
 import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL } from "./types";
-import type { LLMRouter as SupportedRouter } from "@core/llm/registry.js";
+import type { LLMRouter as SupportedRouter } from "@dexto/core";
 import { Input } from "../ui/input";
 import { cn } from "../../lib/utils";
 import {
@@ -22,7 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMProvider } from "@core/llm/registry.js";
+import type { LLMProvider } from "@dexto/core";
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 

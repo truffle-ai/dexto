@@ -1,6 +1,6 @@
 import readline from 'readline';
 import chalk from 'chalk';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 import { CLISubscriber } from './cli-subscriber.js';
 import { DextoAgent } from '@core/index.js';
 import { parseInput } from './commands/interactive-commands/command-parser.js';

@@ -5,7 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { AgentCard } from '@core/index.js';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 import { z } from 'zod';
 import express from 'express';
 import { DextoAgent } from '@core/index.js';

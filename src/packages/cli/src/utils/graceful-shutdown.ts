@@ -1,5 +1,5 @@
 import type { DextoAgent } from '@core/index.js';
-import { logger } from '@core/index.js';
+import { logger } from '@core/logger/index.js';
 
 export function registerGracefulShutdown(agent: DextoAgent): void {
     const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGUSR2'];

@@ -1,8 +1,12 @@
 {
   "version": "1.1.2",
   "type": "module",
+  "dependencies": {
+    "@dexto/core": "workspace:*"
+  },
   "scripts": {
     "build": "tsup -c",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts"
   }
 }
