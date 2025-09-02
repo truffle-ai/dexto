@@ -293,12 +293,21 @@ export class Logger {
             borderColor = 'red';
             title = '❌ Tool Error';
         } else if (typeof result === 'string') {
-            // Plain string response
-            displayText = result;
+            // Plain string response - truncate if too long
+            if (result.length > 1000) {
+                displayText = `${result.slice(0, 500)}... [${result.length - 500} chars omitted]`;
+            } else {
+                displayText = result;
+            }
         } else {
-            // Fallback for any other format
+            // Fallback for any other format - truncate if too long
             try {
-                displayText = JSON.stringify(result, null, 2);
+                const resultStr = JSON.stringify(result, null, 2);
+                if (resultStr.length > 2000) {
+                    displayText = `${resultStr.slice(0, 1000)}... [${resultStr.length - 1000} chars omitted]`;
+                } else {
+                    displayText = resultStr;
+                }
             } catch {
                 displayText = `[Unparseable result: ${typeof result}]`;
             }

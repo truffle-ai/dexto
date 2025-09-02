@@ -24,9 +24,8 @@ jobs:
 
       - name: Build
         run: npm run build
-        continue-on-error: true  # Remove or set to false if build is required
 
       - name: Publish to npm
         run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} 
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
