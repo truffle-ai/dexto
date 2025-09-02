@@ -14,7 +14,7 @@ export default defineConfig([
     },
     // App entry: only ESM, no bundling needed
     {
-        entry: ['src/app/index.ts'],
+        entry: ['src/packages/cli/src/index.ts'],
         format: ['esm'],
         outDir: 'dist/src/app',
         shims: true,

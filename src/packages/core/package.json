@@ -13,6 +13,9 @@
       "require": "../../dist/src/core/index.cjs"
     },
     "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup -c",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }
-

@@ -8,7 +8,7 @@ const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
 const rootDir: string = path.resolve(__dirname, '..');
 
 // Define source and target paths
-const sourceWebUIDir: string = path.join(rootDir, 'src', 'app', 'webui');
+const sourceWebUIDir: string = path.join(rootDir, 'src', 'packages', 'cli', 'src', 'webui');
 const targetDir: string = path.join(rootDir, 'dist', 'src', 'app', 'webui');
 
 async function copyWebUIBuild(): Promise<void> {

@@ -14,15 +14,16 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Move `src/core` → `src/packages/core/src`
 - [x] Create `src/packages/core/package.json` (exports, types). Use root tsup for now.
 - [x] Update path aliases to `@core/*` → `src/packages/core/src/*` (root, vitest, next/webui)
-- [ ] Add per-package tsup config (optional now)
-- [ ] Typecheck/lint/test `@dexto/core` package
+- [x] Add per-package tsup config
+- [ ] Typecheck/lint/test `@dexto/core` package (package-level)
 
 ## Phase 3 — Package `dexto` (CLI)
-- [ ] Move `src/app` → `src/packages/cli/src`
-- [ ] Create `src/packages/cli/package.json` (`name: dexto`, `bin: { dexto: dist/index.js }`)
-- [ ] Migrate/adjust tsup config for CLI build
-- [ ] Move/copy `scripts/copy-webui-dist.ts` into `dexto` and update paths
+- [x] Move `src/app` → `src/packages/cli/src`
+- [x] Create `src/packages/cli/package.json` (`type: module`, scripts)
+- [x] Migrate/adjust tsup config for CLI build
+- [x] Update copy script paths (kept at root; optional move into `dexto` later)
 - [ ] Verify `dexto` works: cli, web, server modes
+- [x] Add per-package tsup/tsconfig for CLI
 
 ## Phase 4 — Package `@dexto/webui` (Next.js)
 - [ ] Move `src/app/webui` → `src/packages/webui`
@@ -47,7 +48,7 @@ Track progress here. Update checkboxes as tasks complete.
 
 ## Lints & Typechecks
 - [ ] Root ESLint flat config; per-package overrides (Node, CLI, Next)
-- [ ] Root `tsconfig.base.json`; per-package `tsconfig.json`; optional TS project references
+- [x] Root `tsconfig.base.json`; per-package `tsconfig.json` for core/cli; optional TS project references
 - [ ] Align Vitest config per-package or shared; add root `test` script
 
 ## Documentation & Contributor Experience

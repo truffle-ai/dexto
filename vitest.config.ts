@@ -5,7 +5,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@core': path.resolve(__dirname, 'src/packages/core/src'),
-            '@app': path.resolve(__dirname, 'src/app'),
+            '@app': path.resolve(__dirname, 'src/packages/cli/src'),
         },
     },
     test: {

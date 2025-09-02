@@ -8,7 +8,7 @@
         "downlevelIteration": true,
         "baseUrl": ".",
         "paths": {
-            "@app/*": ["src/app/*"],
+            "@app/*": ["src/packages/cli/src/*"],
             "@core/*": ["src/packages/core/src/*"],
             "mitt": ["./node_modules/mitt/dist/index.d.ts"]
         },
