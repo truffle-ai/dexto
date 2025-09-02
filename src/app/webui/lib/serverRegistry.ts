@@ -1,8 +1,12 @@
 import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
+import builtinRegistryData from './server-registry-data.json';
 
 /**
  * MCP Server Registry Service
  * Manages a registry of available MCP servers that can be quickly added to agents
+ *
+ * The built-in registry data is loaded from an external JSON file (server-registry-data.json)
+ * to make it easy to add new servers without rebuilding the codebase.
  */
 export class ServerRegistryService {
     private static instance: ServerRegistryService;
@@ -26,7 +30,7 @@ export class ServerRegistryService {
     async initialize(): Promise<void> {
         if (this.isInitialized) return;
 
-        // Load built-in registry entries
+        // Load built-in registry entries from external JSON file
         this.registryEntries = this.getBuiltinEntries();
 
         // Load custom entries from localStorage
@@ -196,218 +200,10 @@ export class ServerRegistryService {
 
     /**
      * Built-in registry entries for popular MCP servers
+     * Loaded from external JSON file for easy maintenance
      */
     private getBuiltinEntries(): ServerRegistryEntry[] {
-        return [
-            {
-                id: 'filesystem',
-                name: 'Filesystem',
-                description:
-                    'Secure file operations with configurable access controls for reading and writing files',
-                category: 'productivity',
-                icon: '📁',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
-                    timeout: 30000,
-                },
-                tags: ['file', 'directory', 'filesystem', 'io'],
-                isOfficial: true,
-                isInstalled: false,
-                author: 'Anthropic',
-                homepage: 'https://github.com/modelcontextprotocol/servers',
-                matchIds: ['filesystem'],
-            },
-            {
-                id: 'meme-mcp',
-                name: 'Meme Generator',
-                description: 'Create memes using Imgflip templates',
-                category: 'creative',
-                icon: '🖼️',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', 'meme-mcp'],
-                    env: {
-                        IMGFLIP_USERNAME: '',
-                        IMGFLIP_PASSWORD: '',
-                    },
-                    timeout: 30000,
-                },
-                tags: ['meme', 'image', 'creative'],
-                isOfficial: false,
-                isInstalled: false,
-                requirements: { platform: 'all', node: '>=18.0.0' },
-                author: 'Community',
-                homepage: 'https://www.npmjs.com/package/meme-mcp',
-                matchIds: ['meme-mcp'],
-            },
-            {
-                id: 'product-name-scout',
-                name: 'Product Name Scout',
-                description:
-                    'SERP analysis, autocomplete, dev collisions, and scoring for product names',
-                category: 'research',
-                icon: '🔎',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@truffle-ai/product-name-scout-mcp'],
-                    timeout: 30000,
-                },
-                tags: ['research', 'naming', 'brand'],
-                isOfficial: true,
-                isInstalled: false,
-                requirements: { platform: 'all', node: '>=18.0.0' },
-                author: 'Truffle AI',
-                homepage: 'https://github.com/truffle-ai/mcp-servers',
-                matchIds: ['product-name-scout'],
-            },
-            {
-                id: 'duckduckgo',
-                name: 'DuckDuckGo Search',
-                description: 'Search the web using DuckDuckGo',
-                category: 'research',
-                icon: '🦆',
-                config: {
-                    type: 'stdio',
-                    command: 'uvx',
-                    args: ['duckduckgo-mcp-server'],
-                    timeout: 30000,
-                },
-                tags: ['search', 'web', 'research'],
-                isOfficial: false,
-                isInstalled: false,
-                requirements: { platform: 'all', python: '>=3.10' },
-                author: 'Community',
-                homepage: 'https://github.com/duckduckgo/mcp-server',
-                matchIds: ['duckduckgo'],
-            },
-            {
-                id: 'domain-checker',
-                name: 'Domain Checker',
-                description: 'Check domain availability across TLDs',
-                category: 'research',
-                icon: '🌐',
-                config: {
-                    type: 'stdio',
-                    command: 'uvx',
-                    args: ['truffle-ai-domain-checker-mcp'],
-                    timeout: 30000,
-                },
-                tags: ['domains', 'availability', 'research'],
-                isOfficial: true,
-                isInstalled: false,
-                requirements: { platform: 'all', python: '>=3.10' },
-                author: 'Truffle AI',
-                homepage: 'https://github.com/truffle-ai/mcp-servers',
-                matchIds: ['domain-checker'],
-            },
-            {
-                id: 'linear',
-                name: 'Linear',
-                description: 'Manage Linear issues, projects, and workflows',
-                category: 'productivity',
-                icon: '📋',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', 'mcp-remote', 'https://mcp.linear.app/sse'],
-                    timeout: 30000,
-                },
-                tags: ['linear', 'tasks', 'projects'],
-                isOfficial: true,
-                isInstalled: false,
-                requirements: { platform: 'all', node: '>=18.0.0' },
-                author: 'Linear',
-                homepage: 'https://mcp.linear.app',
-                matchIds: ['linear'],
-            },
-            {
-                id: 'image-editor',
-                name: 'Image Editor',
-                description: 'Comprehensive image processing and manipulation tools',
-                category: 'creative',
-                icon: '🖌️',
-                config: {
-                    type: 'stdio',
-                    command: 'uvx',
-                    args: ['truffle-ai-image-editor-mcp'],
-                    timeout: 30000,
-                },
-                tags: ['image', 'edit', 'opencv', 'pillow'],
-                isOfficial: true,
-                isInstalled: false,
-                requirements: { platform: 'all', python: '>=3.10' },
-                author: 'Truffle AI',
-                homepage: 'https://github.com/truffle-ai/mcp-servers',
-                matchIds: ['image_editor', 'image-editor'],
-            },
-            {
-                id: 'music-creator',
-                name: 'Music Creator',
-                description: 'Create, analyze, and transform music and audio',
-                category: 'creative',
-                icon: '🎵',
-                config: {
-                    type: 'stdio',
-                    command: 'uvx',
-                    args: ['truffle-ai-music-creator-mcp'],
-                    timeout: 30000,
-                },
-                tags: ['audio', 'music', 'effects'],
-                isOfficial: true,
-                isInstalled: false,
-                requirements: { platform: 'all', python: '>=3.10' },
-                author: 'Truffle AI',
-                homepage: 'https://github.com/truffle-ai/mcp-servers',
-                matchIds: ['music_creator', 'music-creator'],
-            },
-            {
-                id: 'elevenlabs',
-                name: 'ElevenLabs',
-                description: 'Text-to-speech and voice synthesis using ElevenLabs API',
-                category: 'creative',
-                icon: '🎤',
-                config: {
-                    type: 'stdio',
-                    command: 'uvx',
-                    args: ['elevenlabs-mcp'],
-                    env: {
-                        ELEVENLABS_API_KEY: '',
-                    },
-                    timeout: 30000,
-                },
-                tags: ['tts', 'voice', 'audio', 'synthesis'],
-                isOfficial: true,
-                isInstalled: false,
-                requirements: { platform: 'all', python: '>=3.10' },
-                author: 'Community',
-                homepage: 'https://github.com/elevenlabs/elevenlabs-mcp',
-                matchIds: ['elevenlabs'],
-            },
-            {
-                id: 'hf',
-                name: 'Hugging Face',
-                description: 'Access Hugging Face models and datasets',
-                category: 'development',
-                icon: '🤗',
-                config: {
-                    type: 'stdio',
-                    command: 'npx',
-                    args: ['-y', '@llmindset/mcp-hfspace'],
-                    timeout: 30000,
-                },
-                tags: ['huggingface', 'models', 'ai', 'ml'],
-                isOfficial: false,
-                isInstalled: false,
-                requirements: { platform: 'all', node: '>=18.0.0' },
-                author: 'LLMindset',
-                homepage: 'https://github.com/llmindset/mcp-hfspace',
-                matchIds: ['hf', 'huggingface'],
-            },
-        ];
+        return builtinRegistryData as ServerRegistryEntry[];
     }
 
     /**
