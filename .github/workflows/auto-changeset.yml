@@ -1,0 +1,56 @@
+name: Auto Changeset
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  auto:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine bump by labels
+        id: bump
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = (await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })).data.map(l => l.name);
+            let level = 'patch';
+            if (labels.includes('type:breaking')) level = 'major';
+            else if (labels.includes('type:feat')) level = 'minor';
+            core.setOutput('level', level);
+      - name: Detect changed packages
+        id: pkgs
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1 || true
+          git diff --name-only origin/${{ github.base_ref }}... > changed.txt
+          node -e "const fs=require('fs');const lines=fs.readFileSync('changed.txt','utf8').trim().split(/\n/);const pkgs=new Set();for(const f of lines){const m=f.match(/^src\/packages\/(core|cli|server)\//);if(m){const name=m[1]==='cli'?'dexto':'@dexto/'+m[1];pkgs.add(name);}}console.log([...pkgs].join(','));" > pkgs.txt
+          echo "packages=$(cat pkgs.txt)" >> $GITHUB_OUTPUT
+      - name: Create changeset file if needed
+        run: |
+          if [ -z "$(git ls-files .changeset | grep \.md$ || true)" ]; then
+            if [ -s pkgs.txt ]; then
+              slug="auto-${{ github.event.number }}-${RANDOM}"
+              mkdir -p .changeset
+              echo "---" > .changeset/$slug.md
+              IFS=',' read -ra ARR <<< "$(cat pkgs.txt)"
+              for p in "${ARR[@]}"; do echo "\"$p\": ${{ steps.bump.outputs.level }}" >> .changeset/$slug.md; done
+              echo "---" >> .changeset/$slug.md
+              echo >> .changeset/$slug.md
+              echo "Automated changeset for PR #${{ github.event.number }}." >> .changeset/$slug.md
+              git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+              git add .changeset/$slug.md && git commit -m "chore: add auto changeset for PR #${{ github.event.number }}" && git push || true
+            fi
+          fi
+
