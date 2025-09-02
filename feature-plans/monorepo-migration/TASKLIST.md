@@ -30,6 +30,16 @@ Track progress here. Update checkboxes as tasks complete.
 - [ ] Ensure webui build works; update alias/transpile if needed
 - [ ] Update `dexto` build to run webui build and copy `.next/standalone`
 
+## Phase 5 — Core API Surface (Browser‑Safe Root + Subpaths)
+- [ ] Make `@dexto/core` root export browser‑safe only (no logger/storage/config/path/env/fs)
+- [ ] Add `@dexto/core/logger` subpath (public logger API)
+- [ ] Add `@dexto/core/storage` subpath (public storage API) if needed
+- [ ] Update `src/packages/core/package.json` exports map accordingly
+- [ ] Adjust `@dexto/core` build (prefer per‑file outputs, bundle: false) to match subpaths
+- [ ] Update CLI imports to use `@dexto/core/logger` (and storage if needed)
+- [ ] Verify Web UI imports only `@dexto/core` (no Node-only modules)
+- [ ] End-to-end build: core → cli → webui → copy → run
+
 ## Phase 5 — Optional: Extract `@dexto/server`
 - [ ] Move API/server code (e.g., `src/app/api`, `src/app/web.ts`) → `src/packages/server/src`
 - [ ] Expose server helpers; update CLI to consume them
