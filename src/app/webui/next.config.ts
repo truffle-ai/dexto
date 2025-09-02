@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     reactStrictMode: true,
     // Use standalone output for production builds
     output: isStandalone ? 'standalone' : undefined,
+    // Ensure Next.js computes paths relative to the repo root (not the user home)
+    // This stabilizes the emitted standalone directory structure and prevents
+    // paths like "+/Projects/dexto/..." from being embedded in output.
+    outputFileTracingRoot: path.resolve(__dirname, '..', '..', '..'),
     experimental: {
         // Allow importing TS/JS from outside the Next.js app directory
         externalDir: true,

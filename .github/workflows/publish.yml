@@ -24,7 +24,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        continue-on-error: true  # Remove or set to false if build is required
 
       - name: Publish to npm
         run: npm publish

@@ -37,10 +37,48 @@ export async function startNextJsWebServer(
     }
 
     // Check if we have a built standalone app
-    const standaloneServerPath = path.join(webuiPath, '.next', 'standalone', 'server.js');
     const serverScriptPath = path.join(webuiPath, 'server.js');
+    const standaloneRoot = path.join(webuiPath, '.next', 'standalone');
 
-    if (!existsSync(standaloneServerPath) && !existsSync(serverScriptPath)) {
+    // Next.js standalone entry can live in different places depending on app subpath/version
+    const standaloneCandidates = [
+        path.join(standaloneRoot, 'server.js'),
+        // When app is nested under src/app/webui, Next 15.5 places server here
+        path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
+    ];
+
+    let resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));
+
+    // As a last resort, recursively search under standalone root for src/app/webui/server.js or any server.js
+    if (!resolvedStandalone && existsSync(standaloneRoot)) {
+        const fs = await import('fs');
+        const preferredSuffix = path.join('src', 'app', 'webui', 'server.js');
+
+        function findServer(dir: string, depth: number = 0): string | null {
+            if (depth > 6) return null;
+            let found: string | null = null;
+            try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                    const full = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                        const res = findServer(full, depth + 1);
+                        if (res) return res;
+                    } else if (entry.isFile()) {
+                        if (full.endsWith(preferredSuffix)) return full;
+                        if (!found && entry.name === 'server.js') found = full;
+                    }
+                }
+            } catch {
+                // ignore
+            }
+            return found;
+        }
+
+        resolvedStandalone = findServer(standaloneRoot) ?? undefined;
+    }
+
+    if (!resolvedStandalone && !existsSync(serverScriptPath)) {
         logger.warn(
             'Built WebUI not found. This may indicate the package was not built correctly.',
             null,
@@ -64,8 +102,10 @@ export async function startNextJsWebServer(
 
         logger.info(`Starting Next.js production server on ${frontUrl}`, null, 'cyanBright');
 
-        // Use the server.js script if it exists, otherwise use the standalone server directly
-        const serverToUse = existsSync(serverScriptPath) ? serverScriptPath : standaloneServerPath;
+        // Use the server.js script if it exists, otherwise use the resolved standalone server directly
+        const serverToUse = existsSync(serverScriptPath)
+            ? serverScriptPath
+            : (resolvedStandalone as string);
 
         const nextProc = spawn('node', [serverToUse], {
             cwd: webuiPath,
