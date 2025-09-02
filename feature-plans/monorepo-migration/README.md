@@ -12,6 +12,7 @@ This folder contains the split plan for migrating Dexto to a pnpm monorepo with 
 - 08-contributor-policy-changesets.md
 - 09-docker-runtime-ci.md
 - 10-future-vite-migration.md
+- 11-apex-release-process.md
 - 99-acceptance-rollback-next-steps.md
 
 ## Live Tasklist

@@ -8,7 +8,7 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Add `turbo.json` (build/test/lint/typecheck pipelines, outputs)
 - [x] Add `tsconfig.base.json`
 - [x] Initialize Changesets (`.changeset/`), configure fixed group for lockstep
-- [ ] Add root scripts: `build`, `test`, `lint`, `typecheck`
+- [x] Add root scripts: repo-level turbo scripts (`repo:build`, `repo:test`, `repo:lint`, `repo:typecheck`)
 
 ## Phase 2 — Package `@dexto/core`
 - [x] Move `src/core` → `src/packages/core/src`
@@ -39,10 +39,10 @@ Track progress here. Update checkboxes as tasks complete.
 - [ ] Validate runtime: healthcheck, endpoints, CLI modes
 
 ## CI & Release
-- [ ] Add Changesets Version PR opener workflow
-- [ ] Add Changesets publisher workflow (version + build + publish)
-- [ ] Add "Require Changeset" PR guard (with maintainer override label)
-- [ ] Add Auto Changeset Action (Option A: auto-commit changeset based on labels)
+- [x] Add Changesets Version PR opener workflow
+- [x] Add Changesets publisher workflow (version + build + publish)
+- [x] Add "Require Changeset" PR guard (with maintainer override label)
+- [x] Add Auto Changeset Action (Option A: auto-commit changeset based on labels)
 - [ ] Add Slash Command (Option B) `/changeset patch|minor|major`
 - [ ] Add One-click workflow (Option C) to add default patch changeset
 
@@ -53,7 +53,7 @@ Track progress here. Update checkboxes as tasks complete.
 
 ## Documentation & Contributor Experience
 - [ ] Update CONTRIBUTING for monorepo workflows and release requirements
-- [ ] Add PR template with release checklist and labels guidance
+- [x] Add PR template with release checklist and labels guidance
 - [x] Update code and docs paths from src/app/* and src/core/* to new packages structure
 - [ ] Document versioning model (lockstep → hybrid/independent path)
 
