@@ -66,35 +66,6 @@ export default [
         },
     },
 
-    // JavaScript Client-side specific config
-    {
-        files: ["app/web/client/script.js"], // Make the path specific
-        languageOptions: {
-            ecmaVersion: 2022,
-            sourceType: 'module',
-            globals: {
-                // Define Browser globals
-                window: 'readonly',
-                document: 'readonly',
-                console: 'readonly',
-                setTimeout: 'readonly',
-                clearTimeout: 'readonly', // Added clearTimeout
-                WebSocket: 'readonly',
-                // Add other browser APIs you use e.g.:
-                // fetch: 'readonly',
-                // localStorage: 'readonly',
-                // navigator: 'readonly',
-            },
-        },
-        rules: {
-             // Add any JS specific rules if needed, otherwise inherit from recommended
-            'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }], // Example JS rule
-            // Disable no-undef specifically for this block if necessary, 
-            // but defining globals is preferred.
-            // 'no-undef': 'off' 
-        }
-    },
-
     // Ignore patterns (keep existing ignores)
     {
         ignores: [
@@ -104,8 +75,6 @@ export default [
             'public/**',
             // Use the package-local ESLint config for Web UI instead of root config
             'src/packages/webui/**',
-            'src/packages/webui/.next/**',
-            'src/packages/webui/out/**',
             '**/build/**',
             '**/coverage/**',
             'test-temp/**',
@@ -128,52 +97,4 @@ export default [
     },
 
     prettier,
-    // Web UI safety rules: keep browser builds safe by restricting imports
-    // to types (and `toError`) from '@dexto/core' and forbidding internal '@core/*'.
-    // If this fails, it means an import would pull Node-only modules (fs/path/winston) into the UI bundle.
-    {
-        files: ['src/packages/webui/**/*.ts', 'src/packages/webui/**/*.tsx'],
-        rules: {
-            'no-restricted-imports': [
-                'error',
-                {
-                    patterns: [
-                        {
-                            group: ['@core/*'],
-                            message:
-                                "Web UI must not import from '@core/*'. Use '@dexto/core' for types, and call the API for runtime. This avoids bundling Node-only modules (fs/path/winston).",
-                        },
-                    ],
-                    paths: [
-                        {
-                            name: '@dexto/core/logger',
-                            message:
-                                'Web UI must not import the Node logger. Use the API for runtime or rely on browser console logging.',
-                        },
-                    ],
-                },
-            ],
-            'no-restricted-syntax': [
-                'error',
-                {
-                    selector:
-                        "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportDefaultSpecifier",
-                    message:
-                        "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-                },
-                {
-                    selector:
-                        "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportNamespaceSpecifier",
-                    message:
-                        "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-                },
-                {
-                    selector:
-                        "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportSpecifier:not([imported.name='toError'])",
-                    message:
-                        "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-                },
-            ],
-        },
-    },
 ];
