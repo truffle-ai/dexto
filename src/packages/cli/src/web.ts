@@ -50,11 +50,10 @@ export async function startNextJsWebServer(
     const serverScriptPath = path.join(webuiPath, 'server.js');
     const standaloneRoot = path.join(webuiPath, '.next', 'standalone');
 
-    // Next.js standalone entry can live in different places depending on app subpath/version
+    // Next.js standalone entry can live in different places depending on app subpath/version (legacy src/app/webui or new packages/cli/src/webui)
     const standaloneCandidates = [
         path.join(standaloneRoot, 'server.js'),
         // When app is nested under src/app/webui, Next 15.5 places server here
-        path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
         // When app lives under src/packages/cli/src/webui
         path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
     ];

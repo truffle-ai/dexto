@@ -26,5 +26,5 @@
         "noEmit": false
     },
     "include": ["src/**/*", "scripts/**/*", "**/*.test.ts", "**/*.spec.ts", "vitest.config.ts"],
-    "exclude": ["node_modules", "src/app/webui/**/*"]
+    "exclude": ["node_modules", "src/packages/cli/src/webui/**/*"]
 }

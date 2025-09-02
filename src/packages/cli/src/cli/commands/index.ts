@@ -1,4 +1,4 @@
-// src/app/cli/commands/index.ts
+// src/packages/cli/src/cli/commands/index.ts
 
 // Project setup commands
 export {

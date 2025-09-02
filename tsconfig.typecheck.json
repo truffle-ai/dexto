@@ -12,14 +12,14 @@
     },
     "include": [
         "src/packages/core/src/**/*",
-        "src/app/**/*", 
+        "src/packages/cli/src/**/*",
         "scripts/**/*",
-        "**/*.test.ts", 
+        "**/*.test.ts",
         "**/*.spec.ts"
     ],
     "exclude": [
         "node_modules",
-        "src/app/webui/**/*",
+        "src/packages/cli/src/webui/**/*",
         "dist",
         "**/*.d.ts"
     ]

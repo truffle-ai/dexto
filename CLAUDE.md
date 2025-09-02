@@ -38,12 +38,12 @@ Dexto automatically detects execution environment to enable context-aware behavi
 - **`global-cli`** - Running as global CLI or in non-dexto project
 
 **Usage Patterns:**
-- Path resolution: `src/core/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
-- Environment loading: `src/core/utils/env.ts` - `loadEnvironmentVariables()`
-- Agent resolution: `src/core/config/agent-resolver.ts` - context-specific defaults
-- API key setup: `src/app/cli/utils/api-key-setup.ts` - context-aware instructions
+- Path resolution: `src/packages/core/src/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
+- Environment loading: `src/packages/core/src/utils/env.ts` - `loadEnvironmentVariables()`
+- Agent resolution: `src/packages/core/src/config/agent-resolver.ts` - context-specific defaults
+- API key setup: `src/packages/cli/src/cli/utils/api-key-setup.ts` - context-aware instructions
 
-**Key Functions (`src/core/utils/execution-context.ts`):**
+**Key Functions (`src/packages/core/src/utils/execution-context.ts`):**
 - `getExecutionContext(startPath?)` - Detect context from directory
 - `findDextoSourceRoot(startPath?)` - Find dexto source directory (null if not found)
 - `findDextoProjectRoot(startPath?)` - Find dexto project directory (null if not found)
@@ -72,7 +72,7 @@ Dexto automatically detects execution environment to enable context-aware behavi
    - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
    - Any other uncaught exception → 500  
    - Successful calls → 200 (may include warnings in `issues`)
-   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `src/app/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
+   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `src/packages/cli/src/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
 
 4. **Defensive API Validation** - API layer validates request schemas
    - Use Zod schemas for request validation at API boundary
@@ -144,7 +144,7 @@ Each module should have an error factory class that creates properly typed error
 - **Reference example**: `src/core/config/errors.ts` - Follow this pattern for new modules
 
 **API Integration:**
-The error middleware (`src/app/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
+The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
 
 **❌ DON'T**: Use plain `Error` or `throw new Error()`  
 **✅ DO**: Create module-specific error factories and use typed error classes
@@ -198,7 +198,7 @@ The error middleware (`src/app/api/middleware/errorHandler.ts`) automatically ma
 
 ## Application Architecture
 
-### API Layer (`src/app/api/`)
+### API Layer (`src/packages/cli/src/api/`)
 - **Express.js REST API** with WebSocket support for real-time communication
 - **Key endpoints**: `/api/message`, `/api/mcp/servers`, `/api/sessions`, `/api/llm/switch`
 - **MCP integration**: Multiple transport types (stdio, HTTP, SSE) with tool aggregation
@@ -206,7 +206,7 @@ The error middleware (`src/app/api/middleware/errorHandler.ts`) automatically ma
 - **Session management**: Multi-session support with persistent storage
 - **A2A communication**: Agent-to-Agent via `.well-known/agent.json`
 
-### WebUI Layer (`src/app/webui/`)
+### WebUI Layer (`src/packages/cli/src/webui/`)
 - **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS
 - **Key components**: `ChatApp`, `MessageList`, `InputArea`, `ServersPanel`, `SessionPanel`
 - **State management**: React Context + custom hooks for WebSocket communication

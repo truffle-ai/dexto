@@ -5,7 +5,8 @@ import { loadAgentConfig } from './loader.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { ConfigErrorCode } from './error-codes.js';
 
-const tmpFile = path.resolve(process.cwd(), 'src/core/config/temp-config.yml');
+// temp config file inside the core package tree (updated path after monorepo move)
+const tmpFile = path.resolve(process.cwd(), 'src/packages/core/src/config/temp-config.yml');
 
 beforeEach(async () => {
     delete process.env.TEST_VAR;

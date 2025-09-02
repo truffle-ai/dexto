@@ -76,8 +76,8 @@ cd dexto && npm i && npm run build && npm link
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
-| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](src/app/discord/README.md)) |
-| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](src/app/telegram/README.md)) |
+| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](src/packages/cli/src/discord/README.md)) |
+| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](src/packages/cli/src/telegram/README.md)) |
 
 Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 

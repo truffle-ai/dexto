@@ -1,4 +1,4 @@
-// src/app/cli/utils/setup-utils.ts
+// src/packages/cli/src/cli/utils/setup-utils.ts
 
 import { globalPreferencesExist, loadGlobalPreferences } from '@core/preferences/loader.js';
 import { getExecutionContext } from '@core/utils/execution-context.js';

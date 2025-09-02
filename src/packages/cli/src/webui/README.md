@@ -46,7 +46,7 @@ Start one server for the API at the root directory of this project [port 3001]:
 then start the npm dev server [port 3000]
 
 ```bash
-[  2:31PM ]  [ karaj@MacBook-Pro:~/Projects/dexto/src/app/webui(storage✗) ]
+[  2:31PM ]  [ karaj@MacBook-Pro:~/Projects/dexto/src/packages/cli/src/webui ]
 npm run dev
 ```
 

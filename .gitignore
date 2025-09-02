@@ -51,7 +51,7 @@ logs/
 
 # Coverage directory (main public, but allow webui public)
 /public/
-!/src/app/webui/public/
+!/src/packages/cli/src/webui/public/
 
 # Test temporary files
 test-temp/

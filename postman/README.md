@@ -27,7 +27,7 @@ Complete API collection for testing Dexto webhook functionality including:
 3. **Start Dexto Server**
    ```bash
    npm run build
-   node dist/src/app/index.js --mode server --agent test-config.yml
+   node dist/src/cli/index.js --mode server --agent test-config.yml
    ```
 
 4. **Test Workflow**

@@ -1,4 +1,4 @@
-// src/app/cli/utils/api-key-setup.ts
+// src/packages/cli/src/cli/utils/api-key-setup.ts
 
 import * as p from '@clack/prompts';
 import chalk from 'chalk';

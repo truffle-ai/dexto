@@ -11,7 +11,7 @@
     "module": "dist/src/core/index.js",
     "types": "dist/src/core/index.d.ts",
     "bin": {
-        "dexto": "./dist/src/app/index.js"
+        "dexto": "./dist/src/cli/index.js"
     },
     "exports": {
         ".": {
@@ -35,7 +35,7 @@
         "prepare": "husky",
         "build-webui": "cd src/packages/cli/src/webui && npm install && npx cross-env BUILD_STANDALONE=true npm run build",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
-        "start": "node dist/src/app/index.js",
+        "start": "node dist/src/cli/index.js",
         "dev": "tsc --watch",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "rootDir": "src",
-    "outDir": "../../dist/src/app",
+    "outDir": "../../dist/src/cli",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": false,
@@ -13,5 +13,5 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["src/webui/.next/**", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["src/webui/**", "**/*.test.ts", "**/*.spec.ts"]
 }
