@@ -1,5 +1,5 @@
 import type { MCPManager } from '../../mcp/manager.js';
-import type { PromptProvider, PromptInfo } from '../types.js';
+import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 
@@ -8,6 +8,7 @@ import { logger } from '../../logger/index.js';
  *
  * This provider acts as a bridge between the PromptsManager and MCPManager,
  * exposing prompts from all connected MCP servers through a unified interface.
+ * It implements the MCP specification for prompt discovery and retrieval.
  */
 export class MCPPromptProvider implements PromptProvider {
     private mcpManager: MCPManager;
@@ -51,13 +52,16 @@ export class MCPPromptProvider implements PromptProvider {
                     // Get the prompt definition to extract metadata
                     const promptDef = await this.mcpManager.getPrompt(promptName);
 
+                    // Convert MCP prompt definition to our internal format
                     const promptInfo: PromptInfo = {
                         name: promptName,
+                        title: promptDef.description || `MCP prompt: ${promptName}`,
                         description: promptDef.description || `MCP prompt: ${promptName}`,
                         source: 'mcp',
                         metadata: {
                             originalName: promptName,
                             description: promptDef.description,
+                            messages: promptDef.messages,
                         },
                     };
 
@@ -69,6 +73,7 @@ export class MCPPromptProvider implements PromptProvider {
                     // Still add the prompt with minimal info
                     allPrompts.push({
                         name: promptName,
+                        title: `MCP prompt: ${promptName}`,
                         description: `MCP prompt: ${promptName}`,
                         source: 'mcp',
                         metadata: {
@@ -90,13 +95,18 @@ export class MCPPromptProvider implements PromptProvider {
     }
 
     /**
-     * List all available prompts from MCP servers
+     * List all available prompts from MCP servers with pagination support
      */
-    async listPrompts(): Promise<PromptInfo[]> {
+    async listPrompts(_cursor?: string): Promise<PromptListResult> {
         if (!this.cacheValid) {
             await this.buildPromptsCache();
         }
-        return this.promptsCache;
+
+        // For now, return all prompts without pagination
+        // TODO: Implement proper pagination when MCP servers support it
+        return {
+            prompts: this.promptsCache,
+        };
     }
 
     /**
@@ -112,6 +122,30 @@ export class MCPPromptProvider implements PromptProvider {
      */
     async hasPrompt(name: string): Promise<boolean> {
         const prompts = await this.listPrompts();
-        return prompts.some((prompt) => prompt.name === name);
+        return prompts.prompts.some((prompt) => prompt.name === name);
+    }
+
+    /**
+     * Get prompt definition (metadata only)
+     */
+    async getPromptDefinition(name: string): Promise<PromptDefinition | null> {
+        try {
+            const promptInfo = this.promptsCache.find((p) => p.name === name);
+            if (!promptInfo) {
+                return null;
+            }
+
+            return {
+                name: promptInfo.name,
+                ...(promptInfo.title && { title: promptInfo.title }),
+                ...(promptInfo.description && { description: promptInfo.description }),
+                ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
+            };
+        } catch (error) {
+            logger.debug(
+                `Failed to get prompt definition for '${name}': ${error instanceof Error ? error.message : String(error)}`
+            );
+            return null;
+        }
     }
 }

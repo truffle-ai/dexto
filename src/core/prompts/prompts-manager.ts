@@ -1,5 +1,5 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type { PromptSet } from './types.js';
+import type { PromptSet, PromptListResult } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
@@ -18,6 +18,7 @@ import { logger } from '../logger/index.js';
  * - Cache prompt metadata for performance
  * - Handle cross-source prompt conflicts with source prefixing
  * - Support filtering and querying of prompts
+ * - Implement MCP-compliant prompt structure and pagination
  *
  * Architecture:
  * Application → PromptsManager → [MCPPromptProvider, InternalPromptProvider]
@@ -71,11 +72,11 @@ export class PromptsManager {
 
         // Get MCP prompts
         try {
-            const mcpPrompts = await this.mcpPromptProvider.listPrompts();
-            mcpPrompts.forEach((prompt) => {
+            const mcpPromptsResult = await this.mcpPromptProvider.listPrompts();
+            mcpPromptsResult.prompts.forEach((prompt) => {
                 allPrompts[prompt.name] = prompt;
             });
-            logger.debug(`📝 Cached ${mcpPrompts.length} MCP prompts`);
+            logger.debug(`📝 Cached ${mcpPromptsResult.prompts.length} MCP prompts`);
         } catch (error) {
             logger.error(
                 `Failed to get MCP prompts: ${error instanceof Error ? error.message : String(error)}`
@@ -84,11 +85,11 @@ export class PromptsManager {
 
         // Get internal prompts
         try {
-            const internalPrompts = await this.internalPromptProvider.listPrompts();
-            internalPrompts.forEach((prompt) => {
+            const internalPromptsResult = await this.internalPromptProvider.listPrompts();
+            internalPromptsResult.prompts.forEach((prompt) => {
                 allPrompts[prompt.name] = prompt;
             });
-            logger.debug(`📝 Cached ${internalPrompts.length} internal prompts`);
+            logger.debug(`📝 Cached ${internalPromptsResult.prompts.length} internal prompts`);
         } catch (error) {
             logger.error(
                 `Failed to get internal prompts: ${error instanceof Error ? error.message : String(error)}`
@@ -128,27 +129,132 @@ export class PromptsManager {
     }
 
     /**
+     * Check if a prompt exists (alias for has)
+     */
+    async hasPrompt(name: string): Promise<boolean> {
+        return this.has(name);
+    }
+
+    /**
+     * List all available prompts with pagination support
+     */
+    async listPrompts(_cursor?: string): Promise<PromptListResult> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        const prompts = Object.values(this.promptsCache);
+
+        // For now, return all prompts without pagination
+        // TODO: Implement proper pagination when needed
+        return {
+            prompts,
+        };
+    }
+
+    /**
+     * Get prompt definition (metadata only)
+     */
+    async getPromptDefinition(name: string): Promise<import('./types.js').PromptDefinition | null> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        const promptInfo = this.promptsCache[name];
+        if (!promptInfo) {
+            return null;
+        }
+
+        return {
+            name: promptInfo.name,
+            ...(promptInfo.title && { title: promptInfo.title }),
+            ...(promptInfo.description && { description: promptInfo.description }),
+            ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
+        };
+    }
+
+    /**
+     * Get prompts by source
+     */
+    async getPromptsBySource(
+        source: 'mcp' | 'internal'
+    ): Promise<import('./types.js').PromptInfo[]> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        return Object.values(this.promptsCache).filter((prompt) => prompt.source === source);
+    }
+
+    /**
+     * Search prompts by name or description
+     */
+    async searchPrompts(query: string): Promise<import('./types.js').PromptInfo[]> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        const searchTerm = query.toLowerCase();
+        return Object.values(this.promptsCache).filter(
+            (prompt) =>
+                prompt.name.toLowerCase().includes(searchTerm) ||
+                (prompt.description && prompt.description.toLowerCase().includes(searchTerm)) ||
+                (prompt.title && prompt.title.toLowerCase().includes(searchTerm))
+        );
+    }
+
+    /**
      * Get a specific prompt by name
      */
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
-        const prompts = await this.list();
-        const metadata = prompts[name];
-        if (!metadata) {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        const promptInfo = this.promptsCache[name];
+        if (!promptInfo) {
             throw new Error(`Prompt not found: ${name}`);
         }
 
-        logger.debug(`📝 Getting prompt: ${name}`);
+        // Validate arguments if the prompt has defined arguments
+        if (promptInfo.arguments && promptInfo.arguments.length > 0 && args) {
+            this.validatePromptArguments(promptInfo.arguments, args);
+        }
 
-        // Route to appropriate provider based on source
-        if (metadata.source === 'mcp') {
+        // Route to appropriate provider
+        if (promptInfo.source === 'mcp') {
             return await this.mcpPromptProvider.getPrompt(name, args);
-        }
-
-        if (metadata.source === 'internal') {
+        } else if (promptInfo.source === 'internal') {
             return await this.internalPromptProvider.getPrompt(name, args);
+        } else {
+            throw new Error(`Unknown prompt source: ${promptInfo.source}`);
+        }
+    }
+
+    /**
+     * Validate prompt arguments against the prompt definition
+     */
+    private validatePromptArguments(
+        expectedArgs: Array<{ name: string; required: boolean }>,
+        providedArgs: Record<string, unknown>
+    ): void {
+        const missingRequired = expectedArgs
+            .filter((arg) => arg.required)
+            .filter((arg) => !(arg.name in providedArgs));
+
+        if (missingRequired.length > 0) {
+            const missingNames = missingRequired.map((arg) => arg.name).join(', ');
+            throw new Error(`Missing required arguments: ${missingNames}`);
         }
 
-        throw new Error(`No provider found for prompt: ${name}`);
+        // Check for unknown arguments
+        const providedKeys = Object.keys(providedArgs);
+        const expectedKeys = expectedArgs.map((arg) => arg.name);
+        const unknownArgs = providedKeys.filter((key) => !expectedKeys.includes(key));
+
+        if (unknownArgs.length > 0) {
+            logger.warn(`Unknown arguments provided: ${unknownArgs.join(', ')}`);
+        }
     }
 
     /**
@@ -163,14 +269,14 @@ export class PromptsManager {
     /**
      * Get MCP prompt provider for direct access
      */
-    getMcpPromptProvider(): MCPPromptProvider {
+    getMCPProvider(): MCPPromptProvider {
         return this.mcpPromptProvider;
     }
 
     /**
      * Get internal prompt provider for direct access
      */
-    getInternalPromptProvider(): InternalPromptProvider {
+    getInternalProvider(): InternalPromptProvider {
         return this.internalPromptProvider;
     }
 }

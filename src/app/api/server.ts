@@ -1162,6 +1162,100 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return next(error);
         }
     });
+
+    // Prompt management endpoints
+    app.get('/api/prompts', async (req, res, next) => {
+        try {
+            const prompts = await agent.promptsManager.list();
+            const promptList = Object.values(prompts).map((prompt) => ({
+                name: prompt.name,
+                title: prompt.title,
+                description: prompt.description,
+                source: prompt.source,
+                arguments: prompt.arguments || [],
+            }));
+
+            res.json({
+                prompts: promptList,
+                total: promptList.length,
+            });
+        } catch (error) {
+            console.error('Error listing prompts:', error);
+            res.status(500).json({
+                error: 'Failed to list prompts',
+                details: error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
+    });
+
+    app.get('/api/prompts/:name', async (req, res, next) => {
+        try {
+            const { name } = req.params;
+            const promptDefinition = await agent.promptsManager.getPromptDefinition(name);
+            if (!promptDefinition) {
+                return res.status(404).json({ error: 'Prompt not found' });
+            }
+
+            return res.json(promptDefinition);
+        } catch (error) {
+            console.error('Error getting prompt:', error);
+            return res.status(500).json({
+                error: 'Failed to get prompt',
+                details: error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
+    });
+
+    app.post('/api/prompts/:name/execute', express.json(), async (req, res, next) => {
+        try {
+            const { name } = req.params;
+            const { arguments: args = {} } = req.body;
+
+            const promptResult = await agent.promptsManager.getPrompt(name, args);
+
+            // Extract the prompt text and send it to the agent
+            let promptText = '';
+            if (promptResult.messages && promptResult.messages.length > 0) {
+                for (const message of promptResult.messages) {
+                    if (typeof message.content === 'string') {
+                        promptText += message.content + '\n';
+                    } else if (
+                        message.content &&
+                        typeof message.content === 'object' &&
+                        'text' in message.content
+                    ) {
+                        promptText += message.content.text + '\n';
+                    } else if (Array.isArray(message.content)) {
+                        for (const content of message.content) {
+                            if (content.type === 'text') {
+                                promptText += content.text + '\n';
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!promptText.trim()) {
+                return res.status(400).json({ error: 'Prompt returned no content' });
+            }
+
+            // Send the populated prompt text to the AI agent for processing
+            const response = await agent.run(promptText.trim());
+
+            return res.json({
+                success: true,
+                promptText: promptText.trim(),
+                response,
+            });
+        } catch (error) {
+            console.error('Error executing prompt:', error);
+            return res.status(500).json({
+                error: 'Failed to execute prompt',
+                details: error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
+    });
+
     // Centralized error handling (must be registered after routes)
     app.use(errorHandler);
 

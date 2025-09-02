@@ -77,47 +77,45 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const title = info.title ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
-                            console.log(`  ${chalk.blue(name)}${chalk.dim(desc)}`);
+                            const args =
+                                info.arguments && info.arguments.length > 0
+                                    ? ` [args: ${info.arguments.map((a) => `${a.name}${a.required ? '*' : ''}`).join(', ')}]`
+                                    : '';
+                            console.log(
+                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}${chalk.gray(args)}`
+                            );
                         }
                     });
                     console.log();
                 }
 
                 if (internalPrompts.length > 0) {
-                    console.log(chalk.cyan('📁 Internal Prompts:'));
+                    console.log(chalk.magenta('📁 Internal Prompts:'));
                     internalPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const title = info.title ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
-                            console.log(`  ${chalk.blue(name)}${chalk.dim(desc)}`);
+                            console.log(
+                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                            );
                         }
                     });
                     console.log();
                 }
 
                 console.log(chalk.dim(`Total: ${promptNames.length} prompts`));
-                console.log(
-                    chalk.dim(
-                        'Use /<prompt-name> <context> to execute with natural language context'
-                    )
-                );
-                console.log(
-                    chalk.dim(
-                        'Examples: /explain quantum mechanics, /code-review my function, /debug this error'
-                    )
-                );
-                console.log(
-                    chalk.dim(
-                        'The LLM will intelligently understand your request and execute the prompt'
-                    )
-                );
+                return true;
             } catch (error) {
-                logger.error(
-                    `Failed to list prompts: ${error instanceof Error ? error.message : String(error)}`
+                console.error(
+                    chalk.red(
+                        `Error listing prompts: ${error instanceof Error ? error.message : String(error)}`
+                    )
                 );
+                return false;
             }
-            return true;
         },
     },
     {
@@ -142,7 +140,7 @@ export const promptCommands: CommandDefinition[] = [
                 const promptArgs = args.slice(1);
 
                 // Check if prompt exists
-                if (!promptName || !(await agent.promptsManager.has(promptName))) {
+                if (!promptName || !(await agent.promptsManager.hasPrompt(promptName))) {
                     console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
                     console.log(chalk.dim('Use /prompts to see available prompts'));
                     return true;

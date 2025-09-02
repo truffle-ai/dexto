@@ -20,6 +20,7 @@ import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 
 interface ModelOption {
   name: string;
@@ -76,6 +77,13 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   // File size limit (64MB)
   const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
+
+  // Slash command state
+  const [showSlashCommands, setShowSlashCommands] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<{
+    name: string;
+    arguments: Array<{ name: string; required: boolean }>;
+  } | null>(null);
 
   const showUserError = (message: string) => {
     setFileUploadError(message);
@@ -157,6 +165,53 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // Handle slash command input
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setText(value);
+
+    console.log('🔍 Input change:', { value, showSlashCommands: showSlashCommands });
+
+    // Show slash commands when user types "/"
+    if (value === '/') {
+      console.log('🔍 Slash detected, showing commands');
+      setShowSlashCommands(true);
+    } else if (value.startsWith('/') && !value.includes(' ')) {
+      console.log('🔍 Slash command detected, showing commands');
+      setShowSlashCommands(true);
+    } else {
+      if (showSlashCommands) {
+        console.log('🔍 Hiding slash commands');
+        setShowSlashCommands(false);
+      }
+    }
+  };
+
+  // Handle prompt selection
+  const handlePromptSelect = (prompt: any) => {
+    setSelectedPrompt({
+      name: prompt.name,
+      arguments: prompt.arguments || []
+    });
+    
+    // Insert the prompt command into the input
+    const promptText = `/${prompt.name}`;
+    setText(promptText);
+    setShowSlashCommands(false);
+    
+    // Focus the textarea and move cursor to end
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(promptText.length, promptText.length);
+    }
+  };
+
+  // Close slash commands
+  const closeSlashCommands = () => {
+    setShowSlashCommands(false);
+    setSelectedPrompt(null);
   };
 
   // Large paste guard to prevent layout from exploding with very large text
@@ -493,28 +548,28 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             {/* Editor area: scrollable, independent from footer */}
             <div className="flex-auto overflow-y-auto">
               {fontsReady ? (
-                <TextareaAutosize
-                  ref={textareaRef}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
-                  minRows={1}
-                  maxRows={8}
-                  className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
-                />
+                                 <TextareaAutosize
+                   ref={textareaRef}
+                   value={text}
+                   onChange={handleInputChange}
+                   onKeyDown={handleKeyDown}
+                   onPaste={handlePaste}
+                   placeholder="Ask Dexto anything... (type / for prompts)"
+                   minRows={1}
+                   maxRows={8}
+                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
+                 />
               ) : (
-                <textarea
-                  ref={textareaRef}
-                  rows={1}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
-                  className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
-                />
+                                 <textarea
+                   ref={textareaRef}
+                   rows={1}
+                   value={text}
+                   onChange={handleInputChange}
+                   onKeyDown={handleKeyDown}
+                   onPaste={handlePaste}
+                   placeholder="Ask Dexto anything... (type / for prompts)"
+                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                 />
               )}
             </div>
 
@@ -576,6 +631,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               }
             />
           </ChatInputContainer>
+          {/* SlashCommandAutocomplete positioned outside ChatInputContainer to avoid overflow clipping */}
+          <div className="relative">
+            <SlashCommandAutocomplete
+              isVisible={showSlashCommands}
+              searchQuery={text}
+              onSelectPrompt={handlePromptSelect}
+              onClose={closeSlashCommands}
+            />
+          </div>
         </form>
 
         {/* Previews moved inside bubble above editor */}

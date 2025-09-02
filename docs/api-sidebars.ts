@@ -29,7 +29,14 @@ const sidebars: SidebarsConfig = {
                 description:
                     'Complete technical API reference for the Dexto SDK for TypeScript/JavaScript.',
             },
-            items: ['dexto-agent', 'mcp-manager', 'events', 'types'],
+            items: [
+                'dexto-agent',
+                'mcp-manager',
+                'prompts-manager',
+                'webui-slash-commands',
+                'events',
+                'types',
+            ],
         },
     ],
 };
