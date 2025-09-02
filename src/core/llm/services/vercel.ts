@@ -530,7 +530,6 @@ export class VercelLLMService implements ILLMService {
                         });
                     }
                 }
-                // Emit tool results during streaming as well (prefer queued raw)
                 // Emit tool results during streaming as well (prefer raw mapped by callId)
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {

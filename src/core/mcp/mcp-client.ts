@@ -280,7 +280,19 @@ export class MCPClient implements IMCPClient {
                 undefined, // resultSchema (optional)
                 { timeout: this.timeout } // Use server-specific timeout, default 1 minute
             );
-            logger.debug(`Tool '${name}' result: ${JSON.stringify(result, null, 2)}`);
+
+            // Log result with base64 truncation for readability
+            const logResult = JSON.stringify(
+                result,
+                (key, value) => {
+                    if (key === 'data' && typeof value === 'string' && value.length > 100) {
+                        return `[Base64 data: ${value.length} chars]`;
+                    }
+                    return value;
+                },
+                2
+            );
+            logger.debug(`Tool '${name}' result: ${logResult}`);
 
             // Check for null or undefined result
             if (result === null || result === undefined) {
