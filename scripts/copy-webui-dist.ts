@@ -41,7 +41,16 @@ async function copyWebUIBuild(): Promise<void> {
 
         // Copy the static files to the correct location in standalone
         const staticSrcPath = path.join(sourceWebUIDir, '.next', 'static');
-        const staticDestPath = path.join(targetDir, '.next', 'standalone', '.next', 'static');
+        const staticDestPath = path.join(
+            targetDir,
+            '.next',
+            'standalone',
+            'src',
+            'app',
+            'webui',
+            '.next',
+            'static'
+        );
 
         if (fs.existsSync(staticSrcPath)) {
             await fs.ensureDir(path.dirname(staticDestPath));
@@ -51,7 +60,15 @@ async function copyWebUIBuild(): Promise<void> {
 
         // Copy public files to standalone location
         const publicSrcPath = path.join(sourceWebUIDir, 'public');
-        const publicDestPath = path.join(targetDir, '.next', 'standalone', 'public');
+        const publicDestPath = path.join(
+            targetDir,
+            '.next',
+            'standalone',
+            'src',
+            'app',
+            'webui',
+            'public'
+        );
 
         if (fs.existsSync(publicSrcPath)) {
             await fs.copy(publicSrcPath, publicDestPath);
@@ -64,7 +81,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 // Start the standalone Next.js server
-const standaloneServer = path.join(__dirname, '.next', 'standalone', 'server.js');
+const standaloneServer = path.join(__dirname, '.next', 'standalone', 'src', 'app', 'webui', 'server.js');
 
 console.log('Starting Dexto WebUI server...');
 
