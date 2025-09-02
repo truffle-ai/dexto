@@ -2,7 +2,7 @@
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "rootDir": "src",
+    "rootDir": "../../",
     "outDir": "../../dist/src/cli",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",

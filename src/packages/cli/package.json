@@ -9,5 +9,9 @@
     "build": "tsup -c",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.11",
+    "type-fest": "^4.26.1"
   }
 }

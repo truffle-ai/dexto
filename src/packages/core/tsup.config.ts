@@ -4,6 +4,7 @@ export default defineConfig({
     entry: {
         index: 'src/index.ts',
         'logger/index': 'src/logger/index.ts',
+        'logger/browser': 'src/logger/browser.ts',
         'storage/index': 'src/storage/index.ts',
     },
     format: ['cjs', 'esm'],
