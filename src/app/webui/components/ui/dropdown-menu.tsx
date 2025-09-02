@@ -1,10 +1,12 @@
 "use client"
 
 import * as React from "react"
+import * as PopoverPrimitive from "@radix-ui/react-popover"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { cn } from "@/lib/utils"
 
-const DropdownMenu = ({ children, ...props }: React.PropsWithChildren) => (
+// Mirror Popover Root props so consumers can control open state, etc.
+const DropdownMenu = ({ children, ...props }: React.PropsWithChildren<React.ComponentProps<typeof PopoverPrimitive.Root>>) => (
   <Popover {...props}>{children}</Popover>
 )
 

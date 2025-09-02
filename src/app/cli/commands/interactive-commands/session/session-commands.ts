@@ -135,7 +135,7 @@ export const sessionCommand: CommandDefinition = {
                     console.log(chalk.green(`✅ Created new session: ${chalk.bold(session.id)}`));
 
                     // Switch to the new session
-                    await agent.loadSession(session.id);
+                    await agent.loadSessionAsDefault(session.id);
                     console.log(chalk.yellow(`🔄 Switched to new session`));
                 } catch (error) {
                     logger.error(
@@ -158,7 +158,7 @@ export const sessionCommand: CommandDefinition = {
                 try {
                     const sessionId = args[0]!; // Safe to assert non-null since we checked args.length
 
-                    await agent.loadSession(sessionId);
+                    await agent.loadSessionAsDefault(sessionId);
 
                     const metadata = await agent.getSessionMetadata(sessionId);
                     console.log(chalk.green(`✅ Switched to session: ${chalk.bold(sessionId)}`));

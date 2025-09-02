@@ -14,7 +14,7 @@ import { toError } from '@core/utils/error-conversion.js';
  *
  * TODO: Add typed WebSocket payload interfaces to replace manual JSON structure creation
  */
-export function sendWebSocketError(ws: WebSocket, error: unknown): void {
+export function sendWebSocketError(ws: WebSocket, error: unknown, sessionId: string): void {
     let errorData: Record<string, unknown>;
 
     if (error instanceof DextoRuntimeError) {
@@ -50,7 +50,10 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
         ws.send(
             JSON.stringify({
                 event: 'error',
-                data: errorData,
+                data: {
+                    ...errorData,
+                    ...(sessionId ? { sessionId } : {}),
+                },
             })
         );
     } catch (sendErr) {
@@ -65,6 +68,7 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
 export function sendWebSocketValidationError(
     ws: WebSocket,
     message: string,
+    sessionId: string,
     context?: Record<string, unknown>
 ): void {
     const dexErr = new DextoValidationError([
@@ -85,7 +89,10 @@ export function sendWebSocketValidationError(
         ws.send(
             JSON.stringify({
                 event: 'error',
-                data,
+                data: {
+                    ...data,
+                    ...(sessionId ? { sessionId } : {}),
+                },
             })
         );
     } catch (sendErr) {

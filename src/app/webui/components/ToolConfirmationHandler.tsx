@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Badge } from './ui/badge';
 import { AlertTriangle, Wrench, Clock } from 'lucide-react';
+import { useChatContext } from './hooks/ChatContext';
 
 interface ToolConfirmationEvent {
     executionId: string;
@@ -28,6 +29,7 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
     const [pendingConfirmation, setPendingConfirmation] = useState<ToolConfirmationEvent | null>(null);
     const [rememberChoice, setRememberChoice] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const { currentSessionId } = useChatContext();
 
     // Queue to hold requests that arrive while a dialog is already open
     const queuedRequestsRef = React.useRef<ToolConfirmationEvent[]>([]);
@@ -41,6 +43,10 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
                 const message = JSON.parse(event.data);
                 
                 if (message.event === 'toolConfirmationRequest') {
+                    // Only handle requests for the active session
+                    const sid = message?.data?.sessionId as string | undefined;
+                    if (!sid || sid !== currentSessionId) return;
+
                     const confirmationEvent: ToolConfirmationEvent = {
                         ...message.data,
                         timestamp: new Date(message.data.timestamp),
@@ -67,7 +73,7 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
         return () => {
             websocket.removeEventListener('message', handleMessage);
         };
-    }, [websocket, isDialogOpen]);
+    }, [websocket, isDialogOpen, currentSessionId]);
 
     // Send confirmation response
     const sendResponse = useCallback((approved: boolean) => {
@@ -178,6 +184,7 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
                             id="remember" 
                             checked={rememberChoice}
                             onCheckedChange={(checked) => setRememberChoice(checked === true)}
+                            className="ml-1"
                         />
                         <label 
                             htmlFor="remember" 

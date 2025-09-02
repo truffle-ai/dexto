@@ -229,7 +229,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
                     <DialogTitle>Connect New MCP Server</DialogTitle>

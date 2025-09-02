@@ -241,6 +241,8 @@ export default function MessageList({ messages, activeError, onDismissError, out
 
         const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
 
+        // (Provider not available on Message type)
+
         return (
           <div key={msgKey} className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
             <div className={messageContainerClass}>
@@ -443,14 +445,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             const src = `data:${filePart.mimeType};base64,${filePart.data}`;
                             return (
                               <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                <FileAudio className="h-5 w-5 text-muted-foreground" />
+                                <FileAudio className={cn("h-5 w-5", isUser ? undefined : "text-muted-foreground")} />
                                 <audio 
                                   controls 
                                   src={src} 
                                   className="flex-1 h-8"
                                 />
                                 {filePart.filename && (
-                                  <span className="text-sm text-muted-foreground truncate max-w-[120px]">
+                                  <span className={cn("text-sm truncate max-w-[120px]", isUser ? "text-primary-foreground/80" : "text-muted-foreground")}>
                                     {filePart.filename}
                                   </span>
                                 )}
@@ -460,11 +462,11 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             // Non-audio files (PDFs, etc.)
                             return (
                               <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                <File className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm font-medium">
+                                <File className={cn("h-5 w-5", isUser ? undefined : "text-muted-foreground")} />
+                                <span className={cn("text-sm font-medium", isUser ? undefined : undefined)}>
                                   {filePart.filename || `${filePart.mimeType} file`}
                                 </span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className={cn("text-xs", isUser ? "text-primary-foreground/70" : "text-muted-foreground")}>
                                   {filePart.mimeType}
                                 </span>
                               </div>
@@ -498,26 +500,21 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   {msg.fileData && !Array.isArray(msg.content) && (
                     <div className="mt-2">
                       {msg.fileData.mimeType.startsWith('audio/') ? (
-                         <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                           <FileAudio className="h-5 w-5 text-muted-foreground" />
+                         <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                           <FileAudio className="h-4 w-4" />
                            <audio 
                              controls 
                              src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`} 
-                             className="flex-1 h-8"
+                             className="h-8"
                            />
-                           {msg.fileData.filename && (
-                             <span className="text-sm text-muted-foreground truncate max-w-[120px]">
-                               {msg.fileData.filename}
-                             </span>
-                           )}
                          </div>
                        ) : (
                          <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                           <File className="h-5 w-5 text-muted-foreground" />
+                           <File className="h-5 w-5" />
                            <span className="text-sm font-medium">
                              {msg.fileData.filename || `${msg.fileData.mimeType} file`}
                            </span>
-                           <span className="text-xs text-muted-foreground">
+                           <span className="text-xs text-primary-foreground/70">
                              {msg.fileData.mimeType}
                            </span>
                          </div>
@@ -538,7 +535,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           {msg.tokenUsage.totalTokens} tokens
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>
+                      <TooltipContent side="bottom">
                         <div className="flex flex-col gap-0.5">
                           {msg.tokenUsage.inputTokens !== undefined && (
                             <div>Input: {msg.tokenUsage.inputTokens}</div>
@@ -561,11 +558,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           {msg.model}
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>
+                      <TooltipContent side="bottom">
                         <div className="space-y-1">
                           <div className="font-medium">Model: {msg.model}</div>
+                          {msg.provider && (
+                            <div className="font-medium">Provider: {msg.provider}</div>
+                          )}
                           {msg.router && (
-                            <div className="text-muted-foreground">Router: {msg.router}</div>
+                            <div className="font-medium">Router: {msg.router}</div>
                           )}
                         </div>
                       </TooltipContent>

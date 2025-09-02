@@ -494,12 +494,14 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             const result = await sessionManager.switchLLMForDefaultSession(newLLMConfig);
 
-            expect(result.message).toContain('Successfully switched to anthropic/claude-3-opus');
+            expect(result.message).toContain(
+                'Successfully switched to anthropic/claude-4-opus-20250514'
+            );
             expect(result.warnings).toEqual([]);
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
                 'dexto:llmSwitched',
@@ -516,7 +518,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             // Create session first
@@ -528,7 +530,7 @@ describe('SessionManager', () => {
             );
 
             expect(result.message).toContain(
-                `Successfully switched to anthropic/claude-3-opus using in-built router for session ${sessionId}`
+                `Successfully switched to anthropic/claude-4-opus-20250514 using in-built router for session ${sessionId}`
             );
             expect(result.warnings).toEqual([]);
         });
@@ -537,7 +539,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             await expect(
@@ -554,7 +556,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             mockStorageManager.database.list.mockResolvedValue(sessionIds);
