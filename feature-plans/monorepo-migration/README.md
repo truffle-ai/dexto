@@ -14,3 +14,8 @@ This folder contains the split plan for migrating Dexto to a pnpm monorepo with 
 - 10-future-vite-migration.md
 - 99-acceptance-rollback-next-steps.md
 
+## Live Tasklist
+
+We maintain progress in TASKLIST.md. Keep it up-to-date as we complete items.
+
+- TASKLIST.md
