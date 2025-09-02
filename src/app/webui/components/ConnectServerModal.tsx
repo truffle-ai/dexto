@@ -72,6 +72,18 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         return masked;
     };
 
+    // Helper to mask sensitive headers for logging
+    const maskSensitiveHeaders = (headers: Record<string, string>): Record<string, string> => {
+        const sensitive = ['authorization', 'proxy-authorization', 'api-key', 'x-api-key', 'token', 'cookie', 'set-cookie'];
+        const masked: Record<string, string> = {};
+        for (const [k, v] of Object.entries(headers)) {
+            const key = k.toLowerCase();
+            const isSensitive = sensitive.some(s => key === s || key.includes(s));
+            masked[k] = isSensitive ? '***masked***' : v;
+        }
+        return masked;
+    };
+
     useEffect(() => {
         if (!isOpen) {
             const timer = setTimeout(() => {
@@ -96,16 +108,18 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         const type = initialConfig?.type ?? 'stdio';
         setServerType(type);
         if (type === 'stdio') {
-            setCommand(typeof (initialConfig as any)?.command === 'string' ? (initialConfig as any).command : '');
-            setArgs(Array.isArray((initialConfig as any)?.args) ? (initialConfig as any).args.join(', ') : '');
-            const envEntries = Object.entries(((initialConfig as any)?.env) || {});
+            const std = (initialConfig ?? {}) as Partial<StdioServerConfig>;
+            setCommand(typeof std.command === 'string' ? std.command : '');
+            setArgs(Array.isArray(std.args) ? std.args.join(', ') : '');
+            const envEntries = Object.entries(std.env ?? {});
             setEnvPairs(envEntries.map(([key, value], idx) => ({ key, value: String(value ?? ''), id: `env-${idx}` })));
             // clear URL/header state
             setUrl('');
             setHeaderPairs([]);
         } else {
-            setUrl(typeof (initialConfig as any)?.url === 'string' ? (initialConfig as any).url : '');
-            const hdrEntries = Object.entries(((initialConfig as any)?.headers) || {});
+            const net = (initialConfig ?? {}) as Partial<SseServerConfig | HttpServerConfig>;
+            setUrl(typeof net.url === 'string' ? net.url : '');
+            const hdrEntries = Object.entries(net.headers ?? {});
             setHeaderPairs(hdrEntries.map(([key, value], idx) => ({ key, value: String(value ?? ''), id: `hdr-${idx}` })));
             // clear stdio state
             setCommand('');
@@ -215,8 +229,10 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 const safeConfig = { ...config };
                 if (safeConfig.type === 'stdio' && safeConfig.env) {
                     safeConfig.env = maskSensitiveEnv(safeConfig.env);
+                } else if ((safeConfig.type === 'sse' || safeConfig.type === 'http') && safeConfig.headers) {
+                    safeConfig.headers = maskSensitiveHeaders(safeConfig.headers);
                 }
-                console.debug('Connect server response:', { ...result, config: safeConfig });
+                console.debug(`[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`);
             }
             // Notify parent component that server was connected successfully
             if (onServerConnected) {
