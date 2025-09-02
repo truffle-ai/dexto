@@ -1,4 +1,4 @@
-import { findPackageRoot } from '../../../core/utils/path.js';
+import { findPackageRoot } from '@core/utils/path.js';
 import fsExtra from 'fs-extra';
 import path from 'path';
 import { PackageJson } from 'type-fest';

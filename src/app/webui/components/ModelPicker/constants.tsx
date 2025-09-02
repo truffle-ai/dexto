@@ -1,6 +1,6 @@
 import React from 'react';
 import { Eye, FileAudio, FileText, Brain, Image, Sparkles, FlaskConical, Zap } from "lucide-react";
-import type { LLMProvider } from "../../../../core/llm/registry.js";
+import type { LLMProvider } from "@core/llm/registry.js";
 
 // Provider logo file mapping - single source of truth
 export const PROVIDER_LOGOS: Record<LLMProvider, string> = {

@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig([
     // Core entry: bundle CJS, external ESM
     {
-        entry: ['src/core/index.ts'],
+        entry: ['src/packages/core/src/index.ts'],
         format: ['cjs', 'esm'],
         outDir: 'dist/src/core',
         dts: true,

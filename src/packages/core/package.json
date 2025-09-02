@@ -1,0 +1,18 @@
+{
+  "name": "@dexto/core",
+  "version": "0.0.0",
+  "private": false,
+  "type": "module",
+  "main": "../../dist/src/core/index.js",
+  "module": "../../dist/src/core/index.js",
+  "types": "../../dist/src/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "../../dist/src/core/index.d.ts",
+      "import": "../../dist/src/core/index.js",
+      "require": "../../dist/src/core/index.cjs"
+    },
+    "./package.json": "./package.json"
+  }
+}
+

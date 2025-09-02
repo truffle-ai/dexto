@@ -1,12 +1,9 @@
-import { logger } from '../../../core/logger/index.js';
+import { logger } from '@core/logger/index.js';
 import * as readline from 'readline';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import {
-    ToolConfirmationEvent,
-    ToolConfirmationResponse,
-} from '../../../core/tools/confirmation/types.js';
-import { AgentEventBus } from '../../../core/events/index.js';
+import { ToolConfirmationEvent, ToolConfirmationResponse } from '@core/tools/confirmation/types.js';
+import { AgentEventBus } from '@core/events/index.js';
 import { EventSubscriber } from '../../api/types.js';
 
 /**

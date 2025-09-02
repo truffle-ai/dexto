@@ -11,7 +11,7 @@
         "skipLibCheck": true
     },
     "include": [
-        "src/core/**/*",
+        "src/packages/core/src/**/*",
         "src/app/**/*", 
         "scripts/**/*",
         "**/*.test.ts", 

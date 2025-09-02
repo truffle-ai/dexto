@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Load environment variables FIRST with layered loading
-import { applyLayeredEnvironmentLoading } from '../core/utils/env.js';
+import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 
 // Apply layered environment loading before any other imports
 await applyLayeredEnvironmentLoading();

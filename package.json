@@ -30,7 +30,7 @@
         "build:check": "npm run typecheck && npm run build",
         "build:strict": "npm run typecheck && npm run build",
         "typecheck": "tsc --project tsconfig.typecheck.json",
-        "typecheck:core": "tsc --noEmit src/core/**/*.ts",
+        "typecheck:core": "tsc --noEmit src/packages/core/src/**/*.ts",
         "typecheck:watch": "tsc --project tsconfig.typecheck.json --watch",
         "prepare": "husky",
         "build-webui": "cd src/app/webui && npm install && npx cross-env BUILD_STANDALONE=true npm run build",

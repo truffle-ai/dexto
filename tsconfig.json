@@ -9,7 +9,7 @@
         "baseUrl": ".",
         "paths": {
             "@app/*": ["src/app/*"],
-            "@core/*": ["src/core/*"],
+            "@core/*": ["src/packages/core/src/*"],
             "mitt": ["./node_modules/mitt/dist/index.d.ts"]
         },
         "outDir": "./dist",

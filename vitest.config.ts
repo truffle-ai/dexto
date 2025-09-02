@@ -4,7 +4,7 @@ import path from 'path';
 export default defineConfig({
     resolve: {
         alias: {
-            '@core': path.resolve(__dirname, 'src/core'),
+            '@core': path.resolve(__dirname, 'src/packages/core/src'),
             '@app': path.resolve(__dirname, 'src/app'),
         },
     },

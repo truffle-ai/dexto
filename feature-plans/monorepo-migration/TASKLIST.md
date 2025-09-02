@@ -11,9 +11,10 @@ Track progress here. Update checkboxes as tasks complete.
 - [ ] Add root scripts: `build`, `test`, `lint`, `typecheck`
 
 ## Phase 2 — Package `@dexto/core`
-- [ ] Move `src/core` → `src/packages/core/src`
-- [ ] Create `src/packages/core/package.json` (exports, types) and tsup config
-- [ ] Keep `@core/*` alias (temp) and add `@dexto/core: workspace:*` where consumed
+- [x] Move `src/core` → `src/packages/core/src`
+- [x] Create `src/packages/core/package.json` (exports, types). Use root tsup for now.
+- [x] Update path aliases to `@core/*` → `src/packages/core/src/*` (root, vitest, next/webui)
+- [ ] Add per-package tsup config (optional now)
 - [ ] Typecheck/lint/test `@dexto/core` package
 
 ## Phase 3 — Package `dexto` (CLI)

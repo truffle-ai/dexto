@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { McpServerConfig } from '../../../core/mcp/schemas.js';
+import { McpServerConfig } from '@core/mcp/schemas.js';
 import {
     Dialog,
     DialogContent,

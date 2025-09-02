@@ -12,7 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMProvider } from "../../../../core/llm/registry.js";
+import type { LLMProvider } from "@core/llm/registry.js";
 import { PROVIDER_LOGOS, needsDarkModeInversion, PROVIDER_PRICING_URLS, formatPricingLines } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 

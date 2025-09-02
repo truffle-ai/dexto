@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
         config.resolve = config.resolve || {};
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
-            '@core': path.resolve(__dirname, '../../core'),
+            '@core': path.resolve(__dirname, '../../packages/core/src'),
         };
         // Map requested .js to .ts/.tsx during development/build
         // while still allowing actual .js files
