@@ -402,7 +402,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                             Cancel
                         </Button>
                     </DialogClose>
-                    <Button type="submit" onClick={handleSubmit} disabled={isSubmitting}>
+                    <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting ? 'Connecting...' : 'Connect'}
                     </Button>
                 </DialogFooter>

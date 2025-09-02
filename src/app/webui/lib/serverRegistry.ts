@@ -147,7 +147,6 @@ export class ServerRegistryService {
             });
 
             // Update registry entries based on server status
-            let hasChanges = false;
             for (const entry of this.registryEntries) {
                 const aliases = [entry.id, entry.name, ...(entry.matchIds || [])]
                     .filter(Boolean)
@@ -165,12 +164,7 @@ export class ServerRegistryService {
 
                 if (entry.isInstalled !== shouldBeInstalled) {
                     entry.isInstalled = shouldBeInstalled;
-                    hasChanges = true;
                 }
-            }
-
-            // Save changes if any were made
-            if (hasChanges) {
             }
         } catch (error) {
             // Non-fatal error, log and continue
