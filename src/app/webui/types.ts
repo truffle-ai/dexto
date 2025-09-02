@@ -89,6 +89,11 @@ export interface LLMProvider {
     supportsBaseURL: boolean;
 }
 
+// Greeting API response
+export interface GreetingResponse {
+    greeting: string | null;
+}
+
 export interface LLMConfig {
     config: {
         provider: string;
