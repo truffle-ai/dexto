@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { McpServerConfig } from '../../../core/mcp/schemas.js';
+import { McpServerConfig, StdioServerConfig, SseServerConfig, HttpServerConfig } from '../../../core/mcp/schemas.js';
 import {
     Dialog,
     DialogContent,
@@ -14,7 +14,6 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
@@ -24,15 +23,10 @@ interface ConnectServerModalProps {
     onClose: () => void;
     onServerConnected?: () => void;
     initialName?: string;
-    initialConfig?: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
+    initialConfig?: Partial<StdioServerConfig> | Partial<SseServerConfig> | Partial<HttpServerConfig>;
     lockName?: boolean;
 }
 
-interface HeaderPair {
-    key: string;
-    value: string;
-    id: string;
-}
 
 export default function ConnectServerModal({ isOpen, onClose, onServerConnected, initialName, initialConfig, lockName }: ConnectServerModalProps) {
     const [serverName, setServerName] = useState('');
@@ -40,13 +34,13 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     const [command, setCommand] = useState('');
     const [args, setArgs] = useState('');
     const [url, setUrl] = useState('');
-    const [headerPairs, setHeaderPairs] = useState<HeaderPair[]>([]);
-    const [envPairs, setEnvPairs] = useState<HeaderPair[]>([]);
+    const [headerPairs, setHeaderPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
+    const [envPairs, setEnvPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Helper function to convert header pairs to record
-    const headersToRecord = (pairs: HeaderPair[]): Record<string, string> => {
+    const headersToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {
         const headers: Record<string, string> = {};
         pairs.forEach((pair) => {
             if (pair.key.trim() && pair.value.trim()) {
@@ -57,14 +51,25 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     };
 
     // Helper function to convert env pairs to record
-    const envToRecord = (pairs: HeaderPair[]): Record<string, string> => {
+    const envToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {
         const env: Record<string, string> = {};
-        pairs.forEach((pair) => {
-            if (pair.key.trim()) {
-                env[pair.key.trim()] = pair.value.trim();
-            }
-        });
+        for (const { key, value } of pairs) {
+            const k = key.trim();
+            const v = value.trim();
+            if (k && v) env[k] = v;
+        }
         return env;
+    };
+
+    // Helper function to mask sensitive environment values for logging
+    const maskSensitiveEnv = (env: Record<string, string>): Record<string, string> => {
+        const sensitiveKeys = ['api_key', 'secret', 'token', 'password', 'key'];
+        const masked: Record<string, string> = {};
+        for (const [key, value] of Object.entries(env)) {
+            const isSensitive = sensitiveKeys.some(sk => key.toLowerCase().includes(sk));
+            masked[key] = isSensitive ? '***masked***' : value;
+        }
+        return masked;
     };
 
     useEffect(() => {
@@ -87,54 +92,82 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     // Apply initialName/initialConfig when they change and modal opens
     useEffect(() => {
         if (!isOpen) return;
-        if (initialName) setServerName(initialName);
-        if (initialConfig?.type) {
-            setServerType(initialConfig.type);
+        setServerName(initialName ?? '');
+        const type = initialConfig?.type ?? 'stdio';
+        setServerType(type);
+        if (type === 'stdio') {
+            setCommand(typeof (initialConfig as any)?.command === 'string' ? (initialConfig as any).command : '');
+            setArgs(Array.isArray((initialConfig as any)?.args) ? (initialConfig as any).args.join(', ') : '');
+            const envEntries = Object.entries(((initialConfig as any)?.env) || {});
+            setEnvPairs(envEntries.map(([key, value], idx) => ({ key, value: String(value ?? ''), id: `env-${idx}` })));
+            // clear URL/header state
+            setUrl('');
+            setHeaderPairs([]);
+        } else {
+            setUrl(typeof (initialConfig as any)?.url === 'string' ? (initialConfig as any).url : '');
+            const hdrEntries = Object.entries(((initialConfig as any)?.headers) || {});
+            setHeaderPairs(hdrEntries.map(([key, value], idx) => ({ key, value: String(value ?? ''), id: `hdr-${idx}` })));
+            // clear stdio state
+            setCommand('');
+            setArgs('');
+            setEnvPairs([]);
         }
-        if (initialConfig?.type === 'stdio') {
-            if (typeof initialConfig.command === 'string') setCommand(initialConfig.command);
-            if (Array.isArray(initialConfig.args)) setArgs(initialConfig.args.join(', '));
-            const envEntries = Object.entries((initialConfig as any).env || {});
-            setEnvPairs(
-                envEntries.map(([key, value], idx) => ({
-                    key,
-                    value: String(value ?? ''),
-                    id: `env-${idx}`,
-                }))
-            );
-        } else if (initialConfig?.type === 'http' || initialConfig?.type === 'sse') {
-            if (typeof (initialConfig as any).url === 'string') setUrl((initialConfig as any).url);
-            const hdrEntries = Object.entries((initialConfig as any).headers || {});
-            setHeaderPairs(
-                hdrEntries.map(([key, value], idx) => ({
-                    key,
-                    value: String(value ?? ''),
-                    id: `hdr-${idx}`,
-                }))
-            );
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialName, initialConfig?.type]);
+    }, [isOpen, initialName, initialConfig]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         setIsSubmitting(true);
 
+        // Validate server name
         if (!serverName.trim()) {
             setError('Server name is required.');
             setIsSubmitting(false);
             return;
         }
 
-
-        let config: McpServerConfig;
+        // Validate required fields based on server type
         if (serverType === 'stdio') {
             if (!command.trim()) {
                 setError('Command is required for stdio servers.');
                 setIsSubmitting(false);
                 return;
             }
+            
+            // Validate environment variables
+            const requiredKeys = envPairs.map((p) => p.key.trim()).filter(Boolean);
+            if (requiredKeys.length) {
+                const dupes = requiredKeys.filter((k, i) => requiredKeys.indexOf(k) !== i);
+                if (dupes.length) {
+                    setError(`Duplicate environment variables: ${Array.from(new Set(dupes)).join(', ')}`);
+                    setIsSubmitting(false);
+                    return;
+                }
+                const missing = envPairs.filter((p) => p.key.trim() && !p.value.trim()).map((p) => p.key.trim());
+                if (missing.length) {
+                    setError(`Please set required environment variables: ${missing.join(', ')}`);
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+        } else {
+            if (!url.trim()) {
+                setError(`URL is required for ${serverType.toUpperCase()} servers.`);
+                setIsSubmitting(false);
+                return;
+            }
+            try {
+                new URL(url.trim());
+            } catch (_) {
+                setError(`Invalid URL format for ${serverType.toUpperCase()} server.`);
+                setIsSubmitting(false);
+                return;
+            }
+        }
+
+        // Create config after all validation passes
+        let config: McpServerConfig;
+        if (serverType === 'stdio') {
             config = {
                 type: 'stdio',
                 command: command.trim(),
@@ -147,18 +180,6 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 connectionMode: 'lenient',
             };
         } else if (serverType === 'sse') {
-            if (!url.trim()) {
-                setError('URL is required for SSE servers.');
-                setIsSubmitting(false);
-                return;
-            }
-            try {
-                new URL(url.trim());
-            } catch (_) {
-                setError('Invalid URL format for SSE server.');
-                setIsSubmitting(false);
-                return;
-            }
             config = {
                 type: 'sse',
                 url: url.trim(),
@@ -167,19 +188,6 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 connectionMode: 'lenient',
             };
         } else {
-            if (!url.trim()) {
-                setError('URL is required for HTTP servers.');
-                setIsSubmitting(false);
-                return;
-            }
-            try {
-                new URL(url.trim());
-            } catch (_) {
-                setError('Invalid URL format for HTTP server.');
-                setIsSubmitting(false);
-                return;
-            }
-
             config = {
                 type: 'http',
                 url: url.trim(),
@@ -187,20 +195,6 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 timeout: 30000,
                 connectionMode: 'lenient',
             };
-        }
-
-        // Validate required env variables if any are present (from prefill)
-        if (serverType === 'stdio') {
-            // If any keys exist, ensure non-empty values
-            const requiredKeys = envPairs.map((p) => p.key.trim()).filter(Boolean);
-            if (requiredKeys.length) {
-                const missing = envPairs.filter((p) => p.key.trim() && !p.value.trim()).map((p) => p.key.trim());
-                if (missing.length) {
-                    setError(`Please set required environment variables: ${missing.join(', ')}`);
-                    setIsSubmitting(false);
-                    return;
-                }
-            }
         }
 
         try {
@@ -216,7 +210,14 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 setIsSubmitting(false);
                 return;
             }
-            console.log('Connect server response:', result);
+            if (process.env.NODE_ENV === 'development') {
+                // Create a safe version for logging with masked sensitive values
+                const safeConfig = { ...config };
+                if (safeConfig.type === 'stdio' && safeConfig.env) {
+                    safeConfig.env = maskSensitiveEnv(safeConfig.env);
+                }
+                console.debug('Connect server response:', { ...result, config: safeConfig });
+            }
             // Notify parent component that server was connected successfully
             if (onServerConnected) {
                 onServerConnected();
