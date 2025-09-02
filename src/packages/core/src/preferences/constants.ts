@@ -1,3 +1,3 @@
-// src/core/preferences/constants.ts
+// src/packages/core/src/preferences/constants.ts
 
 export const PREFERENCES_FILE = 'preferences.yml';

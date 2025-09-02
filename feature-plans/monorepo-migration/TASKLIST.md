@@ -54,6 +54,7 @@ Track progress here. Update checkboxes as tasks complete.
 ## Documentation & Contributor Experience
 - [ ] Update CONTRIBUTING for monorepo workflows and release requirements
 - [ ] Add PR template with release checklist and labels guidance
+- [x] Update code and docs paths from src/app/* and src/core/* to new packages structure
 - [ ] Document versioning model (lockstep → hybrid/independent path)
 
 ## Future (Deferred) — Vite Migration

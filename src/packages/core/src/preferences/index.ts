@@ -1,4 +1,4 @@
-// src/core/preferences/index.ts
+// src/packages/core/src/preferences/index.ts
 
 export type {
     GlobalPreferences,

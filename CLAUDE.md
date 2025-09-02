@@ -80,7 +80,7 @@ Dexto automatically detects execution environment to enable context-aware behavi
    - Prevents malformed data from reaching core logic
 
 #### Result Pattern Helpers
-Use standardized helpers from `src/core/schemas/helpers.ts`:
+Use standardized helpers from `src/packages/core/src/schemas/helpers.ts`:
 
 - **`ok(data, issues?)`** - Success with optional warnings
 - **`fail(issues)`** - Failure with blocking errors  
@@ -135,13 +135,13 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
 
 **When to Use Each:**
 - **Runtime errors**: File operations, network calls, system failures, business logic violations
-  - Examples: `src/core/config/loader.ts`, `src/core/llm/services/vercel.ts`
+  - Examples: `src/packages/core/src/config/loader.ts`, `src/packages/core/src/llm/services/vercel.ts`
 - **Validation errors**: Schema validation, input parsing, configuration validation with multiple issues  
-  - Examples: `src/core/agent/DextoAgent.ts` (switchLLM validation)
+  - Examples: `src/packages/core/src/agent/DextoAgent.ts` (switchLLM validation)
 
 **Error Factory Pattern (REQUIRED):**
 Each module should have an error factory class that creates properly typed errors.
-- **Reference example**: `src/core/config/errors.ts` - Follow this pattern for new modules
+- **Reference example**: `src/packages/core/src/config/errors.ts` - Follow this pattern for new modules
 
 **API Integration:**
 The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
@@ -163,7 +163,7 @@ The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) aut
 - **Watch for mega barrels** - If a barrel exports >20 symbols or pulls from >10 files, consider splitting into thematic sub-barrels with subpath exports
 - **Clear API boundaries** - index.ts files mark what's public vs internal implementation
 
-**TODO**: Current codebase has violations of these rules (wildcard exports in `src/core/index.ts`, potential mega barrel in events) that need refactoring.
+**TODO**: Current codebase has violations of these rules (wildcard exports in `src/packages/core/src/index.ts`, potential mega barrel in events) that need refactoring.
 
 ### Logging Standards
 - **Use template literals** - `logger.info(\`Server running at \${url}\`)`

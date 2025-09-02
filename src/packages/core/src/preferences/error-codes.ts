@@ -1,4 +1,4 @@
-// src/core/preferences/error-codes.ts
+// src/packages/core/src/preferences/error-codes.ts
 
 export enum PreferenceErrorCode {
     FILE_NOT_FOUND = 'preference_file_not_found',

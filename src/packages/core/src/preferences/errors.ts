@@ -1,4 +1,4 @@
-// src/core/preferences/errors.ts
+// src/packages/core/src/preferences/errors.ts
 
 import { DextoRuntimeError, DextoValidationError } from '@core/errors/index.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';

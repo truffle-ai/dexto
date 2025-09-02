@@ -1,4 +1,4 @@
-// src/core/utils/execution-context.ts
+// src/packages/core/src/utils/execution-context.ts
 
 import { walkUpDirectories } from './fs-walk.js';
 import { readFileSync } from 'fs';

@@ -1,11 +1,11 @@
 ---
 description: 
-globs: src/core/config/*
+globs: src/packages/core/src/config/*
 alwaysApply: false
 ---
 # Zod Schema Design Guidelines
 
-This document provides best practices for creating and maintaining the Zod schemas in [`schemas.ts`](mdc:src/core/config/schemas.ts). This file is the single source of truth for all application configuration, ensuring type safety and clear validation.
+This document provides best practices for creating and maintaining the Zod schemas in [`schemas.ts`](mdc:src/packages/core/src/config/schemas.ts). This file is the single source of truth for all application configuration, ensuring type safety and clear validation.
 
 ---
 
