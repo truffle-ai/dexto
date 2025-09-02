@@ -66,17 +66,6 @@ async function copyWebUIBuild(): Promise<void> {
         ];
         const serverFiles = candidateServers.filter((p) => fs.existsSync(p));
 
-        const manifestFiles = [
-            'BUILD_ID',
-            'build-manifest.json',
-            'react-loadable-manifest.json',
-            'routes-manifest.json',
-            'app-build-manifest.json',
-            'app-path-routes-manifest.json',
-            'required-server-files.json',
-            'package.json',
-        ];
-
         for (const serverFile of serverFiles) {
             const serverDir = path.dirname(serverFile);
             const serverNextDir = path.join(serverDir, '.next');
@@ -89,15 +78,7 @@ async function copyWebUIBuild(): Promise<void> {
             if (fs.existsSync(publicSrcPath)) {
                 await fs.copy(publicSrcPath, serverPublicDir);
             }
-            // Copy key manifest files into each server's .next
-            for (const mf of manifestFiles) {
-                const src = path.join(sourceWebUIDir, '.next', mf);
-                const dest = path.join(serverNextDir, mf);
-                if (fs.existsSync(src)) {
-                    await fs.copy(src, dest);
-                }
-            }
-            console.log(`✅ Synchronized assets/manifests for server at: ${serverDir}`);
+            console.log(`✅ Synchronized static/public for server at: ${serverDir}`);
         }
 
         // Create a simple server.js file in the target directory for starting the app
