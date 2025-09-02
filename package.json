@@ -26,6 +26,7 @@
         "clean:storage": "npx rimraf .dexto",
         "prebuild": "",
         "build": "npm run clean && npm run build-webui && tsup && npm run copy-webui-dist",
+        "prepack": "npm run build",
         "build:check": "npm run typecheck && npm run build",
         "build:strict": "npm run typecheck && npm run build",
         "typecheck": "tsc --project tsconfig.typecheck.json",
