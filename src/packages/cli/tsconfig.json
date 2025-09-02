@@ -1,6 +1,7 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "rootDir": "src",
     "outDir": "../../dist/src/app",
     "module": "NodeNext",
@@ -14,4 +15,3 @@
   "include": ["src/**/*"],
   "exclude": ["src/webui/.next/**", "**/*.test.ts", "**/*.spec.ts"]
 }
-

@@ -63,6 +63,7 @@ async function copyWebUIBuild(): Promise<void> {
         const candidateServers = [
             path.join(standaloneRoot, 'server.js'),
             path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
+            path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
         ];
         const serverFiles = candidateServers.filter((p) => fs.existsSync(p));
 
@@ -92,6 +93,7 @@ const standaloneRoot = path.join(__dirname, '.next', 'standalone');
 const candidates = [
   path.join(standaloneRoot, 'server.js'),
   path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
+  path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
 ];
 const standaloneServer = candidates.find((p) => fs.existsSync(p));
 

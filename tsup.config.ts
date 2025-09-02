@@ -18,6 +18,7 @@ export default defineConfig([
         format: ['esm'],
         outDir: 'dist/src/app',
         shims: true,
+        loader: { '.json': 'json' },
         external: ['better-sqlite3', 'pg', 'redis'],
     },
 ]);

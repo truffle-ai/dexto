@@ -1,13 +1,16 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "rootDir": "src",
     "outDir": "../../dist/src/core",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noEmit": false
+    "noEmit": false,
+    "paths": {
+      "@core/*": ["src/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts"]
 }
-

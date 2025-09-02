@@ -26,7 +26,17 @@ export async function startNextJsWebServer(
     // If not found in expected location for dist, check other possible locations
     if (!existsSync(webuiPath)) {
         // Check for source directory (dev mode scenario)
-        const srcPath = path.resolve(scriptDir, '..', '..', 'src', 'app', 'webui');
+        const srcPath = path.resolve(
+            scriptDir,
+            '..',
+            '..',
+            '..',
+            'src',
+            'packages',
+            'cli',
+            'src',
+            'webui'
+        );
         if (existsSync(srcPath)) {
             // In dev mode, fall back to dev server
             return startDevServer(apiUrl, frontPort, frontUrl, srcPath);
@@ -45,6 +55,8 @@ export async function startNextJsWebServer(
         path.join(standaloneRoot, 'server.js'),
         // When app is nested under src/app/webui, Next 15.5 places server here
         path.join(standaloneRoot, 'src', 'app', 'webui', 'server.js'),
+        // When app lives under src/packages/cli/src/webui
+        path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
     ];
 
     const resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));

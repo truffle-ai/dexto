@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import pkg from '../../package.json' with { type: 'json' };
+import pkg from '../package.json' with { type: 'json' };
 
 import {
     logger,
@@ -19,7 +19,7 @@ import {
     loadAgentConfig,
     LLMProvider,
 } from '@core/index.js';
-import { resolveAgentPath } from '@core/config/agent-resolver.js';
+import { resolveAgentPath } from '@core/config/index.js';
 import { getAgentRegistry } from '@core/agent/registry/registry.js';
 import { isPath } from '@core/utils/path.js';
 import type { AgentConfig } from '@core/agent/schemas.js';
