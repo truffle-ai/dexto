@@ -2,6 +2,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
+import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -39,6 +40,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
     'promptManager',
+    'promptsManager',
     'agentEventBus',
     'stateManager',
     'sessionManager',
@@ -103,6 +105,7 @@ export class DextoAgent {
      */
     public readonly mcpManager!: MCPManager;
     public readonly promptManager!: PromptManager;
+    public readonly promptsManager!: PromptsManager;
     public readonly agentEventBus!: AgentEventBus;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
@@ -168,6 +171,7 @@ export class DextoAgent {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
                 promptManager: services.promptManager,
+                promptsManager: services.promptsManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,

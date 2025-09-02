@@ -26,12 +26,22 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
         usage: '/help [command]',
         category: 'General',
         aliases: ['h', '?'],
-        handler: async (args: string[], _agent: DextoAgent) => {
+        handler: async (args: string[], agent: DextoAgent) => {
             const allCommands = getAllCommands();
 
+            // Get dynamic prompt commands
+            let dynamicPromptCommands: CommandDefinition[] = [];
+            try {
+                const { getDynamicPromptCommands } = await import('./prompt-commands.js');
+                dynamicPromptCommands = await getDynamicPromptCommands(agent);
+            } catch (error) {
+                // Ignore errors when getting dynamic commands
+            }
+
             if (args.length === 0) {
-                // Show all commands using the original displayAllCommands function
-                displayAllCommands(allCommands);
+                // Show all commands including dynamic prompt commands
+                const allCommandsWithPrompts = [...allCommands, ...dynamicPromptCommands];
+                displayAllCommands(allCommandsWithPrompts);
                 return true;
             }
 

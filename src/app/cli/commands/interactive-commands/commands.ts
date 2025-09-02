@@ -29,7 +29,7 @@ import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
 import { systemCommands } from './system/index.js';
 import { toolCommands } from './tool-commands.js';
-import { promptCommands } from './prompt-commands.js';
+import { promptCommands, getDynamicPromptCommands } from './prompt-commands.js';
 import { documentationCommands } from './documentation-commands.js';
 
 /**
@@ -94,10 +94,22 @@ export async function executeCommand(
     args: string[],
     agent: DextoAgent
 ): Promise<boolean> {
-    // Find the command (including aliases)
-    const cmd = CLI_COMMANDS.find(
+    // First, try to find the command in the static CLI_COMMANDS
+    let cmd = CLI_COMMANDS.find(
         (c) => c.name === command || (c.aliases && c.aliases.includes(command))
     );
+
+    // If not found, check if it's a dynamic prompt command
+    if (!cmd) {
+        try {
+            const dynamicPromptCommands = await getDynamicPromptCommands(agent);
+            cmd = dynamicPromptCommands.find(
+                (c) => c.name === command || (c.aliases && c.aliases.includes(command))
+            );
+        } catch (error) {
+            // Ignore errors when getting dynamic commands
+        }
+    }
 
     if (!cmd) {
         console.log(`❌ Unknown command: /${command}`);

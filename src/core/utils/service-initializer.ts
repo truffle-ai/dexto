@@ -25,10 +25,11 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { createToolConfirmationProvider } from '../tools/confirmation/factory.js';
 import { PromptManager } from '../systemPrompt/manager.js';
+import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { dirname, resolve } from 'path';
+import { dirname, resolve, join } from 'path';
 import { createStorageBackends, type StorageBackends, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';
@@ -42,6 +43,7 @@ export type AgentServices = {
     mcpManager: MCPManager;
     toolManager: ToolManager;
     promptManager: PromptManager;
+    promptsManager: PromptsManager;
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
@@ -133,7 +135,13 @@ export async function createAgentServices(
     );
     const promptManager = new PromptManager(config.systemPrompt, configDir);
 
-    // 7. Initialize state manager for runtime state tracking
+    // 7. Initialize prompts manager for MCP and internal prompts
+    const promptsDir = join(configDir, 'prompts');
+    const promptsManager = new PromptsManager(mcpManager, promptsDir);
+    await promptsManager.initialize();
+    logger.debug('PromptsManager initialized');
+
+    // 8. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
@@ -162,6 +170,7 @@ export async function createAgentServices(
         mcpManager,
         toolManager,
         promptManager,
+        promptsManager,
         agentEventBus,
         stateManager,
         sessionManager,

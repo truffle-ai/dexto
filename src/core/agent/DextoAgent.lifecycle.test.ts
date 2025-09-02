@@ -54,6 +54,7 @@ describe('DextoAgent Lifecycle Management', () => {
             } as any,
             toolManager: {} as any,
             promptManager: {} as any,
+            promptsManager: {} as any,
             agentEventBus: {} as any,
             stateManager: {
                 getRuntimeConfig: vi.fn().mockReturnValue({
