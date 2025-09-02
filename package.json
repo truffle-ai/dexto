@@ -25,7 +25,7 @@
         "clean": "rimraf dist build public coverage logs .eslintcache test-temp && pnpm run clean:storage && tsx scripts/clean-build-files.ts",
         "clean:storage": "rimraf .dexto",
         "prebuild": "",
-        "build": "pnpm run clean && pnpm run build-webui && tsup && pnpm run copy-webui-dist",
+        "build": "pnpm run clean && pnpm -C src/packages/core build && tsup && pnpm run build-webui && pnpm run copy-webui-dist",
         "prepack": "pnpm run build",
         "build:check": "pnpm run typecheck && pnpm run build",
         "build:strict": "pnpm run typecheck && pnpm run build",

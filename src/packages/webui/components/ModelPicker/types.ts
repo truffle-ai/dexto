@@ -1,4 +1,4 @@
-import type { LLMRouter, SupportedFileType } from '@core/llm/registry.js';
+import type { LLMRouter, SupportedFileType } from '@dexto/core';
 
 export type ModelInfo = {
     name: string;

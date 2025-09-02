@@ -3,19 +3,42 @@
   "version": "0.0.0",
   "private": false,
   "type": "module",
-  "main": "../../dist/src/core/index.js",
-  "module": "../../dist/src/core/index.js",
-  "types": "../../dist/src/core/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "../../dist/src/core/index.d.ts",
-      "import": "../../dist/src/core/index.js",
-      "require": "../../dist/src/core/index.cjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./context/types": {
+      "types": "./dist/context/types.d.ts",
+      "import": "./dist/context/types.js"
+    },
+    "./utils/error-conversion": {
+      "types": "./dist/utils/error-conversion.d.ts",
+      "import": "./dist/utils/error-conversion.js"
+    },
+    "./errors/types": {
+      "types": "./dist/errors/types.d.ts",
+      "import": "./dist/errors/types.js"
+    },
+    "./llm/registry": {
+      "types": "./dist/llm/registry.d.ts",
+      "import": "./dist/llm/registry.js"
+    },
+    "./mcp/schemas": {
+      "types": "./dist/mcp/schemas.d.ts",
+      "import": "./dist/mcp/schemas.js"
     },
     "./package.json": "./package.json"
   },
+  "devDependencies": {
+    "@types/json-schema": "^7.0.15"
+  },
   "scripts": {
-    "build": "tsup -c",
+    "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

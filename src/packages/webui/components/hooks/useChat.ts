@@ -1,10 +1,8 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
-import { toError } from '@core/utils/error-conversion.js';
-import { Issue } from '@core/errors/types.js';
-import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
+import { TextPart as CoreTextPart, InternalMessage, FilePart, toError, Issue } from '@dexto/core';
+import type { LLMRouter, LLMProvider } from '@dexto/core';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;

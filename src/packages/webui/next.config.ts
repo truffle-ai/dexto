@@ -24,10 +24,8 @@ const nextConfig: NextConfig = {
     // This stabilizes the emitted standalone directory structure and prevents
     // paths like "+/Projects/dexto/..." from being embedded in output.
     outputFileTracingRoot: path.resolve(__dirname, '..', '..', '..'),
-    experimental: {
-        // Allow importing TS/JS from outside the Next.js app directory
-        externalDir: true,
-    },
+    // Next 15: transpilePackages at top-level.
+    // Core ships compiled JS; we don't need to transpile it. Keep empty.
     // Disable ESLint during build to avoid config issues
     eslint: {
         ignoreDuringBuilds: true,
@@ -35,9 +33,9 @@ const nextConfig: NextConfig = {
     // Ensure webpack can resolve ESM-style .js imports to .ts sources
     webpack: (config) => {
         config.resolve = config.resolve || {};
+        // Prefer package imports (@dexto/core); legacy alias can be removed once all imports migrate
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
-            '@core': path.resolve(__dirname, '../../../core/src'),
         };
         // Map requested .js to .ts/.tsx during development/build
         // while still allowing actual .js files

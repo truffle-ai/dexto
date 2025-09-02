@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { ErrorMessage } from './hooks/useChat';
-import { Issue } from '@core/errors/types.js';
+import { Issue } from '@dexto/core';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
 
