@@ -32,6 +32,7 @@ import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
+import type { McpServerConfig } from '../../../core/mcp/schemas.js';
 
 export default function ChatApp() {
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel } = useChatContext();
@@ -77,7 +78,7 @@ export default function ChatApp() {
   // Prefill config for ConnectServerModal
   const [connectPrefill, setConnectPrefill] = useState<{
     name: string;
-    config: any;
+    config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
     lockName?: boolean;
     registryEntryId?: string;
   } | null>(null);
@@ -286,7 +287,7 @@ export default function ChatApp() {
       headers: entry.config.headers || {},
       timeout: entry.config.timeout || 30000,
     };
-    setConnectPrefill({ name: entry.name, config, lockName: true });
+    setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
     setServerRegistryOpen(false);
     setModalOpen(true);
   }, []);

@@ -6,6 +6,7 @@ import { X, PlusCircle, Server, ListChecks, ChevronRight, RefreshCw, AlertTriang
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
+import type { McpServerConfig } from '../../../core/mcp/schemas.js';
 import { serverRegistry } from '@/lib/serverRegistry';
 import ServerRegistryModal from './ServerRegistryModal';
 
@@ -13,12 +14,29 @@ interface ServersPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenConnectModal: () => void;
-  onOpenConnectWithPrefill?: (opts: { name: string; config: any; lockName?: boolean; registryEntryId?: string }) => void;
+  onOpenConnectWithPrefill?: (opts: {
+    name: string;
+    config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
+    lockName?: boolean;
+    registryEntryId?: string;
+  }) => void;
   variant?: 'overlay' | 'inline';
   refreshTrigger?: number; // Add a trigger to force refresh
 }
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
+
+function buildConfigFromRegistryEntry(entry: ServerRegistryEntry) {
+  return {
+    type: entry.config.type,
+    command: entry.config.command,
+    args: entry.config.args || [],
+    url: entry.config.url,
+    env: entry.config.env || {},
+    headers: entry.config.headers || {},
+    timeout: entry.config.timeout || 30000,
+  };
+}
 
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
   const [servers, setServers] = useState<McpServer[]>([]);
@@ -83,15 +101,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
 
     // If parent supports prefilled connect modal, use it instead of immediate connect
     if (typeof onOpenConnectWithPrefill === 'function') {
-      const config = {
-        type: entry.config.type,
-        command: entry.config.command,
-        args: entry.config.args || [],
-        url: entry.config.url,
-        env: entry.config.env || {},
-        headers: entry.config.headers || {},
-        timeout: entry.config.timeout || 30000,
-      };
+      const config = buildConfigFromRegistryEntry(entry);
       onOpenConnectWithPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
       return;
     }
@@ -101,15 +111,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       const res = await fetch('/api/connect-server', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: entry.name, config: {
-          type: entry.config.type,
-          command: entry.config.command,
-          args: entry.config.args || [],
-          url: entry.config.url,
-          env: entry.config.env || {},
-          headers: entry.config.headers || {},
-          timeout: entry.config.timeout || 30000,
-        } }),
+        body: JSON.stringify({ name: entry.name, config: buildConfigFromRegistryEntry(entry) }),
       });
       const result = await res.json();
       if (!res.ok) {

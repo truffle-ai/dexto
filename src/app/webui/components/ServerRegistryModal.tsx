@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
-import AddCustomServerModal from './AddCustomServerModal';
 import {
     Dialog,
     DialogContent,
@@ -56,7 +55,6 @@ export default function ServerRegistryModal({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [installing, setInstalling] = useState<string | null>(null);
-    const [isAddCustomModalOpen, setIsAddCustomModalOpen] = useState(false);
     
     // Filter state
     const [filter, setFilter] = useState<ServerRegistryFilter>({});
@@ -67,7 +65,7 @@ export default function ServerRegistryModal({
     const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
     
     // Ref for debouncing
-    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     // Track if component is mounted to prevent state updates after unmount
     const isMountedRef = useRef(true);
@@ -198,6 +196,9 @@ export default function ServerRegistryModal({
                 setEntries(prev => prev.map(e => 
                     e.id === entry.id ? { ...e, isInstalled: true } : e
                 ));
+                setFilteredEntries(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, isInstalled: true } : e
+                ));
             }
         } catch (err: unknown) {
             if (isMountedRef.current) {
@@ -224,23 +225,6 @@ export default function ServerRegistryModal({
         return colors[category as keyof typeof colors] || colors.custom;
     };
 
-    const handleAddCustomServer = async (entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial' | 'lastUpdated'>) => {
-        if (!isMountedRef.current) return;
-        
-        try {
-            const newEntry = await serverRegistry.addCustomEntry(entry);
-            
-            if (isMountedRef.current) {
-                setEntries(prev => [newEntry, ...prev]);
-                setIsAddCustomModalOpen(false);
-            }
-        } catch (err: unknown) {
-            if (isMountedRef.current) {
-                const errorMessage = err instanceof Error ? err.message : 'Failed to add custom server';
-                setError(errorMessage);
-            }
-        }
-    };
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -264,7 +248,7 @@ export default function ServerRegistryModal({
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
                         <Input
-                            placeholder="Search tools, integrations, and capabilities..."
+                            placeholder="Search servers, integrations, and capabilities..."
                             value={searchInput}
                             onChange={(e) => setSearchInput(e.target.value)}
                             className="pl-10 h-10 border-border/40 focus:border-primary/50 bg-background shadow-sm"
@@ -320,7 +304,7 @@ export default function ServerRegistryModal({
                         <div className="flex items-center justify-center py-20">
                             <div className="flex flex-col items-center space-y-4">
                                 <div className="h-10 w-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
-                                <div className="text-base text-muted-foreground font-medium">Discovering tools...</div>
+                                <div className="text-base text-muted-foreground font-medium">Discovering servers...</div>
                                 <div className="text-sm text-muted-foreground/70">Loading registry entries</div>
                             </div>
                         </div>
@@ -331,8 +315,8 @@ export default function ServerRegistryModal({
                             </div>
                             <div className="text-lg font-medium text-muted-foreground mb-2">
                                 {entries.length === 0 
-                                    ? 'No tools available in the registry'
-                                    : 'No tools match your search'
+                                    ? 'No servers available in the registry'
+                                    : 'No servers match your search'
                                 }
                             </div>
                             <div className="text-sm text-muted-foreground/70 mb-4">
@@ -395,7 +379,7 @@ export default function ServerRegistryModal({
                                                                 {entry.isInstalled && (
                                                                     <Badge className="text-xs px-2 py-1 bg-green-100 text-green-700 border-green-200">
                                                                         <CheckCircle className="h-3 w-3 mr-1" />
-                                                                        Added
+                                                                        Connected
                                                                     </Badge>
                                                                 )}
                                                                 {entry.category && (
@@ -512,17 +496,17 @@ export default function ServerRegistryModal({
                                                             {installing === entry.id ? (
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                                                    <span>Adding</span>
+                                                                    <span>Connecting</span>
                                                                 </div>
                                                             ) : entry.isInstalled ? (
                                                                 <div className="flex items-center gap-2">
                                                                     <CheckCircle className="h-3 w-3" />
-                                                                    <span>Added</span>
+                                                                    <span>Connected</span>
                                                                 </div>
                                                             ) : (
                                                                 <div className="flex items-center gap-2">
                                                                     <Plus className="h-3 w-3" />
-                                                                    <span>Add</span>
+                                                                    <span>Connect</span>
                                                                 </div>
                                                             )}
                                                         </Button>
@@ -603,7 +587,7 @@ export default function ServerRegistryModal({
                                                             {installing === entry.id ? (
                                                                 <div className="flex items-center gap-1.5">
                                                                     <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                                                    <span>Adding...</span>
+                                                                    <span>Connecting...</span>
                                                                 </div>
                                                             ) : entry.isInstalled ? (
                                                                 <div className="flex items-center gap-1.5">
@@ -691,12 +675,6 @@ export default function ServerRegistryModal({
                 </div>
             </DialogContent>
 
-            {/* Add Custom Server Modal */}
-            <AddCustomServerModal
-                isOpen={isAddCustomModalOpen}
-                onClose={() => setIsAddCustomModalOpen(false)}
-                onAddServer={handleAddCustomServer}
-            />
         </Dialog>
     );
 } 

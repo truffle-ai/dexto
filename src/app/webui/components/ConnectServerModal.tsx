@@ -56,6 +56,17 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         return headers;
     };
 
+    // Helper function to convert env pairs to record
+    const envToRecord = (pairs: HeaderPair[]): Record<string, string> => {
+        const env: Record<string, string> = {};
+        pairs.forEach((pair) => {
+            if (pair.key.trim()) {
+                env[pair.key.trim()] = pair.value.trim();
+            }
+        });
+        return env;
+    };
+
     useEffect(() => {
         if (!isOpen) {
             const timer = setTimeout(() => {
@@ -116,16 +127,6 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             return;
         }
 
-        // Convert env pairs to record
-        const envToRecord = (pairs: HeaderPair[]): Record<string, string> => {
-            const env: Record<string, string> = {};
-            pairs.forEach((pair) => {
-                if (pair.key.trim()) {
-                    env[pair.key.trim()] = pair.value.trim();
-                }
-            });
-            return env;
-        };
 
         let config: McpServerConfig;
         if (serverType === 'stdio') {

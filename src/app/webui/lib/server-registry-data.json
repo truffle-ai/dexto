@@ -77,10 +77,10 @@
     "tags": ["search", "web", "research"],
     "isOfficial": false,
     "isInstalled": false,
-    "requirements": { "platform": "all", "python": ">=3.10" },
+    "requirements": { "platform": "all", "python": ">=3.10", "dependencies": ["uv"] },
     "author": "Community",
     "homepage": "https://github.com/duckduckgo/mcp-server",
-    "matchIds": ["duckduckgo"]
+    "matchIds": ["duckduckgo", "ddg"]
   },
   {
     "id": "domain-checker",
@@ -181,7 +181,7 @@
     "isOfficial": true,
     "isInstalled": false,
     "requirements": { "platform": "all", "python": ">=3.10" },
-    "author": "Community",
+    "author": "ElevenLabs",
     "homepage": "https://github.com/elevenlabs/elevenlabs-mcp",
     "matchIds": ["elevenlabs"]
   },
@@ -224,7 +224,7 @@
     "isOfficial": false,
     "isInstalled": false,
     "requirements": { "platform": "all", "node": ">=18.0.0" },
-    "author": "Truffle AI",
+    "author": "Tavily AI",
     "homepage": "https://www.npmjs.com/package/tavily-mcp",
     "matchIds": ["tavily"]
   },

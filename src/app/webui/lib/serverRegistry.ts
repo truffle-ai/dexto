@@ -1,5 +1,5 @@
 import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
-import builtinRegistryData from './server-registry-data.json';
+import builtinRegistryData from './server-registry-data.js';
 
 /**
  * MCP Server Registry Service
@@ -15,6 +15,13 @@ export class ServerRegistryService {
 
     private constructor() {
         // Private constructor for singleton
+    }
+
+    private static normalizeId(s: string): string {
+        return s
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
     }
 
     static getInstance(): ServerRegistryService {
@@ -34,7 +41,6 @@ export class ServerRegistryService {
         this.registryEntries = this.getBuiltinEntries();
 
         // Load custom entries from localStorage
-        await this.loadCustomEntries();
 
         // TODO: Load from external registry sources (GitHub, npm, etc.)
         // await this.loadExternalRegistries();
@@ -91,24 +97,6 @@ export class ServerRegistryService {
     }
 
     /**
-     * Add a custom server to the registry
-     */
-    async addCustomEntry(
-        entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial'>
-    ): Promise<ServerRegistryEntry> {
-        const newEntry: ServerRegistryEntry = {
-            ...entry,
-            id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            isOfficial: false,
-        };
-
-        this.registryEntries.push(newEntry);
-        await this.saveCustomEntries();
-
-        return newEntry;
-    }
-
-    /**
      * Update an existing registry entry
      */
     async updateEntry(id: string, updates: Partial<ServerRegistryEntry>): Promise<boolean> {
@@ -120,7 +108,6 @@ export class ServerRegistryService {
             ...updates,
         };
 
-        await this.saveCustomEntries();
         return true;
     }
 
@@ -138,19 +125,21 @@ export class ServerRegistryService {
     async syncWithServerStatus(): Promise<void> {
         try {
             // Fetch current server states
-            const response = await fetch('/api/mcp/servers');
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), 10000);
+            const response = await fetch('/api/mcp/servers', { signal: controller.signal });
+            clearTimeout(t);
             if (!response.ok) return; // Graceful failure
 
             const data = await response.json();
             const servers = data.servers || [];
 
             // Create sets for connected and all server IDs
-            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
             const connectedIds = new Set<string>();
             const allServerIds = new Set<string>();
 
             servers.forEach((server: any) => {
-                const normalizedId = normalize(server.id);
+                const normalizedId = ServerRegistryService.normalizeId(server.id);
                 allServerIds.add(normalizedId);
                 if (server.status === 'connected') {
                     connectedIds.add(normalizedId);
@@ -162,7 +151,7 @@ export class ServerRegistryService {
             for (const entry of this.registryEntries) {
                 const aliases = [entry.id, entry.name, ...(entry.matchIds || [])]
                     .filter(Boolean)
-                    .map((x) => normalize(String(x)));
+                    .map((x) => ServerRegistryService.normalizeId(String(x)));
 
                 const hasMatchingServer = aliases.some((alias) => allServerIds.has(alias));
                 // Note: We could also track connection status separately in the future
@@ -182,7 +171,6 @@ export class ServerRegistryService {
 
             // Save changes if any were made
             if (hasChanges) {
-                await this.saveCustomEntries();
             }
         } catch (error) {
             // Non-fatal error, log and continue
@@ -204,52 +192,6 @@ export class ServerRegistryService {
      */
     private getBuiltinEntries(): ServerRegistryEntry[] {
         return builtinRegistryData as ServerRegistryEntry[];
-    }
-
-    /**
-     * Save custom entries to local storage
-     */
-    private async saveCustomEntries(): Promise<void> {
-        const customEntries = this.registryEntries.filter((entry) => !entry.isOfficial);
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('mcp-custom-servers', JSON.stringify(customEntries));
-        }
-    }
-
-    /**
-     * Load custom entries from local storage
-     */
-    private async loadCustomEntries(): Promise<void> {
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('mcp-custom-servers');
-            if (stored) {
-                try {
-                    const customEntries = JSON.parse(stored) as ServerRegistryEntry[];
-                    // De-duplicate against existing built-ins by normalized aliases (id/name/matchIds)
-                    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                    const existingAliases = new Set<string>();
-                    for (const e of this.registryEntries) {
-                        [e.id, e.name, ...((e.matchIds as string[] | undefined) || [])]
-                            .filter(Boolean)
-                            .map(normalize)
-                            .forEach((a) => existingAliases.add(a));
-                    }
-                    const deduped = customEntries.filter((e) => {
-                        const aliases = [
-                            e.id,
-                            e.name,
-                            ...((e.matchIds as string[] | undefined) || []),
-                        ]
-                            .filter(Boolean)
-                            .map(normalize);
-                        return !aliases.some((a) => existingAliases.has(a));
-                    });
-                    this.registryEntries.push(...deduped);
-                } catch (error) {
-                    console.warn('Failed to load custom server entries:', error);
-                }
-            }
-        }
     }
 }
 
