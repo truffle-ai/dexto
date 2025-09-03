@@ -1,24 +1,14 @@
-// Lightweight console-backed logger (browser-safe)
-const logger = {
-    debug: (...args: any[]) =>
-        typeof console !== 'undefined' ? console.debug(...args) : undefined,
-    info: (...args: any[]) => (typeof console !== 'undefined' ? console.info(...args) : undefined),
-    warn: (...args: any[]) => (typeof console !== 'undefined' ? console.warn(...args) : undefined),
-    error: (...args: any[]) =>
-        typeof console !== 'undefined' ? console.error(...args) : undefined,
-};
 import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import {
     LLM_PROVIDERS,
-    LLM_ROUTERS,
-    SUPPORTED_FILE_TYPES,
     type LLMProvider,
     type LLMRouter,
     type SupportedFileType,
 } from './types.js';
+import { logger } from '../logger/index.js';
 
 export interface ModelInfo {
     name: string;
