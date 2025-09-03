@@ -6,10 +6,14 @@ import { applyLayeredEnvironmentLoading } from '@dexto/core';
 await applyLayeredEnvironmentLoading();
 
 import { existsSync } from 'fs';
+import { createRequire } from 'module';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import pkg from '../package.json' with { type: 'json' };
+
+// Use createRequire to import package.json without experimental warning
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 
 import {
     logger,
