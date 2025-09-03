@@ -6,7 +6,8 @@
     "dexto": "./dist/index.js"
   },
   "dependencies": {
-    "@dexto/core": "workspace:*"
+    "@dexto/core": "workspace:*",
+    "@dexto/webui": "workspace:*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
