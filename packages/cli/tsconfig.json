@@ -6,10 +6,7 @@
     "outDir": "dist",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noEmit": false,
-    "paths": {
-      "@app/*": ["src/*"]
-    }
+    "noEmit": false
   },
   "include": [
     "src/**/*",

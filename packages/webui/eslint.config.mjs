@@ -1,10 +1,10 @@
 import tsParser from '@typescript-eslint/parser';
 
+// TODO: Improve imports to make them browser-safe.
 // Local ESLint config for the Web UI only.
-// Keeps the UI browser-safe by restricting imports to types (and `toError`) from '@dexto/core'
-// and forbidding internal '@core/*' imports. If a rule fails, it means an import would
-// pull Node-only modules (fs/path/winston) into the UI bundle — use the API for runtime instead.
-
+// Keeps the UI browser-safe by restricting imports to types (and `toError`) from '@dexto/core'.
+// If a rule fails, it means an import would pull Node-only modules (fs/path/winston) 
+// into the UI bundle — use the API for runtime instead.
 export default [
   {
     files: ['**/*.ts', '**/*.tsx'],
@@ -25,17 +25,10 @@ export default [
       '@typescript-eslint': await import('@typescript-eslint/eslint-plugin').then(m => m.default || m),
     },
     rules: {
-      // Forbid internal alias imports that can pull Node-only code
+      // Forbid imports that can pull Node-only code
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            {
-              group: ['@core/*'],
-              message:
-                "Web UI must not import from '@core/*'. Use '@dexto/core' for types, and call the API for runtime. This avoids bundling Node-only modules (fs/path/winston).",
-            },
-          ],
           paths: [
             {
               name: '@dexto/core/logger',

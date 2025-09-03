@@ -7,11 +7,6 @@
         "allowSyntheticDefaultImports": true,
         "downlevelIteration": true,
         "baseUrl": ".",
-        "paths": {
-            "@app/*": ["packages/cli/src/*"],
-            "@core/*": ["packages/core/src/*"],
-            "mitt": ["./node_modules/mitt/dist/index.d.ts"]
-        },
         "outDir": "./dist",
         "rootDir": ".",
         "strict": true,

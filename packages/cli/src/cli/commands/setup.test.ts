@@ -19,17 +19,17 @@ vi.mock('@dexto/core', async () => {
     };
 });
 
-vi.mock('@app/cli/utils/api-key-setup.js', () => ({
+vi.mock('../utils/api-key-setup.js', () => ({
     interactiveApiKeySetup: vi.fn().mockResolvedValue(undefined),
 }));
 
 // (Other mocks below)
 
-vi.mock('@app/cli/utils/provider-setup.js', () => ({
+vi.mock('../utils/provider-setup.js', () => ({
     selectProvider: vi.fn(),
 }));
 
-vi.mock('@app/cli/utils/setup-utils.js', () => ({
+vi.mock('../utils/setup-utils.js', () => ({
     requiresSetup: vi.fn(),
 }));
 
@@ -66,10 +66,10 @@ describe('Setup Command', () => {
 
         // Get mock functions
         const prefLoader = await import('@dexto/core');
-        const apiKeySetup = await import('@app/cli/utils/api-key-setup.js');
+        const apiKeySetup = await import('../utils/api-key-setup.js');
         const apiKeyResolver = await import('@dexto/core');
-        const providerSetup = await import('@app/cli/utils/provider-setup.js');
-        const setupUtils = await import('@app/cli/utils/setup-utils.js');
+        const providerSetup = await import('../utils/provider-setup.js');
+        const setupUtils = await import('../utils/setup-utils.js');
         const prompts = await import('@clack/prompts');
 
         mockCreateInitialPreferences = vi.mocked(prefLoader.createInitialPreferences);
