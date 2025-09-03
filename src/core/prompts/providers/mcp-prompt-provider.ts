@@ -57,6 +57,7 @@ export class MCPPromptProvider implements PromptProvider {
                         name: promptName,
                         title: promptDef.description || `MCP prompt: ${promptName}`,
                         description: promptDef.description || `MCP prompt: ${promptName}`,
+                        arguments: promptDef.arguments as any,
                         source: 'mcp',
                         metadata: {
                             originalName: promptName,

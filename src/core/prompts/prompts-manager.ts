@@ -5,6 +5,7 @@ import type { AgentConfig } from '../agent/schemas.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
+import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 
 /**
@@ -39,8 +40,7 @@ export class PromptsManager {
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
 
         logger.debug(
-            'PromptsManager initialized with providers:',
-            Array.from(this.providers.keys())
+            `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
     }
 
@@ -213,18 +213,18 @@ export class PromptsManager {
 
         const promptInfo = this.promptsCache[name];
         if (!promptInfo) {
-            throw new Error(`Prompt not found: ${name}`);
+            throw PromptError.notFound(name);
         }
 
         // Validate arguments if the prompt has defined arguments
-        if (promptInfo.arguments && promptInfo.arguments.length > 0 && args) {
-            this.validatePromptArguments(promptInfo.arguments, args);
+        if (promptInfo.arguments && promptInfo.arguments.length > 0) {
+            this.validatePromptArguments(promptInfo.arguments, args || {});
         }
 
         // Find the provider that handles this prompt source
         const provider = this.providers.get(promptInfo.source);
         if (!provider) {
-            throw new Error(`No provider found for prompt source: ${promptInfo.source}`);
+            throw PromptError.notFound(`No provider found for prompt source: ${promptInfo.source}`);
         }
 
         // Delegate to the appropriate provider
@@ -243,8 +243,8 @@ export class PromptsManager {
             .filter((arg) => !(arg.name in providedArgs));
 
         if (missingRequired.length > 0) {
-            const missingNames = missingRequired.map((arg) => arg.name).join(', ');
-            throw new Error(`Missing required arguments: ${missingNames}`);
+            const missingNames = missingRequired.map((arg) => arg.name);
+            throw PromptError.missingRequiredArguments(missingNames);
         }
 
         // Check for unknown arguments

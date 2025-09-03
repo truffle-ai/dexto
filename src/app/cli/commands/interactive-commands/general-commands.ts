@@ -34,7 +34,7 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
             try {
                 const { getDynamicPromptCommands } = await import('./prompt-commands.js');
                 dynamicPromptCommands = await getDynamicPromptCommands(agent);
-            } catch (error) {
+            } catch (_error) {
                 // Ignore errors when getting dynamic commands
             }
 

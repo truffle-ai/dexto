@@ -69,9 +69,18 @@ describe('SessionManager', () => {
         };
 
         // Mock services
+        mockLLMConfig = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-4o',
+            apiKey: 'test-key',
+            router: 'in-built',
+            maxIterations: 50,
+            maxInputTokens: 128000,
+        });
+
         mockServices = {
             stateManager: {
-                getLLMConfig: vi.fn().mockImplementation(() => mockLLMConfig),
+                getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {
@@ -86,15 +95,8 @@ describe('SessionManager', () => {
             storage: mockStorageManager,
         };
 
-        // Parse LLM config now that mocks are set up
-        mockLLMConfig = LLMConfigSchema.parse({
-            provider: 'openai',
-            model: 'gpt-4o',
-            apiKey: 'test-key',
-            router: 'in-built',
-            maxIterations: 50,
-            maxInputTokens: 128000,
-        });
+        // Update the mock to return the parsed config
+        mockServices.stateManager.getLLMConfig.mockReturnValue(mockLLMConfig);
 
         // Create SessionManager instance
         sessionManager = new SessionManager(mockServices, {

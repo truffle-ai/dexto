@@ -36,4 +36,20 @@ export class PromptError {
             },
         ]);
     }
+
+    /**
+     * Missing required arguments validation error
+     */
+    static missingRequiredArguments(missingNames: string[]) {
+        return new DextoValidationError([
+            {
+                code: PromptErrorCode.MISSING_REQUIRED_ARGUMENTS,
+                message: `Missing required arguments: ${missingNames.join(', ')}`,
+                scope: ErrorScope.SYSTEM_PROMPT,
+                type: ErrorType.USER,
+                severity: 'error',
+                context: { missingNames },
+            },
+        ]);
+    }
 }

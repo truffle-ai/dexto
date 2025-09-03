@@ -106,7 +106,7 @@ export async function executeCommand(
             cmd = dynamicPromptCommands.find(
                 (c) => c.name === command || (c.aliases && c.aliases.includes(command))
             );
-        } catch (error) {
+        } catch (_error) {
             // Ignore errors when getting dynamic commands
         }
     }

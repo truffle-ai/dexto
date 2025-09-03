@@ -8,4 +8,5 @@ export enum PromptErrorCode {
 
     // Prompt validation
     MISSING_TEXT = 'prompt_missing_text',
+    MISSING_REQUIRED_ARGUMENTS = 'prompt_missing_required_arguments',
 }
