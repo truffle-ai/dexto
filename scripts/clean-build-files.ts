@@ -62,7 +62,7 @@ async function cleanDirectory(dir: string, targetName: string): Promise<void> {
 }
 
 async function cleanPackages(): Promise<void> {
-    const packagesDir = path.join(rootDir, 'src', 'packages');
+    const packagesDir = path.join(rootDir, 'packages');
 
     if (!(await fs.pathExists(packagesDir))) {
         console.log('⚠️  No packages directory found');

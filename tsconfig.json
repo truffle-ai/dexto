@@ -8,8 +8,8 @@
         "downlevelIteration": true,
         "baseUrl": ".",
         "paths": {
-            "@app/*": ["src/packages/cli/src/*"],
-            "@core/*": ["src/packages/core/src/*"],
+            "@app/*": ["packages/cli/src/*"],
+            "@core/*": ["packages/core/src/*"],
             "mitt": ["./node_modules/mitt/dist/index.d.ts"]
         },
         "outDir": "./dist",
@@ -26,5 +26,5 @@
         "noEmit": false
     },
     "include": ["src/**/*", "scripts/**/*", "**/*.test.ts", "**/*.spec.ts", "vitest.config.ts"],
-    "exclude": ["node_modules", "src/packages/webui/**/*"]
+    "exclude": ["node_modules", "packages/webui/**/*"]
 }

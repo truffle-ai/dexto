@@ -53,7 +53,7 @@ logs/
 
 # Coverage directory (main public, but allow webui public)
 /public/
-!/src/packages/cli/src/webui/public/
+!/packages/cli/src/webui/public/
 
 # Test temporary files
 test-temp/
@@ -62,4 +62,4 @@ test-temp/
 .dexto/
 
 # Temporarily ignore module READMEs in core package
-src/packages/core/src/*/README.md
+packages/core/src/*/README.md

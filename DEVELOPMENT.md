@@ -17,7 +17,7 @@ Dexto is a monorepo using pnpm workspaces with the following structure:
 
 ```
 dexto/
-├── src/packages/
+├── packages/
 │   ├── core/          # @dexto/core - Core business logic
 │   ├── cli/           # dexto - CLI application
 │   └── webui/         # @dexto/webui - Next.js web interface
@@ -143,7 +143,7 @@ pnpm run embed-webui
 
 ## Testing
 
-### Run Tests
+### Automated Tests
 ```bash
 # Run all tests
 pnpm test
@@ -158,17 +158,39 @@ pnpm run test:integ
 pnpm run test:ci
 ```
 
-### Watch Mode
+### Manual testing
+
+1. Common commands
 ```bash
-# Watch all tests
-pnpm run test:watch
+cd ~
+dexto --help 
+dexto "what is the current time"
+dexto "list files in current directory"
 
-# Watch unit tests only
-pnpm run test:unit:watch
+# Test other model override in CLI
+dexto -m gpt-4o-mini "what is the current date"
 
-# Watch integration tests only
-pnpm run test:integ:watch
+# Test web mode
+dexto --mode web
+
+# Test discord bot mode (requires additional setup)
+dexto --mode discord
+
+# Test telegram bot mode (requires additional setup)
+dexto --mode telegram
 ```
+
+2. Execution contexts
+
+Dexto CLI operates differently based on the directory you are running in.
+- source context -> when Dexto CLI is run in the source repository
+- global context -> when Dexto CLI is run outside the source repository
+- project context -> when Dexto CLI is run in a project that consumes @dexto dependencies
+
+Based on execution context, Dexto CLI will use defaults for log path, default agent/agent registry.
+Run the CLI in different places and see the console logs to understand this.
+
+Test above commands in different execution contexts for manual testing coverage.
 
 ## Code Quality
 

@@ -31,20 +31,20 @@ const rootDir = process.cwd();
 // Pack @dexto/core
 console.log('  Packing @dexto/core...');
 execSync('pnpm pack', {
-    cwd: join(rootDir, 'src/packages/core'),
+    cwd: join(rootDir, 'packages/core'),
     stdio: 'inherit',
 });
 
 // Pack dexto CLI
 console.log('  Packing dexto CLI...');
 execSync('pnpm pack', {
-    cwd: join(rootDir, 'src/packages/cli'),
+    cwd: join(rootDir, 'packages/cli'),
     stdio: 'inherit',
 });
 
 // Find and move tarballs to root
-const coreDir = join(rootDir, 'src/packages/core');
-const cliDir = join(rootDir, 'src/packages/cli');
+const coreDir = join(rootDir, 'packages/core');
+const cliDir = join(rootDir, 'packages/cli');
 
 const coreTarballs = readdirSync(coreDir).filter(
     (f) => f.startsWith('dexto-core-') && f.endsWith('.tgz')
@@ -64,8 +64,8 @@ const cliTarball = cliTarballs[0];
 console.log(`  Found core tarball: ${coreTarball}`);
 console.log(`  Found CLI tarball: ${cliTarball}`);
 
-execSync(`mv src/packages/core/${coreTarball} .`, { stdio: 'inherit' });
-execSync(`mv src/packages/cli/${cliTarball} .`, { stdio: 'inherit' });
+execSync(`mv packages/core/${coreTarball} .`, { stdio: 'inherit' });
+execSync(`mv packages/cli/${cliTarball} .`, { stdio: 'inherit' });
 
 // Uninstall existing global dexto (both pnpm and npm)
 console.log('🗑️  Removing any existing global dexto installations (npm & pnpm)...');

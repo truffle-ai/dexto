@@ -13,7 +13,7 @@ import { execSync, spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
 
 const rootDir = process.cwd();
-const cliPath = join(rootDir, 'src/packages/cli/dist/index.js');
+const cliPath = join(rootDir, 'packages/cli/dist/index.js');
 
 let apiProcess: ChildProcess | null = null;
 let webuiProcess: ChildProcess | null = null;
@@ -91,7 +91,7 @@ setTimeout(() => {
     console.log('\n🎨 Starting WebUI dev server on port 3000...');
 
     webuiProcess = spawn('pnpm', ['run', 'dev'], {
-        cwd: join(rootDir, 'src', 'packages', 'webui'),
+        cwd: join(rootDir, 'packages', 'webui'),
         stdio: ['inherit', 'pipe', 'pipe'],
         env: {
             ...process.env,

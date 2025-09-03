@@ -4,7 +4,7 @@ Track progress here. Update checkboxes as tasks complete.
 
 ## Global Setup
 - [x] Enforce pnpm via root `preinstall: npx only-allow pnpm`
-- [x] Add `pnpm-workspace.yaml` (targets `src/packages/*`)
+- [x] Add `pnpm-workspace.yaml` (targets `packages/*`)
 - [x] Add `turbo.json` (build/test/lint/typecheck pipelines, outputs)
 - [x] Add `tsconfig.base.json`
 - [x] Initialize Changesets (`.changeset/`), configure fixed group for lockstep
@@ -12,17 +12,17 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Add `turbo` as a devDependency and set `packageManager` field
 
 ## Phase 2 — Package `@dexto/core`
-- [x] Move `src/core` → `src/packages/core/src`
-- [x] Create `src/packages/core/package.json` (exports, types). Use root tsup for now.
-- [x] Update path aliases to `@core/*` → `src/packages/core/src/*` (root, vitest, next/webui)
+- [x] Move `src/core` → `packages/core/src`
+- [x] Create `packages/core/package.json` (exports, types). Use root tsup for now.
+- [x] Update path aliases to `@core/*` → `packages/core/src/*` (root, vitest, next/webui)
 - [x] Add per-package tsup config
 - [x] Typecheck/lint package (package-level)
 - [x] Centralize LLM types/constants in `llm/types.ts`; registry consumes them
 - [x] Add browser-safe logger build target (`logger/browser`) and map via `package.json#browser`
 
 ## Phase 3 — Package `dexto` (CLI)
-- [x] Move `src/app` → `src/packages/cli/src`
-- [x] Create `src/packages/cli/package.json` (`type: module`, scripts)
+- [x] Move `src/app` → `packages/cli/src`
+- [x] Create `packages/cli/package.json` (`type: module`, scripts)
 - [x] Migrate/adjust tsup config for CLI build
 - [x] Update copy script paths (kept at root; optional move into `dexto` later)
 - [x] Verify `dexto` works: cli, web, server modes
@@ -33,7 +33,7 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Move @dexto/webui to devDependency (build-time only)
 
 ## Phase 4 — Package `@dexto/webui` (Next.js)
-- [x] Move `src/app/webui` → `src/packages/webui`
+- [x] Move `src/app/webui` → `packages/webui`
 - [ ] Ensure webui build works; update alias/transpile if needed
 - [x] Update `dexto` build to run webui build and copy `.next/standalone`
 - [x] Add package-local ESLint config with browser‑safety rules (types‑only + `toError`; forbid `@core/*`)
@@ -43,7 +43,7 @@ Track progress here. Update checkboxes as tasks complete.
   - Current: Root re‑exports some Node‑only symbols temporarily for CLI; keep until CLI refactor lands
 - [x] Add `@dexto/core/logger` subpath (public logger API)
 - [x] Add `@dexto/core/storage` subpath (public storage API) if needed
-- [x] Update `src/packages/core/package.json` exports map accordingly
+- [x] Update `packages/core/package.json` exports map accordingly
 - [x] Adjust `@dexto/core` build (per‑file entries; bundle: false) to match subpaths
 - [ ] Update CLI imports to use `@dexto/core` root + subpaths minimally (refactor away from aliases)
 - [x] Verify Web UI imports only `@dexto/core` (no Node-only modules) — enforced via ESLint
@@ -51,7 +51,7 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Add hacky browser exports to make webui work
 
 ## Phase 5 — Optional: Extract `@dexto/server`
-- [ ] Move API/server code (e.g., `src/app/api`, `src/app/web.ts`) → `src/packages/server/src`
+- [ ] Move API/server code (e.g., `src/app/api`, `src/app/web.ts`) → `packages/server/src`
 - [ ] Expose server helpers; update CLI to consume them
 
 ## Docker & Runtime

@@ -8,9 +8,9 @@ const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
 const rootDir: string = path.resolve(__dirname, '..');
 
 // Define source and target paths
-const sourceWebUIDir: string = path.join(rootDir, 'src', 'packages', 'webui');
+const sourceWebUIDir: string = path.join(rootDir, 'packages', 'webui');
 // Copy into CLI's dist folder for embedding
-const targetDir: string = path.join(rootDir, 'src', 'packages', 'cli', 'dist', 'webui');
+const targetDir: string = path.join(rootDir, 'packages', 'cli', 'dist', 'webui');
 
 async function copyWebUIBuild(): Promise<void> {
     try {
@@ -65,7 +65,7 @@ async function copyWebUIBuild(): Promise<void> {
             path.join(standaloneRoot, 'server.js'),
             path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
             path.join(standaloneRoot, 'webui', 'server.js'),
-            path.join(standaloneRoot, 'src', 'packages', 'webui', 'server.js'),
+            path.join(standaloneRoot, 'packages', 'webui', 'server.js'),
         ];
         const serverFiles = candidateServers.filter((p) => fs.existsSync(p));
 
@@ -96,7 +96,7 @@ const candidates = [
   path.join(standaloneRoot, 'server.js'),
   path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
   path.join(standaloneRoot, 'webui', 'server.js'),
-  path.join(standaloneRoot, 'src', 'packages', 'webui', 'server.js'),
+  path.join(standaloneRoot, 'packages', 'webui', 'server.js'),
 ];
 const standaloneServer = candidates.find((p) => fs.existsSync(p));
 

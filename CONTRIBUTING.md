@@ -82,9 +82,9 @@ git checkout -b feature/your-branch-name
 ### Monorepo Structure
 
 Dexto is a monorepo with three main packages:
-- `src/packages/core` - Core business logic (@dexto/core)
-- `src/packages/cli` - CLI application (dexto)
-- `src/packages/webui` - Web interface (@dexto/webui)
+- `packages/core` - Core business logic (@dexto/core)
+- `packages/cli` - CLI application (dexto)
+- `packages/webui` - Web interface (@dexto/webui)
 
 Make changes in the appropriate package(s).
 
@@ -197,7 +197,7 @@ Your PR must:
 
 
 ### Error Handling
-- Use typed error classes from `src/packages/core/src/errors/`
+- Use typed error classes from `packages/core/src/errors/`
 - Never use plain `Error` or `throw new Error()`
 - Include error context and helpful messages
 

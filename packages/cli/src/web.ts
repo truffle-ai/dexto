@@ -44,7 +44,7 @@ export async function startNextJsWebServer(
         // When app lives under src/packages/webui or earlier under src/packages/cli/src/webui
         path.join(standaloneRoot, 'webui', 'server.js'),
         path.join(standaloneRoot, 'cli', 'src', 'webui', 'server.js'),
-        path.join(standaloneRoot, 'src', 'packages', 'webui', 'server.js'),
+        path.join(standaloneRoot, 'packages', 'webui', 'server.js'),
     ];
 
     const resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));

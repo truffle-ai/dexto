@@ -38,12 +38,12 @@ Dexto automatically detects execution environment to enable context-aware behavi
 - **`global-cli`** - Running as global CLI or in non-dexto project
 
 **Usage Patterns:**
-- Path resolution: `src/packages/core/src/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
-- Environment loading: `src/packages/core/src/utils/env.ts` - `loadEnvironmentVariables()`
-- Agent resolution: `src/packages/core/src/config/agent-resolver.ts` - context-specific defaults
-- API key setup: `src/packages/cli/src/cli/utils/api-key-setup.ts` - context-aware instructions
+- Path resolution: `packages/core/src/utils/path.ts` - `getDextoPath()`, `getDextoEnvPath()`
+- Environment loading: `packages/core/src/utils/env.ts` - `loadEnvironmentVariables()`
+- Agent resolution: `packages/core/src/config/agent-resolver.ts` - context-specific defaults
+- API key setup: `packages/cli/src/cli/utils/api-key-setup.ts` - context-aware instructions
 
-**Key Functions (`src/packages/core/src/utils/execution-context.ts`):**
+**Key Functions (`packages/core/src/utils/execution-context.ts`):**
 - `getExecutionContext(startPath?)` - Detect context from directory
 - `findDextoSourceRoot(startPath?)` - Find dexto source directory (null if not found)
 - `findDextoProjectRoot(startPath?)` - Find dexto project directory (null if not found)
@@ -72,7 +72,7 @@ Dexto automatically detects execution environment to enable context-aware behavi
    - `DextoRuntimeError` with `ErrorType.FORBIDDEN` → 403  
    - Any other uncaught exception → 500  
    - Successful calls → 200 (may include warnings in `issues`)
-   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `src/packages/cli/src/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
+   - Source of truth: see `mapErrorTypeToStatus(type: ErrorType)` in `packages/cli/src/api/middleware/errorHandler.ts`. Keep this document in sync with that mapping.
 
 4. **Defensive API Validation** - API layer validates request schemas
    - Use Zod schemas for request validation at API boundary
@@ -80,7 +80,7 @@ Dexto automatically detects execution environment to enable context-aware behavi
    - Prevents malformed data from reaching core logic
 
 #### Result Pattern Helpers
-Use standardized helpers from `src/packages/core/src/schemas/helpers.ts`:
+Use standardized helpers from `packages/core/src/schemas/helpers.ts`:
 
 - **`ok(data, issues?)`** - Success with optional warnings
 - **`fail(issues)`** - Failure with blocking errors  
@@ -135,16 +135,16 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
 
 **When to Use Each:**
 - **Runtime errors**: File operations, network calls, system failures, business logic violations
-  - Examples: `src/packages/core/src/config/loader.ts`, `src/packages/core/src/llm/services/vercel.ts`
+  - Examples: `packages/core/src/config/loader.ts`, `packages/core/src/llm/services/vercel.ts`
 - **Validation errors**: Schema validation, input parsing, configuration validation with multiple issues  
-  - Examples: `src/packages/core/src/agent/DextoAgent.ts` (switchLLM validation)
+  - Examples: `packages/core/src/agent/DextoAgent.ts` (switchLLM validation)
 
 **Error Factory Pattern (REQUIRED):**
 Each module should have an error factory class that creates properly typed errors.
-- **Reference example**: `src/packages/core/src/config/errors.ts` - Follow this pattern for new modules
+- **Reference example**: `packages/core/src/config/errors.ts` - Follow this pattern for new modules
 
 **API Integration:**
-The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
+The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.
 
 **❌ DON'T**: Use plain `Error` or `throw new Error()`  
 **✅ DO**: Create module-specific error factories and use typed error classes
@@ -163,7 +163,7 @@ The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) aut
 - **Watch for mega barrels** - If a barrel exports >20 symbols or pulls from >10 files, consider splitting into thematic sub-barrels with subpath exports
 - **Clear API boundaries** - index.ts files mark what's public vs internal implementation
 
-**TODO**: Current codebase has violations of these rules (wildcard exports in `src/packages/core/src/index.ts`, potential mega barrel in events) that need refactoring.
+**TODO**: Current codebase has violations of these rules (wildcard exports in `packages/core/src/index.ts`, potential mega barrel in events) that need refactoring.
 
 ### Logging Standards
 - **Use template literals** - `logger.info(\`Server running at \${url}\`)`
@@ -198,7 +198,7 @@ The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) aut
 
 ## Application Architecture
 
-### API Layer (`src/packages/cli/src/api/`)
+### API Layer (`packages/cli/src/api/`)
 - **Express.js REST API** with WebSocket support for real-time communication
 - **Key endpoints**: `/api/message`, `/api/mcp/servers`, `/api/sessions`, `/api/llm/switch`
 - **MCP integration**: Multiple transport types (stdio, HTTP, SSE) with tool aggregation
@@ -206,7 +206,7 @@ The error middleware (`src/packages/cli/src/api/middleware/errorHandler.ts`) aut
 - **Session management**: Multi-session support with persistent storage
 - **A2A communication**: Agent-to-Agent via `.well-known/agent.json`
 
-### WebUI Layer (`src/packages/cli/src/webui/`)
+### WebUI Layer (`packages/cli/src/webui/`)
 - **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS
 - **Key components**: `ChatApp`, `MessageList`, `InputArea`, `ServersPanel`, `SessionPanel`
 - **State management**: React Context + custom hooks for WebSocket communication
