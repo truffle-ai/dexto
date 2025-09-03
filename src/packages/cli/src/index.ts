@@ -26,7 +26,7 @@ import {
 import { resolveAgentPath, getAgentRegistry, isPath, resolveApiKeyForProvider } from '@dexto/core';
 import type { AgentConfig } from '@dexto/core';
 import { startAiCli, startHeadlessCli } from './cli/cli.js';
-import { startApiAndLegacyWebUIServer } from './api/server.js';
+import { startApiServer } from './api/server.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
@@ -540,13 +540,8 @@ program
                 const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
                 const nextJSserverURL = process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
 
-                // Start API server first with legacy web UI
-                await startApiAndLegacyWebUIServer(
-                    agent,
-                    apiPort,
-                    true,
-                    agent.getEffectiveConfig().agentCard || {}
-                );
+                // Start API server
+                await startApiServer(agent, apiPort, agent.getEffectiveConfig().agentCard || {});
 
                 // Start Next.js web server
                 await startNextJsWebServer(apiUrl, frontPort, nextJSserverURL);
@@ -563,7 +558,7 @@ program
                 const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                 console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                await startApiAndLegacyWebUIServer(agent, apiPort, false, agentCard);
+                await startApiServer(agent, apiPort, agentCard);
                 console.log(`✅ Server running at ${apiUrl}`);
                 console.log('Available endpoints:');
                 console.log('  POST /api/message - Send async message');

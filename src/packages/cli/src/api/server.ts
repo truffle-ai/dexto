@@ -1172,18 +1172,9 @@ export async function initializeApi(
     return { app, server, wss, webSubscriber, webhookSubscriber };
 }
 
-/** Serves the legacy web UI on the express app. will be deprecated soon */
-export function startLegacyWebUI(app: Express) {
-    const publicPath = resolveBundledScript('public');
-    logger.info(`Serving static files from: ${publicPath}`);
-    app.use(express.static(publicPath));
-}
-
-// TODO: Refactor this when we get rid of the legacy web UI
-export async function startApiAndLegacyWebUIServer(
+export async function startApiServer(
     agent: DextoAgent,
     port = 3000,
-    serveLegacyWebUI?: boolean,
     agentCardOverride?: Partial<AgentCard>
 ) {
     const { app, server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
@@ -1191,12 +1182,7 @@ export async function startApiAndLegacyWebUIServer(
         agentCardOverride
     );
 
-    // Serve legacy static UI from public/, for backward compatibility
-    if (serveLegacyWebUI) {
-        startLegacyWebUI(app);
-    }
-
-    // Next.js front-end handles static assets; only mount API and WebSocket routes here.
+    // API server for REST endpoints and WebSocket connections
     server.listen(port, '0.0.0.0', () => {
         const networkInterfaces = os.networkInterfaces();
         let localIp = 'localhost';
@@ -1208,24 +1194,11 @@ export async function startApiAndLegacyWebUIServer(
             });
         });
 
-        if (serveLegacyWebUI) {
-            logger.info(
-                `API server & Legacy WebUI started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-                null,
-                'green'
-            );
-            logger.warn(
-                `Legacy WebUI at http://localhost:${port} will be deprecated in a future release. Use the new Next.js WebUI for a better experience.`,
-                null,
-                'yellow'
-            );
-        } else {
-            logger.info(
-                `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-                null,
-                'green'
-            );
-        }
+        logger.info(
+            `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
+            null,
+            'green'
+        );
     });
 
     return { server, wss, webSubscriber, webhookSubscriber };
