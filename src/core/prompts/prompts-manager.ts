@@ -1,50 +1,47 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type { PromptSet, PromptListResult } from './types.js';
+import type { PromptSet, PromptListResult, PromptProvider, PromptInfo } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { AgentConfig } from '../agent/schemas.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
+import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
 import { logger } from '../logger/index.js';
 
 /**
- * Unified Prompts Manager - Single interface for all prompt operations
+ * Unified Prompts Manager - Pure aggregator for prompt providers
  *
- * This class acts as the single point of contact for managing prompts from multiple sources.
- * It aggregates prompts from MCP servers and internal markdown files, providing a unified interface
- * for prompt discovery, metadata access, and prompt execution.
+ * This class acts as a clean aggregator that delegates all operations to registered prompt providers.
+ * It provides a unified interface for prompt discovery, metadata access, and prompt execution
+ * across multiple prompt sources (MCP, internal, starter).
  *
  * Responsibilities:
- * - Aggregate prompts from MCP servers and internal markdown files
+ * - Register and manage prompt providers
+ * - Aggregate prompts from all providers
  * - Provide unified prompt interface for discovery and access
- * - Cache prompt metadata for performance
- * - Handle cross-source prompt conflicts with source prefixing
+ * - Cache aggregated prompt metadata for performance
+ * - Handle cross-provider prompt conflicts with source prefixing
  * - Support filtering and querying of prompts
- * - Implement MCP-compliant prompt structure and pagination
  *
  * Architecture:
- * Application → PromptsManager → [MCPPromptProvider, InternalPromptProvider]
+ * Application → PromptsManager → [MCPPromptProvider, InternalPromptProvider, StarterPromptProvider]
  */
 export class PromptsManager {
-    private mcpManager: MCPManager;
-    private mcpPromptProvider: MCPPromptProvider;
-    private internalPromptProvider: InternalPromptProvider;
-    private agentConfig?: AgentConfig;
+    private providers: Map<string, PromptProvider> = new Map();
 
-    // Prompt caching for performance
+    // Unified cache for all providers
     private promptsCache: PromptSet = {};
     private cacheValid: boolean = false;
 
     constructor(mcpManager: MCPManager, promptsDir?: string, agentConfig?: AgentConfig) {
-        this.mcpManager = mcpManager;
-        this.agentConfig = agentConfig;
+        // Register all prompt providers
+        this.providers.set('mcp', new MCPPromptProvider(mcpManager));
+        this.providers.set('internal', new InternalPromptProvider(promptsDir));
+        this.providers.set('starter', new StarterPromptProvider(agentConfig));
 
-        // Initialize MCP prompt provider
-        this.mcpPromptProvider = new MCPPromptProvider(mcpManager);
-
-        // Initialize internal prompt provider
-        this.internalPromptProvider = new InternalPromptProvider(promptsDir);
-
-        logger.debug('PromptsManager initialized');
+        logger.debug(
+            'PromptsManager initialized with providers:',
+            Array.from(this.providers.keys())
+        );
     }
 
     /**
@@ -57,13 +54,17 @@ export class PromptsManager {
     }
 
     /**
-     * Invalidate the prompts cache
+     * Invalidate the prompts cache for all providers
      */
     private invalidateCache(): void {
         this.cacheValid = false;
         this.promptsCache = {};
-        this.mcpPromptProvider.invalidateCache();
-        this.internalPromptProvider.invalidateCache();
+
+        // Invalidate all provider caches
+        for (const provider of this.providers.values()) {
+            provider.invalidateCache();
+        }
+
         logger.debug('PromptsManager cache invalidated');
     }
 
@@ -72,64 +73,41 @@ export class PromptsManager {
      */
     private async buildPromptsCache(): Promise<void> {
         const allPrompts: PromptSet = {};
+        let totalPromptsCount = 0;
 
-        // Get MCP prompts
-        try {
-            const mcpPromptsResult = await this.mcpPromptProvider.listPrompts();
-            mcpPromptsResult.prompts.forEach((prompt) => {
-                allPrompts[prompt.name] = prompt;
-            });
-            logger.debug(`📝 Cached ${mcpPromptsResult.prompts.length} MCP prompts`);
-        } catch (error) {
-            logger.error(
-                `Failed to get MCP prompts: ${error instanceof Error ? error.message : String(error)}`
-            );
-        }
+        // Aggregate prompts from all registered providers
+        for (const [providerName, provider] of this.providers) {
+            try {
+                const providerResult = await provider.listPrompts();
+                const providerPrompts = providerResult.prompts;
 
-        // Get internal prompts
-        try {
-            const internalPromptsResult = await this.internalPromptProvider.listPrompts();
-            internalPromptsResult.prompts.forEach((prompt) => {
-                allPrompts[prompt.name] = prompt;
-            });
-            logger.debug(`📝 Cached ${internalPromptsResult.prompts.length} internal prompts`);
-        } catch (error) {
-            logger.error(
-                `Failed to get internal prompts: ${error instanceof Error ? error.message : String(error)}`
-            );
-        }
+                // Add each prompt to the unified cache
+                providerPrompts.forEach((prompt) => {
+                    allPrompts[prompt.name] = prompt;
+                });
 
-        // Add starter prompts from agent configuration
-        if (this.agentConfig?.starterPrompts && this.agentConfig.starterPrompts.length > 0) {
-            this.agentConfig.starterPrompts.forEach((starterPrompt: any) => {
-                const promptName = `starter:${starterPrompt.id}`;
-                allPrompts[promptName] = {
-                    name: promptName,
-                    title: starterPrompt.title,
-                    description: starterPrompt.description,
-                    source: 'starter',
-                    metadata: {
-                        prompt: starterPrompt.prompt,
-                        category: starterPrompt.category,
-                        icon: starterPrompt.icon,
-                        priority: starterPrompt.priority,
-                        starterPrompt: true,
-                    },
-                };
-            });
-            logger.debug(`📝 Cached ${this.agentConfig.starterPrompts.length} starter prompts`);
+                totalPromptsCount += providerPrompts.length;
+                logger.debug(
+                    `📝 Cached ${providerPrompts.length} prompts from ${providerName} provider`
+                );
+            } catch (error) {
+                logger.error(
+                    `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
 
         this.promptsCache = allPrompts;
         this.cacheValid = true;
 
-        const totalPrompts = Object.keys(allPrompts).length;
-        logger.debug(`📋 Prompt discovery: ${totalPrompts} total prompts`);
+        logger.debug(
+            `📋 Prompt discovery: ${totalPromptsCount} total prompts from ${this.providers.size} providers`
+        );
 
-        if (totalPrompts > 0) {
+        if (totalPromptsCount > 0) {
             const sampleNames = Object.keys(allPrompts).slice(0, 5);
             logger.debug(
-                `Sample prompts: ${sampleNames.join(', ')}${totalPrompts > 5 ? '...' : ''}`
+                `Sample prompts: ${sampleNames.join(', ')}${totalPromptsCount > 5 ? '...' : ''}`
             );
         }
     }
@@ -200,9 +178,7 @@ export class PromptsManager {
     /**
      * Get prompts by source
      */
-    async getPromptsBySource(
-        source: 'mcp' | 'internal'
-    ): Promise<import('./types.js').PromptInfo[]> {
+    async getPromptsBySource(source: 'mcp' | 'internal' | 'starter'): Promise<PromptInfo[]> {
         if (!this.cacheValid) {
             await this.buildPromptsCache();
         }
@@ -213,7 +189,7 @@ export class PromptsManager {
     /**
      * Search prompts by name or description
      */
-    async searchPrompts(query: string): Promise<import('./types.js').PromptInfo[]> {
+    async searchPrompts(query: string): Promise<PromptInfo[]> {
         if (!this.cacheValid) {
             await this.buildPromptsCache();
         }
@@ -245,32 +221,14 @@ export class PromptsManager {
             this.validatePromptArguments(promptInfo.arguments, args);
         }
 
-        // Route to appropriate provider
-        if (promptInfo.source === 'mcp') {
-            return await this.mcpPromptProvider.getPrompt(name, args);
-        } else if (promptInfo.source === 'internal') {
-            return await this.internalPromptProvider.getPrompt(name, args);
-        } else if (promptInfo.source === 'starter') {
-            // For starter prompts, return the prompt text directly
-            const promptText = promptInfo.metadata?.prompt as string;
-            if (!promptText) {
-                throw new Error('Starter prompt missing prompt text');
-            }
-            return {
-                description: promptInfo.description,
-                messages: [
-                    {
-                        role: 'user',
-                        content: {
-                            type: 'text',
-                            text: promptText,
-                        },
-                    },
-                ],
-            };
-        } else {
-            throw new Error(`Unknown prompt source: ${promptInfo.source}`);
+        // Find the provider that handles this prompt source
+        const provider = this.providers.get(promptInfo.source);
+        if (!provider) {
+            throw new Error(`No provider found for prompt source: ${promptInfo.source}`);
         }
+
+        // Delegate to the appropriate provider
+        return await provider.getPrompt(name, args);
     }
 
     /**
@@ -309,16 +267,27 @@ export class PromptsManager {
     }
 
     /**
-     * Get MCP prompt provider for direct access
+     * Get a specific provider by source name
      */
-    getMCPProvider(): MCPPromptProvider {
-        return this.mcpPromptProvider;
+    getProvider(source: string): PromptProvider | undefined {
+        return this.providers.get(source);
     }
 
     /**
-     * Get internal prompt provider for direct access
+     * Get all registered provider sources
      */
-    getInternalProvider(): InternalPromptProvider {
-        return this.internalPromptProvider;
+    getProviderSources(): string[] {
+        return Array.from(this.providers.keys());
+    }
+
+    /**
+     * Update starter prompts configuration (updates the starter provider)
+     */
+    updateStarterPrompts(agentConfig?: AgentConfig): void {
+        const starterProvider = this.providers.get('starter') as StarterPromptProvider;
+        if (starterProvider) {
+            starterProvider.updateConfig(agentConfig);
+            this.invalidateCache();
+        }
     }
 }

@@ -9,14 +9,15 @@ The PromptsManager aggregates prompts from MCP servers and internal markdown fil
 ## Architecture
 
 ```
-Application → PromptsManager → [MCPPromptProvider, InternalPromptProvider]
+Application → PromptsManager → [MCPPromptProvider, InternalPromptProvider, StarterPromptProvider]
 ```
 
 ### Components
 
-- **PromptsManager**: Main orchestrator that aggregates prompts from all sources
+- **PromptsManager**: Pure aggregator that delegates to registered prompt providers
 - **MCPPromptProvider**: Bridges to MCP servers, exposing their prompts
 - **InternalPromptProvider**: Reads markdown files from a configured directory
+- **StarterPromptProvider**: Exposes starter prompts from agent configuration
 
 ## MCP Compliance
 
@@ -78,7 +79,7 @@ Check if a prompt exists.
 #### `getPromptDefinition(name: string)`
 Get prompt metadata without executing the prompt.
 
-#### `getPromptsBySource(source: 'mcp' | 'internal')`
+#### `getPromptsBySource(source: 'mcp' | 'internal' | 'starter')`
 Filter prompts by their source.
 
 #### `searchPrompts(query: string)`
@@ -89,11 +90,14 @@ Refresh the prompt cache from all sources.
 
 ### Provider Access
 
-#### `getMCPProvider()`
-Get direct access to the MCP prompt provider.
+#### `getProvider(source: string)`
+Get a specific provider by source name. Returns `undefined` if the provider doesn't exist.
 
-#### `getInternalProvider()`
-Get direct access to the internal prompt provider.
+#### `getProviderSources()`
+Get all registered provider source names.
+
+#### `updateStarterPrompts(agentConfig?: AgentConfig)`
+Update starter prompts configuration (updates the starter provider).
 
 ## Usage Examples
 
@@ -139,8 +143,15 @@ const mcpPrompts = await promptsManager.getPromptsBySource('mcp');
 // Get only internal prompts
 const internalPrompts = await promptsManager.getPromptsBySource('internal');
 
+// Get only starter prompts
+const starterPrompts = await promptsManager.getPromptsBySource('starter');
+
 // Search across all prompts
 const searchResults = await promptsManager.searchPrompts('review');
+
+// Access providers directly if needed
+const mcpProvider = promptsManager.getProvider('mcp');
+const sources = promptsManager.getProviderSources(); // ['mcp', 'internal', 'starter']
 ```
 
 ## Prompt Sources
@@ -161,6 +172,15 @@ Prompts defined in markdown files within a configured directory. These are conve
 - Key-value argument parsing
 - Markdown content processing
 
+### Starter Prompts
+
+Prompts defined in the agent configuration for quick access to common workflows. These prompts:
+
+- Are prefixed with `starter:` followed by their configured ID
+- Support the same argument patterns as internal prompts
+- Include additional metadata like category, icon, and priority
+- Are intended for prominent display in user interfaces
+
 ## Error Handling
 
 The PromptsManager provides comprehensive error handling:
@@ -172,17 +192,19 @@ The PromptsManager provides comprehensive error handling:
 
 ## Performance Features
 
-- **Caching**: Maintains prompt metadata cache for fast access
+- **Unified Caching**: Single aggregated cache for all providers for fast access
 - **Lazy loading**: Prompts are loaded on-demand from providers
-- **Cache invalidation**: Automatic cache refresh when needed
-- **Provider isolation**: Each provider manages its own caching strategy
+- **Cache invalidation**: Centralized cache refresh across all providers
+- **Provider isolation**: Each provider manages its own internal caching strategy
+- **Clean Architecture**: Pure aggregator pattern eliminates complexity and improves maintainability
 
 ## Configuration
 
 ```typescript
 const promptsManager = new PromptsManager(
     mcpManager,           // MCP manager instance
-    './prompts'           // Directory for internal markdown prompts
+    './prompts',          // Directory for internal markdown prompts
+    agentConfig           // Agent configuration (for starter prompts)
 );
 ```
 

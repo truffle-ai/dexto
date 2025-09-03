@@ -201,7 +201,7 @@ export default function ChatApp() {
           const data = await response.json();
           // Filter for starter prompts
           const starterPrompts = data.prompts.filter((p: any) => 
-            p.starterPrompt
+            p.source === 'starter'
           );
           setStarterPrompts(starterPrompts);
         }
@@ -374,49 +374,39 @@ export default function ChatApp() {
     }
   }, [handleSessionChange]);
 
-  const quickActions = [
-    {
-      title: "Help me get started",
-      description: "Show me what you can do",
-      action: () => handleSend("I'm new to Dexto. Can you show me your capabilities and help me understand how to work with you effectively?"),
-      icon: "🚀"
-    },
-    {
-      title: "Create Snake Game",
-      description: "Build a game and open it",
-      action: () => handleSend("Create a snake game in a new directory with HTML, CSS, and JavaScript, then open it in the browser for me to play."),
-      icon: "🐍"
-    },
-    {
-      title: "Connect new tools",
-      description: "Browse and add MCP servers",
-      action: () => setServersPanelOpen(true),
-      icon: "🔧"
-    },
-    {
-      title: "Demonstrate tools",
-      description: "Show me your capabilities",
-      action: () => handleSend("Pick one of your most interesting tools and demonstrate it with a practical example. Show me what it can do."),
-      icon: "⚡"
-    }
-  ];
-
   // Generate dynamic quick actions from starter prompts
   const dynamicQuickActions = React.useMemo(() => {
-    const actions = [...quickActions]; // Start with default actions
+    const actions: Array<{
+      title: string;
+      description: string;
+      action: () => void;
+      icon: string;
+    }> = [];
     
     // Add starter prompts from configuration
     starterPrompts.forEach((prompt) => {
-      actions.push({
-        title: prompt.title || prompt.name,
-        description: prompt.description || 'Starter prompt',
-        action: () => handleSend(prompt.promptText || prompt.name),
-        icon: prompt.icon || "💬"
-      });
+      // Handle special cases for UI actions
+      if (prompt.name === 'starter:connect-tools') {
+        // This starter prompt should open the servers panel instead of sending a message
+        actions.push({
+          title: prompt.title || prompt.name,
+          description: prompt.description || 'Starter prompt',
+          action: () => setServersPanelOpen(true),
+          icon: prompt.icon || "🔧"
+        });
+      } else {
+        // Regular starter prompts send their prompt text
+        actions.push({
+          title: prompt.title || prompt.name,
+          description: prompt.description || 'Starter prompt',
+          action: () => handleSend(prompt.promptText || prompt.name),
+          icon: prompt.icon || "💬"
+        });
+      }
     });
     
     return actions;
-  }, [starterPrompts, quickActions]);
+  }, [starterPrompts, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {

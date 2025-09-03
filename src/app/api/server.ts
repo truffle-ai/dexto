@@ -1174,7 +1174,6 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 source: prompt.source,
                 arguments: prompt.arguments || [],
                 // Add starter prompt metadata
-                starterPrompt: prompt.metadata?.starterPrompt || false,
                 category: prompt.metadata?.category || 'general',
                 icon: prompt.metadata?.icon,
                 priority: prompt.metadata?.priority || 0,

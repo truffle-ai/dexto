@@ -199,7 +199,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     // For starter prompts, insert the actual prompt text
     // For other prompts, insert the slash command
     let promptText: string;
-    if (prompt.starterPrompt && prompt.promptText) {
+    if (prompt.source === 'starter' && prompt.promptText) {
       promptText = prompt.promptText;
     } else {
       promptText = `/${prompt.name}`;

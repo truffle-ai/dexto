@@ -5,16 +5,18 @@ import { Sparkles, Zap } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 // PromptItem component for rendering individual prompts
-const PromptItem = ({ prompt, isSelected, onClick }: { 
+const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: { 
   prompt: Prompt; 
   isSelected: boolean; 
   onClick: () => void; 
+  dataIndex?: number;
 }) => (
   <div
     className={`px-3 py-2 cursor-pointer hover:bg-muted/30 transition-colors ${
       isSelected ? 'bg-muted/40' : ''
     }`}
     onClick={onClick}
+    data-index={dataIndex}
   >
     <div className="flex items-start gap-2">
               <div className="flex-shrink-0 mt-0.5">
@@ -117,12 +119,13 @@ export default function SlashCommandAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Group prompts by source and category
   const groupedPrompts = React.useMemo(() => {
     const groups = {
-      starter: prompts.filter(p => p.starterPrompt),
-      internal: prompts.filter(p => p.source === 'internal' && !p.starterPrompt),
+      starter: prompts.filter(p => p.source === 'starter'),
+      internal: prompts.filter(p => p.source === 'internal'),
       mcp: prompts.filter(p => p.source === 'mcp')
     };
     return groups;
@@ -213,6 +216,30 @@ export default function SlashCommandAutocomplete({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isVisible, filteredPrompts, selectedIndex, onSelectPrompt, onClose]);
 
+  // Scroll selected item into view when selectedIndex changes
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+
+    const scrollContainer = scrollContainerRef.current;
+    const selectedItem = scrollContainer.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
+    
+    if (selectedItem) {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const itemRect = selectedItem.getBoundingClientRect();
+      
+      // Check if item is visible in container
+      const isAbove = itemRect.top < containerRect.top;
+      const isBelow = itemRect.bottom > containerRect.bottom;
+      
+      if (isAbove || isBelow) {
+        selectedItem.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }
+    }
+  }, [selectedIndex]);
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -248,7 +275,7 @@ export default function SlashCommandAutocomplete({
         right: 0,
         borderRadius: '8px',
         maxHeight: '320px',
-        overflow: 'hidden',
+        overflow: 'visible',
         zIndex: 9999,
         minWidth: '400px',
         // Custom dark styling
@@ -269,37 +296,20 @@ export default function SlashCommandAutocomplete({
       </div>
 
       {/* Prompts List */}
-      <div className="max-h-48 overflow-y-auto">
+      <div ref={scrollContainerRef} className="max-h-48 overflow-y-auto">
         {isLoading ? (
           <div className="p-3 text-center text-xs text-muted-foreground">
             Loading prompts...
           </div>
         ) : (
           <>
-            {/* Starter prompts section */}
-            {groupedPrompts.starter.length > 0 && (
-              <div className="border-b border-border/30 pb-2 mb-2">
-                <div className="px-3 py-2 text-xs font-medium text-primary">
-                  🚀 Starter Prompts
-                </div>
-                {groupedPrompts.starter.map((prompt, index) => (
-                  <PromptItem 
-                    key={prompt.name}
-                    prompt={prompt}
-                    isSelected={index === selectedIndex}
-                    onClick={() => onSelectPrompt(prompt)}
-                  />
-                ))}
-              </div>
-            )}
-            
-            {/* Other prompts */}
             {filteredPrompts.map((prompt, index) => (
               <PromptItem 
                 key={prompt.name}
                 prompt={prompt}
                 isSelected={index === selectedIndex}
                 onClick={() => onSelectPrompt(prompt)}
+                dataIndex={index}
               />
             ))}
           </>

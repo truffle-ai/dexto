@@ -68,14 +68,6 @@ storage:
 
 # Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
 starterPrompts:
-  - id: welcome
-    title: "Welcome to Dexto! 🚀"
-    description: "Get started with a friendly introduction and overview of capabilities"
-    prompt: "Hi! I'm new to Dexto. Can you show me your capabilities and help me understand how to work with you effectively?"
-    category: general
-    icon: "🚀"
-    priority: 10
-  
   - id: quick-start
     title: "Quick Start Guide 📚"
     description: "Learn the basics and see what you can do"
@@ -92,14 +84,6 @@ starterPrompts:
     icon: "💻"
     priority: 8
   
-  - id: web-development
-    title: "Web Development 🌐"
-    description: "Build websites, APIs, and web applications"
-    prompt: "I want to work on web development. Can you help me create a website, API, or web application? I'd like to see what's possible and get started on a project."
-    category: coding
-    icon: "🌐"
-    priority: 7
-  
   - id: data-analysis
     title: "Data Analysis 📊"
     description: "Process data, create visualizations, and perform analysis"
@@ -115,6 +99,22 @@ starterPrompts:
     category: tools
     icon: "⚡"
     priority: 5
+
+  - id: snake-game
+    title: "Create Snake Game 🐍"
+    description: "Build a fun interactive game with HTML, CSS, and JavaScript"
+    prompt: "Create a snake game in a new directory with HTML, CSS, and JavaScript, then open it in the browser for me to play."
+    category: coding
+    icon: "🐍"
+    priority: 4
+
+  - id: connect-tools
+    title: "Connect New Tools 🔧"
+    description: "Browse and add MCP servers to extend capabilities"
+    prompt: "I want to connect new tools to expand my capabilities. Can you help me understand what MCP servers are available and how to add them?"
+    category: tools
+    icon: "🔧"
+    priority: 3
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.

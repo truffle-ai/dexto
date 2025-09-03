@@ -116,6 +116,11 @@ export interface PromptProvider {
     getSource(): string;
 
     /**
+     * Invalidate the provider's internal cache
+     */
+    invalidateCache(): void;
+
+    /**
      * List all available prompts from this provider with pagination support
      */
     listPrompts(cursor?: string): Promise<PromptListResult>;
