@@ -1173,6 +1173,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 description: prompt.description,
                 source: prompt.source,
                 arguments: prompt.arguments || [],
+                // Add starter prompt metadata
+                starterPrompt: prompt.metadata?.starterPrompt || false,
+                category: prompt.metadata?.category || 'general',
+                icon: prompt.metadata?.icon,
+                priority: prompt.metadata?.priority || 0,
+                // Include the actual prompt text for starter prompts
+                promptText: prompt.metadata?.prompt || null,
             }));
 
             res.json({

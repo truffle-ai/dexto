@@ -4,6 +4,83 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap } from 'lucide-react';
 import { Badge } from './ui/badge';
 
+// PromptItem component for rendering individual prompts
+const PromptItem = ({ prompt, isSelected, onClick }: { 
+  prompt: Prompt; 
+  isSelected: boolean; 
+  onClick: () => void; 
+}) => (
+  <div
+    className={`px-3 py-2 cursor-pointer hover:bg-muted/30 transition-colors ${
+      isSelected ? 'bg-muted/40' : ''
+    }`}
+    onClick={onClick}
+  >
+    <div className="flex items-start gap-2">
+              <div className="flex-shrink-0 mt-0.5">
+          {prompt.source === 'mcp' ? (
+            <Zap className="h-3 w-3 text-blue-400" />
+          ) : prompt.source === 'starter' ? (
+            <span className="text-xs">🚀</span>
+          ) : (
+            <Sparkles className="h-3 w-3 text-purple-400" />
+          )}
+        </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-medium text-xs text-foreground">
+            /{prompt.name}
+          </span>
+          {prompt.source === 'mcp' && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
+              MCP
+            </Badge>
+          )}
+          {prompt.source === 'internal' && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
+              Internal
+            </Badge>
+          )}
+          {prompt.source === 'starter' && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4 bg-primary/10 text-primary border-primary/20">
+              Starter
+            </Badge>
+          )}
+        </div>
+        
+        {/* Show title if available */}
+        {prompt.title && (
+          <div className="text-xs font-medium text-foreground/90 mb-0.5">
+            {prompt.title}
+          </div>
+        )}
+        
+        {/* Show description if available and different from title */}
+        {prompt.description && prompt.description !== prompt.title && (
+          <div className="text-xs text-muted-foreground mb-1.5 line-clamp-2">
+            {prompt.description}
+          </div>
+        )}
+        
+        {prompt.arguments && prompt.arguments.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {prompt.arguments.map((arg) => (
+              <Badge 
+                key={arg.name} 
+                variant="secondary" 
+                className="text-xs px-1.5 py-0.5 h-4 bg-muted/60 text-muted-foreground"
+              >
+                {arg.name}{arg.required ? '*' : ''}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
 interface PromptArgument {
   name: string;
   description?: string;
@@ -14,8 +91,12 @@ interface Prompt {
   name: string;
   title?: string;
   description?: string;
-  source: 'mcp' | 'internal';
+  source: 'mcp' | 'internal' | 'starter';
   arguments: PromptArgument[];
+  starterPrompt?: boolean;
+  category?: string;
+  icon?: string;
+  priority?: number;
 }
 
 interface SlashCommandAutocompleteProps {
@@ -36,6 +117,16 @@ export default function SlashCommandAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Group prompts by source and category
+  const groupedPrompts = React.useMemo(() => {
+    const groups = {
+      starter: prompts.filter(p => p.starterPrompt),
+      internal: prompts.filter(p => p.source === 'internal' && !p.starterPrompt),
+      mcp: prompts.filter(p => p.source === 'mcp')
+    };
+    return groups;
+  }, [prompts]);
 
   // Fetch available prompts
   useEffect(() => {
@@ -184,71 +275,34 @@ export default function SlashCommandAutocomplete({
             Loading prompts...
           </div>
         ) : (
-          filteredPrompts.map((prompt, index) => (
-            <div
-              key={prompt.name}
-              className={`px-3 py-2 cursor-pointer hover:bg-muted/30 transition-colors ${
-                index === selectedIndex ? 'bg-muted/40' : ''
-              }`}
-              onClick={() => onSelectPrompt(prompt)}
-            >
-              <div className="flex items-start gap-2">
-                <div className="flex-shrink-0 mt-0.5">
-                  {prompt.source === 'mcp' ? (
-                    <Zap className="h-3 w-3 text-blue-400" />
-                  ) : (
-                    <Sparkles className="h-3 w-3 text-purple-400" />
-                  )}
+          <>
+            {/* Starter prompts section */}
+            {groupedPrompts.starter.length > 0 && (
+              <div className="border-b border-border/30 pb-2 mb-2">
+                <div className="px-3 py-2 text-xs font-medium text-primary">
+                  🚀 Starter Prompts
                 </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-xs text-foreground">
-                      /{prompt.name}
-                    </span>
-                    {prompt.source === 'mcp' && (
-                      <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
-                        MCP
-                      </Badge>
-                    )}
-                    {prompt.source === 'internal' && (
-                      <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
-                        Internal
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  {/* Show title if available */}
-                  {prompt.title && (
-                    <div className="text-xs font-medium text-foreground/90 mb-0.5">
-                      {prompt.title}
-                    </div>
-                  )}
-                  
-                  {/* Show description if available and different from title */}
-                  {prompt.description && prompt.description !== prompt.title && (
-                    <div className="text-xs text-muted-foreground mb-1.5 line-clamp-2">
-                      {prompt.description}
-                    </div>
-                  )}
-                  
-                  {prompt.arguments && prompt.arguments.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {prompt.arguments.map((arg) => (
-                        <Badge 
-                          key={arg.name} 
-                          variant="secondary" 
-                          className="text-xs px-1.5 py-0.5 h-4 bg-muted/60 text-muted-foreground"
-                        >
-                          {arg.name}{arg.required ? '*' : ''}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {groupedPrompts.starter.map((prompt, index) => (
+                  <PromptItem 
+                    key={prompt.name}
+                    prompt={prompt}
+                    isSelected={index === selectedIndex}
+                    onClick={() => onSelectPrompt(prompt)}
+                  />
+                ))}
               </div>
-            </div>
-          ))
+            )}
+            
+            {/* Other prompts */}
+            {filteredPrompts.map((prompt, index) => (
+              <PromptItem 
+                key={prompt.name}
+                prompt={prompt}
+                isSelected={index === selectedIndex}
+                onClick={() => onSelectPrompt(prompt)}
+              />
+            ))}
+          </>
         )}
       </div>
 

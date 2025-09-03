@@ -87,7 +87,7 @@ export class InternalPromptProvider implements PromptProvider {
                                         const descMatch = line.match(
                                             /description:\s*["']?([^"']+)["']?/
                                         );
-                                        if (descMatch) {
+                                        if (descMatch && descMatch[1]) {
                                             description = descMatch[1];
                                         }
                                     }

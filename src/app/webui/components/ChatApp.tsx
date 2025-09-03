@@ -59,6 +59,9 @@ export default function ChatApp() {
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
 
+  // Starter prompts state
+  const [starterPrompts, setStarterPrompts] = useState<any[]>([]);
+
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
   const listContentRef = React.useRef<HTMLDivElement | null>(null);
@@ -188,6 +191,29 @@ export default function ChatApp() {
       setCopySuccess(false);
     }
   }, [isExportOpen, currentSessionId]);
+
+  // Fetch starter prompts when in welcome state
+  useEffect(() => {
+    const fetchStarterPrompts = async () => {
+      try {
+        const response = await fetch('/api/prompts');
+        if (response.ok) {
+          const data = await response.json();
+          // Filter for starter prompts
+          const starterPrompts = data.prompts.filter((p: any) => 
+            p.starterPrompt
+          );
+          setStarterPrompts(starterPrompts);
+        }
+      } catch (error) {
+        console.error('Failed to fetch starter prompts:', error);
+      }
+    };
+    
+    if (isWelcomeState) {
+      fetchStarterPrompts();
+    }
+  }, [isWelcomeState]);
 
   const handleDownload = useCallback(async () => {
     try {
@@ -374,6 +400,23 @@ export default function ChatApp() {
       icon: "⚡"
     }
   ];
+
+  // Generate dynamic quick actions from starter prompts
+  const dynamicQuickActions = React.useMemo(() => {
+    const actions = [...quickActions]; // Start with default actions
+    
+    // Add starter prompts from configuration
+    starterPrompts.forEach((prompt) => {
+      actions.push({
+        title: prompt.title || prompt.name,
+        description: prompt.description || 'Starter prompt',
+        action: () => handleSend(prompt.promptText || prompt.name),
+        icon: prompt.icon || "💬"
+      });
+    });
+    
+    return actions;
+  }, [starterPrompts, quickActions]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -643,7 +686,7 @@ export default function ChatApp() {
 
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
-                    {quickActions.map((action, index) => (
+                    {dynamicQuickActions.map((action, index) => (
                       <button
                         key={index}
                         onClick={action.action}

@@ -89,7 +89,7 @@ export interface PromptMessage {
  * Enhanced prompt info with MCP-compliant structure
  */
 export interface PromptInfo extends PromptDefinition {
-    source: 'mcp' | 'internal';
+    source: 'mcp' | 'internal' | 'starter';
     metadata?: Record<string, unknown>;
 }
 

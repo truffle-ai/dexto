@@ -1,6 +1,7 @@
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptSet, PromptListResult } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
+import type { AgentConfig } from '../agent/schemas.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
 import { logger } from '../logger/index.js';
@@ -27,13 +28,15 @@ export class PromptsManager {
     private mcpManager: MCPManager;
     private mcpPromptProvider: MCPPromptProvider;
     private internalPromptProvider: InternalPromptProvider;
+    private agentConfig?: AgentConfig;
 
     // Prompt caching for performance
     private promptsCache: PromptSet = {};
     private cacheValid: boolean = false;
 
-    constructor(mcpManager: MCPManager, promptsDir?: string) {
+    constructor(mcpManager: MCPManager, promptsDir?: string, agentConfig?: AgentConfig) {
         this.mcpManager = mcpManager;
+        this.agentConfig = agentConfig;
 
         // Initialize MCP prompt provider
         this.mcpPromptProvider = new MCPPromptProvider(mcpManager);
@@ -94,6 +97,27 @@ export class PromptsManager {
             logger.error(
                 `Failed to get internal prompts: ${error instanceof Error ? error.message : String(error)}`
             );
+        }
+
+        // Add starter prompts from agent configuration
+        if (this.agentConfig?.starterPrompts && this.agentConfig.starterPrompts.length > 0) {
+            this.agentConfig.starterPrompts.forEach((starterPrompt: any) => {
+                const promptName = `starter:${starterPrompt.id}`;
+                allPrompts[promptName] = {
+                    name: promptName,
+                    title: starterPrompt.title,
+                    description: starterPrompt.description,
+                    source: 'starter',
+                    metadata: {
+                        prompt: starterPrompt.prompt,
+                        category: starterPrompt.category,
+                        icon: starterPrompt.icon,
+                        priority: starterPrompt.priority,
+                        starterPrompt: true,
+                    },
+                };
+            });
+            logger.debug(`📝 Cached ${this.agentConfig.starterPrompts.length} starter prompts`);
         }
 
         this.promptsCache = allPrompts;
@@ -226,6 +250,24 @@ export class PromptsManager {
             return await this.mcpPromptProvider.getPrompt(name, args);
         } else if (promptInfo.source === 'internal') {
             return await this.internalPromptProvider.getPrompt(name, args);
+        } else if (promptInfo.source === 'starter') {
+            // For starter prompts, return the prompt text directly
+            const promptText = promptInfo.metadata?.prompt as string;
+            if (!promptText) {
+                throw new Error('Starter prompt missing prompt text');
+            }
+            return {
+                description: promptInfo.description,
+                messages: [
+                    {
+                        role: 'user',
+                        content: {
+                            type: 'text',
+                            text: promptText,
+                        },
+                    },
+                ],
+            };
         } else {
             throw new Error(`Unknown prompt source: ${promptInfo.source}`);
         }

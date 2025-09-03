@@ -109,6 +109,35 @@ export const AgentConfigSchema = z
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
         ),
+
+        // Agent-specific starter prompts configuration
+        starterPrompts: z
+            .array(
+                z
+                    .object({
+                        id: z.string().describe('Unique identifier for the starter prompt'),
+                        title: z.string().describe('Display title for the starter prompt button'),
+                        description: z.string().describe('Description shown on hover or in the UI'),
+                        prompt: z
+                            .string()
+                            .describe('The actual prompt text that gets sent to the agent'),
+                        category: z
+                            .enum(['general', 'coding', 'analysis', 'tools', 'learning'])
+                            .default('general')
+                            .describe('Category for organizing starter prompts'),
+                        icon: z
+                            .string()
+                            .optional()
+                            .describe('Emoji or icon to display with the prompt'),
+                        priority: z
+                            .number()
+                            .default(0)
+                            .describe('Priority for ordering (higher numbers appear first)'),
+                    })
+                    .strict()
+            )
+            .default([])
+            .describe('Starter prompts that appear as clickable buttons in the WebUI'),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
