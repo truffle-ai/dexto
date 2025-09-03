@@ -130,7 +130,8 @@ export class MCPPromptProvider implements PromptProvider {
      */
     async getPromptDefinition(name: string): Promise<PromptDefinition | null> {
         try {
-            const promptInfo = this.promptsCache.find((p) => p.name === name);
+            const { prompts } = await this.listPrompts();
+            const promptInfo = prompts.find((p) => p.name === name);
             if (!promptInfo) {
                 return null;
             }

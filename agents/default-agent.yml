@@ -75,7 +75,6 @@ starterPrompts:
     category: learning
     icon: "📚"
     priority: 9
-  
   - id: coding-help
     title: "Coding Assistant 💻"
     description: "Get help with programming, debugging, and code review"
@@ -83,7 +82,6 @@ starterPrompts:
     category: coding
     icon: "💻"
     priority: 8
-  
   - id: data-analysis
     title: "Data Analysis 📊"
     description: "Process data, create visualizations, and perform analysis"
@@ -91,7 +89,6 @@ starterPrompts:
     category: analysis
     icon: "📊"
     priority: 6
-  
   - id: tool-demo
     title: "Tool Demonstration ⚡"
     description: "See the tools in action with practical examples"
@@ -99,7 +96,6 @@ starterPrompts:
     category: tools
     icon: "⚡"
     priority: 5
-
   - id: snake-game
     title: "Create Snake Game 🐍"
     description: "Build a fun interactive game with HTML, CSS, and JavaScript"
@@ -107,7 +103,6 @@ starterPrompts:
     category: coding
     icon: "🐍"
     priority: 4
-
   - id: connect-tools
     title: "Connect New Tools 🔧"
     description: "Browse and add MCP servers to extend capabilities"

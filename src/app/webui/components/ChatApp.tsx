@@ -395,11 +395,17 @@ export default function ChatApp() {
           icon: prompt.icon || "🔧"
         });
       } else {
+        // Skip prompts without text content
+        const textToSend = prompt.promptText || prompt.name;
+        if (!textToSend || textToSend.trim() === '') {
+          console.warn(`Skipping starter prompt '${prompt.name}': no text content available`);
+          return;
+        }
         // Regular starter prompts send their prompt text
         actions.push({
           title: prompt.title || prompt.name,
           description: prompt.description || 'Starter prompt',
-          action: () => handleSend(prompt.promptText || prompt.name),
+          action: () => handleSend(textToSend),
           icon: prompt.icon || "💬"
         });
       }

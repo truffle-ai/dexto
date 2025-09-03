@@ -1,5 +1,9 @@
 ---
 description: "Explain complex concepts in simple terms with examples and analogies"
+id: explain
+name: Concept Explainer
+command: /explain
+category: learning
 ---
 
 # Concept Explainer

@@ -2,6 +2,17 @@ import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } f
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { AgentConfig } from '../../agent/schemas.js';
 import { logger } from '../../logger/index.js';
+import { PromptError } from '../errors.js';
+
+type StarterPromptConfig = {
+    id: string;
+    title?: string | undefined;
+    description?: string | undefined;
+    prompt: string;
+    category?: string | undefined;
+    icon?: string | undefined;
+    priority?: number | undefined;
+};
 
 /**
  * Starter Prompt Provider - Provides prompts from agent configuration starter prompts
@@ -11,7 +22,7 @@ import { logger } from '../../logger/index.js';
  * displayed prominently in the UI.
  */
 export class StarterPromptProvider implements PromptProvider {
-    private starterPrompts: any[] = [];
+    private starterPrompts: StarterPromptConfig[] = [];
     private promptsCache: PromptInfo[] = [];
     private cacheValid: boolean = false;
 
@@ -51,7 +62,7 @@ export class StarterPromptProvider implements PromptProvider {
     private buildPromptsCache(): void {
         const allPrompts: PromptInfo[] = [];
 
-        this.starterPrompts.forEach((starterPrompt: any) => {
+        this.starterPrompts.forEach((starterPrompt: StarterPromptConfig) => {
             const promptName = `starter:${starterPrompt.id}`;
             const promptInfo: PromptInfo = {
                 name: promptName,
@@ -98,13 +109,14 @@ export class StarterPromptProvider implements PromptProvider {
 
         const promptInfo = this.promptsCache.find((p) => p.name === name);
         if (!promptInfo) {
-            throw new Error(`Starter prompt not found: ${name}`);
+            throw PromptError.notFound(name);
         }
 
-        const promptText = promptInfo.metadata?.prompt as string;
-        if (!promptText) {
-            throw new Error('Starter prompt missing prompt text');
+        const rawPrompt = promptInfo.metadata?.prompt;
+        if (typeof rawPrompt !== 'string' || rawPrompt.trim().length === 0) {
+            throw PromptError.missingText();
         }
+        const promptText = rawPrompt;
 
         logger.debug(`📝 Reading starter prompt: ${name}`);
 

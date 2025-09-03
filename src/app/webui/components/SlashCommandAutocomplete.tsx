@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap } from 'lucide-react';
 import { Badge } from './ui/badge';
+import type { PromptArgument, PromptInfo } from '@core/prompts/types.js';
 
 // PromptItem component for rendering individual prompts
 const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: { 
@@ -83,18 +84,9 @@ const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: {
   </div>
 );
 
-interface PromptArgument {
-  name: string;
-  description?: string;
-  required: boolean;
-}
-
-interface Prompt {
-  name: string;
-  title?: string;
-  description?: string;
-  source: 'mcp' | 'internal' | 'starter';
-  arguments: PromptArgument[];
+// Define UI-specific Prompt interface extending core PromptInfo
+interface Prompt extends PromptInfo {
+  // UI-specific fields that may come from metadata
   starterPrompt?: boolean;
   category?: string;
   icon?: string;

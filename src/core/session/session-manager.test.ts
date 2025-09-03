@@ -71,7 +71,7 @@ describe('SessionManager', () => {
         // Mock services
         mockServices = {
             stateManager: {
-                getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
+                getLLMConfig: vi.fn().mockImplementation(() => mockLLMConfig),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {

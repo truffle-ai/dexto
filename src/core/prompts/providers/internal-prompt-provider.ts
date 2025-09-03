@@ -1,6 +1,7 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
+import { PromptError } from '../errors.js';
 import { readFile, readdir } from 'fs/promises';
 import { join, extname } from 'path';
 
@@ -63,6 +64,12 @@ export class InternalPromptProvider implements PromptProvider {
                         let description = `Internal prompt: ${promptName}`;
                         let title = promptName;
 
+                        // Front-matter fields
+                        let id: string | undefined;
+                        let name: string | undefined;
+                        let command: string | undefined;
+                        let category: string | undefined;
+
                         // Check for frontmatter
                         if (lines[0]?.trim() === '---') {
                             let inFrontmatter = false;
@@ -82,6 +89,7 @@ export class InternalPromptProvider implements PromptProvider {
                             if (frontmatterEnd > 0) {
                                 // Parse frontmatter
                                 const frontmatterLines = lines.slice(1, frontmatterEnd);
+
                                 for (const line of frontmatterLines) {
                                     if (line.includes('description:')) {
                                         const descMatch = line.match(
@@ -89,6 +97,30 @@ export class InternalPromptProvider implements PromptProvider {
                                         );
                                         if (descMatch && descMatch[1]) {
                                             description = descMatch[1];
+                                        }
+                                    } else if (line.includes('id:')) {
+                                        const idMatch = line.match(/id:\s*["']?([^"']+)["']?/);
+                                        if (idMatch && idMatch[1]) {
+                                            id = idMatch[1];
+                                        }
+                                    } else if (line.includes('name:')) {
+                                        const nameMatch = line.match(/name:\s*["']?([^"']+)["']?/);
+                                        if (nameMatch && nameMatch[1]) {
+                                            name = nameMatch[1];
+                                        }
+                                    } else if (line.includes('command:')) {
+                                        const commandMatch = line.match(
+                                            /command:\s*["']?([^"']+)["']?/
+                                        );
+                                        if (commandMatch && commandMatch[1]) {
+                                            command = commandMatch[1];
+                                        }
+                                    } else if (line.includes('category:')) {
+                                        const categoryMatch = line.match(
+                                            /category:\s*["']?([^"']+)["']?/
+                                        );
+                                        if (categoryMatch && categoryMatch[1]) {
+                                            category = categoryMatch[1];
                                         }
                                     }
                                 }
@@ -112,6 +144,11 @@ export class InternalPromptProvider implements PromptProvider {
                                 originalName: promptName,
                                 filePath,
                                 content,
+                                // Include front-matter fields for routing and UI
+                                ...(id && { id }),
+                                ...(name && { name }),
+                                ...(command && { command }),
+                                ...(category && { category }),
                             },
                         };
 
@@ -153,7 +190,7 @@ export class InternalPromptProvider implements PromptProvider {
 
             const promptInfo = this.promptsCache.find((p) => p.name === name);
             if (!promptInfo || !promptInfo.metadata?.content) {
-                throw new Error(`Internal prompt not found: ${name}`);
+                throw PromptError.notFound(name);
             }
 
             logger.debug(`📝 Reading internal prompt: ${name}`);
@@ -223,6 +260,9 @@ export class InternalPromptProvider implements PromptProvider {
      */
     async getPromptDefinition(name: string): Promise<PromptDefinition | null> {
         try {
+            if (!this.cacheValid) {
+                await this.buildPromptsCache();
+            }
             const promptInfo = this.promptsCache.find((p) => p.name === name);
             if (!promptInfo) {
                 return null;

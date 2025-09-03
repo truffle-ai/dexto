@@ -20,7 +20,7 @@ import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
-import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete.js';
 
 interface ModelOption {
   name: string;

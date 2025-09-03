@@ -1181,34 +1181,27 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 promptText: prompt.metadata?.prompt || null,
             }));
 
-            res.json({
-                prompts: promptList,
-                total: promptList.length,
-            });
+            return sendJsonResponse(res, { prompts: promptList, total: promptList.length }, 200);
         } catch (error) {
-            console.error('Error listing prompts:', error);
-            res.status(500).json({
-                error: 'Failed to list prompts',
-                details: error instanceof Error ? error.message : 'Unknown error',
-            });
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.error(`Error listing prompts: ${msg}`);
+            return next(error);
         }
     });
 
     app.get('/api/prompts/:name', async (req, res, next) => {
         try {
-            const { name } = req.params;
+            const { name } = z.object({ name: z.string().min(1) }).parse(req.params);
             const promptDefinition = await agent.promptsManager.getPromptDefinition(name);
             if (!promptDefinition) {
                 return res.status(404).json({ error: 'Prompt not found' });
             }
 
-            return res.json(promptDefinition);
+            return sendJsonResponse(res, promptDefinition, 200);
         } catch (error) {
-            console.error('Error getting prompt:', error);
-            return res.status(500).json({
-                error: 'Failed to get prompt',
-                details: error instanceof Error ? error.message : 'Unknown error',
-            });
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.error(`Error getting prompt: ${msg}`);
+            return next(error);
         }
     });
 
