@@ -19,6 +19,10 @@ export type {
     SearchResponse,
     SessionSearchResponse,
     DextoEvent,
+    CatalogOptions,
+    CatalogModel,
+    CatalogProvider,
+    CatalogResponse,
 } from './types.js';
 
 // Export error classes

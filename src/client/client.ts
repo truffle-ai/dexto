@@ -14,6 +14,8 @@ import {
     SearchResponse,
     SessionSearchResponse,
     DextoClientError,
+    CatalogOptions,
+    CatalogResponse,
 } from './types.js';
 
 /**
@@ -267,6 +269,25 @@ export class DextoClient {
         return response.providers;
     }
 
+    /**
+     * Get LLM catalog with filtering options
+     */
+    async getLLMCatalog(options: CatalogOptions = {}): Promise<CatalogResponse> {
+        const params = new URLSearchParams();
+
+        if (options.provider) params.set('provider', options.provider);
+        if (options.hasKey !== undefined) params.set('hasKey', options.hasKey.toString());
+        if (options.router) params.set('router', options.router);
+        if (options.fileType) params.set('fileType', options.fileType);
+        if (options.defaultOnly) params.set('defaultOnly', 'true');
+        if (options.mode) params.set('mode', options.mode);
+
+        const queryString = params.toString();
+        const endpoint = queryString ? `/api/llm/catalog?${queryString}` : '/api/llm/catalog';
+
+        return await this.http.get<CatalogResponse>(endpoint);
+    }
+
     // ============= MCP SERVER MANAGEMENT =============
 
     /**
@@ -364,6 +385,17 @@ export class DextoClient {
         }
 
         return this.ws.onConnectionState(handler);
+    }
+
+    // ============= GREETING =============
+
+    /**
+     * Get agent greeting message
+     */
+    async getGreeting(sessionId?: string): Promise<string | null> {
+        const params = sessionId ? `?sessionId=${sessionId}` : '';
+        const response = await this.http.get<{ greeting: string | null }>(`/api/greeting${params}`);
+        return response.greeting;
     }
 
     // ============= UTILITY METHODS =============

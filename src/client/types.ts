@@ -95,6 +95,44 @@ export interface SessionSearchResponse {
     total: number;
 }
 
+// LLM Catalog types
+export interface CatalogOptions {
+    provider?: string;
+    hasKey?: boolean;
+    router?: string;
+    fileType?: string;
+    defaultOnly?: boolean;
+    mode?: 'grouped' | 'flat';
+}
+
+export interface CatalogModel {
+    name: string;
+    displayName?: string;
+    default: boolean;
+    maxInputTokens: number;
+    supportedRouters?: string[];
+    supportedFileTypes: string[];
+    pricing?: {
+        input?: number;
+        output?: number;
+        unit?: string;
+    };
+}
+
+export interface CatalogProvider {
+    name: string;
+    hasApiKey: boolean;
+    primaryEnvVar: string;
+    supportedRouters: string[];
+    supportsBaseURL: boolean;
+    models: CatalogModel[];
+}
+
+export interface CatalogResponse {
+    providers?: Record<string, CatalogProvider>;
+    models?: Array<CatalogModel & { provider: string }>;
+}
+
 // Event types for WebSocket communication
 export interface DextoEvent {
     type: string;
