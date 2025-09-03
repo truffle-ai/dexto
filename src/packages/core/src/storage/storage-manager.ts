@@ -1,5 +1,10 @@
 import type { CacheBackend, DatabaseBackend, StorageBackends } from './backend/types.js';
-import type { ValidatedStorageConfig } from './schemas.js';
+import type {
+    PostgresBackendConfig,
+    RedisBackendConfig,
+    SqliteBackendConfig,
+    ValidatedStorageConfig,
+} from './schemas.js';
 import { MemoryBackend } from './backend/memory-backend.js';
 import { logger } from '../logger/index.js';
 
@@ -110,7 +115,7 @@ export class StorageManager {
         }
     }
 
-    private async createRedisBackend(config: any): Promise<CacheBackend> {
+    private async createRedisBackend(config: RedisBackendConfig): Promise<CacheBackend> {
         try {
             if (!RedisBackend) {
                 const module = await import('./backend/redis-backend.js');
@@ -124,7 +129,7 @@ export class StorageManager {
         }
     }
 
-    private async createPostgresBackend(config: any): Promise<DatabaseBackend> {
+    private async createPostgresBackend(config: PostgresBackendConfig): Promise<DatabaseBackend> {
         try {
             if (!PostgresBackend) {
                 const module = await import('./backend/postgres-backend.js');
@@ -138,7 +143,7 @@ export class StorageManager {
         }
     }
 
-    private async createSQLiteBackend(config: any): Promise<DatabaseBackend> {
+    private async createSQLiteBackend(config: SqliteBackendConfig): Promise<DatabaseBackend> {
         try {
             if (!SQLiteBackend) {
                 const module = await import('./backend/sqlite-backend.js');
@@ -192,7 +197,7 @@ export class StorageManager {
                 await this.cache.delete(HEALTH_CHECK_KEY);
             }
         } catch (error) {
-            logger.warn('Cache health check failed:', error);
+            logger.warn(`Cache health check failed: ${error}`);
         }
 
         try {
@@ -203,7 +208,7 @@ export class StorageManager {
                 await this.database.delete(HEALTH_CHECK_KEY);
             }
         } catch (error) {
-            logger.warn('Database health check failed:', error);
+            logger.warn(`Database health check failed: ${error}`);
         }
 
         return {

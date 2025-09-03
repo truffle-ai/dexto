@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// Mock the registry module
-vi.mock('@dexto/core', () => ({
-    getAgentRegistry: vi.fn(),
-}));
+// Mock @dexto/core partially: preserve real exports and override getAgentRegistry only
+vi.mock('@dexto/core', async (importOriginal) => {
+    const actual = await importOriginal<any>();
+    return {
+        ...actual,
+        getAgentRegistry: vi.fn(),
+    };
+});
 
 // Import SUT after mocks
 import { handleInstallCommand } from './install.js';

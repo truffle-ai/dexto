@@ -5,8 +5,8 @@ import { tmpdir } from 'os';
 import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
 
 // Mock only external dependencies that can't be tested directly
-vi.mock('@dexto/core', async (importOriginal) => {
-    const actual = await importOriginal();
+vi.mock('@dexto/core', async () => {
+    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
     return {
         ...actual,
         createInitialPreferences: vi.fn((provider, model, apiKeyVar, defaultAgent) => ({

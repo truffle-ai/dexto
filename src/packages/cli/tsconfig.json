@@ -11,6 +11,10 @@
       "@app/*": ["src/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/webui/**", "**/*.test.ts", "**/*.spec.ts"]
+  "include": [
+    "src/**/*",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "exclude": ["src/webui/**"]
 }

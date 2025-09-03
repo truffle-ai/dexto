@@ -17,9 +17,8 @@ import {
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
+import { LLM_PROVIDERS, LLM_ROUTERS } from './types.js';
 import {
-    LLM_PROVIDERS,
-    LLM_ROUTERS,
     getSupportedModels,
     getMaxInputTokensForModel,
     getSupportedRoutersForProvider,
@@ -28,9 +27,8 @@ import {
     getDefaultModelForProvider,
     acceptsAnyModel,
     getSupportedRoutersForModel,
-    type LLMProvider,
-    type LLMRouter,
 } from './registry.js';
+import type { LLMProvider, LLMRouter } from './types.js';
 
 // Test helpers
 class LLMTestHelpers {

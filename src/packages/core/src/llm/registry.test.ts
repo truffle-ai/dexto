@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { LLM_PROVIDERS } from './types.js';
 import {
     LLM_REGISTRY,
-    LLM_PROVIDERS,
     getSupportedProviders,
     getSupportedModels,
     getMaxInputTokensForModel,

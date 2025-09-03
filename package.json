@@ -32,7 +32,7 @@
         "build:strict": "pnpm run typecheck && pnpm run build",
         "typecheck": "turbo run typecheck",
         "typecheck:core": "tsc --noEmit src/packages/core/src/**/*.ts",
-        "typecheck:watch": "tsc --project tsconfig.typecheck.json --watch",
+        "typecheck:watch": "turbo run typecheck --watch",
         "prepare": "husky",
         "build-webui": "npx rimraf src/packages/webui/node_modules src/packages/webui/package-lock.json && pnpm -C src/packages/webui install && pnpm -C src/packages/webui build",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",

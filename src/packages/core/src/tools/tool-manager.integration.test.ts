@@ -30,6 +30,7 @@ describe('ToolManager Integration Tests', () => {
     beforeEach(() => {
         // Create real MCPManager with no-op confirmation
         mcpManager = new MCPManager();
+        confirmationProvider = new NoOpConfirmationProvider();
 
         // Mock SearchService for internal tools
         const mockSearchService = {
