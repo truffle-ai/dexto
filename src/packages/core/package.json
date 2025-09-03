@@ -6,6 +6,9 @@
   "main": "./dist/index.js",
   "module": "./dist/index.browser.js",
   "types": "./dist/index.d.ts",
+  "dependencies": {
+    "cross-spawn": "^7.0.6"
+  },
   "exports": {
     ".": {
       "browser": {

@@ -9,14 +9,15 @@ export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 /**
  * Check if directory is the dexto source code itself
  * @param dirPath Directory to check
- * @returns True if directory contains dexto source (package.name === 'dexto')
+ * @returns True if directory contains the dexto source monorepo (top-level).
  */
 function isDextoSourceDirectory(dirPath: string): boolean {
     const packageJsonPath = path.join(dirPath, 'package.json');
 
     try {
         const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-        return pkg.name === 'dexto';
+        // Monorepo root must be named 'dexto-monorepo'. No other names are treated as source root.
+        return pkg.name === 'dexto-monorepo';
     } catch {
         return false;
     }

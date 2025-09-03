@@ -192,6 +192,10 @@ importers:
         version: 4.41.0
 
   src/packages/core:
+    dependencies:
+      cross-spawn:
+        specifier: ^7.0.6
+        version: 7.0.6
     devDependencies:
       '@types/json-schema':
         specifier: ^7.0.15
