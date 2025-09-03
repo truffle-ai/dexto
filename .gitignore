@@ -10,6 +10,8 @@ technical-plans/
 # Build output
 dist/
 build/
+.next/
+.turbo/
 
 # Environment files
 .env
