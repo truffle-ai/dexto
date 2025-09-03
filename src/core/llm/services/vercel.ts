@@ -12,6 +12,7 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResultToContent, summarizeToolContentForText } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -38,6 +39,8 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
+    // Map of toolCallId -> queue of raw results to emit with that callId
+    private rawResultsByCallId: Map<string, unknown[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -67,9 +70,9 @@ export class VercelLLMService implements ILLMService {
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<ModelMessage>(
+            config,
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,
@@ -92,14 +95,28 @@ export class VercelLLMService implements ILLMService {
             if (tool) {
                 acc[toolName] = {
                     inputSchema: jsonSchema(tool.parameters),
-                    execute: async (args: unknown) => {
+                    execute: async (args: unknown, options: { toolCallId: string }) => {
                         try {
-                            return await this.toolManager.executeTool(
+                            const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
                                 this.sessionId
                             );
+
+                            // Queue raw, unfiltered result under the specific toolCallId
+                            const callId = options.toolCallId;
+                            const queue = this.rawResultsByCallId.get(callId) ?? [];
+                            queue.push(rawResult);
+                            this.rawResultsByCallId.set(callId, queue);
+
+                            // Sanitize tool result to prevent large/base64 media from exploding context
+                            // Convert arbitrary result -> InternalMessage content (media as structured parts)
+                            // then summarize to concise text suitable for Vercel tool output.
+                            const safeContent = sanitizeToolResultToContent(rawResult);
+                            const summaryText = summarizeToolContentForText(safeContent);
+                            return summaryText;
                         } catch (err: unknown) {
+                            // Return structured error to SDK so a toolResult step is produced
                             if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.EXECUTION_DENIED
@@ -112,7 +129,6 @@ export class VercelLLMService implements ILLMService {
                             ) {
                                 return { error: err.message, denied: true, timeout: true };
                             }
-                            // Other failures
                             const message = err instanceof Error ? err.message : String(err);
                             return { error: message };
                         }
@@ -186,13 +202,16 @@ export class VercelLLMService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
         // Add user message, with optional image and file data
         logger.debug(
-            `VercelLLMService: Adding user message: ${textInput}, imageData: ${imageData}, fileData: ${fileData}`
+            `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
+                imageData
+            )}, file=${Boolean(fileData)})`
         );
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
@@ -216,7 +235,6 @@ export class VercelLLMService implements ILLMService {
             { provider: this.config.provider, model: this.getModelId() }
         );
         const formattedMessages: ModelMessage[] = prepared.formattedMessages as ModelMessage[];
-        const _systemPrompt: string | undefined = prepared.systemPrompt;
         const tokensUsed: number = prepared.tokensUsed;
 
         logger.silly(
@@ -230,16 +248,22 @@ export class VercelLLMService implements ILLMService {
             fullResponse = await this.streamText(
                 formattedMessages,
                 formattedTools,
-                this.config.maxIterations
+                this.config.maxIterations,
+                options?.signal
             );
         } else {
             fullResponse = await this.generateText(
                 formattedMessages,
                 formattedTools,
-                this.config.maxIterations
+                this.config.maxIterations,
+                options?.signal
             );
         }
 
+        // If the run was cancelled, don't emit the "max steps" fallback.
+        if (options?.signal?.aborted) {
+            return fullResponse; // likely '', which upstream can treat as "no content"
+        }
         return (
             fullResponse ||
             `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
@@ -249,7 +273,8 @@ export class VercelLLMService implements ILLMService {
     async generateText(
         messages: ModelMessage[],
         tools: VercelToolSet,
-        maxSteps: number = 50
+        maxSteps: number = 50,
+        signal?: AbortSignal
     ): Promise<string> {
         let stepIteration = 0;
 
@@ -277,6 +302,7 @@ export class VercelLLMService implements ILLMService {
                 model: this.model,
                 messages,
                 tools: effectiveTools,
+                ...(signal ? { abortSignal: signal } : {}),
                 onStepFinish: (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
@@ -293,17 +319,27 @@ export class VercelLLMService implements ILLMService {
                         for (const toolCall of step.toolCalls) {
                             this.sessionEventBus.emit('llmservice:toolCall', {
                                 toolName: toolCall.toolName,
-                                args: toolCall.input as Record<string, any>,
+                                args: toolCall.input as Record<string, unknown>,
                                 callId: toolCall.toolCallId,
                             });
                         }
                     }
+                    // Emit tool results: prefer raw mapped by callId; fallback to sanitized output
                     if (step.toolResults && step.toolResults.length > 0) {
                         for (const toolResult of step.toolResults) {
+                            const callId = toolResult.toolCallId;
+                            const sanitized = toolResult.output;
+                            let raw: unknown | undefined;
+                            if (callId) {
+                                const q = this.rawResultsByCallId.get(callId) ?? [];
+                                raw = q.shift();
+                                if (q.length > 0) this.rawResultsByCallId.set(callId, q);
+                                else this.rawResultsByCallId.delete(callId);
+                            }
                             this.sessionEventBus.emit('llmservice:toolResult', {
                                 toolName: toolResult.toolName,
-                                result: toolResult.output,
-                                callId: toolResult.toolCallId,
+                                result: raw ?? sanitized,
+                                callId,
                                 success: true,
                             });
                         }
@@ -317,6 +353,7 @@ export class VercelLLMService implements ILLMService {
             this.sessionEventBus.emit('llmservice:response', {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
+                provider: this.config.provider,
                 model: this.getModelId(),
                 router: 'vercel',
                 tokenUsage: {
@@ -343,12 +380,12 @@ export class VercelLLMService implements ILLMService {
 
             // Return the plain text of the response
             return response.text;
-        } catch (err: any) {
+        } catch (err: unknown) {
             this.mapProviderError(err, 'generate');
         }
     }
 
-    private mapProviderError(err: any, phase: 'generate' | 'stream'): never {
+    private mapProviderError(err: unknown, phase: 'generate' | 'stream'): never {
         // APICallError from Vercel AI SDK
         if (APICallError.isInstance?.(err)) {
             const status = err.statusCode;
@@ -415,7 +452,8 @@ export class VercelLLMService implements ILLMService {
     async streamText(
         messages: ModelMessage[],
         tools: VercelToolSet,
-        maxSteps: number = 10
+        maxSteps: number = 10,
+        signal?: AbortSignal
     ): Promise<string> {
         let stepIteration = 0;
 
@@ -439,6 +477,7 @@ export class VercelLLMService implements ILLMService {
             model: this.model,
             messages,
             tools: effectiveTools,
+            ...(signal ? { abortSignal: signal } : {}),
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
@@ -455,10 +494,14 @@ export class VercelLLMService implements ILLMService {
                     });
                 }
             },
+            // TODO: Add onAbort handler when we implement partial response handling.
+            // Vercel triggers onAbort instead of onError for cancelled streams.
+            // This is where cancellation logic should be handled properly.
             onError: (error) => {
-                logger.error(`Error in streamText: ${JSON.stringify(error, null, 2)}`);
+                const err = toError(error);
+                logger.error(`Error in streamText: ${err?.stack ?? err}`, null, 'red');
                 this.sessionEventBus.emit('llmservice:error', {
-                    error: toError(error),
+                    error: err,
                     context: 'streamText',
                     recoverable: false,
                 });
@@ -482,18 +525,27 @@ export class VercelLLMService implements ILLMService {
                     for (const toolCall of step.toolCalls) {
                         this.sessionEventBus.emit('llmservice:toolCall', {
                             toolName: toolCall.toolName,
-                            args: toolCall.input as Record<string, any>,
+                            args: toolCall.input as Record<string, unknown>,
                             callId: toolCall.toolCallId,
                         });
                     }
                 }
-                // Process tool results (same condition as generateText)
+                // Emit tool results during streaming as well (prefer raw mapped by callId)
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {
+                        const callId = toolResult.toolCallId;
+                        const sanitized = toolResult.output;
+                        let raw: unknown | undefined;
+                        if (callId) {
+                            const q = this.rawResultsByCallId.get(callId) ?? [];
+                            raw = q.shift();
+                            if (q.length > 0) this.rawResultsByCallId.set(callId, q);
+                            else this.rawResultsByCallId.delete(callId);
+                        }
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName: toolResult.toolName,
-                            result: toolResult.output,
-                            callId: toolResult.toolCallId,
+                            result: raw ?? sanitized,
+                            callId,
                             success: true,
                         });
                     }
@@ -511,6 +563,8 @@ export class VercelLLMService implements ILLMService {
             response.reasoningText,
         ]);
 
+        response.totalUsage;
+
         // If streaming reported an error, return early since we already emitted llmservice:error event
         if (streamErr) {
             // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
@@ -526,6 +580,7 @@ export class VercelLLMService implements ILLMService {
         this.sessionEventBus.emit('llmservice:response', {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
+            provider: this.config.provider,
             model: this.getModelId(),
             router: 'vercel',
             tokenUsage: {

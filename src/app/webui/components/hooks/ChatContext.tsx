@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
 import { useChat, Message, ErrorMessage } from './useChat';
+import { useGreeting } from './useGreeting';
 
 interface ChatContextType {
   messages: Message[];
@@ -15,14 +16,21 @@ interface ChatContextType {
   currentSessionId: string | null;
   switchSession: (sessionId: string) => void;
   loadSessionHistory: (sessionId: string) => Promise<void>;
+  // Active LLM config for the current session (UI source of truth)
+  currentLLM: { provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null;
+  refreshCurrentLLM: (sessionId?: string | null) => Promise<void>;
   isWelcomeState: boolean;
   returnToWelcome: () => void;
   isStreaming: boolean;
   setStreaming: (streaming: boolean) => void;
   websocket: WebSocket | null;
+  processing: boolean;
+  cancel: (sessionId?: string) => void;
   // Error state
   activeError: ErrorMessage | null;
   clearError: () => void;
+  // Greeting state
+  greeting: string | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -46,7 +54,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
-  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError } = useChat(wsUrl);
+  const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl, () => currentSessionId);
+  const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
+
+  // Helper to fetch current LLM (session-scoped if applicable)
+  const fetchCurrentLLM = useCallback(async (sessionIdOverride?: string | null) => {
+    try {
+      const targetSessionId = sessionIdOverride !== undefined ? sessionIdOverride : currentSessionId;
+      const url = targetSessionId ? `/api/llm/current?sessionId=${targetSessionId}` : '/api/llm/current';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config || data;
+        setCurrentLLM({
+          provider: cfg.provider,
+          model: cfg.model,
+          displayName: cfg.displayName,
+          router: cfg.router,
+          baseURL: cfg.baseURL,
+        });
+      }
+    } catch {
+      // ignore fetch errors here; UI can still operate
+    }
+  }, [currentSessionId]);
+
+  // On initial mount (welcome state), fetch default LLM to populate UI label
+  useEffect(() => {
+    if (!currentLLM) {
+      void fetchCurrentLLM();
+    }
+  }, [currentLLM, fetchCurrentLLM]);
+  
+  // Get greeting from API
+  const { greeting } = useGreeting(currentSessionId);
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
@@ -82,18 +123,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!sessionId && isWelcomeState) {
       sessionId = await createAutoSession();
       
-      // Load the new session as the current working session
-      try {
-        await fetch(`/api/sessions/${sessionId}/load`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-      } catch (error) {
-        console.error('Error loading auto-created session:', error);
-      }
-      
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false);
+
+      // Prime currentLLM for this session to avoid UI flicker
+      await fetchCurrentLLM(sessionId);
     }
     
     if (sessionId) {
@@ -151,6 +185,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           reasoning: msg.reasoning,
           model: msg.model,
           router: msg.router,
+          provider: msg.provider,
         };
 
         if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
@@ -201,26 +236,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // On error, just clear messages and continue
       setMessages([]);
     }
-  }, [setMessages]);
+  }, [setMessages, fetchCurrentLLM]);
 
   // Switch to a different session and load it on the backend
   const switchSession = useCallback(async (sessionId: string) => {
     if (sessionId === currentSessionId) return;
     
     try {
-      // Load the session as the current working session on the backend
-      const loadResponse = await fetch(`/api/sessions/${sessionId}/load`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (!loadResponse.ok) {
-        throw new Error('Failed to load session on backend');
-      }
-      
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
       await loadSessionHistory(sessionId);
+      // After switching sessions, simply hydrate UI from the server's
+      // authoritative per-session LLM config (no client-side switching)
+      await fetchCurrentLLM(sessionId);
     } catch (error) {
       console.error('Error switching session:', error);
       throw error; // Re-throw so UI can handle the error
@@ -232,21 +260,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentSessionId(null);
     setIsWelcomeState(true);
     setMessages([]);
-    
-    // Reset the backend to no default session
-    fetch('/api/sessions/null/load', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }).catch(error => {
-      console.warn('Error resetting backend session:', error);
-    });
+    setCurrentLLM(null);
   }, [setMessages]);
 
   // Listen for config-related WebSocket events via DOM events
   useEffect(() => {
     const handleConfigChange = (event: any) => {
-      console.log('Config changed:', event.detail);
-      // Here you could trigger UI updates, but for now just log
+      // Attempt to update current LLM from event if payload includes it
+      const detail = event?.detail || {};
+      if (detail.config?.llm) {
+        const llm = detail.config.llm;
+        setCurrentLLM({ provider: llm.provider, model: llm.model, router: llm.router, baseURL: llm.baseURL });
+      }
     };
 
     const handleServersChange = (event: any) => {
@@ -288,9 +313,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isStreaming,
       setStreaming: setIsStreaming,
       websocket,
+      currentLLM,
+      refreshCurrentLLM: fetchCurrentLLM,
+      processing,
+      cancel,
       // Error state
       activeError,
-      clearError
+      clearError,
+      // Greeting state
+      greeting
     }}>
       {children}
     </ChatContext.Provider>
@@ -303,4 +334,4 @@ export function useChatContext(): ChatContextType {
     throw new Error('useChatContext must be used within a ChatProvider');
   }
   return context;
-} 
+}

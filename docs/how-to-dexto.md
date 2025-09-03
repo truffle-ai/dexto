@@ -21,10 +21,10 @@ Dexto requires API keys for the desired LLM provider. Set them as environment va
 # For OpenAI (e.g., gpt-4o)
 export OPENAI_API_KEY="your_key"
 
-# For Anthropic (e.g., claude-3-sonnet)
+# For Anthropic (e.g., claude-4-sonnet)
 export ANTHROPIC_API_KEY="your_key"
 
-# For Google (e.g., gemini-1.5-pro)
+# For Google (e.g., gemini-2.5-pro)
 export GOOGLE_GENERATIVE_AI_API_KEY="your_key"
 
 # For Cohere (e.g., command-r-plus)

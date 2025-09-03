@@ -6,12 +6,18 @@ import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import { logger } from '../logger/index.js';
-import { getImageData, countMessagesTokens } from './utils.js';
+import { countMessagesTokens, sanitizeToolResultToContent } from './utils.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
-import { SessionEventBus } from '../events/index.js';
 import { ContextError } from './errors.js';
+import { ValidatedLLMConfig } from '../llm/schemas.js';
+
+// TODO: Unify LLM response handling approaches across providers
+// Currently vercel vs anthropic/openai handle getting LLM responses quite differently:
+// - anthropic/openai add tool responses and assistant responses using individual methods
+// - vercel uses processLLMResponse and processStreamResponse
+// This should be unified to make the codebase more consistent and easier to maintain
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -32,14 +38,14 @@ import { ContextError } from './errors.js';
  */
 export class ContextManager<TMessage = unknown> {
     /**
+     * The validated LLM configuration.
+     */
+    private llmConfig: ValidatedLLMConfig;
+
+    /**
      * PromptManager used to generate/manage the system prompt
      */
     private promptManager: PromptManager;
-
-    /**
-     * Event bus for session events
-     */
-    private sessionEventBus: SessionEventBus;
 
     /**
      * Formatter used to convert internal messages to LLM-specific format
@@ -80,10 +86,9 @@ export class ContextManager<TMessage = unknown> {
 
     /**
      * Creates a new ContextManager instance
-     *
+     * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
      * @param promptManager PromptManager instance for the conversation
-     * @param sessionEventBus Session-level event bus for emitting message-related events
      * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
      * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
@@ -91,9 +96,9 @@ export class ContextManager<TMessage = unknown> {
      * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
      */
     constructor(
+        llmConfig: ValidatedLLMConfig,
         formatter: IMessageFormatter,
         promptManager: PromptManager,
-        sessionEventBus: SessionEventBus,
         maxInputTokens: number,
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
@@ -103,9 +108,9 @@ export class ContextManager<TMessage = unknown> {
             new OldestRemovalStrategy(),
         ]
     ) {
+        this.llmConfig = llmConfig;
         this.formatter = formatter;
         this.promptManager = promptManager;
-        this.sessionEventBus = sessionEventBus;
         this.maxInputTokens = maxInputTokens;
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
@@ -274,6 +279,7 @@ export class ContextManager<TMessage = unknown> {
                 }
                 // Optional: Add validation for the structure of array parts if needed
                 break;
+
             case 'assistant':
                 // Content can be null if toolCalls are present, but one must exist
                 if (
@@ -292,12 +298,19 @@ export class ContextManager<TMessage = unknown> {
                         throw ContextError.assistantMessageToolCallsInvalid();
                     }
                 }
+
+                // Enrich assistant messages with LLM config metadata
+                message.provider = this.llmConfig.provider;
+                message.router = this.llmConfig.router;
+                message.model = this.llmConfig.model;
                 break;
+
             case 'tool':
                 if (!message.toolCallId || !message.name || message.content === null) {
                     throw ContextError.toolMessageFieldsMissing();
                 }
                 break;
+
             case 'system':
                 // System messages should ideally be handled via setSystemPrompt
                 logger.warn(
@@ -400,8 +413,6 @@ export class ContextManager<TMessage = unknown> {
         metadata?: {
             tokenUsage?: InternalMessage['tokenUsage'];
             reasoning?: string;
-            model?: string;
-            router?: InternalMessage['router'];
         }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
@@ -409,14 +420,13 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.assistantMessageContentOrToolsRequired();
         }
         // Further validation happens within addMessage
+        // addMessage will populate llm config metadata also
         await this.addMessage({
             role: 'assistant' as const,
             content,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
-            ...(metadata?.model && { model: metadata.model }),
-            ...(metadata?.router && { router: metadata.router }),
         });
     }
 
@@ -432,30 +442,30 @@ export class ContextManager<TMessage = unknown> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
-
-        // Simplest image detection: if result has an 'image' field, treat as ImagePart
+        // Sanitize tool result to avoid adding non-text data as raw text
+        // and to convert media/data-uris/base64 to structured parts.
         let content: InternalMessage['content'];
-        if (result && typeof result === 'object' && 'image' in result) {
-            // Use shared helper to get base64/URL
-            const imagePart = result as {
-                image: string | Uint8Array | Buffer | ArrayBuffer | URL;
-                mimeType?: string;
-            };
-            content = [
-                {
-                    type: 'image',
-                    image: getImageData(imagePart),
-                    mimeType: imagePart.mimeType || 'image/jpeg',
-                },
-            ];
-        } else if (typeof result === 'string') {
-            content = result;
-        } else if (Array.isArray(result)) {
-            // Assume array of parts already
-            content = result;
-        } else {
-            // Fallback: stringify all other values
-            content = JSON.stringify(result ?? '');
+        content = sanitizeToolResultToContent(result);
+
+        // Log what we are storing (brief)
+        if (typeof content === 'string') {
+            const preview = content.slice(0, 200);
+            logger.debug(
+                `ContextManager: Storing tool result (text) for ${name} (len=${content.length}): ${preview}${
+                    content.length > 200 ? '...' : ''
+                }`
+            );
+        } else if (Array.isArray(content)) {
+            const summary = content
+                .map((p) =>
+                    p.type === 'text'
+                        ? `text(${p.text.length})`
+                        : p.type === 'image'
+                          ? `image(${p.mimeType || 'image'})`
+                          : `file(${p.mimeType || 'file'})`
+                )
+                .join(', ');
+            logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
         }
 
         await this.addMessage({ role: 'tool', content, toolCallId, name });

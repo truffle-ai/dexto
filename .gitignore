@@ -61,5 +61,3 @@ test-temp/
 
 # Temporarily ignore module READMEs in src/core
 src/core/*/README.md
-
-

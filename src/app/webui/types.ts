@@ -89,6 +89,11 @@ export interface LLMProvider {
     supportsBaseURL: boolean;
 }
 
+// Greeting API response
+export interface GreetingResponse {
+    greeting: string | null;
+}
+
 export interface LLMConfig {
     config: {
         provider: string;
@@ -121,7 +126,6 @@ export interface ServerRegistryEntry {
         | 'communication'
         | 'custom';
     icon?: string;
-    version?: string;
     author?: string;
     homepage?: string;
     config: {
@@ -137,14 +141,14 @@ export interface ServerRegistryEntry {
     tags: string[];
     isOfficial: boolean;
     isInstalled: boolean;
-    popularity?: number;
-    lastUpdated: Date;
     requirements?: {
         platform?: 'win32' | 'darwin' | 'linux' | 'all';
         node?: string;
         python?: string;
         dependencies?: string[];
     };
+    // Optional identifiers used to detect if this server is already connected
+    matchIds?: string[];
 }
 
 export interface ServerRegistryFilter {

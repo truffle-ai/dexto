@@ -266,7 +266,6 @@ User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
 - **Add regression tests** - When fixing bugs, add tests to prevent recurrence
 - **Tests before style** - Ensure tests pass before fixing style checks
 
-
 ## Maintaining This File
 **Important**: Keep this CLAUDE.md file updated when you discover:
 - New architectural patterns or design decisions

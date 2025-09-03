@@ -25,7 +25,7 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'event-based',
                 allowedToolsProvider,
-                confirmationTimeout: 30000,
+                confirmationTimeout: 120000,
                 agentEventBus,
             });
             expect(provider).toBeInstanceOf(EventBasedConfirmationProvider);
@@ -51,7 +51,7 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'event-based',
                 allowedToolsProvider,
-                confirmationTimeout: 30000,
+                confirmationTimeout: 120000,
                 agentEventBus,
             });
             expect(provider.allowedToolsProvider).toBe(allowedToolsProvider);

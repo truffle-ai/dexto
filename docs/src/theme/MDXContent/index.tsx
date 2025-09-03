@@ -4,13 +4,8 @@ import CopyMarkdown from '../../components/CopyMarkdown';
 
 export default function MDXContentWrapper(props: React.ComponentProps<typeof MDXContent>) {
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ 
-        position: 'absolute', 
-        top: '1rem', 
-        right: '1rem', 
-        zIndex: 10
-      }}>
+    <div className="mdx-content-wrapper">
+      <div className="copy-markdown-header">
         <CopyMarkdown />
       </div>
       <MDXContent {...props} />

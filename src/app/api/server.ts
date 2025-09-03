@@ -29,9 +29,14 @@ import { validateInputForLLM } from '@core/llm/validation.js';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
+    LLM_ROUTERS,
+    SUPPORTED_FILE_TYPES,
     getSupportedRoutersForProvider,
     supportsBaseURL,
+    isRouterSupportedForModel,
 } from '@core/llm/registry.js';
+import type { ProviderInfo, LLMProvider } from '@core/llm/registry.js';
+import { getProviderKeyStatus, saveProviderApiKey } from '@core/utils/api-key-store.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@core/mcp/schemas.js';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
@@ -110,6 +115,11 @@ const SearchQuerySchema = z.object({
     role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
 });
 
+// Schema for cancel request parameters
+const CancelRequestSchema = z.object({
+    sessionId: z.string().min(1, 'Session ID is required'),
+});
+
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
     return schema.parse(body); // ZodError handled by error middleware
@@ -178,6 +188,20 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 stream || false
             );
             return res.status(202).send({ response, sessionId });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Cancel an in-flight run for a session
+    app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
+        try {
+            const { sessionId } = parseQuery(CancelRequestSchema, req.params);
+            const cancelled = await agent.cancel(sessionId);
+            if (!cancelled) {
+                logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+            }
+            return res.status(200).json({ cancelled, sessionId });
         } catch (error) {
             return next(error);
         }
@@ -389,7 +413,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                           }
                         : undefined;
 
-                    const sessionId = data.sessionId as string | undefined;
+                    const sessionId =
+                        typeof data.sessionId === 'string' ? (data.sessionId as string) : undefined;
+                    if (!sessionId) {
+                        logger.error(
+                            'Received WebSocket message without sessionId. Dropping message and not sending error (sessionId is mandatory).'
+                        );
+                        return;
+                    }
                     const stream = data.stream === true; // Extract stream preference, default to false
                     if (imageDataInput) logger.info('Image data included in message.');
                     if (fileDataInput) logger.info('File data included in message.');
@@ -432,7 +463,8 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                                 },
                             },
                         ]);
-                        sendWebSocketError(ws, hierarchicalError);
+                        // Always include sessionId for client-side routing of errors
+                        sendWebSocketError(ws, hierarchicalError, sessionId);
                         return;
                     }
 
@@ -443,17 +475,47 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
                     await agent.resetConversation(sessionId);
+                } else if (data.type === 'cancel') {
+                    const sessionId = data.sessionId as string | undefined;
+                    logger.info(
+                        `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
+                    );
+                    const cancelled = await agent.cancel(sessionId);
+                    if (!cancelled) {
+                        logger.debug('No in-flight run to cancel');
+                    }
                 } else {
                     logger.warn(`Received unknown WebSocket message type: ${data.type}`);
-                    sendWebSocketValidationError(ws, 'Unknown message type', {
-                        messageType: data.type,
-                    });
+                    if (typeof data.sessionId === 'string') {
+                        sendWebSocketValidationError(ws, 'Unknown message type', data.sessionId, {
+                            messageType: data.type,
+                        });
+                    } else {
+                        // No session id; log only.
+                        logger.error(
+                            'Cannot send error for unknown message type without sessionId.'
+                        );
+                    }
                 }
             } catch (error) {
                 logger.error(
                     `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
-                sendWebSocketError(ws, error);
+                // Try to parse sessionId; if absent, do not send an error (cannot route it reliably)
+                try {
+                    const maybe = JSON.parse(messageBuffer.toString());
+                    if (typeof maybe.sessionId === 'string') {
+                        sendWebSocketError(ws, error, maybe.sessionId);
+                    } else {
+                        logger.error(
+                            'Cannot send WebSocket error without sessionId. Error will be logged only.'
+                        );
+                    }
+                } catch {
+                    logger.error(
+                        'Cannot parse incoming message to extract sessionId for error reporting.'
+                    );
+                }
             }
         });
         ws.on('close', () => {
@@ -574,6 +636,17 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
+    // Get default greeting (for UI consumption)
+    app.get('/api/greeting', async (req, res, next) => {
+        try {
+            const sessionId = req.query.sessionId as string | undefined;
+            const config = agent.getEffectiveConfig(sessionId);
+            res.json({ greeting: config.greeting });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     // Get current LLM configuration
     app.get('/api/llm/current', async (req, res, next) => {
         try {
@@ -584,41 +657,203 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                 ? agent.getEffectiveConfig(sessionId as string).llm
                 : agent.getCurrentLLMConfig();
 
-            res.json({ config: currentConfig });
+            // Attach displayName for the current model if available in registry
+            let displayName: string | undefined;
+            try {
+                const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
+                    (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
+                );
+                displayName = model?.displayName || undefined;
+            } catch (_) {
+                // ignore
+            }
+
+            res.json({ config: { ...currentConfig, ...(displayName ? { displayName } : {}) } });
         } catch (error) {
             return next(error);
         }
     });
 
-    // Get available LLM providers and models
-    app.get('/api/llm/providers', async (req, res, next) => {
-        try {
-            // Build providers object from the LLM registry
-            const providers: Record<
-                string,
-                {
-                    name: string;
-                    models: string[];
-                    supportedRouters: string[];
-                    supportsBaseURL: boolean;
-                }
-            > = {};
+    // (Deprecated) /api/llm/providers has been replaced by /api/llm/catalog
 
+    // LLM Catalog: providers, models, and API key presence (with filters)
+    app.get('/api/llm/catalog', async (req, res, next) => {
+        try {
+            type ProviderCatalog = Pick<
+                ProviderInfo,
+                'supportedRouters' | 'models' | 'supportedFileTypes'
+            > & {
+                name: string;
+                hasApiKey: boolean;
+                primaryEnvVar: string;
+                supportsBaseURL: boolean;
+            };
+
+            type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
+
+            // Parse query parameters with Zod
+            const QuerySchema = z.object({
+                provider: z
+                    .union([z.string(), z.array(z.string())])
+                    .optional()
+                    .transform((value): string[] | undefined =>
+                        Array.isArray(value) ? value : value ? value.split(',') : undefined
+                    ),
+                hasKey: z
+                    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+                    .optional()
+                    .transform((raw): boolean | undefined =>
+                        raw === 'true' || raw === '1'
+                            ? true
+                            : raw === 'false' || raw === '0'
+                              ? false
+                              : undefined
+                    ),
+                router: z.enum(LLM_ROUTERS).optional(),
+                fileType: z.enum(SUPPORTED_FILE_TYPES).optional(),
+                defaultOnly: z
+                    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+                    .optional()
+                    .transform((raw): boolean | undefined =>
+                        raw === 'true' || raw === '1'
+                            ? true
+                            : raw === 'false' || raw === '0'
+                              ? false
+                              : undefined
+                    ),
+                mode: z.enum(['grouped', 'flat']).optional().default('grouped'),
+            });
+
+            const queryParams: z.output<typeof QuerySchema> = QuerySchema.parse(req.query);
+
+            const providers: Record<string, ProviderCatalog> = {};
             for (const provider of LLM_PROVIDERS) {
-                const providerInfo = LLM_REGISTRY[provider];
-                // Convert provider key to display name
+                const info = LLM_REGISTRY[provider];
                 const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                const keyStatus = getProviderKeyStatus(provider);
 
                 providers[provider] = {
                     name: displayName,
-                    models: providerInfo.models.map((model) => model.name),
+                    hasApiKey: keyStatus.hasApiKey,
+                    primaryEnvVar: keyStatus.envVar,
                     supportedRouters: getSupportedRoutersForProvider(provider),
                     supportsBaseURL: supportsBaseURL(provider),
+                    models: info.models,
+                    supportedFileTypes: info.supportedFileTypes,
                 };
             }
 
-            res.json({ providers });
-        } catch (error: any) {
+            // --- Apply filters ---
+            let filtered: Record<string, ProviderCatalog> = { ...providers };
+
+            // provider filter
+            if (queryParams.provider && queryParams.provider.length > 0) {
+                const allowedProviders = new Set(
+                    queryParams.provider.filter((p) =>
+                        (LLM_PROVIDERS as readonly string[]).includes(p)
+                    )
+                );
+                const filteredByProvider: Record<string, ProviderCatalog> = {};
+                for (const providerId of Object.keys(filtered)) {
+                    const providerCatalog = filtered[providerId];
+                    if (providerCatalog && allowedProviders.has(providerId)) {
+                        filteredByProvider[providerId] = providerCatalog;
+                    }
+                }
+                filtered = filteredByProvider;
+            }
+
+            // hasKey filter
+            if (typeof queryParams.hasKey === 'boolean') {
+                const filteredByKey: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    if (providerCatalog.hasApiKey === queryParams.hasKey) {
+                        filteredByKey[providerId] = providerCatalog;
+                    }
+                }
+                filtered = filteredByKey;
+            }
+
+            // router filter (keep providers that support router and filter models)
+            if (queryParams.router) {
+                const filteredByRouter: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    if (!providerCatalog.supportedRouters.includes(queryParams.router)) continue;
+                    const models = providerCatalog.models.filter((model) =>
+                        isRouterSupportedForModel(
+                            providerId as LLMProvider,
+                            model.name,
+                            queryParams.router!
+                        )
+                    );
+                    if (models.length > 0)
+                        filteredByRouter[providerId] = { ...providerCatalog, models };
+                }
+                filtered = filteredByRouter;
+            }
+
+            // fileType filter
+            if (queryParams.fileType) {
+                const filteredByFileType: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    const models = providerCatalog.models.filter((model) => {
+                        const modelTypes =
+                            Array.isArray(model.supportedFileTypes) &&
+                            model.supportedFileTypes.length > 0
+                                ? model.supportedFileTypes
+                                : providerCatalog.supportedFileTypes || [];
+                        return modelTypes.includes(queryParams.fileType!);
+                    });
+                    if (models.length > 0)
+                        filteredByFileType[providerId] = { ...providerCatalog, models };
+                }
+                filtered = filteredByFileType;
+            }
+
+            // defaultOnly filter
+            if (queryParams.defaultOnly) {
+                const filteredByDefault: Record<string, ProviderCatalog> = {};
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    const models = providerCatalog.models.filter((model) => model.default === true);
+                    if (models.length > 0)
+                        filteredByDefault[providerId] = { ...providerCatalog, models };
+                }
+                filtered = filteredByDefault;
+            }
+
+            // mode
+            if (queryParams.mode === 'flat') {
+                const flat: ModelFlat[] = [];
+                for (const [providerId, providerCatalog] of Object.entries(filtered)) {
+                    for (const model of providerCatalog.models) {
+                        flat.push({ provider: providerId as LLMProvider, ...model });
+                    }
+                }
+                return sendJsonResponse(res, { models: flat }, 200);
+            }
+
+            return sendJsonResponse(res, { providers: filtered }, 200);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Save provider API key (never echoes the key back)
+    app.post('/api/llm/key', express.json({ limit: '4kb' }), async (req, res, next) => {
+        try {
+            const schema = z.object({
+                provider: z.enum(LLM_PROVIDERS),
+                apiKey: z.string().min(1, 'API key is required'),
+            });
+            const body = schema.parse(req.body);
+
+            const meta = await saveProviderApiKey(body.provider, body.apiKey, process.cwd());
+            return sendJsonResponse(
+                res,
+                { ok: true, provider: body.provider, envVar: meta.envVar },
+                200
+            );
+        } catch (error) {
             return next(error);
         }
     });
@@ -784,14 +1019,14 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         }
     });
 
-    // Load session as current working session
+    // Load session as current working session and set as default
     app.post('/api/sessions/:sessionId/load', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
 
             // Handle null/reset case
             if (sessionId === 'null' || sessionId === 'undefined') {
-                await agent.loadSession(null);
+                await agent.loadSessionAsDefault(null);
                 res.json({
                     status: 'reset',
                     sessionId: null,
@@ -801,7 +1036,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             }
 
             // loadSession already checks session existence
-            await agent.loadSession(sessionId);
+            await agent.loadSessionAsDefault(sessionId);
             return res.json({
                 status: 'loaded',
                 sessionId,

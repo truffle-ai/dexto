@@ -1,4 +1,4 @@
-import { McpServerConfig } from './schemas.js';
+import { ValidatedMcpServerConfig } from './schemas.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { ToolProvider } from '../tools/types.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
@@ -8,7 +8,7 @@ import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/t
  */
 export interface IMCPClient extends ToolProvider {
     // Connection Management
-    connect(config: McpServerConfig, serverName: string): Promise<Client>;
+    connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client>;
     disconnect?(): Promise<void>;
 
     // Prompt Management
