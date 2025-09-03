@@ -92,14 +92,19 @@ export class MCPPromptProvider implements PromptProvider {
             }
 
             logger.debug(`📝 Cached ${allPrompts.length} MCP prompts`);
+            this.promptsCache = allPrompts;
+            this.cacheValid = true;
+            return;
         } catch (error) {
             logger.error(
-                `Failed to get MCP prompts: ${error instanceof Error ? error.message : String(error)}`
+                `Error in MCPPromptProvider.buildPromptsCache: ${error instanceof Error ? error.message : String(error)}`,
+                null,
+                'red'
             );
+            this.promptsCache = [];
+            this.cacheValid = false;
+            return;
         }
-
-        this.promptsCache = allPrompts;
-        this.cacheValid = true;
     }
 
     /**

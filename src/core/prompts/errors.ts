@@ -52,4 +52,17 @@ export class PromptError {
             },
         ]);
     }
+
+    /**
+     * Provider not found error
+     */
+    static providerNotFound(source: string) {
+        return new DextoRuntimeError(
+            PromptErrorCode.PROVIDER_NOT_FOUND,
+            ErrorScope.SYSTEM_PROMPT,
+            ErrorType.NOT_FOUND,
+            `No provider found for prompt source: ${source}`,
+            { source }
+        );
+    }
 }

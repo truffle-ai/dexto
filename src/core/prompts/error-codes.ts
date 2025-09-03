@@ -5,6 +5,7 @@
 export enum PromptErrorCode {
     // Prompt resolution
     PROMPT_NOT_FOUND = 'prompt_not_found',
+    PROVIDER_NOT_FOUND = 'provider_not_found',
 
     // Prompt validation
     MISSING_TEXT = 'prompt_missing_text',

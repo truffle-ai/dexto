@@ -251,14 +251,18 @@ export class InternalPromptProvider implements PromptProvider {
             await this.buildPromptsCache();
         }
 
-        // Return sanitized copies that exclude full content
-        const safePrompts = this.promptsCache.map((prompt) => ({
-            ...prompt,
-            metadata: {
-                ...prompt.metadata,
-                content: undefined, // Remove full content for security
-            },
-        }));
+        // Return sanitized copies that exclude full content and file paths
+        const safePrompts = this.promptsCache.map((prompt) => {
+            const {
+                content: _content,
+                filePath: _filePath,
+                ...safeMetadata
+            } = prompt.metadata || {};
+            return {
+                ...prompt,
+                metadata: safeMetadata,
+            };
+        });
 
         return {
             prompts: safePrompts,

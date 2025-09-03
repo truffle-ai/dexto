@@ -127,7 +127,13 @@ export class PromptsManager {
         if (!this.cacheValid) {
             await this.buildPromptsCache();
         }
-        return this.promptsCache;
+
+        // Return sanitized copies to avoid exposing sensitive metadata
+        const sanitizedCache: PromptSet = {};
+        for (const [name, prompt] of Object.entries(this.promptsCache)) {
+            sanitizedCache[name] = this.sanitizePromptMetadata(prompt);
+        }
+        return sanitizedCache;
     }
 
     /**
@@ -153,7 +159,9 @@ export class PromptsManager {
             await this.buildPromptsCache();
         }
 
-        const prompts = Object.values(this.promptsCache);
+        const prompts = Object.values(this.promptsCache).map((prompt) =>
+            this.sanitizePromptMetadata(prompt)
+        );
 
         // For now, return all prompts without pagination
         // TODO: Implement proper pagination when needed
@@ -232,7 +240,7 @@ export class PromptsManager {
         // Find the provider that handles this prompt source
         const provider = this.providers.get(promptInfo.source);
         if (!provider) {
-            throw PromptError.notFound(`No provider found for prompt source: ${promptInfo.source}`);
+            throw PromptError.providerNotFound(promptInfo.source);
         }
 
         // Delegate to the appropriate provider
@@ -286,6 +294,22 @@ export class PromptsManager {
      */
     getProviderSources(): string[] {
         return Array.from(this.providers.keys());
+    }
+
+    /**
+     * Sanitize prompt metadata to remove sensitive information
+     */
+    private sanitizePromptMetadata(prompt: PromptInfo): PromptInfo {
+        const {
+            content: _content,
+            prompt: _promptText,
+            filePath: _filePath,
+            ...safeMetadata
+        } = prompt.metadata || {};
+        return {
+            ...prompt,
+            metadata: safeMetadata,
+        };
     }
 
     /**
