@@ -20,21 +20,19 @@ export async function startNextJsWebServer(
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     logger.debug(`Script directory for web mode: ${scriptDir}`);
 
-    // Try to find the built webui directory
-    let webuiPath = path.resolve(scriptDir, 'webui');
+    // Look for embedded webui in CLI's dist folder
+    const webuiPath = path.resolve(scriptDir, 'webui');
 
-    // If not found in expected location for dist, check other possible locations
     if (!existsSync(webuiPath)) {
-        // Check for source directory (dev mode scenario)
-        const srcPath = path.resolve(scriptDir, '..', '..', '..', 'src', 'packages', 'webui');
-        if (existsSync(srcPath)) {
-            // In dev mode, fall back to dev server
-            return startDevServer(apiUrl, frontPort, frontUrl, srcPath);
-        } else {
-            logger.warn('Could not locate webui directory. Web UI may not be available.');
-            return false;
-        }
+        logger.warn('WebUI not found in this build.');
+        logger.info('For production: Run "pnpm build:all" to embed the WebUI');
+        logger.info('For development with hot reload:');
+        logger.info('  1. Run: dexto --mode server (API on port 3001)');
+        logger.info('  2. In webui folder, run: npm run dev (UI on port 3000)');
+        return false;
     }
+
+    logger.debug(`Found embedded webui at: ${webuiPath}`);
 
     // Check if we have a built standalone app
     const serverScriptPath = path.join(webuiPath, 'server.js');

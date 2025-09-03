@@ -9,7 +9,8 @@ const rootDir: string = path.resolve(__dirname, '..');
 
 // Define source and target paths
 const sourceWebUIDir: string = path.join(rootDir, 'src', 'packages', 'webui');
-const targetDir: string = path.join(rootDir, 'dist', 'src', 'cli', 'webui');
+// Copy into CLI's dist folder for embedding
+const targetDir: string = path.join(rootDir, 'src', 'packages', 'cli', 'dist', 'webui');
 
 async function copyWebUIBuild(): Promise<void> {
     try {

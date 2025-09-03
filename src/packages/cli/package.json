@@ -6,8 +6,7 @@
     "dexto": "./dist/index.js"
   },
   "dependencies": {
-    "@dexto/core": "workspace:*",
-    "@dexto/webui": "workspace:*"
+    "@dexto/core": "workspace:*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -16,6 +15,7 @@
     "lint": "eslint . --ext .ts"
   },
   "devDependencies": {
+    "@dexto/webui": "workspace:*",
     "@types/ws": "^8.5.11",
     "type-fest": "^4.26.1"
   }
