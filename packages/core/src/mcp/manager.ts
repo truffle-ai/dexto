@@ -3,8 +3,6 @@ import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
 import { IMCPClient } from './types.js';
 import { ToolSet } from '../tools/types.js';
-import { ToolConfirmationProvider } from '../tools/confirmation/types.js';
-import { NoOpConfirmationProvider } from '../tools/confirmation/noop-confirmation-provider.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { MCPError } from './errors.js';
 

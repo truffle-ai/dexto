@@ -17,7 +17,6 @@ import {
 import { createAgentCard, DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify } from 'yaml';
 import os from 'os';
-import { resolveBundledScript } from '@dexto/core';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
 import { z } from 'zod';
 import { LLMUpdatesSchema } from '@dexto/core';
@@ -1177,7 +1176,7 @@ export async function startApiServer(
     port = 3000,
     agentCardOverride?: Partial<AgentCard>
 ) {
-    const { app, server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
+    const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
         agentCardOverride
     );
