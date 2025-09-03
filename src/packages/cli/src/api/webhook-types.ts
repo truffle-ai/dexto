@@ -1,4 +1,4 @@
-import type { AgentEventMap, AgentEventName } from '@core/events/index.js';
+import type { AgentEventMap, AgentEventName } from '@dexto/core';
 
 /**
  * Webhook configuration interface

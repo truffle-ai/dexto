@@ -12,16 +12,6 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./logger": {
-      "types": "./dist/logger/index.d.ts",
-      "import": "./dist/logger/index.js",
-      "require": "./dist/logger/index.cjs"
-    },
-    "./storage": {
-      "types": "./dist/storage/index.d.ts",
-      "import": "./dist/storage/index.js",
-      "require": "./dist/storage/index.cjs"
-    },
     "./package.json": "./package.json"
   },
   "browser": {

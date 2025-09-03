@@ -8,3 +8,5 @@ export * from './port-utils.js';
 export * from './env.js';
 export * from './execution-context.js';
 export * from './fs-walk.js';
+export * from './redactor.js';
+export * from './api-key-store.js';

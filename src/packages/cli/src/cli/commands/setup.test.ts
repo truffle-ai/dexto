@@ -5,26 +5,25 @@ import { tmpdir } from 'os';
 import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
 
 // Mock only external dependencies that can't be tested directly
-vi.mock('@core/preferences/loader.js', () => ({
-    createInitialPreferences: vi.fn((provider, model, apiKeyVar, defaultAgent) => ({
-        llm: { provider, model, apiKey: apiKeyVar },
-        defaults: { defaultAgent },
-        setup: { completed: true },
-    })),
-    saveGlobalPreferences: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('@dexto/core', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        createInitialPreferences: vi.fn((provider, model, apiKeyVar, defaultAgent) => ({
+            llm: { provider, model, apiKey: apiKeyVar },
+            defaults: { defaultAgent },
+            setup: { completed: true },
+        })),
+        saveGlobalPreferences: vi.fn().mockResolvedValue(undefined),
+        resolveApiKeyForProvider: vi.fn(),
+    };
+});
 
 vi.mock('@app/cli/utils/api-key-setup.js', () => ({
     interactiveApiKeySetup: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@core/utils/api-key-resolver.js', async () => {
-    const actual = await vi.importActual('@core/utils/api-key-resolver.js');
-    return {
-        ...actual,
-        resolveApiKeyForProvider: vi.fn(),
-    };
-});
+// (Other mocks below)
 
 vi.mock('@app/cli/utils/provider-setup.js', () => ({
     selectProvider: vi.fn(),
@@ -66,9 +65,9 @@ describe('Setup Command', () => {
         tempDir = createTempDir();
 
         // Get mock functions
-        const prefLoader = await import('@core/preferences/loader.js');
+        const prefLoader = await import('@dexto/core');
         const apiKeySetup = await import('@app/cli/utils/api-key-setup.js');
-        const apiKeyResolver = await import('@core/utils/api-key-resolver.js');
+        const apiKeyResolver = await import('@dexto/core');
         const providerSetup = await import('@app/cli/utils/provider-setup.js');
         const setupUtils = await import('@app/cli/utils/setup-utils.js');
         const prompts = await import('@clack/prompts');

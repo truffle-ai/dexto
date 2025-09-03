@@ -68,7 +68,7 @@ describe('MCPManager Tool Conflict Resolution', () => {
     let client3: MockMCPClient;
 
     beforeEach(() => {
-        manager = new MCPManager(new NoOpConfirmationProvider());
+        manager = new MCPManager();
 
         // Create clients with overlapping and unique tools
         client1 = new MockMCPClient({

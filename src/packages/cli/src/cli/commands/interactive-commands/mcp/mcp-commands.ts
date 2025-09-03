@@ -6,8 +6,7 @@
  */
 
 import chalk from 'chalk';
-import { logger } from '@core/logger/index.js';
-import { DextoAgent } from '@core/index.js';
+import { logger, DextoAgent } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 import {
     parseStdioArgs,

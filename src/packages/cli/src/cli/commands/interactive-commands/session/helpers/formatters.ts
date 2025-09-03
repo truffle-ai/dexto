@@ -6,8 +6,7 @@
  */
 
 import chalk from 'chalk';
-import type { SessionMetadata } from '@core/session/index.js';
-import type { InternalMessage } from '@core/context/index.js';
+import type { SessionMetadata, InternalMessage } from '@dexto/core';
 
 /**
  * Helper to format session information consistently

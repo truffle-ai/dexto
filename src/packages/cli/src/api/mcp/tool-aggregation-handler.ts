@@ -1,10 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { MCPManager } from '@core/mcp/manager.js';
-import { logger } from '@core/logger/index.js';
-import { ValidatedServerConfigs } from '@core/mcp/schemas.js';
-import { NoOpConfirmationProvider } from '@core/tools/confirmation/noop-confirmation-provider.js';
-import { jsonSchemaToZodShape } from '@core/utils/index.js';
+import { MCPManager, logger, type ValidatedServerConfigs, jsonSchemaToZodShape } from '@dexto/core';
 
 /**
  * Initializes MCP server for tool aggregation mode.
@@ -18,7 +14,7 @@ export async function initializeMcpToolAggregationServer(
     _strict: boolean
 ): Promise<McpServer> {
     // Create MCP manager with no confirmation provider (tools are auto-approved)
-    const mcpManager = new MCPManager(new NoOpConfirmationProvider());
+    const mcpManager = new MCPManager();
 
     // Initialize all MCP server connections from config
     logger.info('Connecting to configured MCP servers for tool aggregation...');

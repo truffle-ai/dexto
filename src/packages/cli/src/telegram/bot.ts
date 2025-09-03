@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import { Bot, InlineKeyboard } from 'grammy';
 import https from 'https';
-import { DextoAgent } from '@core/index.js';
+import { DextoAgent } from '@dexto/core';
 
 // Load environment variables (including TELEGRAM_BOT_TOKEN)
 dotenv.config();

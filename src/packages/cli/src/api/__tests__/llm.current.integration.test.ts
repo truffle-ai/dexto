@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { initializeApi } from '../../api/server.js';
-import type { DextoAgent } from '@core/index.js';
-import { AgentEventBus } from '@core/events/index.js';
+import type { DextoAgent } from '@dexto/core';
+import { AgentEventBus } from '@dexto/core';
 import type { Express } from 'express';
 import type { Server as HttpServer } from 'http';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

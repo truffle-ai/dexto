@@ -2,8 +2,7 @@
 
 import fs from 'node:fs/promises';
 import { parseDocument } from 'yaml';
-import { LLMProvider, getDefaultModelForProvider } from '@core/index.js';
-import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
+import { type LLMProvider, getDefaultModelForProvider, getPrimaryApiKeyEnvVar } from '@dexto/core';
 
 /**
  * Updates the LLM provider information in a dexto config file

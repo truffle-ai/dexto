@@ -3,8 +3,7 @@
  * This file handles CLI argument processing and config merging logic
  */
 
-import { type AgentConfig } from '@core/agent/index.js';
-import type { LLMConfig } from '@core/llm/index.js';
+import type { AgentConfig, LLMConfig } from '@dexto/core';
 
 /**
  * CLI config override type for LLM fields that can be overridden via CLI

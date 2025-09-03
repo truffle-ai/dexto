@@ -1,7 +1,7 @@
 // src/packages/cli/src/cli/utils/setup-utils.ts
 
-import { globalPreferencesExist, loadGlobalPreferences } from '@core/preferences/loader.js';
-import { getExecutionContext } from '@core/utils/execution-context.js';
+import { globalPreferencesExist, loadGlobalPreferences } from '@dexto/core';
+import { getExecutionContext } from '@dexto/core';
 
 /**
  * Check if this is a first-time user (no preferences file exists)

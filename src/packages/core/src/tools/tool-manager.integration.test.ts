@@ -29,8 +29,7 @@ describe('ToolManager Integration Tests', () => {
 
     beforeEach(() => {
         // Create real MCPManager with no-op confirmation
-        confirmationProvider = new NoOpConfirmationProvider(undefined, true); // auto-approve
-        mcpManager = new MCPManager(confirmationProvider);
+        mcpManager = new MCPManager();
 
         // Mock SearchService for internal tools
         const mockSearchService = {
@@ -166,7 +165,7 @@ describe('ToolManager Integration Tests', () => {
                 listResources: vi.fn().mockResolvedValue([]),
             } as any;
 
-            const mcpMgr = new MCPManager(autoApproveProvider);
+            const mcpMgr = new MCPManager();
             mcpMgr.registerClient('test-server', mockClient);
             await (mcpMgr as any).updateClientCache('test-server', mockClient);
 
@@ -191,7 +190,7 @@ describe('ToolManager Integration Tests', () => {
                 listResources: vi.fn().mockResolvedValue([]),
             } as any;
 
-            const mcpMgr = new MCPManager(autoDenyProvider);
+            const mcpMgr = new MCPManager();
             mcpMgr.registerClient('test-server', mockClient);
             await (mcpMgr as any).updateClientCache('test-server', mockClient);
 

@@ -1,8 +1,8 @@
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 import boxen from 'boxen';
 import chalk from 'chalk';
 import { EventSubscriber } from '../api/types.js';
-import { AgentEventBus } from '@core/events/index.js';
+import { AgentEventBus } from '@dexto/core';
 
 /**
  * Wrapper class to store methods describing how the CLI should handle agent events

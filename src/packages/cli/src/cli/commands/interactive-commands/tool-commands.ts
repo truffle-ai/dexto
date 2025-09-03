@@ -9,8 +9,7 @@
  */
 
 import chalk from 'chalk';
-import { logger } from '@core/logger/index.js';
-import type { DextoAgent } from '@core/index.js';
+import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 
 /**

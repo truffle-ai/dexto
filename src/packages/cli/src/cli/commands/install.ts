@@ -3,8 +3,7 @@
 import { existsSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
-import { getAgentRegistry } from '@core/agent/registry/registry.js';
-import { getDextoGlobalPath } from '@core/utils/path.js';
+import { getAgentRegistry, getDextoGlobalPath } from '@dexto/core';
 
 // Zod schema for install command validation
 const InstallCommandSchema = z

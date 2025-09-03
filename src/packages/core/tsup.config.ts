@@ -6,6 +6,7 @@ export default defineConfig({
         'logger/index': 'src/logger/index.ts',
         'logger/browser': 'src/logger/browser.ts',
         'storage/index': 'src/storage/index.ts',
+        // Keep additional entries minimal; root export will re-export needed APIs for CLI
     },
     format: ['cjs', 'esm'],
     outDir: 'dist',

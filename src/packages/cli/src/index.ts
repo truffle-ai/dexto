@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Load environment variables FIRST with layered loading
-import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
+import { applyLayeredEnvironmentLoading } from '@dexto/core';
 
 // Apply layered environment loading before any other imports
 await applyLayeredEnvironmentLoading();
@@ -17,13 +17,10 @@ import {
     getAllSupportedModels,
     DextoAgent,
     loadAgentConfig,
-    LLMProvider,
-} from '@core/index.js';
-import { resolveAgentPath } from '@core/config/index.js';
-import { getAgentRegistry } from '@core/agent/registry/registry.js';
-import { isPath } from '@core/utils/path.js';
-import type { AgentConfig } from '@core/agent/schemas.js';
-import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
+    type LLMProvider,
+} from '@dexto/core';
+import { resolveAgentPath, getAgentRegistry, isPath, resolveApiKeyForProvider } from '@dexto/core';
+import type { AgentConfig } from '@dexto/core';
 import { startAiCli, startHeadlessCli } from './cli/cli.js';
 import { startApiAndLegacyWebUIServer } from './api/server.js';
 import { startDiscordBot } from './discord/bot.js';
@@ -31,7 +28,7 @@ import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
-import { getPort } from '@core/utils/port-utils.js';
+import { getPort } from '@dexto/core';
 import {
     createDextoProject,
     createTsconfigJson,
@@ -56,7 +53,7 @@ import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
 import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
-import { createAgentCard } from '@core/agent/agentCard.js';
+import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
 
@@ -291,7 +288,7 @@ program
                 process.exit(1);
             }
 
-            const { ServerConfigsSchema } = await import('@core/mcp/schemas.js');
+            const { ServerConfigsSchema } = await import('@dexto/core');
             const validatedServers = ServerConfigsSchema.parse(config.mcpServers);
             logger.info(
                 `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`

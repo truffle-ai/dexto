@@ -8,7 +8,7 @@ import {
     getPackageManagerInstallCommand,
     addScriptsToPackageJson,
 } from '../utils/package-mgmt.js';
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 
 /**
  * Creates basic scaffolding for a Dexto project

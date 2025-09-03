@@ -6,9 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
-import { logger } from '@core/logger/index.js';
-import { redactSensitiveData } from '@core/utils/redactor.js';
-import type { AgentCard } from '@core/index.js';
+import { logger, redactSensitiveData, type AgentCard } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
 import {
     createMcpTransport,
@@ -16,16 +14,15 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard } from '@core/index.js';
-import { DextoAgent } from '@core/index.js';
+import { createAgentCard, DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify } from 'yaml';
 import os from 'os';
-import { resolveBundledScript } from '@core/index.js';
+import { resolveBundledScript } from '@dexto/core';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
 import { z } from 'zod';
-import { LLMUpdatesSchema } from '@core/llm/schemas.js';
+import { LLMUpdatesSchema } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import { validateInputForLLM } from '@core/llm/validation.js';
+import { validateInputForLLM } from '@dexto/core';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
@@ -34,15 +31,13 @@ import {
     getSupportedRoutersForProvider,
     supportsBaseURL,
     isRouterSupportedForModel,
-} from '@core/llm/registry.js';
-import type { ProviderInfo, LLMProvider } from '@core/llm/registry.js';
-import { getProviderKeyStatus, saveProviderApiKey } from '@core/utils/api-key-store.js';
+} from '@dexto/core';
+import type { ProviderInfo, LLMProvider } from '@dexto/core';
+import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
-import { McpServerConfigSchema } from '@core/mcp/schemas.js';
+import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { AgentErrorCode } from '@core/agent/error-codes.js';
+import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -131,7 +126,16 @@ function parseQuery<T>(schema: z.ZodSchema<T>, query: unknown): T {
 }
 
 // TODO: API endpoint names are work in progress and might be refactored/renamed in future versions
-export async function initializeApi(agent: DextoAgent, agentCardOverride?: Partial<AgentCard>) {
+export async function initializeApi(
+    agent: DextoAgent,
+    agentCardOverride?: Partial<AgentCard>
+): Promise<{
+    app: Express;
+    server: http.Server;
+    wss: WebSocketServer;
+    webSubscriber: WebSocketEventSubscriber;
+    webhookSubscriber: WebhookEventSubscriber;
+}> {
     const app = express();
     registerGracefulShutdown(agent);
     // this will apply middleware to all /api/llm/* routes

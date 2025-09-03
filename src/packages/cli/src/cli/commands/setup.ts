@@ -7,14 +7,14 @@ import {
     LLM_PROVIDERS,
     isValidProviderModel,
     getSupportedModels,
-} from '@core/llm/registry.js';
-import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
-import { createInitialPreferences, saveGlobalPreferences } from '@core/preferences/loader.js';
+} from '@dexto/core';
+import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@dexto/core';
+import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { interactiveApiKeySetup } from '@app/cli/utils/api-key-setup.js';
 import { selectProvider } from '@app/cli/utils/provider-setup.js';
 import { requiresSetup } from '@app/cli/utils/setup-utils.js';
 import * as p from '@clack/prompts';
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z

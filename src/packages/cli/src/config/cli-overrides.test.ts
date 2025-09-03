@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { applyCLIOverrides, type CLIConfigOverrides } from './cli-overrides.js';
-import type { AgentConfig } from '@core/index.js';
+import type { AgentConfig } from '@dexto/core';
 
 function clone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj));

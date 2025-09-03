@@ -2,8 +2,7 @@
 
 import chalk from 'chalk';
 import { z } from 'zod';
-import { resolveAgentPath } from '@core/config/agent-resolver.js';
-import { getAgentRegistry } from '@core/agent/registry/registry.js';
+import { resolveAgentPath, getAgentRegistry } from '@dexto/core';
 
 // Zod schema for which command validation
 const WhichCommandSchema = z

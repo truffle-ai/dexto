@@ -4,11 +4,11 @@ import type { ReadResourceCallback } from '@modelcontextprotocol/sdk/server/mcp.
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { AgentCard } from '@core/index.js';
-import { logger } from '@core/logger/index.js';
+import type { AgentCard } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { z } from 'zod';
 import express from 'express';
-import { DextoAgent } from '@core/index.js';
+import { DextoAgent } from '@dexto/core';
 import { randomUUID } from 'crypto';
 
 export type McpTransportType = 'stdio' | 'sse' | 'http';

@@ -3,8 +3,8 @@ import {
     HttpServerConfig,
     SseServerConfig,
     McpServerConfig,
-} from '@core/mcp/schemas.js';
-import { resolveAndValidateMcpServerConfig } from '@core/mcp/resolver.js';
+    resolveAndValidateMcpServerConfig,
+} from '@dexto/core';
 import { parseOptions } from '../utils/arg-parser.js';
 import chalk from 'chalk';
 

@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import https from 'https';
 import http from 'http'; // ADDED for http support
-import { DextoAgent } from '@core/index.js';
+import { DextoAgent } from '@dexto/core';
 
 // Load environment variables
 dotenv.config();

@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import chalk from 'chalk';
-import { AgentConfigSchema, type AgentConfig } from '@core/agent/schemas.js';
+import { AgentConfigSchema, type AgentConfig } from '@dexto/core';
 import { interactiveApiKeySetup } from './api-key-setup.js';
-import { LLMErrorCode } from '@core/llm/error-codes.js';
-import type { LLMProvider } from '@core/index.js';
-import { logger } from '@core/logger/index.js';
+import { LLMErrorCode } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
+import { logger } from '@dexto/core';
 
 /**
  * Validates agent config with optional interactive fixes for user experience.

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getSupportedProviders } from '@core/llm/registry.js';
+import { getSupportedProviders } from '@dexto/core';
 import chalk from 'chalk';
 
 /**

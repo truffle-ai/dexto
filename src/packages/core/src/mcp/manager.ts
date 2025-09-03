@@ -47,17 +47,13 @@ export class MCPManager {
     private toolConflicts: Set<string> = new Set();
     private promptToClientMap: Map<string, IMCPClient> = new Map();
     private resourceToClientMap: Map<string, IMCPClient> = new Map();
-    private confirmationProvider: ToolConfirmationProvider;
     private sanitizedNameToServerMap: Map<string, string> = new Map();
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
     private static readonly SERVER_DELIMITER = '--';
 
-    constructor(confirmationProvider?: ToolConfirmationProvider) {
-        // If a confirmation provider is passed, use it, otherwise use auto-approve fallback
-        this.confirmationProvider = confirmationProvider ?? new NoOpConfirmationProvider();
-    }
+    constructor() {}
 
     /**
      * Register a client that provides tools (and potentially more)

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { DextoAgent } from '@core/index.js';
+import type { DextoAgent } from '@dexto/core';
 
 export interface CommandResult {
     type: 'command' | 'prompt';

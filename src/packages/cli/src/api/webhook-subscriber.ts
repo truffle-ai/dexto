@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { setMaxListeners } from 'events';
-import { AgentEventBus, type AgentEventName, type AgentEventMap } from '@core/events/index.js';
-import { logger } from '@core/logger/index.js';
+import { AgentEventBus, type AgentEventName, type AgentEventMap, logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,

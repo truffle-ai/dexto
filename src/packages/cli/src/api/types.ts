@@ -1,4 +1,4 @@
-import { AgentEventBus } from '@core/events/index.js';
+import { AgentEventBus } from '@dexto/core';
 
 /**
  * Generic interface for subscribing to core events.

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock the registry module
-vi.mock('@core/agent/registry/registry.js', () => ({
+vi.mock('@dexto/core', () => ({
     getAgentRegistry: vi.fn(),
 }));
 
@@ -23,7 +23,7 @@ describe('Install Command', () => {
         };
 
         // Mock getAgentRegistry to return our mock
-        const registryModule = await import('@core/agent/registry/registry.js');
+        const registryModule = await import('@dexto/core');
         vi.mocked(registryModule.getAgentRegistry).mockReturnValue(mockRegistry);
 
         // Mock console

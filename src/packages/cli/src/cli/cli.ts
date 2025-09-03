@@ -1,14 +1,13 @@
 import readline from 'readline';
 import chalk from 'chalk';
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 import { CLISubscriber } from './cli-subscriber.js';
-import { DextoAgent } from '@core/index.js';
+import { DextoAgent } from '@dexto/core';
 import { parseInput } from './commands/interactive-commands/command-parser.js';
 import { executeCommand } from './commands/interactive-commands/commands.js';
-import { getDextoPath } from '@core/utils/path.js';
+import { getDextoPath } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import { DextoRuntimeError, DextoValidationError, ErrorScope } from '@core/errors/index.js';
-import { LLMErrorCode } from '@core/llm/error-codes.js';
+import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } from '@dexto/core';
 
 /**
  * Find and load the most recent session based on lastActivity.

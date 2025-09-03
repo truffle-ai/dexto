@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { WebhookConfig } from './webhook-types.js';
-import { AgentEventBus } from '@core/events/index.js';
+import { AgentEventBus } from '@dexto/core';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 
 // Create a mock fetch function

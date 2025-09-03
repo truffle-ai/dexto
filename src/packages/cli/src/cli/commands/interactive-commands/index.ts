@@ -7,7 +7,7 @@
  * Future phases will gradually migrate commands from commands.ts into this registry system.
  */
 
-import type { DextoAgent } from '@core/index.js';
+import type { DextoAgent } from '@dexto/core';
 
 /**
  * Base interface for command handlers

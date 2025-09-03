@@ -5,9 +5,12 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import { z } from 'zod';
-import { getAgentRegistry } from '@core/agent/registry/registry.js';
-import { getDextoGlobalPath } from '@core/utils/path.js';
-import { globalPreferencesExist, loadGlobalPreferences } from '@core/preferences/loader.js';
+import {
+    getAgentRegistry,
+    getDextoGlobalPath,
+    globalPreferencesExist,
+    loadGlobalPreferences,
+} from '@dexto/core';
 
 // Zod schema for list-agents command validation
 const ListAgentsCommandSchema = z

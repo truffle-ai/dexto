@@ -98,7 +98,7 @@ export async function createAgentServices(
               }
     );
 
-    const mcpManager = new MCPManager(confirmationProvider);
+    const mcpManager = new MCPManager();
     await mcpManager.initializeFromConfig(config.mcpServers);
 
     // 4. Initialize search service

@@ -1,12 +1,14 @@
 import type { WebSocket } from 'ws';
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
-import { ErrorType, ErrorScope } from '@core/errors/types.js';
-import { AgentErrorCode } from '@core/agent/error-codes.js';
+import {
+    DextoRuntimeError,
+    DextoValidationError,
+    ErrorType,
+    ErrorScope,
+    AgentErrorCode,
+} from '@dexto/core';
 import { ZodError } from 'zod';
-import { zodToIssues } from '@core/utils/result.js';
-import { logger } from '@core/logger/index.js';
-import { toError } from '@core/utils/error-conversion.js';
+import { zodToIssues, toError } from '@dexto/core';
+import { logger } from '@dexto/core';
 
 /**
  * Standardized WebSocket error handler that mirrors HTTP error middleware

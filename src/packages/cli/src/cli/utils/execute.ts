@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 
 // Default timeout for spawned processes (in milliseconds)
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes

@@ -8,8 +8,7 @@
     "moduleResolution": "NodeNext",
     "noEmit": false,
     "paths": {
-      "@app/*": ["src/*"],
-      "@core/*": ["../core/src/*"]
+      "@app/*": ["src/*"]
     }
   },
   "include": ["src/**/*"],

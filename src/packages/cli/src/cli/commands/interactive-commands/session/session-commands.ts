@@ -19,9 +19,7 @@
  */
 
 import chalk from 'chalk';
-import { logger } from '@core/logger/index.js';
-import { DextoAgent } from '@core/index.js';
-import type { SessionMetadata } from '@core/index.js';
+import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
 

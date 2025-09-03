@@ -1,9 +1,12 @@
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 import * as readline from 'readline';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { ToolConfirmationEvent, ToolConfirmationResponse } from '@core/tools/confirmation/types.js';
-import { AgentEventBus } from '@core/events/index.js';
+import {
+    type ToolConfirmationEvent,
+    type ToolConfirmationResponse,
+    AgentEventBus,
+} from '@dexto/core';
 import { EventSubscriber } from '../../api/types.js';
 
 /**

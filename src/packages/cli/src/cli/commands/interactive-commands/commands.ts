@@ -19,7 +19,7 @@
  * into a single CLI_COMMANDS array for the command execution system.
  */
 
-import type { DextoAgent } from '@core/index.js';
+import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 
 // Import modular command definitions

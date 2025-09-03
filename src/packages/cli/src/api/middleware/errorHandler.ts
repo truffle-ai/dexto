@@ -1,10 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
-import { ErrorType, type Issue } from '@core/errors/types.js';
+import { DextoRuntimeError, DextoValidationError, ErrorType, type Issue } from '@dexto/core';
 import { ZodError } from 'zod';
-import { zodToIssues } from '@core/utils/result.js';
-import { logger } from '@core/logger/index.js';
+import { zodToIssues, logger } from '@dexto/core';
 
 /**
  * Single mapping from ErrorType to HTTP status code

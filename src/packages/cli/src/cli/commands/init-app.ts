@@ -6,9 +6,9 @@ import path from 'node:path';
 import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 import { executeWithTimeout } from '../utils/execute.js';
 import { createRequire } from 'module';
-import { LLMProvider, logger } from '@core/index.js';
+import { type LLMProvider, logger } from '@dexto/core';
 import { updateDextoConfigFile } from '../utils/project-utils.js';
-import { saveProviderApiKey } from '@core/utils/api-key-store.js';
+import { saveProviderApiKey } from '@dexto/core';
 import {
     getProviderDisplayName,
     isValidApiKeyFormat,
