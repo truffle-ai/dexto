@@ -28,6 +28,9 @@ export type {
 // Export error classes
 export { DextoClientError, DextoNetworkError, DextoValidationError } from './types.js';
 
+// Export validation schemas and utilities
+export * from './schemas.js';
+
 // Export event handler types
 export type { EventHandler, ConnectionStateHandler } from './websocket-client.js';
 

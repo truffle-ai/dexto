@@ -41,7 +41,11 @@ export interface LLMConfig {
     baseUrl?: string;
     baseURL?: string; // Alternative naming for consistency
     maxTokens?: number;
+    maxInputTokens?: number;
+    maxOutputTokens?: number;
+    maxIterations?: number;
     temperature?: number;
+    displayName?: string;
 }
 
 export interface LLMProvider {
@@ -54,14 +58,15 @@ export interface LLMProvider {
 export interface McpServer {
     id: string;
     name: string;
-    status: 'connected' | 'error';
+    status: 'connected' | 'error' | 'disconnected';
+    error?: string;
 }
 
 export interface Tool {
     id: string;
     name: string;
     description: string;
-    inputSchema: any;
+    inputSchema?: any;
 }
 
 export interface SearchOptions {
@@ -72,27 +77,52 @@ export interface SearchOptions {
 }
 
 export interface SearchResult {
-    id: string;
-    content: string;
-    role: string;
     sessionId: string;
-    timestamp: number;
+    message?: any; // InternalMessage type from core - optional for flexibility
+    matchedText?: string;
+    context?: string;
+    messageIndex?: number;
+    // Allow additional fields for backward compatibility
+    id?: string;
+    content?: string;
+    role?: string;
+    timestamp?: number;
 }
 
 export interface SearchResponse {
     results: SearchResult[];
     total: number;
     hasMore: boolean;
+    query?: string;
+    options?: {
+        sessionId?: string;
+        role?: 'user' | 'assistant' | 'system' | 'tool';
+        limit?: number;
+        offset?: number;
+    };
 }
 
 export interface SessionSearchResponse {
-    sessions: {
+    results: {
+        sessionId: string;
+        matchCount: number;
+        firstMatch?: SearchResult;
+        metadata: {
+            createdAt: number;
+            lastActivity: number;
+            messageCount: number;
+        };
+    }[];
+    total: number;
+    hasMore: boolean;
+    query?: string;
+    // Allow backward compatibility with old structure
+    sessions?: {
         id: string;
         messageCount: number;
         lastActivity: number;
         createdAt: number;
     }[];
-    total: number;
 }
 
 // LLM Catalog types
@@ -108,14 +138,17 @@ export interface CatalogOptions {
 export interface CatalogModel {
     name: string;
     displayName?: string;
-    default: boolean;
+    default?: boolean;
     maxInputTokens: number;
     supportedRouters?: string[];
     supportedFileTypes: string[];
     pricing?: {
-        input?: number;
-        output?: number;
-        unit?: string;
+        inputPerM?: number;
+        outputPerM?: number;
+        cacheReadPerM?: number;
+        cacheWritePerM?: number;
+        currency?: 'USD';
+        unit?: 'per_million_tokens';
     };
 }
 
@@ -126,6 +159,7 @@ export interface CatalogProvider {
     supportedRouters: string[];
     supportsBaseURL: boolean;
     models: CatalogModel[];
+    supportedFileTypes?: string[];
 }
 
 export interface CatalogResponse {
@@ -172,7 +206,7 @@ export class DextoNetworkError extends DextoClientError {
 export class DextoValidationError extends DextoClientError {
     constructor(
         message: string,
-        public validationErrors: any[]
+        public validationErrors: any[] = []
     ) {
         super(message, 400);
         this.name = 'DextoValidationError';
