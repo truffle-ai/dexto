@@ -258,10 +258,14 @@ export class InternalPromptProvider implements PromptProvider {
                 filePath: _filePath,
                 ...safeMetadata
             } = prompt.metadata || {};
-            return {
-                ...prompt,
-                metadata: safeMetadata,
-            };
+
+            if (Object.keys(safeMetadata).length === 0) {
+                // If no safe metadata remains, omit the metadata property entirely
+                const { metadata: _metadata, ...promptWithoutMetadata } = prompt;
+                return promptWithoutMetadata;
+            }
+
+            return { ...prompt, metadata: safeMetadata };
         });
 
         return {

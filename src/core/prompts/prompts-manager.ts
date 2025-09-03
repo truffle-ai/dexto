@@ -32,6 +32,8 @@ export class PromptsManager {
     // Unified cache for all providers
     private promptsCache: PromptSet = {};
     private cacheValid: boolean = false;
+    private aliasMap = new Map<string, { baseName: string; providerName: string }>();
+    private buildPromise: Promise<void> | null = null;
 
     constructor(mcpManager: MCPManager, promptsDir?: string, agentConfig?: AgentConfig) {
         // Register all prompt providers
@@ -59,6 +61,8 @@ export class PromptsManager {
     private invalidateCache(): void {
         this.cacheValid = false;
         this.promptsCache = {};
+        this.aliasMap.clear();
+        this.buildPromise = null; // Clear any in-flight build promise
 
         // Invalidate all provider caches
         for (const provider of this.providers.values()) {
@@ -72,6 +76,24 @@ export class PromptsManager {
      * Build the unified prompts cache from all providers
      */
     private async buildPromptsCache(): Promise<void> {
+        // If a build is already in progress, wait for it to complete
+        if (this.buildPromise) {
+            return this.buildPromise;
+        }
+
+        // Create a new build promise
+        this.buildPromise = this._buildPromptsCache();
+        try {
+            await this.buildPromise;
+        } finally {
+            this.buildPromise = null;
+        }
+    }
+
+    /**
+     * Internal method to actually build the prompts cache
+     */
+    private async _buildPromptsCache(): Promise<void> {
         const allPrompts: PromptSet = {};
         let totalPromptsCount = 0;
 
@@ -90,6 +112,8 @@ export class PromptsManager {
                         logger.warn(
                             `⚠️ Prompt name conflict for '${baseName}'. Prefixed as '${name}'.`
                         );
+                        // Store the alias mapping for provider lookups
+                        this.aliasMap.set(name, { baseName, providerName });
                     }
                     allPrompts[name] = name === baseName ? p : { ...p, name };
                 });
@@ -199,7 +223,9 @@ export class PromptsManager {
             await this.buildPromptsCache();
         }
 
-        return Object.values(this.promptsCache).filter((prompt) => prompt.source === source);
+        return Object.values(this.promptsCache)
+            .filter((prompt) => prompt.source === source)
+            .map((p) => this.sanitizePromptMetadata(p));
     }
 
     /**
@@ -211,12 +237,13 @@ export class PromptsManager {
         }
 
         const searchTerm = query.toLowerCase();
-        return Object.values(this.promptsCache).filter(
+        const results = Object.values(this.promptsCache).filter(
             (prompt) =>
                 prompt.name.toLowerCase().includes(searchTerm) ||
                 (prompt.description && prompt.description.toLowerCase().includes(searchTerm)) ||
                 (prompt.title && prompt.title.toLowerCase().includes(searchTerm))
         );
+        return results.map((p) => this.sanitizePromptMetadata(p));
     }
 
     /**
@@ -243,8 +270,11 @@ export class PromptsManager {
             throw PromptError.providerNotFound(promptInfo.source);
         }
 
+        // Get the original name for provider lookup (handle aliases)
+        const originalName = this.aliasMap.get(name)?.baseName || name;
+
         // Delegate to the appropriate provider
-        return await provider.getPrompt(name, args);
+        return await provider.getPrompt(originalName, args);
     }
 
     /**
@@ -306,10 +336,14 @@ export class PromptsManager {
             filePath: _filePath,
             ...safeMetadata
         } = prompt.metadata || {};
-        return {
-            ...prompt,
-            metadata: safeMetadata,
-        };
+
+        if (Object.keys(safeMetadata).length === 0) {
+            // If no safe metadata remains, omit the metadata property entirely
+            const { metadata: _metadata, ...promptWithoutMetadata } = prompt;
+            return promptWithoutMetadata;
+        }
+
+        return { ...prompt, metadata: safeMetadata };
     }
 
     /**
