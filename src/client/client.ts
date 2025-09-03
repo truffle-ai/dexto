@@ -13,14 +13,13 @@ import {
     SearchOptions,
     SearchResponse,
     SessionSearchResponse,
-    DextoEvent,
     DextoClientError,
 } from './types.js';
 
 /**
  * Dexto Client SDK - A clean, TypeScript-first SDK for interacting with Dexto API
  *
- * This SDK provides a Supabase-like interface for working with Dexto agents,
+ * This SDK provides a interface for working with Dexto agents,
  * handling HTTP communication, WebSocket events, and providing excellent DX.
  *
  * @example

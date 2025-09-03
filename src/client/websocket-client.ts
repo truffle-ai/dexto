@@ -74,12 +74,12 @@ export class WebSocketClient {
             try {
                 const data = JSON.parse(event.data);
                 this.handleIncomingMessage(data);
-            } catch (error) {
+            } catch (_error) {
                 console.warn('Failed to parse WebSocket message:', event.data);
             }
         };
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = (_event) => {
             this.emitState('closed');
 
             if (
@@ -91,7 +91,7 @@ export class WebSocketClient {
             }
         };
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = (_error) => {
             this.emitState('error');
 
             // Only reject on initial connection attempt
