@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../_client';
+import { DextoClient } from '@sdk';
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
-        const { sessionId, ...llmConfig } = body || {};
-        const client = getDextoClient();
-        const config = await client.switchLLM(llmConfig, sessionId);
-        return NextResponse.json({ config, sessionId });
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
+        const { config } = await req.json();
+        const newConfig = await client.switchLLM(config);
+        return NextResponse.json({ config: newConfig });
     } catch (err: any) {
         const status = err?.statusCode || 500;
         return NextResponse.json({ error: err?.message || 'Failed to switch LLM' }, { status });

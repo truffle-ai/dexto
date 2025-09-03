@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../../_client';
+import { DextoClient } from '@sdk';
 
-export async function DELETE(_req: Request, { params }: any) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ serverId: string }> }) {
     try {
-        const client = getDextoClient();
-        const { serverId } = params || {};
+        const { serverId } = await params;
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
         await client.disconnectMCPServer(serverId);
-        return NextResponse.json({ status: 'disconnected', id: serverId });
+        return NextResponse.json({ status: 'disconnected', serverId });
     } catch (err: any) {
         const status = err?.statusCode || 500;
         return NextResponse.json(

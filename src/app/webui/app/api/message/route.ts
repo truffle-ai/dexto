@@ -1,21 +1,27 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../_client';
+import { DextoClient } from '@sdk';
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
-        const { message, content, sessionId, imageData, fileData, stream } = body || {};
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
 
-        const client = getDextoClient();
+        const { message, sessionId, stream, imageData, fileData } = await req.json();
+
         const response = await client.sendMessage({
-            content: typeof content === 'string' ? content : message || '',
-            ...(sessionId ? { sessionId } : {}),
-            ...(imageData ? { imageData } : {}),
-            ...(fileData ? { fileData } : {}),
-            // Default to true for this endpoint to hit backend /api/message
-            stream: stream === undefined ? true : !!stream,
+            content: message,
+            sessionId,
+            stream,
+            imageData,
+            fileData,
         });
-        return NextResponse.json(response, { status: 202 });
+
+        return NextResponse.json(response);
     } catch (err: any) {
         const status = err?.statusCode || 500;
         return NextResponse.json({ error: err?.message || 'Failed to send message' }, { status });

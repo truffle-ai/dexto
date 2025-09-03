@@ -1,14 +1,24 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../../../_client';
+import { DextoClient } from '@sdk';
 
-export async function GET(_req: Request, { params }: any) {
+export async function GET(req: Request, { params }: { params: Promise<{ serverId: string }> }) {
     try {
-        const client = getDextoClient();
-        const { serverId } = params || {};
+        const { serverId } = await params;
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
         const tools = await client.getMCPServerTools(serverId);
         return NextResponse.json({ tools });
     } catch (err: any) {
         const status = err?.statusCode || 500;
-        return NextResponse.json({ error: err?.message || 'Failed to list MCP tools' }, { status });
+        return NextResponse.json(
+            { error: err?.message || 'Failed to get MCP server tools' },
+            { status }
+        );
     }
 }

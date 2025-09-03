@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../../_client';
+import { DextoClient } from '@sdk';
 
-export async function GET(_req: Request, { params }: any) {
+export async function GET(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
     try {
-        const client = getDextoClient();
-        const history = await client.getSessionHistory(params.sessionId);
+        const { sessionId } = await params;
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
+        const history = await client.getSessionHistory(sessionId);
         return NextResponse.json({ history });
     } catch (err: any) {
         const status = err?.statusCode || 500;

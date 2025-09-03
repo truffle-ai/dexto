@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../_client.js';
+import { DextoClient } from '@sdk';
 import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
 
 export async function GET(request: Request) {
     try {
-        const client = getDextoClient();
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
         const url = new URL(request.url);
 
         // Convert URLSearchParams to plain object for validation

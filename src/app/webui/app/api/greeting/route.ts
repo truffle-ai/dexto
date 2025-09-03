@@ -1,27 +1,22 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../_client.js';
-import { GreetingQuerySchema, validateQuery } from '@/lib/validation';
+import { DextoClient } from '@sdk';
 
-export async function GET(request: Request) {
+export async function GET(req: Request) {
     try {
-        const client = getDextoClient();
-        const url = new URL(request.url);
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
 
-        // Convert URLSearchParams to plain object for validation
-        const queryObject = Object.fromEntries(url.searchParams.entries());
-
-        // Validate query parameters
-        const validation = validateQuery(GreetingQuerySchema, queryObject);
-        if (!validation.success) {
-            return NextResponse.json(validation.response, { status: 400 });
-        }
-
-        const { sessionId } = validation.data;
+        const url = new URL(req.url);
+        const sessionId = url.searchParams.get('sessionId') || undefined;
         const greeting = await client.getGreeting(sessionId);
-
         return NextResponse.json({ greeting });
-    } catch (error) {
-        console.error('Error fetching greeting:', error);
-        return NextResponse.json({ error: 'Failed to fetch greeting' }, { status: 500 });
+    } catch (err: any) {
+        const status = err?.statusCode || 500;
+        return NextResponse.json({ error: err?.message || 'Failed to get greeting' }, { status });
     }
 }

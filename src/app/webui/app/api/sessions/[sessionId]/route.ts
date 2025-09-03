@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../_client';
+import { DextoClient } from '@sdk';
 
-export async function GET(_req: Request, { params }: any) {
+export async function GET(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
     try {
-        const client = getDextoClient();
-        const session = await client.getSession(params.sessionId);
+        const { sessionId } = await params;
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
+        const session = await client.getSession(sessionId);
         return NextResponse.json({ session });
     } catch (err: any) {
         const status = err?.statusCode || 500;
@@ -12,11 +20,19 @@ export async function GET(_req: Request, { params }: any) {
     }
 }
 
-export async function DELETE(_req: Request, { params }: any) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
     try {
-        const client = getDextoClient();
-        await client.deleteSession(params.sessionId);
-        return NextResponse.json({ status: 'deleted', sessionId: params.sessionId });
+        const { sessionId } = await params;
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
+        await client.deleteSession(sessionId);
+        return NextResponse.json({ status: 'deleted', sessionId });
     } catch (err: any) {
         const status = err?.statusCode || 500;
         return NextResponse.json({ error: err?.message || 'Failed to delete session' }, { status });

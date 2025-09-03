@@ -1,22 +1,34 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../_client';
+import { DextoClient } from '@sdk';
 
 export async function GET(req: Request) {
     try {
-        const url = new URL(req.url);
-        const q = url.searchParams.get('q') || '';
-        const limit = url.searchParams.get('limit');
-        const offset = url.searchParams.get('offset');
-        const sessionId = url.searchParams.get('sessionId') || undefined;
-        const role = url.searchParams.get('role') as any;
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
 
-        const client = getDextoClient();
-        const results = await client.searchMessages(q, {
-            ...(limit ? { limit: Number(limit) } : {}),
-            ...(offset ? { offset: Number(offset) } : {}),
-            ...(sessionId ? { sessionId } : {}),
-            ...(role ? { role } : {}),
+        const url = new URL(req.url);
+        const query = url.searchParams.get('q');
+        const limit = parseInt(url.searchParams.get('limit') || '20');
+        const offset = parseInt(url.searchParams.get('offset') || '0');
+        const sessionId = url.searchParams.get('sessionId') || undefined;
+        const role = url.searchParams.get('role') || undefined;
+
+        if (!query) {
+            return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
+        }
+
+        const results = await client.searchMessages(query, {
+            limit,
+            offset,
+            sessionId,
+            role: role as any,
         });
+
         return NextResponse.json(results);
     } catch (err: any) {
         const status = err?.statusCode || 500;

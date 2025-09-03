@@ -1,12 +1,24 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../_client';
+import { DextoClient } from '@sdk';
 
 export async function GET(req: Request) {
     try {
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
         const url = new URL(req.url);
-        const q = url.searchParams.get('q') || '';
-        const client = getDextoClient();
-        const results = await client.searchSessions(q);
+        const query = url.searchParams.get('q');
+
+        if (!query) {
+            return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
+        }
+
+        const results = await client.searchSessions(query);
         return NextResponse.json(results);
     } catch (err: any) {
         const status = err?.statusCode || 500;

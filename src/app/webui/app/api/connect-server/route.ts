@@ -1,22 +1,26 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../_client';
+import { DextoClient } from '@sdk';
 
-// Legacy alias used by UI to connect a server
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
-        const { name, config } = body || {};
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
+        const { name, config } = await req.json();
+
         if (!name || !config) {
             return NextResponse.json({ error: 'name and config are required' }, { status: 400 });
         }
-        const client = getDextoClient();
+
         await client.connectMCPServer(name, config);
         return NextResponse.json({ status: 'connected', name });
     } catch (err: any) {
         const status = err?.statusCode || 500;
-        return NextResponse.json(
-            { error: err?.message || 'Failed to connect MCP server' },
-            { status }
-        );
+        return NextResponse.json({ error: err?.message || 'Failed to connect server' }, { status });
     }
 }

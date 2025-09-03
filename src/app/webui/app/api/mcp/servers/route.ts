@@ -1,15 +1,22 @@
 import { NextResponse } from 'next/server';
-import { getDextoClient } from '../../_client';
+import { DextoClient } from '@sdk';
 
-export async function GET() {
+export async function GET(_req: Request) {
     try {
-        const client = getDextoClient();
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
         const servers = await client.listMCPServers();
         return NextResponse.json({ servers });
     } catch (err: any) {
         const status = err?.statusCode || 500;
         return NextResponse.json(
-            { error: err?.message || 'Failed to list MCP servers' },
+            { error: err?.message || 'Failed to get MCP servers' },
             { status }
         );
     }
@@ -17,14 +24,17 @@ export async function GET() {
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
-        const { name, config } = body || {};
-        if (!name || !config) {
-            return NextResponse.json({ error: 'name and config are required' }, { status: 400 });
-        }
-        const client = getDextoClient();
+        const client = new DextoClient(
+            {
+                baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
+                ...(process.env.DEXTO_API_KEY ? { apiKey: process.env.DEXTO_API_KEY } : {}),
+            },
+            { enableWebSocket: false }
+        );
+
+        const { name, config } = await req.json();
         await client.connectMCPServer(name, config);
-        return NextResponse.json({ status: 'connected', name }, { status: 201 });
+        return NextResponse.json({ status: 'connected', name });
     } catch (err: any) {
         const status = err?.statusCode || 500;
         return NextResponse.json(
