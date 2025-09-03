@@ -1,4 +1,4 @@
-// src/packages/core/src/config/writer.ts
+// packages/core/src/config/writer.ts
 
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';

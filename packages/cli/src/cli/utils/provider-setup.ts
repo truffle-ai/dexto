@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/utils/provider-setup.ts
+// packages/cli/src/cli/utils/provider-setup.ts
 
 import * as p from '@clack/prompts';
 import chalk from 'chalk';

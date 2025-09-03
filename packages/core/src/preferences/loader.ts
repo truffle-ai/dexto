@@ -1,4 +1,4 @@
-// src/packages/core/src/preferences/loader.ts
+// packages/core/src/preferences/loader.ts
 
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';

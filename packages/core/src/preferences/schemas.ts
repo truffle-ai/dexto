@@ -1,4 +1,4 @@
-// src/packages/core/src/preferences/schemas.ts
+// packages/core/src/preferences/schemas.ts
 
 import { z } from 'zod';
 import { isValidProviderModel, getSupportedModels } from '@core/llm/registry.js';

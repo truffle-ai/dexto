@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/commands/uninstall.ts
+// packages/cli/src/cli/commands/uninstall.ts
 
 import { z } from 'zod';
 import { getAgentRegistry } from '@dexto/core';

@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/commands/install.ts
+// packages/cli/src/cli/commands/install.ts
 
 import { existsSync } from 'fs';
 import path from 'path';

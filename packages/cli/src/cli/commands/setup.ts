@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/commands/setup.ts
+// packages/cli/src/cli/commands/setup.ts
 
 import chalk from 'chalk';
 import { z } from 'zod';

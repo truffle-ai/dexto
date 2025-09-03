@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/commands/list-agents.ts
+// packages/cli/src/cli/commands/list-agents.ts
 
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';

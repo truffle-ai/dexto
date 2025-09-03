@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/utils/setup-utils.ts
+// packages/cli/src/cli/utils/setup-utils.ts
 
 import { globalPreferencesExist, loadGlobalPreferences } from '@dexto/core';
 import { getExecutionContext } from '@dexto/core';

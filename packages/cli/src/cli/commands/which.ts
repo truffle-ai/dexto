@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/commands/which.ts
+// packages/cli/src/cli/commands/which.ts
 
 import chalk from 'chalk';
 import { z } from 'zod';

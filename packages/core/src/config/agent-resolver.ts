@@ -1,4 +1,4 @@
-// src/packages/core/src/config/agent-resolver.ts
+// packages/core/src/config/agent-resolver.ts
 
 import { promises as fs } from 'fs';
 import path from 'path';

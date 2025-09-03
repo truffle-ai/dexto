@@ -1,4 +1,4 @@
-// src/packages/cli/src/cli/utils/project-utils.ts
+// packages/cli/src/cli/utils/project-utils.ts
 
 import fs from 'node:fs/promises';
 import { parseDocument } from 'yaml';
