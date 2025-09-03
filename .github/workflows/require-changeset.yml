@@ -24,7 +24,7 @@ jobs:
         if: ${{ !contains(join(toJson(github.event.pull_request.labels.*.name), ','), 'release: none') }}
         run: |
           set -e
-          if grep -E '^(src/packages/(core|cli|server)/)' changed.txt; then
+          if grep -E '^(src/packages/(core|cli|webui)/)' changed.txt; then
             if [ -z "$(git ls-files .changeset | grep \.md$ || true)" ]; then
               echo 'Missing changeset for publishable changes. Run pnpm changeset.'
               exit 1
