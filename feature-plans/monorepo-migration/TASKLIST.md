@@ -17,16 +17,20 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Update path aliases to `@core/*` → `src/packages/core/src/*` (root, vitest, next/webui)
 - [x] Add per-package tsup config
 - [x] Typecheck/lint package (package-level)
-  - [x] Centralize LLM types/constants in `llm/types.ts`; registry consumes them
-  - [x] Add browser-safe logger build target (`logger/browser`) and map via `package.json#browser`
+- [x] Centralize LLM types/constants in `llm/types.ts`; registry consumes them
+- [x] Add browser-safe logger build target (`logger/browser`) and map via `package.json#browser`
 
 ## Phase 3 — Package `dexto` (CLI)
 - [x] Move `src/app` → `src/packages/cli/src`
 - [x] Create `src/packages/cli/package.json` (`type: module`, scripts)
 - [x] Migrate/adjust tsup config for CLI build
 - [x] Update copy script paths (kept at root; optional move into `dexto` later)
-- [ ] Verify `dexto` works: cli, web, server modes
+- [x] Verify `dexto` works: cli, web, server modes
 - [x] Add per-package tsup/tsconfig for CLI
+- [x] Fix JSON import warning by using createRequire instead of experimental syntax
+- [x] Set up proper dev/build workflows with `pnpm link-cli` and `pnpm link-cli-fast`
+- [x] Clean up legacy webUI code and remove serveLegacyWebUI logic
+- [x] Move @dexto/webui to devDependency (build-time only)
 
 ## Phase 4 — Package `@dexto/webui` (Next.js)
 - [x] Move `src/app/webui` → `src/packages/webui`
@@ -44,6 +48,7 @@ Track progress here. Update checkboxes as tasks complete.
 - [ ] Update CLI imports to use `@dexto/core` root + subpaths minimally (refactor away from aliases)
 - [x] Verify Web UI imports only `@dexto/core` (no Node-only modules) — enforced via ESLint
 - [ ] End-to-end build: core → cli → webui → copy → run
+- [x] Add hacky browser exports to make webui work
 
 ## Phase 5 — Optional: Extract `@dexto/server`
 - [ ] Move API/server code (e.g., `src/app/api`, `src/app/web.ts`) → `src/packages/server/src`
