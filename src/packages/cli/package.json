@@ -6,7 +6,7 @@
     "@dexto/core": "workspace:*"
   },
   "scripts": {
-    "build": "tsup -c",
+    "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"
   },

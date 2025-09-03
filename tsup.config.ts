@@ -8,6 +8,6 @@ export default defineConfig([
         outDir: 'dist/src/cli',
         shims: true,
         loader: { '.json': 'json' },
-        external: ['better-sqlite3', 'pg', 'redis'],
+        external: ['@dexto/core', 'better-sqlite3', 'pg', 'redis'],
     },
 ]);

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MCPManager } from './manager.js';
 import { IMCPClient } from './types.js';
-import { NoOpConfirmationProvider } from '../tools/confirmation/noop-confirmation-provider.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { MCPErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';

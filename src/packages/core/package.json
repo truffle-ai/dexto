@@ -4,18 +4,27 @@
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
+  "module": "./dist/index.browser.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "browser": {
+        "types": "./dist/index.browser.d.ts",
+        "import": "./dist/index.browser.js",
+        "require": "./dist/index.browser.cjs"
+      },
+      "node": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
   "browser": {
-    "./dist/logger/index.js": "./dist/logger/browser.js"
+    "./dist/logger/index.js": "./dist/logger/browser.js",
+    "./dist/index.js": "./dist/index.browser.js"
   },
   "devDependencies": {
     "@types/json-schema": "^7.0.15"
