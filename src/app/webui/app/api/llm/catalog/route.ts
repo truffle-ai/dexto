@@ -1,25 +1,31 @@
 import { NextResponse } from 'next/server';
 import { getDextoClient } from '../../_client.js';
+import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
 
 export async function GET(request: Request) {
     try {
         const client = getDextoClient();
         const url = new URL(request.url);
-        const searchParams = url.searchParams;
 
-        // Forward all query parameters to the client SDK
+        // Convert URLSearchParams to plain object for validation
+        const queryObject = Object.fromEntries(url.searchParams.entries());
+
+        // Validate query parameters
+        const validation = validateQuery(CatalogQuerySchema, queryObject);
+        if (!validation.success) {
+            return NextResponse.json(validation.response, { status: 400 });
+        }
+
+        const { provider, hasKey, router, fileType, defaultOnly, mode } = validation.data;
+
+        // Forward validated parameters to the client SDK
         const catalog = await client.getLLMCatalog({
-            provider: searchParams.get('provider') || undefined,
-            hasKey:
-                searchParams.get('hasKey') === 'true'
-                    ? true
-                    : searchParams.get('hasKey') === 'false'
-                      ? false
-                      : undefined,
-            router: (searchParams.get('router') as any) || undefined,
-            fileType: (searchParams.get('fileType') as any) || undefined,
-            defaultOnly: searchParams.get('defaultOnly') === 'true',
-            mode: (searchParams.get('mode') as 'grouped' | 'flat') || 'grouped',
+            provider,
+            hasKey: hasKey === 'true' ? true : hasKey === 'false' ? false : undefined,
+            router: router as any,
+            fileType: fileType as any,
+            defaultOnly: defaultOnly === 'true',
+            mode: (mode as 'grouped' | 'flat') || 'grouped',
         });
 
         return NextResponse.json(catalog);

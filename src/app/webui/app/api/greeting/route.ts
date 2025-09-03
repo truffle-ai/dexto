@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getDextoClient } from '../_client.js';
+import { GreetingQuerySchema, validateQuery } from '@/lib/validation';
 
 export async function GET(request: Request) {
     try {
         const client = getDextoClient();
         const url = new URL(request.url);
-        const sessionId = url.searchParams.get('sessionId') || undefined;
 
+        // Convert URLSearchParams to plain object for validation
+        const queryObject = Object.fromEntries(url.searchParams.entries());
+
+        // Validate query parameters
+        const validation = validateQuery(GreetingQuerySchema, queryObject);
+        if (!validation.success) {
+            return NextResponse.json(validation.response, { status: 400 });
+        }
+
+        const { sessionId } = validation.data;
         const greeting = await client.getGreeting(sessionId);
 
         return NextResponse.json({ greeting });

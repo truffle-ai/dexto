@@ -1,13 +1,18 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { TextPart as CoreTextPart, InternalMessage, FilePart } from '@core/context/types.js';
-import { toError } from '@core/utils/error-conversion.js';
-import { Issue } from '@core/errors/types.js';
-import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
+import {
+    TextPart,
+    InternalMessage,
+    FilePart,
+    Issue,
+    toError,
+    type LLMRouter,
+    type LLMProvider,
+} from '../../lib/types.js';
 
-// Reuse the identical TextPart from core
-export type TextPart = CoreTextPart;
+// Re-export types from lib
+export type { TextPart, InternalMessage, FilePart, Issue, LLMRouter, LLMProvider };
 
 // Define WebUI-specific media parts
 export interface ImagePart {
@@ -109,8 +114,8 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     };
     reasoning?: string;
     model?: string;
-    provider?: LLMProvider;
-    router?: LLMRouter;
+    provider?: string;
+    router?: string;
     sessionId?: string;
 }
 
@@ -286,9 +291,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
                     const provider =
-                        typeof payload.provider === 'string'
-                            ? (payload.provider as LLMProvider)
-                            : undefined;
+                        typeof payload.provider === 'string' ? payload.provider : undefined;
                     const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
