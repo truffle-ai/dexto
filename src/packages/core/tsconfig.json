@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "rootDir": "src",
-    "outDir": "../../dist/src/core",
+    "outDir": "dist",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": false,

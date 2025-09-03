@@ -10,9 +10,9 @@ import {
 } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@dexto/core';
 import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
-import { interactiveApiKeySetup } from '@app/cli/utils/api-key-setup.js';
-import { selectProvider } from '@app/cli/utils/provider-setup.js';
-import { requiresSetup } from '@app/cli/utils/setup-utils.js';
+import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
+import { selectProvider } from '../utils/provider-setup.js';
+import { requiresSetup } from '../utils/setup-utils.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 

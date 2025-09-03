@@ -6,7 +6,8 @@ export { toError } from './utils/error-conversion.js';
 export { zodToIssues } from './utils/result.js';
 
 // Error types (types only on consumer side in TS; runtime is safe here)
-export type { Issue, Severity, DextoErrorCode, ErrorScope, ErrorType } from './errors/types.js';
+export type { Issue, Severity, DextoErrorCode } from './errors/types.js';
+export { ErrorScope, ErrorType } from './errors/types.js';
 
 // Context/message types
 export type { InternalMessage, TextPart, ImagePart, FilePart } from './context/types.js';

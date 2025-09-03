@@ -7,26 +7,14 @@
     },
     "description": "Your command center for controlling computers and services with natural language - connect once, command everything",
     "type": "module",
-    "main": "dist/src/core/index.cjs",
-    "module": "dist/src/core/index.js",
-    "types": "dist/src/core/index.d.ts",
+    "private": true,
     "packageManager": "pnpm@10.12.4",
-    "bin": {
-        "dexto": "./dist/src/cli/index.js"
-    },
-    "exports": {
-        ".": {
-            "types": "./dist/src/core/index.d.ts",
-            "import": "./dist/src/core/index.js",
-            "require": "./dist/src/core/index.cjs"
-        },
-        "./package.json": "./package.json"
-    },
+    
     "scripts": {
         "clean": "rimraf dist build public coverage logs .eslintcache test-temp && pnpm run clean:storage && tsx scripts/clean-build-files.ts",
         "clean:storage": "rimraf .dexto",
         "prebuild": "",
-        "build": "pnpm run clean && pnpm -C src/packages/core build && tsup && pnpm run build-webui && pnpm run copy-webui-dist",
+        "build": "pnpm run clean && pnpm -C src/packages/core build && pnpm -C src/packages/cli build && pnpm run build-webui && pnpm run copy-webui-dist",
         "prepack": "pnpm run build",
         "build:check": "pnpm run typecheck && pnpm run build",
         "build:strict": "pnpm run typecheck && pnpm run build",
@@ -36,7 +24,7 @@
         "prepare": "husky",
         "build-webui": "npx rimraf src/packages/webui/node_modules src/packages/webui/package-lock.json && pnpm -C src/packages/webui install && pnpm -C src/packages/webui build",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
-        "start": "node dist/src/cli/index.js",
+        "start": "pnpm -C src/packages/cli start",
         "dev": "tsc --watch",
         "lint": "turbo run lint",
         "lint:fix": "eslint . --fix",
@@ -136,8 +124,8 @@
         "ts-node": "^10.9.2",
         "tsup": "^8.4.0",
         "tsx": "^4.19.2",
-        "vitest": "^3.1.3",
-        "turbo": "^2.0.14"
+        "turbo": "^2.0.14",
+        "vitest": "^3.1.3"
     },
     "lint-staged": {
         "*.ts": [

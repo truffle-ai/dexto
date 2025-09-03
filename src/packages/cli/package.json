@@ -2,11 +2,15 @@
   "name": "dexto",
   "version": "1.1.2",
   "type": "module",
+  "bin": {
+    "dexto": "./dist/index.js"
+  },
   "dependencies": {
     "@dexto/core": "workspace:*"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"
   },

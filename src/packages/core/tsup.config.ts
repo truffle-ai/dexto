@@ -11,8 +11,21 @@ export default defineConfig([
         dts: true,
         shims: true,
         bundle: true,
+        platform: 'node',
         noExternal: ['chalk', 'boxen'],
-        external: ['better-sqlite3', 'pg', 'redis'],
+        external: [
+            'better-sqlite3',
+            'pg',
+            'redis',
+            'winston',
+            'logform',
+            '@colors/colors',
+            'yaml',
+            'fs-extra',
+            'dotenv',
+            'cross-spawn',
+            'tiktoken',
+        ],
     },
     // Node sub-entries (logger, storage) — keep unbundled for clarity.
     {

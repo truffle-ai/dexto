@@ -3,7 +3,21 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
     entry: ['src/index.ts'],
     format: ['esm'],
-    outDir: '../../dist/src/cli',
+    outDir: 'dist',
     shims: true,
-    external: ['better-sqlite3', 'pg', 'redis'],
+    platform: 'node',
+    external: [
+        '@dexto/core',
+        'better-sqlite3',
+        'pg',
+        'redis',
+        'commander',
+        '@clack/prompts',
+        'chalk',
+        'boxen',
+        'express',
+        'ws',
+        'yaml',
+        'dotenv',
+    ],
 });

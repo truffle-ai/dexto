@@ -17,7 +17,8 @@ export { jsonSchemaToZodShape } from './utils/zod-schema-converter.js';
 export { saveProviderApiKey, getProviderKeyStatus } from './utils/api-key-store.js';
 
 // Type-only exports (no runtime code included in JS output)
-export type { Issue, Severity, DextoErrorCode, ErrorScope, ErrorType } from './errors/types.js';
+export type { Issue, Severity, DextoErrorCode } from './errors/types.js';
+export { ErrorScope, ErrorType } from './errors/types.js';
 export { DextoBaseError } from './errors/DextoBaseError.js';
 export { DextoRuntimeError } from './errors/DextoRuntimeError.js';
 export { DextoValidationError } from './errors/DextoValidationError.js';
