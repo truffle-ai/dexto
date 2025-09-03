@@ -124,7 +124,7 @@ describe('ChatSession', () => {
                 getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
-            promptManager: {
+            systemPromptManager: {
                 getSystemPrompt: vi.fn().mockReturnValue('System prompt'),
             },
             mcpManager: {
@@ -245,7 +245,7 @@ describe('ChatSession', () => {
                 newConfig,
                 newConfig.router,
                 mockServices.toolManager,
-                mockServices.promptManager,
+                mockServices.systemPromptManager,
                 mockHistoryProvider,
                 chatSession.eventBus,
                 sessionId
@@ -269,7 +269,7 @@ describe('ChatSession', () => {
                 newConfig,
                 newConfig.router,
                 mockServices.toolManager,
-                mockServices.promptManager,
+                mockServices.systemPromptManager,
                 mockHistoryProvider,
                 chatSession.eventBus,
                 sessionId
@@ -388,7 +388,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockLLMConfig.router,
                 mockServices.toolManager,
-                mockServices.promptManager,
+                mockServices.systemPromptManager,
                 mockHistoryProvider,
                 chatSession.eventBus, // Session-specific event bus
                 sessionId

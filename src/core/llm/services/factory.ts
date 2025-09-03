@@ -17,13 +17,13 @@ import { createCohere } from '@ai-sdk/cohere';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 
 /**
  * Create an instance of one of our in-built LLM services
  * @param config LLM configuration from the config file
  * @param toolManager Unified tool manager instance
- * @param promptManager Prompt manager for system prompts
+ * @param systemPromptManager Prompt manager for system prompts
  * @param historyProvider History provider for conversation persistence
  * @param sessionEventBus Session-level event bus for emitting LLM events
  * @param sessionId Session ID
@@ -32,7 +32,7 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 function _createInBuiltLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
-    promptManager: PromptManager,
+    systemPromptManager: SystemPromptManager,
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string
@@ -46,7 +46,7 @@ function _createInBuiltLLMService(
             return new OpenAIService(
                 toolManager,
                 openai,
-                promptManager,
+                systemPromptManager,
                 historyProvider,
                 sessionEventBus,
                 config,
@@ -60,7 +60,7 @@ function _createInBuiltLLMService(
             return new OpenAIService(
                 toolManager,
                 openai,
-                promptManager,
+                systemPromptManager,
                 historyProvider,
                 sessionEventBus,
                 config,
@@ -72,7 +72,7 @@ function _createInBuiltLLMService(
             return new AnthropicService(
                 toolManager,
                 anthropic,
-                promptManager,
+                systemPromptManager,
                 historyProvider,
                 sessionEventBus,
                 config,
@@ -138,7 +138,7 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
 function _createVercelLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
-    promptManager: PromptManager,
+    systemPromptManager: SystemPromptManager,
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string
@@ -148,7 +148,7 @@ function _createVercelLLMService(
     return new VercelLLMService(
         toolManager,
         model,
-        promptManager,
+        systemPromptManager,
         historyProvider,
         sessionEventBus,
         config,
@@ -163,7 +163,7 @@ export function createLLMService(
     config: ValidatedLLMConfig,
     router: LLMRouter,
     toolManager: ToolManager,
-    promptManager: PromptManager,
+    systemPromptManager: SystemPromptManager,
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string
@@ -172,7 +172,7 @@ export function createLLMService(
         return _createVercelLLMService(
             config,
             toolManager,
-            promptManager,
+            systemPromptManager,
             historyProvider,
             sessionEventBus,
             sessionId
@@ -181,7 +181,7 @@ export function createLLMService(
         return _createInBuiltLLMService(
             config,
             toolManager,
-            promptManager,
+            systemPromptManager,
             historyProvider,
             sessionEventBus,
             sessionId

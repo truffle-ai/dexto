@@ -1173,6 +1173,49 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             return next(error);
         }
     });
+
+    // Prompt management endpoints
+    app.get('/api/prompts', async (req, res, next) => {
+        try {
+            const prompts = await agent.promptsManager.list();
+            const promptList = Object.values(prompts).map((prompt) => ({
+                name: prompt.name,
+                title: prompt.title,
+                description: prompt.description,
+                source: prompt.source,
+                arguments: prompt.arguments || [],
+                // Add starter prompt metadata
+                category: prompt.metadata?.category || 'general',
+                icon: prompt.metadata?.icon,
+                priority: prompt.metadata?.priority || 0,
+                // Include the actual prompt text for starter prompts
+                promptText: prompt.metadata?.prompt || null,
+            }));
+
+            return sendJsonResponse(res, { prompts: promptList, total: promptList.length }, 200);
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.error(`Error listing prompts: ${msg}`);
+            return next(error);
+        }
+    });
+
+    app.get('/api/prompts/:name', async (req, res, next) => {
+        try {
+            const { name } = z.object({ name: z.string().min(1) }).parse(req.params);
+            const promptDefinition = await agent.promptsManager.getPromptDefinition(name);
+            if (!promptDefinition) {
+                return res.status(404).json({ error: 'Prompt not found' });
+            }
+
+            return sendJsonResponse(res, promptDefinition, 200);
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.error(`Error getting prompt: ${msg}`);
+            return next(error);
+        }
+    });
+
     // Centralized error handling (must be registered after routes)
     app.use(errorHandler);
 

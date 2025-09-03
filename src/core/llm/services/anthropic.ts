@@ -9,7 +9,7 @@ import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../regist
 import { ImageData, FileData } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -29,7 +29,7 @@ export class AnthropicService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         anthropic: Anthropic,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
@@ -49,7 +49,7 @@ export class AnthropicService implements ILLMService {
         this.contextManager = new ContextManager<MessageParam>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,

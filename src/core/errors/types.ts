@@ -9,6 +9,7 @@ import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
 import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
+import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -58,7 +59,8 @@ export type DextoErrorCode =
     | StorageErrorCode
     | SystemPromptErrorCode
     | PreferenceErrorCode
-    | RegistryErrorCode;
+    | RegistryErrorCode
+    | PromptErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';
