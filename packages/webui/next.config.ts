@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
     // Ensure Next.js computes paths relative to the repo root (not the user home)
     // This stabilizes the emitted standalone directory structure and prevents
     // paths like "+/Projects/dexto/..." from being embedded in output.
-    outputFileTracingRoot: path.resolve(__dirname, '..', '..', '..'),
+    outputFileTracingRoot: path.resolve(__dirname, '..', '..'),
     // Next 15: transpilePackages at top-level.
     // Core ships compiled JS; we don't need to transpile it. Keep empty.
     // Disable ESLint during build to avoid config issues
