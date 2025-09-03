@@ -268,7 +268,7 @@ describe('real-world execution contexts', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
-                    name: 'dexto',
+                    name: 'dexto-monorepo',
                     version: '1.0.0',
                 },
                 'agents/default-agent.yml': 'mcpServers: {}',

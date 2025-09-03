@@ -94,7 +94,7 @@ describe('Execution Context Detection', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
-                    name: 'dexto',
+                    name: 'dexto-monorepo',
                     version: '1.0.0',
                 },
             });
