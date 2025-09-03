@@ -1,5 +1,11 @@
 import type { MCPManager } from '../../mcp/manager.js';
-import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
+import type {
+    PromptProvider,
+    PromptInfo,
+    PromptDefinition,
+    PromptListResult,
+    PromptArgument,
+} from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 
@@ -53,11 +59,12 @@ export class MCPPromptProvider implements PromptProvider {
                     const promptDef = await this.mcpManager.getPrompt(promptName);
 
                     // Convert MCP prompt definition to our internal format
+                    const args = (promptDef as { arguments?: PromptArgument[] }).arguments;
                     const promptInfo: PromptInfo = {
                         name: promptName,
                         title: promptDef.description || `MCP prompt: ${promptName}`,
                         description: promptDef.description || `MCP prompt: ${promptName}`,
-                        arguments: promptDef.arguments as any,
+                        ...(args && { arguments: args }),
                         source: 'mcp',
                         metadata: {
                             originalName: promptName,

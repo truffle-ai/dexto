@@ -82,8 +82,16 @@ export class PromptsManager {
                 const providerPrompts = providerResult.prompts;
 
                 // Add each prompt to the unified cache
-                providerPrompts.forEach((prompt) => {
-                    allPrompts[prompt.name] = prompt;
+                providerPrompts.forEach((p) => {
+                    const baseName = p.name;
+                    let name = baseName;
+                    if (allPrompts[baseName] && allPrompts[baseName].source !== p.source) {
+                        name = `${providerName}:${baseName}`;
+                        logger.warn(
+                            `⚠️ Prompt name conflict for '${baseName}'. Prefixed as '${name}'.`
+                        );
+                    }
+                    allPrompts[name] = name === baseName ? p : { ...p, name };
                 });
 
                 totalPromptsCount += providerPrompts.length;

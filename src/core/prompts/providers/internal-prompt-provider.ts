@@ -69,6 +69,7 @@ export class InternalPromptProvider implements PromptProvider {
                         let name: string | undefined;
                         let command: string | undefined;
                         let category: string | undefined;
+                        let contentBody: string | undefined;
 
                         // Check for frontmatter
                         if (lines[0]?.trim() === '---') {
@@ -89,6 +90,8 @@ export class InternalPromptProvider implements PromptProvider {
                             if (frontmatterEnd > 0) {
                                 // Parse frontmatter
                                 const frontmatterLines = lines.slice(1, frontmatterEnd);
+                                // Strip front-matter from body
+                                contentBody = lines.slice(frontmatterEnd + 1).join('\n');
 
                                 for (const line of frontmatterLines) {
                                     if (line.includes('description:')) {
@@ -127,8 +130,14 @@ export class InternalPromptProvider implements PromptProvider {
                             }
                         }
 
-                        // Extract title from first heading after frontmatter
-                        for (const line of lines) {
+                        // If no front-matter was found, use the original content
+                        if (!contentBody) {
+                            contentBody = content;
+                        }
+
+                        // Extract title from first heading in the body (post front-matter)
+                        const bodyLines = contentBody.trim().split('\n');
+                        for (const line of bodyLines) {
                             if (line.trim().startsWith('#')) {
                                 title = line.trim().replace(/^#+\s*/, '');
                                 break;
@@ -136,17 +145,16 @@ export class InternalPromptProvider implements PromptProvider {
                         }
 
                         const promptInfo: PromptInfo = {
-                            name: promptName,
+                            name: name || promptName,
                             title,
                             description,
                             source: 'internal',
                             metadata: {
                                 originalName: promptName,
                                 filePath,
-                                content,
+                                content: contentBody,
                                 // Include front-matter fields for routing and UI
                                 ...(id && { id }),
-                                ...(name && { name }),
                                 ...(command && { command }),
                                 ...(category && { category }),
                             },
