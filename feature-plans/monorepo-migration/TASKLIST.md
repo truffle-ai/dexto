@@ -9,7 +9,7 @@ Track progress here. Update checkboxes as tasks complete.
 - [x] Add `tsconfig.base.json`
 - [x] Initialize Changesets (`.changeset/`), configure fixed group for lockstep
 - [x] Add root scripts: repo-level turbo scripts (`repo:build`, `repo:test`, `repo:lint`, `repo:typecheck`)
-  - [x] Add `turbo` as a devDependency and set `packageManager` field
+- [x] Add `turbo` as a devDependency and set `packageManager` field
 
 ## Phase 2 — Package `@dexto/core`
 - [x] Move `src/core` → `src/packages/core/src`
