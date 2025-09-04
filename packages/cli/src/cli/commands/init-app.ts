@@ -128,10 +128,9 @@ export async function initDexto(
             `Installing Dexto using ${packageManager} with install command: ${installCommand} and label: ${label}`
         );
         try {
-            // temp block installs
-            // await executeWithTimeout(packageManager, [installCommand, `@dexto/core@${label}`], {
-            //     cwd: process.cwd(),
-            // });
+            await executeWithTimeout(packageManager, [installCommand, `@dexto/core@${label}`], {
+                cwd: process.cwd(),
+            });
         } catch (installError) {
             // Handle pnpm workspace error specifically
             console.error(`Install error: ${installError}`);
