@@ -314,23 +314,6 @@ npm list -g dexto --depth=0
 echo $PATH
 ```
 
-## IDE Setup
-
-### VSCode
-Recommended extensions:
-- ESLint
-- Prettier
-- TypeScript and JavaScript Language Features
-
-Settings (`.vscode/settings.json`):
-```json
-{
-  "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "eslint.validate": ["javascript", "typescript"]
-}
-```
-
 ## Questions?
 
 - Check [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines

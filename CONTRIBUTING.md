@@ -97,7 +97,7 @@ Before committing, ensure your code passes all checks:
 pnpm run typecheck
 
 # Run tests
-pnpm test
+pnpm run test
 
 # Fix linting issues
 pnpm run lint:fix
@@ -194,7 +194,6 @@ Your PR must:
 - Avoid `any` types
 - Handle null/undefined cases explicitly
 - Add JSDoc comments for public APIs
-
 
 ### Error Handling
 - Use typed error classes from `packages/core/src/errors/`
