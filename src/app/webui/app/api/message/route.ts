@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
 export async function POST(req: Request) {
     try {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(response);
     } catch (err: any) {
-        const status = err?.statusCode || 500;
+        const status = err?.statusCode || (err?.code === 'VALIDATION_ERROR' ? 400 : 500);
         return NextResponse.json({ error: err?.message || 'Failed to send message' }, { status });
     }
 }

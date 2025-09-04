@@ -6,7 +6,15 @@ export async function GET(req: Request) {
         const url = new URL(req.url);
         const sessionId = url.searchParams.get('sessionId');
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
-        const res = await fetch(`${baseUrl}/api/config.yaml${params}`, { cache: 'no-store' });
+        const timeoutMs = Number(process.env.DEXTO_HTTP_TIMEOUT_MS) || 15000;
+        const res = await fetch(`${baseUrl}/api/config.yaml${params}`, {
+            cache: 'no-store',
+            signal: AbortSignal.timeout?.(timeoutMs),
+            headers: {
+                Accept: 'application/x-yaml',
+                ...(process.env.DEXTO_API_KEY ? { 'X-API-Key': process.env.DEXTO_API_KEY } : {}),
+            },
+        });
         const text = await res.text();
         const status = res.status || 200;
         return new NextResponse(text, {

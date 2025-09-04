@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
 export async function POST(
     req: Request,
-    { params }: { params: Promise<{ serverId: string; toolName: string }> }
+    context: { params: Promise<{ serverId: string; toolName: string }> }
 ) {
     try {
-        const { serverId, toolName } = await params;
+        const { serverId, toolName } = await context.params;
+
+        // Validate route parameters
+        if (!serverId || !toolName) {
+            return NextResponse.json(
+                { error: 'serverId and toolName are required' },
+                { status: 400 }
+            );
+        }
+
         const client = new DextoClient(
             {
                 baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',
@@ -15,7 +24,14 @@ export async function POST(
             { enableWebSocket: false }
         );
 
-        const body = await req.json();
+        // Validate and parse JSON body
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+        }
+
         const result = await client.executeMCPTool(serverId, toolName, body);
         return NextResponse.json({ success: true, data: result });
     } catch (err: any) {

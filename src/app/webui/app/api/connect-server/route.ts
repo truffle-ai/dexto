@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
 export async function POST(req: Request) {
     try {
@@ -11,16 +11,34 @@ export async function POST(req: Request) {
             { enableWebSocket: false }
         );
 
-        const { name, config } = await req.json();
-
-        if (!name || !config) {
-            return NextResponse.json({ error: 'name and config are required' }, { status: 400 });
+        // parse and validate JSON body
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
         }
 
-        await client.connectMCPServer(name, config);
+        const { name, config } = (body ?? {}) as Record<string, unknown>;
+
+        if (typeof name !== 'string' || name.length === 0) {
+            return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 });
+        }
+
+        if (typeof config !== 'object' || config === null) {
+            return NextResponse.json({ error: 'config must be an object' }, { status: 400 });
+        }
+
+        // now that types are safe, connect
+        await client.connectMCPServer(name, config as object);
+
         return NextResponse.json({ status: 'connected', name });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
-        return NextResponse.json({ error: err?.message || 'Failed to connect server' }, { status });
+    } catch (err: unknown) {
+        const anyErr = err as { statusCode?: number; message?: string };
+        const status = anyErr?.statusCode || 500;
+        return NextResponse.json(
+            { error: anyErr?.message || 'Failed to connect server' },
+            { status }
+        );
     }
 }

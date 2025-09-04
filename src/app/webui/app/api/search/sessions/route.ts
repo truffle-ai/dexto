@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
 export async function GET(req: Request) {
     try {
@@ -12,8 +12,8 @@ export async function GET(req: Request) {
         );
 
         const url = new URL(req.url);
-        const query = url.searchParams.get('q');
-
+        const raw = url.searchParams.get('q');
+        const query = raw?.trim() ?? '';
         if (!query) {
             return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
         }

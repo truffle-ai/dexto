@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
-export async function GET(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
+export async function GET(req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {
-        const { sessionId } = await params;
+        const { sessionId } = await context.params;
+        if (!sessionId || typeof sessionId !== 'string') {
+            return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
+        }
         const client = new DextoClient(
             {
                 baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
 
 export async function GET(request: Request) {
@@ -26,12 +26,12 @@ export async function GET(request: Request) {
 
         // Forward validated parameters to the client SDK
         const catalog = await client.getLLMCatalog({
-            provider,
-            hasKey: hasKey === 'true' ? true : hasKey === 'false' ? false : undefined,
-            router: router as any,
-            fileType: fileType as any,
-            defaultOnly: defaultOnly === 'true',
-            mode: (mode as 'grouped' | 'flat') || 'grouped',
+            ...(provider && { provider }),
+            ...(typeof hasKey !== 'undefined' && { hasKey: hasKey === 'true' }),
+            ...(router && { router: router as 'vercel' | 'in-built' }),
+            ...(fileType && { fileType: fileType as 'audio' | 'pdf' | 'image' | 'text' }),
+            ...(typeof defaultOnly !== 'undefined' && { defaultOnly: defaultOnly === 'true' }),
+            mode: (mode as 'grouped' | 'flat') ?? 'grouped',
         });
 
         return NextResponse.json(catalog);

@@ -23,7 +23,9 @@
       "@/*": ["./*"],
       "@core/*": ["../../core/*"],
       "@sdk": ["../../client/index.ts"],
-      "@sdk/*": ["../../client/*"]
+      "@sdk/*": ["../../client/*"],
+      "@sdk/index.js": ["../../client/index.ts"],
+      "@sdk/*.js": ["../../client/*.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

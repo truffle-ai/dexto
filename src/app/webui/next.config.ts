@@ -50,8 +50,6 @@ const nextConfig: NextConfig = {
         };
         return config;
     },
-    // Allow static asset requests from these origins in dev mode
-    allowedDevOrigins: allowedOrigins,
     // All /api routes are now implemented within Next.js using the internal Client SDK.
     // The prior proxy-based rewrite has been removed as part of the migration.
     // Allow cross-origin requests for Next.js static and HMR assets during dev

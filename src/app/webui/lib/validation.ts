@@ -83,7 +83,26 @@ export const McpServerRequestSchema = z
                 url: z.string().url().optional(),
                 env: z.record(z.string()).optional(),
             })
-            .strict(),
+            .strict()
+            .superRefine((cfg, ctx) => {
+                if (cfg.type === 'stdio') {
+                    if (!cfg.command) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'command is required for stdio',
+                            path: ['command'],
+                        });
+                    }
+                } else if (cfg.type === 'sse' || cfg.type === 'http') {
+                    if (!cfg.url) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'url is required for sse/http',
+                            path: ['url'],
+                        });
+                    }
+                }
+            }),
     })
     .strict();
 

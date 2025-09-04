@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
-export async function POST(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
+export async function POST(req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {
-        const { sessionId } = await params;
+        const { sessionId } = await context.params;
         const client = new DextoClient(
             {
                 baseUrl: process.env.DEXTO_API_BASE_URL || 'http://localhost:3001',

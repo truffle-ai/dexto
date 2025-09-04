@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk';
+import { DextoClient } from '@sdk/index.js';
 
 export async function GET(_req: Request) {
     try {
@@ -33,6 +33,9 @@ export async function POST(req: Request) {
         );
 
         const { name, config } = await req.json();
+        if (typeof name !== 'string' || !name.trim() || config == null) {
+            return NextResponse.json({ error: 'Missing or invalid name/config' }, { status: 400 });
+        }
         await client.connectMCPServer(name, config);
         return NextResponse.json({ status: 'connected', name });
     } catch (err: any) {
