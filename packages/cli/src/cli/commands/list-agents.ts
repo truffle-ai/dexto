@@ -250,6 +250,9 @@ export async function handleListAgentsCommand(
         }
 
         console.log(chalk.gray(`   Use \`dexto list-agents --verbose\` for detailed information.`));
+        console.log(
+            chalk.gray(`   After installing an agent, use \`dexto -a <agent-name>\` to run it.`)
+        );
     }
 
     console.log();

@@ -3,10 +3,10 @@
 ## Code Quality Requirements
 
 **Pre-commit Validation** - Before completing any task, ALWAYS run and ensure ALL commands pass:
-1. `npm run build` - Verify compilation
-2. `npm test` - Ensure all tests pass  
-3. `npm run lint` - Check code style
-4. `npm run typecheck` - Validate TypeScript types
+1. `pnpm run build` - Verify compilation
+2. `pnpm test` - Ensure all tests pass  
+3. `pnpm run lint` - Check code style
+4. `pnpm run typecheck` - Validate TypeScript types
 
 ## General rules
 - Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
