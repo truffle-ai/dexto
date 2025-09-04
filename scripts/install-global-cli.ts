@@ -89,9 +89,11 @@ console.log('🚀 Installing packages globally...');
 execSync(`npm install -g ./${coreTarball} ./${cliTarball}`, { stdio: 'inherit' });
 
 // Clean up tarballs
-console.log('🧹 Cleaning up tarballs...');
-unlinkSync(coreTarball);
-unlinkSync(cliTarball);
+
+// temp block cleanup
+// console.log('🧹 Cleaning up tarballs...');
+// unlinkSync(coreTarball);
+// unlinkSync(cliTarball);
 
 console.log('✅ Successfully installed dexto globally!');
 console.log('   Run "dexto --help" to get started');

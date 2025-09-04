@@ -79,7 +79,9 @@ describe('Init Module', () => {
 
                 // Verify content contains expected elements
                 const content = await fs.readFile(examplePath, 'utf8');
-                expect(content).toContain("import { DextoAgent, loadAgentConfig } from 'dexto'");
+                expect(content).toContain(
+                    "import { DextoAgent, loadAgentConfig } from '@dexto/core'"
+                );
                 expect(content).toContain("console.log('🚀 Starting Dexto Basic Example");
                 expect(content).toContain('./src/dexto/agents/default-agent.yml'); // Correct relative path
                 expect(content).toContain('const agent = new DextoAgent(config)');

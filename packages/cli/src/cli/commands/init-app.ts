@@ -115,7 +115,7 @@ export async function initDexto(
     createExampleFile = true,
     llmProvider?: LLMProvider,
     llmApiKey?: string
-): Promise<{ success: boolean }> {
+): Promise<void> {
     const spinner = p.spinner();
 
     try {
@@ -128,19 +128,20 @@ export async function initDexto(
             `Installing Dexto using ${packageManager} with install command: ${installCommand} and label: ${label}`
         );
         try {
-            await executeWithTimeout(packageManager, [installCommand, `dexto@${label}`], {
-                cwd: process.cwd(),
-            });
+            // temp block installs
+            // await executeWithTimeout(packageManager, [installCommand, `@dexto/core@${label}`], {
+            //     cwd: process.cwd(),
+            // });
         } catch (installError) {
             // Handle pnpm workspace error specifically
-            logger.debug(`Install error: ${installError}`);
+            console.error(`Install error: ${installError}`);
             if (packageManager === 'pnpm' && 'ERR_PNPM_ADDING_TO_ROOT') {
                 spinner.stop(chalk.red('Error: Cannot install in pnpm workspace root'));
                 p.note(
-                    'You are initializing dexto in a pnpm workspace root. Go to a specific package in the workspace and run "pnpm add dexto" instead.',
+                    'You are initializing dexto in a pnpm workspace root. Go to a specific package in the workspace and run "pnpm add @dexto/core" instead.',
                     chalk.yellow('Workspace Error')
                 );
-                return { success: false };
+                process.exit(1);
             }
             throw installError; // Re-throw other errors
         }
@@ -164,7 +165,7 @@ export async function initDexto(
 
             if (p.isCancel(overwrite) || !overwrite) {
                 p.cancel('Dexto initialization cancelled');
-                return { success: false };
+                process.exit(1);
             }
         }
 
@@ -207,11 +208,10 @@ export async function initDexto(
             await saveProviderApiKey(llmProvider, llmApiKey, process.cwd());
         }
         spinner.stop('Saved .env updates');
-        return { success: true };
     } catch (err) {
-        spinner.stop(chalk.inverse('An error occurred initializing Dexto project'));
+        spinner.stop(chalk.inverse(`An error occurred initializing Dexto project - ${err}`));
         logger.debug(`Error: ${err}`);
-        return { success: false };
+        process.exit(1);
     }
 }
 
@@ -264,7 +264,7 @@ export async function createDextoConfigFile(directory: string): Promise<string> 
         logger.debug(`Package directory: ${pkgDir}`);
 
         // Build path to the configuration template for create-app (with auto-approve toolConfirmation)
-        const templateConfigSrc = path.join(pkgDir, 'agents', 'agent-template.yml');
+        const templateConfigSrc = path.join(pkgDir, 'dist', 'agents', 'agent-template.yml');
         logger.debug(`Looking for template at: ${templateConfigSrc}`);
 
         // Check if template exists - fail if not found
@@ -303,7 +303,7 @@ export async function createDextoExampleFile(directory: string): Promise<string>
 
     const indexTsLines = [
         "import 'dotenv/config';",
-        "import { DextoAgent, loadAgentConfig } from 'dexto';",
+        "import { DextoAgent, loadAgentConfig } from '@dexto/core';",
         '',
         "console.log('🚀 Starting Dexto Basic Example\\n');",
         '',

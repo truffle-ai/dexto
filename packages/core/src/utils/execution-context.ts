@@ -34,19 +34,19 @@ function isDextoProjectDirectory(dirPath: string): boolean {
     try {
         const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
-        // Not the dexto source itself
-        if (pkg.name === 'dexto') {
+        // Not internal dexto packages themselves
+        if (pkg.name === 'dexto' || pkg.name === '@dexto/core' || pkg.name === '@dexto/webui') {
             return false;
         }
 
-        // Check if has dexto as dependency
+        // Check if has dexto or @dexto/core as dependency
         const allDeps = {
             ...(pkg.dependencies ?? {}),
             ...(pkg.devDependencies ?? {}),
             ...(pkg.peerDependencies ?? {}),
         };
 
-        return 'dexto' in allDeps;
+        return 'dexto' in allDeps || '@dexto/core' in allDeps;
     } catch {
         return false;
     }

@@ -43,12 +43,12 @@ describe('Execution Context Detection', () => {
         }
     });
 
-    describe('Project with dexto dependency', () => {
+    describe('Project with @dexto/core dependency', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({
                 'package.json': {
                     name: 'test-project',
-                    dependencies: { dexto: '^1.0.0' },
+                    dependencies: { '@dexto/core': '^1.0.0' },
                 },
             });
         });
@@ -114,6 +114,35 @@ describe('Execution Context Detection', () => {
         it('findDextoProjectRoot returns null for dexto-source context', () => {
             const result = findDextoProjectRoot(tempDir);
             expect(result).toBeNull();
+        });
+    });
+
+    describe('Internal dexto packages within monorepo', () => {
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                // Root monorepo package.json
+                'package.json': {
+                    name: 'dexto-monorepo',
+                    version: '1.0.0',
+                },
+                // Internal webui package
+                'packages/webui/package.json': {
+                    name: '@dexto/webui',
+                    dependencies: { '@dexto/core': 'workspace:*' },
+                },
+            });
+        });
+
+        it('getExecutionContext returns dexto-source when in webui package', () => {
+            const webuiDir = path.join(tempDir, 'packages', 'webui');
+            const result = getExecutionContext(webuiDir);
+            expect(result).toBe('dexto-source');
+        });
+
+        it('findDextoSourceRoot finds monorepo root from webui package', () => {
+            const webuiDir = path.join(tempDir, 'packages', 'webui');
+            const result = findDextoSourceRoot(webuiDir);
+            expect(result ? fs.realpathSync(result) : null).toBe(fs.realpathSync(tempDir));
         });
     });
 
