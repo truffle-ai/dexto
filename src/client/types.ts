@@ -1,4 +1,7 @@
-// Client SDK types that mirror the core types but are client-focused
+// Client SDK types that extend core types for client-specific needs
+// Import core types for re-export
+import type { InternalMessage } from '@core/context/types.js';
+
 export interface ClientConfig {
     baseUrl: string;
     apiKey?: string;
@@ -33,10 +36,15 @@ export interface SessionInfo {
     messageCount: number;
 }
 
+// Re-export core LLM types
+export type { LLMProvider, LLMRouter, ModelInfo, SupportedFileType } from '@core/llm/registry.js';
+
+// Client-specific LLM config that extends core types
+// Note: provider and router use string types for API compatibility
 export interface LLMConfig {
-    provider: string;
+    provider: string; // Use string for API compatibility, can be cast to LLMProvider when needed
     model: string;
-    router?: string;
+    router?: string; // Use string for API compatibility, can be cast to LLMRouter when needed
     apiKey?: string;
     baseUrl?: string;
     baseURL?: string; // Alternative naming for consistency
@@ -46,13 +54,6 @@ export interface LLMConfig {
     maxIterations?: number;
     temperature?: number;
     displayName?: string;
-}
-
-export interface LLMProvider {
-    name: string;
-    models: string[];
-    supportedRouters: string[];
-    supportsBaseURL: boolean;
 }
 
 export interface McpServer {
@@ -78,7 +79,7 @@ export interface SearchOptions {
 
 export interface SearchResult {
     sessionId: string;
-    message?: any; // InternalMessage type from core - optional for flexibility
+    message?: InternalMessage; // Use core InternalMessage type
     matchedText?: string;
     context?: string;
     messageIndex?: number;
@@ -135,13 +136,14 @@ export interface CatalogOptions {
     mode?: 'grouped' | 'flat';
 }
 
+// Client-specific model info that's more flexible for API responses
 export interface CatalogModel {
     name: string;
     displayName?: string;
     default?: boolean;
     maxInputTokens: number;
-    supportedRouters?: string[];
-    supportedFileTypes: string[];
+    supportedFileTypes: string[]; // Use string[] for API compatibility
+    supportedRouters?: string[]; // Use string[] for API compatibility
     pricing?: {
         inputPerM?: number;
         outputPerM?: number;
@@ -156,10 +158,10 @@ export interface CatalogProvider {
     name: string;
     hasApiKey: boolean;
     primaryEnvVar: string;
-    supportedRouters: string[];
+    supportedRouters: string[]; // Use string[] for API compatibility
     supportsBaseURL: boolean;
     models: CatalogModel[];
-    supportedFileTypes?: string[];
+    supportedFileTypes?: string[]; // Use string[] for API compatibility
 }
 
 export interface CatalogResponse {

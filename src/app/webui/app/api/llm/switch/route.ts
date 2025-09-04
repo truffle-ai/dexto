@@ -11,8 +11,8 @@ export async function POST(req: Request) {
             { enableWebSocket: false }
         );
 
-        const { config } = await req.json();
-        const newConfig = await client.switchLLM(config);
+        const body = await req.json();
+        const newConfig = await client.switchLLM(body);
         return NextResponse.json({ config: newConfig });
     } catch (err: any) {
         const status = err?.statusCode || 500;

@@ -10,6 +10,7 @@
         "paths": {
             "@app/*": ["src/app/*"],
             "@core/*": ["src/core/*"],
+            "@sdk": ["src/client/index.ts"],
             "mitt": ["./node_modules/mitt/dist/index.d.ts"]
         },
         "outDir": "./dist",

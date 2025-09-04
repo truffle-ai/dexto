@@ -15,8 +15,8 @@ export async function POST(
             { enableWebSocket: false }
         );
 
-        const { args } = await req.json();
-        const result = await client.executeMCPTool(serverId, toolName, args);
+        const body = await req.json();
+        const result = await client.executeMCPTool(serverId, toolName, body);
         return NextResponse.json({ success: true, data: result });
     } catch (err: any) {
         const status = err?.statusCode || 500;

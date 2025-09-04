@@ -1,8 +1,13 @@
 /**
  * Shared type definitions for Dexto - MCP tool testing playground
+ * Now using core types where possible
  */
 
-//TODO: Replace with types from core
+// Re-export core types
+export type { ToolResult, ToolCall } from '@core/tools/types.js';
+import type { ToolCall } from '@core/tools/types.js';
+
+// WebUI-specific types that extend core types
 export interface JsonSchemaProperty {
     type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array';
     description?: string;
@@ -30,16 +35,6 @@ export interface McpTool {
     inputSchema?: JsonSchema | null;
 }
 
-export interface ToolResult {
-    success: boolean;
-    data?: any;
-    error?: string;
-    metadata?: {
-        type: string;
-        mimeType?: string;
-    };
-}
-
 // Chat and session types
 export interface ConversationSession {
     id: string;
@@ -63,14 +58,7 @@ export interface ChatMessage {
     attachments?: MessageAttachment[];
 }
 
-export interface ToolCall {
-    id: string;
-    toolName: string;
-    input: any;
-    output?: any;
-    error?: string;
-    duration?: number;
-}
+// ToolCall is now imported from @core/tools/types.js
 
 export interface MessageAttachment {
     id: string;

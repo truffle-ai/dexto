@@ -21,7 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMRouter as SupportedRouter } from "../../lib/types.js";
+import type { LLMRouter as SupportedRouter } from "@core/llm/registry.js";
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines, type LLMProviderID } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 

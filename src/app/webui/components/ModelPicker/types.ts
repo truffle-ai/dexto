@@ -1,14 +1,23 @@
-// Re-export types from lib to avoid duplication
-export type {
-    LLMRouter,
-    SupportedFileType,
-    ModelInfo,
-    ProviderCatalog,
-    CatalogResponse,
-} from '../../lib/types.js';
+// Re-export types from core to avoid duplication
+export type { LLMRouter, SupportedFileType, ModelInfo } from '@core/llm/registry.js';
 
 // Import for type annotation usage
-import type { LLMRouter } from '../../lib/types.js';
+import type { LLMRouter, ModelInfo } from '@core/llm/registry.js';
+
+// Local types that extend core types for webui-specific needs
+export interface ProviderCatalog {
+    name: string;
+    hasApiKey: boolean;
+    primaryEnvVar: string;
+    supportedRouters: LLMRouter[];
+    supportsBaseURL: boolean;
+    models: ModelInfo[];
+}
+
+export interface CatalogResponse {
+    providers?: Record<string, ProviderCatalog>;
+    models?: Array<ModelInfo & { provider: string }>;
+}
 
 // Local utility types for this component
 export type CurrentLLMConfigResponse = {

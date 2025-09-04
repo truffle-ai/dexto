@@ -8,7 +8,6 @@ import {
     MessageResponse,
     SessionInfo,
     LLMConfig,
-    LLMProvider,
     McpServer,
     Tool,
     SearchOptions,
@@ -23,12 +22,7 @@ import {
     ClientOptionsSchema,
     MessageInputSchema,
     MessageResponseSchema,
-    SessionInfoSchema,
     LLMConfigInputSchema,
-    LLMConfigResponseSchema,
-    LLMProviderSchema,
-    McpServerSchema,
-    ToolSchema,
     SearchOptionsSchema,
     SearchResponseSchema,
     SessionSearchResponseSchema,
@@ -370,8 +364,8 @@ export class DextoClient {
     /**
      * Get available LLM providers and models
      */
-    async getLLMProviders(): Promise<Record<string, LLMProvider>> {
-        const response = await this.http.get<{ providers: Record<string, LLMProvider> }>(
+    async getLLMProviders(): Promise<Record<string, any>> {
+        const response = await this.http.get<{ providers: Record<string, any> }>(
             '/api/llm/providers'
         );
         const validatedResponse = validateResponse(
@@ -472,7 +466,7 @@ export class DextoClient {
         validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
         validateInput(z.string().min(1, 'Tool name cannot be empty'), toolName, 'tool name');
 
-        // Validate args is not null/undefined
+        // Validate args is not null/undefined (empty object {} is allowed)
         if (args === null || args === undefined) {
             throw new DextoClientError('Tool arguments cannot be null or undefined');
         }

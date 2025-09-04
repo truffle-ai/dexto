@@ -1,15 +1,10 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import {
-    TextPart,
-    InternalMessage,
-    FilePart,
-    Issue,
-    toError,
-    type LLMRouter,
-    type LLMProvider,
-} from '../../lib/types.js';
+import { TextPart, InternalMessage, FilePart } from '@core/context/types.js';
+import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
+import { toError } from '@core/utils/error-conversion.js';
+import type { Issue } from '@core/errors/types.js';
 
 // Re-export types from lib
 export type { TextPart, InternalMessage, FilePart, Issue, LLMRouter, LLMProvider };
@@ -114,8 +109,8 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     };
     reasoning?: string;
     model?: string;
-    provider?: string;
-    router?: string;
+    provider?: LLMProvider;
+    router?: LLMRouter;
     sessionId?: string;
 }
 

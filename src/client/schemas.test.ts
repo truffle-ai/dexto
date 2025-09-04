@@ -1,22 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
     ClientConfigSchema,
-    ClientOptionsSchema,
     MessageInputSchema,
     MessageResponseSchema,
     SessionInfoSchema,
     LLMConfigInputSchema,
-    LLMConfigResponseSchema,
-    LLMProviderSchema,
-    McpServerSchema,
-    ToolSchema,
     SearchOptionsSchema,
     SearchResponseSchema,
-    SessionSearchResponseSchema,
     CatalogOptionsSchema,
     CatalogResponseSchema,
-    CatalogModelSchema,
-    CatalogProviderSchema,
     validateInput,
     validateResponse,
 } from './schemas.js';
