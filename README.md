@@ -127,7 +127,7 @@ console.log(await agent.run('List the 5 largest files in this repo'));
 await agent.run('Write a haiku about TypeScript');
 await agent.run('Make it funnier');
 
-agent.resetConversation();
+await agent.resetConversation();
 
 await agent.stop();
 ```
