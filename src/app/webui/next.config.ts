@@ -1,19 +1,6 @@
 import type { NextConfig } from 'next';
-import os from 'os';
 import path from 'path';
 
-// Determine allowed development origins (local network IPs on port 3000)
-const interfaces = os.networkInterfaces();
-const allowedOrigins: string[] = ['http://localhost:3000'];
-Object.values(interfaces).forEach((list) =>
-    list?.forEach((iface) => {
-        if (iface.family === 'IPv4' && !iface.internal) {
-            allowedOrigins.push(`http://${iface.address}:3000`);
-        }
-    })
-);
-
-const _isDev = process.env.NODE_ENV === 'development';
 const isStandalone = process.env.BUILD_STANDALONE === 'true';
 
 const nextConfig: NextConfig = {

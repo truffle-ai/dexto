@@ -100,7 +100,7 @@ export class HttpClient {
     }
 
     private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-        let lastError: Error | null = null;
+        let lastError: DextoNetworkError | null = null;
         const method = (init.method || 'GET').toUpperCase();
         const canRetry = ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method);
 
@@ -108,7 +108,13 @@ export class HttpClient {
             try {
                 return await this.fetchFn(url, init);
             } catch (error) {
-                lastError = error instanceof Error ? error : new Error(String(error));
+                lastError =
+                    error instanceof DextoNetworkError
+                        ? error
+                        : new DextoNetworkError(
+                              error instanceof Error ? error.message : String(error),
+                              error instanceof Error ? error : undefined
+                          );
 
                 // Don't retry on the last attempt, non-idempotent methods, or for certain error types
                 if (
@@ -125,7 +131,7 @@ export class HttpClient {
             }
         }
 
-        throw lastError;
+        throw lastError!;
     }
 
     private async safeParseJson(response: Response): Promise<any> {

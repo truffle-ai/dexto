@@ -164,7 +164,7 @@ export const McpServerSchema = z
     .object({
         id: z.string(),
         name: z.string(),
-        status: z.enum(['connected', 'error', 'disconnected']),
+        status: z.enum(['connected', 'disconnected', 'error', 'unknown']),
         error: z.string().optional(),
     })
     .strict();

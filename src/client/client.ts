@@ -99,8 +99,8 @@ export class DextoClient {
     }
 
     private initializeWebSocket() {
-        // Convert HTTP URL to WebSocket URL
-        const wsUrl = this.config.baseUrl.replace(/^https?/, 'ws');
+        // Convert HTTP URL to WebSocket URL, preserving security scheme
+        const wsUrl = this.config.baseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
 
         this.ws = new WebSocketClient(wsUrl, {
             reconnect: this.options.reconnect,

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 });
         }
 
-        if (typeof config !== 'object' || config === null) {
+        if (typeof config !== 'object' || config === null || Array.isArray(config)) {
             return NextResponse.json({ error: 'config must be an object' }, { status: 400 });
         }
 
