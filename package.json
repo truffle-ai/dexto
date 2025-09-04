@@ -115,6 +115,7 @@
         "zod-to-json-schema": "^3.24.6"
     },
     "devDependencies": {
+        "@changesets/cli": "^2.29.6",
         "@eslint/js": "^9.23.0",
         "@types/better-sqlite3": "^7.6.13",
         "@types/express": "^4.17.21",

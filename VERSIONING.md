@@ -1,55 +1,221 @@
-# Versioning Dexto
+# Versioning and Release Process
 
-This document describes the standard procedure for publishing a new version of `dexto` [CLI + library]
+This document describes the versioning strategy and release process for the Dexto monorepo.
 
-## 1. Go to main branch of your fork and ensure that the code is up-to-date
+## Overview
+
+Dexto uses a monorepo structure with multiple packages:
+- `dexto` (CLI) - Main package published to npm
+- `@dexto/core` - Core library published to npm
+- `@dexto/webui` - Web UI (private, not published)
+
+We use [Changesets](https://github.com/changesets/changesets) for version management and coordinated releases.
+
+## Versioning Strategy
+
+### Fixed Versioning
+The `dexto` and `@dexto/core` packages use **fixed versioning** - they always maintain the same version number. This ensures API compatibility between the CLI and core library.
+
+Current versions:
+- `dexto`: 1.1.2
+- `@dexto/core`: 1.1.2
+- `@dexto/webui`: 0.1.0 (private)
+
+## Automated Release Process (Recommended)
+
+### 1. Create a Changeset
+
+When you make changes that should trigger a release:
 
 ```bash
+# Create a changeset describing your changes
+pnpm changeset
+
+# Follow the interactive prompts to:
+# 1. Select which packages changed
+# 2. Choose the version bump type (major/minor/patch)
+# 3. Write a summary of changes
+```
+
+This creates a markdown file in `.changeset/` describing the changes.
+
+> **Why Manual Changesets?** We require manual changeset creation to ensure developers think carefully about semantic versioning and write meaningful changelog entries for users.
+
+### 2. Commit and Push to PR
+
+```bash
+# Add the changeset file
+git add .changeset/*.md
+git commit -m "chore: add changeset for [your feature]"
+git push origin your-branch
+```
+
+### 3. Automatic Version and Release
+
+When your PR with changesets is merged to `main`:
+
+1. **Version PR Creation** (`changesets-open-pr.yml` triggers automatically)
+   - Collects all pending changesets
+   - Creates a "Version Packages" PR with:
+     - Version bumps in package.json files
+     - Updated CHANGELOG.md files
+     - Consolidated changesets
+
+2. **Review the Version PR**
+   - Team reviews the version bumps
+   - Can be merged immediately or held for batching multiple changes
+
+3. **Automatic Publishing** (when Version PR is merged)
+   - `changesets-publish.yml` triggers
+   - Builds all packages
+   - Publishes to npm registry
+   - Creates git tags
+   - Removes processed changeset files
+
+### GitHub Workflows
+
+#### Active Release Workflows:
+- **[`require-changeset.yml`](.github/workflows/require-changeset.yml)** - Ensures PRs include changesets when needed
+- **[`changesets-open-pr.yml`](.github/workflows/changesets-open-pr.yml)** - Creates version bump PRs
+- **[`changesets-publish.yml`](.github/workflows/changesets-publish.yml)** - Main release workflow (triggers on push to main)
+
+#### Quality Check Workflows:
+- **[`build_and_test.yml`](.github/workflows/build_and_test.yml)** - Runs tests on PRs
+- **[`code-quality.yml`](.github/workflows/code-quality.yml)** - Runs linting and type checking
+
+#### Documentation Workflows:
+- **[`build-docs.yml`](.github/workflows/build-docs.yml)** - Builds documentation
+- **[`deploy-docs.yml`](.github/workflows/deploy-docs.yml)** - Deploys documentation site
+
+## Manual Release Process (Emergency Only)
+
+If automated release fails or for emergency patches:
+
+### Prerequisites
+
+```bash
+# Ensure you're on main and up to date
 git checkout main
-git fetch upstream
-git rebase upstream/main
-git push
+git pull origin main
+
+# Install dependencies
+pnpm install --frozen-lockfile
+
+# Run all quality checks
+pnpm run build
+pnpm run lint
+pnpm run typecheck
+pnpm test
 ```
 
-This will sync your local fork's main branch with the remote repository main branch
-
-## 2. Bump version locally
-
-Now that you are on main branch of your fork and have synced your repo with the remote branch, 
-use one of the following commands to update the version in `package.json`, create a corresponding git commit, and tag:
+### Option 1: Manual Changeset Release
 
 ```bash
-# For a PATCH release (e.g., 1.2.3 → 1.2.4)
-npm version patch
+# 1. Create changeset manually
+pnpm changeset
 
-# For a MINOR release (e.g., 1.2.3 → 1.3.0)
-npm version minor
+# 2. Version packages
+pnpm changeset version
 
-# For a MAJOR release (e.g., 1.2.3 → 2.0.0)
-npm version major
+# 3. Commit version changes
+git add -A
+git commit -m "chore: version packages"
+
+# 4. Build all packages
+pnpm run build
+
+# 5. Publish to npm
+pnpm changeset publish
+
+# 6. Push changes and tags
+git push --follow-tags
 ```
 
-Each command will:
-
-- Update the `version` field in `package.json`.
-- Create a new git commit.
-- Create a new git tag prefixed with `v` (e.g., `v1.2.4`).
-
-## 3. Push to remote repository
-
-Push the commit and associated tags to the remote repository. Replace `upstream` and `main` with your remote/branch if different [you can check with `git remote -v`]:
+### Option 2: Direct Version Bump (Not Recommended)
 
 ```bash
-git fetch upstream
-# (optional) Rebase or merge to ensure you're up to date:
-git rebase upstream/main
+# 1. Update versions manually in package.json files
+# IMPORTANT: Keep dexto and @dexto/core versions in sync!
 
-# Push commit and tags:
-git push upstream main --follow-tags
+# Edit packages/cli/package.json
+# Edit packages/core/package.json
+
+# 2. Install to update lockfile
+pnpm install
+
+# 3. Build packages
+pnpm run build
+
+# 4. Create git tag
+git add -A
+git commit -m "chore: release v1.2.0"
+git tag v1.2.0
+
+# 5. Publish packages
+cd packages/core && pnpm publish --access public
+cd ../cli && pnpm publish --access public
+
+# 6. Push commits and tags
+git push origin main --follow-tags
 ```
 
-## 4. Automatic publish via GitHub Actions
+## Testing Releases (Without Publishing)
 
-See [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) for the publish workflow configuration.
+### Dry Run Commands
 
-After this workflow completes successfully, the new version of `dexto` will be available on npm. 
+```bash
+# See what would be published
+pnpm publish -r --dry-run --no-git-checks
+
+# Check changeset status
+pnpm changeset status
+
+# Preview version changes
+pnpm changeset version --dry-run
+
+# Test package contents
+cd packages/cli && npm pack --dry-run
+cd packages/core && npm pack --dry-run
+```
+
+### Local Testing
+
+```bash
+# Link packages locally for testing
+pnpm run link-cli
+
+# Test the linked CLI
+dexto --version
+```
+
+## Release Checklist
+
+Before any release:
+- [ ] All tests passing (`pnpm test`)
+- [ ] No lint errors (`pnpm run lint`)
+- [ ] TypeScript compiles (`pnpm run typecheck`)
+- [ ] Build succeeds (`pnpm run build`)
+- [ ] Changeset created (if using automated flow)
+- [ ] Version numbers synchronized (dexto and @dexto/core)
+
+## Common Issues
+
+### Issue: Versions out of sync
+**Solution**: Ensure `dexto` and `@dexto/core` have the same version in their package.json files.
+
+### Issue: Publish fails with "Package not found"
+**Solution**: Run `pnpm run build` before publishing to ensure dist folders exist.
+
+### Issue: Git working directory not clean
+**Solution**: Commit or stash all changes before publishing. Use `--no-git-checks` flag for testing only.
+
+### Issue: Authentication error when publishing
+**Solution**: Ensure NPM_TOKEN is set in GitHub Secrets or authenticate locally with `npm login`.
+
+## Version History
+
+See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
+
+## Questions?
+
+For questions about the release process, please open an issue or consult the team.
