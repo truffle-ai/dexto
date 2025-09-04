@@ -44,9 +44,12 @@ export class WebSocketClient {
                 } else {
                     // Node.js environment - would need to import ws package
                     // For now, throw error as Node.js users should use HTTP methods
-                    throw new Error(
-                        'WebSocket not available in this environment. Use HTTP methods or run in browser.'
+                    reject(
+                        new DextoNetworkError(
+                            'WebSocket not available in this environment. Use HTTP methods or run in a browser.'
+                        )
                     );
+                    return;
                 }
 
                 this.setupEventHandlers(resolve, reject);
@@ -71,11 +74,40 @@ export class WebSocketClient {
         };
 
         this.ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                this.handleIncomingMessage(data);
-            } catch (_error) {
-                console.warn('Failed to parse WebSocket message:', event.data);
+            const raw = event.data as unknown;
+            const tryDispatch = (text: string) => {
+                try {
+                    this.handleIncomingMessage(JSON.parse(text));
+                } catch (err) {
+                    console.warn(
+                        `[WebSocketClient] Failed to parse WebSocket message: ${err instanceof Error ? err.message : String(err)}`
+                    );
+                }
+            };
+
+            if (typeof raw === 'string') {
+                tryDispatch(raw);
+            } else if (typeof globalThis.Blob !== 'undefined' && raw instanceof globalThis.Blob) {
+                raw.text()
+                    .then(tryDispatch)
+                    .catch((err) => {
+                        console.warn(
+                            `[WebSocketClient] Failed to read Blob message: ${err instanceof Error ? err.message : String(err)}`
+                        );
+                    });
+            } else if (typeof ArrayBuffer !== 'undefined' && raw instanceof ArrayBuffer) {
+                try {
+                    const text = new globalThis.TextDecoder().decode(raw);
+                    tryDispatch(text);
+                } catch (err) {
+                    console.warn(
+                        `[WebSocketClient] Failed to decode ArrayBuffer message: ${err instanceof Error ? err.message : String(err)}`
+                    );
+                }
+            } else {
+                console.warn(
+                    `[WebSocketClient] Ignoring non-text WebSocket message of type: ${Object.prototype.toString.call(raw)}`
+                );
             }
         };
 

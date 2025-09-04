@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk/index.js';
+import { DextoClient } from '@sdk';
 
-export async function DELETE(req: Request, context: { params: Promise<{ serverId: string }> }) {
+export async function DELETE(_req: Request, context: { params: Promise<{ serverId: string }> }) {
     try {
         const { serverId } = await context.params;
         const client = new DextoClient(

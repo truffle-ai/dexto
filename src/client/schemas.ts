@@ -278,7 +278,7 @@ export const CatalogProviderSchema = z
         supportedRouters: z.array(z.enum(['vercel', 'in-built'])),
         supportsBaseURL: z.boolean(),
         models: z.array(CatalogModelSchema),
-        supportedFileTypes: z.array(z.enum(['audio', 'pdf', 'image'])).optional(),
+        supportedFileTypes: z.array(z.enum(['audio', 'pdf', 'image', 'text'])).optional(),
     })
     .strict();
 

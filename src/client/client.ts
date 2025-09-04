@@ -122,9 +122,12 @@ export class DextoClient {
         }
 
         // Connect WebSocket if enabled
-        if (this.ws) {
+        if (this.options.enableWebSocket) {
+            if (!this.ws) {
+                this.initializeWebSocket();
+            }
             try {
-                await this.ws.connect();
+                await this.ws!.connect();
             } catch (error) {
                 if (this.options.debug) {
                     console.warn(
@@ -497,11 +500,15 @@ export class DextoClient {
 
         const params = new URLSearchParams({
             q: query,
-            ...(validatedOptions.limit && { limit: validatedOptions.limit.toString() }),
-            ...(validatedOptions.offset && { offset: validatedOptions.offset.toString() }),
+            ...(validatedOptions.limit !== undefined && {
+                limit: validatedOptions.limit.toString(),
+            }),
+            ...(validatedOptions.offset !== undefined && {
+                offset: validatedOptions.offset.toString(),
+            }),
             ...(validatedOptions.sessionId && { sessionId: validatedOptions.sessionId }),
             ...(validatedOptions.role && { role: validatedOptions.role }),
-        });
+        } as Record<string, string>);
 
         const response = await this.http.get<SearchResponse>(`/api/search/messages?${params}`);
         return validateResponse(SearchResponseSchema, response, 'searchMessages');

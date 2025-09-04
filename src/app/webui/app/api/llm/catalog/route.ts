@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk/index.js';
+import { DextoClient } from '@sdk';
 import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
 
 export async function GET(request: Request) {

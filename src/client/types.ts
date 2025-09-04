@@ -59,7 +59,7 @@ export interface LLMConfig {
 export interface McpServer {
     id: string;
     name: string;
-    status: 'connected' | 'error' | 'disconnected';
+    status: 'connected' | 'disconnected' | 'error' | 'unknown';
     error?: string;
 }
 

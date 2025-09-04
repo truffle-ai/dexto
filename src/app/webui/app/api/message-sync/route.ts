@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk/index.js';
+import { DextoClient } from '@sdk';
 
 export async function POST(req: Request) {
     try {
@@ -24,8 +24,12 @@ export async function POST(req: Request) {
         return NextResponse.json(response);
     } catch (err: any) {
         const isValidation = err?.name === 'ZodError' || err?.code === 'VALIDATION_ERROR';
-        const status = err?.statusCode || (isValidation ? 400 : 500);
-        const message = isValidation ? 'Invalid request body' : 'Failed to send message';
-        return NextResponse.json({ error: message }, { status });
+        const isSyntaxError = err?.name === 'SyntaxError' || err?.type === 'entity.parse.failed';
+        const isForbidden = err?.code === 'FORBIDDEN_RUNTIME' || err?.statusCode === 403;
+        const status =
+            err?.statusCode || (isValidation || isSyntaxError ? 400 : isForbidden ? 403 : 500);
+        const errorMessage =
+            isValidation || isSyntaxError ? 'Invalid request body' : 'Failed to send message';
+        return NextResponse.json({ error: errorMessage }, { status });
     }
 }

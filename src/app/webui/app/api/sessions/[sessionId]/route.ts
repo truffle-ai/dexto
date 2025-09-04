@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DextoClient } from '@sdk/index.js';
+import { DextoClient } from '@sdk';
 
 export async function GET(_req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {

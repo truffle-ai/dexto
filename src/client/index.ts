@@ -28,8 +28,41 @@ export type {
 // Export error classes
 export { DextoClientError, DextoNetworkError, DextoValidationError } from './types.js';
 
-// Export validation schemas and utilities
-export * from './schemas.js';
+// Export validation schemas and utilities (explicit)
+export {
+    validateInput,
+    validateResponse,
+    ClientConfigSchema,
+    ClientOptionsSchema,
+    MessageInputSchema,
+    MessageResponseSchema,
+    SessionInfoSchema,
+    SearchOptionsSchema,
+    SearchResponseSchema,
+    CatalogOptionsSchema,
+    CatalogResponseSchema,
+    LLMConfigInputSchema,
+    LLMConfigResponseSchema,
+    LLMProviderSchema,
+    McpServerSchema,
+    ToolSchema,
+    SearchResultSchema,
+    SessionSearchResponseSchema,
+    CatalogModelSchema,
+    CatalogProviderSchema,
+    SessionsListResponseSchema,
+    SessionCreateResponseSchema,
+    SessionGetResponseSchema,
+    SessionHistoryResponseSchema,
+    CurrentSessionResponseSchema,
+    LLMCurrentResponseSchema,
+    LLMSwitchResponseSchema,
+    LLMProvidersResponseSchema,
+    MCPServersResponseSchema,
+    MCPServerToolsResponseSchema,
+    MCPToolExecuteResponseSchema,
+    GreetingResponseSchema,
+} from './schemas.js';
 
 // Export event handler types
 export type { EventHandler, ConnectionStateHandler } from './websocket-client.js';

@@ -30,8 +30,8 @@ export class HttpClient {
             this.fetchFn = globalThis.fetch;
         } else {
             // Fallback - should not happen in modern environments
-            throw new Error(
-                'No fetch implementation available. Please use Node.js 18+ or a browser.'
+            throw new DextoClientError(
+                'No fetch implementation available. Use Node.js 18+ or a browser.'
             );
         }
     }
@@ -39,7 +39,7 @@ export class HttpClient {
     async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
         const { method = 'GET', body, headers = {}, timeout = this.config.timeout } = options;
 
-        const url = `${this.config.baseUrl}${endpoint}`;
+        const url = new URL(endpoint, this.config.baseUrl).toString();
         const requestHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
             ...headers,
@@ -53,7 +53,7 @@ export class HttpClient {
         const requestInit: RequestInit = {
             method,
             headers: requestHeaders,
-            ...(body && { body: JSON.stringify(body) }),
+            ...(body !== undefined && { body: JSON.stringify(body) }),
         };
 
         // Add timeout using AbortController
@@ -101,6 +101,8 @@ export class HttpClient {
 
     private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
         let lastError: Error | null = null;
+        const method = (init.method || 'GET').toUpperCase();
+        const canRetry = ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method);
 
         for (let attempt = 0; attempt <= this.config.retries!; attempt++) {
             try {
@@ -108,9 +110,10 @@ export class HttpClient {
             } catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
 
-                // Don't retry on the last attempt or for certain error types
+                // Don't retry on the last attempt, non-idempotent methods, or for certain error types
                 if (
                     attempt === this.config.retries ||
+                    !canRetry ||
                     (error instanceof Error && error.name === 'AbortError')
                 ) {
                     break;
