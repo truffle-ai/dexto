@@ -91,15 +91,6 @@ export function isFilePart(part: unknown): part is FilePart {
     );
 }
 
-export function isAudioPart(part: unknown): part is AudioPart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'audio'
-    );
-}
-
 // Extend core InternalMessage for WebUI
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
@@ -601,11 +592,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         setActiveError(null);
     }, []);
 
-    // Get messages with media content filtered for LLM context
-    const getFilteredMessages = useCallback(() => {
-        return messages.map(createFilteredMessage);
-    }, [messages]);
-
     return {
         messages,
         status,
@@ -618,7 +604,5 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         // Error state
         activeError,
         clearError,
-        // Filtered messages for LLM context
-        getFilteredMessages,
     };
 }

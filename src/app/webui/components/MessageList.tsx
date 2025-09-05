@@ -376,41 +376,15 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                       </pre>
                                     );
                                   }
-                                  if (isAudioPart(part)) {
-                                    const src = `data:${part.mimeType};base64,${part.data}`;
-                                    return (
-                                      <AudioWidget 
-                                        key={index}
-                                        src={src}
-                                        filename={part.filename}
-                                        mimeType={part.mimeType}
-                                        className="my-1"
-                                      />
-                                    );
-                                  }
                                   if (isFilePart(part)) {
-                                    if (part.mimeType.startsWith('audio/')) {
-                                      const src = `data:${part.mimeType};base64,${part.data}`;
-                                      return (
-                                        <AudioWidget 
-                                          key={index}
-                                          src={src}
-                                          filename={part.filename}
-                                          mimeType={part.mimeType}
-                                          className="my-1"
-                                        />
-                                      );
-                                    } else {
-                                      // Non-audio files (PDFs, etc.)
-                                      return (
-                                        <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
-                                          <File className="h-4 w-4 text-muted-foreground" />
-                                          <span className="text-xs text-muted-foreground">
-                                            {part.filename || 'File attachment'} ({part.mimeType})
-                                          </span>
-                                        </div>
-                                      );
-                                    }
+                                    return (
+                                      <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
+                                        <FileAudio className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-xs text-muted-foreground">
+                                          {part.filename || 'File attachment'} ({part.mimeType})
+                                        </span>
+                                      </div>
+                                    );
                                   }
                                   return (
                                     <pre key={index} className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
