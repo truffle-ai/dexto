@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from 'fs';
-import { join, dirname, relative } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);

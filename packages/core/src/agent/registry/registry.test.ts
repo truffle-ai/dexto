@@ -207,7 +207,7 @@ describe('LocalAgentRegistry', () => {
 
             // Mock resolveBundledScript to return our test files
             mockResolveBundledScript.mockImplementation((relativePath: string) => {
-                if (relativePath === 'agents/test-agent.yml') {
+                if (relativePath === 'dist/agents/test-agent.yml') {
                     return path.join(bundledAgentsPath, 'test-agent.yml');
                 }
                 // Return original registry path
@@ -247,7 +247,7 @@ describe('LocalAgentRegistry', () => {
 
             // Mock resolveBundledScript
             mockResolveBundledScript.mockImplementation((relativePath: string) => {
-                if (relativePath === 'agents/test-agent.yml') {
+                if (relativePath === 'dist/agents/test-agent.yml') {
                     return path.join(bundledAgentsPath, 'test-agent.yml');
                 }
                 return path.join(tempDir, 'agent-registry.json');
@@ -298,7 +298,7 @@ describe('LocalAgentRegistry', () => {
 
             // Mock resolveBundledScript for directory
             mockResolveBundledScript.mockImplementation((relativePath: string) => {
-                if (relativePath === 'agents/dir-agent/') {
+                if (relativePath === 'dist/agents/dir-agent/') {
                     return dirAgentPath;
                 }
                 return path.join(tempDir, 'agent-registry.json');
