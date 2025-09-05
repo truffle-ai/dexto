@@ -205,7 +205,7 @@ await agent.run('Write a function that adds two numbers.');
 await agent.run('Now add type annotations to it.');
 
 // Reset the conversation history
-agent.resetConversation();
+await agent.resetConversation();
 
 // Stop the agent and disconnect services
 await agent.stop();

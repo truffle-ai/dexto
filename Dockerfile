@@ -72,4 +72,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE $PORT
 
 # Server mode: REST APIs + WebSocket on single port
-CMD ["sh", "-c", "node dist/src/app/index.js --mode server --web-port $PORT --agent $CONFIG_FILE"] 
+CMD ["sh", "-c", "node dist/src/cli/index.js --mode server --web-port $PORT --agent $CONFIG_FILE"] 

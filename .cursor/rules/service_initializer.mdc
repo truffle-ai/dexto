@@ -37,7 +37,7 @@ initializeServices(config, { contextManager: testContextManager });
 ```
 
 - **References**
-  - See [src/utils/service-initializer.ts](mdc:src/utils/service-initializer.ts) for implementation.
+  - See [packages/core/src/utils/service-initializer.ts](mdc:packages/core/src/utils/service-initializer.ts) for implementation.
   - Related: [dev_workflow.mdc](mdc:.cursor/rules/dev_workflow.mdc), [self_improve.mdc](mdc:.cursor/rules/self_improve.mdc)
 
 - **Rule Maintenance**

@@ -10,6 +10,8 @@ technical-plans/
 # Build output
 dist/
 build/
+.next/
+.turbo/
 
 # Environment files
 .env
@@ -51,7 +53,7 @@ logs/
 
 # Coverage directory (main public, but allow webui public)
 /public/
-!/src/app/webui/public/
+!/packages/cli/src/webui/public/
 
 # Test temporary files
 test-temp/
@@ -59,5 +61,5 @@ test-temp/
 # temporary storage
 .dexto/
 
-# Temporarily ignore module READMEs in src/core
-src/core/*/README.md
+# Temporarily ignore module READMEs in core package
+packages/core/src/*/README.md

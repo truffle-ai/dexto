@@ -61,8 +61,10 @@ The main Dexto features are:
 npm install -g dexto
 
 # —or— build from source
+# this sets up dexto CLI from the cloned code
 git clone https://github.com/truffle-ai/dexto.git
-cd dexto && npm i && npm run build && npm link
+cd dexto && pnpm install && pnpm install-cli
+
 ```
 
 ---
@@ -76,8 +78,8 @@ cd dexto && npm i && npm run build && npm link
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
-| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](src/app/discord/README.md)) |
-| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](src/app/telegram/README.md)) |
+| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](packages/cli/src/discord/README.md)) |
+| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](packages/cli/src/telegram/README.md)) |
 
 Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
@@ -127,7 +129,7 @@ console.log(await agent.run('List the 5 largest files in this repo'));
 await agent.run('Write a haiku about TypeScript');
 await agent.run('Make it funnier');
 
-agent.resetConversation();
+await agent.resetConversation();
 
 await agent.stop();
 ```
