@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     reactStrictMode: true,
     // Use standalone output for production builds
     output: isStandalone ? 'standalone' : undefined,
+    // Ensure Next.js computes paths relative to the repo root (not the user home)
+    // This stabilizes the emitted standalone directory structure and prevents
+    // paths like "+/Projects/dexto/..." from being embedded in output.
+    outputFileTracingRoot: path.resolve(__dirname, '..', '..', '..'),
     experimental: {
         // Allow importing TS/JS from outside the Next.js app directory
         externalDir: true,
@@ -38,8 +42,8 @@ const nextConfig: NextConfig = {
         // Map requested .js to .ts/.tsx during development/build
         // while still allowing actual .js files
         // This supports our .js import convention in TS source files
-        (config.resolve as any).extensionAlias = {
-            ...(config.resolve as any).extensionAlias,
+        config.resolve.extensionAlias = {
+            ...(config.resolve.extensionAlias || {}),
             '.js': ['.ts', '.tsx', '.js'],
             '.mjs': ['.mts', '.mjs'],
         };

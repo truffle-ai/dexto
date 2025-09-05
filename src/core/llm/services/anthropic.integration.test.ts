@@ -1,10 +1,9 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import {
     createTestEnvironment,
     TestConfigs,
     requiresApiKey,
     cleanupTestEnvironment,
-    TestEnvironment,
 } from './test-utils.integration.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
@@ -16,128 +15,152 @@ import { LLMErrorCode } from '../error-codes.js';
  * They require a valid ANTHROPIC_API_KEY environment variable.
  */
 describe('Anthropic LLM Service Integration', () => {
-    let testEnv: TestEnvironment;
-
     const skipTests = !requiresApiKey('anthropic');
+    const t = skipTests ? test.skip : test.concurrent;
 
-    beforeEach(async () => {
-        if (skipTests) return;
+    // Normal operation tests
+    t('generate works normally', async () => {
+        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+        try {
+            const response = await env.agent.run('Hello', undefined, undefined, env.sessionId);
 
-        const config = TestConfigs.createAnthropicConfig();
-        testEnv = await createTestEnvironment(config);
-    });
-
-    afterEach(async () => {
-        if (testEnv) {
-            await cleanupTestEnvironment(testEnv);
+            expect(response).toBeTruthy();
+            expect(typeof response).toBe('string');
+            expect(response.length).toBeGreaterThan(0);
+        } finally {
+            await cleanupTestEnvironment(env);
         }
     });
 
-    // Normal operation tests
-    test.skipIf(skipTests)('generate works normally', async () => {
-        const response = await testEnv.agent.run('Hello', undefined, undefined, testEnv.sessionId);
+    t(
+        'multi-turn generate works normally',
+        async () => {
+            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            try {
+                const response1 = await env.agent.run(
+                    'My name is Charlie',
+                    undefined,
+                    undefined,
+                    env.sessionId
+                );
+                const response2 = await env.agent.run(
+                    'What is my name?',
+                    undefined,
+                    undefined,
+                    env.sessionId
+                );
 
-        expect(response).toBeTruthy();
-        expect(typeof response).toBe('string');
-        expect(response.length).toBeGreaterThan(0);
+                expect(response1).toBeTruthy();
+                expect(response2).toBeTruthy();
+                expect(typeof response1).toBe('string');
+                expect(typeof response2).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
+
+    t('stream works normally', async () => {
+        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+        try {
+            const response = await env.agent.run(
+                'Hello',
+                undefined,
+                undefined,
+                env.sessionId,
+                true
+            );
+
+            expect(response).toBeTruthy();
+            expect(typeof response).toBe('string');
+            expect(response.length).toBeGreaterThan(0);
+        } finally {
+            await cleanupTestEnvironment(env);
+        }
     });
 
-    test.skipIf(skipTests)('multi-turn generate works normally', async () => {
-        const response1 = await testEnv.agent.run(
-            'My name is Charlie',
-            undefined,
-            undefined,
-            testEnv.sessionId
-        );
-        const response2 = await testEnv.agent.run(
-            'What is my name?',
-            undefined,
-            undefined,
-            testEnv.sessionId
-        );
+    t(
+        'multi-turn stream works normally',
+        async () => {
+            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            try {
+                const response1 = await env.agent.run(
+                    'I live in Paris',
+                    undefined,
+                    undefined,
+                    env.sessionId,
+                    true
+                );
+                const response2 = await env.agent.run(
+                    'Where do I live?',
+                    undefined,
+                    undefined,
+                    env.sessionId,
+                    true
+                );
 
-        expect(response1).toBeTruthy();
-        expect(response2).toBeTruthy();
-        expect(typeof response1).toBe('string');
-        expect(typeof response2).toBe('string');
-    });
+                expect(response1).toBeTruthy();
+                expect(response2).toBeTruthy();
+                expect(typeof response1).toBe('string');
+                expect(typeof response2).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
-    test.skipIf(skipTests)('stream works normally', async () => {
-        const response = await testEnv.agent.run(
-            'Hello',
-            undefined,
-            undefined,
-            testEnv.sessionId,
-            true
-        );
+    t('creating sessions works normally', async () => {
+        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+        try {
+            const newSession = await env.agent.createSession('test-anthropic-session');
+            const response = await env.agent.run(
+                'Hello in new session',
+                undefined,
+                undefined,
+                newSession.id
+            );
 
-        expect(response).toBeTruthy();
-        expect(typeof response).toBe('string');
-        expect(response.length).toBeGreaterThan(0);
-    });
-
-    test.skipIf(skipTests)('multi-turn stream works normally', async () => {
-        const response1 = await testEnv.agent.run(
-            'I live in Paris',
-            undefined,
-            undefined,
-            testEnv.sessionId,
-            true
-        );
-        const response2 = await testEnv.agent.run(
-            'Where do I live?',
-            undefined,
-            undefined,
-            testEnv.sessionId,
-            true
-        );
-
-        expect(response1).toBeTruthy();
-        expect(response2).toBeTruthy();
-        expect(typeof response1).toBe('string');
-        expect(typeof response2).toBe('string');
-    });
-
-    test.skipIf(skipTests)('creating sessions works normally', async () => {
-        const newSession = await testEnv.agent.createSession('test-anthropic-session');
-        const response = await testEnv.agent.run(
-            'Hello in new session',
-            undefined,
-            undefined,
-            newSession.id
-        );
-
-        expect(newSession).toBeTruthy();
-        expect(newSession.id).toBe('test-anthropic-session');
-        expect(response).toBeTruthy();
-        expect(typeof response).toBe('string');
+            expect(newSession).toBeTruthy();
+            expect(newSession.id).toBe('test-anthropic-session');
+            expect(response).toBeTruthy();
+            expect(typeof response).toBe('string');
+        } finally {
+            await cleanupTestEnvironment(env);
+        }
     });
 
     // Error handling tests
-    test.skipIf(skipTests)('errors handled with correct error codes', async () => {
+    t('errors handled with correct error codes', async () => {
         // Test with unsupported file type to trigger validation error
         const invalidFileData = Buffer.from('test data').toString('base64');
 
-        await expect(
-            testEnv.agent.run(
-                'Process this file',
-                undefined,
-                {
-                    data: invalidFileData,
-                    mimeType: 'application/unknown-type',
-                    filename: 'test.unknown',
-                },
-                testEnv.sessionId
-            )
-        ).rejects.toMatchObject({
-            issues: [
-                expect.objectContaining({
-                    code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                }),
-            ],
-        });
+        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+        try {
+            await expect(
+                env.agent.run(
+                    'Process this file',
+                    undefined,
+                    {
+                        data: invalidFileData,
+                        mimeType: 'application/unknown-type',
+                        filename: 'test.unknown',
+                    },
+                    env.sessionId
+                )
+            ).rejects.toMatchObject({
+                issues: [
+                    expect.objectContaining({
+                        code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    }),
+                ],
+            });
+        } finally {
+            await cleanupTestEnvironment(env);
+        }
     });
 
     // Skip test warning

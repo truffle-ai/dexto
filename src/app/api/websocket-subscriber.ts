@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import { setMaxListeners } from 'events';
 import { AgentEventBus } from '@core/events/index.js';
 import { logger } from '@core/index.js';
 import { EventSubscriber } from './types.js';
@@ -33,9 +34,17 @@ export class WebSocketEventSubscriber implements EventSubscriber {
      * Subscribe to agent events and broadcast them to WebSocket clients
      */
     subscribe(eventBus: AgentEventBus): void {
+        // Abort any previous subscription before creating a new one
+        this.abortController?.abort();
+
         // Create new AbortController for this subscription
         this.abortController = new AbortController();
         const { signal } = this.abortController;
+
+        // Increase max listeners since we intentionally share this signal across multiple events
+        // This prevents the MaxListenersExceededWarning
+        const MAX_SHARED_SIGNAL_LISTENERS = 20;
+        setMaxListeners(MAX_SHARED_SIGNAL_LISTENERS, signal);
 
         // Subscribe to all relevant events with abort signal
         eventBus.on(
@@ -57,7 +66,8 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                 this.broadcast({
                     event: 'chunk',
                     data: {
-                        text: payload.content,
+                        type: payload.type,
+                        content: payload.content,
                         isComplete: payload.isComplete,
                         sessionId: payload.sessionId,
                     },
@@ -102,12 +112,18 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:response',
             (payload) => {
+                logger.debug(
+                    `[websocket-subscriber]: llmservice:response: ${JSON.stringify(payload)}`
+                );
                 this.broadcast({
                     event: 'response',
                     data: {
                         text: payload.content,
-                        tokenCount: payload.tokenCount,
+                        reasoning: payload.reasoning,
+                        tokenUsage: payload.tokenUsage,
+                        provider: payload.provider,
                         model: payload.model,
+                        router: payload.router,
                         sessionId: payload.sessionId,
                     },
                 });
@@ -192,7 +208,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
     cleanup(): void {
         if (this.abortController) {
             this.abortController.abort();
-            delete (this as any).abortController;
+            delete this.abortController;
         }
 
         // Close all WebSocket connections

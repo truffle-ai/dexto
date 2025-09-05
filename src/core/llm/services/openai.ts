@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI, { APIError } from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
@@ -49,9 +49,9 @@ export class OpenAIService implements ILLMService {
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
+            config,
             formatter,
             promptManager,
-            sessionEventBus,
             maxInputTokens,
             tokenizer,
             historyProvider,
@@ -65,9 +65,10 @@ export class OpenAIService implements ILLMService {
 
     async completeTask(
         textInput: string,
+        options: { signal?: AbortSignal },
         imageData?: ImageData,
         fileData?: FileData,
-        _stream?: boolean
+        stream?: boolean
     ): Promise<string> {
         // Add user message with optional image and file data
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
@@ -83,48 +84,112 @@ export class OpenAIService implements ILLMService {
 
         let iterationCount = 0;
         let totalTokens = 0;
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let reasoningTokens = 0;
+        let fullResponse = '';
+        const context = stream ? 'OpenAI streaming API call' : 'OpenAI API call';
 
         try {
             while (iterationCount < this.config.maxIterations) {
+                if (options?.signal?.aborted) {
+                    throw Object.assign(new Error('Aborted'), {
+                        name: 'AbortError',
+                        aborted: true,
+                    });
+                }
                 iterationCount++;
 
-                // Attempt to get a response, with retry logic
-                const { message, usage } = await this.getAIResponseWithRetries(formattedTools);
+                // Get response with appropriate method
+                const { message, usage } = stream
+                    ? await this.getAIStreamingResponseWithRetries(formattedTools, options?.signal)
+                    : await this.getAIResponseWithRetries(formattedTools, options?.signal);
 
                 // Track token usage
                 if (usage) {
-                    totalTokens += usage.total_tokens;
+                    totalTokens += usage.total_tokens ?? 0;
+                    inputTokens += usage.prompt_tokens ?? 0;
+                    outputTokens += usage.completion_tokens ?? 0;
+                    reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
                 }
 
                 // If there are no tool calls, we're done
                 if (!message.tool_calls || message.tool_calls.length === 0) {
                     const responseText = message.content || '';
+                    const finalContent = stream ? fullResponse + responseText : responseText;
 
-                    // Add assistant message to history
-                    await this.contextManager.addAssistantMessage(responseText);
+                    // Add assistant message to history (include streamed prefix if any)
+                    await this.contextManager.addAssistantMessage(finalContent, undefined, {
+                        tokenUsage:
+                            totalTokens > 0
+                                ? {
+                                      totalTokens,
+                                      inputTokens,
+                                      outputTokens,
+                                      reasoningTokens,
+                                  }
+                                : undefined,
+                    });
 
-                    // Update ContextManager with actual token count for hybrid approach
+                    // Update ContextManager with actual token count
                     if (totalTokens > 0) {
                         this.contextManager.updateActualTokenCount(totalTokens);
                     }
 
-                    // Emit final response
+                    // Always emit token usage
                     this.sessionEventBus.emit('llmservice:response', {
-                        content: responseText,
+                        content: finalContent,
+                        provider: this.config.provider,
                         model: this.config.model,
-                        tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                        router: 'in-built',
+                        tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                     });
-                    return responseText;
+                    return finalContent;
                 }
 
                 // Add assistant message with tool calls to history
-                await this.contextManager.addAssistantMessage(message.content, message.tool_calls);
+                // OpenAI v5 supports both function and custom tool types
+                // We currently only handle function types, so filter for those
+                const functionToolCalls = message.tool_calls.filter(
+                    (
+                        toolCall
+                    ): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => {
+                        logger.debug(`Tool call type received: ${toolCall.type}`);
+                        return toolCall.type === 'function';
+                    }
+                );
 
-                // Handle tool calls
-                for (const toolCall of message.tool_calls) {
-                    logger.debug(`Tool call initiated: ${JSON.stringify(toolCall, null, 2)}`);
+                if (message.tool_calls.length > functionToolCalls.length) {
+                    logger.warn(
+                        `Filtered out ${message.tool_calls.length - functionToolCalls.length} non-function tool calls`
+                    );
+                }
+
+                await this.contextManager.addAssistantMessage(
+                    message.content,
+                    functionToolCalls.length > 0 ? functionToolCalls : undefined,
+                    {}
+                );
+
+                // Accumulate response for streaming mode
+                if (stream && message.content) {
+                    fullResponse += message.content;
+                }
+
+                // Handle tool calls (using robust non-streaming approach)
+                // Only process function tool calls that we've added to history
+                for (const toolCall of functionToolCalls) {
+                    if (options?.signal?.aborted) {
+                        throw Object.assign(new Error('Aborted'), {
+                            name: 'AbortError',
+                            aborted: true,
+                        });
+                    }
+                    logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
+                    logger.debug(`Tool call details: ${JSON.stringify(toolCall, null, 2)}`);
+                    // Since we're only processing function tool calls now
                     const toolName = toolCall.function.name;
-                    let args: any = {};
+                    let args: Record<string, any> = {};
 
                     try {
                         args = JSON.parse(toolCall.function.arguments);
@@ -187,44 +252,66 @@ export class OpenAIService implements ILLMService {
                     }
                 }
 
-                // Notify thinking for next iteration
-                this.sessionEventBus.emit('llmservice:thinking');
+                // Continue to next iteration
             }
 
-            // If we reached max iterations, return a message
+            // If we reached max iterations
             logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
-            const finalResponse = 'Task completed but reached maximum tool call iterations.';
-            await this.contextManager.addAssistantMessage(finalResponse);
+            const finalResponse =
+                fullResponse || 'Task completed but reached maximum tool call iterations.';
+            await this.contextManager.addAssistantMessage(finalResponse, undefined, {
+                tokenUsage:
+                    totalTokens > 0
+                        ? {
+                              totalTokens,
+                              inputTokens,
+                              outputTokens,
+                              reasoningTokens,
+                          }
+                        : undefined,
+            });
 
-            // Update ContextManager with actual token count for hybrid approach
+            // Update ContextManager with actual token count
             if (totalTokens > 0) {
                 this.contextManager.updateActualTokenCount(totalTokens);
             }
 
-            // Emit final response
+            // Always emit token usage
             this.sessionEventBus.emit('llmservice:response', {
                 content: finalResponse,
+                provider: this.config.provider,
                 model: this.config.model,
-                tokenCount: totalTokens > 0 ? totalTokens : undefined,
+                router: 'in-built',
+                tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
             });
             return finalResponse;
         } catch (error) {
+            if (
+                error instanceof Error &&
+                (error.name === 'AbortError' || (error as any).aborted === true)
+            ) {
+                throw error;
+            }
             // Handle API errors
             const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`Error in OpenAI service API call: ${errorMessage}`, { error });
-            // Hint for token overflow
-            logger.warn(
-                `If this error is due to token overflow, consider configuring 'maxInputTokens' in your LLMConfig.`
-            );
+            logger.error(`Error in ${context}: ${errorMessage}`, { error });
+
+            if (!stream) {
+                // Hint for token overflow (only for non-streaming to avoid spam)
+                logger.warn(
+                    `If this error is due to token overflow, consider configuring 'maxInputTokens' in your LLMConfig.`
+                );
+            }
+
             this.sessionEventBus.emit('llmservice:error', {
                 error: error instanceof Error ? error : new Error(errorMessage),
-                context: 'OpenAI API call',
+                context,
                 recoverable: false,
             });
-            await this.contextManager.addAssistantMessage(
-                `Error processing request: ${errorMessage}`
-            );
-            return `Error processing request: ${errorMessage}`;
+
+            const errorResponse = `Error processing ${stream ? 'streaming ' : ''}request: ${errorMessage}`;
+            await this.contextManager.addAssistantMessage(errorResponse, undefined, {});
+            return errorResponse;
         }
     }
 
@@ -239,7 +326,10 @@ export class OpenAIService implements ILLMService {
         // Fetching max tokens from LLM registry - default to configured max tokens if not found
         // Max tokens may not be found if the model is supplied by user
         try {
-            modelMaxInputTokens = getMaxInputTokensForModel('openai', this.config.model);
+            modelMaxInputTokens = getMaxInputTokensForModel(
+                this.config.provider,
+                this.config.model
+            );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
@@ -255,7 +345,7 @@ export class OpenAIService implements ILLMService {
 
         return {
             router: 'in-built',
-            provider: 'openai',
+            provider: this.config.provider,
             model: this.config.model,
             configuredMaxInputTokens: configuredMaxInputTokens,
             modelMaxInputTokens,
@@ -263,7 +353,13 @@ export class OpenAIService implements ILLMService {
     }
 
     // Helper methods
-    private async getAIResponseWithRetries(tools: any[]): Promise<{ message: any; usage?: any }> {
+    private async getAIResponseWithRetries(
+        tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+        signal?: AbortSignal
+    ): Promise<{
+        message: OpenAI.Chat.Completions.ChatCompletionMessage;
+        usage?: OpenAI.Completions.CompletionUsage;
+    }> {
         let attempts = 0;
         const MAX_ATTEMPTS = 3;
 
@@ -281,7 +377,7 @@ export class OpenAIService implements ILLMService {
                     tokensUsed,
                 } = await this.contextManager.getFormattedMessagesWithCompression(
                     { mcpManager: this.toolManager.getMcpManager() },
-                    { provider: 'openai' as const, model: this.config.model }
+                    { provider: this.config.provider, model: this.config.model }
                 );
 
                 logger.silly(
@@ -290,12 +386,15 @@ export class OpenAIService implements ILLMService {
                 logger.debug(`Estimated tokens being sent to OpenAI: ${tokensUsed}`);
 
                 // Call OpenAI API
-                const response = await this.openai.chat.completions.create({
-                    model: this.config.model,
-                    messages: formattedMessages,
-                    tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
-                    tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
-                });
+                const response = await this.openai.chat.completions.create(
+                    {
+                        model: this.config.model,
+                        messages: formattedMessages,
+                        tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
+                        tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
+                    },
+                    signal ? { signal } : undefined
+                );
 
                 logger.silly(
                     'OPENAI CHAT COMPLETION RESPONSE: ',
@@ -311,15 +410,21 @@ export class OpenAIService implements ILLMService {
                 // Get usage information
                 const usage = response.usage;
 
-                return { message, usage };
+                return { message, ...(usage && { usage }) };
             } catch (error) {
-                const apiError = error as any;
+                if (
+                    error instanceof Error &&
+                    (error.name === 'AbortError' || (error as any).aborted === true)
+                ) {
+                    throw error;
+                }
+                const apiError = error as APIError;
                 logger.error(
                     `Error in OpenAI API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
                     { status: apiError.status, headers: apiError.headers }
                 );
 
-                if (apiError.status === 400 && apiError.error?.code === 'context_length_exceeded') {
+                if (apiError.status === 400 && apiError.code === 'context_length_exceeded') {
                     logger.warn(
                         `Context length exceeded. ContextManager compression might not be sufficient. Error details: ${JSON.stringify(apiError.error)}`
                     );
@@ -339,16 +444,181 @@ export class OpenAIService implements ILLMService {
         throw new Error('Failed to get response after maximum retry attempts');
     }
 
-    private formatToolsForOpenAI(tools: ToolSet): any[] {
+    private async getAIStreamingResponseWithRetries(
+        tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+        signal?: AbortSignal
+    ): Promise<{
+        message: OpenAI.Chat.Completions.ChatCompletionMessage;
+        usage?: OpenAI.Completions.CompletionUsage;
+    }> {
+        let attempts = 0;
+        const MAX_ATTEMPTS = 3;
+
+        while (attempts < MAX_ATTEMPTS) {
+            attempts++;
+
+            try {
+                // Get formatted messages from context manager
+                const {
+                    formattedMessages,
+                    systemPrompt: _systemPrompt,
+                    tokensUsed,
+                } = await this.contextManager.getFormattedMessagesWithCompression(
+                    { mcpManager: this.toolManager.getMcpManager() },
+                    { provider: this.config.provider, model: this.config.model }
+                );
+
+                logger.silly(
+                    `Streaming message history (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
+                );
+                logger.debug(`Estimated tokens being sent to OpenAI streaming: ${tokensUsed}`);
+
+                // Create streaming chat completion
+                const stream = await this.openai.chat.completions.create(
+                    {
+                        model: this.config.model,
+                        messages: formattedMessages,
+                        tools: attempts === 1 ? tools : [], // Only offer tools on first attempt
+                        tool_choice: attempts === 1 ? 'auto' : 'none', // Disable tool choice on retry
+                        stream: true,
+                        stream_options: {
+                            include_usage: true,
+                        },
+                    },
+                    signal ? { signal } : undefined
+                );
+
+                // Collect the streaming response
+                let content = '';
+                let toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
+                let usage: OpenAI.Completions.CompletionUsage | undefined;
+
+                for await (const chunk of stream) {
+                    if (signal?.aborted) {
+                        throw Object.assign(new Error('Aborted'), {
+                            name: 'AbortError',
+                            aborted: true,
+                        });
+                    }
+                    const delta = chunk.choices[0]?.delta;
+
+                    if (delta?.content) {
+                        content += delta.content;
+                        // Emit chunk event for real-time streaming
+                        this.sessionEventBus.emit('llmservice:chunk', {
+                            type: 'text',
+                            content: delta.content,
+                            isComplete: false,
+                        });
+                    }
+
+                    if (delta?.tool_calls) {
+                        // Handle streaming tool calls
+                        for (const toolCall of delta.tool_calls) {
+                            const index = toolCall.index;
+                            if (typeof index !== 'number') {
+                                // Skip malformed tool call delta until index materializes
+                                continue;
+                            }
+
+                            // Initialize tool call if needed
+                            if (!toolCalls[index]) {
+                                // Initialize with a placeholder; update once a real id arrives
+                                toolCalls[index] = {
+                                    id: `pending-${index}`,
+                                    type: 'function',
+                                    function: { name: '', arguments: '' },
+                                };
+                            }
+                            if (toolCall.id) {
+                                toolCalls[index].id = toolCall.id;
+                            }
+
+                            // Accumulate tool call data
+                            const existingToolCall = toolCalls[index];
+
+                            // We only support function tool calls in streaming
+                            // Tool calls are initialized with type: 'function' above
+                            if (existingToolCall.type === 'function' && toolCall.function) {
+                                // Handle function type tool calls
+                                if (toolCall.function.name) {
+                                    // Tool names come as complete tokens, not chunks - use assignment
+                                    existingToolCall.function.name = toolCall.function.name;
+                                }
+                                if (toolCall.function.arguments) {
+                                    // Arguments are streamed in chunks, so concatenate them
+                                    existingToolCall.function.arguments +=
+                                        toolCall.function.arguments;
+                                }
+                            }
+                        }
+                    }
+
+                    // Capture usage info from the final chunk
+                    if (chunk.usage) {
+                        usage = chunk.usage;
+                    }
+                }
+
+                // Emit completion chunk
+                if (content) {
+                    this.sessionEventBus.emit('llmservice:chunk', {
+                        type: 'text',
+                        content: '',
+                        isComplete: true,
+                    });
+                }
+
+                // Construct the final message
+                const message: OpenAI.Chat.Completions.ChatCompletionMessage = {
+                    role: 'assistant',
+                    content: content || null,
+                    refusal: null,
+                    ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
+                };
+
+                logger.debug(`OpenAI streaming completed. Usage info: ${usage}`);
+                return { message, ...(usage && { usage }) };
+            } catch (error) {
+                const apiError = error as APIError;
+                logger.error(
+                    `Error in OpenAI streaming API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
+                    { status: apiError.status, headers: apiError.headers }
+                );
+
+                if (
+                    apiError.status === 400 &&
+                    apiError.message?.includes('maximum context length')
+                ) {
+                    logger.warn(
+                        `Context length exceeded in streaming. ContextManager compression might not be sufficient. Error details: ${JSON.stringify(apiError.error)}`
+                    );
+                }
+
+                if (attempts >= MAX_ATTEMPTS) {
+                    logger.error(
+                        `Failed to get streaming response from OpenAI after ${MAX_ATTEMPTS} attempts.`
+                    );
+                    throw error;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
+            }
+        }
+
+        throw new Error('Failed to get streaming response after maximum retry attempts');
+    }
+
+    private formatToolsForOpenAI(tools: ToolSet): OpenAI.Chat.Completions.ChatCompletionTool[] {
         // Keep the existing implementation
         // Convert the ToolSet object to an array of tools in OpenAI's format
         return Object.entries(tools).map(([name, tool]) => {
             return {
-                type: 'function',
+                type: 'function' as const,
                 function: {
                     name,
-                    description: tool.description,
-                    parameters: tool.parameters,
+                    description: tool.description || '',
+                    parameters: tool.parameters as OpenAI.FunctionParameters,
                 },
             };
         });

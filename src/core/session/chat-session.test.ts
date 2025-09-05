@@ -7,9 +7,6 @@ import { LLMConfigSchema } from '@core/llm/schemas.js';
 vi.mock('./history/factory.js', () => ({
     createDatabaseHistoryProvider: vi.fn(),
 }));
-vi.mock('../context/factory.js', () => ({
-    createContextManager: vi.fn(),
-}));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
 }));
@@ -37,14 +34,12 @@ vi.mock('../logger/index.js', () => ({
 }));
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createContextManager } from '../context/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { createTokenizer } from '../llm/tokenizer/factory.js';
 import { createMessageFormatter } from '../llm/formatters/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
-const mockCreateContextManager = vi.mocked(createContextManager);
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockCreateTokenizer = vi.mocked(createTokenizer);
 const mockCreateFormatter = vi.mocked(createMessageFormatter);
@@ -54,7 +49,6 @@ describe('ChatSession', () => {
     let chatSession: ChatSession;
     let mockServices: any;
     let mockHistoryProvider: any;
-    let mockContextManager: any;
     let mockLLMService: any;
     let mockTokenizer: any;
     let mockFormatter: any;
@@ -78,19 +72,6 @@ describe('ChatSession', () => {
             getMessages: vi.fn().mockResolvedValue([]),
             clearHistory: vi.fn().mockResolvedValue(undefined),
             getMessageCount: vi.fn().mockResolvedValue(0),
-        };
-
-        // Mock message manager
-        mockContextManager = {
-            addUserMessage: vi.fn(),
-            processLLMResponse: vi.fn(),
-            getHistory: vi.fn().mockResolvedValue([]),
-            clearHistory: vi.fn().mockResolvedValue(undefined),
-            resetConversation: vi.fn().mockResolvedValue(undefined),
-            updateConfig: vi.fn(),
-            getMessageCount: vi.fn().mockReturnValue(0),
-            getTokenCount: vi.fn().mockResolvedValue(100),
-            switchLLM: vi.fn().mockResolvedValue(undefined),
         };
 
         // Mock LLM service
@@ -159,7 +140,6 @@ describe('ChatSession', () => {
 
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
-        mockCreateContextManager.mockReturnValue(mockContextManager);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockCreateTokenizer.mockReturnValue(mockTokenizer);
         mockCreateFormatter.mockReturnValue(mockFormatter);
@@ -207,13 +187,12 @@ describe('ChatSession', () => {
             await chatSession.init();
 
             // Emit a session event
-            chatSession.eventBus.emit('llmservice:thinking', { status: 'processing' });
+            chatSession.eventBus.emit('llmservice:thinking');
 
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
                 'llmservice:thinking',
                 expect.objectContaining({
                     sessionId,
-                    status: 'processing',
                 })
             );
         });
@@ -277,7 +256,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             // Clear previous calls to createLLMService
@@ -301,7 +280,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-3-opus',
+                model: 'claude-4-opus-20250514',
             };
 
             const eventSpy = vi.spyOn(chatSession.eventBus, 'emit');
@@ -377,6 +356,7 @@ describe('ChatSession', () => {
             expect(response).toBe(expectedResponse);
             expect(mockLLMService.completeTask).toHaveBeenCalledWith(
                 userMessage,
+                expect.objectContaining({ signal: expect.any(AbortSignal) }),
                 undefined,
                 undefined,
                 undefined
@@ -402,9 +382,6 @@ describe('ChatSession', () => {
     describe('Session Isolation', () => {
         test('should create session-specific services with proper isolation', async () => {
             await chatSession.init();
-
-            // Context managers are now created internally by services
-            // so we don't need to verify createContextManager calls
 
             // Verify session-specific LLM service creation with new signature
             expect(mockCreateLLMService).toHaveBeenCalledWith(

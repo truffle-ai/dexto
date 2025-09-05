@@ -138,6 +138,14 @@ llm:
   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
 ```
 
+## Optional Greeting
+
+Add a simple `greeting` at the root of your config to provide a default welcome text that UI layers can display when a chat starts:
+
+```yaml
+greeting: "Hi! I’m Dexto — how can I help today?"
+```
+
 ### Windows Support
 
 On Windows systems, some commands like `npx` may have different paths. The system attempts to automatically detect and uses the correct paths for these commands on Windows. If you run into any issues during server initialization, you may need to adjust the path to your `npx` command.

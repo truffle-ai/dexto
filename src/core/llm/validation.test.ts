@@ -109,7 +109,7 @@ describe('validateInputForLLM', () => {
             expect(result.ok).toBe(false);
             expect(
                 result.issues.filter((i) => i.severity === 'error').map((i) => i.message)
-            ).toContain('Unsupported file type');
+            ).toContain('Unsupported file type: application/exe');
             expect(result.issues.some((i) => i.code === LLMErrorCode.INPUT_FILE_UNSUPPORTED)).toBe(
                 true
             );
@@ -193,7 +193,39 @@ describe('validateInputForLLM', () => {
             );
             expect(
                 result.issues.filter((i) => i.severity === 'error').map((i) => i.message)
-            ).toContain('Unsupported file type');
+            ).toContain('Unsupported file type: ');
+        });
+
+        test('should pass validation for parameterized MIME types', () => {
+            // Test audio/webm;codecs=opus (the original issue)
+            const webmResult = validateInputForLLM(
+                {
+                    text: 'Analyze this audio',
+                    fileData: {
+                        data: 'SGVsbG8gV29ybGQ=', // Valid base64
+                        mimeType: 'audio/webm;codecs=opus',
+                        filename: 'recording.webm',
+                    },
+                },
+                { provider: 'openai', model: 'gpt-4o-audio-preview' }
+            );
+
+            expect(webmResult.ok).toBe(true);
+
+            // Test application/pdf;version=1.4
+            const pdfResult = validateInputForLLM(
+                {
+                    text: 'Analyze this document',
+                    fileData: {
+                        data: 'SGVsbG8gV29ybGQ=', // Valid base64
+                        mimeType: 'application/pdf;version=1.4',
+                        filename: 'document.pdf',
+                    },
+                },
+                { provider: 'openai', model: 'gpt-4o' }
+            );
+
+            expect(pdfResult.ok).toBe(true);
         });
     });
 

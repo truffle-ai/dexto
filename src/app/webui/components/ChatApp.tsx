@@ -11,7 +11,7 @@ import SessionPanel from './SessionPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -28,10 +28,14 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { ThemeSwitch } from './ThemeSwitch';
+import NewChatButton from './NewChatButton';
+import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import { serverRegistry } from '@/lib/serverRegistry';
+import type { McpServerConfig } from '../../../core/mcp/schemas.js';
 
 export default function ChatApp() {
-  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError } = useChatContext();
+  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -39,10 +43,12 @@ export default function ChatApp() {
   const [isSessionsPanelOpen, setSessionsPanelOpen] = useState(false);
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [isExportOpen, setExportOpen] = useState(false);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [exportName, setExportName] = useState('dexto-config');
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // Enhanced features
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -55,6 +61,116 @@ export default function ChatApp() {
 
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
+
+  // Scroll management for robust autoscroll
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const listContentRef = React.useRef<HTMLDivElement | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isScrollingToBottom, setIsScrollingToBottom] = useState(false);
+  const [followStreaming, setFollowStreaming] = useState(false);
+  const lastScrollTopRef = React.useRef(0);
+  // Improved "Scroll to bottom" hint
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  const scrollIdleTimerRef = React.useRef<number | null>(null);
+
+  // Server refresh trigger
+  const [serversRefreshTrigger, setServersRefreshTrigger] = useState(0);
+  // Prefill config for ConnectServerModal
+  const [connectPrefill, setConnectPrefill] = useState<{
+    name: string;
+    config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
+    lockName?: boolean;
+    registryEntryId?: string;
+  } | null>(null);
+
+  const recomputeIsAtBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
+    setIsAtBottom(nearBottom);
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setIsScrollingToBottom(true);
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    // Release the lock on next frame to allow ResizeObserver to settle
+    requestAnimationFrame(() => setIsScrollingToBottom(false));
+  }, []);
+
+  // Observe user scroll position
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      // When user scrolls up, disable followStreaming
+      const prev = lastScrollTopRef.current;
+      const curr = el.scrollTop;
+      if (!isScrollingToBottom && followStreaming && curr < prev) {
+        setFollowStreaming(false);
+      }
+      lastScrollTopRef.current = curr;
+      recomputeIsAtBottom();
+
+      // Debounced hint: show when not at bottom after scrolling stops
+      const nearBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
+      if (nearBottom) {
+        setShowScrollHint(false);
+        if (scrollIdleTimerRef.current) {
+          window.clearTimeout(scrollIdleTimerRef.current);
+          scrollIdleTimerRef.current = null;
+        }
+      } else {
+        setShowScrollHint(false);
+        if (scrollIdleTimerRef.current) window.clearTimeout(scrollIdleTimerRef.current);
+        scrollIdleTimerRef.current = window.setTimeout(() => {
+          setShowScrollHint(true);
+        }, 180);
+      }
+    };
+    el.addEventListener('scroll', onScroll);
+    // Initial compute in case of restored sessions
+    recomputeIsAtBottom();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [recomputeIsAtBottom, followStreaming, isScrollingToBottom, isWelcomeState]);
+
+  // Content resize observer to autoscroll on content growth
+  useEffect(() => {
+    const content = listContentRef.current;
+    if (!content) return;
+    const ro = new ResizeObserver(() => {
+      if (isScrollingToBottom) return;
+      if (followStreaming || isAtBottom) scrollToBottom('auto');
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, [isAtBottom, isScrollingToBottom, followStreaming, scrollToBottom, isWelcomeState]);
+
+  // Fallback: if messages change during streaming, ensure we keep following
+  useEffect(() => {
+    if (followStreaming) scrollToBottom('auto');
+  }, [followStreaming, messages, scrollToBottom]);
+
+  // Position the last user message near the top then follow streaming
+  const positionLastUserNearTop = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const nodes = container.querySelectorAll('[data-role="user"]');
+    const el = nodes[nodes.length - 1] as HTMLElement | undefined;
+    if (!el) {
+      // Fallback to bottom
+      scrollToBottom('auto');
+      return;
+    }
+    const cRect = container.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    const offsetTop = eRect.top - cRect.top + container.scrollTop;
+    const target = Math.max(offsetTop - 16, 0);
+    setIsScrollingToBottom(true);
+    container.scrollTo({ top: target, behavior: 'auto' });
+    requestAnimationFrame(() => setIsScrollingToBottom(false));
+  }, [scrollToBottom]);
 
   useEffect(() => {
     if (isExportOpen) {
@@ -128,6 +244,12 @@ export default function ChatApp() {
     
     try {
       await sendMessage(content, imageData, fileData);
+      // After sending, position the new user message near the top,
+      // then enable followStreaming to follow the assistant reply.
+      setTimeout(() => {
+        positionLastUserNearTop();
+        setFollowStreaming(true);
+      }, 0);
     } catch (error) {
       console.error('Failed to send message:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to send message');
@@ -135,7 +257,19 @@ export default function ChatApp() {
     } finally {
       setIsSendingMessage(false);
     }
-  }, [sendMessage]);
+  }, [sendMessage, positionLastUserNearTop]);
+
+  // Hook into existing custom events to toggle followStreaming
+  useEffect(() => {
+    const onStart = () => setFollowStreaming(true);
+    const onEnd = () => setFollowStreaming(false);
+    window.addEventListener('dexto:message', onStart as EventListener);
+    window.addEventListener('dexto:response', onEnd as EventListener);
+    return () => {
+      window.removeEventListener('dexto:message', onStart as EventListener);
+      window.removeEventListener('dexto:response', onEnd as EventListener);
+    };
+  }, []);
 
   const handleSessionChange = useCallback((sessionId: string) => {
     switchSession(sessionId);
@@ -143,29 +277,20 @@ export default function ChatApp() {
   }, [switchSession]);
 
   const handleInstallServer = useCallback(async (entry: any) => {
-    try {
-      const response = await fetch('/api/mcp/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverId: entry.id }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to install server');
-      }
-      
-      // Close the modal and refresh servers panel if open
-      setServerRegistryOpen(false);
-      if (isServersPanelOpen) {
-        // Trigger a refresh of the servers panel
-        window.dispatchEvent(new CustomEvent('refresh-servers'));
-      }
-    } catch (error) {
-      console.error('Failed to install server:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to install server');
-      setTimeout(() => setErrorMessage(null), 5000);
-    }
-  }, [isServersPanelOpen]);
+    // Open Connect modal with prefilled config
+    const config = {
+      type: entry.config.type,
+      command: entry.config.command,
+      args: entry.config.args || [],
+      url: entry.config.url,
+      env: entry.config.env || {},
+      headers: entry.config.headers || {},
+      timeout: entry.config.timeout || 30000,
+    };
+    setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
+    setServerRegistryOpen(false);
+    setModalOpen(true);
+  }, []);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
@@ -278,7 +403,7 @@ export default function ChatApp() {
         e.stopPropagation();
         setSearchOpen(true);
       }
-      // Ctrl/Cmd + L to open playground
+      // Ctrl/Cmd + L to open MCP playground
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'l') {
         e.preventDefault();
         window.open('/playground', '_blank');
@@ -293,7 +418,7 @@ export default function ChatApp() {
         e.preventDefault();
         setShowShortcuts(true);
       }
-      // Escape to close panels
+      // Escape to close panels or cancel run
       if (e.key === 'Escape') {
         if (isServersPanelOpen) setServersPanelOpen(false);
         else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
@@ -302,6 +427,7 @@ export default function ChatApp() {
         else if (showShortcuts) setShowShortcuts(false);
         else if (isDeleteDialogOpen) setDeleteDialogOpen(false);
         else if (errorMessage) setErrorMessage(null);
+        else if (processing) cancel(currentSessionId || undefined);
       }
     };
 
@@ -325,11 +451,23 @@ export default function ChatApp() {
             returnToWelcome={returnToWelcome}
             variant="inline"
             onSearchOpen={() => setSearchOpen(true)}
+            onNewChat={createAndSwitchSession}
           />
         )}
       </div>
 
-      <main className="flex-1 flex flex-col relative">
+      <main
+        className="flex-1 flex flex-col relative"
+        style={{ '--thread-max-width': '54rem' } as React.CSSProperties & { '--thread-max-width': string }}
+      >
+        {/** Shared centered content width for welcome, messages, and composer */}
+        {/** Keep this in sync to unify UI width like other chat apps */}
+        {/** 720px base, expand to ~2xl on sm, ~3xl on lg */}
+        {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
+        {(() => {
+          /* no-op to allow inline constant-like usage below via variable */
+          return null;
+        })()}
         {/* Clean Header */}
         <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
           <div className="flex justify-between items-center px-4 py-3">
@@ -354,31 +492,22 @@ export default function ChatApp() {
                 </TooltipContent>
               </Tooltip>
               
-              {/* New Chat Button - Only show when panel is closed */}
+              {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={createAndSwitchSession}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    New Chat (⌘K)
-                  </TooltipContent>
-                </Tooltip>
+                <NewChatButton onClick={createAndSwitchSession} />
               )}
               
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-primary/20 bg-primary/5 text-primary-foreground shadow-sm">
-                  <img src="/logo.png" alt="Dexto" className="w-5 h-5" />
-                </div>
-                <h1 className="text-lg font-semibold tracking-tight text-foreground">Dexto</h1>
-              </div>
+              {/* TODO: improve the non text part of logo */}
+              <a 
+                href="https://dexto.ai" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+              >
+                <img src="/logos/dexto_logo_light.svg" alt="Dexto" className="h-8 w-auto dark:hidden" />
+                <img src="/logos/dexto_logo.svg" alt="Dexto" className="h-8 w-auto hidden dark:block" />
+                <span className="sr-only">Dexto</span>
+              </a>
               
               {/* Current Session Indicator - Only show when there's an active session */}
               {currentSessionId && !isWelcomeState && (
@@ -393,6 +522,20 @@ export default function ChatApp() {
             {/* Minimal Action Bar */}
             <div className="flex items-center space-x-1">
               <ThemeSwitch />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSettingsOpen(true)}
+                    className="h-8 w-8 p-0"
+                    aria-label="Open settings"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Settings</TooltipContent>
+              </Tooltip>
               
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -401,11 +544,11 @@ export default function ChatApp() {
                     size="sm" 
                     onClick={() => setServersPanelOpen(!isServersPanelOpen)}
                     className={cn(
-                      "h-8 px-2 text-xs transition-colors",
+                      "h-8 px-2 text-sm transition-colors",
                       isServersPanelOpen && "bg-muted"
                     )}
                   >
-                    <Server className="h-3.5 w-3.5" />
+                    <Wrench className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline ml-1.5">Tools</span>
                   </Button>
                 </TooltipTrigger>
@@ -420,16 +563,16 @@ export default function ChatApp() {
                     variant="ghost"
                     size="sm"
                     asChild
-                    className="h-8 px-2 text-xs"
+                    className="h-8 px-2 text-sm"
                   >
-                    <Link href="/playground" target="_blank">
-                      <Wrench className="h-3.5 w-3.5" />
+                    <Link href="/playground" target="_blank" rel="noopener noreferrer">
+                      <FlaskConical className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline ml-1.5">Playground</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Open playground (⌘L)
+                  Open MCP playground (⌘L)
                 </TooltipContent>
               </Tooltip>
             
@@ -477,6 +620,13 @@ export default function ChatApp() {
         
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
+          {/* Toasts */}
+          {successMessage && (
+            <div className="fixed bottom-4 right-4 z-50 border border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-foreground px-3 py-2 rounded-md shadow-md inline-flex items-center gap-2">
+              <Check className="h-4 w-4 text-green-600" />
+              <span className="text-sm">{successMessage}</span>
+            </div>
+          )}
           {/* Error Message */}
           {errorMessage && (
             <div className="absolute top-4 right-4 z-50 bg-destructive text-destructive-foreground px-4 py-2 rounded-md shadow-lg">
@@ -485,27 +635,25 @@ export default function ChatApp() {
           )}
           
           {/* Chat Content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {isWelcomeState || messages.length === 0 ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex items-center justify-center p-6 -mt-20">
-                <div className="w-full max-w-2xl space-y-6">
-                  <div className="space-y-4 text-center">
-                    <div className="flex items-center justify-center w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary shadow-sm">
-                      <img src="/logo.png" alt="Dexto" className="w-6 h-6" />
-                    </div>
-                    <div className="space-y-2">
+                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
+                  <div className="text-center space-y-3">
+                    <div className="flex items-center justify-center gap-3">
+                      <img src="/logos/dexto_logo_no_text.png" alt="Dexto" className="h-8 w-auto invert dark:invert-0" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        Welcome to Dexto
+                        {greeting ?? "Welcome to Dexto"}
                       </h2>
-                      <p className="text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
-                        Your AI assistant with powerful tools. Ask anything or connect new capabilities.
-                      </p>
                     </div>
+                    <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
+                      Your AI assistant with powerful tools. Ask anything or connect new capabilities.
+                    </p>
                   </div>
 
                   {/* Quick Actions Grid - Compact */}
-                  <div className="flex flex-wrap justify-center gap-2 max-w-2xl mx-auto">
+                  <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
                     {quickActions.map((action, index) => (
                       <button
                         key={index}
@@ -514,7 +662,7 @@ export default function ChatApp() {
                       >
                         <div className="flex items-center space-x-1.5">
                           <span className="text-sm">{action.icon}</span>
-                          <span className="font-medium text-xs text-primary group-hover:text-primary/80 transition-colors">
+                          <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
                             {action.title}
                           </span>
                         </div>
@@ -523,7 +671,7 @@ export default function ChatApp() {
                   </div>
 
                   {/* Central Search Bar with Full Features */}
-                  <div className="max-w-2xl mx-auto">
+                  <div className="max-w-[var(--thread-max-width)] mx-auto">
                     <InputArea
                       onSend={handleSend}
                       isSending={isSendingMessage}
@@ -539,26 +687,45 @@ export default function ChatApp() {
               </div>
             ) : (
               /* Messages Area */
-              <div className="flex-1 overflow-hidden">
-                <div className="h-full overflow-y-auto">
-                  <MessageList 
-                    messages={messages}
-                    activeError={activeError}
-                    onDismissError={clearError}
-                  />
-                </div>
-              </div>
-            )}
-            
-            {/* Input Area - Only show when in chat state */}
-            {!isWelcomeState && messages.length > 0 && (
-              <div className="shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-                <div className="p-4">
-                  <InputArea
-                    onSend={handleSend}
-                    isSending={isSendingMessage}
-                    variant="chat"
-                  />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
+                  {/* Ensure the input dock sits at the very bottom even if content is short */}
+                  <div className="min-h-full grid grid-rows-[1fr_auto]">
+                    <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+                      <MessageList 
+                        messages={messages}
+                        activeError={activeError}
+                        onDismissError={clearError}
+                        outerRef={listContentRef}
+                      />
+                    </div>
+                    {/* Sticky input dock inside scroll viewport */}
+                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] bg-background relative">
+                      {showScrollHint && (
+                        <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
+                          <button
+                            onClick={() => {
+                              setShowScrollHint(false);
+                              scrollToBottom('smooth');
+                            }}
+                            className="pointer-events-auto px-3 py-1.5 rounded-full shadow-sm bg-background/95 border border-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <span>Scroll to bottom</span>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
+                        <InputArea
+                          onSend={handleSend}
+                          isSending={isSendingMessage}
+                          variant="chat"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Scroll to bottom button */}
+                  {/* Scroll hint now rendered inside sticky dock */}
                 </div>
               </div>
             )}
@@ -574,7 +741,12 @@ export default function ChatApp() {
                 isOpen={isServersPanelOpen}
                 onClose={() => setServersPanelOpen(false)}
                 onOpenConnectModal={() => setModalOpen(true)}
+                onOpenConnectWithPrefill={(opts) => {
+                  setConnectPrefill(opts);
+                  setModalOpen(true);
+                }}
                 variant="inline"
+                refreshTrigger={serversRefreshTrigger}
               />
             )}
           </div>
@@ -583,7 +755,30 @@ export default function ChatApp() {
         {/* Connect Server Modal */}
         <ConnectServerModal 
           isOpen={isModalOpen} 
-          onClose={() => setModalOpen(false)} 
+          onClose={() => {
+            setModalOpen(false);
+            setConnectPrefill(null);
+          }} 
+          onServerConnected={async () => {
+            // Mark the associated registry entry as installed, if applicable
+            if (connectPrefill?.registryEntryId) {
+              try {
+                await serverRegistry.setInstalled(connectPrefill.registryEntryId, true);
+              } catch (e) {
+                // non-fatal; continue
+                console.warn('Failed to mark registry entry installed:', e);
+              }
+            }
+            // Trigger a refresh of the servers panel
+            setServersRefreshTrigger(prev => prev + 1);
+            // Show success toast
+            const name = connectPrefill?.name || 'Server';
+            setSuccessMessage(`Added ${name}`);
+            setTimeout(() => setSuccessMessage(null), 4000);
+          }}
+          initialName={connectPrefill?.name}
+          initialConfig={connectPrefill?.config}
+          lockName={connectPrefill?.lockName}
         />
 
         {/* Server Registry Modal */}
@@ -655,6 +850,9 @@ export default function ChatApp() {
           </DialogContent>
         </Dialog>
 
+        {/* Settings Modal */}
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+
 
         {/* Delete Conversation Confirmation Modal */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -707,7 +905,7 @@ export default function ChatApp() {
                 { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
-                { key: '⌘L', desc: 'Open playground' },
+                { key: '⌘L', desc: 'Open MCP playground' },
                 { key: '⌘⇧E', desc: 'Export config' },
                 { key: '⌘/', desc: 'Show shortcuts' },
                 { key: 'Esc', desc: 'Close panels' },

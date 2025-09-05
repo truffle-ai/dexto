@@ -6,12 +6,18 @@ import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import { logger } from '../logger/index.js';
-import { getImageData, countMessagesTokens } from './utils.js';
+import { countMessagesTokens, sanitizeToolResultToContent } from './utils.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
-import { SessionEventBus } from '../events/index.js';
 import { ContextError } from './errors.js';
+import { ValidatedLLMConfig } from '../llm/schemas.js';
+
+// TODO: Unify LLM response handling approaches across providers
+// Currently vercel vs anthropic/openai handle getting LLM responses quite differently:
+// - anthropic/openai add tool responses and assistant responses using individual methods
+// - vercel uses processLLMResponse and processStreamResponse
+// This should be unified to make the codebase more consistent and easier to maintain
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -32,14 +38,14 @@ import { ContextError } from './errors.js';
  */
 export class ContextManager<TMessage = unknown> {
     /**
+     * The validated LLM configuration.
+     */
+    private llmConfig: ValidatedLLMConfig;
+
+    /**
      * PromptManager used to generate/manage the system prompt
      */
     private promptManager: PromptManager;
-
-    /**
-     * Event bus for session events
-     */
-    private sessionEventBus: SessionEventBus;
 
     /**
      * Formatter used to convert internal messages to LLM-specific format
@@ -80,10 +86,9 @@ export class ContextManager<TMessage = unknown> {
 
     /**
      * Creates a new ContextManager instance
-     *
+     * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
      * @param promptManager PromptManager instance for the conversation
-     * @param sessionEventBus Session-level event bus for emitting message-related events
      * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
      * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
@@ -91,9 +96,9 @@ export class ContextManager<TMessage = unknown> {
      * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
      */
     constructor(
+        llmConfig: ValidatedLLMConfig,
         formatter: IMessageFormatter,
         promptManager: PromptManager,
-        sessionEventBus: SessionEventBus,
         maxInputTokens: number,
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
@@ -103,9 +108,9 @@ export class ContextManager<TMessage = unknown> {
             new OldestRemovalStrategy(),
         ]
     ) {
+        this.llmConfig = llmConfig;
         this.formatter = formatter;
         this.promptManager = promptManager;
-        this.sessionEventBus = sessionEventBus;
         this.maxInputTokens = maxInputTokens;
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
@@ -274,6 +279,7 @@ export class ContextManager<TMessage = unknown> {
                 }
                 // Optional: Add validation for the structure of array parts if needed
                 break;
+
             case 'assistant':
                 // Content can be null if toolCalls are present, but one must exist
                 if (
@@ -292,12 +298,19 @@ export class ContextManager<TMessage = unknown> {
                         throw ContextError.assistantMessageToolCallsInvalid();
                     }
                 }
+
+                // Enrich assistant messages with LLM config metadata
+                message.provider = this.llmConfig.provider;
+                message.router = this.llmConfig.router;
+                message.model = this.llmConfig.model;
                 break;
+
             case 'tool':
                 if (!message.toolCallId || !message.name || message.content === null) {
                     throw ContextError.toolMessageFieldsMissing();
                 }
                 break;
+
             case 'system':
                 // System messages should ideally be handled via setSystemPrompt
                 logger.warn(
@@ -391,101 +404,30 @@ export class ContextManager<TMessage = unknown> {
      *
      * @param content The assistant's response text (can be null if only tool calls)
      * @param toolCalls Optional tool calls requested by the assistant
+     * @param metadata Optional metadata including token usage, reasoning, and model info
      * @throws Error if neither content nor toolCalls are provided
      */
     async addAssistantMessage(
         content: string | null,
-        toolCalls?: InternalMessage['toolCalls']
+        toolCalls?: InternalMessage['toolCalls'],
+        metadata?: {
+            tokenUsage?: InternalMessage['tokenUsage'];
+            reasoning?: string;
+        }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
             throw ContextError.assistantMessageContentOrToolsRequired();
         }
         // Further validation happens within addMessage
+        // addMessage will populate llm config metadata also
         await this.addMessage({
             role: 'assistant' as const,
             content,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
+            ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
+            ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
         });
-    }
-
-    /**
-     * Filters media content from tool results to prevent LLM context pollution.
-     * Replaces large binary data (especially audio) with lightweight text placeholders.
-     *
-     * @param result The original tool result
-     * @returns Filtered result with media content replaced by placeholders
-     */
-    private filterMediaContentFromToolResult(result: unknown): unknown {
-        if (!result || typeof result !== 'object') {
-            return result;
-        }
-
-        // Recursively filter large base64 strings from any object
-        const filterLargeBase64 = (obj: any): any => {
-            if (typeof obj === 'string') {
-                // If it's a base64 string longer than 1KB, truncate it
-                // More permissive regex to catch various base64 formats
-                if (
-                    obj.length > 1024 &&
-                    (/^[A-Za-z0-9+/]+={0,2}$/.test(obj) || /^[A-Za-z0-9_-]+$/.test(obj))
-                ) {
-                    return `[Base64 data truncated - ${obj.length} chars]`;
-                }
-                return obj;
-            }
-
-            if (Array.isArray(obj)) {
-                return obj.map((item) => filterLargeBase64(item));
-            }
-
-            if (typeof obj === 'object' && obj !== null) {
-                const filtered: any = {};
-                for (const [key, value] of Object.entries(obj)) {
-                    // Special handling for 'data' field containing base64 audio
-                    if (key === 'data' && typeof value === 'string' && value.length > 1024) {
-                        // More aggressive filtering for 'data' field - assume it's base64 if it's long
-                        filtered[key] = `[Base64 audio data - ${value.length} chars]`;
-                    } else {
-                        filtered[key] = filterLargeBase64(value);
-                    }
-                }
-                return filtered;
-            }
-
-            return obj;
-        };
-
-        // Handle structured MCP content with array of parts
-        if ('content' in result && Array.isArray((result as any).content)) {
-            const structuredResult = result as { content: Array<any> };
-            const filteredContent = structuredResult.content
-                .map((part) => {
-                    // COMPLETELY REMOVE audio parts from LLM context
-                    if (part && typeof part === 'object' && part.type === 'audio') {
-                        return null; // Remove entirely
-                    }
-                    // Also remove audio files with type:'file'
-                    if (
-                        part &&
-                        typeof part === 'object' &&
-                        part.type === 'file' &&
-                        part.mimeType &&
-                        part.mimeType.startsWith('audio/')
-                    ) {
-                        return null; // Remove entirely
-                    }
-
-                    // Filter any remaining base64 data in non-audio parts
-                    return filterLargeBase64(part);
-                })
-                .filter((part) => part !== null); // Remove null entries
-
-            return { content: filteredContent };
-        }
-
-        // Apply general base64 filtering for any other structure
-        return filterLargeBase64(result);
     }
 
     /**
@@ -500,33 +442,30 @@ export class ContextManager<TMessage = unknown> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
-
-        // Filter media content to prevent LLM context pollution
-        const filteredResult = this.filterMediaContentFromToolResult(result);
-
-        // Process the filtered result for content formatting
+        // Sanitize tool result to avoid adding non-text data as raw text
+        // and to convert media/data-uris/base64 to structured parts.
         let content: InternalMessage['content'];
-        if (filteredResult && typeof filteredResult === 'object' && 'image' in filteredResult) {
-            // Use shared helper to get base64/URL
-            const imagePart = filteredResult as {
-                image: string | Uint8Array | Buffer | ArrayBuffer | URL;
-                mimeType?: string;
-            };
-            content = [
-                {
-                    type: 'image',
-                    image: getImageData(imagePart),
-                    mimeType: imagePart.mimeType || 'image/jpeg',
-                },
-            ];
-        } else if (typeof filteredResult === 'string') {
-            content = filteredResult;
-        } else if (Array.isArray(filteredResult)) {
-            // Assume array of parts already
-            content = filteredResult;
-        } else {
-            // Fallback: stringify all other values
-            content = JSON.stringify(filteredResult ?? '');
+        content = sanitizeToolResultToContent(result);
+
+        // Log what we are storing (brief)
+        if (typeof content === 'string') {
+            const preview = content.slice(0, 200);
+            logger.debug(
+                `ContextManager: Storing tool result (text) for ${name} (len=${content.length}): ${preview}${
+                    content.length > 200 ? '...' : ''
+                }`
+            );
+        } else if (Array.isArray(content)) {
+            const summary = content
+                .map((p) =>
+                    p.type === 'text'
+                        ? `text(${p.text.length})`
+                        : p.type === 'image'
+                          ? `image(${p.mimeType || 'image'})`
+                          : `file(${p.mimeType || 'file'})`
+                )
+                .join(', ');
+            logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
         }
 
         await this.addMessage({ role: 'tool', content, toolCallId, name });

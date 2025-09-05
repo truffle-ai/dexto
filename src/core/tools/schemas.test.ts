@@ -89,8 +89,8 @@ describe('ToolConfirmationConfigSchema', () => {
             const valid1 = ToolConfirmationConfigSchema.parse({ timeout: 1000 });
             expect(valid1.timeout).toBe(1000);
 
-            const valid2 = ToolConfirmationConfigSchema.parse({ timeout: 30000 });
-            expect(valid2.timeout).toBe(30000);
+            const valid2 = ToolConfirmationConfigSchema.parse({ timeout: 120000 });
+            expect(valid2.timeout).toBe(120000);
         });
 
         it('should validate allowedToolsStorage enum values', () => {
@@ -116,7 +116,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
             expect(result).toEqual({
                 mode: 'event-based',
-                timeout: 30000,
+                timeout: 120000,
                 allowedToolsStorage: 'storage',
             });
         });
@@ -125,7 +125,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const result1 = ToolConfirmationConfigSchema.parse({ mode: 'auto-approve' });
             expect(result1).toEqual({
                 mode: 'auto-approve',
-                timeout: 30000,
+                timeout: 120000,
                 allowedToolsStorage: 'storage',
             });
 
@@ -139,7 +139,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
             expect(result3).toEqual({
                 mode: 'event-based',
-                timeout: 30000,
+                timeout: 120000,
                 allowedToolsStorage: 'memory',
             });
         });

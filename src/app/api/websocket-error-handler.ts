@@ -6,13 +6,15 @@ import { AgentErrorCode } from '@core/agent/error-codes.js';
 import { ZodError } from 'zod';
 import { zodToIssues } from '@core/utils/result.js';
 import { logger } from '@core/logger/index.js';
-import { extractErrorMessage } from '@core/utils/error-conversion.js';
+import { toError } from '@core/utils/error-conversion.js';
 
 /**
  * Standardized WebSocket error handler that mirrors HTTP error middleware
  * Sends consistent error messages over WebSocket following the same patterns as REST API
+ *
+ * TODO: Add typed WebSocket payload interfaces to replace manual JSON structure creation
  */
-export function sendWebSocketError(ws: WebSocket, error: unknown): void {
+export function sendWebSocketError(ws: WebSocket, error: unknown, sessionId: string): void {
     let errorData: Record<string, unknown>;
 
     if (error instanceof DextoRuntimeError) {
@@ -25,9 +27,9 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
         errorData = dexErr.toJSON();
     } else {
         // Log unexpected errors with full context for debugging (mirror HTTP middleware)
-        const errorMessage = extractErrorMessage(error);
+        const errorObj = toError(error);
         const errorStack = error instanceof Error ? error.stack : undefined;
-        logger.error(`Unhandled WebSocket error: ${errorMessage}`, {
+        logger.error(`Unhandled WebSocket error: ${errorObj.message}`, {
             error: error,
             stack: errorStack,
             type: typeof error,
@@ -36,7 +38,7 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
         // Generic error response for non-DextoError exceptions - include actual error details
         errorData = {
             code: 'internal_error',
-            message: errorMessage, // Use extracted error message instead of generic text
+            message: errorObj.message,
             scope: ErrorScope.AGENT,
             type: ErrorType.SYSTEM,
             severity: 'error',
@@ -48,7 +50,10 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
         ws.send(
             JSON.stringify({
                 event: 'error',
-                data: errorData,
+                data: {
+                    ...errorData,
+                    ...(sessionId ? { sessionId } : {}),
+                },
             })
         );
     } catch (sendErr) {
@@ -63,6 +68,7 @@ export function sendWebSocketError(ws: WebSocket, error: unknown): void {
 export function sendWebSocketValidationError(
     ws: WebSocket,
     message: string,
+    sessionId: string,
     context?: Record<string, unknown>
 ): void {
     const dexErr = new DextoValidationError([
@@ -77,12 +83,16 @@ export function sendWebSocketValidationError(
     ]);
 
     const data = dexErr.toJSON();
+    logger.error(`Sending WebSocket validation error: ${message}`, { data });
 
     try {
         ws.send(
             JSON.stringify({
                 event: 'error',
-                data,
+                data: {
+                    ...data,
+                    ...(sessionId ? { sessionId } : {}),
+                },
             })
         );
     } catch (sendErr) {

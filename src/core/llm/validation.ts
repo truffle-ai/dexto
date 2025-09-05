@@ -144,6 +144,8 @@ function validateFileInput(
     fileData: FileData,
     config: ValidationLLMConfig
 ): NonNullable<ValidationData['fileValidation']> {
+    logger.info(`Validating file input: ${fileData.mimeType}`);
+
     // Security validation: file size check (max 64MB for base64)
     if (typeof fileData.data === 'string' && fileData.data.length > MAX_FILE_SIZE) {
         return {
@@ -153,11 +155,14 @@ function validateFileInput(
     }
 
     // Security validation: MIME type allowlist
+    // Extract base MIME type by removing parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
+    const baseMimeType =
+        fileData.mimeType.toLowerCase().split(';')[0]?.trim() || fileData.mimeType.toLowerCase();
     const allowedMimeTypes = getAllowedMimeTypes();
-    if (!allowedMimeTypes.includes(fileData.mimeType)) {
+    if (!allowedMimeTypes.includes(baseMimeType)) {
         return {
             isSupported: false,
-            error: 'Unsupported file type',
+            error: `Unsupported file type: ${fileData.mimeType}`,
         };
     }
 
@@ -193,8 +198,10 @@ function validateFileInput(
  */
 function validateImageInput(
     imageData: ImageData,
-    _config: ValidationLLMConfig
+    config: ValidationLLMConfig
 ): NonNullable<ValidationData['imageValidation']> {
+    logger.info(`Validating image input: ${imageData.mimeType}`);
+
     // Check image size if available
     if (typeof imageData.image === 'string' && imageData.image.length > MAX_IMAGE_SIZE) {
         return {
@@ -203,18 +210,36 @@ function validateImageInput(
         };
     }
 
-    // Basic MIME type validation for images
-    const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (imageData.mimeType && !supportedImageTypes.includes(imageData.mimeType)) {
+    // Resolve image MIME type from either explicit field or data URL
+    // Example: callers may only provide a data URL like
+    // image: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..."
+    // without setting imageData.mimeType. In that case, parse the MIME from the prefix.
+    let resolvedMime: string | undefined = imageData.mimeType?.toLowerCase();
+    if (!resolvedMime && typeof imageData.image === 'string') {
+        const dataUrlMatch = /^data:([^;]+);base64,/i.exec(imageData.image);
+        if (dataUrlMatch && dataUrlMatch[1]) {
+            resolvedMime = dataUrlMatch[1].toLowerCase();
+        }
+    }
+
+    if (!resolvedMime) {
+        return { isSupported: false, error: 'Missing image MIME type' };
+    }
+
+    if (!config.model) {
         return {
             isSupported: false,
-            error: 'Unsupported image format',
+            error: 'Model must be specified for image capability validation',
         };
     }
 
-    // For now, assume images are supported (existing behavior)
-    // This can be expanded later with proper image capability validation
+    // Extract base MIME type by removing parameters (e.g., "image/jpeg;quality=85" -> "image/jpeg")
+    const baseMimeType = resolvedMime.split(';')[0]?.trim() || resolvedMime;
+
+    // Delegate both allowed-MIME and model capability to registry helper
+    const res = validateModelFileSupport(config.provider, config.model, baseMimeType);
     return {
-        isSupported: true,
+        isSupported: res.isSupported,
+        ...(res.error ? { error: res.error } : {}),
     };
 }

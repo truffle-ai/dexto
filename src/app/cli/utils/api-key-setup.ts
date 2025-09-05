@@ -4,9 +4,8 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { LLMProvider, logger } from '@core/index.js';
 import { getPrimaryApiKeyEnvVar } from '@core/utils/api-key-resolver.js';
-import { getDextoEnvPath } from '@core/utils/path.js';
 import { getExecutionContext } from '@core/utils/execution-context.js';
-import { updateEnvFileWithLLMKeys } from './env-utils.js';
+import { saveProviderApiKey } from '@core/utils/api-key-store.js';
 import { applyLayeredEnvironmentLoading } from '@core/utils/env.js';
 import {
     getProviderDisplayName,
@@ -97,10 +96,9 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
 
         try {
             // Update .env file with the API key using smart path detection
-            const envFilePath = getDextoEnvPath(process.cwd());
-            await updateEnvFileWithLLMKeys(envFilePath, provider, apiKey.trim());
+            const meta = await saveProviderApiKey(provider, apiKey.trim(), process.cwd());
             spinner.stop(
-                `✨ API key saved successfully for ${getProviderDisplayName(provider)} in ${envFilePath}!`
+                `✨ API key saved successfully for ${getProviderDisplayName(provider)} in ${meta.targetEnvPath}!`
             );
 
             p.outro(chalk.green(`✨ API key setup complete!`));

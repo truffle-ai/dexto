@@ -1,5 +1,6 @@
 import type { Result } from '../utils/result.js';
 import { DextoValidationError } from './DextoValidationError.js';
+import { logger } from '../logger/index.js';
 
 /**
  * Bridge function to convert Result pattern to validation exceptions
@@ -27,6 +28,9 @@ export function ensureOk<T, C>(result: Result<T, C>): T {
         return result.data;
     }
 
+    logger.error(
+        `ensureOk: found validation errors, throwing DextoValidationError: ${result.issues}`
+    );
     // Result pattern is used for validation - throw validation error
     throw new DextoValidationError(result.issues);
 }
