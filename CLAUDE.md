@@ -80,7 +80,7 @@ Dexto automatically detects execution environment to enable context-aware behavi
    - Prevents malformed data from reaching core logic
 
 #### Result Pattern Helpers
-Use standardized helpers from `packages/core/src/schemas/helpers.ts`:
+Use standardized helpers from `packages/core/src/utils/result.js`:
 
 - **`ok(data, issues?)`** - Success with optional warnings
 - **`fail(issues)`** - Failure with blocking errors  
@@ -206,7 +206,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 - **Session management**: Multi-session support with persistent storage
 - **A2A communication**: Agent-to-Agent via `.well-known/agent.json`
 
-### WebUI Layer (`packages/cli/src/webui/`)
+### WebUI Layer (`packages/webui/`)
 - **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS
 - **Key components**: `ChatApp`, `MessageList`, `InputArea`, `ServersPanel`, `SessionPanel`
 - **State management**: React Context + custom hooks for WebSocket communication
