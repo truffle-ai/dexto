@@ -251,11 +251,11 @@ User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
 - **Future**: `*.e2e.test.ts` - Full system end-to-end testing
 
 ### Test Commands
-- `npm test` - Run all tests (unit + integration)
-- `npm run test:unit` - Run only unit tests (fast, for development)
-- `npm run test:integ` - Run only integration tests (thorough, for CI/releases)
-- `npm run test:unit:watch` - Watch mode for unit tests during development
-- `npm run test:integ:watch` - Watch mode for integration tests
+- `pnpm test` - Run all tests (unit + integration)
+- `pnpm run test:unit` - Run only unit tests (fast, for development)
+- `pnpm run test:integ` - Run only integration tests (thorough, for CI/releases)
+- `pnpm run test:unit:watch` - Watch mode for unit tests during development
+- `pnpm run test:integ:watch` - Watch mode for integration tests
 
 ### Testing Guidelines
 - **Development workflow**: Run unit tests frequently for fast feedback

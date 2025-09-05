@@ -22,10 +22,6 @@
     },
     "./package.json": "./package.json"
   },
-  "browser": {
-    "./dist/logger/index.js": "./dist/logger/browser.js",
-    "./dist/index.js": "./dist/index.browser.js"
-  },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",
     "@ai-sdk/cohere": "^2.0.0",

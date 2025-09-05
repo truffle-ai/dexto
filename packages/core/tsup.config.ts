@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig([
-    // Node build (CLI/Server consumers) — bundle only the root index to avoid deep relative imports.
+    // Node build - Full @dexto/core for server-side use
     {
         entry: {
             index: 'src/index.ts',
@@ -27,22 +27,7 @@ export default defineConfig([
             'tiktoken',
         ],
     },
-    // Node sub-entries (logger, storage) — keep unbundled for clarity.
-    {
-        entry: {
-            'logger/index': 'src/logger/index.ts',
-            'logger/browser': 'src/logger/browser.ts',
-            'storage/index': 'src/storage/index.ts',
-        },
-        format: ['cjs', 'esm'],
-        outDir: 'dist',
-        dts: true,
-        shims: true,
-        bundle: false,
-        noExternal: ['chalk', 'boxen'],
-        external: ['better-sqlite3', 'pg', 'redis'],
-    },
-    // Browser-safe root entry — bundle to self-contain.
+    // Browser build - Minimal exports for type safety
     {
         entry: {
             'index.browser': 'src/index.browser.ts',

@@ -6,19 +6,16 @@
  */
 
 // Core types and interfaces
-export type {
-    InternalTool,
-    ToolExecutionContext,
-    ToolSet,
-    ToolResult,
-    ToolCall,
-    ToolProvider,
-} from './types.js';
+export * from './types.js';
 
-// Internal tools provider
-export { InternalToolsProvider } from './internal-tools/provider.js';
-export type { InternalToolsServices } from './internal-tools/registry.js';
-export type { InternalToolsConfig } from './schemas.js';
+// Confirmation types
+export * from './confirmation/types.js';
+
+// Internal tools provider and types
+export * from './internal-tools/index.js';
+
+// Schemas/types
+export * from './schemas.js';
 
 // Unified tool manager (main interface for LLM)
 export { ToolManager, type InternalToolsOptions } from './tool-manager.js';
