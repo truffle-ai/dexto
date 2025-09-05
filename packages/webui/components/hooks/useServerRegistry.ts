@@ -94,27 +94,6 @@ export function useServerRegistry(options: UseServerRegistryOptions = {}) {
         }
     };
 
-    const addCustomEntry = async (
-        entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial' | 'lastUpdated'>
-    ) => {
-        if (!isMountedRef.current) return;
-
-        try {
-            const newEntry = await serverRegistry.addCustomEntry(entry);
-            if (isMountedRef.current) {
-                setEntries((prev) => [newEntry, ...prev]);
-            }
-            return newEntry;
-        } catch (err: unknown) {
-            if (isMountedRef.current) {
-                const errorMessage =
-                    err instanceof Error ? err.message : 'Failed to add custom server';
-                setError(errorMessage);
-            }
-            throw err;
-        }
-    };
-
     useEffect(() => {
         if (autoLoad && isMountedRef.current) {
             loadEntries();
@@ -140,7 +119,6 @@ export function useServerRegistry(options: UseServerRegistryOptions = {}) {
         loadEntries,
         updateFilter,
         markAsInstalled,
-        addCustomEntry,
         clearError: () => {
             if (isMountedRef.current) {
                 setError(null);

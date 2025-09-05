@@ -35,6 +35,9 @@ llm:
   # you can update the system prompt to change the behavior of the llm
   apiKey: $OPENAI_API_KEY
 
+# Optional default greeting shown when a chat starts (for UI consumption)
+greeting: "Hello! I’m your Dexto agent."
+
 mcpServers:
   filesystem:
     type: stdio
@@ -59,6 +62,9 @@ mcpServers:
   - This section controls how and when users are prompted to approve tool execution
   - Configure confirmation modes, timeouts, and approval storage
   - [Complete Reference](./toolConfirmation)
+- **greeting:**
+  - Simple string used by UI layers to show an initial chat message or welcome text
+  - Optional; omit it if your UI handles welcome state differently
 
 ## Best Practices
 
@@ -67,4 +73,3 @@ mcpServers:
 - **Document your config** for your team. Add comments to your YML files. We chose YML for this reason.
 - **Validate your config** before running Dexto in production.
 - **See the `agents/examples/` folder for more templates and advanced use cases.**
- 

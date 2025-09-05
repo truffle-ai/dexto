@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
 import { useChat, Message, ErrorMessage } from './useChat';
+import { useGreeting } from './useGreeting';
 
 interface ChatContextType {
   messages: Message[];
@@ -28,6 +29,8 @@ interface ChatContextType {
   // Error state
   activeError: ErrorMessage | null;
   clearError: () => void;
+  // Greeting state
+  greeting: string | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -82,6 +85,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       void fetchCurrentLLM();
     }
   }, [currentLLM, fetchCurrentLLM]);
+  
+  // Get greeting from API
+  const { greeting } = useGreeting(currentSessionId);
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
@@ -313,7 +319,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       cancel,
       // Error state
       activeError,
-      clearError
+      clearError,
+      // Greeting state
+      greeting
     }}>
       {children}
     </ChatContext.Provider>
