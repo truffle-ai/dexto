@@ -21,7 +21,7 @@ jobs:
           git diff --name-only origin/${{ github.base_ref }}... > changed.txt
           echo "Changed files:" && cat changed.txt
       - name: Require changeset for publishable changes
-        if: ${{ !contains(join(toJson(github.event.pull_request.labels.*.name), ','), 'release: none') }}
+        if: "${{ !contains(github.event.pull_request.labels.*.name, 'release: none') }}"
         run: |
           set -e
           if grep -E '^(packages/(core|cli|webui)/)' changed.txt; then
@@ -30,4 +30,3 @@ jobs:
               exit 1
             fi
           fi
-
