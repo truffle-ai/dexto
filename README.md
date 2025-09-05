@@ -61,8 +61,10 @@ The main Dexto features are:
 npm install -g dexto
 
 # —or— build from source
+# this sets up dexto CLI from the cloned code
 git clone https://github.com/truffle-ai/dexto.git
-cd dexto && npm i && npm run build && npm link
+cd dexto && pnpm install && pnpm install-cli
+
 ```
 
 ---
