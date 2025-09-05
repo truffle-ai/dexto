@@ -90,8 +90,6 @@ dexto --agent ./agents/examples/email_slack.yml
 ```
 <img src="assets/email_slack_demo.gif" alt="Email to Slack Demo" width="600">
 
-More ready-to-run recipes live in [`agents/examples`](agents/examples) and the [docs site](https://docs.dexto.ai/).
-
 ---
 
 ## Run Modes
@@ -180,6 +178,7 @@ dexto --agent music-agent "create a jazz melody in C major"
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
 
+More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
 
 
 ## Programmatic API
