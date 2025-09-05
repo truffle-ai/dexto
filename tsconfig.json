@@ -1,25 +1,23 @@
 {
-    "compilerOptions": {
-        "target": "ES2022",
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
-        "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true,
-        "downlevelIteration": true,
-        "baseUrl": ".",
-        "outDir": "./dist",
-        "rootDir": ".",
-        "strict": true,
-        "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true,
-        "types": ["node", "vitest/globals"],
-        "lib": ["ES2022", "DOM"],
-        "declaration": true,
-        "declarationMap": true,
-        "allowImportingTsExtensions": false,
-        "noEmit": false
-    },
-    "include": ["src/**/*", "scripts/**/*", "**/*.test.ts", "**/*.spec.ts", "vitest.config.ts"],
-    "exclude": ["node_modules", "packages/webui/**/*"]
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true
+  }
 }
