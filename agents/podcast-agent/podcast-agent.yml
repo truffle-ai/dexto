@@ -4,9 +4,10 @@
 mcpServers:
   gemini_tts:
     type: stdio
-    command: node
+    command: npx
     args:
-      - /Users/shaun/Desktop/Projects/mcp-servers/src/gemini-tts/dist/index.js
+      - -y
+      - "@truffle-ai/gemini-tts-server"
     env:
       GEMINI_API_KEY: $GOOGLE_GENERATIVE_AI_API_KEY
     timeout: 60000
