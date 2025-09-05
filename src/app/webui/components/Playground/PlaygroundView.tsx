@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Clock, CheckCircle, XCircle, Copy, Share2, AlertTriangle, FileAudio } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, XCircle, Copy, Share2, AlertTriangle } from 'lucide-react';
 import ConnectServerModal from '../ConnectServerModal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -16,12 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { JsonSchemaProperty, McpServer, McpTool, ToolResult } from '@/types';
-
-// Helper to validate data URI for audio files to prevent XSS
-function isValidAudioDataUri(src: string): boolean {
-  const audioDataUriRegex = /^data:audio\/(mp3|mpeg|wav|webm|ogg|m4a|aac);base64,[A-Za-z0-9+/]+={0,2}$/i;
-  return audioDataUriRegex.test(src);
-}
 
 export default function PlaygroundView() {
   const [servers, setServers] = useState<McpServer[]>([]);
@@ -838,88 +832,49 @@ export default function PlaygroundView() {
                   <div className="space-y-3 text-sm">
                     {(
                       (toolResult.metadata?.mimeType?.startsWith('image/') || toolResult.metadata?.type?.startsWith('image'))
-                      || (toolResult.metadata?.mimeType?.startsWith('audio/') || toolResult.metadata?.type?.startsWith('audio'))
                       || (toolResult.data && typeof toolResult.data === 'object' && Array.isArray((toolResult.data as any).content))
                     ) && toolResult.data ? (
                       (() => {
-                        // console.log('PlaygroundView Media toolResult:', JSON.stringify(toolResult, null, 2)); // Keep for debugging if needed
+                        // console.log('PlaygroundView Image toolResult:', JSON.stringify(toolResult, null, 2)); // Keep for debugging if needed
                         
                         let imgSrc = '';
-                        let audioSrc = '';
                         let imagePart: { data?: string; mimeType?: string; type?: string } | null = null;
-                        let audioPart: { data?: string; mimeType?: string; type?: string } | null = null;
                         const metadataMime = toolResult.metadata?.mimeType;
-                        let nonMediaParts: any[] = [];
+                        let nonImageParts: any[] = [];
 
                         if (Array.isArray(toolResult.data)) {
                           imagePart = toolResult.data.find(part => part && part.type === 'image');
-                          audioPart = toolResult.data.find(part => part && part.type === 'file' && part.mimeType?.startsWith('audio/'));
                           if (imagePart && typeof imagePart.data === 'string' && imagePart.mimeType) {
                             imgSrc = `data:${imagePart.mimeType};base64,${imagePart.data}`;
-                          }
-                          if (audioPart && typeof audioPart.data === 'string' && audioPart.mimeType) {
-                            audioSrc = `data:${audioPart.mimeType};base64,${audioPart.data}`;
                           }
                         } else if (toolResult.data && typeof toolResult.data === 'object' && Array.isArray((toolResult.data as any).content)) {
                           const partsArray = (toolResult.data as any).content as any[];
                           imagePart = partsArray.find(part => part && part.type === 'image');
-                          audioPart = partsArray.find(part => part && part.type === 'file' && part.mimeType?.startsWith('audio/'));
                           if (imagePart && typeof imagePart.data === 'string') {
                             const mime = (imagePart.mimeType as string) || metadataMime;
                             if (mime) {
                               imgSrc = `data:${mime};base64,${imagePart.data}`;
                             }
                           }
-                          if (audioPart && typeof audioPart.data === 'string') {
-                            const mime = (audioPart.mimeType as string) || metadataMime;
-                            if (mime && mime.startsWith('audio/')) {
-                              audioSrc = `data:${mime};base64,${audioPart.data}`;
-                            }
-                          }
-                          // Collect all non-media parts
-                          nonMediaParts = partsArray.filter(part => part && part.type !== 'image' && !(part.type === 'file' && part.mimeType?.startsWith('audio/')));
+                          // Collect all non-image parts
+                          nonImageParts = partsArray.filter(part => part && part.type !== 'image');
                         } else if (typeof toolResult.data === 'string') {
                           if (toolResult.data.startsWith('data:image')) {
                             imgSrc = toolResult.data;
-                          } else if (toolResult.data.startsWith('data:audio')) {
-                            audioSrc = toolResult.data;
                           } else if (metadataMime) {
-                            if (metadataMime.startsWith('image/')) {
-                              imgSrc = `data:${metadataMime};base64,${toolResult.data}`;
-                            } else if (metadataMime.startsWith('audio/')) {
-                              audioSrc = `data:${metadataMime};base64,${toolResult.data}`;
-                            }
+                            imgSrc = `data:${metadataMime};base64,${toolResult.data}`;
                           } else if (toolResult.data.startsWith('http://') || toolResult.data.startsWith('https://')) {
-                            // Try to determine if it's an image or audio URL
-                            if (toolResult.data.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-                              imgSrc = toolResult.data;
-                            } else if (toolResult.data.match(/\.(mp3|wav|webm|ogg|m4a|aac)$/i)) {
-                              audioSrc = toolResult.data;
-                            }
+                            imgSrc = toolResult.data; 
                           }
                         }
 
                         if (imgSrc) {
                           return <img src={imgSrc} alt="Tool result image" className="my-2 max-h-96 w-auto rounded border border-input shadow-sm" />;
-                        } else if (audioSrc) {
-                          if (!isValidAudioDataUri(audioSrc) && !audioSrc.startsWith('http')) {
-                            return <p className="text-xs text-destructive">Invalid audio data format.</p>;
-                          }
-                          return (
-                            <div className="my-2 flex items-center gap-2 p-3 rounded-lg border border-input bg-muted/50">
-                              <FileAudio className="h-5 w-5 text-muted-foreground" />
-                              <audio 
-                                controls 
-                                src={audioSrc} 
-                                className="flex-1 h-8"
-                              />
-                            </div>
-                          );
-                        } else if (nonMediaParts.length > 0) {
-                          // Render each non-media part as a pretty JSON/code block
+                        } else if (nonImageParts.length > 0) {
+                          // Render each non-image part as a pretty JSON/code block
                           return (
                             <div className="space-y-3">
-                              {nonMediaParts.map((part, idx) => (
+                              {nonImageParts.map((part, idx) => (
                                 <pre key={idx} className="whitespace-pre-wrap text-sm bg-background p-3 rounded-md border border-input font-mono overflow-x-auto max-h-64">
                                   {typeof part === 'object' ? JSON.stringify(part, null, 2) : String(part)}
                                 </pre>
@@ -927,7 +882,7 @@ export default function PlaygroundView() {
                             </div>
                           );
                         } else {
-                          return <p className="text-xs text-destructive">Media data is not in a recognized format. Data: {JSON.stringify(toolResult.data)}</p>;
+                          return <p className="text-xs text-destructive">Image data is not in a recognized format. Data: {JSON.stringify(toolResult.data)}</p>;
                         }
                       })()
                     ) : toolResult.metadata?.type === 'markdown' && toolResult.data ? (
