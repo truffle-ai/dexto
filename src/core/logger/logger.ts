@@ -91,7 +91,7 @@ const getDefaultLogLevel = (): string => {
     if (envLevel && Object.keys(logLevels).includes(envLevel.toLowerCase())) {
         return envLevel.toLowerCase();
     }
-    return 'info';
+    return 'debug';
 };
 
 export class Logger {

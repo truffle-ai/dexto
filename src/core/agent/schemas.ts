@@ -111,9 +111,9 @@ export const AgentConfigSchema = z
             'Tool confirmation and approval configuration'
         ),
 
-        telemetry: OtelConfigurationSchema.default({}).describe(
+        telemetry: OtelConfigurationSchema.describe(
             'Telemetry configuration for the agent'
-        ),
+        ).optional(),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')

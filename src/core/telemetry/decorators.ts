@@ -1,6 +1,13 @@
-import { trace, context, SpanStatusCode, SpanKind, propagation } from '@opentelemetry/api';
+import {
+    trace,
+    context,
+    SpanStatusCode,
+    SpanKind,
+    propagation,
+    SpanOptions,
+} from '@opentelemetry/api';
 import type { Span } from '@opentelemetry/api';
-
+import { logger } from '../logger/index.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 
 // Type interfaces for better type safety
@@ -45,6 +52,10 @@ function isStreamingResult(result: unknown, methodName: string): boolean {
     return false;
 }
 
+function isStreamingMethod(methodName: string): boolean {
+    return methodName === 'stream' || methodName === 'streamVNext';
+}
+
 function enhanceStreamingArgumentsWithTelemetry(
     args: unknown[],
     span: EnhancedSpan,
@@ -75,8 +86,7 @@ function enhanceStreamingArgumentsWithTelemetry(
                 span.setStatus({ code: SpanStatusCode.OK });
                 span.end();
             } catch (error) {
-                debugger;
-                console.warn('Telemetry capture failed:', error);
+                logger.warn('Telemetry capture failed:', error);
                 span.setAttribute(`${spanName}.result`, '[Telemetry Capture Error]');
                 span.setStatus({ code: SpanStatusCode.ERROR });
                 span.end();
@@ -103,6 +113,7 @@ export function withSpan(options: {
     spanKind?: SpanKind;
     tracerName?: string;
 }): any {
+    logger.debug('withSpan decorator called.');
     return function (
         _target: any,
         propertyKey: string | symbol,
@@ -114,49 +125,61 @@ export function withSpan(options: {
         const methodName = String(propertyKey);
 
         descriptor.value = function (this: unknown, ...args: unknown[]) {
+            logger.debug(`withSpan: Wrapped method '${methodName}' executed.`);
             // Skip if no telemetry is available and skipIfNoTelemetry is true
-            if (options?.skipIfNoTelemetry && !hasActiveTelemetry()) {
+            // Guard against Telemetry.get() throwing if globalThis.__TELEMETRY__ is not yet defined
+            if (
+                options?.skipIfNoTelemetry &&
+                (!globalThis.__TELEMETRY__ || !hasActiveTelemetry())
+            ) {
+                logger.debug(
+                    `withSpan: Skipping tracing for '${methodName}' due to no active telemetry.`
+                );
                 return originalMethod.apply(this, args);
             }
-            console.log('In withspan function');
             const tracer = trace.getTracer(options?.tracerName ?? 'dexto');
+            logger.debug(`withSpan: Tracer '${options?.tracerName ?? 'dexto'}' obtained.`);
 
-            console.log({ tracer });
             // Determine span name and kind
-            let spanName: string;
+            let spanName: string = methodName; // Default spanName
             let spanKind: SpanKind | undefined;
 
-            if (typeof options === 'string') {
-                spanName = options;
-            } else if (options) {
-                spanName = options.spanName || methodName;
-                spanKind = options.spanKind;
-            } else {
-                spanName = methodName;
+            if (options) {
+                // options is always an object here due to decorator factory
+                spanName = options.spanName ?? methodName;
+                if (options.spanKind !== undefined) {
+                    spanKind = options.spanKind;
+                }
             }
 
             // Start the span with optional kind
-            const span = tracer.startSpan(spanName, { kind: spanKind }) as EnhancedSpan;
+            logger.debug(`withSpan: Starting span '${spanName}' with kind: ${spanKind}`);
+            const spanOptions: SpanOptions = {};
+            if (spanKind !== undefined) {
+                spanOptions.kind = spanKind;
+            }
+            const span = tracer.startSpan(spanName, spanOptions) as EnhancedSpan;
             let ctx = trace.setSpan(context.active(), span);
 
             // Record input arguments as span attributes
             args.forEach((arg, index) => {
                 try {
+                    logger.debug(
+                        `withSpan: Setting argument attribute ${index} for span '${spanName}'.`
+                    );
                     span.setAttribute(`${spanName}.argument.${index}`, JSON.stringify(arg));
                 } catch {
+                    logger.debug(
+                        `withSpan: Argument ${index} for span '${spanName}' not serializable.`
+                    );
                     span.setAttribute(`${spanName}.argument.${index}`, '[Not Serializable]');
                 }
             });
-
-            console.log(140);
 
             const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx);
             if (requestId) {
                 span.setAttribute('http.request_id', requestId);
             }
-            console.log(requestId);
-            console.log(componentName);
-            console.log(threadId);
 
             if (threadId) {
                 span.setAttribute('threadId', threadId);
@@ -168,63 +191,83 @@ export function withSpan(options: {
 
             if (componentName) {
                 span.setAttribute('componentName', componentName);
-                // @ts-ignore - These properties may exist on the context
-                span.setAttribute('runId', runId);
+                if (runId !== undefined) {
+                    span.setAttribute('runId', String(runId));
+                }
             } else if (this && typeof this === 'object' && 'name' in this) {
                 const contextObj = this as { name: string; runId?: string };
                 span.setAttribute('componentName', contextObj.name);
                 if (contextObj.runId) {
                     span.setAttribute('runId', contextObj.runId);
                 }
-                ctx = propagation.setBaggage(
-                    ctx,
-                    propagation.createBaggage({
-                        // @ts-ignore
-                        componentName: { value: this.name },
-                        // @ts-ignore
-                        runId: { value: this.runId },
-                        // @ts-ignore
-                        'http.request_id': { value: requestId },
-                        // @ts-ignore
-                        threadId: { value: threadId },
-                        // @ts-ignore
-                        resourceId: { value: resourceId },
-                    })
-                );
-            }
 
-            console.log(182);
+                const baggageEntries: Record<string, { value: string }> = {};
+
+                if (contextObj.name !== undefined) {
+                    baggageEntries.componentName = { value: String(contextObj.name) };
+                }
+                if (contextObj.runId !== undefined) {
+                    baggageEntries.runId = { value: String(contextObj.runId) };
+                }
+                if (requestId !== undefined) {
+                    baggageEntries['http.request_id'] = { value: String(requestId) };
+                }
+                if (threadId !== undefined) {
+                    baggageEntries.threadId = { value: String(threadId) };
+                }
+                if (resourceId !== undefined) {
+                    baggageEntries.resourceId = { value: String(resourceId) };
+                }
+
+                if (Object.keys(baggageEntries).length > 0) {
+                    ctx = propagation.setBaggage(ctx, propagation.createBaggage(baggageEntries));
+                }
+            }
 
             let result: unknown;
             try {
                 // For streaming methods, enhance arguments with telemetry capture before calling
-                const enhancedArgs = isStreamingResult(result, methodName)
+                const enhancedArgs = isStreamingMethod(methodName)
                     ? enhanceStreamingArgumentsWithTelemetry(args, span, spanName, methodName)
                     : args;
 
                 // Call the original method within the context
+                logger.debug(`withSpan: Executing original method '${methodName}' within context.`);
                 result = context.with(ctx, () => originalMethod.apply(this, enhancedArgs));
 
                 // Handle promises
                 if (result instanceof Promise) {
+                    logger.debug(`withSpan: Method '${methodName}' returned a Promise.`);
                     return result
                         .then((resolvedValue) => {
+                            logger.debug(`withSpan: Promise for '${methodName}' resolved.`);
                             if (isStreamingResult(resolvedValue, methodName)) {
+                                logger.debug(`withSpan: Streaming result for '${methodName}'.`);
                                 return resolvedValue;
                             } else {
                                 try {
+                                    logger.debug(
+                                        `withSpan: Setting result attribute for '${methodName}'.`
+                                    );
                                     span.setAttribute(
                                         `${spanName}.result`,
                                         JSON.stringify(resolvedValue)
                                     );
                                 } catch {
+                                    logger.debug(
+                                        `withSpan: Result for '${methodName}' not serializable.`
+                                    );
                                     span.setAttribute(`${spanName}.result`, '[Not Serializable]');
                                 }
                                 return resolvedValue;
                             }
                         })
                         .finally(() => {
+                            logger.debug(`withSpan: Promise for '${methodName}' finally block.`);
                             if (!span.__mastraStreamingSpan) {
+                                logger.debug(
+                                    `withSpan: Ending span for '${methodName}' (non-streaming promise).`
+                                );
                                 span.end();
                             }
                         });
@@ -232,16 +275,20 @@ export function withSpan(options: {
 
                 // Record result for non-promise returns
                 if (!isStreamingResult(result, methodName)) {
+                    logger.debug(`withSpan: Method '${methodName}' returned synchronous result.`);
                     try {
                         span.setAttribute(`${spanName}.result`, JSON.stringify(result));
                     } catch {
+                        logger.debug(`withSpan: Result for '${methodName}' not serializable.`);
                         span.setAttribute(`${spanName}.result`, '[Not Serializable]');
                     }
                 }
-                console.log(224);
                 // Return regular results
                 return result;
             } catch (error) {
+                logger.error(
+                    `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`
+                );
                 span.setStatus({
                     code: SpanStatusCode.ERROR,
                     message: error instanceof Error ? error.message : 'Unknown error',
@@ -253,6 +300,9 @@ export function withSpan(options: {
             } finally {
                 // End span for non-promise returns
                 if (!(result instanceof Promise) && !isStreamingResult(result, methodName)) {
+                    logger.debug(
+                        `withSpan: Ending span for '${methodName}' (synchronous non-streaming).`
+                    );
                     span.end();
                 }
             }
@@ -270,11 +320,18 @@ export function InstrumentClass(options?: {
     methodFilter?: (methodName: string) => boolean;
     tracerName?: string;
 }) {
+    logger.debug(`InstrumentClass decorator called for target: ${options?.prefix || 'unknown'}`);
     return function (target: any) {
         const methods = Object.getOwnPropertyNames(target.prototype);
         methods.forEach((method) => {
+            logger.debug(`InstrumentClass: Processing method '${method}'.`);
             // Skip excluded methods
-            if (options?.excludeMethods?.includes(method) || method === 'constructor') return;
+            if (options?.excludeMethods?.includes(method) || method === 'constructor') {
+                logger.debug(
+                    `InstrumentClass: Skipping method '${method}' (excluded or constructor).`
+                );
+                return;
+            }
             // Apply method filter if provided
             if (options?.methodFilter && !options.methodFilter(method)) return;
 
@@ -287,7 +344,9 @@ export function InstrumentClass(options?: {
                         spanName: options?.prefix ? `${options.prefix}.${method}` : method,
                         skipIfNoTelemetry: true,
                         spanKind: options?.spanKind || SpanKind.INTERNAL,
-                        tracerName: options?.tracerName,
+                        ...(options?.tracerName !== undefined && {
+                            tracerName: options.tracerName,
+                        }),
                     })(target, method, descriptor)
                 );
             }

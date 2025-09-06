@@ -15,8 +15,26 @@ export class CompositeExporter implements SpanExporter {
             spans
                 .filter((span) => {
                     const attrs = span.attributes || {};
-                    const httpTarget = attrs['http.target'] as string;
-                    return httpTarget === '/api/telemetry';
+                    const relevantHttpAttributes = [
+                        attrs['http.target'],
+                        attrs['http.route'],
+                        attrs['http.url'],
+                        attrs['url.path'],
+                        attrs['http.request_path'],
+                    ];
+
+                    const isTelemetrySpan = relevantHttpAttributes.some((attr) => {
+                        if (typeof attr === 'string') {
+                            const normalizedAttr = attr.trim();
+                            // Check for exact match or path prefix
+                            return (
+                                normalizedAttr === '/api/telemetry' ||
+                                normalizedAttr.startsWith('/api/telemetry/')
+                            );
+                        }
+                        return false;
+                    });
+                    return isTelemetrySpan;
                 })
                 .map((span) => span.spanContext().traceId)
         );
@@ -52,7 +70,7 @@ export class CompositeExporter implements SpanExporter {
             })
             .catch((error) => {
                 console.error('[CompositeExporter] Export error:', error);
-                resultCallback({ code: ExportResultCode.FAILED, error });
+                resultCallback({ code: ExportResultCode.FAILED });
             });
     }
 
