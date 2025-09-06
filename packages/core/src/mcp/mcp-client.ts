@@ -16,13 +16,11 @@ import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
 import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import { InstrumentClass, withSpan } from '../telemetry/decorators.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
-@InstrumentClass({ prefix: 'MCPClient' })
 export class MCPClient implements IMCPClient {
     private client: Client | null = null;
     private transport: any = null;
