@@ -34,7 +34,6 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
-import { InstrumentClass } from '../telemetry/decorators.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -96,7 +95,7 @@ const requiredServices: (keyof AgentServices)[] = [
  * await agent.stop();
  * ```
  */
-@InstrumentClass({ prefix: 'DextoAgent' })
+
 export class DextoAgent {
     /**
      * These services are public for use by the outside world

@@ -87,6 +87,7 @@ program
     )
     .option('--web-port <port>', 'optional port for the web UI', '3000')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
+    .option('--debug', 'Enable debug logging') // Add this line
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
@@ -485,7 +486,7 @@ program
             agent = new DextoAgent(validatedConfig, opts.agent);
 
             // Initialize Telemetry
-            if (validatedConfig.telemetry) {
+            if (validatedConfig.telemetry?.enabled === true) {
                 await Telemetry.init(validatedConfig.telemetry);
                 console.log('Telemetry initialized from agent.yml');
             }

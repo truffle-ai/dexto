@@ -68,4 +68,5 @@ telemetry:
   enabled: true
   tracerName: dexto-tracer
   export:
-    type: console
+    type: otlp
+    endpoint: http://localhost:4318/v1/traces # Default to localhost if not set
