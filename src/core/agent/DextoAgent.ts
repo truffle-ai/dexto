@@ -32,7 +32,6 @@ import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
-import { InstrumentClass } from '../telemetry/decorators.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',

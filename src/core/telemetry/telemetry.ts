@@ -46,10 +46,16 @@ export class Telemetry {
         }
         if (e.type === 'otlp') {
             if (e.protocol === 'grpc') {
-                return new OTLPGrpcExporter({ url: e.endpoint, headers: e.headers });
+                return new OTLPGrpcExporter({
+                    url: e.endpoint ?? '',
+                    ...(e.headers && { headers: e.headers }),
+                });
             }
             // default to http when omitted
-            return new OTLPHttpExporter({ url: e.endpoint, headers: e.headers });
+            return new OTLPHttpExporter({
+                url: e.endpoint ?? '',
+                ...(e.headers && { headers: e.headers }),
+            });
         }
         // schema also allows 'custom' but YAML cannot provide a SpanExporter instance
         return new ConsoleSpanExporter();
