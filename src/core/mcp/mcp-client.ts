@@ -16,7 +16,7 @@ import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
 import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import { InstrumentClass } from '@core/telemetry/decorators.js';
+import { InstrumentClass, withSpan } from '../telemetry/decorators.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 /**
