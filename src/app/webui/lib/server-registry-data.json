@@ -247,5 +247,51 @@
     "author": "Truffle AI",
     "homepage": "https://github.com/truffle-ai/mcp-servers",
     "matchIds": ["puppeteer"]
+  },
+  {
+    "id": "gemini-tts",
+    "name": "Gemini TTS",
+    "description": "Google Gemini Text-to-Speech with 30 prebuilt voices and multi-speaker conversation support",
+    "category": "creative",
+    "icon": "🎙️",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@truffle-ai/gemini-tts-server"],
+      "env": {
+        "GEMINI_API_KEY": ""
+      },
+      "timeout": 60000
+    },
+    "tags": ["tts", "speech", "voice", "audio", "gemini", "multi-speaker"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Truffle AI",
+    "homepage": "https://github.com/truffle-ai/mcp-servers",
+    "matchIds": ["gemini-tts", "gemini_tts"]
+  },
+  {
+    "id": "nano-banana",
+    "name": "Nano Banana",
+    "description": "Google Gemini 2.5 Flash Image for advanced image generation, editing, and manipulation",
+    "category": "creative",
+    "icon": "🍌",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@truffle-ai/nano-banana-server@0.1.2"],
+      "env": {
+        "GEMINI_API_KEY": ""
+      },
+      "timeout": 60000
+    },
+    "tags": ["image", "generation", "editing", "ai", "gemini", "nano-banana"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Truffle AI",
+    "homepage": "https://github.com/truffle-ai/mcp-servers",
+    "matchIds": ["nano-banana", "nano_banana"]
   }
 ]

@@ -45,7 +45,7 @@ mcpServers:
     command: npx
     args:
       - -y
-      - "@truffle-ai/nano-banana-server@0.1.2"
+      - "@truffle-ai/nano-banana-server"
     connectionMode: strict
     env:
       GEMINI_API_KEY: $GOOGLE_GENERATIVE_AI_API_KEY
