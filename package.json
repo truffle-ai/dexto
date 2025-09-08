@@ -72,6 +72,8 @@
         "agents/music-agent/",
         "agents/product-name-researcher/",
         "agents/triage-demo/",
+        "agents/nano-banana-agent/",
+        "agents/podcast-agent/",
         "public/"
     ],
     "dependencies": {
