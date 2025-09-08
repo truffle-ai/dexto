@@ -7,9 +7,13 @@ receivers:
 exporters:
   debug:
     verbosity: detailed
+  otlp:
+    endpoint: jaeger:4317 # Default OTLP gRPC collector endpoint for Jaeger
+    tls:
+      insecure: true # Use insecure for local development
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [debug]
+      exporters: [debug, otlp]
