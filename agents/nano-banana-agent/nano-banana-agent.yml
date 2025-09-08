@@ -56,9 +56,9 @@ toolConfirmation:
   allowedToolsStorage: "memory"
 
 llm:
-  provider: openai
-  model: gpt-4o-mini
-  apiKey: $OPENAI_API_KEY
+  provider: google
+  model: gemini-2.5-flash
+  apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
 
 storage:
   cache:

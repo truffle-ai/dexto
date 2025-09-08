@@ -47,13 +47,12 @@ Gemini 2.5 Flash Image is Google's cutting-edge AI model that enables:
 ### Installation
 1. **Set up environment variables**:
    ```bash
-   export GEMINI_API_KEY="your-google-ai-api-key"
-   export OPENAI_API_KEY="your-openai-api-key"
+   export GOOGLE_GENERATIVE_AI_API_KEY="your-google-ai-api-key"
    ```
 
 2. **Run the agent** (the MCP server will be automatically downloaded via npx):
    ```bash
-   cd /Users/shaun/Desktop/Projects/dexto
+   # From the dexto repository root
    npx dexto -a agents/nano-banana-agent/nano-banana-agent.yml
    ```
 
@@ -143,7 +142,6 @@ Successful operations return both image data and metadata:
 
 ### Environment Variables
 - `GEMINI_API_KEY`: Your Google AI API key (required)
-- `OPENAI_API_KEY`: Your OpenAI API key (required)
 
 ### Agent Settings
 - **LLM Provider**: OpenAI GPT-4o-mini
@@ -195,40 +193,6 @@ Nano Banana includes built-in safety features:
 - **Safety Filters**: Content moderation and filtering
 - **Character Consistency**: Maintains identity integrity
 - **Responsible AI**: Designed to prevent misuse
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**API Key Error:**
-```
-Error: GEMINI_API_KEY environment variable is required
-```
-**Solution**: Set your Google AI API key as an environment variable.
-
-**Unsupported Format:**
-```
-Error: Unsupported image format: .bmp
-```
-**Solution**: Convert your image to a supported format (JPG, PNG, WebP, GIF).
-
-**File Too Large:**
-```
-Error: Image file too large: 25.5MB. Maximum size: 20MB
-```
-**Solution**: Compress or resize your image to under 20MB.
-
-### Performance Tips
-- Use images under 10MB for faster processing
-- Compress images before processing
-- Use appropriate aspect ratios for your use case
-- Batch similar operations together
-
-## 📚 Related Resources
-
-- [Nano Banana MCP Server Documentation](../../../mcp-servers/src/nano-banana/README.md)
-- [Dexto Framework Documentation](../../README.md)
-- [Google AI Studio](https://aistudio.google.com/)
 
 ## 🤝 Contributing
 
