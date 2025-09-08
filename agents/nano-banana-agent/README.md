@@ -48,6 +48,8 @@ Gemini 2.5 Flash Image is Google's cutting-edge AI model that enables:
 1. **Set up environment variables**:
    ```bash
    export GOOGLE_GENERATIVE_AI_API_KEY="your-google-ai-api-key"
+   # or
+   export GEMINI_API_KEY="your-google-ai-api-key"
    ```
 
 2. **Run the agent** (the MCP server will be automatically downloaded via npx):
@@ -141,10 +143,10 @@ Successful operations return both image data and metadata:
 ## 🔧 Configuration
 
 ### Environment Variables
-- `GEMINI_API_KEY`: Your Google AI API key (required)
+- `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY`: Your Google AI API key (required)
 
 ### Agent Settings
-- **LLM Provider**: OpenAI GPT-4o-mini
+- **LLM Provider**: Google Gemini 2.5 Flash
 - **Storage**: In-memory cache with SQLite database
 - **Tool Confirmation**: Auto-approve mode for better development experience
 
