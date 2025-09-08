@@ -30,15 +30,16 @@ export const OtelConfigurationSchema = z.object({
             z.object({
                 type: z.literal('otlp'),
                 protocol: z.enum(['grpc', 'http']).optional(),
-                endpoint: z.string().url().optional(),
+                endpoint: z
+                    .union([
+                        z.string().url(),
+                        z.string().regex(/^[\w.-]+:\d+$/), // host:port
+                    ])
+                    .optional(),
                 headers: z.record(z.string()).optional(),
             }),
             z.object({
                 type: z.literal('console'),
-            }),
-            z.object({
-                type: z.literal('custom'),
-                tracerName: z.string().optional(),
             }),
         ])
         .optional(),
