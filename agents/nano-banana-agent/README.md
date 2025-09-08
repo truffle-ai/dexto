@@ -2,15 +2,6 @@
 
 A Dexto agent that provides access to Google's **Gemini 2.5 Flash Image** model for image generation and editing through a lean, powerful MCP server.
 
-## 🎯 Design Philosophy
-
-This agent follows a **lean design principle**:
-- **3 Essential Tools**: Only the most fundamental capabilities
-- **Raw AI Power**: Exposes the full capabilities of Gemini 2.5 Flash Image
-- **Natural Language**: All operations driven by detailed prompts
-- **No Thin Wrappers**: Avoids redundant functions that just repackage the same capability
-- **LLM-Friendly**: Designed for LLMs to leverage the underlying AI model directly
-
 ## 🎯 What is Gemini 2.5 Flash Image?
 
 Gemini 2.5 Flash Image is Google's cutting-edge AI model that enables:
@@ -42,7 +33,7 @@ Gemini 2.5 Flash Image is Google's cutting-edge AI model that enables:
 ### Prerequisites
 - Dexto framework installed
 - Google AI API key (Gemini API access)
-- Node.js 18.0.0 or higher
+- Node.js 20.0.0 or higher
 
 ### Installation
 1. **Set up environment variables**:
