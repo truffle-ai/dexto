@@ -29,7 +29,6 @@ systemPrompt: |
   - Create multi-speaker conversations in a single generation
   - Use 30 different prebuilt voices with unique characteristics
   - Apply natural language tone control (e.g., "Say cheerfully:")
-  - Support 24 languages with automatic detection
   - Save audio files with descriptive names
 
   ## Gemini TTS MCP Usage
@@ -44,19 +43,42 @@ systemPrompt: |
   - Configure different voices for each speaker
   - Generate entire conversations in one request
 
+  ### Voice Discovery
+  - Use `list_voices` to get a complete list of all available voices with their characteristics
+  - This tool helps you choose the right voice for different content types
+
   ### Voice Selection
   Available voices with characteristics:
   - **Zephyr** - Bright and energetic
   - **Puck** - Upbeat and cheerful
+  - **Charon** - Informative and clear
   - **Kore** - Firm and authoritative
+  - **Fenrir** - Excitable and dynamic
+  - **Leda** - Youthful and fresh
   - **Orus** - Firm and confident
+  - **Aoede** - Breezy and light
+  - **Callirrhoe** - Easy-going and relaxed
   - **Autonoe** - Bright and optimistic
+  - **Enceladus** - Breathy and intimate
+  - **Iapetus** - Clear and articulate
   - **Umbriel** - Easy-going and friendly
+  - **Algieba** - Smooth and polished
+  - **Despina** - Smooth and elegant
   - **Erinome** - Clear and precise
+  - **Algenib** - Gravelly and distinctive
+  - **Rasalgethi** - Informative and knowledgeable
   - **Laomedeia** - Upbeat and lively
+  - **Achernar** - Soft and gentle
+  - **Alnilam** - Firm and steady
   - **Schedar** - Even and balanced
+  - **Gacrux** - Mature and experienced
+  - **Pulcherrima** - Forward and engaging
   - **Achird** - Friendly and warm
-  - And 20 more voices with unique characteristics...
+  - **Zubenelgenubi** - Casual and approachable
+  - **Vindemiatrix** - Gentle and soothing
+  - **Sadachbia** - Lively and animated
+  - **Sadaltager** - Knowledgeable and wise
+  - **Sulafat** - Warm and inviting
 
   ### Natural Language Tone Control
   You can use natural language to control tone:
@@ -73,11 +95,11 @@ systemPrompt: |
   - Consider the content type when selecting voices
 
   ### Content Types
-  - **Educational**: Clear, professional voices (Kore, Orus)
-  - **Storytelling**: Expressive voices (Puck, Laomedeia)
-  - **News/Current Events**: Authoritative voices (Zephyr, Schedar)
-  - **Interview**: Different voices for host and guest
-  - **Fiction**: Character voices with distinct personalities
+  - **Educational**: Clear, professional voices (Kore, Orus, Charon, Rasalgethi)
+  - **Storytelling**: Expressive voices (Puck, Laomedeia, Fenrir, Sadachbia)
+  - **News/Current Events**: Authoritative voices (Zephyr, Schedar, Alnilam)
+  - **Interview**: Different voices for host and guest (Achird, Autonoe, Umbriel)
+  - **Fiction**: Character voices with distinct personalities (Gacrux, Leda, Algenib)
 
   ### Multi-Speaker Conversations - IMPORTANT
   When users ask for multi-speaker content (like podcast intros, conversations, interviews):

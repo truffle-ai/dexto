@@ -1,10 +1,10 @@
 # Advanced Podcast Generation Agent
 
-A powerful AI agent for creating multi-speaker audio content using Google Gemini TTS with native multi-speaker support.
+An AI agent for creating multi-speaker audio content using the Gemini TTS MCP server.
 
 ## Overview
 
-This agent uses Google Gemini 2.5 TTS to generate high-quality speech with advanced multi-speaker capabilities. It supports 30 prebuilt voices, natural language tone control, and can generate entire conversations with multiple speakers in a single request.
+This agent uses the refactored Gemini TTS MCP server to generate high-quality speech with advanced multi-speaker capabilities. It supports 30 prebuilt voices, natural language tone control, and can generate entire conversations with multiple speakers in a single request. The server now returns audio content that can be played directly in web interfaces.
 
 ## Key Features
 
@@ -14,22 +14,41 @@ This agent uses Google Gemini 2.5 TTS to generate high-quality speech with advan
 - Natural conversation flow with different voices per speaker
 
 ### 🎵 **30 Prebuilt Voices**
-- **Zephyr** - Bright
-- **Puck** - Upbeat
-- **Kore** - Firm
-- **Orus** - Firm
-- **Autonoe** - Bright
-- **Umbriel** - Easy-going
-- **Erinome** - Clear
-- **Laomedeia** - Upbeat
-- **Schedar** - Even
-- **Achird** - Friendly
-- And 20 more voices...
+- **Zephyr** - Bright and energetic
+- **Puck** - Upbeat and cheerful
+- **Charon** - Informative and clear
+- **Kore** - Firm and authoritative
+- **Fenrir** - Excitable and dynamic
+- **Leda** - Youthful and fresh
+- **Orus** - Firm and confident
+- **Aoede** - Breezy and light
+- **Callirrhoe** - Easy-going and relaxed
+- **Autonoe** - Bright and optimistic
+- **Enceladus** - Breathy and intimate
+- **Iapetus** - Clear and articulate
+- **Umbriel** - Easy-going and friendly
+- **Algieba** - Smooth and polished
+- **Despina** - Smooth and elegant
+- **Erinome** - Clear and precise
+- **Algenib** - Gravelly and distinctive
+- **Rasalgethi** - Informative and knowledgeable
+- **Laomedeia** - Upbeat and lively
+- **Achernar** - Soft and gentle
+- **Alnilam** - Firm and steady
+- **Schedar** - Even and balanced
+- **Gacrux** - Mature and experienced
+- **Pulcherrima** - Forward and engaging
+- **Achird** - Friendly and warm
+- **Zubenelgenubi** - Casual and approachable
+- **Vindemiatrix** - Gentle and soothing
+- **Sadachbia** - Lively and animated
+- **Sadaltager** - Knowledgeable and wise
+- **Sulafat** - Warm and inviting
 
-### 🌍 **24 Language Support**
-- Automatic language detection
-- Support for English, Spanish, French, German, Italian, Portuguese
-- Japanese, Korean, Chinese, Arabic, Hindi, and more
+### 🌐 **WebUI Compatible**
+- Returns audio content that can be played directly in web interfaces
+- Base64-encoded WAV audio data
+- Structured content with both text summaries and audio data
 
 ### 🎭 **Natural Language Tone Control**
 - "Say cheerfully: Welcome to our show!"
@@ -39,22 +58,18 @@ This agent uses Google Gemini 2.5 TTS to generate high-quality speech with advan
 
 ## Setup
 
-1. **Install Dependencies**:
-   ```bash
-   cd agents/podcast-agent/gemini-tts-mcp
-   pip install -e .
-   ```
-
-2. **Get API Keys**:
+1. **Get API Keys**:
    ```bash
    export GEMINI_API_KEY="your-gemini-api-key"
    export OPENAI_API_KEY="your-openai-api-key"
    ```
 
-3. **Run the Agent**:
+2. **Run the Agent**:
    ```bash
-   saiki --agent agents/podcast-agent/podcast-agent.yml
+   dexto --mode web -a agents/podcast-agent/podcast-agent.yml
    ```
+
+The agent will automatically install the Gemini TTS MCP server from npm when needed.
 
 ## Usage Examples
 
@@ -85,9 +100,8 @@ This agent uses Google Gemini 2.5 TTS to generate high-quality speech with advan
 
 ### **Gemini TTS Tools**
 - `generate_speech` - Single-speaker audio generation
-- `generate_multi_speaker_speech` - Multi-speaker conversations
-- `list_voices` - Browse available voices
-- `list_languages` - Check supported languages
+- `generate_conversation` - Multi-speaker conversations
+- `list_voices` - Browse available voices with characteristics
 
 ### **File Management**
 - `list_files` - Browse audio files
@@ -148,10 +162,10 @@ Liam: It's such an exciting field!
 1. **Native Multi-Speaker**: No need for separate audio files
 2. **Natural Language Control**: "Say cheerfully:" instead of technical tags
 3. **30 Prebuilt Voices**: More variety than ElevenLabs
-4. **24 Languages**: Better international support
-5. **Automatic Language Detection**: No manual specification
-6. **Better Integration**: Part of Google's AI ecosystem
-7. **Simpler Workflow**: One request for entire conversations
+4. **WebUI Compatible**: Audio content plays directly in web interfaces
+5. **Better Integration**: Part of Google's AI ecosystem
+6. **Simpler Workflow**: One request for entire conversations
+7. **Lean Architecture**: Fast, efficient, and maintainable
 
 ## Limitations
 
@@ -162,9 +176,10 @@ Liam: It's such an exciting field!
 
 ## Advanced Features
 
-- **Automatic Language Detection**: No need to specify language
+- **Rate Limit Handling**: Graceful fallbacks with dummy audio when API limits are hit
 - **Controllable Style**: Accent, pace, and tone control
-- **High-Quality Audio**: Studio-grade output
+- **High-Quality Audio**: Studio-grade WAV output
 - **Efficient Processing**: Single request for complex conversations
+- **Structured Responses**: Both text summaries and audio data in responses
 
 Simple, powerful, and focused on creating engaging multi-speaker audio content! 
