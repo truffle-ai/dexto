@@ -157,23 +157,6 @@ Dr. Anya: Today we're discussing artificial intelligence.
 Liam: It's such an exciting field!
 ```
 
-## Benefits Over ElevenLabs
-
-1. **Native Multi-Speaker**: No need for separate audio files
-2. **Natural Language Control**: "Say cheerfully:" instead of technical tags
-3. **30 Prebuilt Voices**: More variety than ElevenLabs
-4. **WebUI Compatible**: Audio content plays directly in web interfaces
-5. **Better Integration**: Part of Google's AI ecosystem
-6. **Simpler Workflow**: One request for entire conversations
-7. **Lean Architecture**: Fast, efficient, and maintainable
-
-## Limitations
-
-- Requires Gemini API key
-- TTS models only accept text inputs
-- 32k token context window limit
-- Preview models (may have usage limits)
-
 ## Advanced Features
 
 - **Rate Limit Handling**: Graceful fallbacks with dummy audio when API limits are hit
