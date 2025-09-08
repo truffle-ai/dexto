@@ -1,4 +1,4 @@
-import type { SpanExporter, ReadableSpan } from '@opentelemetry/sdk-trace-base';
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base';
 
 /** Sampling strategy configuration for OpenTelemetry */
 export type SamplingStrategy =

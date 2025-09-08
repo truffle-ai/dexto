@@ -113,7 +113,6 @@ export function withSpan(options: {
     spanKind?: SpanKind;
     tracerName?: string;
 }): any {
-    logger.debug('withSpan decorator called.');
     return function (
         _target: any,
         propertyKey: string | symbol,
@@ -125,20 +124,15 @@ export function withSpan(options: {
         const methodName = String(propertyKey);
 
         descriptor.value = function (this: unknown, ...args: unknown[]) {
-            logger.debug(`withSpan: Wrapped method '${methodName}' executed.`);
             // Skip if no telemetry is available and skipIfNoTelemetry is true
             // Guard against Telemetry.get() throwing if globalThis.__TELEMETRY__ is not yet defined
             if (
                 options?.skipIfNoTelemetry &&
                 (!globalThis.__TELEMETRY__ || !hasActiveTelemetry())
             ) {
-                logger.debug(
-                    `withSpan: Skipping tracing for '${methodName}' due to no active telemetry.`
-                );
                 return originalMethod.apply(this, args);
             }
             const tracer = trace.getTracer(options?.tracerName ?? 'dexto');
-            logger.debug(`withSpan: Tracer '${options?.tracerName ?? 'dexto'}' obtained.`);
 
             // Determine span name and kind
             let spanName: string = methodName; // Default spanName
@@ -153,7 +147,6 @@ export function withSpan(options: {
             }
 
             // Start the span with optional kind
-            logger.debug(`withSpan: Starting span '${spanName}' with kind: ${spanKind}`);
             const spanOptions: SpanOptions = {};
             if (spanKind !== undefined) {
                 spanOptions.kind = spanKind;
@@ -164,14 +157,8 @@ export function withSpan(options: {
             // Record input arguments as span attributes
             args.forEach((arg, index) => {
                 try {
-                    logger.debug(
-                        `withSpan: Setting argument attribute ${index} for span '${spanName}'.`
-                    );
                     span.setAttribute(`${spanName}.argument.${index}`, JSON.stringify(arg));
                 } catch {
-                    logger.debug(
-                        `withSpan: Argument ${index} for span '${spanName}' not serializable.`
-                    );
                     span.setAttribute(`${spanName}.argument.${index}`, '[Not Serializable]');
                 }
             });
@@ -232,42 +219,28 @@ export function withSpan(options: {
                     : args;
 
                 // Call the original method within the context
-                logger.debug(`withSpan: Executing original method '${methodName}' within context.`);
                 result = context.with(ctx, () => originalMethod.apply(this, enhancedArgs));
 
                 // Handle promises
                 if (result instanceof Promise) {
-                    logger.debug(`withSpan: Method '${methodName}' returned a Promise.`);
                     return result
                         .then((resolvedValue) => {
-                            logger.debug(`withSpan: Promise for '${methodName}' resolved.`);
                             if (isStreamingResult(resolvedValue, methodName)) {
-                                logger.debug(`withSpan: Streaming result for '${methodName}'.`);
                                 return resolvedValue;
                             } else {
                                 try {
-                                    logger.debug(
-                                        `withSpan: Setting result attribute for '${methodName}'.`
-                                    );
                                     span.setAttribute(
                                         `${spanName}.result`,
                                         JSON.stringify(resolvedValue)
                                     );
                                 } catch {
-                                    logger.debug(
-                                        `withSpan: Result for '${methodName}' not serializable.`
-                                    );
                                     span.setAttribute(`${spanName}.result`, '[Not Serializable]');
                                 }
                                 return resolvedValue;
                             }
                         })
                         .finally(() => {
-                            logger.debug(`withSpan: Promise for '${methodName}' finally block.`);
                             if (!span.__mastraStreamingSpan) {
-                                logger.debug(
-                                    `withSpan: Ending span for '${methodName}' (non-streaming promise).`
-                                );
                                 span.end();
                             }
                         });
@@ -275,11 +248,9 @@ export function withSpan(options: {
 
                 // Record result for non-promise returns
                 if (!isStreamingResult(result, methodName)) {
-                    logger.debug(`withSpan: Method '${methodName}' returned synchronous result.`);
                     try {
                         span.setAttribute(`${spanName}.result`, JSON.stringify(result));
                     } catch {
-                        logger.debug(`withSpan: Result for '${methodName}' not serializable.`);
                         span.setAttribute(`${spanName}.result`, '[Not Serializable]');
                     }
                 }
@@ -300,9 +271,6 @@ export function withSpan(options: {
             } finally {
                 // End span for non-promise returns
                 if (!(result instanceof Promise) && !isStreamingResult(result, methodName)) {
-                    logger.debug(
-                        `withSpan: Ending span for '${methodName}' (synchronous non-streaming).`
-                    );
                     span.end();
                 }
             }
@@ -320,16 +288,11 @@ export function InstrumentClass(options?: {
     methodFilter?: (methodName: string) => boolean;
     tracerName?: string;
 }) {
-    logger.debug(`InstrumentClass decorator called for target: ${options?.prefix || 'unknown'}`);
     return function (target: any) {
         const methods = Object.getOwnPropertyNames(target.prototype);
         methods.forEach((method) => {
-            logger.debug(`InstrumentClass: Processing method '${method}'.`);
             // Skip excluded methods
             if (options?.excludeMethods?.includes(method) || method === 'constructor') {
-                logger.debug(
-                    `InstrumentClass: Skipping method '${method}' (excluded or constructor).`
-                );
                 return;
             }
             // Apply method filter if provided

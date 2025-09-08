@@ -46,16 +46,21 @@ export class Telemetry {
         }
         if (e.type === 'otlp') {
             if (e.protocol === 'grpc') {
-                return new OTLPGrpcExporter({
-                    url: e.endpoint ?? '',
-                    ...(e.headers && { headers: e.headers }),
-                });
+                const options: { url?: string } = {};
+                if (e.endpoint) {
+                    options.url = e.endpoint;
+                }
+                return new OTLPGrpcExporter(options);
             }
             // default to http when omitted
-            return new OTLPHttpExporter({
-                url: e.endpoint ?? '',
-                ...(e.headers && { headers: e.headers }),
-            });
+            const options: { url?: string; headers?: Record<string, string> } = {};
+            if (e.endpoint) {
+                options.url = e.endpoint;
+            }
+            if (e.headers) {
+                options.headers = e.headers;
+            }
+            return new OTLPHttpExporter(options);
         }
         // schema also allows 'custom' but YAML cannot provide a SpanExporter instance
         return new ConsoleSpanExporter();
@@ -243,8 +248,7 @@ export class Telemetry {
                 throw error;
             }
             try {
-                const { requestId, componentName, runId, threadId, resourceId } =
-                    getBaggageValues(ctx);
+                const { requestId, threadId, resourceId } = getBaggageValues(ctx);
 
                 // Add all context attributes to span
                 if (context.attributes) {

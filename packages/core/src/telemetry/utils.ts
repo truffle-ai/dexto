@@ -1,4 +1,4 @@
-import { propagation, trace } from '@opentelemetry/api';
+import { propagation } from '@opentelemetry/api';
 import type { Context, Span } from '@opentelemetry/api';
 import { Telemetry } from './telemetry.js';
 import { logger } from '../logger/index.js';
