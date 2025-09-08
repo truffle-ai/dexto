@@ -1,5 +1,5 @@
 import { propagation, trace } from '@opentelemetry/api';
-import type { Context } from '@opentelemetry/api';
+import type { Context, Span } from '@opentelemetry/api';
 import { Telemetry } from './telemetry.js';
 import { logger } from '../logger/index.js';
 
@@ -42,4 +42,31 @@ export function getBaggageValues(ctx: Context) {
         threadId,
         resourceId,
     };
+}
+
+/**
+ * Attaches baggage values from the given context to the provided span as attributes.
+ * @param span The OpenTelemetry Span to add attributes to.
+ * @param ctx The OpenTelemetry Context from which to extract baggage values.
+ */
+export function addBaggageAttributesToSpan(span: Span, ctx: Context): void {
+    logger.debug('addBaggageAttributesToSpan called.');
+    const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx);
+
+    if (componentName) {
+        span.setAttribute('componentName', componentName);
+    }
+    if (runId) {
+        span.setAttribute('runId', runId);
+    }
+    if (requestId) {
+        span.setAttribute('http.request_id', requestId);
+    }
+    if (threadId) {
+        span.setAttribute('threadId', threadId);
+    }
+    if (resourceId) {
+        span.setAttribute('resourceId', resourceId);
+    }
+    logger.debug('addBaggageAttributesToSpan: Baggage attributes added to span.');
 }

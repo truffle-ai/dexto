@@ -7,7 +7,7 @@ import {
 } from '@opentelemetry/api';
 import type { Tracer, SpanOptions, Context, Span, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
-import { getBaggageValues, hasActiveTelemetry } from './utils.js';
+import { getBaggageValues, hasActiveTelemetry, addBaggageAttributesToSpan } from './utils.js';
 import {
     NodeSDK,
     ConsoleSpanExporter,
@@ -251,17 +251,7 @@ export class Telemetry {
                     span.setAttributes(context.attributes);
                 }
 
-                if (requestId) {
-                    span.setAttribute('http.request_id', requestId);
-                }
-
-                if (threadId) {
-                    span.setAttribute('threadId', threadId);
-                }
-
-                if (resourceId) {
-                    span.setAttribute('resourceId', resourceId);
-                }
+                addBaggageAttributesToSpan(span, ctx);
 
                 if (context.attributes?.componentName) {
                     ctx = propagation.setBaggage(
@@ -273,12 +263,7 @@ export class Telemetry {
                         })
                     );
                 } else {
-                    if (componentName) {
-                        span.setAttribute('componentName', componentName);
-                        span.setAttribute('runId', runId ?? '');
-                    } else if (this && this.name) {
-                        span.setAttribute('componentName', this.name);
-                        span.setAttribute('runId', (this as any).runId ?? ''); // Assuming this.runId exists and is string
+                    if (this && this.name) {
                         ctx = propagation.setBaggage(
                             ctx,
                             propagation.createBaggage({
@@ -350,12 +335,7 @@ class BaggageTracer implements Tracer {
     startSpan(name: string, options: SpanOptions = {}, ctx: Context) {
         ctx = ctx ?? otlpContext.active();
         const span = this._tracer.startSpan(name, options, ctx);
-        const { componentName, runId, requestId, threadId, resourceId } = getBaggageValues(ctx);
-        span.setAttribute('componentName', componentName ?? '');
-        span.setAttribute('runId', runId ?? '');
-        span.setAttribute('http.request_id', requestId ?? '');
-        span.setAttribute('threadId', threadId ?? '');
-        span.setAttribute('resourceId', resourceId ?? '');
+        addBaggageAttributesToSpan(span, ctx);
 
         return span;
     }
@@ -380,14 +360,7 @@ class BaggageTracer implements Tracer {
     ): ReturnType<F> {
         if (typeof optionsOrFn === 'function') {
             const wrappedFn = (span: Span) => {
-                const { componentName, runId, requestId, threadId, resourceId } = getBaggageValues(
-                    otlpContext.active()
-                );
-                span.setAttribute('componentName', componentName ?? '');
-                span.setAttribute('runId', runId ?? '');
-                span.setAttribute('http.request_id', requestId ?? '');
-                span.setAttribute('threadId', threadId ?? '');
-                span.setAttribute('resourceId', resourceId ?? '');
+                addBaggageAttributesToSpan(span, otlpContext.active());
 
                 return optionsOrFn(span);
             };
@@ -395,14 +368,7 @@ class BaggageTracer implements Tracer {
         }
         if (typeof ctxOrFn === 'function') {
             const wrappedFn = (span: Span) => {
-                const { componentName, runId, requestId, threadId, resourceId } = getBaggageValues(
-                    otlpContext.active()
-                );
-                span.setAttribute('componentName', componentName ?? '');
-                span.setAttribute('runId', runId ?? '');
-                span.setAttribute('http.request_id', requestId ?? '');
-                span.setAttribute('threadId', threadId ?? '');
-                span.setAttribute('resourceId', resourceId ?? '');
+                addBaggageAttributesToSpan(span, otlpContext.active());
 
                 return ctxOrFn(span);
             };
@@ -414,14 +380,7 @@ class BaggageTracer implements Tracer {
             );
         }
         const wrappedFn = (span: Span) => {
-            const { componentName, runId, requestId, threadId, resourceId } = getBaggageValues(
-                ctxOrFn ?? otlpContext.active()
-            );
-            span.setAttribute('componentName', componentName ?? '');
-            span.setAttribute('runId', runId ?? '');
-            span.setAttribute('http.request_id', requestId ?? '');
-            span.setAttribute('threadId', threadId ?? '');
-            span.setAttribute('resourceId', resourceId ?? '');
+            addBaggageAttributesToSpan(span, ctxOrFn ?? otlpContext.active());
 
             return fn!(span);
         };
