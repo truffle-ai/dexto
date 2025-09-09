@@ -94,6 +94,7 @@ dexto
 ```bash
 dexto --agent image-editor-agent
 ```
+
 <img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600">
 
 ### 🎙️ Podcast Agent: Generate AI Podcast Intros
@@ -101,15 +102,18 @@ dexto --agent image-editor-agent
 ```bash
 dexto --agent podcast-agent
 ```
+
 <img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
 
 ### 🖼️ Hugging Face: Image Generation
 **Task:** `Generate a photo of a baby panda.`
+
 <img src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" width="600"/>
 
 ### 🛠️ Adding Custom MCP Servers
 
 You can add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities with new tools or data sources. Just edit your agent YAML or add it directly in the WebUI.
+
 <img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
 
 
