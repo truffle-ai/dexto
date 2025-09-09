@@ -2,6 +2,24 @@ import { ExportResultCode } from '@opentelemetry/core';
 import type { ExportResult } from '@opentelemetry/core';
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 
+function normalizeUrlPath(url: string): string {
+    try {
+        const parsedUrl = new URL(url);
+        let pathname = parsedUrl.pathname.toLowerCase().trim();
+        if (pathname.endsWith('/')) {
+            pathname = pathname.slice(0, -1);
+        }
+        return pathname;
+    } catch (e) {
+        // If it's not a valid URL, treat it as a path and normalize
+        let path = url.toLowerCase().trim();
+        if (path.endsWith('/')) {
+            path = path.slice(0, -1);
+        }
+        return path;
+    }
+}
+
 export class CompositeExporter implements SpanExporter {
     private exporters: SpanExporter[];
 
@@ -25,11 +43,11 @@ export class CompositeExporter implements SpanExporter {
 
                     const isTelemetrySpan = relevantHttpAttributes.some((attr) => {
                         if (typeof attr === 'string') {
-                            const normalizedAttr = attr.trim();
+                            const normalizedPath = normalizeUrlPath(attr);
                             // Check for exact match or path prefix
                             return (
-                                normalizedAttr === '/api/telemetry' ||
-                                normalizedAttr.startsWith('/api/telemetry/')
+                                normalizedPath === '/api/telemetry' ||
+                                normalizedPath.startsWith('/api/telemetry/')
                             );
                         }
                         return false;

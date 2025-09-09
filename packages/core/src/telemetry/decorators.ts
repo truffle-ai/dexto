@@ -239,6 +239,14 @@ export function withSpan(options: {
                                 return resolvedValue;
                             }
                         })
+                        .catch((error) => {
+                            span.recordException(error);
+                            span.setStatus({
+                                code: SpanStatusCode.ERROR,
+                                message: error?.toString(),
+                            });
+                            throw error;
+                        })
                         .finally(() => {
                             if (!span.__mastraStreamingSpan) {
                                 span.end();

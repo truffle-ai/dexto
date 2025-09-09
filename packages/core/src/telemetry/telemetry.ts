@@ -15,7 +15,7 @@ import {
     OTLPGrpcExporter,
     getNodeAutoInstrumentations,
     resourceFromAttributes,
-    ATTR_SERVICE_NAME,
+    SEMRESATTRS_SERVICE_NAME,
     CompositeExporter,
 } from './otel-vendor.js';
 
@@ -78,7 +78,7 @@ export class Telemetry {
 
                 if (enabled) {
                     const resource = resourceFromAttributes({
-                        [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
+                        [SEMRESATTRS_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
                     });
 
                     const exporter = Telemetry.buildTraceExporter(config);

@@ -2,7 +2,10 @@ receivers:
   otlp:
     protocols:
       http:
+        endpoint: "localhost:4318"
       grpc:
+        endpoint: "localhost:4317"
+
 
 exporters:
   debug:
@@ -12,8 +15,14 @@ exporters:
     tls:
       insecure: true # Use insecure for local development
 
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 5s
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [batch]
       exporters: [debug, otlp]

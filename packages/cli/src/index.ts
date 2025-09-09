@@ -485,9 +485,37 @@ program
             agent = new DextoAgent(validatedConfig, opts.agent);
 
             // Initialize Telemetry
-            if (validatedConfig.telemetry?.enabled === true) {
-                await Telemetry.init(validatedConfig.telemetry);
-                console.log('Telemetry initialized from agent.yml');
+            const telemetryCfg = validatedConfig.telemetry;
+            const isMcpStdio = opts.mode === 'mcp';
+            if (telemetryCfg?.enabled === true) {
+                if (isMcpStdio && telemetryCfg.export?.type === 'console') {
+                    logger.warn(
+                        'Skipping telemetry console exporter in mcp stdio mode to avoid stdout interference'
+                    );
+                } else {
+                    await Telemetry.init(telemetryCfg);
+                    logger.info('Telemetry initialized from agent.yml');
+                    // Ensure spans flush on shutdown
+                    process.once('SIGINT', async () => {
+                        try {
+                            await Telemetry.shutdown();
+                        } finally {
+                            process.exit(130);
+                        }
+                    });
+                    process.once('SIGTERM', async () => {
+                        try {
+                            await Telemetry.shutdown();
+                        } finally {
+                            process.exit(143);
+                        }
+                    });
+                    process.once('beforeExit', async () => {
+                        try {
+                            await Telemetry.shutdown();
+                        } catch {}
+                    });
+                }
             }
 
             // Start the agent (initialize async services)
