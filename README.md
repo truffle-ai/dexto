@@ -7,11 +7,7 @@
   <a href="https://deepwiki.com/truffle-ai/dexto"><img src="https://deepwiki.com/badge.svg"></a>
 </p>
 
-<div align="center">
-  <strong>
-    An all-in-one toolkit to build agentic applications that turn natural language into real-world actions.
-  </strong>
-</div>
+**An all-in-one toolkit to build agentic applications that turn natural language into real-world actions.**
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/97a09f5b-6f7d-4d4b-9b3f-3c87fd964cbe" alt="Dexto Demo" width="700" />
@@ -180,12 +176,12 @@ Switch between providers instantly—no code changes required.
 
 | Provider | Models | Setup |
 |----------|--------|-------|
-| **OpenAI** | `gpt-5`, `gpt-4.1`, `gpt-4o`, `o3`, `o1` | `export OPENAI_API_KEY=...` |
-| **Anthropic** | `claude-4-sonnet`, `claude-4-opus`, `claude-3.5-sonnet` | `export ANTHROPIC_API_KEY=...` |
-| **Google** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.0-flash` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
-| **Groq** | `llama-3.3-70b-versatile`, `llama-4-scout`, `qwen3-32b` | `export GROQ_API_KEY=...` |
-| **xAI** | `grok-4`, `grok-3`, `grok-3-mini` | `export XAI_API_KEY=...` |
-| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r` | `export COHERE_API_KEY=...` |
+| **OpenAI** | `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `o3`, `o3-mini`, `o1` | `export OPENAI_API_KEY=...` |
+| **Anthropic** | `claude-opus-4-1-20250805`, `claude-4-opus-20250514`, `claude-4-sonnet-20250514`, `claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20240620`, `claude-3-5-haiku-20241022` | `export ANTHROPIC_API_KEY=...` |
+| **Google** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
+| **Groq** | `llama-3.3-70b-versatile`, `llama-4-scout-17b-16e-instruct`, `llama-4-maverick-17b-128e-instruct`, `qwen3-32b`, `gemma-2-9b-it`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `moonshotai/kimi-k2-instruct`, `deepseek-r1-distill-llama-70b` | `export GROQ_API_KEY=...` |
+| **xAI** | `grok-4`, `grok-3`, `grok-3-mini`, `grok-code-fast-1` | `export XAI_API_KEY=...` |
+| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r`, `command-r7b` | `export COHERE_API_KEY=...` |
 
 ```bash
 # Switch models via CLI
@@ -219,7 +215,7 @@ dexto --agent podcast-agent "generate a podcast intro with two hosts discussing 
 - **Music Agent** – Music creation and audio processing
 - **PDF Agent** – Document analysis and conversation
 - **Product Researcher** – Product naming and branding research
-- **Triage Agent** – Demo multi-agent customer support routing syste
+- **Triage Agent** – Demo multi-agent customer support routing system
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
 
