@@ -26,7 +26,6 @@ systemPrompt:
         Tools available to you:
         - Filesystem access for log analysis and configuration checks
         - Terminal access for system diagnostics and troubleshooting commands
-        - Browser automation for testing web-based issues
 
         You have access to comprehensive technical documentation and troubleshooting guides for TeamFlow's platform, API, mobile apps, and integrations. Use this knowledge to provide accurate, specific solutions.
 
@@ -58,12 +57,12 @@ mcpServers:
       - -y
       - "@modelcontextprotocol/server-filesystem"
       - .
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
       - -y
-      - "@truffle-ai/puppeteer-server"
+      - "@playwright/mcp@latest"
 
 llm:
   provider: openai

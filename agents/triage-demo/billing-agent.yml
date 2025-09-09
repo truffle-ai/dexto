@@ -56,12 +56,12 @@ systemPrompt:
         errorHandling: skip
 
 mcpServers:
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
       - -y
-      - "@truffle-ai/puppeteer-server"
+      - "@playwright/mcp@latest"
   filesystem:
     type: stdio
     command: npx
