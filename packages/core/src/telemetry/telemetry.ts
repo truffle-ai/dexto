@@ -30,13 +30,14 @@ export class Telemetry {
     private _isInitialized: boolean = false;
     private _sdk?: NodeSDK;
 
-    private constructor(config: OtelConfiguration) {
+    private constructor(config: OtelConfiguration, enabled: boolean, sdk?: NodeSDK) {
         const serviceName = config.serviceName ?? 'dexto-service';
         const tracerName = config.tracerName ?? serviceName;
 
         this.name = serviceName;
         this.tracer = trace.getTracer(tracerName);
-        this._isInitialized = true;
+        this._sdk = sdk;
+        this._isInitialized = enabled && !!sdk;
     }
 
     private static buildTraceExporter(config: OtelConfiguration | undefined) {
@@ -76,6 +77,7 @@ export class Telemetry {
                 // honor enabled=false: skip SDK registration
                 const enabled = config.enabled !== false;
 
+                let sdk: NodeSDK | undefined;
                 if (enabled) {
                     const resource = resourceFromAttributes({
                         [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
@@ -87,7 +89,7 @@ export class Telemetry {
                             ? exporter
                             : new CompositeExporter([exporter]);
 
-                    const sdk = new NodeSDK({
+                    sdk = new NodeSDK({
                         resource,
                         traceExporter,
                         instrumentations: [getNodeAutoInstrumentations()],
@@ -95,11 +97,11 @@ export class Telemetry {
 
                     await sdk.start(); // registers the global provider → no ProxyTracer
                     // graceful shutdown
-                    process.on('SIGTERM', () => sdk.shutdown());
-                    process.on('SIGINT', () => sdk.shutdown());
+                    process.on('SIGTERM', () => sdk!.shutdown());
+                    process.on('SIGINT', () => sdk!.shutdown());
                 }
 
-                globalThis.__TELEMETRY__ = new Telemetry(config);
+                globalThis.__TELEMETRY__ = new Telemetry(config, enabled, sdk);
             }
 
             return globalThis.__TELEMETRY__;
