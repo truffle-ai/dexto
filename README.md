@@ -1,4 +1,4 @@
-# Dexto (formerly Saiki)
+# Dexto
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Beta-yellow">
@@ -7,7 +7,7 @@
   <a href="https://deepwiki.com/truffle-ai/dexto"><img src="https://deepwiki.com/badge.svg"></a>
 </p>
 
-**A comprehensive toolkit to build agentic applications that turn natural language into real-world actions.**
+**An all-in-one toolkit to build agentic applications that turn natural language into real-world actions.**
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/9a796427-ab97-4c8f-8ac2-09cf58135553" alt="Dexto Demo" width="700" />
@@ -15,32 +15,35 @@
 
 ## What is Dexto?
 
-Dexto is a developer toolkit for building agentic applications—software that understands natural language and takes real-world actions. It offers a unified agent interface that combines LLMs, tools, and data into stateful, orchestrated systems with persistent memory. Dexto turns multimodal prompts (text, images, files) into intelligent workflows, assistants, and interactive experiences, enabling you to rapidly create context-aware apps that automate tasks and deliver value across diverse use cases.
+Dexto is a universal agent interface for building agentic apps—software that understands natural language and takes real-world actions. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, copilots, and context-aware apps that think, act and feel alive.
 
-### What You Can Build
+#### With Dexto, you can build:
 
-- **Autonomous Agents** – Apps that plan, execute, and adapt to user goals.
-- **Digital Companions** – Assistants that remember context and anticipate needs.
-- **Multi-Agent Systems** – Architect teams of agents that collaborate, delegate, and solve complex tasks together.
-- **MCP Client** – Unified interface to connect tools, files, APIs, and data.
-- **Reasoning Engine** – Add decision-making and automation to any product or workflow.
-- **Agentic Applications** – Build interactive, multimodal AI-native apps.
+- **Autonomous Agents** that plan, execute, and adapt to user goals.
+- **Digital Companions** like AI assistants & copilots that remember context and anticipate needs.
+- **Multi-Agent Systems** that collaborate, delegate, and solve complex tasks together.
+- **MCP Clients** to connect multiple tools, files, APIs, and data via MCP Servers.
+- **Agent-as-a-Service** – Transform your existing SaaS products and APIs into dynamic, conversational experiences.
+- **Agentic Applications** – Integrate Dexto as a reasoning engine to power interactive, multimodal, AI-native applications.
 
-Dexto unifies a configuration-driven framework, robust runtime, and seamless developer experience—so you can build, deploy, and iterate with ease.
+<!-- Dexto unifies a configuration-driven framework, robust runtime, and seamless developer experience—so you can build, deploy, and iterate with ease.
 
 - **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
 - **Runtime** – Execution with session management, conversation memory, and multimodal support.
-- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK. Develop, debug, and interact with your agent across any platforms from day one.
+- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK. Develop, debug, and interact with your agent across any platforms from day one. -->
 
 ### What You Get
 
-- **Batteries Included** – Session management, tool orchestration, multimodal support. *It just works.*
-- **20+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own. *One config change.*
+- **Batteries Included** – Session management, tool orchestration, multimodal support.
+- **20+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
 - **Run Anywhere** – Local for privacy, cloud for reach, or hybrid. *Same agent, any deployment.*
 - **Native Multimodal** – Text, images, files, and tools in a single conversation. *Upload screenshots, ask questions, take actions.*
-- **Smart Sessions** – Persistent conversations with context memory. *Close your browser, return days later, and pick up where you left off.*
-- **Multi-Interface** – One agent, endless interfaces. *CLI, Web, Discord, Telegram, APIs.*
-- **Production Ready** – Observability and error handling built-in. *Stay reliable under real-world conditions.*
+- **Persistent Sessions** – Conversations, context, and memory are saved and can be exported, imported, or shared across environments.
+- **Flexible Interfaces** – One agent, endless ways to interact: CLI, Web, Discord, Telegram, APIs, or integrate with your own UI.
+- **Production Ready** – Observability and error handling built-in.
+- **Tooling & MCP** – Integrate 100+ tools and connect to external servers via the Model Context Protocol (MCP).
+- **Customizable Agents** – Define agent behavior, tools, and prompts in YAML or TypeScript.
+- **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, and more for cache and database backends.
 
 ---
 
@@ -140,14 +143,14 @@ Switch between providers instantly—no code changes required.
 | Provider | Models | Setup |
 |----------|--------|-------|
 | **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-5` | `export OPENAI_API_KEY=...` |
-| **Anthropic** | `claude-3.5-sonnet`, `claude-3-opus` | `export ANTHROPIC_API_KEY=...` |
-| **Google** | `gemini-2.0-flash`, `gemini-1.5-pro` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
+| **Anthropic** | `claude-4-sonnet`, `claude-4-opus` | `export ANTHROPIC_API_KEY=...` |
+| **Google** | `gemini-2.5-flash`, `gemini-5.5-pro` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
 | **Groq** | `llama-3.3-70b`, `gemma-2-9b` | `export GROQ_API_KEY=...` |
 
 ```bash
 # Switch models via CLI
 dexto -m claude-3.5-sonnet-20240620
-dexto -m gemini-1.5-flash-latest
+dexto -m gemini-2.5-flash
 ```
 
 See our [Configuration Guide](https://docs.dexto.ai/category/dexto-configuration-guide) for complete setup instructions.
@@ -312,24 +315,6 @@ sessions:
 - **Simple**: SQLite for single-instance persistence
 
 See the [DextoAgent API Documentation](https://docs.dexto.ai/api/dexto-agent) for complete method references.
-
-## Project Scaffolding
-
-Create new Dexto projects or integrate into existing applications.
-
-```bash
-# Create a new Dexto project
-dexto create-app my-ai-agent
-
-# Initialize Dexto in existing TypeScript project
-dexto init-app
-```
-
-**What you get:**
-- Pre-configured agent setup
-- TypeScript SDK integration
-- Example configurations
-- Development tooling
 
 ---
 
