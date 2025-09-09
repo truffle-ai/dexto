@@ -10,7 +10,7 @@ function normalizeUrlPath(url: string): string {
             pathname = pathname.slice(0, -1);
         }
         return pathname;
-    } catch (e) {
+    } catch (_e) {
         // If it's not a valid URL, treat it as a path and normalize
         let path = url.toLowerCase().trim();
         if (path.endsWith('/')) {

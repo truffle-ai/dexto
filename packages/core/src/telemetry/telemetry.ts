@@ -15,7 +15,7 @@ import {
     OTLPGrpcExporter,
     getNodeAutoInstrumentations,
     resourceFromAttributes,
-    SEMRESATTRS_SERVICE_NAME,
+    ATTR_SERVICE_NAME,
     CompositeExporter,
 } from './otel-vendor.js';
 
@@ -78,7 +78,7 @@ export class Telemetry {
 
                 if (enabled) {
                     const resource = resourceFromAttributes({
-                        [SEMRESATTRS_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
+                        [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
                     });
 
                     const exporter = Telemetry.buildTraceExporter(config);
@@ -326,6 +326,19 @@ export class Telemetry {
 
     getBaggageTracer(): Tracer {
         return new BaggageTracer(this.tracer);
+    }
+
+    /**
+     * Shuts down the OpenTelemetry SDK, flushing any pending spans.
+     * This should be called before the application exits.
+     * @param force - Whether to force a shutdown, even if there are active spans.
+     */
+    public async shutdown(): Promise<void> {
+        if (this._sdk) {
+            await this._sdk.shutdown();
+            this._isInitialized = false;
+            globalThis.__TELEMETRY__ = undefined; // Clear the global instance
+        }
     }
 }
 
