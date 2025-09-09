@@ -116,6 +116,13 @@ You can add your own Model Context Protocol (MCP) servers to extend Dexto's capa
 
 <img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
 
+### 🎮 Web App Development: Snake Game
+**Task:** `Create a snake game in HTML/CSS/JS, then open it in the browser`
+```bash
+dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
+```
+
+<img src="https://github.com/user-attachments/assets/6901ba82-3c2a-4177-baf0-7d44d04a5f27" alt="Snake Game Development Demo" width="600"/>
 
 ### 📧 Send Email Summaries to Slack
 **Task:** `Summarize emails and send highlights to Slack`
