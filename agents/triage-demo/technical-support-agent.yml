@@ -58,12 +58,12 @@ mcpServers:
       - -y
       - "@modelcontextprotocol/server-filesystem"
       - .
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
       - -y
-      - "@truffle-ai/puppeteer-server"
+      - "@playwright/mcp@latest"
 
 llm:
   provider: openai

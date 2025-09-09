@@ -58,9 +58,9 @@
       "main": "podcast-agent.yml"
     },
     "default-agent": {
-      "description": "Default Dexto agent with filesystem and puppeteer tools",
+      "description": "Default Dexto agent with filesystem and playwright tools",
       "author": "Truffle AI", 
-      "tags": ["default", "filesystem", "puppeteer"],
+      "tags": ["default", "filesystem", "playwright"],
       "source": "default-agent.yml"
     }
   }

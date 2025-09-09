@@ -8,12 +8,12 @@ mcpServers:
       - -y
       - "@modelcontextprotocol/server-filesystem"
       - .
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
       - -y
-      - "@truffle-ai/puppeteer-server"
+      - "@playwright/mcp@latest"
 
 # System prompt configuration - defines the agent's behavior and instructions
 systemPrompt:
