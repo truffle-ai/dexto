@@ -119,7 +119,7 @@ Dexto treats each configuration as a unique agent allowing you to define and sav
 # agents/my-agent.yml
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-4.1-mini
   apiKey: $OPENAI_API_KEY
 
 mcpServers:
@@ -142,15 +142,17 @@ Switch between providers instantly—no code changes required.
 
 | Provider | Models | Setup |
 |----------|--------|-------|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-5` | `export OPENAI_API_KEY=...` |
-| **Anthropic** | `claude-4-sonnet`, `claude-4-opus` | `export ANTHROPIC_API_KEY=...` |
-| **Google** | `gemini-2.5-flash`, `gemini-5.5-pro` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
-| **Groq** | `llama-3.3-70b`, `gemma-2-9b` | `export GROQ_API_KEY=...` |
+| **OpenAI** | `gpt-5`, `gpt-4.1`, `gpt-4o`, `o3`, `o1` | `export OPENAI_API_KEY=...` |
+| **Anthropic** | `claude-4-sonnet`, `claude-4-opus`, `claude-3.5-sonnet` | `export ANTHROPIC_API_KEY=...` |
+| **Google** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.0-flash` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
+| **Groq** | `llama-3.3-70b-versatile`, `llama-4-scout`, `qwen3-32b` | `export GROQ_API_KEY=...` |
+| **xAI** | `grok-4`, `grok-3`, `grok-3-mini` | `export XAI_API_KEY=...` |
+| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r` | `export COHERE_API_KEY=...` |
 
 ```bash
 # Switch models via CLI
-dexto -m claude-3.5-sonnet-20240620
-dexto -m gemini-2.5-flash
+dexto -m claude-4-sonnet-20250514
+dexto -m gemini-2.5-pro
 ```
 
 See our [Configuration Guide](https://docs.dexto.ai/category/dexto-configuration-guide) for complete setup instructions.
@@ -164,11 +166,11 @@ Dexto comes with pre-built agent recipes for common use cases. Install and use t
 dexto list-agents
 
 # Install specific agents
-dexto install database-agent music-agent
+dexto install nano-banana-agent podcast-agent
 
 # Use an agent
-dexto --agent database-agent "show me all users in the database"
-dexto --agent music-agent "create a jazz melody in C major"
+dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
+dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
 ```
 
 **Available Agents:**
@@ -178,6 +180,8 @@ dexto --agent music-agent "create a jazz melody in C major"
 - **PDF Agent** – Document analysis and conversation
 - **Product Researcher** – Product naming and branding research
 - **Triage Agent** – Demo multi-agent customer support routing system
+- **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
+- **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
 
@@ -195,7 +199,7 @@ import { DextoAgent } from 'dexto';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-4.1-mini',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -248,8 +252,8 @@ Switch between models and providers dynamically.
 const currentLLM = agent.getCurrentLLMConfig();
 
 // Switch models (provider inferred automatically)
-await agent.switchLLM({ model: 'gpt-4o' });
-await agent.switchLLM({ model: 'claude-3.5-sonnet' });
+await agent.switchLLM({ model: 'gpt-4.1-mini' });
+await agent.switchLLM({ model: 'claude-4-sonnet-20250514' });
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
