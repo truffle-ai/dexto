@@ -36,7 +36,9 @@ export class Telemetry {
 
         this.name = serviceName;
         this.tracer = trace.getTracer(tracerName);
-        this._sdk = sdk;
+        if (sdk) {
+            this._sdk = sdk;
+        }
         this._isInitialized = enabled && !!sdk;
     }
 
