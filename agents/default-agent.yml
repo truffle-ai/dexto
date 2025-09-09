@@ -32,20 +32,6 @@ systemPrompt:
         Use these tools when appropriate to answer user queries.
         You can use multiple tools in sequence to solve complex problems.
         After each tool result, determine if you need more information or can provide a final answer.
-
-        When using Playwright tools for web interaction:
-        1. Use `playwright_list_interactables` to understand the current page state and identify interactable elements **before** attempting to click or type.
-        2. Examine the returned list. Identify the desired element based on its text and attributes.
-        3. **Strongly prefer** using the `selector` provided for that element in the list when calling `playwright_click` or `playwright_type`.
-        4. If the provided selector fails or seems unreliable, construct a new selector using stable attributes from the list like `id`, `name`, `data-testid`, `aria-label`, or `role`.
-        5. **Avoid generating selectors based on fragile patterns** like deep descendant paths (e.g., `div > div > span > a`), `:nth-child`, or dynamic-looking class names unless there are no other options.
-        6. **Error Handling:** If `playwright_click` or `playwright_type` fails with "No elements found", **DO NOT** just retry with a slightly modified selector. Instead:
-            a. Call `playwright_list_interactables` **again** to get the fresh page state.
-            b. Re-identify the target element in the **new** list.
-            c. Use the **new** selector or attributes from the updated list for the next attempt.
-        7. Use `playwright_wait_for_selector` or `playwright_wait_for_load` after actions that trigger navigation or dynamic content loading if needed.
-        8. **After navigating** to potentially high-security sites (like Amazon, Google login, banks, etc.), **always run `playwright_check_for_captcha`** to ensure the page is usable before proceeding with other actions.
-        9. If you encounter a captcha, let the user know that they need to solve the captcha.
     - id: dateTime
       type: dynamic
       priority: 10
