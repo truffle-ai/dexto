@@ -34,7 +34,6 @@ systemPrompt:
         Tools available to you:
         - Web research for latest product information and competitor analysis
         - Filesystem access to read product documentation and specs
-        - Browser automation for demonstrating features
 
         Remember: Always provide accurate information about TeamFlow and acknowledge when you need to research or verify details.
     
@@ -73,12 +72,12 @@ mcpServers:
       - -y
       - "@modelcontextprotocol/server-filesystem"
       - .
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
       - -y
-      - "@truffle-ai/puppeteer-server"
+      - "@playwright/mcp@latest"
 
 llm:
   provider: openai
