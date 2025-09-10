@@ -303,16 +303,40 @@ export default function ChatApp() {
   }, [switchSession]);
 
   const handleInstallServer = useCallback(async (entry: any) => {
-    // Open Connect modal with prefilled config
-    const config = {
-      type: entry.config.type,
-      command: entry.config.command,
-      args: entry.config.args || [],
-      url: entry.config.url,
-      env: entry.config.env || {},
-      headers: entry.config.headers || {},
-      timeout: entry.config.timeout || 30000,
-    };
+    // Open Connect modal with prefilled config - build schema-compliant config per transport type
+    let config: any;
+    
+    if (entry.config.type === 'stdio') {
+      config = {
+        type: entry.config.type,
+        command: entry.config.command,
+        args: entry.config.args || [],
+        env: entry.config.env || {},
+        timeout: entry.config.timeout || 30000,
+        connectionMode: entry.config.connectionMode || 'lenient'
+      };
+    } else if (entry.config.type === 'sse' || entry.config.type === 'http') {
+      config = {
+        type: entry.config.type,
+        url: entry.config.url,
+        headers: entry.config.headers || {},
+        timeout: entry.config.timeout || 30000,
+        connectionMode: entry.config.connectionMode || 'lenient'
+      };
+    } else {
+      // Fallback for unknown types
+      config = {
+        type: entry.config.type,
+        command: entry.config.command,
+        args: entry.config.args || [],
+        url: entry.config.url,
+        env: entry.config.env || {},
+        headers: entry.config.headers || {},
+        timeout: entry.config.timeout || 30000,
+        connectionMode: entry.config.connectionMode || 'lenient'
+      };
+    }
+    
     setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
     setServerRegistryOpen(false);
     setModalOpen(true);

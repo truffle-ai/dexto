@@ -133,8 +133,19 @@ export class ServerRegistryService {
             // Fetch current server states
             const controller = new AbortController();
             const t = setTimeout(() => controller.abort(), 10000);
-            const response = await fetch('/api/mcp/servers', { signal: controller.signal });
-            clearTimeout(t);
+
+            let response;
+            try {
+                response = await fetch('/api/mcp/servers', { signal: controller.signal });
+                clearTimeout(t);
+            } catch (error) {
+                clearTimeout(t);
+                if (error instanceof Error && error.name === 'AbortError') {
+                    console.warn('Registry sync timed out after 10 seconds');
+                    return;
+                }
+                throw error;
+            }
             if (!response.ok) return; // Graceful failure
 
             const data = await response.json();

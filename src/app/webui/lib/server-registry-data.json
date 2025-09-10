@@ -229,6 +229,26 @@
     "matchIds": ["tavily"]
   },
   {
+    "id": "playwright",
+    "name": "Playwright",
+    "description": "Browser automation and web interaction via Playwright",
+    "category": "productivity",
+    "icon": "🎭",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "timeout": 60000
+    },
+    "tags": ["browser", "automation", "web", "playwright"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Playwright / Community",
+    "homepage": "https://github.com/microsoft/playwright",
+    "matchIds": ["playwright"]
+  },
+  {
     "id": "puppeteer",
     "name": "Puppeteer",
     "description": "Browser automation and web interaction tools",

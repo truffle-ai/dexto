@@ -18,6 +18,8 @@ import {
 } from './mcp/mcp_handler.js';
 import { createAgentCard } from '@core/index.js';
 import { DextoAgent } from '@core/index.js';
+import type { TextContent } from '@core/prompts/types.js';
+import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { stringify as yamlStringify } from 'yaml';
 import os from 'os';
 import { resolveBundledScript } from '@core/index.js';
@@ -57,6 +59,43 @@ function sendJsonResponse(res: any, data: any, statusCode = 200) {
     } else {
         res.json(data);
     }
+}
+
+/**
+ * Type guard to check if content is text content
+ */
+function isTextContent(content: unknown): content is TextContent {
+    return (
+        content !== null &&
+        content !== undefined &&
+        typeof content === 'object' &&
+        'type' in content &&
+        content.type === 'text' &&
+        'text' in content &&
+        typeof (content as any).text === 'string'
+    );
+}
+
+/**
+ * Extract text content from prompt messages with type safety
+ */
+function extractTextFromPromptResult(pr: GetPromptResult): string {
+    const parts: string[] = [];
+
+    if (Array.isArray(pr.messages)) {
+        for (const message of pr.messages) {
+            if (!message || typeof message !== 'object' || !('content' in message)) {
+                continue;
+            }
+
+            const content = message.content;
+            if (isTextContent(content)) {
+                parts.push(content.text);
+            }
+        }
+    }
+
+    return parts.join('\n\n').trim();
 }
 
 // Note: Request body may include a sessionId alongside LLM updates.
@@ -465,24 +504,10 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                                         promptName,
                                         args
                                     );
-                                    // Flatten messages (text only) into a single content string
-                                    const parts: string[] = [];
-                                    if (Array.isArray(pr.messages)) {
-                                        for (const m of pr.messages) {
-                                            // Only include text types
-                                            const c: any = (m as any).content;
-                                            if (
-                                                c &&
-                                                typeof c === 'object' &&
-                                                c.type === 'text' &&
-                                                typeof c.text === 'string'
-                                            ) {
-                                                parts.push(c.text);
-                                            }
-                                        }
-                                    }
-                                    if (parts.length > 0) {
-                                        resolvedContent = parts.join('\n\n').trim();
+                                    // Extract text content from prompt messages
+                                    const extractedText = extractTextFromPromptResult(pr);
+                                    if (extractedText.length > 0) {
+                                        resolvedContent = extractedText;
                                     }
                                 }
                             } catch (e) {
@@ -1335,21 +1360,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
             }
 
             const pr = await agent.promptsManager.getPrompt(promptName, args);
-            const parts: string[] = [];
-            if (Array.isArray(pr.messages)) {
-                for (const m of pr.messages as any[]) {
-                    const c = m?.content;
-                    if (
-                        c &&
-                        typeof c === 'object' &&
-                        c.type === 'text' &&
-                        typeof c.text === 'string'
-                    ) {
-                        parts.push(c.text);
-                    }
-                }
-            }
-            const text = parts.join('\n\n').trim();
+            const text = extractTextFromPromptResult(pr);
             return sendJsonResponse(res, { text, name: promptName }, 200);
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
