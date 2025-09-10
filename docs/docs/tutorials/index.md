@@ -2,8 +2,6 @@
 sidebar_position: 1
 ---
 
-import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
-
 # Building Applications
 
 Now let's build something useful. We'll create three types of applications, each building on what you've learned.
@@ -392,7 +390,6 @@ Built something cool? We'd love to see it! Consider contributing your agent to h
 - **Build your reputation** in the AI agent community
 - **Potential for pre-installed status** in our official registry (see [pre-installed criteria](../community/contributing.md#criteria-for-pre-installed-agents))
 
-<ExpandableMermaid title="How to contribute an example">
 ```mermaid
 flowchart TD
   A[Build your agent] --> B[Add to agents/ with README + usage]
@@ -401,7 +398,6 @@ flowchart TD
   D --> E[Merge]
   E --> F[Listed in tutorials + eligible for pre-installed review]
 ```
-</ExpandableMermaid>
 
 ## Next Steps
 
