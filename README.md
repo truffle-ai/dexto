@@ -75,7 +75,7 @@ Dexto will use filesystem tools to write code and browser tools to open it—all
 
 ## Examples & Demos
 
-### 🛒 Amazon Shopping Assistant
+### 🛒 Browser Agent: Amazon Shopping Assistant
 **Task:** `Can you go to amazon and add some snacks to my cart? I like trail mix, cheetos and maybe surprise me with something else?`
 ```bash
 # Default agent has browser tools
