@@ -59,7 +59,7 @@ Help other users discover and use new MCP servers by adding them to our built-in
   "isInstalled": false,
   "requirements": {
     "platform": "all|windows|mac|linux",
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "python": ">=3.10"
   },
   "author": "Your Name",
@@ -79,7 +79,8 @@ Help other users discover and use new MCP servers by adding them to our built-in
 **Configuration Types:**
 - **Stdio (Node.js)**: `{"type": "stdio", "command": "npx", "args": ["-y", "package-name"]}`
 - **Stdio (Python)**: `{"type": "stdio", "command": "uvx", "args": ["package-name"]}`
-- **HTTP/SSE**: `{"type": "http", "url": "https://api.example.com/mcp"}`
+- **HTTP**: `{"type": "http", "baseUrl": "https://api.example.com/mcp"}`
+- **SSE**: `{"type": "sse", "url": "https://api.example.com/mcp-sse"}`
 
 ### 2. Creating Example Agents
 

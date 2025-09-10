@@ -388,7 +388,18 @@ Built something cool? We'd love to see it! Consider contributing your agent to h
 - **Help others learn** from your solutions
 - **Get feedback** on your approach
 - **Build your reputation** in the AI agent community
-- **Potential for pre-installed status** in our official registry
+- **Potential for pre-installed status** in our official registry (see [pre-installed criteria](../community/contributing.md#criteria-for-pre-installed-agents))
+
+<ExpandableMermaid title="How to contribute an example">
+```mermaid
+flowchart TD
+  A[Build your agent] --> B[Add to agents/ with README + usage]
+  B --> C[Open PR with docs snippet]
+  C --> D[Review & feedback]
+  D --> E[Merge]
+  E --> F[Listed in tutorials + eligible for pre-installed review]
+```
+</ExpandableMermaid>
 
 ## Next Steps
 
