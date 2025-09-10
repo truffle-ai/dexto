@@ -137,7 +137,7 @@ export async function createAgentServices(
 
     // 7. Initialize prompts manager for MCP and internal prompts
     const promptsDir = join(configDir, 'prompts');
-    const promptsManager = new PromptsManager(mcpManager, promptsDir, config);
+    const promptsManager = new PromptsManager(mcpManager, promptsDir, config, agentEventBus);
     await promptsManager.initialize();
     logger.debug('PromptsManager initialized');
 

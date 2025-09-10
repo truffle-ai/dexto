@@ -422,6 +422,76 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         return;
                     }
                     const stream = data.stream === true; // Extract stream preference, default to false
+
+                    // Resolve slash-command prompts ("/name [args]") into concrete prompt text across all providers
+                    // This standardizes behavior for MCP, internal, and starter prompts in the WebUI
+                    let resolvedContent: string | undefined = undefined;
+                    if (typeof data.content === 'string') {
+                        const raw = String(data.content).trim();
+                        if (raw.startsWith('/')) {
+                            try {
+                                // Parse "/name [args]". args can be key=value or free text context
+                                const tokens = raw.slice(1).trim().split(/\s+/);
+                                const promptName = tokens.shift() || '';
+
+                                // Build args: key=value pairs; remaining tokens become _context
+                                const args: Record<string, unknown> = {};
+                                const contextParts: string[] = [];
+                                for (const tok of tokens) {
+                                    const eq = tok.indexOf('=');
+                                    if (eq > 0) {
+                                        const k = tok.slice(0, eq);
+                                        let v = tok.slice(eq + 1);
+                                        // Strip simple quotes if present
+                                        if (
+                                            (v.startsWith('"') && v.endsWith('"')) ||
+                                            (v.startsWith("'") && v.endsWith("'"))
+                                        ) {
+                                            v = v.slice(1, -1);
+                                        }
+                                        args[k] = v;
+                                    } else {
+                                        contextParts.push(tok);
+                                    }
+                                }
+                                if (contextParts.length > 0) {
+                                    args._context = contextParts.join(' ');
+                                }
+
+                                // Check if the prompt exists via PromptsManager and resolve its messages
+                                const hasPrompt = await agent.promptsManager.hasPrompt(promptName);
+                                if (hasPrompt) {
+                                    const pr = await agent.promptsManager.getPrompt(
+                                        promptName,
+                                        args
+                                    );
+                                    // Flatten messages (text only) into a single content string
+                                    const parts: string[] = [];
+                                    if (Array.isArray(pr.messages)) {
+                                        for (const m of pr.messages) {
+                                            // Only include text types
+                                            const c: any = (m as any).content;
+                                            if (
+                                                c &&
+                                                typeof c === 'object' &&
+                                                c.type === 'text' &&
+                                                typeof c.text === 'string'
+                                            ) {
+                                                parts.push(c.text);
+                                            }
+                                        }
+                                    }
+                                    if (parts.length > 0) {
+                                        resolvedContent = parts.join('\n\n').trim();
+                                    }
+                                }
+                            } catch (e) {
+                                logger.warn(
+                                    `Slash prompt resolution failed: ${e instanceof Error ? e.message : String(e)}`
+                                );
+                            }
+                        }
+                    }
                     if (imageDataInput) logger.info('Image data included in message.');
                     if (fileDataInput) logger.info('File data included in message.');
                     if (sessionId) logger.info(`Message for session: ${sessionId}`);
@@ -430,7 +500,7 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                     const currentConfig = agent.getEffectiveConfig(sessionId);
                     const validation = validateInputForLLM(
                         {
-                            text: data.content,
+                            text: resolvedContent ?? data.content,
                             ...(imageDataInput && { imageData: imageDataInput }),
                             ...(fileDataInput && { fileData: fileDataInput }),
                         },
@@ -468,7 +538,13 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
                         return;
                     }
 
-                    await agent.run(data.content, imageDataInput, fileDataInput, sessionId, stream);
+                    await agent.run(
+                        resolvedContent ?? data.content,
+                        imageDataInput,
+                        fileDataInput,
+                        sessionId,
+                        stream
+                    );
                 } else if (data.type === 'reset') {
                     const sessionId = data.sessionId as string | undefined;
                     logger.info(
@@ -1212,6 +1288,72 @@ export async function initializeApi(agent: DextoAgent, agentCardOverride?: Parti
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
             logger.error(`Error getting prompt: ${msg}`);
+            return next(error);
+        }
+    });
+
+    // Resolve a slash-command prompt into concrete text content
+    app.post('/api/prompts/resolve', express.json(), async (req, res, next) => {
+        try {
+            const schema = z.object({ command: z.string().min(1) });
+            const { command } = schema.parse(req.body);
+
+            const raw = String(command).trim();
+            if (!raw.startsWith('/')) {
+                return sendJsonResponse(res, { text: raw }, 200);
+            }
+
+            // Parse "/name [args]"; args support key=value tokens and free text context
+            const tokens = raw.slice(1).trim().split(/\s+/);
+            const promptName = tokens.shift() || '';
+            const args: Record<string, unknown> = {};
+            const contextParts: string[] = [];
+            for (const tok of tokens) {
+                const eq = tok.indexOf('=');
+                if (eq > 0) {
+                    const k = tok.slice(0, eq);
+                    let v = tok.slice(eq + 1);
+                    if (
+                        (v.startsWith('"') && v.endsWith('"')) ||
+                        (v.startsWith("'") && v.endsWith("'"))
+                    ) {
+                        v = v.slice(1, -1);
+                    }
+                    args[k] = v;
+                } else {
+                    contextParts.push(tok);
+                }
+            }
+            if (contextParts.length > 0) {
+                args._context = contextParts.join(' ');
+            }
+
+            const hasPrompt = await agent.promptsManager.hasPrompt(promptName);
+            if (!hasPrompt) {
+                // Not a known prompt; return original text without the leading slash
+                return sendJsonResponse(res, { text: raw }, 200);
+            }
+
+            const pr = await agent.promptsManager.getPrompt(promptName, args);
+            const parts: string[] = [];
+            if (Array.isArray(pr.messages)) {
+                for (const m of pr.messages as any[]) {
+                    const c = m?.content;
+                    if (
+                        c &&
+                        typeof c === 'object' &&
+                        c.type === 'text' &&
+                        typeof c.text === 'string'
+                    ) {
+                        parts.push(c.text);
+                    }
+                }
+            }
+            const text = parts.join('\n\n').trim();
+            return sendJsonResponse(res, { text, name: promptName }, 200);
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.error(`Error resolving prompt: ${msg}`);
             return next(error);
         }
     });

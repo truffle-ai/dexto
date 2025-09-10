@@ -10,7 +10,7 @@ interface ChatContextType {
     content: string,
     imageData?: { base64: string; mimeType: string },
     fileData?: { base64: string; mimeType: string; filename?: string }
-  ) => void;
+  ) => Promise<void>;
   status: 'connecting' | 'open' | 'closed';
   reset: () => void;
   currentSessionId: string | null;
@@ -131,7 +131,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     
     if (sessionId) {
-      originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+      await originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
     } else {
       console.error('No session available for sending message');
     }

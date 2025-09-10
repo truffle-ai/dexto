@@ -512,50 +512,14 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     }, [wsUrl]);
 
     const sendMessage = useCallback(
-        (
+        async (
             content: string,
             imageData?: { base64: string; mimeType: string },
             fileData?: FileData,
             sessionId?: string,
             stream = false
         ) => {
-            if (wsRef.current?.readyState === globalThis.WebSocket.OPEN) {
-                const message = {
-                    type: 'message',
-                    content,
-                    imageData,
-                    fileData,
-                    sessionId,
-                    stream,
-                };
-                wsRef.current.send(JSON.stringify(message));
-                setProcessing(true);
-
-                // Add user message to local state immediately
-                const userId = generateUniqueId();
-                lastUserMessageIdRef.current = userId;
-                setMessages((ms) => [
-                    ...ms,
-                    {
-                        id: userId,
-                        role: 'user',
-                        content,
-                        createdAt: Date.now(),
-                        sessionId,
-                        imageData,
-                        fileData,
-                    },
-                ]);
-
-                // Emit DOM event for other components to listen to
-                if (typeof window !== 'undefined') {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:message', {
-                            detail: { content, sessionId, timestamp: Date.now() },
-                        })
-                    );
-                }
-            } else {
+            if (wsRef.current?.readyState !== globalThis.WebSocket.OPEN) {
                 setActiveError({
                     id: generateUniqueId(),
                     message: 'Cannot send message: connection is not open',
@@ -563,6 +527,64 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     context: 'websocket',
                     recoverable: true,
                 });
+                return;
+            }
+
+            // If content is a slash prompt, resolve to text first for immediate correct echo
+            let contentToSend = content;
+            try {
+                if (typeof content === 'string' && content.trim().startsWith('/')) {
+                    const res = await fetch('/api/prompts/resolve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command: content }),
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && typeof data.text === 'string' && data.text.trim().length > 0) {
+                            contentToSend = data.text;
+                        }
+                    }
+                }
+            } catch (e) {
+                // Non-fatal: fall back to original content
+                // console.warn('Prompt resolve failed', e);
+            }
+
+            const message = {
+                type: 'message',
+                content: contentToSend,
+                imageData,
+                fileData,
+                sessionId,
+                stream,
+            };
+            wsRef.current.send(JSON.stringify(message));
+            setProcessing(true);
+
+            // Add user message to local state immediately (with resolved content)
+            const userId = generateUniqueId();
+            lastUserMessageIdRef.current = userId;
+            setMessages((ms) => [
+                ...ms,
+                {
+                    id: userId,
+                    role: 'user',
+                    content: contentToSend,
+                    createdAt: Date.now(),
+                    sessionId,
+                    imageData,
+                    fileData,
+                },
+            ]);
+
+            // Emit DOM event for other components to listen to
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                    new CustomEvent('dexto:message', {
+                        detail: { content: contentToSend, sessionId, timestamp: Date.now() },
+                    })
+                );
             }
         },
         []

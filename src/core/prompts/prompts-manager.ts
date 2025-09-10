@@ -2,6 +2,7 @@ import type { MCPManager } from '../mcp/manager.js';
 import type { PromptSet, PromptListResult, PromptProvider, PromptInfo } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { AgentConfig } from '../agent/schemas.js';
+import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
@@ -35,7 +36,12 @@ export class PromptsManager {
     private aliasMap = new Map<string, { baseName: string; providerName: string }>();
     private buildPromise: Promise<void> | null = null;
 
-    constructor(mcpManager: MCPManager, promptsDir?: string, agentConfig?: AgentConfig) {
+    constructor(
+        mcpManager: MCPManager,
+        promptsDir?: string,
+        agentConfig?: AgentConfig,
+        private eventBus?: AgentEventBus
+    ) {
         // Register all prompt providers
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
         this.providers.set('internal', new InternalPromptProvider(promptsDir));
@@ -44,6 +50,26 @@ export class PromptsManager {
         logger.debug(
             `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
+
+        // If an event bus is provided, subscribe to MCP-related events to refresh prompts dynamically
+        if (this.eventBus) {
+            const refresh = async (reason: string) => {
+                logger.debug(`PromptsManager refreshing due to: ${reason}`);
+                await this.refresh();
+            };
+
+            this.eventBus.on('dexto:mcpServerConnected', async (p) => {
+                if (p.success) {
+                    await refresh(`mcpServerConnected:${p.name}`);
+                }
+            });
+            this.eventBus.on('dexto:mcpServerRemoved', async (p) => {
+                await refresh(`mcpServerRemoved:${p.serverName}`);
+            });
+            this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
+                await refresh(`mcpServerUpdated:${p.serverName}`);
+            });
+        }
     }
 
     /**

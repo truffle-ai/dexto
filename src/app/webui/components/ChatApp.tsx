@@ -399,17 +399,12 @@ export default function ChatApp() {
           icon: prompt.icon || "🔧"
         });
       } else {
-        // Skip prompts without text content
-        const textToSend = prompt.promptText || prompt.name;
-        if (!textToSend || textToSend.trim() === '') {
-          console.warn(`Skipping starter prompt '${prompt.name}': no text content available`);
-          return;
-        }
-        // Regular starter prompts send their prompt text
+        // Standardize: always send slash command so server resolves full prompt
+        const slashCommand = `/${prompt.name}`;
         actions.push({
           title: prompt.title || prompt.name,
           description: prompt.description || 'Starter prompt',
-          action: () => handleSend(textToSend),
+          action: () => handleSend(slashCommand),
           icon: prompt.icon || "💬"
         });
       }
