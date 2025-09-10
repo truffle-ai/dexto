@@ -548,7 +548,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 }
             } catch (e) {
                 // Non-fatal: fall back to original content
-                // console.warn('Prompt resolve failed', e);
+                console.warn('Prompt resolve failed', e);
             }
 
             const message = {
