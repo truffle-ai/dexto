@@ -261,6 +261,5 @@ Contributors who add MCPs or example agents will be:
 
 - **Listed in our contributors section**
 - **Mentioned in release notes** for significant contributions
-- **Invited to our contributor program** for ongoing collaboration
 
 Thank you for helping make Dexto better for everyone! 🚀
