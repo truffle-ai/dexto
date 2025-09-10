@@ -15,3 +15,16 @@ So we built Dexto with the following tenets:
 
 
 Check out our generated deepwiki [here](https://deepwiki.truffle.ai/dexto) for more details.
+
+## Core Services
+
+Dexto's architecture is built around core services that handle different aspects of agent functionality. Each service has a specific responsibility and works together to provide the full agent experience.
+
+See [Core Services](./services) for detailed information about:
+- **DextoAgent** - Main orchestrator 
+- **MCPManager** - Tool coordination
+- **ToolManager** - Tool execution
+- **SessionManager** - Conversation state
+- **StorageManager** - Data persistence
+- **PromptManager** - System prompts
+- **AgentEventBus** - Event coordination
