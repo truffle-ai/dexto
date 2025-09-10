@@ -557,22 +557,8 @@ program
                 // Open WebUI in browser if server started successfully
                 if (webServerStarted) {
                     try {
-                        const { spawn } = await import('child_process');
-
-                        // Cross-platform browser opening
-                        const command =
-                            process.platform === 'darwin'
-                                ? 'open'
-                                : process.platform === 'win32'
-                                  ? 'start'
-                                  : 'xdg-open';
-
-                        const args =
-                            process.platform === 'win32'
-                                ? ['', nextJSserverURL]
-                                : [nextJSserverURL];
-
-                        spawn(command, args, { detached: true, stdio: 'ignore' }).unref();
+                        const { default: open } = await import('open');
+                        await open(nextJSserverURL, { wait: false });
                         console.log(chalk.green(`🌐 Opened WebUI in browser: ${nextJSserverURL}`));
                     } catch (_error) {
                         console.log(chalk.yellow(`💡 WebUI is available at: ${nextJSserverURL}`));
