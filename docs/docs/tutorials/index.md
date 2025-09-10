@@ -1,31 +1,52 @@
-## Contributing Your Own Examples
+---
+sidebar_position: 1
+---
 
-Built something cool? We'd love to see it! Consider contributing your agent to help others learn:
+# Building Applications
 
-### Share Your Agent
+Now let's build something useful. We'll create three types of applications, each building on what you've learned.
 
-1. **Create an example agent** following our [Community Contribution Guide](../community/contributing.md#creating-example-agents)
-2. **Add it to the `agents/` directory** with proper documentation
-3. **Submit a pull request** to share it with the community
+## Application 1: Smart File Organizer
 
-### Benefits of Contributing
+Let's build an agent that can organize messy directories:
 
-- **Help others learn** from your solutions
-- **Get feedback** on your approach
-- **Build your reputation** in the AI agent community
-- **Potential for pre-installed status** in our official registry
+```typescript
+// file-organizer.ts
+import 'dotenv/config';
+import { loadConfigFile, DextoAgent } from 'dexto';
 
-## Next Steps
+const config = await loadConfigFile('./agents/default-agent.yml');
+const agent = new DextoAgent(config);
 
-Ready to take it to the next level?
+// Start the agent
+await agent.start();
 
-- **Learn advanced patterns**: Check out [Advanced Patterns](./advanced-patterns) for production-ready techniques
-- **Add more tools**: Explore [MCP servers](../mcp/connecting-servers) for additional capabilities
-- **Deploy your service**: See the [deployment guide](../guides/deployment) for production hosting
-- **Contribute to the community**: Learn how to [contribute MCPs and agents](../community/contributing.md)
-- **Join the community**: Share your creations in our [Discord](https://discord.gg/GFzWFAAZcm)
+console.log("🗂️ Smart File Organizer");
+console.log("I can help organize your files by type, date, or project.\n");
 
-You're well on your way to building amazing AI applications! 🎉t();
+const task = "Look at the current directory and suggest how to organize these files. Create folders if needed.";
+const response = await agent.run(task);
+console.log(response);
+
+// Clean shutdown
+await agent.stop();
+```
+
+**What you're learning:** Single-purpose agents with clear objectives work best.
+
+### Making it Interactive
+
+Let's add some user input:
+
+```typescript
+// interactive-organizer.ts
+import 'dotenv/config';
+import { loadConfigFile, DextoAgent } from 'dexto';
+import readline from 'readline';
+
+const config = await loadConfigFile('./agents/default-agent.yml');
+const agent = new DextoAgent(config);
+await agent.start();
 
 const rl = readline.createInterface({
   input: process.stdin,
