@@ -129,7 +129,6 @@ storage:
   database:
     type: sqlite                      # sqlite | postgres | in-memory
     path: ./data/dexto.db            # SQLite file path
-    database: dexto.db               # Database name
     # PostgreSQL options:
     # type: postgres
     # connectionString: $POSTGRES_CONNECTION_STRING
@@ -296,9 +295,9 @@ mcpServers:
 | `COHERE_API_KEY` | Yes* | Cohere API key | `co-...` |
 | `REDIS_URL` | No | Redis connection URL | `redis://localhost:6379` |
 | `POSTGRES_CONNECTION_STRING` | No | PostgreSQL connection | `postgresql://user:pass@host:5432/db` |
-| `DEXTO_LOG_LEVEL` | No | Log level | `debug`, `info`, `warn`, `error` |
+| `DEXTO_LOG_LEVEL` | No | Log level | `silly`, `debug`, `info`, `warn`, `error` |
 
-*At least one LLM provider API key is required
+*At least one LLM provider API key is required. Individual provider keys are optional - choose the provider you want to use.
 
 ## Key Sections Explained
 
@@ -325,5 +324,9 @@ mcpServers:
 - **Use environment variables** for secrets and API keys. Reference them in YML as `$VARNAME`.
 - **Keep your config in version control** (but never commit secrets!). Use `.env` files or CI secrets for sensitive values.
 - **Document your config** for your team. Add comments to your YML files. We chose YML for this reason.
-- **Validate your config** before running Dexto in production.
+- **Validate your config** before running Dexto in production:
+  ```bash
+  # Test your configuration by doing a dry run
+  dexto --agent ./my-agent.yml --help
+  ```
 - **See the `agents/examples/` folder for more templates and advanced use cases.**

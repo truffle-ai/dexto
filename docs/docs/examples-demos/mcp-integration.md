@@ -32,7 +32,7 @@ mcpServers:
     type: http
     url: $CUSTOM_MCP_URL
     headers:
-      Authorization: "Bearer <TOKEN>"
+      Authorization: "Bearer $CUSTOM_MCP_TOKEN"
 ```
 
 **Via WebUI:**

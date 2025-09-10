@@ -1,5 +1,5 @@
 ---
-title: "Amazon shopping assistant"
+title: "Browser Agent: Amazon shopping assistant"
 hide_title: true
 
 ---

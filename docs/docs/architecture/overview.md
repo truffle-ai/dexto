@@ -14,7 +14,7 @@ So we built Dexto with the following tenets:
 5. <ins>**Simple deployments**</ins>: We want users to be able to play around with different config files of Dexto and simply save the configuration they liked to be able to re-use it anywhere. Docker helps make this happen.
 
 
-Check out our generated deepwiki [here](https://deepwiki.truffle.ai/dexto) for more details.
+Check out our generated deepwiki [here](https://deepwiki.com/truffle-ai/dexto) for more details.
 
 ## Core Services
 
