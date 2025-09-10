@@ -2,6 +2,8 @@
 sidebar_position: 1
 ---
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 # Building Applications
 
 Now let's build something useful. We'll create three types of applications, each building on what you've learned.
