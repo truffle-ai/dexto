@@ -19,18 +19,22 @@ describe('Anthropic LLM Service Integration', () => {
     const t = skipTests ? test.skip : test.concurrent;
 
     // Normal operation tests
-    t('generate works normally', async () => {
-        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
-        try {
-            const response = await env.agent.run('Hello', undefined, undefined, env.sessionId);
+    t(
+        'generate works normally',
+        async () => {
+            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            try {
+                const response = await env.agent.run('Hello', undefined, undefined, env.sessionId);
 
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-            expect(response.length).toBeGreaterThan(0);
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+                expect(response.length).toBeGreaterThan(0);
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     t(
         'multi-turn generate works normally',
@@ -61,24 +65,28 @@ describe('Anthropic LLM Service Integration', () => {
         20000
     );
 
-    t('stream works normally', async () => {
-        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
-        try {
-            const response = await env.agent.run(
-                'Hello',
-                undefined,
-                undefined,
-                env.sessionId,
-                true
-            );
+    t(
+        'stream works normally',
+        async () => {
+            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            try {
+                const response = await env.agent.run(
+                    'Hello',
+                    undefined,
+                    undefined,
+                    env.sessionId,
+                    true
+                );
 
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-            expect(response.length).toBeGreaterThan(0);
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+                expect(response.length).toBeGreaterThan(0);
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     t(
         'multi-turn stream works normally',
