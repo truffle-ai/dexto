@@ -341,7 +341,9 @@ export class DextoAgent {
                 existingSession || (await this.sessionManager.createSession(targetSessionId));
 
             logger.debug(
-                `DextoAgent.run: textInput: ${textInput}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}, sessionId: ${targetSessionId}`
+                `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
+                    imageDataInput
+                )}, hasFile=${Boolean(fileDataInput)}`
             );
             const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
 
