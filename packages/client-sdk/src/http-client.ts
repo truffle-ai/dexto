@@ -152,18 +152,28 @@ export class HttpClient {
 
     // Convenience methods
     async get<T>(endpoint: string, headers?: Record<string, string>): Promise<T> {
-        return this.request<T>(endpoint, { method: 'GET', headers });
+        const options: RequestOptions = { method: 'GET' };
+        if (headers) options.headers = headers;
+        return this.request<T>(endpoint, options);
     }
 
     async post<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
-        return this.request<T>(endpoint, { method: 'POST', body, headers });
+        const options: RequestOptions = { method: 'POST' };
+        if (body) options.body = body;
+        if (headers) options.headers = headers;
+        return this.request<T>(endpoint, options);
     }
 
     async put<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
-        return this.request<T>(endpoint, { method: 'PUT', body, headers });
+        const options: RequestOptions = { method: 'PUT' };
+        if (body) options.body = body;
+        if (headers) options.headers = headers;
+        return this.request<T>(endpoint, options);
     }
 
     async delete<T>(endpoint: string, headers?: Record<string, string>): Promise<T> {
-        return this.request<T>(endpoint, { method: 'DELETE', headers });
+        const options: RequestOptions = { method: 'DELETE' };
+        if (headers) options.headers = headers;
+        return this.request<T>(endpoint, options);
     }
 }

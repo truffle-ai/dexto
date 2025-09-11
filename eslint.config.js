@@ -48,6 +48,10 @@ export default [
                 FileReader: 'readonly',
                 WebSocket: 'readonly',
                 fetch: 'readonly',
+                URLSearchParams: 'readonly',
+                RequestInfo: 'readonly',
+                Response: 'readonly',
+                RequestInit: 'readonly',
                 // Browser Speech Synthesis API globals used in webui
                 SpeechSynthesisUtterance: 'readonly',
                 SpeechSynthesisVoice: 'readonly',
