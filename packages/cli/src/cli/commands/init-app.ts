@@ -132,12 +132,20 @@ export async function initDexto(
                 cwd: process.cwd(),
             });
         } catch (installError) {
-            // Handle pnpm workspace error specifically
-            console.error(`Install error: ${installError}`);
-            if (packageManager === 'pnpm' && 'ERR_PNPM_ADDING_TO_ROOT') {
+            // Handle pnpm workspace root add error specifically
+            console.error(
+                `Install error: ${
+                    installError instanceof Error ? installError.message : String(installError)
+                }`
+            );
+            if (
+                packageManager === 'pnpm' &&
+                installError instanceof Error &&
+                /\bERR_PNPM_ADDING_TO_ROOT\b/.test(installError.message)
+            ) {
                 spinner.stop(chalk.red('Error: Cannot install in pnpm workspace root'));
                 p.note(
-                    'You are initializing dexto in a pnpm workspace root. Go to a specific package in the workspace and run "pnpm add @dexto/core" instead.',
+                    'You are initializing dexto in a pnpm workspace root. Go to a specific workspace package and run "pnpm add @dexto/core" there.',
                     chalk.yellow('Workspace Error')
                 );
                 process.exit(1);

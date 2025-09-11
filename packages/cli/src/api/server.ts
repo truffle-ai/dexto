@@ -127,7 +127,8 @@ function parseQuery<T>(schema: z.ZodSchema<T>, query: unknown): T {
 // TODO: API endpoint names are work in progress and might be refactored/renamed in future versions
 export async function initializeApi(
     agent: DextoAgent,
-    agentCardOverride?: Partial<AgentCard>
+    agentCardOverride?: Partial<AgentCard>,
+    listenPort?: number
 ): Promise<{
     app: Express;
     server: http.Server;
@@ -533,7 +534,9 @@ export async function initializeApi(
     // Apply agentCard overrides (if any)
     // TODO: This is a temporary solution to allow for agentCard overrides. Implement a more robust solution in the future.
     const overrides = agentCardOverride ?? {};
-    const baseApiUrl = process.env.DEXTO_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const resolvedPort =
+        typeof listenPort === 'number' ? listenPort : Number(process.env.PORT || 3000);
+    const baseApiUrl = process.env.DEXTO_BASE_URL || `http://localhost:${resolvedPort}`;
     const agentCardData = createAgentCard(
         {
             defaultName: overrides.name ?? 'dexto',
@@ -1189,7 +1192,8 @@ export async function startApiServer(
 ) {
     const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
-        agentCardOverride
+        agentCardOverride,
+        port
     );
 
     // API server for REST endpoints and WebSocket connections

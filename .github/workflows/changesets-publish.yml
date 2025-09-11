@@ -34,7 +34,7 @@ jobs:
           version: |
             pnpm -w changeset version
             pnpm -w install --no-frozen-lockfile
-          publish: pnpm -w changeset publish
+          publish: pnpm -w build && pnpm -w changeset publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
