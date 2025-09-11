@@ -75,20 +75,21 @@ export class DextoClient {
     constructor(config: ClientConfig, options: ClientOptions = {}) {
         // Validate inputs with comprehensive Zod validation
         const validatedConfig = validateInput(ClientConfigSchema, config, 'ClientConfig');
-        const validatedOptions = validateInput(ClientOptionsSchema, options, 'ClientOptions') || {};
+        const validatedOptions = validateInput(ClientOptionsSchema, options, 'ClientOptions');
 
+        // Apply defaults while avoiding undefined properties for exactOptionalPropertyTypes
         this.config = {
-            timeout: 30000,
-            retries: 3,
-            ...validatedConfig,
+            baseUrl: validatedConfig.baseUrl,
+            ...(validatedConfig.apiKey !== undefined ? { apiKey: validatedConfig.apiKey } : {}),
+            timeout: validatedConfig.timeout ?? 30000,
+            retries: validatedConfig.retries ?? 3,
         };
 
         this.options = {
-            enableWebSocket: true,
-            reconnect: true,
-            reconnectInterval: 5000,
-            debug: false,
-            ...validatedOptions,
+            enableWebSocket: validatedOptions?.enableWebSocket ?? true,
+            reconnect: validatedOptions?.reconnect ?? true,
+            reconnectInterval: validatedOptions?.reconnectInterval ?? 5000,
+            debug: validatedOptions?.debug ?? false,
         };
 
         this.http = new HttpClient(this.config);
@@ -103,8 +104,8 @@ export class DextoClient {
         const wsUrl = this.config.baseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
 
         this.ws = new WebSocketClient(wsUrl, {
-            reconnect: this.options.reconnect,
-            reconnectInterval: this.options.reconnectInterval,
+            reconnect: this.options.reconnect ?? true,
+            reconnectInterval: this.options.reconnectInterval ?? 5000,
         });
     }
 

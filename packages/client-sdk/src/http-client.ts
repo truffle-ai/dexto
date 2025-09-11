@@ -79,8 +79,16 @@ export class HttpClient {
                 return {} as T;
             }
 
-            const data = await response.json();
-            return data;
+            // Parse based on content-type; health endpoint returns plain text 'OK'
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+                return data as T;
+            }
+            // Fallback to text; ignore body if caller doesn't need it
+            const text = await response.text();
+            // If caller expects object, return empty object to avoid runtime type errors
+            return text ? (text as unknown as T) : ({} as T);
         } catch (error) {
             clearTimeout(timeoutId);
 
