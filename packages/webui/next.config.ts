@@ -18,9 +18,6 @@ const isStandalone = process.env.BUILD_STANDALONE === 'true';
 
 const nextConfig: NextConfig = {
     reactStrictMode: true,
-    // Avoid bundling native/wasm dependencies that expect filesystem-relative assets
-    // This keeps `tiktoken` loading its `tiktoken_bg.wasm` from node_modules at runtime
-    serverExternalPackages: ['tiktoken'],
     // Use standalone output for production builds
     output: isStandalone ? 'standalone' : undefined,
     // Ensure Next.js computes paths relative to the repo root (not the user home)
