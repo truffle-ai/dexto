@@ -16,10 +16,6 @@ We use [Changesets](https://github.com/changesets/changesets) for version manage
 ### Fixed Versioning
 The `dexto` and `@dexto/core` packages use **fixed versioning** - they always maintain the same version number. This ensures API compatibility between the CLI and core library.
 
-Current versions:
-- `dexto`: 1.1.2
-- `@dexto/core`: 1.1.2
-- `@dexto/webui`: 0.1.0 (private)
 
 ## Automated Release Process (Recommended)
 
@@ -54,7 +50,7 @@ git push origin your-branch
 
 When your PR with changesets is merged to `main`:
 
-1. **Version PR Creation** (`changesets-open-pr.yml` triggers automatically)
+1. **Version PR Creation** (`changesets-publish.yml` triggers automatically)
    - Collects all pending changesets
    - Creates a "Version Packages" PR with:
      - Version bumps in package.json files
@@ -76,8 +72,7 @@ When your PR with changesets is merged to `main`:
 
 #### Active Release Workflows:
 - **[`require-changeset.yml`](.github/workflows/require-changeset.yml)** - Ensures PRs include changesets when needed
-- **[`changesets-open-pr.yml`](.github/workflows/changesets-open-pr.yml)** - Creates version bump PRs
-- **[`changesets-publish.yml`](.github/workflows/changesets-publish.yml)** - Main release workflow (triggers on push to main)
+- **[`changesets-publish.yml`](.github/workflows/changesets-publish.yml)** - Opens a version bump PR, and publishes it when we merge the version bump PR (triggers on push to main)
 
 #### Quality Check Workflows:
 - **[`build_and_test.yml`](.github/workflows/build_and_test.yml)** - Runs tests on PRs
