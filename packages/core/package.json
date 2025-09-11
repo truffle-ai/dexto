@@ -1,0 +1,61 @@
+{
+  "name": "@dexto/core",
+  "version": "1.1.3",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "import": "./dist/index.browser.js",
+        "require": "./dist/index.browser.cjs"
+      },
+      "default": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.0",
+    "@ai-sdk/cohere": "^2.0.0",
+    "@ai-sdk/google": "^2.0.0",
+    "@ai-sdk/groq": "^2.0.0",
+    "@ai-sdk/openai": "^2.0.0",
+    "@ai-sdk/xai": "^2.0.0",
+    "@anthropic-ai/sdk": "^0.60.0",
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "ai": "^5.0.0",
+    "better-sqlite3": "^11.10.0",
+    "boxen": "^7.1.1",
+    "chalk": "^5.4.1",
+    "dotenv": "^16.4.7",
+    "ioredis": "^5.7.0",
+    "openai": "^5.16.0",
+    "pg": "^8.15.4",
+    "tiktoken": "^1.0.22",
+    "winston": "^3.17.0",
+    "yaml": "^2.7.1",
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.6"
+  },
+  "devDependencies": {
+    "@types/json-schema": "^7.0.15"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
+}

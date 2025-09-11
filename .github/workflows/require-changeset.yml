@@ -1,0 +1,33 @@
+name: Require Changeset
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine changed files
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1 || true
+          git diff --name-only origin/${{ github.base_ref }}... > changed.txt
+          echo "Changed files:" && cat changed.txt
+      - name: Require changeset for publishable changes
+        if: "${{ !contains(github.event.pull_request.labels.*.name, 'release: none') }}"
+        run: |
+          set -e
+          # If publishable packages were touched in this PR, ensure a changeset file is part of the PR diff
+          if grep -E '^(packages/(core|cli|webui)/)' changed.txt >/dev/null; then
+            if ! grep -E '^\.changeset/.*\.md$' changed.txt >/dev/null; then
+              echo 'Missing changeset for publishable changes. Run pnpm changeset.'
+              exit 1
+            fi
+          fi

@@ -258,14 +258,14 @@ This is useful for production environments where you want to ensure all configur
 
 ## Contributing MCPs
 
-Want to add your MCP to our WebUI registry so other users can easily discover and install it? Check out our [Community Contribution Guide](../community/contributing.md#adding-mcps-to-the-webui-registry) for step-by-step instructions.
+Want to add your MCP to our WebUI registry so other users can easily discover and install it? Check out our [Community Contribution Guide](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md#1-adding-new-mcps-to-the-webui-registry) for step-by-step instructions.
 
 ## Additional Resources
 
 - [Dexto GitHub repository examples](https://github.com/truffle-ai/dexto/tree/main/agents/examples) - More configuration examples
 - [Model Context Protocol specification](https://spec.modelcontextprotocol.io/) - Official MCP documentation
 - [Available MCP servers](https://github.com/modelcontextprotocol/servers) - Community-maintained server list
-- [Community Contribution Guide](../community/contributing.md) - How to contribute MCPs and example agents
+- [Community Contribution Guide](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md#contributing-mcps-and-example-agents) - How to contribute MCPs and example agents
 
 ## Notes
 

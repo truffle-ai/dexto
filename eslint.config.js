@@ -66,35 +66,6 @@ export default [
         },
     },
 
-    // JavaScript Client-side specific config
-    {
-        files: ["app/web/client/script.js"], // Make the path specific
-        languageOptions: {
-            ecmaVersion: 2022,
-            sourceType: 'module',
-            globals: {
-                // Define Browser globals
-                window: 'readonly',
-                document: 'readonly',
-                console: 'readonly',
-                setTimeout: 'readonly',
-                clearTimeout: 'readonly', // Added clearTimeout
-                WebSocket: 'readonly',
-                // Add other browser APIs you use e.g.:
-                // fetch: 'readonly',
-                // localStorage: 'readonly',
-                // navigator: 'readonly',
-            },
-        },
-        rules: {
-             // Add any JS specific rules if needed, otherwise inherit from recommended
-            'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }], // Example JS rule
-            // Disable no-undef specifically for this block if necessary, 
-            // but defining globals is preferred.
-            // 'no-undef': 'off' 
-        }
-    },
-
     // Ignore patterns (keep existing ignores)
     {
         ignores: [
@@ -102,8 +73,8 @@ export default [
             '**/dist/**',
             '.cursor/**',
             'public/**',
-            'src/app/webui/.next/**',
-            'src/app/webui/out/**',
+            // Use the package-local ESLint config for Web UI instead of root config
+            'packages/webui/**',
             '**/build/**',
             '**/coverage/**',
             'test-temp/**',
@@ -113,8 +84,8 @@ export default [
             'scripts/dev.js',
             'scripts/dev-status.js',
             'scripts/test_websocket.js',
-            'src/app/web/client/script.js',
-            'src/app/webui/tailwind.config.js',
+            'packages/cli/src/web/client/script.js',
+            'packages/webui/tailwind.config.js',
             '**/.venv/**',
             '**/venv/**',
             '**/env/**',
