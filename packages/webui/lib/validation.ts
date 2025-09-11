@@ -18,6 +18,8 @@ export const CatalogQuerySchema = z
     })
     .strict();
 
+export type CatalogQuery = z.infer<typeof CatalogQuerySchema>;
+
 export const GreetingQuerySchema = z
     .object({
         sessionId: z.string().optional(),

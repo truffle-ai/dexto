@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
 import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
+import type { CatalogQuery } from '@/lib/validation';
 
 export async function GET(request: Request) {
     try {
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
         const queryObject = Object.fromEntries(url.searchParams.entries());
 
         // Validate query parameters
-        const validation = validateQuery(CatalogQuerySchema, queryObject);
+        const validation = validateQuery<CatalogQuery>(CatalogQuerySchema, queryObject);
         if (!validation.success) {
             return NextResponse.json(validation.response, { status: 400 });
         }
