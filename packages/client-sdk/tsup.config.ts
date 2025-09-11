@@ -7,7 +7,8 @@ export default defineConfig([
         },
         format: ['cjs', 'esm'],
         outDir: 'dist',
-        dts: true,
+        // Generate declaration files without resolving workspace deps
+        dts: { resolve: false },
         shims: true,
         bundle: true,
         platform: 'neutral',

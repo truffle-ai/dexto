@@ -24,6 +24,9 @@ export * from './events/index.js';
 // LLM
 export * from './llm/index.js';
 
+// Search
+export * from './search/index.js';
+
 // Logger
 export * from './logger/index.js';
 
