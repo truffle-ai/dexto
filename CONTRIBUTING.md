@@ -4,6 +4,7 @@ We welcome contributions! This guide will help you get started with contributing
 
 ## Table of Contents
 - [Getting Started](#getting-started)
+- [Contributing MCPs and Example Agents](#contributing-mcps-and-example-agents)
 - [Development Setup](#development-setup)
 - [Making Changes](#making-changes)
 - [Submitting a Pull Request](#submitting-a-pull-request)
@@ -17,98 +18,6 @@ Before contributing, please:
 1. Read our [Code of Conduct](./CODE_OF_CONDUCT.md)
 2. Check existing [issues](https://github.com/truffle-ai/dexto/issues) and [pull requests](https://github.com/truffle-ai/dexto/pulls)
 3. Open an issue for discussion on larger changes or enhancements
-
-## Development Setup
-
-### Prerequisites
-- Node.js >= 20.0.0
-- Git
-
-### Fork and Clone
-
-1. Fork the repository to your GitHub account
-
-2. Clone your fork:
-   ```bash
-   git clone https://github.com/your-username/dexto.git
-   cd dexto
-   ```
-
-3. Add upstream remote:
-   ```bash
-   git remote add upstream https://github.com/truffle-ai/dexto.git
-   ```
-
-### Install Dependencies
-
-```bash
-# Enable Corepack (built into Node.js 16+)
-corepack enable
-
-# Install dependencies (uses correct pnpm version automatically)
-pnpm install
-
-# Build all packages
-pnpm run build
-```
-
-**Note**: Corepack ensures everyone uses the same pnpm version (10.12.4) as specified in package.json.
-
-### Development Workflow
-
-For detailed development workflows, see [DEVELOPMENT.md](./DEVELOPMENT.md). Quick start:
-
-```bash
-# Run development server with hot reload
-pnpm run dev
-
-# Or create a global symlink for CLI development
-pnpm run link-cli
-```
-
-## Making Changes
-
-### Create a Feature Branch
-
-```bash
-# Update your fork
-git checkout main
-git pull upstream main
-
-# Create a new branch
-git checkout -b feature/your-branch-name
-```
-
-
-### Monorepo Structure
-
-Dexto is a monorepo with three main packages:
-- `packages/core` - Core business logic (@dexto/core)
-- `packages/cli` - CLI application (dexto)
-- `packages/webui` - Web interface (@dexto/webui)
-
-Make changes in the appropriate package(s).
-
-### Code Quality Checks
-
-Before committing, ensure your code passes all checks:
-
-```bash
-# Type checking
-pnpm run typecheck
-
-# Run tests
-pnpm run test
-
-# Fix linting issues
-pnpm run lint:fix
-
-# Format code
-pnpm run format
-
-# Full validation (recommended before commits)
-pnpm run build:check
-```
 
 ## Contributing MCPs and Example Agents
 
@@ -279,6 +188,98 @@ For widely-useful agents, you can request to have them added to our official age
 
 *Tip:* Check out existing examples in `agents/examples/` and `agents/database-agent/` for inspiration! 
 
+
+## Development Setup
+
+### Prerequisites
+- Node.js >= 20.0.0
+- Git
+
+### Fork and Clone
+
+1. Fork the repository to your GitHub account
+
+2. Clone your fork:
+   ```bash
+   git clone https://github.com/your-username/dexto.git
+   cd dexto
+   ```
+
+3. Add upstream remote:
+   ```bash
+   git remote add upstream https://github.com/truffle-ai/dexto.git
+   ```
+
+### Install Dependencies
+
+```bash
+# Enable Corepack (built into Node.js 16+)
+corepack enable
+
+# Install dependencies (uses correct pnpm version automatically)
+pnpm install
+
+# Build all packages
+pnpm run build
+```
+
+**Note**: Corepack ensures everyone uses the same pnpm version (10.12.4) as specified in package.json.
+
+### Development Workflow
+
+For detailed development workflows, see [DEVELOPMENT.md](./DEVELOPMENT.md). Quick start:
+
+```bash
+# Run development server with hot reload
+pnpm run dev
+
+# Or create a global symlink for CLI development
+pnpm run link-cli
+```
+
+## Making Changes
+
+### Create a Feature Branch
+
+```bash
+# Update your fork
+git checkout main
+git pull upstream main
+
+# Create a new branch
+git checkout -b feature/your-branch-name
+```
+
+
+### Monorepo Structure
+
+Dexto is a monorepo with three main packages:
+- `packages/core` - Core business logic (@dexto/core)
+- `packages/cli` - CLI application (dexto)
+- `packages/webui` - Web interface (@dexto/webui)
+
+Make changes in the appropriate package(s).
+
+### Code Quality Checks
+
+Before committing, ensure your code passes all checks:
+
+```bash
+# Type checking
+pnpm run typecheck
+
+# Run tests
+pnpm run test
+
+# Fix linting issues
+pnpm run lint:fix
+
+# Format code
+pnpm run format
+
+# Full validation (recommended before commits)
+pnpm run build:check
+```
 
 ## Submitting a Pull Request
 
