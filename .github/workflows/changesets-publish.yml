@@ -9,6 +9,7 @@ permissions:
   contents: write
   packages: write
   id-token: write
+  pull-requests: write
 
 jobs:
   release:
@@ -31,9 +32,7 @@ jobs:
         with:
           title: 'chore: version packages'
           commit: 'chore: version packages'
-          version: |
-            pnpm -w changeset version
-            pnpm -w install --no-frozen-lockfile
+          version: pnpm -w changeset version && pnpm -w install --no-frozen-lockfile
           publish: pnpm -w build && pnpm -w changeset publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
