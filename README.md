@@ -63,7 +63,7 @@ cd dexto && pnpm install && pnpm install-cli
 ## Quick Start
 
 ```bash
-# 1. Run setup workflow - this prompts for your preferred LLM and API keys and starts the CLI
+# 1. Run setup workflow - this prompts for your preferred LLM and API keys and starts the interactive CLI
 dexto
 
 # 2. Try a multi-step task
@@ -73,7 +73,37 @@ dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
 dexto --mode web
 ```
 
-Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI allows you to navigate previous conversations and experiment with different models, tools and more.
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI allows you to navigate previous conversations and experiment with different models, tools and more.
+
+## Agent Recipes
+
+Dexto comes with pre-built agent recipes for common use cases. Install and use them instantly:
+
+```bash
+# List available agents
+dexto list-agents
+
+# Install specific agents
+dexto install nano-banana-agent podcast-agent
+
+# Use an agent
+dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
+dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
+```
+
+**Available Agents:**
+- **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
+- **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
+- **Database Agent** – Demo agent for SQL queries and database operations
+- **Image Editor Agent** – Image editing and manipulation  
+- **Music Agent** – Music creation and audio processing
+- **PDF Agent** – Document analysis and conversation
+- **Product Researcher** – Product naming and branding research
+- **Triage Agent** – Demo multi-agent customer support routing system
+
+Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
+
+More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
 
 ## Examples & Demos
 
@@ -192,36 +222,6 @@ dexto -m gemini-2.5-pro
 ```
 
 See our [Configuration Guide](https://docs.dexto.ai/docs/category/guides/) for complete setup instructions.
-
-## Agent Recipes
-
-Dexto comes with pre-built agent recipes for common use cases. Install and use them instantly:
-
-```bash
-# List available agents
-dexto list-agents
-
-# Install specific agents
-dexto install nano-banana-agent podcast-agent
-
-# Use an agent
-dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
-dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
-```
-
-**Available Agents:**
-- **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
-- **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
-- **Database Agent** – Demo agent for SQL queries and database operations
-- **Image Editor Agent** – Image editing and manipulation  
-- **Music Agent** – Music creation and audio processing
-- **PDF Agent** – Document analysis and conversation
-- **Product Researcher** – Product naming and branding research
-- **Triage Agent** – Demo multi-agent customer support routing system
-
-Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
-
-More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
 
 
 ## Programmatic API
