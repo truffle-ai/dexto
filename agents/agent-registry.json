@@ -43,10 +43,24 @@
       "source": "triage-demo/",
       "main": "triage-agent.yml"
     },
+    "nano-banana-agent": {
+      "description": "AI agent for advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)",
+      "author": "Truffle AI",
+      "tags": ["images", "generation", "editing", "ai", "nano-banana", "gemini"],
+      "source": "nano-banana-agent/",
+      "main": "nano-banana-agent.yml"
+    },
+    "podcast-agent": {
+      "description": "Advanced podcast generation agent using Google Gemini TTS for multi-speaker audio content",
+      "author": "Truffle AI",
+      "tags": ["podcast", "audio", "tts", "speech", "multi-speaker", "gemini"],
+      "source": "podcast-agent/",
+      "main": "podcast-agent.yml"
+    },
     "default-agent": {
-      "description": "Default Dexto agent with filesystem and puppeteer tools",
+      "description": "Default Dexto agent with filesystem and playwright tools",
       "author": "Truffle AI", 
-      "tags": ["default", "filesystem", "puppeteer"],
+      "tags": ["default", "filesystem", "playwright"],
       "source": "default-agent.yml"
     }
   }

@@ -373,6 +373,32 @@ You now have three working applications that demonstrate:
 - ✅ **Error handling** and user experience
 - ✅ **Flexible configuration** for different environments
 
+## Contributing Your Own Examples
+
+Built something cool? We'd love to see it! Consider contributing your agent to help others learn:
+
+### Share Your Agent
+
+1. **Create an example agent** following our [Community Contribution Guide](../community/contributing.md#creating-example-agents)
+2. **Add it to the `agents/` directory** with proper documentation
+3. **Submit a pull request** to share it with the community
+
+### Benefits of Contributing
+
+- **Help others learn** from your solutions
+- **Get feedback** on your approach
+- **Build your reputation** in the AI agent community
+- **Potential for pre-installed status** in our official registry (see [pre-installed criteria](../community/contributing.md#criteria-for-pre-installed-agents))
+
+```mermaid
+flowchart TD
+  A[Build your agent] --> B[Add to agents/ with README + usage]
+  B --> C[Open PR with docs snippet]
+  C --> D[Review & feedback]
+  D --> E[Merge]
+  E --> F[Listed in tutorials + eligible for pre-installed review]
+```
+
 ## Next Steps
 
 Ready to take it to the next level?
@@ -380,6 +406,7 @@ Ready to take it to the next level?
 - **Learn advanced patterns**: Check out [Advanced Patterns](./advanced-patterns) for production-ready techniques
 - **Add more tools**: Explore [MCP servers](../mcp/connecting-servers) for additional capabilities
 - **Deploy your service**: See the [deployment guide](../guides/deployment) for production hosting
+- **Contribute to the community**: Learn how to [contribute MCPs and agents](../community/contributing.md)
 - **Join the community**: Share your creations in our [Discord](https://discord.gg/GFzWFAAZcm)
 
 You're well on your way to building amazing AI applications! 🎉 

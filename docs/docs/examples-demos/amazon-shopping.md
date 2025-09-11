@@ -1,10 +1,10 @@
 ---
-title: "Amazon shopping assistant"
+title: "Browser Agent: Amazon shopping assistant"
 hide_title: true
 
 ---
 
-## 🛒 Amazon shopping assistant 
+## 🛒 Browser Agent: Amazon Shopping Assistant 
 
 ```bash
 # Uses default config which supports puppeteer for navigating the browser

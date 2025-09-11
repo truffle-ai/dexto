@@ -18,15 +18,88 @@ Some of the cool things you can do with Dexto CLI:
 - Start building your own AI applications - get started with building your own Cursor! `dexto create-app`
 
 
-More CLI commands coming soon! 
+## Complete CLI Reference
 
-Request a CLI command by creating an issue [here](https://github.com/truffle-ai/dexto/issues).
+### Main Commands & Options
 
+| Command | Description | Example |
+|---------|-------------|---------|
+| `dexto` | Start interactive CLI | `dexto` |
+| `dexto "prompt"` | Run single prompt | `dexto "list files here"` |
+| `dexto -p "prompt"` | Run single prompt (explicit) | `dexto -p "create a file"` |
+| `dexto --mode web` | Launch web UI | `dexto --mode web --web-port 8080` |
+| `dexto --mode server` | Start as API server | `dexto --mode server` |
+| `dexto --mode mcp` | Run as MCP server | `dexto --mode mcp` |
+| `dexto --mode discord` | Start Discord bot | `dexto --mode discord` |
+| `dexto --mode telegram` | Start Telegram bot | `dexto --mode telegram` |
+
+### CLI Flags & Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-v, --version` | Show version | `dexto --version` |
+| `-a, --agent <path>` | Use custom agent config | `dexto -a ./my-agent.yml` |
+| `-m, --model <model>` | Specify LLM model | `dexto -m claude-4-sonnet-20250514` |
+| `-r, --router <router>` | Specify router (vercel/in-built) | `dexto -r in-built` |
+| `--new-session [id]` | Start new session | `dexto --new-session my-session` |
+| `--strict` | Require all MCP servers to connect | `dexto --strict` |
+| `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
+| `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
+| `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
+| `--web-port <port>` | Web UI port | `dexto --mode web --web-port 3001` |
+
+### Subcommands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `create-app` | Scaffold new Dexto TypeScript app | `dexto create-app` |
+| `init-app` | Add Dexto to existing TypeScript app | `dexto init-app` |
+| `setup` | Configure global preferences | `dexto setup` |
+| `install [agents...]` | Install agents from registry | `dexto install nano-banana-agent` |
+| `uninstall [agents...]` | Uninstall local agents | `dexto uninstall nano-banana-agent` |
+| `list-agents` | List available/installed agents | `dexto list-agents --installed` |
+| `which <agent>` | Show path to agent | `dexto which nano-banana-agent` |
+| `mcp --group-servers` | Start MCP server aggregator | `dexto mcp --group-servers` |
+
+### Interactive CLI Commands
+
+Once in interactive mode (`dexto`), use these slash commands:
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/help [command]` | Show help information | `/help session` |
+| `/exit, /quit, /q` | Exit CLI | `/exit` |
+| `/clear, /reset` | Clear conversation history | `/clear` |
+| `/session list` | List all sessions | `/session list` |
+| `/session create [id]` | Create new session | `/session create work-session` |
+| `/session load <id>` | Load session | `/session load work-session` |
+| `/session delete <id>` | Delete session | `/session delete old-session` |
+| `/session export <id>` | Export session data | `/session export work-session` |
+| `/history [limit]` | Show conversation history | `/history 10` |
+| `/search <query>` | Search conversation history | `/search "code review"` |
+| `/model list` | List available models | `/model list` |
+| `/model switch <model>` | Switch LLM model | `/model switch gpt-4o` |
+| `/model current` | Show current model | `/model current` |
+| `/mcp list` | List MCP servers | `/mcp list` |
+| `/mcp connect <name>` | Connect MCP server | `/mcp connect filesystem` |
+| `/mcp disconnect <name>` | Disconnect MCP server | `/mcp disconnect web` |
+| `/mcp status` | Show connection status | `/mcp status` |
+| `/tools list` | List available tools | `/tools list` |
+| `/tools search <query>` | Search tools | `/tools search file` |
+| `/prompt show` | Show current system prompt | `/prompt show` |
+| `/prompt reload` | Reload system prompt | `/prompt reload` |
+| `/log level <level>` | Set log level | `/log level debug` |
+| `/log tail [lines]` | Show recent logs | `/log tail 50` |
+| `/config validate` | Validate configuration | `/config validate` |
+| `/config reload` | Reload configuration | `/config reload` |
+| `/stats` | Show system statistics | `/stats` |
+
+## Common Usage Patterns
 
 #### **See all available options and flags:**
 
 ```bash
-dexto -h
+dexto --help
 ```
 
 #### **Launch the interactive CLI:**
@@ -161,10 +234,42 @@ dexto init-app
 
 Check [Building with Dexto Guide](../tutorials/index.md) for more information!
 
+## Agent Management
+
+### Install Pre-built Agent Templates
+
+Dexto provides ready-to-use agent templates from the registry:
+
+```bash
+# List available agents
+dexto list-agents
+
+# Install specific agents
+dexto install nano-banana-agent podcast-agent database-agent
+
+# Use an installed agent
+dexto --agent nano-banana-agent "create a futuristic cityscape"
+dexto --agent podcast-agent "generate a podcast intro"
+
+# Find where an agent is installed
+dexto which nano-banana-agent
+
+# Remove agents you no longer need
+dexto uninstall nano-banana-agent
+```
+
+### Available Agent Templates
+- **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
+- **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
+- **Database Agent** – Demo agent for SQL queries and database operations
+- **Image Editor Agent** – Image editing and manipulation  
+- **Music Agent** – Music creation and audio processing
+- **PDF Agent** – Document analysis and conversation
+- **Product Researcher** – Product naming and branding research
+- **Triage Agent** – Demo multi-agent customer support routing system
+
+See the full list with `dexto list-agents` and examples in the [`agents/`](https://github.com/truffle-ai/dexto/tree/main/agents) folder.
+
 ## Coming soon!
-
-Some of the CLI commands we're working on!
-
-#### Load pre-built templates for dexto CLI
 
 #### Deploy config files as AI agents with dexto CLI

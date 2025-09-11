@@ -544,7 +544,22 @@ program
                 await startApiServer(agent, apiPort, agent.getEffectiveConfig().agentCard || {});
 
                 // Start Next.js web server
-                await startNextJsWebServer(apiUrl, frontPort, nextJSserverURL);
+                const webServerStarted = await startNextJsWebServer(
+                    apiUrl,
+                    frontPort,
+                    nextJSserverURL
+                );
+
+                // Open WebUI in browser if server started successfully
+                if (webServerStarted) {
+                    try {
+                        const { default: open } = await import('open');
+                        await open(nextJSserverURL, { wait: false });
+                        console.log(chalk.green(`🌐 Opened WebUI in browser: ${nextJSserverURL}`));
+                    } catch (_error) {
+                        console.log(chalk.yellow(`💡 WebUI is available at: ${nextJSserverURL}`));
+                    }
+                }
 
                 break;
             }

@@ -20,6 +20,8 @@ const AGENTS_TO_COPY = [
     'music-agent/',
     'product-name-researcher/',
     'triage-demo/',
+    'podcast-agent/',
+    'nano-banana-agent/',
 ];
 
 const SOURCE_DIR = join(__dirname, '../../../agents');
