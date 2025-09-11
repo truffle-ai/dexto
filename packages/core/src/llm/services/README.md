@@ -315,7 +315,7 @@ export class YourProviderService implements ILLMService {
 
 ## Step 6: Update the Factory (`factory.ts`)
 
-The factory (`src/packages/core/src/llm/services/factory.ts`) creates the correct LLM service based on the configuration.
+The factory (`packages/core/src/llm/services/factory.ts`) creates the correct LLM service based on the configuration.
 
 1.  **Import Your Service:** Add `import { YourProviderService } from './your-provider.js';` at the top.
 2.  **Add to `_createLLMService`:** Add a `case` for your provider name in the `switch` statement within the `_createLLMService` function:
