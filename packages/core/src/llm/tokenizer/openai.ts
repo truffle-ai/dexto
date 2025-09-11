@@ -1,5 +1,6 @@
 import { ITokenizer, TokenizationError } from './types.js';
-import { encoding_for_model, get_encoding, Tiktoken, TiktokenModel } from 'tiktoken';
+import type { Tiktoken, TiktokenModel } from 'tiktoken';
+import { createRequire } from 'module';
 import { logger } from '../../logger/index.js';
 
 // Fallback encoding name if model is not supported by tiktoken
@@ -23,6 +24,7 @@ export class OpenAITokenizer implements ITokenizer {
         this.modelName = model;
         try {
             // 1. Try to get encoding for the specific model name
+            const { encoding_for_model } = loadTiktoken();
             this.encoding = encoding_for_model(model as TiktokenModel);
             logger.debug(`Initialized tiktoken with specific encoding for model: ${model}`);
         } catch (error) {
@@ -31,6 +33,7 @@ export class OpenAITokenizer implements ITokenizer {
                 `Could not get specific encoding for model '${this.modelName}'. Falling back to '${FALLBACK_ENCODING}'. Error: ${error instanceof Error ? error.message : String(error)}`
             );
             try {
+                const { get_encoding } = loadTiktoken();
                 this.encoding = get_encoding(FALLBACK_ENCODING);
                 logger.debug(`Initialized tiktoken with fallback encoding: ${FALLBACK_ENCODING}`);
             } catch (fallbackError) {
@@ -81,4 +84,15 @@ export class OpenAITokenizer implements ITokenizer {
     getProviderName(): string {
         return 'openai';
     }
+}
+
+// Lazy-load tiktoken at runtime to avoid SSR bundlers eagerly bundling the wasm-dependent module.
+// This stays synchronous via Node's createRequire so our tokenizer API remains sync.
+let _tiktoken: any | null = null;
+function loadTiktoken(): typeof import('tiktoken') {
+    if (_tiktoken) return _tiktoken as typeof import('tiktoken');
+    const req = createRequire(import.meta.url);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    _tiktoken = req('tiktoken');
+    return _tiktoken as typeof import('tiktoken');
 }
