@@ -1,6 +1,6 @@
 // Client SDK types that extend core types for client-specific needs
 // Import core types for re-export
-import type { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage } from '@dexto/core';
 
 export interface ClientConfig {
     baseUrl: string;
@@ -37,7 +37,7 @@ export interface SessionInfo {
 }
 
 // Re-export core LLM types
-export type { LLMProvider, LLMRouter, ModelInfo, SupportedFileType } from '@core/llm/registry.js';
+export type { LLMProvider, LLMRouter, ModelInfo, SupportedFileType } from '@dexto/core';
 
 // Client-specific LLM config that extends core types
 // Note: provider and router use string types for API compatibility
