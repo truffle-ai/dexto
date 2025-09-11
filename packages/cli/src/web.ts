@@ -24,11 +24,10 @@ export async function startNextJsWebServer(
     const webuiPath = path.resolve(scriptDir, 'webui');
 
     if (!existsSync(webuiPath)) {
-        logger.warn('WebUI not found in this build.');
-        logger.info('For production: Run "pnpm build:all" to embed the WebUI');
-        logger.info('For development with hot reload:');
-        logger.info('  1. Run: dexto --mode server (API on port 3001)');
-        logger.info('  2. In webui folder, run: npm run dev (UI on port 3000)');
+        console.warn('WebUI not found in this build.');
+        console.info('For production: Run "pnpm build:all" to embed the WebUI');
+        console.info('For development with hot reload:');
+        console.info('  1. Run: pnpm run dev to build core, and set hot reload for web UI');
         return false;
     }
 
