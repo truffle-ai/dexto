@@ -22,11 +22,10 @@ const nextConfig: NextConfig = {
     // Ensure webpack can resolve ESM-style .js imports to .ts sources
     webpack: (config) => {
         config.resolve = config.resolve || {};
+        // Use package imports (@dexto/core, @dexto/client-sdk)
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
-            '@core': path.resolve(__dirname, '../../core'),
-            '@sdk': path.resolve(__dirname, '../../client'),
-        };
+        } as Record<string, string>;
         // Map requested .js to .ts/.tsx during development/build
         // while still allowing actual .js files
         // This supports our .js import convention in TS source files
@@ -37,7 +36,7 @@ const nextConfig: NextConfig = {
         };
         return config;
     },
-    // All /api routes are now implemented within Next.js using the internal Client SDK.
+    // All /api routes are implemented within Next.js using the internal Client SDK.
     // The prior proxy-based rewrite has been removed as part of the migration.
     // Allow cross-origin requests for Next.js static and HMR assets during dev
     async headers() {

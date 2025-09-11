@@ -3,19 +3,12 @@
  * Now using @core imports for shared types
  */
 
-// Import core types for local use
-import type { TextPart, ImagePart, FilePart } from '@core/context/types.js';
-import type { LLMRouter, ModelInfo } from '@core/llm/registry.js';
+// Import core types for local use (use package entry to avoid path drift)
+import type { TextPart, ImagePart, FilePart, LLMRouter, ModelInfo } from '@dexto/core';
 
 // Re-export core types that are commonly used in webui
-export type {
-    TextPart,
-    ImagePart,
-    FilePart,
-    InternalMessage,
-    FileData,
-} from '@core/context/types.js';
-export type { LLMRouter, SupportedFileType, LLMProvider, ModelInfo } from '@core/llm/registry.js';
+export type { TextPart, ImagePart, FilePart, InternalMessage, FileData } from '@dexto/core';
+export type { LLMRouter, SupportedFileType, LLMProvider, ModelInfo } from '@dexto/core';
 
 // WebUI-specific extensions
 export interface AudioPart {

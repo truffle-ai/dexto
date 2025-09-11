@@ -4,8 +4,8 @@
  */
 
 // Re-export core types
-export type { ToolResult, ToolCall } from '@core/tools/types.js';
-import type { ToolCall } from '@core/tools/types.js';
+export type { ToolResult, ToolCall } from '@dexto/core';
+import type { ToolCall } from '@dexto/core';
 
 // WebUI-specific types that extend core types
 export interface JsonSchemaProperty {

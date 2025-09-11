@@ -1,8 +1,8 @@
 // Re-export types from core to avoid duplication
-export type { LLMRouter, SupportedFileType, ModelInfo } from '@core/llm/registry.js';
+export type { LLMRouter, SupportedFileType, ModelInfo } from '@dexto/core';
 
 // Import for type annotation usage
-import type { LLMRouter, ModelInfo } from '@core/llm/registry.js';
+import type { LLMRouter, ModelInfo } from '@dexto/core';
 
 // Local types that extend core types for webui-specific needs
 export interface ProviderCatalog {

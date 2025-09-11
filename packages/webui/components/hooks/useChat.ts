@@ -1,10 +1,10 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { TextPart, InternalMessage, FilePart } from '@core/context/types.js';
-import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
-import { toError } from '@core/utils/error-conversion.js';
-import type { Issue } from '@core/errors/types.js';
+import { TextPart, InternalMessage, FilePart } from '@dexto/core';
+import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { toError } from '@dexto/core';
+import type { Issue } from '@dexto/core';
 
 // Re-export types from lib
 export type { TextPart, InternalMessage, FilePart, Issue, LLMRouter, LLMProvider };
