@@ -209,7 +209,10 @@ Before any release:
 
 ## Version History
 
-See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
+See package CHANGELOGs for detailed version history:
+
+- packages/cli/CHANGELOG.md
+- packages/core/CHANGELOG.md
 
 ## Questions?
 

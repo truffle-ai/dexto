@@ -307,6 +307,8 @@ git add .
 git commit -m "feat(core): add new validation helper"
 ```
 
+## Commit Guidelines
+
 #### Commit Message Format
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):

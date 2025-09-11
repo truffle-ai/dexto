@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'node:url';
 import { loadAgentConfig } from './loader.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
 import { ConfigErrorCode } from './error-codes.js';
 
-// temp config file inside the core package tree (updated path after monorepo move)
-const tmpFile = path.resolve(process.cwd(), 'packages/core/src/config/temp-config.yml');
+// Temp config file path relative to this test file (stable across monorepo runners)
+const tmpFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'temp-config.yml');
 
 beforeEach(async () => {
     delete process.env.TEST_VAR;
