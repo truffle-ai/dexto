@@ -9,9 +9,6 @@
       "@core/*": ["src/*"]
     }
   },
-  "include": [
-    "src/**/*",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"]
 }
