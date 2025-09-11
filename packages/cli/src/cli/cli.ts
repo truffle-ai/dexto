@@ -1,4 +1,4 @@
-import readline from 'readline';
+import * as readline from 'node:readline';
 import chalk from 'chalk';
 import { logger } from '@dexto/core';
 import { CLISubscriber } from './cli-subscriber.js';
