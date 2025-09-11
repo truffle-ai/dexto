@@ -81,8 +81,10 @@ function copyAgents(): void {
     let copiedCount = 0;
 
     for (const item of AGENTS_TO_COPY) {
-        const srcPath = join(SOURCE_DIR, item);
-        const destPath = join(DEST_DIR, item);
+        // Normalize the item: remove any trailing slash so path.join works consistently on all OSes
+        const normalizedItem = item.replace(/\/$/, '');
+        const srcPath = join(SOURCE_DIR, normalizedItem);
+        const destPath = join(DEST_DIR, normalizedItem);
 
         if (!existsSync(srcPath)) {
             console.warn(`⚠️  Skipping missing item: ${item}`);
@@ -91,16 +93,16 @@ function copyAgents(): void {
 
         const stat = statSync(srcPath);
 
-        if (item.endsWith('/') && stat.isDirectory()) {
-            console.log(`📁 Copying directory: ${item}`);
-            copyDirectory(srcPath, destPath.slice(0, -1)); // Remove trailing slash
+        if (stat.isDirectory()) {
+            console.log(`📁 Copying directory: ${normalizedItem}`);
+            copyDirectory(srcPath, destPath);
             copiedCount++;
-        } else if (!item.endsWith('/') && stat.isFile()) {
-            console.log(`📄 Copying file: ${item}`);
+        } else if (stat.isFile()) {
+            console.log(`📄 Copying file: ${normalizedItem}`);
             copyFile(srcPath, destPath);
             copiedCount++;
         } else {
-            console.warn(`⚠️  Type mismatch for: ${item}`);
+            console.warn(`⚠️  Skipping non-regular entry: ${normalizedItem}`);
         }
     }
 
