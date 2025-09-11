@@ -1,15 +1,14 @@
 {
-  "name": "@dexto/webui",
-  "version": "0.1.1",
+  "name": "dexto-webui",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint -c eslint.config.mjs . --ext .ts,.tsx"
+    "lint": "next lint"
   },
   "dependencies": {
-    "@dexto/core": "workspace:*",
     "@radix-ui/react-checkbox": "^1.3.1",
     "@radix-ui/react-dialog": "^1.1.11",
     "@radix-ui/react-label": "^2.1.4",
@@ -30,15 +29,15 @@
     "react-textarea-autosize": "^8.5.9",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.2.0",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "@dexto/core": "workspace:*",
+    "@dexto/client-sdk": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "json-schema": "^0.4.0",
-    "@types/json-schema": "^7.0.15",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
     "tw-animate-css": "^1.2.9",

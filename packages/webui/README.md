@@ -37,10 +37,19 @@ Clear out ports 3000 (linux):
 lsof -ti:3000-3001 | xargs kill -9   
 ```
 
-Go to repository root and run the server in dev mode:
+Start one server for the API at the root directory of this project [port 3001]:
 ```bash
-pnpm run dev
+[  2:29PM ]  [ ~/Projects/dexto(storage✗) ]
+ $ npm run build && npm link && dexto --mode server
+ ```
+
+then start the npm dev server [port 3000]
+
+```bash
+[  2:31PM ]  [ karaj@MacBook-Pro:~/Projects/dexto/src/app/webui(storage✗) ]
+npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to start testing your tools.
 
+This is temporary because the application functionality uses Dexto APIs built in the same project

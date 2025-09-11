@@ -32,7 +32,7 @@ import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
-import type { McpServerConfig } from '@dexto/core';
+import type { McpServerConfig } from '../../../core/mcp/schemas.js';
 
 export default function ChatApp() {
 
@@ -479,7 +479,7 @@ export default function ChatApp() {
         {/** Shared centered content width for welcome, messages, and composer */}
         {/** Keep this in sync to unify UI width like other chat apps */}
         {/** 720px base, expand to ~2xl on sm, ~3xl on lg */}
-        {/* Unused var directive removed; keep code clean */}
+        {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
         {(() => {
           /* no-op to allow inline constant-like usage below via variable */
           return null;

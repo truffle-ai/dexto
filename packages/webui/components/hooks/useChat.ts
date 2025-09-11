@@ -1,12 +1,13 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { TextPart as CoreTextPart, InternalMessage, FilePart, Issue } from '@dexto/core';
-import { toError } from '@dexto/core';
-import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { TextPart, InternalMessage, FilePart } from '@core/context/types.js';
+import type { LLMRouter, LLMProvider } from '@core/llm/registry.js';
+import { toError } from '@core/utils/error-conversion.js';
+import type { Issue } from '@core/errors/types.js';
 
-// Reuse the identical TextPart from core
-export type TextPart = CoreTextPart;
+// Re-export types from lib
+export type { TextPart, InternalMessage, FilePart, Issue, LLMRouter, LLMProvider };
 
 // Define WebUI-specific media parts
 export interface ImagePart {
@@ -285,9 +286,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
                     const provider =
-                        typeof payload.provider === 'string'
-                            ? (payload.provider as LLMProvider)
-                            : undefined;
+                        typeof payload.provider === 'string' ? payload.provider : undefined;
                     const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;

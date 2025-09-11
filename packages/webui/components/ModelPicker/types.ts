@@ -1,33 +1,25 @@
-import type { LLMRouter, SupportedFileType } from '@dexto/core';
+// Re-export types from core to avoid duplication
+export type { LLMRouter, SupportedFileType, ModelInfo } from '@core/llm/registry.js';
 
-export type ModelInfo = {
-    name: string;
-    displayName?: string;
-    default?: boolean;
-    maxInputTokens: number;
-    supportedFileTypes: SupportedFileType[];
-    supportedRouters?: LLMRouter[];
-    pricing?: {
-        inputPerM: number;
-        outputPerM: number;
-        cacheReadPerM?: number;
-        cacheWritePerM?: number;
-        currency?: 'USD';
-        unit?: 'per_million_tokens';
-    };
-};
+// Import for type annotation usage
+import type { LLMRouter, ModelInfo } from '@core/llm/registry.js';
 
-export type ProviderCatalog = {
+// Local types that extend core types for webui-specific needs
+export interface ProviderCatalog {
     name: string;
     hasApiKey: boolean;
     primaryEnvVar: string;
     supportedRouters: LLMRouter[];
     supportsBaseURL: boolean;
     models: ModelInfo[];
-};
+}
 
-export type CatalogResponse = { providers: Record<string, ProviderCatalog> };
+export interface CatalogResponse {
+    providers?: Record<string, ProviderCatalog>;
+    models?: Array<ModelInfo & { provider: string }>;
+}
 
+// Local utility types for this component
 export type CurrentLLMConfigResponse = {
     config: {
         provider: string;

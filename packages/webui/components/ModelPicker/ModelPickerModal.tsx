@@ -13,7 +13,6 @@ import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lu
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
 import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL } from "./types";
-import type { LLMRouter as SupportedRouter } from "@dexto/core";
 import { Input } from "../ui/input";
 import { cn } from "../../lib/utils";
 import {
@@ -22,12 +21,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMProvider } from "@dexto/core";
-import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from "./constants";
+import type { LLMRouter as SupportedRouter } from "@core/llm/registry.js";
+import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines, type LLMProviderID } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 
 interface CompactModelCardProps {
-  provider: LLMProvider;
+  provider: string;
   model: ModelInfo;
   providerInfo: ProviderCatalog;
   isFavorite: boolean;
@@ -66,9 +65,9 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
           >
             {/* Provider Logo */}
             <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
-              {PROVIDER_LOGOS[provider] ? (
+              {PROVIDER_LOGOS[provider as LLMProviderID] ? (
                 <Image 
-                  src={PROVIDER_LOGOS[provider]} 
+                  src={PROVIDER_LOGOS[provider as LLMProviderID]} 
                   alt={`${provider} logo`} 
                   width={24} 
                   height={24}
@@ -346,15 +345,15 @@ export default function ModelPickerModal() {
             title="Choose model"
           >
             {/* Provider logo (or fallback icon) */}
-            {currentLLM?.provider && PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
+            {currentLLM?.provider && PROVIDER_LOGOS[currentLLM.provider as LLMProviderID] ? (
               <Image
-                src={PROVIDER_LOGOS[currentLLM.provider as LLMProvider]}
+                src={PROVIDER_LOGOS[currentLLM.provider as LLMProviderID]}
                 alt={`${currentLLM.provider} logo`}
                 width={16}
                 height={16}
                 className={cn(
                   "object-contain",
-                  needsDarkModeInversion(currentLLM.provider as LLMProvider) && "dark:invert dark:brightness-0 dark:contrast-200"
+                  needsDarkModeInversion(currentLLM.provider) && "dark:invert dark:brightness-0 dark:contrast-200"
                 )}
               />
             ) : (
@@ -402,7 +401,7 @@ export default function ModelPickerModal() {
                     {favoriteModels.map(({ providerId, provider, model }) => (
                       <CompactModelCard
                         key={favKey(providerId, model.name)}
-                        provider={providerId as LLMProvider}
+                        provider={providerId}
                         model={model}
                         providerInfo={provider}
                         isFavorite={true}

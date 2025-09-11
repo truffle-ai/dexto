@@ -1,4 +1,3 @@
-// todo: improve this to extend from base tsconfig.json and fix type issues
 {
   "compilerOptions": {
     "baseUrl": ".",
@@ -21,7 +20,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@core/*": ["../../core/*"],
+      "@sdk": ["../../client/index.ts"],
+      "@sdk/*": ["../../client/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

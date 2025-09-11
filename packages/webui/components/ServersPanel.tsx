@@ -6,7 +6,7 @@ import { X, PlusCircle, Server, ListChecks, ChevronRight, RefreshCw, AlertTriang
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
-import type { McpServerConfig } from '@dexto/core';
+import type { McpServerConfig } from '../../../core/mcp/schemas.js';
 import { serverRegistry } from '@/lib/serverRegistry';
 import ServerRegistryModal from './ServerRegistryModal';
 
