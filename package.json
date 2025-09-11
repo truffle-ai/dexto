@@ -18,7 +18,7 @@
         "build:cli-only": "pnpm run build:core && pnpm run build:cli",
         "build:core": "pnpm -C packages/core build",
         "build:strict": "pnpm run typecheck && pnpm run build",
-        "build:webui": "BUILD_STANDALONE=true pnpm -C packages/webui build",
+        "build:webui": "BUILD_STANDALONE=true pnpm run build:core && pnpm run build:client-sdk && pnpm -C packages/webui build",
         "build:webui:dev": "pnpm -C packages/webui build",
         "build-webui": "npx rimraf packages/webui/node_modules packages/webui/package-lock.json && pnpm -C packages/webui install && pnpm -C packages/webui build",
         "clean": "tsx scripts/clean-build-files.ts",

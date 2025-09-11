@@ -26,7 +26,8 @@ async function copyWebUIBuild(): Promise<void> {
         await fs.ensureDir(targetDir);
 
         // Copy standalone build files and necessary config
-        const filesToCopy = ['.next/standalone', '.next/static', 'public', 'package.json'];
+        // Include entire .next for non-standalone fallback; standalone/static for legacy/optimized path
+        const filesToCopy = ['.next', '.next/standalone', '.next/static', 'public', 'package.json'];
 
         for (const file of filesToCopy) {
             const srcPath = path.join(sourceWebUIDir, file);
@@ -101,6 +102,30 @@ const candidates = [
 const standaloneServer = candidates.find((p) => fs.existsSync(p));
 
 if (!standaloneServer) {
+  // Fallback A: run Next using CLI's installed Next with the embedded .next directory
+  const cliNext = path.join(__dirname, '..', '..', 'node_modules', 'next', 'dist', 'bin', 'next');
+  if (fs.existsSync(cliNext) && fs.existsSync(path.join(__dirname, '.next'))) {
+    console.warn('Standalone bundle missing. Using Next CLI from CLI package to serve embedded .next ...');
+    const env = {
+      ...process.env,
+      HOSTNAME: process.env.HOSTNAME || '0.0.0.0',
+      PORT: process.env.FRONTEND_PORT || process.env.PORT || '3000',
+      NODE_ENV: process.env.NODE_ENV || 'production',
+    };
+    const proc = spawn(process.execPath, [cliNext, 'start'], {
+      cwd: __dirname, // serve from embedded webui directory containing .next
+      stdio: 'inherit',
+      env,
+    });
+    proc.on('exit', (code) => process.exit(code || 0));
+    proc.on('error', (err) => {
+      console.error('Failed to start embedded .next via CLI Next:', err);
+      process.exit(1);
+    });
+    return;
+  }
+
+  // No workspace fallback: require embedded assets to be present
   console.error('Dexto WebUI standalone server not found. Tried:');
   for (const c of candidates) console.error('  -', c);
   console.error('Please rebuild: npm run build (which builds the WebUI).');
