@@ -123,20 +123,35 @@ export function findPackageRoot(startPath: string = process.cwd()): string | nul
  * @returns Absolute path to bundled script
  */
 export function resolveBundledScript(scriptPath: string): string {
+    // Build list of candidate relative paths to try, favoring packaged (dist) first
+    const candidates = scriptPath.startsWith('dist/')
+        ? [scriptPath, scriptPath.replace(/^dist\//, '')]
+        : [`dist/${scriptPath}`, scriptPath];
+
+    // 1) Try to resolve from installed CLI package root (global/local install)
     try {
-        // Try to resolve from the installed package
         const require = createRequire(import.meta.url);
-        const packageJsonPath = require.resolve('dexto/package.json');
-        const packageRoot = path.dirname(packageJsonPath);
-        return path.resolve(packageRoot, scriptPath);
-    } catch {
-        // Fallback for development
-        const packageRoot = findPackageRoot();
-        if (!packageRoot) {
-            throw new Error(`Cannot resolve bundled script: ${scriptPath}`);
+        const pkgJson = require.resolve('dexto/package.json');
+        const pkgRoot = path.dirname(pkgJson);
+        for (const rel of candidates) {
+            const abs = path.resolve(pkgRoot, rel);
+            if (existsSync(abs)) return abs;
         }
-        return path.resolve(packageRoot, scriptPath);
+    } catch {
+        // ignore, fall through to dev/project resolution
     }
+
+    // 2) Fallback to repo/project root (development)
+    const repoRoot = findPackageRoot();
+    if (repoRoot) {
+        for (const rel of candidates) {
+            const abs = path.resolve(repoRoot, rel);
+            if (existsSync(abs)) return abs;
+        }
+    }
+
+    // 3) Not found anywhere: throw with helpful message
+    throw new Error(`Bundled script not found: ${scriptPath} (tried: ${candidates.join(', ')})`);
 }
 
 /**

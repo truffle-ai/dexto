@@ -214,24 +214,14 @@ describe('findPackageRoot', () => {
 });
 
 describe('resolveBundledScript', () => {
-    it('resolves script path for bundled MCP servers', () => {
-        const scriptPath = 'dist/scripts/test-server.js';
-
-        // This test depends on the actual dexto package structure
-        // In a real scenario, this would resolve to the installed package location
-        expect(() => resolveBundledScript(scriptPath)).not.toThrow();
-
-        const result = resolveBundledScript(scriptPath);
+    it('resolves a known agent registry path', () => {
+        const result = resolveBundledScript('agents/agent-registry.json');
         expect(path.isAbsolute(result)).toBe(true);
-        expect(result.endsWith(scriptPath)).toBe(true);
+        expect(result.endsWith('agents/agent-registry.json')).toBe(true);
     });
 
     it('throws error when script cannot be resolved', () => {
-        // This test is hard to create in current setup since we're always in a package root
-        // The function will either resolve via require.resolve or via findPackageRoot fallback
-        const result = resolveBundledScript('nonexistent/script.js');
-        expect(path.isAbsolute(result)).toBe(true);
-        expect(result.endsWith('nonexistent/script.js')).toBe(true);
+        expect(() => resolveBundledScript('nonexistent/script.js')).toThrow();
     });
 });
 

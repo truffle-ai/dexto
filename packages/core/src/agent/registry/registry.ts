@@ -35,10 +35,11 @@ export class LocalAgentRegistry implements AgentRegistry {
         let jsonPath: string;
 
         try {
-            jsonPath = resolveBundledScript('dist/agents/agent-registry.json');
+            jsonPath = resolveBundledScript('agents/agent-registry.json');
         } catch (_error) {
+            // Preserve typed error semantics for missing registry
             throw RegistryError.registryNotFound(
-                'dist/agents/agent-registry.json (bundle resolution failed)'
+                'agents/agent-registry.json (bundle resolution failed)'
             );
         }
 
@@ -143,7 +144,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         await fs.mkdir(globalAgentsDir, { recursive: true });
 
         // Determine source path
-        const sourcePath = resolveBundledScript(`dist/agents/${agentData.source}`);
+        const sourcePath = resolveBundledScript(`agents/${agentData.source}`);
 
         // Create temp directory for atomic operation
         const tempDir = `${targetDir}.tmp.${Date.now()}`;
