@@ -4,21 +4,18 @@
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.browser.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "browser": {
-        "types": "./dist/index.browser.d.ts",
         "import": "./dist/index.browser.js",
         "require": "./dist/index.browser.cjs"
       },
-      "node": {
-        "types": "./dist/index.d.ts",
+      "default": {
         "import": "./dist/index.js",
         "require": "./dist/index.cjs"
-      },
-      "default": "./dist/index.js"
+      }
     },
     "./package.json": "./package.json"
   },
