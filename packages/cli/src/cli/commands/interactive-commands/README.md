@@ -70,7 +70,7 @@ These export single `CommandDefinition` objects with subcommands:
 ### File Structure
 
 ```
-src/packages/cli/src/cli/interactive-commands/
+packages/cli/src/cli/interactive-commands/
 ├── README.md                          # This file
 ├── commands.ts                        # Main command aggregator
 ├── command-parser.ts                  # Core parsing and formatting utilities

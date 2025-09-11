@@ -60,7 +60,7 @@ Let's look at each step in more detail.
 ## Step 2: Implement/Select Message Formatter (`IMessageFormatter`)
 
 *   **Role:** Translates Dexto's internal message history (`InternalMessage[]`) into the specific array format required by your chosen LLM provider's API.
-*   **Location:** `src/packages/core/src/llm/messages/formatters/`
+*   **Location:** `packages/core/src/llm/messages/formatters/`
 *   **Action:**
     *   Check if a suitable formatter already exists (e.g., `OpenAIMessageFormatter`, `AnthropicMessageFormatter`).
     *   If not, create a new class (e.g., `YourProviderMessageFormatter.ts`) that implements the `IMessageFormatter` interface from `./types.ts`.
@@ -70,7 +70,7 @@ Let's look at each step in more detail.
 ## Step 3: Implement/Select Tokenizer (`ITokenizer`) & Utilities
 
 *   **Role:** Counts tokens in text according to the specific model's tokenization scheme. This is crucial for the `ContextManager` to manage the context window and apply compression strategies when the token limit is exceeded.
-*   **Location:** `src/packages/core/src/llm/tokenizer/`
+*   **Location:** `packages/core/src/llm/tokenizer/`
 *   **Action:**
     1.  **Check/Add Tokenizer Logic:** Find a library or method (often part of the provider's SDK) to count tokens for your model. Integrate this into the `createTokenizer` function in `factory.ts` if possible, associating it with your provider name (e.g., `'your-provider-name'`). Alternatively, you can directly instantiate the tokenizer within your service constructor.
     2.  **Update `getMaxTokens`:** Add your model's maximum context window size (token limit) to the `getMaxTokens` function in `utils.ts`. This allows the system to calculate appropriate limits for `ContextManager`.
@@ -79,7 +79,7 @@ Let's look at each step in more detail.
 ## Step 4: Choose/Implement Compression Strategy(ies) (`ICompressionStrategy`)
 
 *   **Role:** Defines how the `ContextManager` should reduce the token count of the conversation history when it exceeds the `maxTokens` limit. Strategies are applied sequentially until the history fits.
-*   **Location:** `src/packages/core/src/llm/messages/compression/`
+*   **Location:** `packages/core/src/llm/messages/compression/`
 *   **Action:**
     *   Review the existing strategies: `OldestRemovalStrategy.ts` (removes oldest messages) and `MiddleRemovalStrategy.ts` (attempts to remove messages between the first user message and the latest messages).
     *   Decide which strategy or sequence of strategies is appropriate for your provider/use case. The default sequence used by `ContextManager` is `[MiddleRemovalStrategy, OldestRemovalStrategy]`.
@@ -90,7 +90,7 @@ Let's look at each step in more detail.
 
 This is the core step where you tie everything together.
 
-1.  **Create the Service File:** Create `src/packages/core/src/llm/services/your-provider.ts`.
+1.  **Create the Service File:** Create `packages/core/src/llm/services/your-provider.ts`.
 2.  **Implement the Class:** The factory (`factory.ts`) typically handles the instantiation of the `ContextManager` and the provider's SDK client, passing them to your service's constructor along with the `MCPManager` and an `EventEmitter`.
 
 ```typescript
