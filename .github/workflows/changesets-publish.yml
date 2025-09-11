@@ -25,6 +25,14 @@ jobs:
           node-version: 20
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+      - name: Configure npm auth & registry
+        run: |
+          echo "registry=https://registry.npmjs.org/"            > ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}"   >> ~/.npmrc
+          echo "@dexto:registry=https://registry.npmjs.org/"     >> ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - name: Version / Publish with Changesets
         uses: changesets/action@v1
