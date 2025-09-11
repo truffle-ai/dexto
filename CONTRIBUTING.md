@@ -15,7 +15,7 @@ We welcome contributions! This guide will help you get started with contributing
 
 Before contributing, please:
 1. Read our [Code of Conduct](./CODE_OF_CONDUCT.md)
-2. Check existing [issues](https://github.com/dexto-ai/dexto/issues) and [pull requests](https://github.com/dexto-ai/dexto/pulls)
+2. Check existing [issues](https://github.com/truffle-ai/dexto/issues) and [pull requests](https://github.com/truffle-ai/dexto/pulls)
 3. Open an issue for discussion on larger changes or enhancements
 
 ## Development Setup
@@ -36,7 +36,7 @@ Before contributing, please:
 
 3. Add upstream remote:
    ```bash
-   git remote add upstream https://github.com/dexto-ai/dexto.git
+   git remote add upstream https://github.com/truffle-ai/dexto.git
    ```
 
 ### Install Dependencies

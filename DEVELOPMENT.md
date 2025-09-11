@@ -40,7 +40,7 @@ dexto/
 ### Initial Setup
 ```bash
 # Clone the repository
-git clone https://github.com/dexto-ai/dexto.git
+git clone https://github.com/truffle-ai/dexto.git
 cd dexto
 
 # Enable Corepack (if not already enabled) - this picks pnpm version
