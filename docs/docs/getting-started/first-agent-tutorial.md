@@ -16,6 +16,7 @@ mkdir my-pirate-agent
 cd my-pirate-agent
 ```
 
+And create a file `agent.yml` with the following contents:
 ```yaml
 # agent.yml
 systemPrompt: |
