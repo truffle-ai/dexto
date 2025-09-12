@@ -3,20 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap } from 'lucide-react';
 import { Badge } from './ui/badge';
+import type { PromptArgument, PromptInfo as CorePromptInfo } from '@dexto/core';
 
-// Minimal Prompt types for UI usage
-interface PromptArgument {
-  name: string;
-  required: boolean;
-}
-
-interface PromptInfo {
-  name: string;
-  title?: string;
-  description?: string;
-  arguments?: PromptArgument[];
-  source: 'mcp' | 'internal' | 'starter';
-}
+// Use canonical types from @dexto/core for alignment
+type PromptInfo = CorePromptInfo;
 
 // PromptItem component for rendering individual prompts
 const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: { 

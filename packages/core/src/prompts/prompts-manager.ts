@@ -1,11 +1,12 @@
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptSet, PromptListResult, PromptProvider, PromptInfo } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { AgentConfig } from '../agent/schemas.js';
+import type { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
+import type { PromptArgument } from './types.js';
 import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 
@@ -39,7 +40,7 @@ export class PromptsManager {
     constructor(
         mcpManager: MCPManager,
         promptsDir?: string,
-        agentConfig?: AgentConfig,
+        agentConfig?: ValidatedAgentConfig,
         private eventBus?: AgentEventBus
     ) {
         // Register all prompt providers
@@ -309,11 +310,11 @@ export class PromptsManager {
      * Validate prompt arguments against the prompt definition
      */
     private validatePromptArguments(
-        expectedArgs: Array<{ name: string; required: boolean }>,
+        expectedArgs: PromptArgument[],
         providedArgs: Record<string, unknown>
     ): void {
         const missingRequired = expectedArgs
-            .filter((arg) => arg.required)
+            .filter((arg) => arg.required === true)
             .filter((arg) => !(arg.name in providedArgs));
 
         if (missingRequired.length > 0) {
@@ -377,7 +378,7 @@ export class PromptsManager {
     /**
      * Update starter prompts configuration (updates the starter provider)
      */
-    updateStarterPrompts(agentConfig?: AgentConfig): void {
+    updateStarterPrompts(agentConfig?: ValidatedAgentConfig): void {
         const starterProvider = this.providers.get('starter') as StarterPromptProvider;
         if (starterProvider) {
             starterProvider.updateConfig(agentConfig);

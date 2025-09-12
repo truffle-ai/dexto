@@ -1,18 +1,10 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { AgentConfig } from '../../agent/schemas.js';
+import type { ValidatedAgentConfig } from '../../agent/schemas.js';
 import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';
 
-type StarterPromptConfig = {
-    id: string;
-    title?: string | undefined;
-    description?: string | undefined;
-    prompt: string;
-    category?: string | undefined;
-    icon?: string | undefined;
-    priority?: number | undefined;
-};
+type StarterPromptItem = ValidatedAgentConfig['starterPrompts'][number];
 
 /**
  * Starter Prompt Provider - Provides prompts from agent configuration starter prompts
@@ -22,13 +14,14 @@ type StarterPromptConfig = {
  * displayed prominently in the UI.
  */
 export class StarterPromptProvider implements PromptProvider {
-    private starterPrompts: StarterPromptConfig[] = [];
+    // Sourced from validated AgentConfig schema's starterPrompts
+    private starterPrompts: StarterPromptItem[] = [];
     private promptsCache: PromptInfo[] = [];
     private cacheValid: boolean = false;
 
-    constructor(agentConfig?: AgentConfig) {
-        // 'starterPrompts' is not part of the validated schema; accept if provided by caller
-        this.starterPrompts = (agentConfig as any)?.starterPrompts || [];
+    constructor(agentConfig?: ValidatedAgentConfig) {
+        // Starter prompts come from the validated AgentConfig schema
+        this.starterPrompts = agentConfig?.starterPrompts ?? [];
         this.buildPromptsCache();
     }
 
@@ -51,8 +44,8 @@ export class StarterPromptProvider implements PromptProvider {
     /**
      * Update starter prompts configuration
      */
-    updateConfig(agentConfig?: AgentConfig): void {
-        this.starterPrompts = (agentConfig as any)?.starterPrompts || [];
+    updateConfig(agentConfig?: ValidatedAgentConfig): void {
+        this.starterPrompts = agentConfig?.starterPrompts ?? [];
         this.invalidateCache();
         this.buildPromptsCache();
     }
@@ -63,7 +56,7 @@ export class StarterPromptProvider implements PromptProvider {
     private buildPromptsCache(): void {
         const allPrompts: PromptInfo[] = [];
 
-        this.starterPrompts.forEach((starterPrompt: StarterPromptConfig) => {
+        this.starterPrompts.forEach((starterPrompt: StarterPromptItem) => {
             const promptName = `starter:${starterPrompt.id}`;
             const promptInfo: PromptInfo = {
                 name: promptName,

@@ -6,7 +6,8 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 export interface PromptArgument {
     name: string;
     description?: string;
-    required: boolean;
+    // Optional to accommodate providers that omit it; treat as false when missing
+    required?: boolean;
 }
 
 /**
