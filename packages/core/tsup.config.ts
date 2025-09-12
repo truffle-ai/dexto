@@ -25,6 +25,17 @@ export default defineConfig([
             'dotenv',
             'cross-spawn',
             'tiktoken',
+            // OpenTelemetry packages - externalize to avoid dynamic require issues
+            '@opentelemetry/sdk-node',
+            '@opentelemetry/sdk-trace-node',
+            '@opentelemetry/auto-instrumentations-node',
+            '@opentelemetry/semantic-conventions',
+            '@opentelemetry/resources',
+            '@opentelemetry/exporter-trace-otlp-http',
+            '@opentelemetry/exporter-trace-otlp-grpc',
+            '@opentelemetry/sdk-trace-base',
+            '@opentelemetry/api',
+            '@opentelemetry/context-async-hooks',
         ],
     },
     // Browser build - Minimal exports for type safety

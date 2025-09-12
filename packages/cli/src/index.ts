@@ -60,7 +60,7 @@ import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.j
 import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
-import { Telemetry } from '@core/telemetry/index.js';
+import { Telemetry } from '@dexto/core';
 import e from 'express';
 
 const program = new Command();
