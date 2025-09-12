@@ -381,7 +381,21 @@ export default function ChatApp() {
 
   // Keyboard shortcuts
   useEffect(() => {
+  const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + Backspace to delete current session
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
+        if (currentSessionId && !isWelcomeState) {
+          e.preventDefault();
+          // If session has messages, show confirmation dialog
+          if (messages.length > 0) {
+            setDeleteDialogOpen(true);
+          } else {
+            // No messages, delete immediately
+            handleDeleteConversation();
+          }
+        }
+      }
       // Ctrl/Cmd + H to toggle sessions panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'h') {
         e.preventDefault();
@@ -681,7 +695,14 @@ export default function ChatApp() {
                 
                   {/* Quick Tips */}
                   <div className="text-xs text-muted-foreground space-y-1 text-center">
-                    <p>💡 Try <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘K</kbd> for new chat, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘J</kbd> for tools, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘L</kbd> for playground, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘/</kbd> for shortcuts</p>
+                    <p>
+                      💡 Try
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘K</kbd> for new chat,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘J</kbd> for tools,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘L</kbd> for playground,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">{typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? '⌘⌫' : 'Ctrl+⌫'}</kbd> to delete session,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘/</kbd> for shortcuts
+                    </p>
                   </div>
                 </div>
               </div>
@@ -908,6 +929,7 @@ export default function ChatApp() {
                 { key: '⌘L', desc: 'Open MCP playground' },
                 { key: '⌘⇧E', desc: 'Export config' },
                 { key: '⌘/', desc: 'Show shortcuts' },
+                { key: isMac ? '⌘⌫' : 'Ctrl+⌫', desc: 'Delete current session' },
                 { key: 'Esc', desc: 'Close panels' },
               ].map((shortcut, index) => (
                 <div key={index} className="flex justify-between items-center py-1">
