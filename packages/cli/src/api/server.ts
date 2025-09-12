@@ -159,6 +159,100 @@ export async function initializeApi(
         res.status(200).send('OK');
     });
 
+    // Prompts listing endpoint (for WebUI slash command autocomplete)
+    app.get('/api/prompts', async (_req, res, next) => {
+        try {
+            if (!('promptsManager' in agent) || !(agent as any).promptsManager) {
+                return res.status(200).json({ prompts: [] });
+            }
+            const prompts = await (agent as any).promptsManager.list();
+            const list = Object.values(prompts);
+            return res.status(200).json({ prompts: list });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Helper to extract text content from MCP GetPromptResult
+    function extractPromptText(result: any): string {
+        let text = '';
+        if (!result) return text;
+        const msgs = Array.isArray(result.messages) ? result.messages : [];
+        for (const m of msgs) {
+            const content = m?.content;
+            if (!content) continue;
+            if (typeof content === 'string') {
+                text += content + '\n';
+            } else if (Array.isArray(content)) {
+                for (const part of content) {
+                    if (part?.type === 'text' && typeof part.text === 'string') {
+                        text += part.text + '\n';
+                    }
+                }
+            } else if (
+                typeof content === 'object' &&
+                'type' in content &&
+                (content as any).type === 'text'
+            ) {
+                text += (content as any).text + '\n';
+            }
+        }
+        return text.trim();
+    }
+
+    // Get a specific prompt definition
+    app.get('/api/prompts/:name', async (req, res, next) => {
+        try {
+            const name = req.params.name;
+            if (!name) return res.status(400).json({ error: 'Prompt name is required' });
+            const definition = await (agent as any).promptsManager.getPromptDefinition(name);
+            if (!definition) return res.status(404).json({ error: 'Prompt not found' });
+            return res.status(200).json({ definition });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Resolve a prompt to text content (without sending to the agent)
+    app.get('/api/prompts/:name/resolve', async (req, res, next) => {
+        try {
+            const name = req.params.name;
+            if (!name) return res.status(400).json({ error: 'Prompt name is required' });
+            const pr = await (agent as any).promptsManager.getPrompt(name, {});
+            const text = extractPromptText(pr);
+            if (!text) return res.status(404).json({ error: 'Prompt resolved to empty content' });
+            return res.status(200).json({ text });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Execute a prompt and send to agent
+    app.post('/api/prompts/:name/execute', express.json(), async (req, res, next) => {
+        try {
+            const name = req.params.name;
+            const schema = z.object({
+                args: z.record(z.string(), z.any()).optional(),
+                sessionId: z.string().optional(),
+                stream: z.boolean().optional(),
+            });
+            const body = schema.parse(req.body ?? {});
+            const pr = await (agent as any).promptsManager.getPrompt(name, body.args ?? {});
+            const text = extractPromptText(pr);
+            if (!text) return res.status(400).json({ error: 'Prompt produced no text content' });
+            const response = await agent.run(
+                text,
+                undefined,
+                undefined,
+                body.sessionId,
+                body.stream ?? false
+            );
+            return res.status(200).json({ ok: true, response });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     app.post('/api/message', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message');
         try {

@@ -2,6 +2,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
+import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -104,6 +105,7 @@ export class DextoAgent {
     public readonly mcpManager!: MCPManager;
     public readonly promptManager!: PromptManager;
     public readonly agentEventBus!: AgentEventBus;
+    public readonly promptsManager!: PromptsManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
@@ -176,6 +178,16 @@ export class DextoAgent {
 
             // Initialize search service from services
             this.searchService = services.searchService;
+
+            // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            const promptsManager = new PromptsManager(
+                this.mcpManager,
+                'prompts',
+                this.config,
+                this.agentEventBus
+            );
+            await promptsManager.initialize();
+            Object.assign(this, { promptsManager });
 
             this._isStarted = true;
             logger.info('DextoAgent started successfully.');

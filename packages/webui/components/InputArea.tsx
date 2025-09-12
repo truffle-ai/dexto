@@ -20,6 +20,7 @@ import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 
 interface ModelOption {
   name: string;
@@ -76,6 +77,13 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   // File size limit (64MB)
   const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
+
+  // Slash command state
+  const [showSlashCommands, setShowSlashCommands] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<{
+    name: string;
+    arguments: Array<{ name: string; required: boolean }>;
+  } | null>(null);
 
   const showUserError = (message: string) => {
     setFileUploadError(message);
@@ -141,10 +149,31 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   // NOTE: We intentionally do not manually resize the textarea. We rely on
   // CSS max-height + overflow to keep layout stable.
 
-  const handleSend = () => {
-    const trimmed = text.trim();
+  const handleSend = async () => {
+    let trimmed = text.trim();
     // Allow sending if we have text OR any attachment
     if (!trimmed && !imageData && !fileData) return;
+
+    // If slash command typed, resolve to full prompt content at send time
+    if (trimmed.startsWith('/')) {
+      const parts = trimmed.slice(1).split(/\s+/);
+      const name = parts[0] || '';
+      if (name) {
+        try {
+          const res = await fetch(`/api/prompts/${encodeURIComponent(name)}/resolve`);
+          if (res.ok) {
+            const data = await res.json();
+            const txt = (data?.text as string) || '';
+            if (txt) {
+              trimmed = txt;
+            }
+          }
+        } catch {
+          // keep original
+        }
+      }
+    }
+
     onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
     setText('');
     setImageData(null);
@@ -157,6 +186,40 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // Handle slash command input
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setText(value);
+
+    // Show slash commands when user types "/"
+    if (value === '/') {
+      setShowSlashCommands(true);
+    } else if (value.startsWith('/') && !value.includes(' ')) {
+      setShowSlashCommands(true);
+    } else {
+      if (showSlashCommands) {
+        setShowSlashCommands(false);
+      }
+    }
+  };
+
+  // Handle prompt selection
+  const handlePromptSelect = (prompt: any) => {
+    setSelectedPrompt({ name: prompt.name, arguments: prompt.arguments || [] });
+    const slash = `/${prompt.name}`;
+    setText(slash);
+    setShowSlashCommands(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(slash.length, slash.length);
+    }
+  };
+
+  const closeSlashCommands = () => {
+    setShowSlashCommands(false);
+    setSelectedPrompt(null);
   };
 
   // Large paste guard to prevent layout from exploding with very large text
@@ -496,7 +559,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 <TextareaAutosize
                   ref={textareaRef}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder="Ask Dexto anything..."
@@ -509,7 +572,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   ref={textareaRef}
                   rows={1}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder="Ask Dexto anything..."
@@ -517,6 +580,14 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 />
               )}
             </div>
+
+            {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
+            <SlashCommandAutocomplete 
+              isVisible={showSlashCommands}
+              searchQuery={text}
+              onSelectPrompt={handlePromptSelect}
+              onClose={closeSlashCommands}
+            />
 
             {/* Footer row: normal flow */}
             <ButtonFooter
