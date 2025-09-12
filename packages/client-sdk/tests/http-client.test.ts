@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HttpClient } from '../src/http-client.js';
 
 // Mock fetch globally
@@ -239,27 +239,36 @@ describe('HttpClient', () => {
         });
 
         it('should respect Retry-After header', async () => {
-            mockFetch
-                .mockResolvedValueOnce({
-                    ok: false,
-                    status: 429,
-                    statusText: 'Too Many Requests',
-                    json: () => Promise.resolve({}),
-                    headers: new Map([['retry-after', '2']]),
-                })
-                .mockResolvedValueOnce({
-                    ok: true,
-                    status: 200,
-                    json: () => Promise.resolve({ success: true }),
-                    headers: new Map([['content-type', 'application/json']]),
-                });
+            vi.useFakeTimers();
+            try {
+                mockFetch
+                    .mockResolvedValueOnce({
+                        ok: false,
+                        status: 429,
+                        statusText: 'Too Many Requests',
+                        json: () => Promise.resolve({}),
+                        headers: new Map([['retry-after', '2']]),
+                    })
+                    .mockResolvedValueOnce({
+                        ok: true,
+                        status: 200,
+                        json: () => Promise.resolve({ success: true }),
+                        headers: new Map([['content-type', 'application/json']]),
+                    });
 
-            const startTime = Date.now();
-            const result = await client.get('/test');
-            const endTime = Date.now();
-            expect(mockFetch).toHaveBeenCalledTimes(2);
-            expect(result).toEqual({ success: true });
-            expect(endTime - startTime).toBeGreaterThanOrEqual(1900);
+                const promise = client.get('/test');
+                // First request should have been issued immediately
+                expect(mockFetch).toHaveBeenCalledTimes(1);
+
+                // Advance timers by the Retry-After duration (2 seconds)
+                await vi.advanceTimersByTimeAsync(2000);
+
+                const result = await promise;
+                expect(mockFetch).toHaveBeenCalledTimes(2);
+                expect(result).toEqual({ success: true });
+            } finally {
+                vi.useRealTimers();
+            }
         });
 
         it('should not retry on non-transient errors', async () => {
