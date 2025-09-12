@@ -215,9 +215,6 @@ describe('HttpClient', () => {
     });
 
     describe('Retry logic', () => {
-        beforeEach(() => vi.useFakeTimers());
-        afterEach(() => vi.useRealTimers());
-
         it('should retry on transient errors', async () => {
             // First call fails with 503
             mockFetch
@@ -236,9 +233,7 @@ describe('HttpClient', () => {
                     headers: new Map([['content-type', 'application/json']]),
                 });
 
-            const promise = client.get('/test');
-            await vi.advanceTimersByTimeAsync(1000);
-            const result = await promise;
+            const result = await client.get('/test');
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
         });
@@ -259,11 +254,12 @@ describe('HttpClient', () => {
                     headers: new Map([['content-type', 'application/json']]),
                 });
 
-            const promise = client.get('/test');
-            await vi.advanceTimersByTimeAsync(2000);
-            const result = await promise;
+            const startTime = Date.now();
+            const result = await client.get('/test');
+            const endTime = Date.now();
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
+            expect(endTime - startTime).toBeGreaterThanOrEqual(1900);
         });
 
         it('should not retry on non-transient errors', async () => {
@@ -286,9 +282,7 @@ describe('HttpClient', () => {
                 json: () => Promise.resolve({}),
             });
 
-            const promise = client.get('/test');
-            await vi.advanceTimersByTimeAsync(1000 + 2000); // backoffs for 2 retries
-            await expect(promise).rejects.toThrow();
+            await expect(client.get('/test')).rejects.toThrow();
             // Should be called initial attempt + 2 retries = 3 times
             expect(mockFetch).toHaveBeenCalledTimes(3);
         });
