@@ -4,6 +4,9 @@ sidebar_position: 3
 
 # Build Your First Agent
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 Now that you have Dexto installed, let's build your first custom agent. This tutorial will guide you through creating an `agent.yml` file to define an agent with a unique personality and tools.
 
 ### 1. Create Your Agent Configuration
@@ -16,7 +19,20 @@ mkdir my-pirate-agent
 cd my-pirate-agent
 ```
 
-And create a file `agent.yml` with the following contents:
+Now create a file `agent.yml`, and choose your LLM model and provider.
+
+Choose the same one you picked when you setup dexto.
+
+<Tabs groupId="llm-provider" defaultValue="openai" values={[
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'Anthropic', value: 'anthropic' },
+  { label: 'Google', value: 'google' },
+  { label: 'Groq', value: 'groq' },
+  { label: 'xAI', value: 'xai' },
+  { label: 'Cohere', value: 'cohere' },
+]}> 
+  <TabItem value="openai">
+
 ```yaml
 # agent.yml
 systemPrompt: |
@@ -25,9 +41,83 @@ systemPrompt: |
 llm:
   provider: openai
   model: gpt-4.1-mini
+  apiKey: $OPENAI_API_KEY
 ```
 
-This basic configuration tells the runtime to use OpenAI's `gpt-4.1-mini` model with a simple system prompt.
+  </TabItem>
+  <TabItem value="anthropic">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: anthropic
+  model: claude-4-sonnet-20250514
+  apiKey: $ANTHROPIC_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="google">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: google
+  model: gemini-2.5-pro
+  apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="groq">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: groq
+  model: llama-3.3-70b-versatile
+  apiKey: $GROQ_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="xai">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: xai
+  model: grok-4
+  apiKey: $XAI_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="cohere">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: cohere
+  model: command-a-03-2025
+  apiKey: $COHERE_API_KEY
+```
+
+  </TabItem>
+</Tabs>
+
+This configuration sets your system prompt and selects a default model for the chosen provider. You can change models any time.
 
 ### 2. Give Your Agent a Personality
 Let's customize your agent by giving it a distinct personality. Modify the `systemPrompt` to create a pirate-themed agent:
@@ -36,10 +126,6 @@ Let's customize your agent by giving it a distinct personality. Modify the `syst
 # agent.yml
 systemPrompt: |
   Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
-
-llm:
-  provider: openai
-  model: gpt-4.1-mini
 ```
 
 Now run your agent from inside the `my-pirate-agent` directory:
@@ -95,4 +181,7 @@ You've just built and customized your first AI agent using declarative configura
 
 This is the fundamental development workflow with Dexto: configure declaratively, let the runtime handle orchestration, and focus on your agent's purpose rather than implementation details.
 
+Continue to the [Install Your First Agent Tutorial](./install-first-agent-tutorial) to explore in-built agents that come with dexto!
+
 **Next Steps**: Explore adding more [tools](../concepts/tools.md) or building [multi-agent systems](../tutorials/multi-agent-systems.md).
+
