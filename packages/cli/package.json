@@ -31,7 +31,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts",
-    "prepack": "node ../../scripts/sync-cli-readme.mjs"
+    "prepack": "tsx scripts/sync-cli-readme.ts"
   },
   "devDependencies": {
     "@types/ws": "^8.5.11",
