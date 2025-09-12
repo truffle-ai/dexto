@@ -144,8 +144,9 @@ export class DextoClient {
             } catch (error) {
                 if (this.options.debug) {
                     console.warn(
-                        'WebSocket connection failed, continuing with HTTP-only mode:',
-                        error
+                        `WebSocket connection failed, continuing with HTTP-only mode: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
                     );
                 }
                 // Don't fail the entire connection if WebSocket fails
@@ -173,12 +174,18 @@ export class DextoClient {
         // Validate input
         const validatedInput = validateInput(MessageInputSchema, input, 'MessageInput');
 
-        const endpoint = validatedInput.stream ? '/api/message' : '/api/message-sync';
+        if (validatedInput.stream === true) {
+            throw ClientError.invalidConfig(
+                'MessageInput.stream',
+                validatedInput.stream,
+                'Use sendMessageStream() for streaming responses'
+            );
+        }
+        const endpoint = '/api/message-sync';
 
         const requestBody = {
             message: validatedInput.content,
             ...(validatedInput.sessionId && { sessionId: validatedInput.sessionId }),
-            ...(validatedInput.stream && { stream: validatedInput.stream }),
             ...(validatedInput.imageData && { imageData: validatedInput.imageData }),
             ...(validatedInput.fileData && { fileData: validatedInput.fileData }),
         };

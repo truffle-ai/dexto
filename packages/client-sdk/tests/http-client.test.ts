@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HttpClient } from '../src/http-client.js';
 
 // Mock fetch globally
@@ -164,8 +164,8 @@ describe('HttpClient', () => {
                 })
             );
 
-            const callArgs = mockFetch.mock.calls[0][1];
-            expect(callArgs.body).toBeUndefined();
+            const callArgs = mockFetch.mock.calls[0]?.[1];
+            expect(callArgs?.body).toBeUndefined();
         });
     });
 
@@ -215,6 +215,9 @@ describe('HttpClient', () => {
     });
 
     describe('Retry logic', () => {
+        beforeEach(() => vi.useFakeTimers());
+        afterEach(() => vi.useRealTimers());
+
         it('should retry on transient errors', async () => {
             // First call fails with 503
             mockFetch
@@ -233,7 +236,9 @@ describe('HttpClient', () => {
                     headers: new Map([['content-type', 'application/json']]),
                 });
 
-            const result = await client.get('/test');
+            const promise = client.get('/test');
+            await vi.advanceTimersByTimeAsync(1000);
+            const result = await promise;
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
         });
@@ -254,7 +259,9 @@ describe('HttpClient', () => {
                     headers: new Map([['content-type', 'application/json']]),
                 });
 
-            const result = await client.get('/test');
+            const promise = client.get('/test');
+            await vi.advanceTimersByTimeAsync(2000);
+            const result = await promise;
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
         });
@@ -279,7 +286,9 @@ describe('HttpClient', () => {
                 json: () => Promise.resolve({}),
             });
 
-            await expect(client.get('/test')).rejects.toThrow();
+            const promise = client.get('/test');
+            await vi.advanceTimersByTimeAsync(1000 + 2000); // backoffs for 2 retries
+            await expect(promise).rejects.toThrow();
             // Should be called initial attempt + 2 retries = 3 times
             expect(mockFetch).toHaveBeenCalledTimes(3);
         });
