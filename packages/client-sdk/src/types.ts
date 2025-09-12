@@ -75,7 +75,7 @@ export interface Tool {
     id: string;
     name: string;
     description: string;
-    inputSchema?: any | undefined;
+    inputSchema?: Record<string, unknown> | undefined;
 }
 
 // Intentionally relaxed: SDK exposes flexible search options for API usage.
@@ -197,8 +197,8 @@ export interface CatalogResponse {
 // Event types for WebSocket communication
 export interface DextoEvent {
     type: string;
-    data: any;
-    sessionId?: string;
+    data: unknown;
+    sessionId?: string | undefined;
 }
 
 export interface ClientOptions {
@@ -213,7 +213,7 @@ export class DextoClientError extends Error {
     constructor(
         message: string,
         public statusCode?: number,
-        public details?: any
+        public details?: unknown
     ) {
         super(message);
         this.name = 'DextoClientError';
@@ -233,7 +233,7 @@ export class DextoNetworkError extends DextoClientError {
 export class DextoValidationError extends DextoClientError {
     constructor(
         message: string,
-        public validationErrors: any[] = []
+        public validationErrors: unknown[] = []
     ) {
         super(message, 400);
         this.name = 'DextoValidationError';

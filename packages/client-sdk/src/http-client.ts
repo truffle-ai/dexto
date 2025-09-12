@@ -1,14 +1,19 @@
 import { ClientConfig, DextoClientError, DextoNetworkError } from './types.js';
 
+// Derive fetch types to avoid relying on DOM lib globals in ESLint
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
+type FetchResponse = Awaited<ReturnType<typeof fetch>>;
+
 interface RequestOptions {
-    method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-    body?: any;
-    headers?: Record<string, string>;
-    timeout?: number;
+    method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | undefined;
+    body?: unknown | undefined;
+    headers?: Record<string, string> | undefined;
+    timeout?: number | undefined;
 }
 
 interface FetchFunction {
-    (input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+    (input: FetchInput, init?: FetchInit): Promise<FetchResponse>;
 }
 
 /**
@@ -40,21 +45,28 @@ export class HttpClient {
         const { method = 'GET', body, headers = {}, timeout = this.config.timeout } = options;
 
         const url = new URL(endpoint, this.config.baseUrl).toString();
-        const requestHeaders: Record<string, string> = {
-            'Content-Type': 'application/json',
-            ...headers,
-        };
+        const requestHeaders: Record<string, string> = { ...headers };
+
+        // Add default Content-Type only when a body is present and caller didn't provide one
+        if (body !== undefined) {
+            const hasContentType = Object.keys(requestHeaders).some(
+                (k) => k.toLowerCase() === 'content-type'
+            );
+            if (!hasContentType) {
+                requestHeaders['Content-Type'] = 'application/json';
+            }
+        }
 
         // Add API key if provided
         if (this.config.apiKey) {
             requestHeaders['Authorization'] = `Bearer ${this.config.apiKey}`;
         }
 
-        const requestInit: RequestInit = {
+        const requestInit: FetchInit = {
             method,
             headers: requestHeaders,
             ...(body !== undefined && { body: JSON.stringify(body) }),
-        };
+        } as FetchInit;
 
         // Add timeout using AbortController
         const controller = new AbortController();
@@ -66,9 +78,10 @@ export class HttpClient {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-                const errorData = await this.safeParseJson(response);
+                const errorData = (await this.safeParseJson(response)) as Record<string, unknown>;
                 throw new DextoClientError(
-                    errorData?.error || `HTTP ${response.status}: ${response.statusText}`,
+                    (errorData?.error as string) ||
+                        `HTTP ${response.status}: ${response.statusText}`,
                     response.status,
                     errorData
                 );
@@ -107,7 +120,7 @@ export class HttpClient {
         }
     }
 
-    private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    private async fetchWithRetry(url: string, init: FetchInit): Promise<FetchResponse> {
         let lastError: DextoNetworkError | null = null;
         const method = (init.method || 'GET').toUpperCase();
         const canRetry = ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method);
@@ -142,7 +155,7 @@ export class HttpClient {
         throw lastError!;
     }
 
-    private async safeParseJson(response: Response): Promise<any> {
+    private async safeParseJson(response: FetchResponse): Promise<unknown> {
         try {
             return await response.json();
         } catch {
@@ -157,14 +170,14 @@ export class HttpClient {
         return this.request<T>(endpoint, options);
     }
 
-    async post<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
+    async post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
         const options: RequestOptions = { method: 'POST' };
         if (body) options.body = body;
         if (headers) options.headers = headers;
         return this.request<T>(endpoint, options);
     }
 
-    async put<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
+    async put<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
         const options: RequestOptions = { method: 'PUT' };
         if (body) options.body = body;
         if (headers) options.headers = headers;
