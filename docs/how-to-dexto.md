@@ -184,7 +184,7 @@ npm install dexto
 **Example SDK Usage:**
 ```ts
 import 'dotenv/config';
-import { DextoAgent, loadAgentConfig } from 'dexto';
+import { DextoAgent, loadAgentConfig } from '@dexto/core';
 
 // Load configuration from default location (auto-discovery)
 const config = await loadAgentConfig();

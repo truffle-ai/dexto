@@ -1,4 +1,4 @@
-# Dexto
+# Dexto CLI
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Beta-yellow">
@@ -103,7 +103,7 @@ dexto --agent podcast-agent "generate a podcast intro with two hosts discussing 
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
 
-More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
+More ready-to-run recipes live in [`agents/`](https://github.com/truffle-ai/dexto/tree/HEAD/agents/) and the [docs site](https://docs.dexto.ai/).
 
 ## Examples & Demos
 
@@ -157,7 +157,7 @@ dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
 ```bash
 dexto --agent ./agents/examples/email_slack.yml
 ```
-<img src="assets/email_slack_demo.gif" alt="Email to Slack Demo" width="600">
+<img src="https://github.com/truffle-ai/dexto/blob/HEAD/assets/email_slack_demo.gif?raw=1" alt="Email to Slack Demo" width="600">
 
 ---
 
@@ -170,8 +170,8 @@ dexto --agent ./agents/examples/email_slack.yml
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
-| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](packages/cli/src/discord/README.md)) |
-| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](packages/cli/src/telegram/README.md)) |
+| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/src/discord/README.md)) |
+| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/src/telegram/README.md)) |
 
 Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
@@ -294,9 +294,6 @@ const currentLLM = agent.getCurrentLLMConfig();
 // Switch models (provider inferred automatically)
 await agent.switchLLM({ model: 'gpt-4.1-mini' });
 await agent.switchLLM({ model: 'claude-4-sonnet-20250514' });
-
-// Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-4.1-mini' }, '1234')
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
@@ -429,7 +426,7 @@ Commands:
 
 ## Contributing
 
-We welcome contributions! Refer to our [Contributing Guide](./CONTRIBUTING.md) for more details.
+We welcome contributions! Refer to our [Contributing Guide](https://github.com/truffle-ai/dexto/blob/HEAD/CONTRIBUTING.md) for more details.
 
 ## Community & Support
 
@@ -459,4 +456,4 @@ Thanks to all these amazing people for contributing to Dexto!
 
 ## License
 
-Elastic License 2.0.  See [LICENSE](LICENSE) for full terms.
+Elastic License 2.0.  See [LICENSE](https://github.com/truffle-ai/dexto/blob/HEAD/LICENSE) for full terms.

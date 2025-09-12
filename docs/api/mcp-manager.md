@@ -22,7 +22,7 @@ Creates a new `MCPManager` instance for managing MCP server connections.
 
 **Example:**
 ```typescript
-import { MCPManager } from 'dexto';
+import { MCPManager } from '@dexto/core';
 
 // Basic manager
 const manager = new MCPManager();
@@ -325,7 +325,7 @@ if (Object.keys(errors).length > 0) {
 ### Complete Example
 
 ```typescript
-import { MCPManager } from 'dexto';
+import { MCPManager } from '@dexto/core';
 
 const manager = new MCPManager();
 

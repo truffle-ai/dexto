@@ -30,14 +30,16 @@
     "copy-agents": "tsx scripts/copy-agents.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "prepack": "node ../../scripts/sync-cli-readme.mjs"
   },
   "devDependencies": {
     "@types/ws": "^8.5.11",
     "type-fest": "^4.26.1"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"

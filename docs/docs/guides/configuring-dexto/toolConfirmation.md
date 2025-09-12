@@ -327,7 +327,7 @@ When building custom applications with Dexto, you'll need to implement tool conf
 For custom applications using Dexto:
 
 ```typescript
-import { DextoAgent, AgentEventBus } from 'dexto';
+import { DextoAgent, AgentEventBus } from '@dexto/core';
 
 class CustomToolConfirmationHandler {
   constructor(private agentEventBus: AgentEventBus) {

@@ -13,7 +13,7 @@ Let's build an agent that can organize messy directories:
 ```typescript
 // file-organizer.ts
 import 'dotenv/config';
-import { loadConfigFile, DextoAgent } from 'dexto';
+import { loadConfigFile, DextoAgent } from '@dexto/core';
 
 const config = await loadConfigFile('./agents/default-agent.yml');
 const agent = new DextoAgent(config);
@@ -41,7 +41,7 @@ Let's add some user input:
 ```typescript
 // interactive-organizer.ts
 import 'dotenv/config';
-import { loadConfigFile, DextoAgent } from 'dexto';
+import { loadConfigFile, DextoAgent } from '@dexto/core';
 import readline from 'readline';
 
 const config = await loadConfigFile('./agents/default-agent.yml');
@@ -107,7 +107,7 @@ Now let's build something interactive for developers:
 ```typescript
 // code-helper.ts
 import 'dotenv/config';
-import { loadConfigFile, DextoAgent } from 'dexto';
+import { loadConfigFile, DextoAgent } from '@dexto/core';
 import readline from 'readline';
 
 const agent = new DextoAgent(
@@ -198,7 +198,7 @@ Ready for something more advanced? Let's create a web service:
 ```typescript
 // web-service.ts
 import express from 'express';
-import { loadConfigFile, DextoAgent } from 'dexto';
+import { loadConfigFile, DextoAgent } from '@dexto/core';
 
 const app = express();
 app.use(express.json());
