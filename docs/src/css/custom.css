@@ -302,7 +302,7 @@ h3 {
 .menu__list .menu__list .menu__link {
   font-size: 0.8rem;
   padding-left: 2rem;
-  color: var(--vscode-text-secondary);
+  color: var(--ifm-color-content);
   padding-top: 0.1875rem;
   padding-bottom: 0.1875rem;
 }
@@ -323,7 +323,7 @@ h3 {
 .menu__list .menu__list .menu__list .menu__link {
   font-size: 0.75rem;
   padding-left: 2.75rem;
-  color: var(--ifm-color-gray-500);
+  color: var(--ifm-color-content);
 }
 
 [data-theme='light'] .menu__list .menu__list .menu__list .menu__link {

@@ -92,7 +92,6 @@ let _tiktoken: any | null = null;
 function loadTiktoken(): typeof import('tiktoken') {
     if (_tiktoken) return _tiktoken as typeof import('tiktoken');
     const req = createRequire(import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     _tiktoken = req('tiktoken');
     return _tiktoken as typeof import('tiktoken');
 }
