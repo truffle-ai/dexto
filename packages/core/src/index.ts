@@ -47,3 +47,6 @@ export * from './context/index.js';
 
 // Utils
 export * from './utils/index.js';
+
+//telemetry
+export * from './telemetry/index.js';

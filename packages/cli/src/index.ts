@@ -60,6 +60,8 @@ import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.j
 import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
+import { Telemetry } from '@dexto/core';
+import e from 'express';
 
 const program = new Command();
 
@@ -482,6 +484,42 @@ program
 
             // DextoAgent will parse/validate again (parse-twice pattern)
             agent = new DextoAgent(validatedConfig, opts.agent);
+
+            // Initialize Telemetry
+            const telemetryCfg = validatedConfig.telemetry;
+            const isMcpStdio = opts.mode === 'mcp';
+            if (telemetryCfg?.enabled === true) {
+                if (isMcpStdio && telemetryCfg.export?.type === 'console') {
+                    logger.warn(
+                        'Skipping telemetry console exporter in mcp stdio mode to avoid stdout interference'
+                    );
+                } else {
+                    await Telemetry.init(telemetryCfg);
+                    logger.info('Telemetry initialized from agent.yml');
+                    // Ensure spans flush on shutdown
+                    process.once('SIGINT', async () => {
+                        try {
+                            await Telemetry.get().shutdown();
+                        } finally {
+                            process.exit(130);
+                        }
+                    });
+                    process.once('SIGTERM', async () => {
+                        try {
+                            await Telemetry.get().shutdown();
+                        } finally {
+                            process.exit(143);
+                        }
+                    });
+                    process.once('beforeExit', async () => {
+                        try {
+                            await Telemetry.get().shutdown();
+                        } catch {
+                            e;
+                        }
+                    });
+                }
+            }
 
             // Start the agent (initialize async services)
             await agent.start();
