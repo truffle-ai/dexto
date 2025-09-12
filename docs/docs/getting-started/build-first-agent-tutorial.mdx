@@ -151,10 +151,12 @@ systemPrompt: |
 llm: <unchanged>
 
 mcpServers:
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
-    args: ["-y", "@playwright/mcp"]
+    args:
+      - "-y"
+      - "@playwright/mcp@latest"
 ```
 
 The runtime will automatically handle tool installation and integration when you first run the agent.

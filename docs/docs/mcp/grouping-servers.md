@@ -41,12 +41,12 @@ mcpServers:
       - "@modelcontextprotocol/server-filesystem"
       - "."
   
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
-      - -y
-      - "@truffle-ai/puppeteer-server"
+      - "-y"
+      - "@playwright/mcp@latest"
 ```
 
  - You don't need LLM configuration for tools mode

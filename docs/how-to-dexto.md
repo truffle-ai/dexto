@@ -42,10 +42,12 @@ mcpServers:
     type: stdio
     command: npx
     args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
-    args: ['-y', '@truffle-ai/puppeteer-server']
+    args:
+      - "-y"
+      - "@playwright/mcp@latest"
 
 # Configure the Large Language Model
 llm:

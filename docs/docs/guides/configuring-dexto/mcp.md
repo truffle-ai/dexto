@@ -20,11 +20,12 @@ mcpServers:
       - @modelcontextprotocol/server-filesystem
     env:
       ROOT: ./
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
     args:
-      - @modelcontextprotocol/server-puppeteer
+      - "-y"
+      - "@playwright/mcp@latest"
 ```
 
 See: [MCP › Configure Connections](../../mcp/connecting-servers)
