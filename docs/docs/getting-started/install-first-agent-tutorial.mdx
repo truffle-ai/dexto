@@ -19,7 +19,16 @@ Use the `list-agents` command to list the in-built agents.
 dexto list-agents
 ```
 
-Here you will see many different agents — podcast agent, triage agent, database agent, etc.
+You will see many different agents. Some of the available agents are:
+
+- **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
+- **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
+- **Database Agent** – Demo agent for SQL queries and database operations
+- **Image Editor Agent** – Image editing and manipulation  
+- **Music Agent** – Music creation and audio processing
+- **PDF Agent** – Document analysis and conversation
+- **Product Researcher** – Product naming and branding research
+- **Triage Agent** – Demo multi-agent customer support routing system
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. 
 
@@ -49,7 +58,7 @@ With this command, you will now be talking to your newly installed music agent!
 
 Use the `/tools` command to list its available tools in the CLI.
 
-Also look at [Music Agent Demo and Tutorial](../tutorials/music-agent) for more details.
+Check out [Music Agent Demo and Tutorial](../tutorials/music-agent) for a full tutorial of how to use this agent.
 
 ### 4. Uninstall the agent
 ```bash
@@ -62,19 +71,19 @@ This command uninstalls the agent.
 dexto list-agents
 ```
 
-Verify the agent was successfully uninstalled.
+Verify the music-agent was successfully uninstalled.
 
-### 5. Reinstall it with in-built LLM settings
+### 5. Reinstall the agent with in-built LLM settings
 
 ```bash
 dexto install music-agent --no-inject-preferences
 ```
 
-The first time when you installed `music-agent`, Dexto automatically injected your preferred LLM as the LLM to be used for this agent.
+The first time when you installed `music-agent`, Dexto automatically injected your preferred LLM you configured during setup to be the LLM for this agent.
 
 To avoid this and use the default LLM shipped for the music-agent, use the `--no-inject-preferences` argument while installing the agent.
 
-This is preferable for certain agents that work better with pre-set LLMs, such as the nano-banana agent, which requires gemini.
+This is preferable for certain agents that work better with or require pre-set LLMs, such as the nano-banana agent, which requires gemini.
 
 Now let's rerun the list-agents command to see the installed agents.
 
@@ -128,6 +137,18 @@ Ask it "Who are you?", and you will see that instead of the `default-agent`, dex
 
 Similarly, if you want to change the default to any other agent, just update `defaultAgent` to any valid agent-name!
 
+### 8. Run a new agent directly without install
+
+```bash
+dexto -a database-agent
+```
+
+If you don't run the install command, Dexto will automatically install the agent with your preferred LLM and start up the agent directly!
+
+You can now chat with the database agent, or exit and re-run the `list-agents` command to verify that the `database-agent` was installed
+
+You can use the `--no-auto-install` argument with `dexto` to disable the auto install behaviour.
+
 ## Congratulations!
 You've just installed your first pre-built AI agent with Dexto and set it as your default agent!
 
@@ -139,6 +160,7 @@ You've learned how to:
 - ✅ Use the `--no-inject-preferences` argument with `dexto install` command to use default LLM preferences.
 - ✅ Find the file path to installed agents with the `dexto which` command
 - ✅ Set any agent as your preferred default agent in `dexto`
+- ✅ Automatically install and run an agent with `dexto -a <agent_name>`
 
 You are now ready to explore other in-built agents like the podcast agent, triage agent, database agent, and more!
 

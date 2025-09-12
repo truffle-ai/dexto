@@ -9,10 +9,10 @@ This guide will walk you through installing the Dexto CLI and setting up your en
 ### Prerequisites
 - [Node.js](https://nodejs.org/en/download) >= 20.0.0
 - An LLM API Key:
- -  OpenAI: (https://platform.openai.com/api-keys)
- -  Gemini: (https://aistudio.google.com/apikey)
- -  Claude: (https://console.anthropic.com/settings/keys)
- -  Groq: (https://console.groq.com/keys)
+  -  OpenAI: (https://platform.openai.com/api-keys)
+  -  Gemini: (https://aistudio.google.com/apikey)
+  -  Claude: (https://console.anthropic.com/settings/keys)
+  -  Groq: (https://console.groq.com/keys)
 
 ### 1. Install Dexto
 Install Dexto globally using npm:

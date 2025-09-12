@@ -136,25 +136,25 @@ dexto --agent agent.yml "Who are you?"
 
 Your agent should now respond like a pirate. You've just changed your agent's behavior through declarative configuration—no code required.
 
+Note: You can also use `dexto -a <agent>` instead of `dexto --agent <agent>` as a short-hand.
+
 ### 3. Add Tool Integration
 A core feature of Dexto is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
 
-Add the `puppeteer` tool to your configuration:
+Add the `playwright` tool to your configuration:
 
 ```yaml
 # agent.yml
 systemPrompt: |
   Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
 
-llm:
-  provider: openai
-  model: gpt-4.1-mini
+llm: <unchanged>
 
 mcpServers:
   puppeteer:
     type: stdio
     command: npx
-    args: ["-y", "@truffle-ai/puppeteer-server"]
+    args: ["-y", "@playwright/mcp"]
 ```
 
 The runtime will automatically handle tool installation and integration when you first run the agent.
