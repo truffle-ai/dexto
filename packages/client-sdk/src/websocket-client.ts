@@ -47,7 +47,7 @@ export class WebSocketClient {
                     // For now, throw error as Node.js users should use HTTP methods
                     reject(
                         ClientError.websocketConnectionFailed(
-                            'ws://fallback-url',
+                            this.url,
                             new Error(
                                 'WebSocket not available in this environment. Use HTTP methods or run in a browser.'
                             )
