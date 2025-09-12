@@ -30,8 +30,7 @@
     "copy-agents": "tsx scripts/copy-agents.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint . --ext .ts",
-    "prepack": "tsx scripts/sync-cli-readme.ts"
+    "lint": "eslint . --ext .ts"
   },
   "devDependencies": {
     "@types/ws": "^8.5.11",
