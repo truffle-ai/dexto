@@ -141,14 +141,12 @@ Note: You can also use `dexto -a <agent>` instead of `dexto --agent <agent>` as 
 ### 3. Add Tool Integration
 A core feature of Dexto is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
 
-Add the `playwright` tool to your configuration:
+Add the `playwright` tool to your configuration [llm section remains unchanged]:
 
 ```yaml
 # agent.yml
 systemPrompt: |
   Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
-
-llm: <unchanged>
 
 mcpServers:
   playwright:
