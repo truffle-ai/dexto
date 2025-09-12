@@ -207,35 +207,3 @@ export interface ClientOptions {
     reconnectInterval?: number | undefined;
     debug?: boolean | undefined;
 }
-
-// Error types
-export class DextoClientError extends Error {
-    constructor(
-        message: string,
-        public statusCode?: number,
-        public details?: unknown
-    ) {
-        super(message);
-        this.name = 'DextoClientError';
-    }
-}
-
-export class DextoNetworkError extends DextoClientError {
-    constructor(
-        message: string,
-        public originalError?: Error
-    ) {
-        super(message, 0);
-        this.name = 'DextoNetworkError';
-    }
-}
-
-export class DextoValidationError extends DextoClientError {
-    constructor(
-        message: string,
-        public validationErrors: unknown[] = []
-    ) {
-        super(message, 400);
-        this.name = 'DextoValidationError';
-    }
-}
