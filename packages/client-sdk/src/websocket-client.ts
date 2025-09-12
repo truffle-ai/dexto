@@ -1,4 +1,5 @@
-import { DextoEvent, DextoNetworkError } from './types.js';
+import { DextoEvent } from './types.js';
+import { ClientError } from './errors.js';
 
 export type EventHandler = (event: DextoEvent) => void;
 export type ConnectionStateHandler = (state: 'connecting' | 'open' | 'closed' | 'error') => void;
@@ -45,8 +46,11 @@ export class WebSocketClient {
                     // Node.js environment - would need to import ws package
                     // For now, throw error as Node.js users should use HTTP methods
                     reject(
-                        new DextoNetworkError(
-                            'WebSocket not available in this environment. Use HTTP methods or run in a browser.'
+                        ClientError.websocketConnectionFailed(
+                            'ws://fallback-url',
+                            new Error(
+                                'WebSocket not available in this environment. Use HTTP methods or run in a browser.'
+                            )
                         )
                     );
                     return;
@@ -55,9 +59,11 @@ export class WebSocketClient {
                 this.setupEventHandlers(resolve, reject);
             } catch (error) {
                 reject(
-                    new DextoNetworkError(
-                        'Failed to create WebSocket connection',
-                        error instanceof Error ? error : undefined
+                    ClientError.websocketConnectionFailed(
+                        this.url,
+                        error instanceof Error
+                            ? error
+                            : new Error('Failed to create WebSocket connection')
                     )
                 );
             }
@@ -128,7 +134,7 @@ export class WebSocketClient {
 
             // Only reject on initial connection attempt
             if (this.reconnectAttempts === 0) {
-                reject(new DextoNetworkError('WebSocket connection failed'));
+                reject(ClientError.websocketConnectionFailed(this.url));
             }
         };
     }

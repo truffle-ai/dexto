@@ -2,6 +2,7 @@
 export * from './client.js';
 export * from './types.js';
 export * from './schemas.js';
+export * from './errors.js';
 
 // Re-export core search types to avoid drift.
 // These provide stricter typing than the client SDK's relaxed API-compatible types.

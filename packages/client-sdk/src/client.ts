@@ -13,10 +13,10 @@ import {
     SearchOptions,
     SearchResponse,
     SessionSearchResponse,
-    DextoClientError,
     CatalogOptions,
     CatalogResponse,
 } from './types.js';
+import { ClientError } from './errors.js';
 import {
     ClientConfigSchema,
     ClientOptionsSchema,
@@ -119,7 +119,10 @@ export class DextoClient {
         try {
             await this.http.get('/health');
         } catch (error) {
-            throw new DextoClientError('Failed to connect to Dexto server', 0, error);
+            throw ClientError.connectionFailed(
+                this.config.baseUrl,
+                error instanceof Error ? error : undefined
+            );
         }
 
         // Connect WebSocket if enabled
@@ -185,7 +188,10 @@ export class DextoClient {
         const validatedInput = validateInput(MessageInputSchema, input, 'MessageInput');
 
         if (!this.ws || this.ws.state !== 'open') {
-            throw new DextoClientError('WebSocket connection not available for streaming');
+            throw ClientError.connectionFailed(
+                'WebSocket endpoint',
+                new Error('WebSocket connection not available for streaming')
+            );
         }
 
         return this.ws.send({
@@ -428,7 +434,11 @@ export class DextoClient {
 
         // Validate config is not null/undefined
         if (config === null || config === undefined) {
-            throw new DextoClientError('Server config cannot be null or undefined');
+            throw ClientError.invalidConfig(
+                'serverConfig',
+                config,
+                'Server config cannot be null or undefined'
+            );
         }
 
         await this.http.post('/api/mcp/servers', { name, config });
@@ -472,7 +482,11 @@ export class DextoClient {
 
         // Validate args is not null/undefined (empty object {} is allowed)
         if (args === null || args === undefined) {
-            throw new DextoClientError('Tool arguments cannot be null or undefined');
+            throw ClientError.invalidConfig(
+                'toolArgs',
+                args,
+                'Tool arguments cannot be null or undefined'
+            );
         }
 
         const response = await this.http.post<{ success: boolean; data: unknown }>(

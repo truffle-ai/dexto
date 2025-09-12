@@ -1,4 +1,5 @@
-import { ClientConfig, DextoClientError, DextoNetworkError } from './types.js';
+import { ClientConfig } from './types.js';
+import { ClientError, DextoRuntimeError } from './errors.js';
 
 // Derive fetch types to avoid relying on DOM lib globals in ESLint
 type FetchInput = Parameters<typeof fetch>[0];
@@ -35,7 +36,9 @@ export class HttpClient {
             this.fetchFn = globalThis.fetch;
         } else {
             // Fallback - should not happen in modern environments
-            throw new DextoClientError(
+            throw ClientError.invalidConfig(
+                'fetch',
+                'unavailable',
                 'No fetch implementation available. Use Node.js 18+ or a browser.'
             );
         }
@@ -79,10 +82,10 @@ export class HttpClient {
 
             if (!response.ok) {
                 const errorData = (await this.safeParseJson(response)) as Record<string, unknown>;
-                throw new DextoClientError(
-                    (errorData?.error as string) ||
-                        `HTTP ${response.status}: ${response.statusText}`,
+                throw ClientError.httpError(
                     response.status,
+                    response.statusText,
+                    endpoint,
                     errorData
                 );
             }
@@ -105,15 +108,15 @@ export class HttpClient {
         } catch (error) {
             clearTimeout(timeoutId);
 
-            if (error instanceof DextoClientError) {
+            if (error instanceof DextoRuntimeError) {
                 throw error;
             }
 
             if (error instanceof Error && error.name === 'AbortError') {
-                throw new DextoNetworkError('Request timeout', error);
+                throw ClientError.timeoutError(endpoint, this.config.timeout || 30000);
             }
 
-            throw new DextoNetworkError(
+            throw ClientError.networkError(
                 error instanceof Error ? error.message : 'Unknown network error',
                 error instanceof Error ? error : undefined
             );
@@ -121,32 +124,62 @@ export class HttpClient {
     }
 
     private async fetchWithRetry(url: string, init: FetchInit): Promise<FetchResponse> {
-        let lastError: DextoNetworkError | null = null;
+        let lastError: DextoRuntimeError | null = null;
         const method = (init.method || 'GET').toUpperCase();
         const canRetry = ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method);
+        const maxRetries = this.config.retries ?? 3;
 
-        for (let attempt = 0; attempt <= this.config.retries!; attempt++) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-                return await this.fetchFn(url, init);
+                const response = await this.fetchFn(url, init);
+
+                // Check for transient HTTP status codes that should be retried
+                const transientStatus = [429, 502, 503, 504];
+                if (canRetry && transientStatus.includes(response.status) && attempt < maxRetries) {
+                    // Handle Retry-After header (seconds or HTTP-date)
+                    const retryAfter = response.headers.get('retry-after');
+                    let delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+
+                    if (retryAfter) {
+                        const secs = Number(retryAfter);
+                        if (Number.isFinite(secs) && secs >= 0) {
+                            // Retry-After in seconds
+                            delay = secs * 1000;
+                        } else {
+                            // Retry-After as HTTP-date
+                            const retryTime = Date.parse(retryAfter);
+                            if (retryTime > Date.now()) {
+                                delay = Math.max(0, retryTime - Date.now());
+                            }
+                        }
+                    }
+
+                    // Cap the delay to reasonable maximum
+                    delay = Math.min(delay, 30000); // Max 30 seconds
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                return response;
             } catch (error) {
                 lastError =
-                    error instanceof DextoNetworkError
+                    error instanceof DextoRuntimeError
                         ? error
-                        : new DextoNetworkError(
+                        : ClientError.networkError(
                               error instanceof Error ? error.message : String(error),
                               error instanceof Error ? error : undefined
                           );
 
                 // Don't retry on the last attempt, non-idempotent methods, or for certain error types
                 if (
-                    attempt === this.config.retries ||
+                    attempt === maxRetries ||
                     !canRetry ||
                     (error instanceof Error && error.name === 'AbortError')
                 ) {
                     break;
                 }
 
-                // Exponential backoff
+                // Exponential backoff for network errors
                 const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
                 await new Promise((resolve) => setTimeout(resolve, delay));
             }

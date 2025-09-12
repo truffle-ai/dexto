@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { DextoValidationError } from './types.js';
+import { DextoValidationError } from './errors.js';
+import { zodToIssues } from '@dexto/core';
 
 // ============= INPUT VALIDATION SCHEMAS =============
 
@@ -8,6 +9,7 @@ export const ClientConfigSchema = z
         baseUrl: z
             .string()
             .url('baseUrl must be a valid URL')
+            .refine((u) => /^https?:\/\//i.test(u), 'baseUrl must start with http or https')
             .describe('Base URL for the API endpoint'),
         apiKey: z.string().optional().describe('API key for authentication'),
         timeout: z
@@ -438,24 +440,18 @@ export const GreetingResponseSchema = z
 
 // ============= UTILITY FUNCTIONS =============
 
-export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown, context: string): T {
+export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown, _context: string): T {
     const result = schema.safeParse(data);
     if (!result.success) {
-        throw new DextoValidationError(
-            `Invalid ${context}: ${result.error.issues.map((i) => i.message).join(', ')}`,
-            result.error.issues
-        );
+        throw new DextoValidationError(zodToIssues(result.error));
     }
     return result.data;
 }
 
-export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown, context: string): T {
+export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown, _context: string): T {
     const result = schema.safeParse(data);
     if (!result.success) {
-        throw new DextoValidationError(
-            `Invalid response from server (${context}): ${result.error.issues.map((i) => i.message).join(', ')}`,
-            result.error.issues
-        );
+        throw new DextoValidationError(zodToIssues(result.error));
     }
     return result.data;
 }
