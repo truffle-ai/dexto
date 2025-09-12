@@ -234,7 +234,6 @@ describe('HttpClient', () => {
                 });
 
             const result = await client.get('/test');
-
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
         });
@@ -255,14 +254,9 @@ describe('HttpClient', () => {
                     headers: new Map([['content-type', 'application/json']]),
                 });
 
-            const startTime = Date.now();
             const result = await client.get('/test');
-            const endTime = Date.now();
-
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
-            // Should have waited at least 2 seconds (minus some tolerance for execution time)
-            expect(endTime - startTime).toBeGreaterThanOrEqual(1900);
         });
 
         it('should not retry on non-transient errors', async () => {

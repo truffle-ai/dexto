@@ -41,7 +41,23 @@ export interface SessionInfo {
 }
 
 // Re-export core LLM types
-export type { LLMProvider, LLMRouter, ModelInfo, SupportedFileType } from '@dexto/core';
+export type {
+    LLMProvider,
+    LLMRouter,
+    ModelInfo,
+    SupportedFileType,
+    ProviderInfo,
+} from '@dexto/core';
+
+// Client-specific provider info type that matches the API response
+export interface ClientProviderInfo {
+    name: string;
+    models: string[];
+    supportedRouters: string[];
+    supportsBaseURL: boolean;
+    hasApiKey?: boolean | undefined;
+    primaryEnvVar?: string | undefined;
+}
 
 // Client-specific LLM config that extends core types
 // Note: provider and router use string types for API compatibility

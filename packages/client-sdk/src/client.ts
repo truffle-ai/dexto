@@ -17,6 +17,8 @@ import {
     CatalogResponse,
 } from './types.js';
 import { ClientError } from './errors.js';
+import type { ClientProviderInfo } from './types.js';
+
 import {
     ClientConfigSchema,
     ClientOptionsSchema,
@@ -43,6 +45,13 @@ import {
     validateInput,
     validateResponse,
 } from './schemas.js';
+
+/**
+ * Helper function to safely encode path segments for URLs
+ */
+function encodePathSegment(segment: string): string {
+    return encodeURIComponent(segment);
+}
 
 /**
  * Dexto Client SDK - A clean, TypeScript-first SDK for interacting with Dexto API
@@ -247,7 +256,7 @@ export class DextoClient {
         validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
 
         const response = await this.http.get<{ session: SessionInfo }>(
-            `/api/sessions/${sessionId}`
+            `/api/sessions/${encodePathSegment(sessionId)}`
         );
         const validatedResponse = validateResponse(
             SessionGetResponseSchema,
@@ -265,7 +274,7 @@ export class DextoClient {
         validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
 
         const response = await this.http.get<{ history: unknown[] }>(
-            `/api/sessions/${sessionId}/history`
+            `/api/sessions/${encodePathSegment(sessionId)}/history`
         );
         const validatedResponse = validateResponse(
             SessionHistoryResponseSchema,
@@ -282,7 +291,7 @@ export class DextoClient {
         // Validate sessionId
         validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
 
-        await this.http.delete(`/api/sessions/${sessionId}`);
+        await this.http.delete(`/api/sessions/${encodePathSegment(sessionId)}`);
     }
 
     /**
@@ -295,7 +304,7 @@ export class DextoClient {
         }
 
         const id = sessionId === null ? 'null' : sessionId;
-        await this.http.post(`/api/sessions/${id}/load`);
+        await this.http.post(`/api/sessions/${encodePathSegment(id)}/load`);
     }
 
     /**
@@ -374,8 +383,8 @@ export class DextoClient {
     /**
      * Get available LLM providers and models
      */
-    async getLLMProviders(): Promise<Record<string, any>> {
-        const response = await this.http.get<{ providers: Record<string, any> }>(
+    async getLLMProviders(): Promise<Record<string, ClientProviderInfo>> {
+        const response = await this.http.get<{ providers: Record<string, ClientProviderInfo> }>(
             '/api/llm/providers'
         );
         const validatedResponse = validateResponse(
@@ -451,7 +460,7 @@ export class DextoClient {
         // Validate serverId
         validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
 
-        await this.http.delete(`/api/mcp/servers/${serverId}`);
+        await this.http.delete(`/api/mcp/servers/${encodePathSegment(serverId)}`);
     }
 
     /**
@@ -462,7 +471,7 @@ export class DextoClient {
         validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
 
         const response = await this.http.get<{ tools: Tool[] }>(
-            `/api/mcp/servers/${serverId}/tools`
+            `/api/mcp/servers/${encodePathSegment(serverId)}/tools`
         );
         const validatedResponse = validateResponse(
             MCPServerToolsResponseSchema,
@@ -490,7 +499,7 @@ export class DextoClient {
         }
 
         const response = await this.http.post<{ success: boolean; data: unknown }>(
-            `/api/mcp/servers/${serverId}/tools/${toolName}/execute`,
+            `/api/mcp/servers/${encodePathSegment(serverId)}/tools/${encodePathSegment(toolName)}/execute`,
             args
         );
         const validatedResponse = validateResponse(
@@ -513,17 +522,20 @@ export class DextoClient {
         // Validate search options
         const validatedOptions = validateInput(SearchOptionsSchema, options, 'search options');
 
-        const params = new globalThis.URLSearchParams({
-            q: query,
-            ...(validatedOptions.limit !== undefined && {
-                limit: validatedOptions.limit.toString(),
-            }),
-            ...(validatedOptions.offset !== undefined && {
-                offset: validatedOptions.offset.toString(),
-            }),
-            ...(validatedOptions.sessionId && { sessionId: validatedOptions.sessionId }),
-            ...(validatedOptions.role && { role: validatedOptions.role }),
-        } as Record<string, string>);
+        const params = new globalThis.URLSearchParams();
+        params.append('q', query);
+        if (validatedOptions.limit !== undefined) {
+            params.append('limit', String(validatedOptions.limit));
+        }
+        if (validatedOptions.offset !== undefined) {
+            params.append('offset', String(validatedOptions.offset));
+        }
+        if (validatedOptions.sessionId) {
+            params.append('sessionId', validatedOptions.sessionId);
+        }
+        if (validatedOptions.role) {
+            params.append('role', validatedOptions.role);
+        }
 
         const response = await this.http.get<SearchResponse>(`/api/search/messages?${params}`);
         return validateResponse(SearchResponseSchema, response, 'searchMessages');
