@@ -295,6 +295,9 @@ const currentLLM = agent.getCurrentLLMConfig();
 await agent.switchLLM({ model: 'gpt-4.1-mini' });
 await agent.switchLLM({ model: 'claude-4-sonnet-20250514' });
 
+// Switch model for a specific session id 1234
+await agent.switchLLM({ model: 'gpt-4.1-mini' }, '1234')
+
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
 const models = agent.getSupportedModels();
