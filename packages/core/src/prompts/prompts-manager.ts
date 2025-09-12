@@ -51,8 +51,8 @@ export class PromptsManager {
             `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
 
-        // If an event bus is provided, subscribe to MCP-related events to refresh prompts dynamically
-        if (this.eventBus) {
+        // If an event bus is provided and supports subscriptions, subscribe to MCP-related events
+        if (this.eventBus && typeof (this.eventBus as any).on === 'function') {
             const refresh = async (reason: string) => {
                 logger.debug(`PromptsManager refreshing due to: ${reason}`);
                 await this.refresh();
@@ -69,6 +69,10 @@ export class PromptsManager {
             this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
                 await refresh(`mcpServerUpdated:${p.serverName}`);
             });
+        } else if (this.eventBus) {
+            logger.debug(
+                'PromptsManager received an event bus without subscription methods; skipping event subscriptions'
+            );
         }
     }
 

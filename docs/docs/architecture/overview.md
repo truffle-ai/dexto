@@ -26,5 +26,5 @@ See [Core Services](./services) for detailed information about:
 - **ToolManager** - Tool execution
 - **SessionManager** - Conversation state
 - **StorageManager** - Data persistence
-- **PromptManager** - System prompts
+- **SystemPromptManager** - System prompts
 - **AgentEventBus** - Event coordination

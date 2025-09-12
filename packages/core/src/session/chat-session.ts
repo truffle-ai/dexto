@@ -3,7 +3,7 @@ import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { ILLMService } from '../llm/services/types.js';
-import type { PromptManager } from '../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
@@ -114,7 +114,7 @@ export class ChatSession {
     constructor(
         private services: {
             stateManager: AgentStateManager;
-            promptManager: PromptManager;
+            systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
@@ -191,7 +191,7 @@ export class ChatSession {
             llmConfig,
             llmConfig.router,
             this.services.toolManager,
-            this.services.promptManager,
+            this.services.systemPromptManager,
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
             this.id
@@ -374,7 +374,7 @@ export class ChatSession {
                 newLLMConfig,
                 router,
                 this.services.toolManager,
-                this.services.promptManager,
+                this.services.systemPromptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus, // Use session event bus
                 this.id

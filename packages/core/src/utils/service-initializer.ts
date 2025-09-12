@@ -24,7 +24,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { createToolConfirmationProvider } from '../tools/confirmation/factory.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
@@ -41,7 +41,9 @@ import { AgentEventBus } from '../events/index.js';
 export type AgentServices = {
     mcpManager: MCPManager;
     toolManager: ToolManager;
-    promptManager: PromptManager;
+    systemPromptManager: SystemPromptManager;
+    // Deprecated: use systemPromptManager instead. Kept for backward compatibility.
+    promptManager?: SystemPromptManager;
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
@@ -129,9 +131,9 @@ export async function createAgentServices(
     // 6. Initialize prompt manager
     const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
     logger.debug(
-        `[ServiceInitializer] Creating PromptManager with configPath: ${configPath} → configDir: ${configDir}`
+        `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
-    const promptManager = new PromptManager(config.systemPrompt, configDir);
+    const systemPromptManager = new SystemPromptManager(config.systemPrompt, configDir);
 
     // 7. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
@@ -141,7 +143,7 @@ export async function createAgentServices(
     const sessionManager = new SessionManager(
         {
             stateManager,
-            promptManager,
+            systemPromptManager,
             toolManager,
             agentEventBus,
             storage, // Add storage backends to session services
@@ -161,7 +163,9 @@ export async function createAgentServices(
     return {
         mcpManager,
         toolManager,
-        promptManager,
+        systemPromptManager,
+        // Back-compat alias
+        promptManager: systemPromptManager,
         agentEventBus,
         stateManager,
         sessionManager,
