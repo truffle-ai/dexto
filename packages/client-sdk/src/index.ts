@@ -4,7 +4,7 @@ export * from './types.js';
 export * from './schemas.js';
 
 // Re-export core search types to avoid drift.
-// Prefer these for strong typing when integrating directly with core semantics.
+// These provide stricter typing than the client SDK's relaxed API-compatible types.
 export type {
     SearchOptions as CoreSearchOptions,
     SearchResult as CoreSearchResult,

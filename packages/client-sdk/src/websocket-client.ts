@@ -146,11 +146,12 @@ export class WebSocketClient {
         }, this.reconnectInterval);
     }
 
-    private handleIncomingMessage(data: any) {
+    private handleIncomingMessage(data: unknown) {
+        const msgData = data as Record<string, unknown>;
         const event: DextoEvent = {
-            type: data.type || 'unknown',
-            data: data.data || data,
-            sessionId: data.sessionId,
+            type: (msgData.type as string) || 'unknown',
+            data: msgData.data || msgData,
+            sessionId: msgData.sessionId as string | undefined,
         };
 
         // Emit to specific event handlers
@@ -160,7 +161,9 @@ export class WebSocketClient {
                 try {
                     handler(event);
                 } catch (error) {
-                    console.error(`Error in event handler for ${event.type}:`, error);
+                    console.error(
+                        `Error in event handler for ${event.type}: ${error instanceof Error ? error.message : String(error)}`
+                    );
                 }
             });
         }
@@ -172,14 +175,16 @@ export class WebSocketClient {
                 try {
                     handler(event);
                 } catch (error) {
-                    console.error(`Error in wildcard event handler:`, error);
+                    console.error(
+                        `Error in wildcard event handler: ${error instanceof Error ? error.message : String(error)}`
+                    );
                 }
             });
         }
     }
 
     // Send a message through the WebSocket
-    send(message: any): boolean {
+    send(message: unknown): boolean {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             return false;
         }
@@ -188,7 +193,9 @@ export class WebSocketClient {
             this.ws.send(JSON.stringify(message));
             return true;
         } catch (error) {
-            console.error('Failed to send WebSocket message:', error);
+            console.error(
+                `Failed to send WebSocket message: ${error instanceof Error ? error.message : String(error)}`
+            );
             return false;
         }
     }
@@ -227,7 +234,9 @@ export class WebSocketClient {
             try {
                 handler(state);
             } catch (error) {
-                console.error('Error in connection state handler:', error);
+                console.error(
+                    `Error in connection state handler: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
         });
     }

@@ -47,7 +47,7 @@ import {
 /**
  * Dexto Client SDK - A clean, TypeScript-first SDK for interacting with Dexto API
  *
- * This SDK provides a interface for working with Dexto agents,
+ * This SDK provides an interface for working with Dexto agents,
  * handling HTTP communication, WebSocket events, and providing excellent DX.
  *
  * @example
@@ -258,7 +258,7 @@ export class DextoClient {
         // Validate sessionId
         validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
 
-        const response = await this.http.get<{ history: any[] }>(
+        const response = await this.http.get<{ history: unknown[] }>(
             `/api/sessions/${sessionId}/history`
         );
         const validatedResponse = validateResponse(
@@ -330,7 +330,7 @@ export class DextoClient {
             validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
         }
 
-        const params = sessionId ? `?sessionId=${sessionId}` : '';
+        const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ config: LLMConfig }>(`/api/llm/current${params}`);
         const validatedResponse = validateResponse(
             LLMCurrentResponseSchema,
@@ -387,7 +387,7 @@ export class DextoClient {
         // Validate catalog options
         const validatedOptions = validateInput(CatalogOptionsSchema, options, 'catalog options');
 
-        const params = new URLSearchParams();
+        const params = new globalThis.URLSearchParams();
 
         if (validatedOptions.provider) params.set('provider', validatedOptions.provider);
         if (validatedOptions.hasKey !== undefined)
@@ -422,7 +422,7 @@ export class DextoClient {
     /**
      * Connect to a new MCP server
      */
-    async connectMCPServer(name: string, config: any): Promise<void> {
+    async connectMCPServer(name: string, config: Record<string, unknown>): Promise<void> {
         // Validate server name
         validateInput(z.string().min(1, 'Server name cannot be empty'), name, 'server name');
 
@@ -465,7 +465,7 @@ export class DextoClient {
     /**
      * Execute a tool from an MCP server
      */
-    async executeMCPTool(serverId: string, toolName: string, args: any): Promise<any> {
+    async executeMCPTool(serverId: string, toolName: string, args: unknown): Promise<unknown> {
         // Validate serverId and toolName
         validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
         validateInput(z.string().min(1, 'Tool name cannot be empty'), toolName, 'tool name');
@@ -475,7 +475,7 @@ export class DextoClient {
             throw new DextoClientError('Tool arguments cannot be null or undefined');
         }
 
-        const response = await this.http.post<{ success: boolean; data: any }>(
+        const response = await this.http.post<{ success: boolean; data: unknown }>(
             `/api/mcp/servers/${serverId}/tools/${toolName}/execute`,
             args
         );
@@ -499,7 +499,7 @@ export class DextoClient {
         // Validate search options
         const validatedOptions = validateInput(SearchOptionsSchema, options, 'search options');
 
-        const params = new URLSearchParams({
+        const params = new globalThis.URLSearchParams({
             q: query,
             ...(validatedOptions.limit !== undefined && {
                 limit: validatedOptions.limit.toString(),
@@ -522,7 +522,7 @@ export class DextoClient {
         // Validate query
         validateInput(z.string().min(1, 'Search query cannot be empty'), query, 'search query');
 
-        const params = new URLSearchParams({ q: query });
+        const params = new globalThis.URLSearchParams({ q: query });
         const response = await this.http.get<SessionSearchResponse>(
             `/api/search/sessions?${params}`
         );
@@ -569,7 +569,7 @@ export class DextoClient {
             validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
         }
 
-        const params = sessionId ? `?sessionId=${sessionId}` : '';
+        const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ greeting: string | null }>(`/api/greeting${params}`);
         const validatedResponse = validateResponse(GreetingResponseSchema, response, 'getGreeting');
         return validatedResponse.greeting;
