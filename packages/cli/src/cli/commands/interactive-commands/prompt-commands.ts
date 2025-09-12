@@ -13,6 +13,8 @@
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
+import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CommandDefinition } from './command-parser.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
@@ -49,7 +51,7 @@ export const promptCommands: CommandDefinition[] = [
         category: 'Prompt Management',
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
-                const prompts = (await (agent as any).promptsManager.list()) as Record<string, any>;
+                const prompts = (await agent.promptsManager.list()) as Record<string, PromptInfo>;
                 const promptNames = Object.keys(prompts || {});
 
                 if (promptNames.length === 0) {
@@ -64,12 +66,12 @@ export const promptCommands: CommandDefinition[] = [
                 const internalPrompts: string[] = [];
                 const starterPrompts: string[] = [];
 
-                for (const [name, info] of Object.entries(prompts as Record<string, any>)) {
-                    if ((info as any).source === 'mcp') {
+                for (const [name, info] of Object.entries(prompts)) {
+                    if (info.source === 'mcp') {
                         mcpPrompts.push(name);
-                    } else if ((info as any).source === 'internal') {
+                    } else if (info.source === 'internal') {
                         internalPrompts.push(name);
-                    } else if ((info as any).source === 'starter') {
+                    } else if (info.source === 'starter') {
                         starterPrompts.push(name);
                     }
                 }
@@ -77,14 +79,14 @@ export const promptCommands: CommandDefinition[] = [
                 if (mcpPrompts.length > 0) {
                     console.log(chalk.cyan('🔗 MCP Prompts:'));
                     mcpPrompts.forEach((name) => {
-                        const info = (prompts as Record<string, any>)[name];
+                        const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${(info as any).title})` : '';
-                            const desc = info.description ? ` - ${(info as any).description}` : '';
+                            const title = info.title ? ` (${info.title})` : '';
+                            const desc = info.description ? ` - ${info.description}` : '';
                             const args =
-                                (info as any).arguments && (info as any).arguments.length > 0
-                                    ? ` [args: ${(info as any).arguments
-                                          .map((a: any) => `${a.name}${a.required ? '*' : ''}`)
+                                info.arguments && info.arguments.length > 0
+                                    ? ` [args: ${info.arguments
+                                          .map((a) => `${a.name}${a.required ? '*' : ''}`)
                                           .join(', ')}]`
                                     : '';
                             console.log(
@@ -98,7 +100,7 @@ export const promptCommands: CommandDefinition[] = [
                 if (internalPrompts.length > 0) {
                     console.log(chalk.magenta('📁 Internal Prompts:'));
                     internalPrompts.forEach((name) => {
-                        const info = (prompts as Record<string, any>)[name];
+                        const info = prompts[name];
                         if (info) {
                             const title = info.title ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
@@ -113,7 +115,7 @@ export const promptCommands: CommandDefinition[] = [
                 if (starterPrompts.length > 0) {
                     console.log(chalk.green('⭐ Starter Prompts:'));
                     starterPrompts.forEach((name) => {
-                        const info = (prompts as Record<string, any>)[name];
+                        const info = prompts[name];
                         if (info) {
                             const title = info.title ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
@@ -159,7 +161,7 @@ export const promptCommands: CommandDefinition[] = [
                 const promptArgs = args.slice(1);
 
                 // Check if prompt exists
-                if (!promptName || !(await (agent as any).promptsManager.hasPrompt(promptName))) {
+                if (!promptName || !(await agent.promptsManager.hasPrompt(promptName))) {
                     console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
                     console.log(chalk.dim('Use /prompts to see available prompts'));
                     return true;
@@ -180,7 +182,7 @@ export const promptCommands: CommandDefinition[] = [
                 }
 
                 // Get the prompt
-                const result = await (agent as any).promptsManager.getPrompt(
+                const result: GetPromptResult = await agent.promptsManager.getPrompt(
                     promptName!,
                     parsedArgs
                 );
@@ -189,20 +191,31 @@ export const promptCommands: CommandDefinition[] = [
                 let promptText = '';
                 if (result.messages && result.messages.length > 0) {
                     for (const message of result.messages) {
-                        if (typeof message.content === 'string') {
-                            promptText += message.content + '\n';
-                        } else if (
-                            message.content &&
-                            typeof message.content === 'object' &&
-                            'text' in message.content
-                        ) {
-                            promptText += (message.content as any).text + '\n';
-                        } else if (Array.isArray(message.content)) {
-                            for (const content of message.content as any[]) {
-                                if (content.type === 'text') {
-                                    promptText += content.text + '\n';
+                        const content = (message as { content?: unknown }).content;
+                        if (typeof content === 'string') {
+                            promptText += content + '\n';
+                        } else if (Array.isArray(content)) {
+                            for (const part of content) {
+                                if (
+                                    part &&
+                                    typeof part === 'object' &&
+                                    'type' in part &&
+                                    (part as { type: string }).type === 'text' &&
+                                    'text' in part
+                                ) {
+                                    const t = (part as { text?: unknown }).text;
+                                    if (typeof t === 'string') promptText += t + '\n';
                                 }
                             }
+                        } else if (
+                            content &&
+                            typeof content === 'object' &&
+                            'type' in content &&
+                            (content as { type: string }).type === 'text' &&
+                            'text' in content
+                        ) {
+                            const t = (content as { text?: unknown }).text;
+                            if (typeof t === 'string') promptText += t + '\n';
                         }
                     }
                 }
@@ -237,7 +250,7 @@ export const promptCommands: CommandDefinition[] = [
 /**
  * Create a dynamic command definition from a prompt
  */
-function createPromptCommand(promptInfo: any): CommandDefinition {
+function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
     return {
         name: promptInfo.name,
         description: promptInfo.description || `Execute ${promptInfo.name} prompt`,
@@ -278,7 +291,7 @@ function createPromptCommand(promptInfo: any): CommandDefinition {
                 }
 
                 // Get the prompt
-                const result = await (agent as any).promptsManager.getPrompt(
+                const result: GetPromptResult = await agent.promptsManager.getPrompt(
                     promptInfo.name,
                     parsedArgs
                 );
@@ -287,20 +300,31 @@ function createPromptCommand(promptInfo: any): CommandDefinition {
                 let promptText = '';
                 if (result.messages && result.messages.length > 0) {
                     for (const message of result.messages) {
-                        if (typeof message.content === 'string') {
-                            promptText += message.content + '\n';
-                        } else if (
-                            message.content &&
-                            typeof message.content === 'object' &&
-                            'text' in message.content
-                        ) {
-                            promptText += (message.content as any).text + '\n';
-                        } else if (Array.isArray(message.content)) {
-                            for (const content of message.content as any[]) {
-                                if (content.type === 'text') {
-                                    promptText += content.text + '\n';
+                        const content = (message as { content?: unknown }).content;
+                        if (typeof content === 'string') {
+                            promptText += content + '\n';
+                        } else if (Array.isArray(content)) {
+                            for (const part of content) {
+                                if (
+                                    part &&
+                                    typeof part === 'object' &&
+                                    'type' in part &&
+                                    (part as { type: string }).type === 'text' &&
+                                    'text' in part
+                                ) {
+                                    const t = (part as { text?: unknown }).text;
+                                    if (typeof t === 'string') promptText += t + '\n';
                                 }
                             }
+                        } else if (
+                            content &&
+                            typeof content === 'object' &&
+                            'type' in content &&
+                            (content as { type: string }).type === 'text' &&
+                            'text' in content
+                        ) {
+                            const t = (content as { text?: unknown }).text;
+                            if (typeof t === 'string') promptText += t + '\n';
                         }
                     }
                 }
@@ -335,7 +359,7 @@ function createPromptCommand(promptInfo: any): CommandDefinition {
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
-        const prompts = (await (agent as any).promptsManager.list()) as Record<string, any>;
+        const prompts = (await agent.promptsManager.list()) as Record<string, PromptInfo>;
         return Object.values(prompts).map(createPromptCommand);
     } catch (error) {
         logger.error(

@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
@@ -37,11 +37,13 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
+import { PromptError } from '@dexto/core';
+import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
  */
-function sendJsonResponse(res: any, data: any, statusCode = 200) {
+function sendJsonResponse<T>(res: Response, data: T, statusCode = 200) {
     const pretty = res.req.query.pretty === 'true' || res.req.query.pretty === '1';
     res.status(statusCode);
 
@@ -162,10 +164,10 @@ export async function initializeApi(
     // Prompts listing endpoint (for WebUI slash command autocomplete)
     app.get('/api/prompts', async (_req, res, next) => {
         try {
-            if (!('promptsManager' in agent) || !(agent as any).promptsManager) {
+            if (!agent.promptsManager) {
                 return res.status(200).json({ prompts: [] });
             }
-            const prompts = await (agent as any).promptsManager.list();
+            const prompts = await agent.promptsManager.list();
             const list = Object.values(prompts);
             return res.status(200).json({ prompts: list });
         } catch (error) {
@@ -174,27 +176,43 @@ export async function initializeApi(
     });
 
     // Helper to extract text content from MCP GetPromptResult
-    function extractPromptText(result: any): string {
+    function extractPromptText(result: GetPromptResult): string {
         let text = '';
         if (!result) return text;
         const msgs = Array.isArray(result.messages) ? result.messages : [];
         for (const m of msgs) {
-            const content = m?.content;
+            const content = (m as { content?: unknown }).content;
             if (!content) continue;
+
             if (typeof content === 'string') {
                 text += content + '\n';
-            } else if (Array.isArray(content)) {
+                continue;
+            }
+
+            if (Array.isArray(content)) {
                 for (const part of content) {
-                    if (part?.type === 'text' && typeof part.text === 'string') {
-                        text += part.text + '\n';
+                    if (
+                        part &&
+                        typeof part === 'object' &&
+                        'type' in part &&
+                        (part as { type: string }).type === 'text' &&
+                        'text' in part
+                    ) {
+                        const t = (part as { text?: unknown }).text;
+                        if (typeof t === 'string') text += t + '\n';
                     }
                 }
-            } else if (
+                continue;
+            }
+
+            if (
                 typeof content === 'object' &&
                 'type' in content &&
-                (content as any).type === 'text'
+                (content as { type: string }).type === 'text' &&
+                'text' in content
             ) {
-                text += (content as any).text + '\n';
+                const t = (content as { text?: unknown }).text;
+                if (typeof t === 'string') text += t + '\n';
             }
         }
         return text.trim();
@@ -204,9 +222,9 @@ export async function initializeApi(
     app.get('/api/prompts/:name', async (req, res, next) => {
         try {
             const name = req.params.name;
-            if (!name) return res.status(400).json({ error: 'Prompt name is required' });
-            const definition = await (agent as any).promptsManager.getPromptDefinition(name);
-            if (!definition) return res.status(404).json({ error: 'Prompt not found' });
+            if (!name) throw PromptError.nameRequired();
+            const definition = await agent.promptsManager.getPromptDefinition(name);
+            if (!definition) throw PromptError.notFound(name);
             return res.status(200).json({ definition });
         } catch (error) {
             return next(error);
@@ -217,10 +235,10 @@ export async function initializeApi(
     app.get('/api/prompts/:name/resolve', async (req, res, next) => {
         try {
             const name = req.params.name;
-            if (!name) return res.status(400).json({ error: 'Prompt name is required' });
-            const pr = await (agent as any).promptsManager.getPrompt(name, {});
+            if (!name) throw PromptError.nameRequired();
+            const pr = await agent.promptsManager.getPrompt(name, {});
             const text = extractPromptText(pr);
-            if (!text) return res.status(404).json({ error: 'Prompt resolved to empty content' });
+            if (!text) throw PromptError.emptyResolvedContent(name);
             return res.status(200).json({ text });
         } catch (error) {
             return next(error);
@@ -232,14 +250,15 @@ export async function initializeApi(
         try {
             const name = req.params.name;
             const schema = z.object({
-                args: z.record(z.string(), z.any()).optional(),
+                args: z.record(z.string(), z.unknown()).optional(),
                 sessionId: z.string().optional(),
                 stream: z.boolean().optional(),
             });
             const body = schema.parse(req.body ?? {});
-            const pr = await (agent as any).promptsManager.getPrompt(name, body.args ?? {});
+            if (!name) throw PromptError.nameRequired();
+            const pr = await agent.promptsManager.getPrompt(name, body.args ?? {});
             const text = extractPromptText(pr);
-            if (!text) return res.status(400).json({ error: 'Prompt produced no text content' });
+            if (!text) throw PromptError.emptyResolvedContent(name);
             const response = await agent.run(
                 text,
                 undefined,

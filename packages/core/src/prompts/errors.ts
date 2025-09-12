@@ -28,7 +28,7 @@ export class PromptError {
         return new DextoValidationError([
             {
                 code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
-                message: 'Starter prompt missing prompt text',
+                message: 'Prompt missing text content',
                 scope: ErrorScope.SYSTEM_PROMPT,
                 type: ErrorType.USER,
                 severity: 'error',
@@ -63,6 +63,35 @@ export class PromptError {
             ErrorType.NOT_FOUND,
             `No provider found for prompt source: ${source}`,
             { source }
+        );
+    }
+
+    /**
+     * Missing prompt name in request (validation)
+     */
+    static nameRequired() {
+        return new DextoValidationError([
+            {
+                code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+                message: 'Prompt name is required',
+                scope: ErrorScope.SYSTEM_PROMPT,
+                type: ErrorType.USER,
+                severity: 'error',
+                context: {},
+            },
+        ]);
+    }
+
+    /**
+     * Prompt resolved to empty content
+     */
+    static emptyResolvedContent(name: string) {
+        return new DextoRuntimeError(
+            SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+            ErrorScope.SYSTEM_PROMPT,
+            ErrorType.NOT_FOUND,
+            `Prompt resolved to empty content: ${name}`,
+            { name }
         );
     }
 }
