@@ -41,8 +41,8 @@ function transform(content: string): string {
 
     // Fix relative image to assets folder
     content = content.replace(
-        /<img\s+src=\"assets\/email_slack_demo\.gif\"/g,
-        `<img src=\"${GH_BLOB_HEAD}/assets/email_slack_demo.gif?raw=1\"`
+        /<img\s+src="assets\/email_slack_demo\.gif"/g,
+        `<img src="${GH_BLOB_HEAD}/assets/email_slack_demo.gif?raw=1"`
     );
 
     return content;
