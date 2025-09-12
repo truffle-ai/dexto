@@ -120,7 +120,13 @@ export const AgentConfigSchema = z
             .array(
                 z
                     .object({
-                        id: z.string().describe('Unique identifier for the starter prompt'),
+                        id: z
+                            .string()
+                            .min(1)
+                            .regex(/^[a-z0-9-]+$/)
+                            .describe(
+                                'Kebab-case slug id for the starter prompt (e.g., quick-start)'
+                            ),
                         title: z
                             .string()
                             .optional()
@@ -135,12 +141,21 @@ export const AgentConfigSchema = z
                         category: z
                             .enum(['general', 'coding', 'analysis', 'tools', 'learning'])
                             .optional()
+                            .default('general')
                             .describe('Category for organizing starter prompts'),
                         icon: z.string().optional().describe('Emoji or icon to display'),
-                        priority: z.number().optional().describe('Higher numbers appear first'),
+                        priority: z
+                            .number()
+                            .optional()
+                            .default(0)
+                            .describe('Higher numbers appear first'),
                     })
                     .strict()
             )
+            .refine((arr) => new Set(arr.map((p) => p.id)).size === arr.length, {
+                message: 'starterPrompts ids must be unique',
+                path: ['starterPrompts'],
+            })
             .default([])
             .describe('Starter prompts that appear as clickable buttons in the WebUI'),
     })

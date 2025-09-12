@@ -1,5 +1,9 @@
 ---
 description: "Debug code issues with systematic problem-solving and troubleshooting steps"
+id: debug
+name: Debug Assistant
+command: /debug
+category: tools
 ---
 
 # Debug Assistant
@@ -98,4 +102,3 @@ I can help debug code in:
 - **Code Review**: Have others review your code for potential problems
 
 Now, tell me what you're debugging! Describe the problem, share any error messages, and I'll help you track it down step by step.
-

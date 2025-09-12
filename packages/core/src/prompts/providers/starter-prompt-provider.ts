@@ -81,6 +81,12 @@ export class StarterPromptProvider implements PromptProvider {
             allPrompts.push(promptInfo);
         });
 
+        // Sort by priority (higher numbers first) to respect schema semantics
+        const getPriority = (p: PromptInfo): number => {
+            const val = p.metadata?.priority as unknown;
+            return typeof val === 'number' ? val : 0;
+        };
+        allPrompts.sort((a, b) => getPriority(b) - getPriority(a));
         this.promptsCache = allPrompts;
         this.cacheValid = true;
 

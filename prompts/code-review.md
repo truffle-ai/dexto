@@ -1,5 +1,9 @@
 ---
 description: "Review code for bugs, improvements, and best practices with actionable feedback"
+id: code-review
+name: Code Review Assistant
+command: /code-review
+category: coding
 ---
 
 # Code Review Assistant
@@ -95,4 +99,3 @@ When reviewing for performance, I examine:
 - **Optimization**: Unnecessary operations, redundant calculations
 
 Now, share your code and I'll provide a comprehensive review! You can paste it directly or describe what you'd like me to focus on.
-
