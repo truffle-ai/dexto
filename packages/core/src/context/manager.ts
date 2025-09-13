@@ -8,7 +8,7 @@ import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import { logger } from '../logger/index.js';
 import { countMessagesTokens, sanitizeToolResultToContent } from './utils.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -43,9 +43,9 @@ export class ContextManager<TMessage = unknown> {
     private llmConfig: ValidatedLLMConfig;
 
     /**
-     * PromptManager used to generate/manage the system prompt
+     * SystemPromptManager used to generate/manage the system prompt
      */
-    private promptManager: PromptManager;
+    private systemPromptManager: SystemPromptManager;
 
     /**
      * Formatter used to convert internal messages to LLM-specific format
@@ -88,7 +88,7 @@ export class ContextManager<TMessage = unknown> {
      * Creates a new ContextManager instance
      * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
-     * @param promptManager PromptManager instance for the conversation
+     * @param systemPromptManager SystemPromptManager instance for the conversation
      * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
      * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
@@ -98,7 +98,7 @@ export class ContextManager<TMessage = unknown> {
     constructor(
         llmConfig: ValidatedLLMConfig,
         formatter: IMessageFormatter,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         maxInputTokens: number,
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
@@ -110,7 +110,7 @@ export class ContextManager<TMessage = unknown> {
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
-        this.promptManager = promptManager;
+        this.systemPromptManager = systemPromptManager;
         this.maxInputTokens = maxInputTokens;
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
@@ -240,10 +240,10 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Assembles and returns the current system prompt by invoking the PromptManager.
+     * Assembles and returns the current system prompt by invoking the SystemPromptManager.
      */
     async getSystemPrompt(context: DynamicContributorContext): Promise<string> {
-        const prompt = await this.promptManager.build(context);
+        const prompt = await this.systemPromptManager.build(context);
         logger.debug(`[SystemPrompt] Built system prompt:\n${prompt}`);
         return prompt;
     }
