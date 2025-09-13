@@ -57,6 +57,7 @@ import {
     handleLoginCommand,
     handleLogoutCommand,
     handleStatusCommand,
+    handleWhoamiCommand,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -506,7 +507,21 @@ program
         }
     });
 
-// 14) `mcp` SUB-COMMAND
+// 12) `whoami` SUB-COMMAND
+program
+    .command('whoami')
+    .description('Show current user information')
+    .action(async () => {
+        try {
+            await handleWhoamiCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto whoami command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 13) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program

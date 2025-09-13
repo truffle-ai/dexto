@@ -1,7 +1,7 @@
 // packages/cli/src/cli/utils/oauth-flow.ts
 
 import * as http from 'http';
-import * as crypto from 'crypto';
+// OAuth flow implementation
 import * as url from 'url';
 import * as querystring from 'querystring';
 import chalk from 'chalk';
@@ -64,19 +64,116 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                     res.end(`
                         <html>
                         <head>
+                            <title>Dexto Authentication</title>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
                             <style>
-                                body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
-                                .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
-                                .spinner { font-size: 48px; }
-                                h1 { margin: 20px 0; }
-                                p { color: #6b7280; }
+                                * {
+                                    margin: 0;
+                                    padding: 0;
+                                    box-sizing: border-box;
+                                }
+                                
+                                body {
+                                    font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+                                    background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+                                    color: #fafafa;
+                                    min-height: 100vh;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    padding: 20px;
+                                }
+                                
+                                .container {
+                                    background: #141414;
+                                    border: 1px solid #262626;
+                                    padding: 48px;
+                                    border-radius: 12px;
+                                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+                                    max-width: 450px;
+                                    width: 100%;
+                                    text-align: center;
+                                }
+                                
+                                .logo {
+                                    width: 64px;
+                                    height: 64px;
+                                    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+                                    border-radius: 12px;
+                                    margin: 0 auto 24px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-weight: 700;
+                                    font-size: 24px;
+                                    color: white;
+                                    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+                                }
+                                
+                                .spinner {
+                                    font-size: 48px;
+                                    margin-bottom: 24px;
+                                    animation: pulse 2s infinite;
+                                }
+                                
+                                @keyframes pulse {
+                                    0%, 100% { opacity: 1; }
+                                    50% { opacity: 0.6; }
+                                }
+                                
+                                h1 {
+                                    font-size: 24px;
+                                    font-weight: 600;
+                                    margin-bottom: 12px;
+                                    color: #fafafa;
+                                }
+                                
+                                p {
+                                    color: #a1a1aa;
+                                    font-size: 16px;
+                                    line-height: 1.5;
+                                }
+                                
+                                .success-icon {
+                                    color: #22c55e;
+                                    font-size: 64px;
+                                    margin-bottom: 24px;
+                                }
+                                
+                                .error-icon {
+                                    color: #dc2626;
+                                    font-size: 64px;
+                                    margin-bottom: 24px;
+                                }
+                                
+                                .success-title {
+                                    color: #22c55e;
+                                }
+                                
+                                .error-title {
+                                    color: #dc2626;
+                                }
+                                
+                                @media (max-width: 640px) {
+                                    .container {
+                                        padding: 32px 24px;
+                                    }
+                                    h1 {
+                                        font-size: 20px;
+                                    }
+                                    .spinner, .success-icon, .error-icon {
+                                        font-size: 48px;
+                                    }
+                                }
                             </style>
                         </head>
                         <body>
                             <div class="container">
-                                <div class="spinner">⏳</div>
+                                <div class="logo">D</div>
+                                <div class="spinner">◐</div>
                                 <h1>Processing Authentication...</h1>
-                                <p>Please wait while we complete your login.</p>
+                                <p>Please wait while we complete your Dexto login.</p>
                             </div>
                             
                             <script>
@@ -96,7 +193,7 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                                     body: JSON.stringify({ error: error })
                                 }).then(() => {
                                     document.querySelector('.container').innerHTML = 
-                                        '<div style="font-size: 48px; color: #ef4444;">❌</div><h1 style="color: #dc2626;">Authentication Failed</h1><p>You can close this window and try again.</p>';
+                                        '<div class="logo">D</div><div class="error-icon">✕</div><h1 class="error-title">Authentication Failed</h1><p>You can close this window and try again in your terminal.</p>';
                                 });
                             } else if (accessToken) {
                                 fetch('/callback', {
@@ -109,11 +206,11 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                                     })
                                 }).then(() => {
                                     document.querySelector('.container').innerHTML = 
-                                        '<div style="font-size: 48px; color: #22c55e;">✅</div><h1 style="color: #16a34a;">Login Successful!</h1><p>You can close this window and return to your terminal.</p>';
+                                        '<div class="logo">D</div><div class="success-icon">✓</div><h1 class="success-title">Login Successful!</h1><p>Welcome to Dexto! You can close this window and return to your terminal.</p>';
                                 });
                             } else {
                                 document.querySelector('.container').innerHTML = 
-                                    '<div style="font-size: 48px; color: #ef4444;">❌</div><h1 style="color: #dc2626;">No Authentication Data</h1><p>Please try the login process again.</p>';
+                                    '<div class="logo">D</div><div class="error-icon">✕</div><h1 class="error-title">No Authentication Data</h1><p>Please try the login process again in your terminal.</p>';
                             }
                             </script>
                         </body>
@@ -174,7 +271,7 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                                 server.close();
                                 reject(new Error('No access token received'));
                             }
-                        } catch (err) {
+                        } catch (_err) {
                             res.writeHead(400);
                             res.end('Invalid data');
                             server.close();
@@ -223,12 +320,12 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
         const redirectUri = `http://localhost:${port}`;
 
         // Build Supabase authorization URL
+        const provider = config.provider || 'google';
         const authParams = querystring.stringify({
-            provider: config.provider || 'google',
             redirect_to: redirectUri,
         });
 
-        const authUrl = `${config.authUrl}/auth/v1/authorize?${authParams}`;
+        const authUrl = `${config.authUrl}/auth/v1/authorize?provider=${provider}&${authParams}`;
 
         // Start callback server
         const tokenPromise = startCallbackServer(port, config);
@@ -240,7 +337,7 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
             const { default: open } = await import('open');
             await open(authUrl);
             console.log(chalk.green('✅ Browser opened'));
-        } catch (error) {
+        } catch (_error) {
             console.log(chalk.yellow(`💡 Please open manually: ${authUrl}`));
         }
 
@@ -256,9 +353,9 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
             spinner.stop('Authentication failed');
             throw error;
         }
-    } catch (error) {
+    } catch (_error) {
         throw new Error(
-            `OAuth login failed: ${error instanceof Error ? error.message : String(error)}`
+            `OAuth login failed: ${_error instanceof Error ? _error.message : String(_error)}`
         );
     }
 }

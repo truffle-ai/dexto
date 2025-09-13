@@ -197,7 +197,7 @@ export async function requireAuthenticatedUser() {
         const user = await supabase.getCurrentUser();
         logger.debug(`Authenticated as: ${user.email}`);
         return user;
-    } catch (error) {
+    } catch (_error) {
         console.error('❌ Authentication required. Run `dexto login` first.');
         process.exit(1);
     }

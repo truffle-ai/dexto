@@ -22,8 +22,8 @@ export async function addAuthHeaders(
  */
 export async function authenticatedFetch(
     url: string,
-    options: RequestInit = {}
-): Promise<Response> {
+    options: Parameters<typeof fetch>[1] = {}
+): Promise<Awaited<ReturnType<typeof fetch>>> {
     const headers = await addAuthHeaders(options.headers as Record<string, string>);
 
     return fetch(url, {
@@ -55,7 +55,7 @@ export async function callProtectedAPI(endpoint: string, data?: any): Promise<an
 
     const apiUrl = process.env.DEXTO_API_URL || 'https://your-app.com';
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: Parameters<typeof fetch>[1] = {
         method: data ? 'POST' : 'GET',
     };
 
