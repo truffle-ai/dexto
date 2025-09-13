@@ -138,8 +138,22 @@ export class PromptsManager {
                     let name = baseName;
                     if (allPrompts[baseName] && allPrompts[baseName].source !== p.source) {
                         name = `${providerName}:${baseName}`;
+
+                        // Also alias the previously inserted prompt under its provider
+                        const existing = allPrompts[baseName];
+                        const prevAlias = `${existing.source}:${baseName}`;
+                        if (!allPrompts[prevAlias]) {
+                            allPrompts[prevAlias] = { ...existing, name: prevAlias };
+                            this.aliasMap.set(prevAlias, {
+                                baseName,
+                                providerName: existing.source,
+                            });
+                        }
+
                         logger.warn(
-                            `⚠️ Prompt name conflict for '${baseName}'. Prefixed as '${name}'.`
+                            `⚠️ Prompt name conflict for '${baseName}'. Prefixed as '${name}'.`,
+                            null,
+                            'yellow'
                         );
                         // Store the alias mapping for provider lookups
                         this.aliasMap.set(name, { baseName, providerName });
@@ -153,7 +167,9 @@ export class PromptsManager {
                 );
             } catch (error) {
                 logger.error(
-                    `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`
+                    `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`,
+                    null,
+                    'red'
                 );
             }
         }
@@ -194,7 +210,7 @@ export class PromptsManager {
      */
     async has(name: string): Promise<boolean> {
         const prompts = await this.list();
-        return name in prompts;
+        return Object.prototype.hasOwnProperty.call(prompts, name);
     }
 
     /**
