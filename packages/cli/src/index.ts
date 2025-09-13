@@ -54,6 +54,9 @@ import {
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
+    handleLoginCommand,
+    handleLogoutCommand,
+    handleStatusCommand,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -451,7 +454,59 @@ program
         )
     );
 
-// 11) `mcp` SUB-COMMAND
+// 11) `login` SUB-COMMAND
+program
+    .command('login')
+    .description('Authenticate with Dexto')
+    .option('--token <token>', 'API token to use for authentication')
+    .option('--no-interactive', 'Skip interactive prompts')
+    .action(async (options) => {
+        try {
+            await handleLoginCommand({
+                token: options.token,
+                interactive: options.interactive,
+            });
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto login command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 12) `logout` SUB-COMMAND
+program
+    .command('logout')
+    .description('Logout from Dexto')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Skip interactive prompts')
+    .action(async (options) => {
+        try {
+            await handleLogoutCommand({
+                force: options.force,
+                interactive: options.interactive,
+            });
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto logout command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 13) `auth` SUB-COMMAND (status)
+program
+    .command('auth')
+    .description('Show authentication status')
+    .action(async () => {
+        try {
+            await handleStatusCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto auth command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 14) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -542,7 +597,7 @@ program
         )
     );
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 15) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -943,5 +998,5 @@ program
         )
     );
 
-// 11) PARSE & EXECUTE
+// 16) PARSE & EXECUTE
 program.parseAsync(process.argv);
