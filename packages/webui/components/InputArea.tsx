@@ -83,7 +83,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<{
     name: string;
-    arguments: Array<{ name: string; required: boolean }>;
+    arguments: Array<{ name: string; required?: boolean }>;
   } | null>(null);
 
   const showUserError = (message: string) => {
@@ -156,19 +156,27 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     if (!trimmed && !imageData && !fileData) return;
 
     // If slash command typed, resolve to full prompt content at send time
-    if (trimmed.startsWith('/')) {
+    if (trimmed === '/') {
+      // Normalize lone slash to no-op
+      trimmed = '';
+    } else if (trimmed.startsWith('/')) {
       const parsed = parseSlashInput(trimmed);
       const name = parsed.command;
-      const argText = parsed.argsText;
+      // Preserve original suffix including quotes/spacing (trim only leading space)
+      const originalArgsText = trimmed.slice(1 + name.length).trimStart();
       if (name) {
         try {
           const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
+          if (originalArgsText) url.searchParams.set('_context', originalArgsText);
           const res = await fetch(url.toString());
           if (res.ok) {
             const data = await res.json();
             const txt = (data?.text as string) || '';
             if (txt) {
-              trimmed = argText ? `${txt}\n\n${argText}` : txt;
+              // Append original args only if server didn't interpolate them
+              trimmed = originalArgsText && !txt.includes(originalArgsText)
+                ? `${txt}\n\n${originalArgsText}`
+                : txt;
             }
           }
         } catch {
@@ -209,7 +217,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   };
 
   // Handle prompt selection
-  const handlePromptSelect = (prompt: any) => {
+  const handlePromptSelect = (prompt: { 
+    name: string; 
+    arguments?: Array<{ name: string; required?: boolean }>
+  }) => {
     setSelectedPrompt({ name: prompt.name, arguments: prompt.arguments || [] });
     const slash = `/${prompt.name}`;
     setText(slash);

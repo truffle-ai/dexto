@@ -223,9 +223,12 @@ export async function initializeApi(
         try {
             const name = req.params.name;
             if (!name) throw PromptError.nameRequired();
+            if (!agent.promptsManager) {
+                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
+            }
             const definition = await agent.promptsManager.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
-            return res.status(200).json({ definition });
+            return sendJsonResponse(res, { definition }, 200);
         } catch (error) {
             return next(error);
         }
@@ -269,38 +272,14 @@ export async function initializeApi(
             const pr = await agent.promptsManager.getPrompt(resolvedName, args);
             const text = extractPromptText(pr);
             if (!text) throw PromptError.emptyResolvedContent(resolvedName);
-            return res.status(200).json({ text });
+            return sendJsonResponse(res, { text }, 200);
         } catch (error) {
             return next(error);
         }
     });
 
-    // Execute a prompt and send to agent
-    app.post('/api/prompts/:name/execute', express.json(), async (req, res, next) => {
-        try {
-            const name = req.params.name;
-            const schema = z.object({
-                args: z.record(z.string(), z.unknown()).optional(),
-                sessionId: z.string().optional(),
-                stream: z.boolean().optional(),
-            });
-            const body = schema.parse(req.body ?? {});
-            if (!name) throw PromptError.nameRequired();
-            const pr = await agent.promptsManager.getPrompt(name, body.args ?? {});
-            const text = extractPromptText(pr);
-            if (!text) throw PromptError.emptyResolvedContent(name);
-            const response = await agent.run(
-                text,
-                undefined,
-                undefined,
-                body.sessionId,
-                body.stream ?? false
-            );
-            return res.status(200).json({ ok: true, response });
-        } catch (error) {
-            return next(error);
-        }
-    });
+    // Note: We intentionally omit an "execute" endpoint; clients resolve prompts
+    // and then call the regular message endpoint, keeping server surface minimal.
 
     app.post('/api/message', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message');
