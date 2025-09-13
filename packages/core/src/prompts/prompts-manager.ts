@@ -316,10 +316,14 @@ export class PromptsManager {
         }
 
         // Get the original name for provider lookup (handle aliases)
-        const originalName = this.aliasMap.get(name)?.baseName || name;
+        const meta = promptInfo.metadata as Record<string, unknown> | undefined;
+        const resolvedOriginalName =
+            (typeof meta?.originalName === 'string' ? (meta!.originalName as string) : undefined) ??
+            this.aliasMap.get(name)?.baseName ??
+            name;
 
         // Delegate to the appropriate provider
-        return await provider.getPrompt(originalName, args);
+        return await provider.getPrompt(resolvedOriginalName, args);
     }
 
     /**
@@ -331,7 +335,7 @@ export class PromptsManager {
     ): void {
         const missingRequired = expectedArgs
             .filter((arg) => arg.required === true)
-            .filter((arg) => !(arg.name in providedArgs));
+            .filter((arg) => !Object.prototype.hasOwnProperty.call(providedArgs, arg.name));
 
         if (missingRequired.length > 0) {
             const missingNames = missingRequired.map((arg) => arg.name);
@@ -339,12 +343,12 @@ export class PromptsManager {
         }
 
         // Check for unknown arguments
-        const providedKeys = Object.keys(providedArgs);
+        const providedKeys = Object.keys(providedArgs).filter((k) => !k.startsWith('_'));
         const expectedKeys = expectedArgs.map((arg) => arg.name);
         const unknownArgs = providedKeys.filter((key) => !expectedKeys.includes(key));
 
         if (unknownArgs.length > 0) {
-            logger.warn(`Unknown arguments provided: ${unknownArgs.join(', ')}`);
+            logger.warn(`Unknown arguments provided: ${unknownArgs.join(', ')}`, null, 'yellow');
         }
     }
 
@@ -379,6 +383,7 @@ export class PromptsManager {
             content: _content,
             prompt: _promptText,
             filePath: _filePath,
+            messages: _messages,
             ...safeMetadata
         } = prompt.metadata || {};
 
