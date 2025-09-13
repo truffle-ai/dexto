@@ -21,6 +21,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/t
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import { parseSlashInput } from '../lib/parseSlash';
 
 interface ModelOption {
   name: string;
@@ -156,16 +157,18 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
     // If slash command typed, resolve to full prompt content at send time
     if (trimmed.startsWith('/')) {
-      const parts = trimmed.slice(1).split(/\s+/);
-      const name = parts[0] || '';
+      const parsed = parseSlashInput(trimmed);
+      const name = parsed.command;
+      const argText = parsed.argsText;
       if (name) {
         try {
-          const res = await fetch(`/api/prompts/${encodeURIComponent(name)}/resolve`);
+          const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
+          const res = await fetch(url.toString());
           if (res.ok) {
             const data = await res.json();
             const txt = (data?.text as string) || '';
             if (txt) {
-              trimmed = txt;
+              trimmed = argText ? `${txt}\n\n${argText}` : txt;
             }
           }
         } catch {

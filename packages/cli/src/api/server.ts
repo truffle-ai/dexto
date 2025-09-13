@@ -232,13 +232,43 @@ export async function initializeApi(
     });
 
     // Resolve a prompt to text content (without sending to the agent)
+    // Supports optional args via query string. For natural language after the
+    // slash command, pass as `q` or `_context` (both map to `_context`).
     app.get('/api/prompts/:name/resolve', async (req, res, next) => {
         try {
-            const name = req.params.name;
-            if (!name) throw PromptError.nameRequired();
-            const pr = await agent.promptsManager.getPrompt(name, {});
+            const inputName = req.params.name;
+            if (!inputName) throw PromptError.nameRequired();
+
+            // Extract optional arguments from query string
+            // - `q` or `_context` → maps to special `_context` arg supported by providers
+            // - `args` (JSON string) → additional key/value args
+            const query = req.query as Record<string, unknown>;
+            const args: Record<string, unknown> = {};
+
+            const q = typeof query.q === 'string' ? query.q : undefined;
+            const ctx = typeof query._context === 'string' ? query._context : undefined;
+            if (q && q.trim()) args._context = q.trim();
+            else if (ctx && ctx.trim()) args._context = ctx.trim();
+
+            // Optional structured args in `args` query param as JSON
+            if (typeof query.args === 'string') {
+                try {
+                    const parsed = JSON.parse(query.args);
+                    if (parsed && typeof parsed === 'object') {
+                        Object.assign(args, parsed as Record<string, unknown>);
+                    }
+                } catch {
+                    // Ignore malformed args JSON; continue with whatever we have
+                }
+            }
+
+            // Resolve provided name to a valid prompt key using core manager
+            const resolvedName =
+                (await agent.promptsManager.resolvePromptKey(inputName)) ?? inputName;
+
+            const pr = await agent.promptsManager.getPrompt(resolvedName, args);
             const text = extractPromptText(pr);
-            if (!text) throw PromptError.emptyResolvedContent(name);
+            if (!text) throw PromptError.emptyResolvedContent(resolvedName);
             return res.status(200).json({ text });
         } catch (error) {
             return next(error);

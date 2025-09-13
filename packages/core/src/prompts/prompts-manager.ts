@@ -327,6 +327,40 @@ export class PromptsManager {
     }
 
     /**
+     * Resolve a user-provided prompt identifier to a concrete prompt key in the cache.
+     * Accepts any of:
+     *  - exact prompt key
+     *  - originalName (e.g., internal prompt filename without extension)
+     *  - command from front-matter (with or without leading slash)
+     */
+    async resolvePromptKey(nameOrAlias: string): Promise<string | null> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        // Exact key
+        if (Object.prototype.hasOwnProperty.call(this.promptsCache, nameOrAlias)) {
+            return nameOrAlias;
+        }
+
+        const want = nameOrAlias.startsWith('/') ? nameOrAlias : `/${nameOrAlias}`;
+        const wantNoSlash = nameOrAlias.startsWith('/') ? nameOrAlias.slice(1) : nameOrAlias;
+
+        for (const [key, prompt] of Object.entries(this.promptsCache)) {
+            const meta = prompt.metadata as Record<string, unknown> | undefined;
+            const originalName =
+                typeof meta?.originalName === 'string' ? (meta!.originalName as string) : undefined;
+            const command =
+                typeof meta?.command === 'string' ? (meta!.command as string) : undefined;
+
+            if (originalName === nameOrAlias) return key;
+            if (command && (command === want || command === wantNoSlash)) return key;
+        }
+
+        return null;
+    }
+
+    /**
      * Validate prompt arguments against the prompt definition
      */
     private validatePromptArguments(
