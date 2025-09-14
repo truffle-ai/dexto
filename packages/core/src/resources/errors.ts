@@ -7,14 +7,44 @@ import { ResourceErrorCodes } from './error-codes.js';
  * Creates properly typed errors for resource operations
  */
 export class ResourceError {
+    private static redactUri(uri: string): string {
+        try {
+            const u = new URL(uri);
+            if (u.username) u.username = '***';
+            if (u.password) u.password = '***';
+            u.searchParams.forEach((_, k) => {
+                if (/token|key|secret|sig|pwd|password/i.test(k)) u.searchParams.set(k, '***');
+            });
+            return u.toString();
+        } catch {
+            return uri
+                .replace(/\/\/([^@]+)@/, '//***@')
+                .replace(/((?:token|key|secret|sig|pwd|password)=)[^&]*/gi, '$1***');
+        }
+    }
+
+    private static toMessageAndRaw(reason: unknown): { message: string; raw: unknown } {
+        if (reason instanceof Error) {
+            return {
+                message: reason.message,
+                raw: { name: reason.name, message: reason.message, stack: reason.stack },
+            };
+        }
+        if (typeof reason === 'string') return { message: reason, raw: reason };
+        try {
+            return { message: JSON.stringify(reason), raw: reason };
+        } catch {
+            return { message: String(reason), raw: reason };
+        }
+    }
     // URI format and parsing errors
     static invalidUriFormat(uri: string, expected?: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.INVALID_URI_FORMAT,
             ErrorScope.RESOURCE,
             ErrorType.USER,
-            `Invalid resource URI format: '${uri}'${expected ? ` (expected ${expected})` : ''}`,
-            { uri, expected },
+            `Invalid resource URI format: '${ResourceError.redactUri(uri)}'${expected ? ` (expected ${expected})` : ''}`,
+            { uri: ResourceError.redactUri(uri), uriRaw: uri, expected },
             expected ? `Use format: ${expected}` : 'Check the resource URI format'
         );
     }
@@ -36,8 +66,8 @@ export class ResourceError {
             ResourceErrorCodes.RESOURCE_NOT_FOUND,
             ErrorScope.RESOURCE,
             ErrorType.NOT_FOUND,
-            `Resource not found: '${uri}'`,
-            { uri },
+            `Resource not found: '${ResourceError.redactUri(uri)}'`,
+            { uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Check that the resource exists and is accessible'
         );
     }
@@ -47,8 +77,8 @@ export class ResourceError {
             ResourceErrorCodes.PROVIDER_NOT_INITIALIZED,
             ErrorScope.RESOURCE,
             ErrorType.SYSTEM,
-            `${providerType} resource provider not initialized for: '${uri}'`,
-            { providerType, uri },
+            `${providerType} resource provider not initialized for: '${ResourceError.redactUri(uri)}'`,
+            { providerType, uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Ensure the resource provider is properly configured'
         );
     }
@@ -66,17 +96,13 @@ export class ResourceError {
 
     // Content access errors
     static readFailed(uri: string, reason: unknown) {
-        const reasonMsg = reason instanceof Error ? reason.message : String(reason);
-        const reasonRaw =
-            reason instanceof Error
-                ? { name: reason.name, message: reason.message, stack: reason.stack }
-                : reason;
+        const { message: reasonMsg, raw: reasonRaw } = ResourceError.toMessageAndRaw(reason);
         return new DextoRuntimeError(
             ResourceErrorCodes.READ_FAILED,
             ErrorScope.RESOURCE,
             ErrorType.SYSTEM,
-            `Failed to read resource '${uri}': ${reasonMsg}`,
-            { uri, reason: reasonMsg, reasonRaw },
+            `Failed to read resource '${ResourceError.redactUri(uri)}': ${reasonMsg}`,
+            { uri: ResourceError.redactUri(uri), uriRaw: uri, reason: reasonMsg, reasonRaw },
             'Check resource permissions and availability'
         );
     }
@@ -86,8 +112,8 @@ export class ResourceError {
             ResourceErrorCodes.ACCESS_DENIED,
             ErrorScope.RESOURCE,
             ErrorType.FORBIDDEN,
-            `Access denied to resource: '${uri}'`,
-            { uri },
+            `Access denied to resource: '${ResourceError.redactUri(uri)}'`,
+            { uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Ensure you have permission to access this resource'
         );
     }
@@ -98,18 +124,14 @@ export class ResourceError {
             ResourceErrorCodes.NO_SUITABLE_PROVIDER,
             ErrorScope.RESOURCE,
             ErrorType.NOT_FOUND,
-            `No suitable provider found for resource: '${uri}'`,
-            { uri },
+            `No suitable provider found for resource: '${ResourceError.redactUri(uri)}'`,
+            { uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Check that the resource type is supported'
         );
     }
 
     static providerError(providerType: string, operation: string, reason: unknown) {
-        const reasonMsg = reason instanceof Error ? reason.message : String(reason);
-        const reasonRaw =
-            reason instanceof Error
-                ? { name: reason.name, message: reason.message, stack: reason.stack }
-                : reason;
+        const { message: reasonMsg, raw: reasonRaw } = ResourceError.toMessageAndRaw(reason);
         return new DextoRuntimeError(
             ResourceErrorCodes.PROVIDER_ERROR,
             ErrorScope.RESOURCE,
