@@ -25,7 +25,7 @@ import {
 } from '@dexto/core';
 import { resolveAgentPath, getAgentRegistry, isPath, resolveApiKeyForProvider } from '@dexto/core';
 import type { AgentConfig } from '@dexto/core';
-import { startAiCli, startHeadlessCli } from './cli/cli.js';
+import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
 import { startApiServer } from './api/server.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
@@ -53,6 +53,12 @@ import {
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
 } from './cli/commands/index.js';
+import {
+    handleSessionListCommand,
+    handleSessionHistoryCommand,
+    handleSessionDeleteCommand,
+    handleSessionSearchCommand,
+} from './cli/commands/session-commands.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
@@ -71,14 +77,15 @@ program
     .option('-a, --agent <name|path>', 'Agent name or path to agent config file')
     .option(
         '-p, --prompt <text>',
-        'One-shot prompt text. Alternatively provide a single quoted string as positional argument.'
+        'Run prompt and exit. Alternatively provide a single quoted string as positional argument.'
     )
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('-m, --model <model>', 'Specify the LLM model to use')
-    .option('-r, --router <router>', 'Specify the LLM router to use (vercel or in-built)')
-    .option('--new-session [sessionId]', 'Start with a new session (optionally specify session ID)')
+    .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
+    .option('-c, --continue', 'Continue most recent conversation')
+    .option('-r, --resume <sessionId>', 'Resume session by ID')
     .option(
         '--mode <mode>',
         'The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp',
@@ -243,7 +250,153 @@ program
         }
     });
 
-// 9) `mcp` SUB-COMMAND
+// 9) `session` SUB-COMMAND
+const sessionCommand = program.command('session').description('Manage chat sessions');
+
+sessionCommand
+    .command('list')
+    .description('List all sessions')
+    .action(async () => {
+        try {
+            // Create a minimal agent instance for session operations
+            const { DextoAgent } = await import('@dexto/core');
+            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
+            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
+
+            const globalOpts = program.opts();
+            const resolvedPath = await resolveAgentPath(
+                globalOpts.agent,
+                globalOpts.autoInstall !== false,
+                true
+            );
+            const rawConfig = await loadAgentConfig(resolvedPath);
+            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+
+            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+            await agent.start();
+
+            await handleSessionListCommand(agent);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto session list command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+sessionCommand
+    .command('history')
+    .description('Show session history')
+    .argument('[sessionId]', 'Session ID (defaults to current session)')
+    .action(async (sessionId: string) => {
+        try {
+            // Create a minimal agent instance for session operations
+            const { DextoAgent } = await import('@dexto/core');
+            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
+            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
+
+            const globalOpts = program.opts();
+            const resolvedPath = await resolveAgentPath(
+                globalOpts.agent,
+                globalOpts.autoInstall !== false,
+                true
+            );
+            const rawConfig = await loadAgentConfig(resolvedPath);
+            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+
+            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+            await agent.start();
+
+            await handleSessionHistoryCommand(agent, sessionId);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto session history command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+sessionCommand
+    .command('delete')
+    .description('Delete a session')
+    .argument('<sessionId>', 'Session ID to delete')
+    .action(async (sessionId: string) => {
+        try {
+            // Create a minimal agent instance for session operations
+            const { DextoAgent } = await import('@dexto/core');
+            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
+            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
+
+            const globalOpts = program.opts();
+            const resolvedPath = await resolveAgentPath(
+                globalOpts.agent,
+                globalOpts.autoInstall !== false,
+                true
+            );
+            const rawConfig = await loadAgentConfig(resolvedPath);
+            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+
+            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+            await agent.start();
+
+            await handleSessionDeleteCommand(agent, sessionId);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto session delete command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 10) `search` SUB-COMMAND
+program
+    .command('search')
+    .description('Search session history')
+    .argument('<query>', 'Search query')
+    .option('--session <sessionId>', 'Search in specific session')
+    .option('--role <role>', 'Filter by role (user, assistant, system, tool)')
+    .option('--limit <number>', 'Limit number of results', '10')
+    .action(async (query: string, options: { session?: string; role?: string; limit?: string }) => {
+        try {
+            // Create a minimal agent instance for session operations
+            const { DextoAgent } = await import('@dexto/core');
+            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
+            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
+
+            const globalOpts = program.opts();
+            const resolvedPath = await resolveAgentPath(
+                globalOpts.agent,
+                globalOpts.autoInstall !== false,
+                true
+            );
+            const rawConfig = await loadAgentConfig(resolvedPath);
+            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+
+            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+            await agent.start();
+
+            const searchOptions: {
+                sessionId?: string;
+                role?: 'user' | 'assistant' | 'system' | 'tool';
+                limit?: number;
+            } = {};
+
+            if (options.session) {
+                searchOptions.sessionId = options.session;
+            }
+            if (options.role) {
+                searchOptions.role = options.role as 'user' | 'assistant' | 'system' | 'tool';
+            }
+            if (options.limit) {
+                searchOptions.limit = parseInt(options.limit);
+            }
+
+            await handleSessionSearchCommand(agent, query, searchOptions);
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto search command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 11) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -333,18 +486,25 @@ program
     )
     // Main customer facing description
     .description(
-        'Dexto CLI allows you to talk to Dexto, build custom AI Agents, ' +
-            'build complex AI applications like Cursor, and more.\n\n' +
-            // TODO: Add `dexto tell me about your cli` starter prompt
-            'Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto -p "<prompt>"` or `dexto "<prompt>"`\n' +
-            'Start with a new session using `dexto --new-session [sessionId]`\n' +
-            'Run dexto web UI with `dexto --mode web`\n' +
-            'Run dexto as a server (REST APIs + WebSockets) with `dexto --mode server`\n' +
-            'Run dexto as a discord bot with `dexto --mode discord`\n' +
-            'Run dexto as a telegram bot with `dexto --mode telegram`\n' +
-            'Run dexto agent as an MCP server with `dexto --mode mcp`\n' +
-            'Run dexto as an MCP server aggregator with `dexto mcp --group-servers`\n\n' +
-            'Check subcommands for more features. Check https://github.com/truffle-ai/dexto for documentation on how to customize dexto and other examples'
+        'Dexto CLI - AI-powered assistant with session management\n\n' +
+            'Basic Usage:\n' +
+            '  dexto                    Start interactive REPL\n' +
+            '  dexto "query"            Start REPL with initial prompt\n' +
+            '  dexto -p "query"         Run query, then exit\n' +
+            '  cat file | dexto -p "query"  Process piped content\n\n' +
+            'Session Management:\n' +
+            '  dexto -c                 Continue most recent conversation\n' +
+            '  dexto -c -p "query"      Continue conversation, then exit\n' +
+            '  dexto -r "<session-id>" "query"  Resume session by ID\n\n' +
+            'Advanced Modes:\n' +
+            '  dexto --mode web         Run web UI\n' +
+            '  dexto --mode server      Run as API server\n' +
+            '  dexto --mode discord     Run as Discord bot\n' +
+            '  dexto --mode telegram    Run as Telegram bot\n' +
+            '  dexto --mode mcp         Run as MCP server\n\n' +
+            'Session Commands: dexto session list|history|delete\n' +
+            'Search: dexto search <query> [--session <id>] [--role <role>]\n\n' +
+            'See https://github.com/truffle-ai/dexto for more examples and documentation'
     )
     .action(async (prompt: string[] = []) => {
         // ——— ENV CHECK (optional) ———
@@ -486,19 +646,35 @@ program
             // Start the agent (initialize async services)
             await agent.start();
 
-            // Handle --new-session flag
-            if (opts.newSession !== undefined) {
+            // Handle session options - simplified logic
+            if (opts.resume) {
                 try {
-                    // Use provided session ID or generate a random one
-                    const sessionId =
-                        typeof opts.newSession === 'string' && opts.newSession
-                            ? opts.newSession
-                            : undefined; // Let agent generate random ID
-
-                    const session = await agent.createSession(sessionId);
+                    // Resume specific session by ID
+                    await agent.loadSessionAsDefault(opts.resume);
+                    logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                } catch (err) {
+                    console.error(
+                        `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                    );
+                    console.error('💡 Use `dexto session list` to see available sessions');
+                    process.exit(1);
+                }
+            } else if (opts.continue) {
+                try {
+                    // Continue from most recent session
+                    await loadMostRecentSession(agent);
+                } catch (err) {
+                    console.error(
+                        `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
+                    );
+                    process.exit(1);
+                }
+            } else {
+                // Default behavior: create new session
+                try {
+                    const session = await agent.createSession();
                     await agent.loadSessionAsDefault(session.id);
-
-                    logger.info(`Created and loaded new session: ${session.id}`, null, 'green');
+                    logger.info(`Created new session: ${session.id}`, null, 'green');
                 } catch (err) {
                     console.error(
                         `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
