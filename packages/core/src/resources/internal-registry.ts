@@ -3,6 +3,7 @@ import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '../logger/index.js';
+import { ResourceError } from './errors.js';
 
 export interface FileSystemResourceConfig {
     type: 'filesystem';
@@ -72,7 +73,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         _services: InternalResourceServices
     ): Promise<void> {
         if (config.type !== 'filesystem') {
-            throw new Error('Invalid config type for FileSystemResourceHandler');
+            throw ResourceError.providerError(
+                'Filesystem',
+                'initialize',
+                'Invalid config type for FileSystemResourceHandler'
+            );
         }
         this.config = config;
 
@@ -112,7 +117,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 
     async readResource(uri: string): Promise<ReadResourceResult> {
         if (!this.canHandle(uri)) {
-            throw new Error(`Cannot handle URI: ${uri}`);
+            throw ResourceError.noSuitableProvider(uri);
         }
 
         const filePath = uri.replace('fs://', '');
@@ -122,17 +127,17 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         try {
             canonicalPath = await fs.realpath(resolvedPath);
         } catch (_error) {
-            throw new Error(`Path does not exist or is not accessible: ${resolvedPath}`);
+            throw ResourceError.resourceNotFound(uri);
         }
 
         if (!this.isPathAllowed(canonicalPath)) {
-            throw new Error(`Access denied: path is outside configured roots: ${canonicalPath}`);
+            throw ResourceError.accessDenied(uri);
         }
 
         try {
             const stat = await fs.stat(canonicalPath);
             if (stat.size > 10 * 1024 * 1024) {
-                throw new Error(`File too large (${stat.size} bytes): ${canonicalPath}`);
+                throw ResourceError.readFailed(uri, `File too large (${stat.size} bytes)`);
             }
 
             if (this.isBinaryFile(canonicalPath)) {
@@ -164,9 +169,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 _meta: { size: stat.size },
             };
         } catch (error) {
-            throw new Error(
-                `Failed to read file ${canonicalPath}: ${error instanceof Error ? error.message : String(error)}`
-            );
+            throw ResourceError.readFailed(uri, error);
         }
     }
 

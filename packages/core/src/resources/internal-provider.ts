@@ -35,10 +35,7 @@ export class InternalResourcesProvider implements ResourceProvider {
                 this.handlers.set(resourceConfig.type, handler);
                 logger.debug(`Initialized ${resourceConfig.type} resource handler`);
             } catch (error) {
-                logger.error(
-                    `Failed to initialize ${resourceConfig.type} resource handler`,
-                    error instanceof Error ? error : new Error(String(error))
-                );
+                logger.error(`Failed to initialize ${resourceConfig.type} resource handler`, error);
             }
         }
 
@@ -59,8 +56,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                 allResources.push(...resources);
             } catch (error) {
                 logger.error(
-                    `Failed to list resources from ${type} handler`,
-                    error instanceof Error ? error : new Error(String(error))
+                    `Failed to list resources from ${type} handler: ${error instanceof Error ? error.message : String(error)}`,
+                    error
                 );
             }
         }
@@ -80,12 +77,11 @@ export class InternalResourcesProvider implements ResourceProvider {
                 try {
                     return await handler.readResource(uri);
                 } catch (error) {
-                    const normalized = error instanceof Error ? error : new Error(String(error));
                     logger.error(
-                        `Failed to read resource ${uri} from ${type} handler: ${normalized.message}`,
-                        normalized
+                        `Failed to read resource ${uri} from ${type} handler: ${error instanceof Error ? error.message : String(error)}`,
+                        error
                     );
-                    throw normalized;
+                    throw error;
                 }
             }
         }
@@ -100,8 +96,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                     logger.debug(`Refreshed ${type} resource handler`);
                 } catch (error) {
                     logger.error(
-                        `Failed to refresh ${type} resource handler`,
-                        error instanceof Error ? error : new Error(String(error))
+                        `Failed to refresh ${type} resource handler: ${error instanceof Error ? error.message : String(error)}`,
+                        error
                     );
                 }
             }
@@ -110,6 +106,15 @@ export class InternalResourcesProvider implements ResourceProvider {
 
     invalidateCache(): void {
         logger.debug('Internal resources cache invalidated');
+        for (const [type, handler] of this.handlers.entries()) {
+            try {
+                Promise.resolve(handler.refresh?.()).catch((err) =>
+                    logger.error(`Failed to refresh ${type} resource handler`, err)
+                );
+            } catch (err) {
+                logger.error(`Failed to schedule refresh for ${type} handler`, err);
+            }
+        }
     }
 
     getHandlers(): Map<string, InternalResourceHandler> {
@@ -126,8 +131,8 @@ export class InternalResourcesProvider implements ResourceProvider {
             logger.info(`Added new ${config.type} resource handler`);
         } catch (error) {
             logger.error(
-                `Failed to add ${config.type} resource handler`,
-                error instanceof Error ? error : new Error(String(error))
+                `Failed to add ${config.type} resource handler: ${error instanceof Error ? error.message : String(error)}`,
+                error
             );
             throw error;
         }
@@ -135,6 +140,15 @@ export class InternalResourcesProvider implements ResourceProvider {
 
     async removeResourceHandler(type: string): Promise<void> {
         if (this.handlers.has(type)) {
+            const handler = this.handlers.get(type);
+            try {
+                // Optional cleanup if supported by handler
+                if (handler && typeof (handler as any).dispose === 'function') {
+                    await (handler as any).dispose();
+                }
+            } catch (error) {
+                logger.error(`Cleanup failed for ${type} resource handler`, error);
+            }
             this.handlers.delete(type);
             this.config.resources = this.config.resources.filter((r) => r.type !== type);
             logger.info(`Removed ${type} resource handler`);

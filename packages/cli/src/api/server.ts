@@ -155,6 +155,34 @@ export async function initializeApi(
 
     // HTTP endpoints
 
+    // ---- Helpers (local) ----
+    function handleZodError(error: z.ZodError, context: string): DextoValidationError {
+        const errorMessage = error.issues.map((i) => i.message).join(', ');
+        logger.error(`${context}: ${errorMessage}`);
+        return new DextoValidationError([
+            {
+                code: AgentErrorCode.API_VALIDATION_ERROR,
+                message: errorMessage,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+                severity: 'error' as const,
+            },
+        ]);
+    }
+
+    function decodeResourceId(resourceIdParam: string): string {
+        try {
+            return decodeURIComponent(resourceIdParam);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
+            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
+            throw ResourceError.invalidUriFormat(
+                resourceIdParam,
+                'valid URI-encoded resource identifier'
+            );
+        }
+    }
+
     // Health check endpoint
     app.get('/health', (req, res) => {
         res.status(200).send('OK');
@@ -389,16 +417,9 @@ export async function initializeApi(
         const resourceIdParam = req.params.resourceId;
         let decodedResourceId: string;
         try {
-            decodedResourceId = decodeURIComponent(resourceIdParam);
+            decodedResourceId = decodeResourceId(resourceIdParam);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
-            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            return next(
-                ResourceError.invalidUriFormat(
-                    resourceIdParam,
-                    'valid URI-encoded resource identifier'
-                )
-            );
+            return next(error);
         }
 
         // Validate resourceId
@@ -408,11 +429,8 @@ export async function initializeApi(
             const content = await agent.readResource(validatedResourceId);
             return res.status(200).json({ ok: true, content });
         } catch (error) {
-            if (error instanceof z.ZodError) {
-                const errorMessage = error.issues.map((i) => i.message).join(', ');
-                logger.error(`Invalid resourceId validation: ${errorMessage}`);
-                return next(error);
-            }
+            if (error instanceof z.ZodError)
+                return next(handleZodError(error, 'Invalid resourceId validation'));
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(
                 `Error reading resource content for '${decodedResourceId}': ${errorMessage}`
@@ -426,16 +444,9 @@ export async function initializeApi(
         const resourceIdParam = req.params.resourceId;
         let decodedResourceId: string;
         try {
-            decodedResourceId = decodeURIComponent(resourceIdParam);
+            decodedResourceId = decodeResourceId(resourceIdParam);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
-            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            return next(
-                ResourceError.invalidUriFormat(
-                    resourceIdParam,
-                    'valid URI-encoded resource identifier'
-                )
-            );
+            return next(error);
         }
 
         const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
@@ -444,11 +455,8 @@ export async function initializeApi(
             const exists = await agent.hasResource(validatedResourceId);
             return res.status(exists ? 200 : 404).end();
         } catch (error) {
-            if (error instanceof z.ZodError) {
-                const errorMessage = error.issues.map((i) => i.message).join(', ');
-                logger.error(`Invalid resourceId validation: ${errorMessage}`);
-                return next(error);
-            }
+            if (error instanceof z.ZodError)
+                return next(handleZodError(error, 'Invalid resourceId validation'));
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error(
                 `Error checking resource existence for '${decodedResourceId}': ${errorMessage}`
@@ -490,7 +498,7 @@ export async function initializeApi(
         }
         let decodedResourceId: string;
         try {
-            decodedResourceId = decodeURIComponent(resourceIdParam);
+            decodedResourceId = decodeResourceId(resourceIdParam);
         } catch (_error) {
             return next(
                 new DextoValidationError([
@@ -500,6 +508,7 @@ export async function initializeApi(
                         scope: ErrorScope.AGENT,
                         type: ErrorType.USER,
                         severity: 'error' as const,
+                        context: { resourceIdParam },
                     },
                 ])
             );

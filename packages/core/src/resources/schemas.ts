@@ -6,9 +6,10 @@ import { z } from 'zod';
 const FileExtensionSchema = z
     .string()
     .regex(
-        /^\.[a-zA-Z0-9]+$/,
-        'File extensions must start with a dot and contain only alphanumeric characters'
-    );
+        /^\.[A-Za-z0-9][A-Za-z0-9._-]*$/,
+        'Extensions must start with a dot and may include alphanumerics, dot, underscore, or hyphen (e.g., .d.ts, .tar.gz)'
+    )
+    .describe('File extension pattern starting with a dot; supports multi-part extensions');
 
 /**
  * Schema for filesystem resource configuration
@@ -72,7 +73,9 @@ const FileSystemResourceSchema = z
 /**
  * Union schema for all internal resource types
  */
-export const InternalResourceConfigSchema = FileSystemResourceSchema;
+export const InternalResourceConfigSchema = z.discriminatedUnion('type', [
+    FileSystemResourceSchema,
+]);
 
 /**
  * Schema for internal resources configuration with smart auto-enable logic

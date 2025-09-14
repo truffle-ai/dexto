@@ -1,8 +1,9 @@
 // src/agent/DextoAgent.ts
+import path from 'path';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
-import { ResourceManager, expandMessageReferences } from '../resources/index.js';
+import { ResourceManager, ResourceError, expandMessageReferences } from '../resources/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -39,7 +40,6 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'resourceManager',
     'promptManager',
     'agentEventBus',
     'stateManager',
@@ -1028,18 +1028,24 @@ export class DextoAgent {
     public async addFileSystemResource(paths: string[]): Promise<void> {
         this.ensureStarted();
         if (!paths || paths.length === 0) {
-            throw new Error('At least one path must be provided');
+            throw ResourceError.providerError(
+                'Internal',
+                'addFileSystemResource',
+                'paths must contain at least one entry'
+            );
         }
-        for (const path of paths) {
-            if (path.includes('..') || path.startsWith('/')) {
-                throw new Error(
-                    `Invalid path: ${path}. Paths must be relative and not contain '..'`
+        for (const p of paths) {
+            if (p.includes('..') || path.isAbsolute(p)) {
+                throw ResourceError.providerError(
+                    'Internal',
+                    'addFileSystemResource',
+                    `Invalid path: ${p}. Paths must be relative and not contain '..'`
                 );
             }
         }
         const internalProvider = this.resourceManager.getInternalResourcesProvider();
         if (!internalProvider) {
-            throw new Error('Internal resources are not enabled');
+            throw ResourceError.providerNotAvailable('Internal');
         }
         await internalProvider.addResourceConfig({ type: 'filesystem', paths });
         await this.resourceManager.refresh();

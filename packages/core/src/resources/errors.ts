@@ -65,13 +65,14 @@ export class ResourceError {
     }
 
     // Content access errors
-    static readFailed(uri: string, reason: string) {
+    static readFailed(uri: string, reason: unknown) {
+        const reasonMsg = reason instanceof Error ? reason.message : String(reason);
         return new DextoRuntimeError(
             ResourceErrorCodes.READ_FAILED,
             ErrorScope.RESOURCE,
             ErrorType.SYSTEM,
-            `Failed to read resource '${uri}': ${reason}`,
-            { uri, reason },
+            `Failed to read resource '${uri}': ${reasonMsg}`,
+            { uri, reason: reasonMsg },
             'Check resource permissions and availability'
         );
     }
@@ -99,13 +100,14 @@ export class ResourceError {
         );
     }
 
-    static providerError(providerType: string, operation: string, reason: string) {
+    static providerError(providerType: string, operation: string, reason: unknown) {
+        const reasonMsg = reason instanceof Error ? reason.message : String(reason);
         return new DextoRuntimeError(
             ResourceErrorCodes.PROVIDER_ERROR,
             ErrorScope.RESOURCE,
             ErrorType.SYSTEM,
-            `${providerType} provider failed during ${operation}: ${reason}`,
-            { providerType, operation, reason },
+            `${providerType} provider failed during ${operation}: ${reasonMsg}`,
+            { providerType, operation, reason: reasonMsg },
             'Check provider configuration and logs for details'
         );
     }
