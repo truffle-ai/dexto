@@ -37,6 +37,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
+import { ResourceError } from '@dexto/core';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -370,6 +371,151 @@ export async function initializeApi(
             }
         }
     );
+
+    // ============= RESOURCE MANAGEMENT ENDPOINTS =============
+
+    // Get all available resources
+    app.get('/api/resources', async (_req, res, next) => {
+        try {
+            const resources = await agent.listResources();
+            return res.status(200).json({ ok: true, resources: Object.values(resources) });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Read resource content
+    app.get('/api/resources/:resourceId/content', async (req, res, next) => {
+        const resourceIdParam = req.params.resourceId;
+        let decodedResourceId: string;
+        try {
+            decodedResourceId = decodeURIComponent(resourceIdParam);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
+            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
+            return next(
+                ResourceError.invalidUriFormat(
+                    resourceIdParam,
+                    'valid URI-encoded resource identifier'
+                )
+            );
+        }
+
+        // Validate resourceId
+        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
+        try {
+            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
+            const content = await agent.readResource(validatedResourceId);
+            return res.status(200).json({ ok: true, content });
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                const errorMessage = error.issues.map((i) => i.message).join(', ');
+                logger.error(`Invalid resourceId validation: ${errorMessage}`);
+                return next(error);
+            }
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error reading resource content for '${decodedResourceId}': ${errorMessage}`
+            );
+            return next(error);
+        }
+    });
+
+    // Check if resource exists
+    app.head('/api/resources/:resourceId', async (req, res, next) => {
+        const resourceIdParam = req.params.resourceId;
+        let decodedResourceId: string;
+        try {
+            decodedResourceId = decodeURIComponent(resourceIdParam);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
+            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
+            return next(
+                ResourceError.invalidUriFormat(
+                    resourceIdParam,
+                    'valid URI-encoded resource identifier'
+                )
+            );
+        }
+
+        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
+        try {
+            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
+            const exists = await agent.hasResource(validatedResourceId);
+            return res.status(exists ? 200 : 404).end();
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                const errorMessage = error.issues.map((i) => i.message).join(', ');
+                logger.error(`Invalid resourceId validation: ${errorMessage}`);
+                return next(error);
+            }
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error checking resource existence for '${decodedResourceId}': ${errorMessage}`
+            );
+            return next(error);
+        }
+    });
+
+    // List resources for a specific MCP server
+    app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
+        try {
+            const { serverId } = z.object({ serverId: z.string().min(1) }).parse(req.params);
+            const resources = await agent.listResourcesForServer(serverId);
+            return sendJsonResponse(res, { success: true, resources }, 200);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const serverId = req.params.serverId;
+            logger.error(`Error fetching resources for server '${serverId}': ${errorMessage}`);
+            return next(error);
+        }
+    });
+
+    // Read resource content from specific MCP server
+    app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res, next) => {
+        const serverId = req.params.serverId;
+        const resourceIdParam = req.params.resourceId;
+        if (!serverId || !resourceIdParam) {
+            return next(
+                new DextoValidationError([
+                    {
+                        code: AgentErrorCode.API_VALIDATION_ERROR,
+                        message: 'Missing serverId or resourceId parameters',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error' as const,
+                    },
+                ])
+            );
+        }
+        let decodedResourceId: string;
+        try {
+            decodedResourceId = decodeURIComponent(resourceIdParam);
+        } catch (_error) {
+            return next(
+                new DextoValidationError([
+                    {
+                        code: AgentErrorCode.API_VALIDATION_ERROR,
+                        message: 'Invalid resourceId parameter - failed to decode URI component',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error' as const,
+                    },
+                ])
+            );
+        }
+        try {
+            const qualifiedUri = `mcp:${serverId}:${decodedResourceId}`;
+            const content = await agent.readResource(qualifiedUri);
+            return sendJsonResponse(res, { success: true, data: { content } }, 200);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error reading resource '${decodedResourceId}' from server '${serverId}': ${errorMessage}`
+            );
+            return next(error);
+        }
+    });
 
     // WebSocket handling
     // handle inbound client messages over WebSocket

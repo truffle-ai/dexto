@@ -34,6 +34,7 @@ import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-
 import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
+import { ResourceManager } from '../resources/manager.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -48,6 +49,7 @@ export type AgentServices = {
     searchService: SearchService;
     storage: StorageBackends;
     storageManager?: StorageManager;
+    resourceManager: ResourceManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -157,7 +159,13 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 9. Return the core services
+    // 9. Initialize resource manager (MCP + internal resources)
+    const resourceManager = new ResourceManager(mcpManager, {
+        internalResourcesConfig: config.internalResources as any,
+    });
+    await resourceManager.initialize();
+
+    // 10. Return the core services
     return {
         mcpManager,
         toolManager,
@@ -168,5 +176,6 @@ export async function createAgentServices(
         searchService,
         storage,
         storageManager,
+        resourceManager,
     };
 }

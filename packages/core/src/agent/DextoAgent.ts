@@ -2,6 +2,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { PromptManager } from '../systemPrompt/manager.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -38,6 +39,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
+    'resourceManager',
     'promptManager',
     'agentEventBus',
     'stateManager',
@@ -107,6 +109,7 @@ export class DextoAgent {
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -167,6 +170,7 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
+                resourceManager: services.resourceManager,
                 promptManager: services.promptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
@@ -345,7 +349,17 @@ export class DextoAgent {
                     imageDataInput
                 )}, hasFile=${Boolean(fileDataInput)}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+            // Expand @resource mentions into content before sending to the model
+            let finalText = textInput;
+            if (textInput && textInput.includes('@')) {
+                const resources = await this.resourceManager.list();
+                const expansion = await expandMessageReferences(textInput, resources, (uri) =>
+                    this.resourceManager.read(uri)
+                );
+                finalText = expansion.expandedMessage;
+            }
+
+            const response = await session.run(finalText, imageDataInput, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -955,6 +969,97 @@ export class DextoAgent {
         return this.mcpManager.getFailedConnections();
     }
 
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Lists all available resources with their info.
+     * This includes resources from MCP servers and any custom resource providers.
+     */
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.list();
+    }
+
+    /**
+     * Checks if a resource exists by URI.
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.has(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource by URI.
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+                return { uri: original, name, originalUri: original, serverName };
+            });
+        return serverResources;
+    }
+
+    /**
+     * Adds a filesystem resource configuration dynamically.
+     */
+    public async addFileSystemResource(paths: string[]): Promise<void> {
+        this.ensureStarted();
+        if (!paths || paths.length === 0) {
+            throw new Error('At least one path must be provided');
+        }
+        for (const path of paths) {
+            if (path.includes('..') || path.startsWith('/')) {
+                throw new Error(
+                    `Invalid path: ${path}. Paths must be relative and not contain '..'`
+                );
+            }
+        }
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw new Error('Internal resources are not enabled');
+        }
+        await internalProvider.addResourceConfig({ type: 'filesystem', paths });
+        await this.resourceManager.refresh();
+        logger.info(`Added filesystem resource with paths: ${paths.join(', ')}`);
+    }
+
+    /**
+     * Removes a resource handler by type.
+     */
+    public async removeResourceHandler(type: string): Promise<void> {
+        this.ensureStarted();
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw new Error('Internal resources are not enabled');
+        }
+        await internalProvider.removeResourceHandler(type);
+        await this.resourceManager.refresh();
+        logger.info(`Removed resource handler: ${type}`);
+    }
+
     // ============= PROMPT MANAGEMENT =============
 
     /**
@@ -1009,3 +1114,5 @@ export class DextoAgent {
     // - Tool chaining and workflow automation
     // - Agent collaboration and delegation
 }
+
+// (resource methods are defined on the class above; no interface augmentation required)

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { ChatInputContainer, ButtonFooter, StreamToggle, AttachButton, RecordButton } from './ChatInput';
@@ -20,6 +21,9 @@ import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
+import ResourceAutocomplete from './ResourceAutocomplete';
+import type { ResourceMetadata as UIResourceMetadata } from './ResourceAutocomplete';
+import { useResources } from './hooks/useResources';
 
 interface ModelOption {
   name: string;
@@ -65,6 +69,37 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
   const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
+
+  // Resources (for @ mention autocomplete)
+  const { resources, loading: resourcesLoading } = useResources();
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMention, setShowMention] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | null>(null);
+
+  // Helpers for @ mention parsing/filtering
+  const filterResources = (list: ReturnType<typeof useResources>['resources'], q: string) => {
+    const query = q.toLowerCase();
+    return list.filter((r) =>
+      (r.name || '').toLowerCase().includes(query) || r.uri.toLowerCase().includes(query) || (r.serverName || '').toLowerCase().includes(query)
+    ).slice(0, 50);
+  };
+
+  const findActiveAtIndex = (value: string, caret: number) => {
+    // Walk backwards from caret to find an '@' not preceded by an alphanumeric
+    for (let i = caret - 1; i >= 0; i--) {
+      const ch = value[i];
+      if (ch === '@') {
+        const prev = i > 0 ? value[i - 1] : ' ';
+        if (!/[a-zA-Z0-9]/.test(prev)) {
+          return i;
+        }
+        return -1; // looks like an email/user handle; ignore
+      }
+      if (/\s/.test(ch)) break; // stop at whitespace
+    }
+    return -1;
+  };
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
@@ -152,12 +187,102 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     // Height handled by CSS; no imperative adjustments.
   };
 
+  const applyMentionSelection = (index: number, selectedResource?: UIResourceMetadata) => {
+    const list = filterResources(resources, mentionQuery);
+    if (!selectedResource && list.length === 0) return;
+    const selected = selectedResource ?? list[Math.max(0, Math.min(index, list.length - 1))];
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const caret = ta.selectionStart ?? text.length;
+    const atIndex = findActiveAtIndex(text, caret);
+    if (atIndex === -1) return;
+    const before = text.slice(0, atIndex);
+    const after = text.slice(caret);
+    // Mask input with readable name, rely on runtime resolver for expansion
+    const name = selected.name || selected.uri.split('/').pop() || selected.uri;
+    const insertion = selected.serverName ? `@${selected.serverName}:${name}` : `@${name}`;
+    const next = before + insertion + after;
+    setText(next);
+    setShowMention(false);
+    setMentionQuery('');
+    setMentionIndex(0);
+    // Restore caret after inserted mention
+    requestAnimationFrame(() => {
+      const pos = (before + insertion).length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention menu open, handle navigation
+    if (showMention) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const list = filterResources(resources, mentionQuery);
+        setMentionIndex((prev) => (prev + 1) % Math.max(1, list.length));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const list = filterResources(resources, mentionQuery);
+        setMentionIndex((prev) => (prev - 1 + Math.max(1, list.length)) % Math.max(1, list.length));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyMentionSelection(mentionIndex);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        applyMentionSelection(mentionIndex);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowMention(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
+
+  // Detect @mention context on text change and caret move
+  useEffect(() => {
+    const ta = textareaRef.current;
+    const caret = ta ? ta.selectionStart ?? text.length : text.length;
+    const atIndex = findActiveAtIndex(text, caret);
+    if (atIndex >= 0) {
+      const q = text.slice(atIndex + 1, caret);
+      setMentionQuery(q);
+      setShowMention(true);
+      setMentionIndex(0);
+      // Compute dropdown viewport position via textarea's bounding rect
+      const anchor = ta?.getBoundingClientRect();
+      if (anchor) {
+        const margin = 16; // inner padding from InputArea
+        const left = Math.max(8, anchor.left + window.scrollX + margin);
+        const maxWidth = Math.max(280, anchor.width - margin * 2);
+        const bottomOffset = 64; // keep above footer area
+        const bottom = Math.max(80, window.innerHeight - (anchor.bottom + window.scrollY) + bottomOffset);
+        setDropdownStyle({
+          position: 'fixed',
+          left,
+          bottom,
+          width: maxWidth,
+          zIndex: 9999,
+        });
+      }
+    } else {
+      setShowMention(false);
+      setMentionQuery('');
+      setDropdownStyle(null);
+    }
+  }, [text]);
 
   // Large paste guard to prevent layout from exploding with very large text
   const LARGE_PASTE_THRESHOLD = 20000; // characters
@@ -491,7 +616,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             )}
 
             {/* Editor area: scrollable, independent from footer */}
-            <div className="flex-auto overflow-y-auto">
+            <div className="flex-auto overflow-y-auto relative">
               {fontsReady ? (
                 <TextareaAutosize
                   ref={textareaRef}
@@ -499,7 +624,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
+                  placeholder="Ask Dexto anything... Type @ to see available resources"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -512,9 +637,23 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
+                  placeholder="Ask Dexto anything... Type @ to see available resources"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
+              )}
+
+              {showMention && dropdownStyle && typeof window !== 'undefined' && ReactDOM.createPortal(
+                <div style={dropdownStyle} className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+                  <ResourceAutocomplete
+                    resources={resources}
+                    query={mentionQuery}
+                    selectedIndex={mentionIndex}
+                    onHoverIndex={(i) => setMentionIndex(i)}
+                    onSelect={(r) => applyMentionSelection(mentionIndex, r)}
+                    loading={resourcesLoading}
+                  />
+                </div>,
+                document.body
               )}
             </div>
 
