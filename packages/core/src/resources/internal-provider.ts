@@ -154,4 +154,19 @@ export class InternalResourcesProvider implements ResourceProvider {
             logger.info(`Removed ${type} resource handler`);
         }
     }
+
+    /**
+     * Get the blob store instance from the blob resource handler if available.
+     */
+    getBlobStore(): import('./blob-store.js').BlobStore | undefined {
+        const blobHandler = this.handlers.get('blob');
+        if (
+            blobHandler &&
+            'getBlobStore' in blobHandler &&
+            typeof blobHandler.getBlobStore === 'function'
+        ) {
+            return blobHandler.getBlobStore();
+        }
+        return undefined;
+    }
 }

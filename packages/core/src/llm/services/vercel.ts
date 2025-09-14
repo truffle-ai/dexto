@@ -12,7 +12,11 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { sanitizeToolResultToContent, summarizeToolContentForText } from '../../context/utils.js';
+import {
+    sanitizeToolResultToContent,
+    sanitizeToolResultToContentWithBlobs,
+    summarizeToolContentForText,
+} from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -56,7 +60,8 @@ export class VercelLLMService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager?: import('../../resources/index.js').ResourceManager
     ) {
         this.model = model;
         this.config = config;
@@ -69,6 +74,8 @@ export class VercelLLMService implements ILLMService {
         const tokenizer = createTokenizer(config.provider, this.getModelId());
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
+        // Use the provided ResourceManager
+
         this.contextManager = new ContextManager<ModelMessage>(
             config,
             formatter,
@@ -76,7 +83,9 @@ export class VercelLLMService implements ILLMService {
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            undefined, // Use default compression strategies
+            resourceManager
         );
 
         logger.debug(
@@ -112,7 +121,13 @@ export class VercelLLMService implements ILLMService {
                             // Sanitize tool result to prevent large/base64 media from exploding context
                             // Convert arbitrary result -> InternalMessage content (media as structured parts)
                             // then summarize to concise text suitable for Vercel tool output.
-                            const safeContent = sanitizeToolResultToContent(rawResult);
+                            // Use blob-aware sanitization if blob store is available
+                            const resourceManager = this.contextManager.getResourceManager();
+                            const blobStore = resourceManager?.getBlobStore();
+
+                            const safeContent = blobStore
+                                ? await sanitizeToolResultToContentWithBlobs(rawResult, blobStore)
+                                : sanitizeToolResultToContent(rawResult);
                             const summaryText = summarizeToolContentForText(safeContent);
                             return summaryText;
                         } catch (err: unknown) {

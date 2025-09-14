@@ -6,7 +6,12 @@ import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import { logger } from '../logger/index.js';
-import { countMessagesTokens, sanitizeToolResultToContent } from './utils.js';
+import {
+    countMessagesTokens,
+    sanitizeToolResultToContent,
+    sanitizeToolResultToContentWithBlobs,
+    expandBlobReferences,
+} from './utils.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { PromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
@@ -85,6 +90,90 @@ export class ContextManager<TMessage = unknown> {
     private readonly sessionId: string;
 
     /**
+     * Optional ResourceManager for resolving blob references in message content.
+     * When provided, blob references like @blob:abc123 will be resolved to actual data
+     * before passing messages to the LLM formatter.
+     */
+    private resourceManager?: import('../resources/index.js').ResourceManager | undefined;
+
+    /**
+     * Get the ResourceManager instance (if available)
+     */
+    public getResourceManager(): import('../resources/index.js').ResourceManager | undefined {
+        return this.resourceManager;
+    }
+
+    /**
+     * Process user input data - store as blob if large, otherwise return as-is.
+     * Returns either the original data or a blob reference (@blob:id).
+     */
+    private async processUserInput(
+        data: string | Uint8Array | Buffer | ArrayBuffer | URL,
+        metadata: {
+            mimeType: string;
+            originalName?: string;
+            source?: 'user' | 'system';
+        }
+    ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
+        // Only process if we have a blob store available
+        const blobStore = this.resourceManager?.getBlobStore();
+        if (!blobStore) {
+            return data;
+        }
+
+        // Estimate data size to decide if we should store as blob
+        let shouldStoreAsBlob = false;
+        let estimatedSize = 0;
+
+        if (typeof data === 'string') {
+            if (data.startsWith('data:')) {
+                // Data URI - estimate base64 size
+                const commaIndex = data.indexOf(',');
+                if (commaIndex !== -1) {
+                    const base64Data = data.substring(commaIndex + 1);
+                    estimatedSize = Math.floor((base64Data.length * 3) / 4);
+                }
+            } else if (data.length > 100 && data.match(/^[A-Za-z0-9+/=]+$/)) {
+                // Likely base64 string
+                estimatedSize = Math.floor((data.length * 3) / 4);
+            } else {
+                estimatedSize = Buffer.byteLength(data, 'utf8');
+            }
+        } else if (data instanceof Buffer || data instanceof Uint8Array) {
+            estimatedSize = data.length;
+        } else if (data instanceof ArrayBuffer) {
+            estimatedSize = data.byteLength;
+        } else if (data instanceof URL) {
+            // URLs are small, don't store as blob
+            return data;
+        }
+
+        // Store as blob if estimated size > 5KB (reasonable threshold for user inputs)
+        shouldStoreAsBlob = estimatedSize > 5 * 1024;
+
+        if (shouldStoreAsBlob) {
+            try {
+                const blobRef = await blobStore.store(data, {
+                    mimeType: metadata.mimeType,
+                    originalName: metadata.originalName,
+                    source: metadata.source || 'user',
+                });
+
+                logger.info(
+                    `Stored user input as blob: ${blobRef.uri} (${estimatedSize} bytes, ${metadata.mimeType})`
+                );
+                return `@${blobRef.uri}`; // Return @blob:id reference for ResourceManager
+            } catch (error) {
+                logger.warn(`Failed to store user input as blob: ${String(error)}`);
+                // Fallback to storing original data
+                return data;
+            }
+        }
+
+        return data;
+    }
+
+    /**
      * Creates a new ContextManager instance
      * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
@@ -94,6 +183,7 @@ export class ContextManager<TMessage = unknown> {
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
      * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
+     * @param resourceManager Optional ResourceManager for resolving blob references in messages
      */
     constructor(
         llmConfig: ValidatedLLMConfig,
@@ -106,7 +196,8 @@ export class ContextManager<TMessage = unknown> {
         compressionStrategies: ICompressionStrategy[] = [
             new MiddleRemovalStrategy(),
             new OldestRemovalStrategy(),
-        ]
+        ],
+        resourceManager?: import('../resources/index.js').ResourceManager
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -116,6 +207,7 @@ export class ContextManager<TMessage = unknown> {
         this.historyProvider = historyProvider;
         this.sessionId = sessionId;
         this.compressionStrategies = compressionStrategies;
+        this.resourceManager = resourceManager;
 
         logger.debug(
             `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
@@ -369,20 +461,39 @@ export class ContextManager<TMessage = unknown> {
             messageParts.push({ type: 'text' as const, text: finalTextContent });
         }
 
-        // Add image if present
+        // Add image if present - store as blob if large
         if (imageData) {
+            const processedImage = await this.processUserInput(imageData.image, {
+                mimeType: imageData.mimeType || 'image/jpeg',
+                source: 'user',
+            });
+
             messageParts.push({
                 type: 'image' as const,
-                image: imageData.image,
+                image: processedImage,
                 mimeType: imageData.mimeType || 'image/jpeg',
             });
         }
 
-        // Add file if present
+        // Add file if present - store as blob if large
         if (fileData) {
+            const metadata: {
+                mimeType: string;
+                originalName?: string;
+                source?: 'user' | 'system';
+            } = {
+                mimeType: fileData.mimeType,
+                source: 'user',
+            };
+            if (fileData.filename) {
+                metadata.originalName = fileData.filename;
+            }
+
+            const processedData = await this.processUserInput(fileData.data, metadata);
+
             messageParts.push({
                 type: 'file' as const,
-                data: fileData.data,
+                data: processedData,
                 mimeType: fileData.mimeType,
                 ...(fileData.filename && { filename: fileData.filename }),
             });
@@ -444,8 +555,11 @@ export class ContextManager<TMessage = unknown> {
         }
         // Sanitize tool result to avoid adding non-text data as raw text
         // and to convert media/data-uris/base64 to structured parts.
-        let content: InternalMessage['content'];
-        content = sanitizeToolResultToContent(result);
+        // If a resource manager is available, automatically store large media as blobs.
+        const blobStore = this.resourceManager?.getBlobStore();
+        const content = blobStore
+            ? await sanitizeToolResultToContentWithBlobs(result, blobStore)
+            : sanitizeToolResultToContent(result);
 
         // Log what we are storing (brief)
         if (typeof content === 'string') {
@@ -501,8 +615,22 @@ export class ContextManager<TMessage = unknown> {
     ): Promise<TMessage[]> {
         // TMessage type is provided by the service that instantiates ContextManager
         // Use provided history or fetch from provider
-        const messageHistory: InternalMessage[] =
+        let messageHistory: InternalMessage[] =
             history ?? (await this.historyProvider.getHistory());
+
+        // Resolve blob references if resource manager is available
+        if (this.resourceManager) {
+            logger.debug('Resolving blob references in message history before formatting');
+            messageHistory = await Promise.all(
+                messageHistory.map(async (message) => {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager!
+                    );
+                    return { ...message, content: expandedContent };
+                })
+            );
+        }
 
         // Use pre-computed system prompt if provided
         const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));

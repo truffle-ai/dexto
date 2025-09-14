@@ -31,6 +31,14 @@ export class ResourceManager {
         logger.debug('ResourceManager initialization complete');
     }
 
+    /**
+     * Get the blob store instance if available.
+     * Used for storing large media data and converting to resource references.
+     */
+    getBlobStore(): import('./blob-store.js').BlobStore | undefined {
+        return this.internalResourcesProvider?.getBlobStore();
+    }
+
     private extractResourceName(uri: string): string {
         const forwardSlashParts = uri.split('/');
         const lastForwardSlashPart = forwardSlashParts[forwardSlashParts.length - 1];
@@ -122,7 +130,11 @@ export class ResourceManager {
         } else if (uri.startsWith('internal:')) {
             const originalUri = uri.substring('internal:'.length);
             if (this.internalResourcesProvider) {
-                return await this.internalResourcesProvider.hasResource(`fs://${originalUri}`);
+                // Use the same logic as read method for URI handling
+                const handlerUri = originalUri.startsWith('blob:')
+                    ? originalUri
+                    : `fs://${originalUri}`;
+                return await this.internalResourcesProvider.hasResource(handlerUri);
             }
         }
         return false;
@@ -149,10 +161,20 @@ export class ResourceManager {
                 if (originalUri.length === 0) throw ResourceError.emptyUri();
                 if (!this.internalResourcesProvider)
                     throw ResourceError.providerNotInitialized('Internal', uri);
-                logger.debug(`🎯 Internal routing: '${uri}' -> 'fs://${originalUri}'`);
-                const result = await this.internalResourcesProvider.readResource(
-                    `fs://${originalUri}`
-                );
+
+                // Determine the correct URI format based on the resource type
+                let handlerUri: string;
+                if (originalUri.startsWith('blob:')) {
+                    // Blob resources keep their blob: prefix
+                    handlerUri = originalUri;
+                    logger.debug(`🎯 Internal routing: '${uri}' -> '${handlerUri}'`);
+                } else {
+                    // Filesystem resources get fs:// prefix (legacy behavior)
+                    handlerUri = `fs://${originalUri}`;
+                    logger.debug(`🎯 Internal routing: '${uri}' -> '${handlerUri}'`);
+                }
+
+                const result = await this.internalResourcesProvider.readResource(handlerUri);
                 logger.debug(`✅ Successfully read internal resource: ${uri}`);
                 return result;
             } else {

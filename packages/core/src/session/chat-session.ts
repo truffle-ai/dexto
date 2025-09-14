@@ -118,6 +118,7 @@ export class ChatSession {
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
+            resourceManager: import('../resources/index.js').ResourceManager;
         },
         public readonly id: string
     ) {
@@ -194,7 +195,8 @@ export class ChatSession {
             this.services.promptManager,
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
-            this.id
+            this.id,
+            this.services.resourceManager // Pass ResourceManager for blob storage
         );
 
         logger.debug(`ChatSession ${this.id}: Services initialized with storage`);

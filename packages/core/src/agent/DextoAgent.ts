@@ -351,15 +351,30 @@ export class DextoAgent {
             );
             // Expand @resource mentions into content before sending to the model
             let finalText = textInput;
+            let finalImageData = imageDataInput;
             if (textInput && textInput.includes('@')) {
                 const resources = await this.resourceManager.list();
                 const expansion = await expandMessageReferences(textInput, resources, (uri) =>
                     this.resourceManager.read(uri)
                 );
                 finalText = expansion.expandedMessage;
+
+                // If we extracted images from resources and don't already have image data, use the first extracted image
+                if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                    const firstImage = expansion.extractedImages[0];
+                    if (firstImage) {
+                        finalImageData = {
+                            image: firstImage.image,
+                            mimeType: firstImage.mimeType,
+                        };
+                        logger.debug(
+                            `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                        );
+                    }
+                }
             }
 
-            const response = await session.run(finalText, imageDataInput, fileDataInput, stream);
+            const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -1064,6 +1079,25 @@ export class DextoAgent {
         await internalProvider.removeResourceHandler(type);
         await this.resourceManager.refresh();
         logger.info(`Removed resource handler: ${type}`);
+    }
+
+    /**
+     * Gets the blob store for storing and retrieving binary data.
+     * Returns undefined if blob storage is not configured.
+     */
+    public getBlobStore(): import('../resources/index.js').BlobStore | undefined {
+        this.ensureStarted();
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) return undefined;
+
+        const handlers = internalProvider.getHandlers();
+        const blobHandler = handlers?.get('blob');
+
+        if (blobHandler && 'getBlobStore' in blobHandler) {
+            return (blobHandler as any).getBlobStore();
+        }
+
+        return undefined;
     }
 
     // ============= PROMPT MANAGEMENT =============

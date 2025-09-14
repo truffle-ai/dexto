@@ -391,7 +391,8 @@ describe('ChatSession', () => {
                 mockServices.promptManager,
                 mockHistoryProvider,
                 chatSession.eventBus, // Session-specific event bus
-                sessionId
+                sessionId,
+                mockServices.resourceManager // ResourceManager parameter
             );
 
             // Verify session-specific history provider creation

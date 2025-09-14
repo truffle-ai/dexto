@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
+import { BlobStore, BlobStoreConfig } from './blob-store.js';
 
 export interface FileSystemResourceConfig {
     type: 'filesystem';
@@ -14,7 +15,15 @@ export interface FileSystemResourceConfig {
     includeExtensions?: string[];
 }
 
-export type InternalResourceConfig = FileSystemResourceConfig;
+export interface BlobResourceConfig {
+    type: 'blob';
+    maxBlobSize?: number;
+    maxTotalSize?: number;
+    cleanupAfterDays?: number;
+    storePath?: string | undefined;
+}
+
+export type InternalResourceConfig = FileSystemResourceConfig | BlobResourceConfig;
 
 export type InternalResourceServices = {};
 
@@ -113,6 +122,21 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 normalizedPath === normalizedRoot
             );
         });
+    }
+
+    /**
+     * Check if a path is a blob storage directory that should be excluded
+     * from filesystem resource scanning to avoid conflicts with BlobResourceHandler
+     */
+    private isBlobStorageDirectory(canonicalPath: string): boolean {
+        const normalizedPath = path.normalize(canonicalPath).replace(/\\/g, '/');
+
+        // Common blob storage directory patterns
+        const blobPatterns = ['/.dexto/blobs', '/.dexto/data/blobs', '/blobs', '/data/blobs'];
+
+        return blobPatterns.some(
+            (pattern) => normalizedPath.endsWith(pattern) || normalizedPath.includes(pattern + '/')
+        );
     }
 
     async readResource(uri: string): Promise<ReadResourceResult> {
@@ -273,6 +297,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         }
         if (!this.isPathAllowed(canonical)) return;
 
+        // Skip blob storage directories to avoid conflicts with BlobResourceHandler
+        if (this.isBlobStorageDirectory(canonical)) {
+            return;
+        }
+
         const maxDepth = this.config?.maxDepth ?? FileSystemResourceHandler.DEFAULT_MAX_DEPTH;
         const maxFiles = this.config?.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
         const includeHidden = this.config?.includeHidden ?? false;
@@ -300,7 +329,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 const uri = `fs://${rel}`;
                 this.resourcesCache.set(uri, {
                     uri,
-                    name: path.basename(canonical),
+                    name: this.generateCleanFileName(canonical),
                     description: 'Filesystem resource',
                     source: 'custom',
                     size: stat.size,
@@ -368,6 +397,51 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         return includeExtensions.includes(ext);
     }
 
+    /**
+     * Generate a clean, user-friendly filename from a potentially messy path
+     */
+    private generateCleanFileName(filePath: string): string {
+        const basename = path.basename(filePath);
+
+        // For screenshot files with timestamps, clean them up
+        if (basename.startsWith('Screenshot ') && basename.includes(' at ')) {
+            // "Screenshot 2025-09-14 at 11.39.20 PM.png" -> "Screenshot 2025-09-14.png"
+            const match = basename.match(/^Screenshot (\d{4}-\d{2}-\d{2}).*?(\.[^.]+)$/);
+            if (match) {
+                return `Screenshot ${match[1]}${match[2]}`;
+            }
+        }
+
+        // For other temp files, just use the basename as-is
+        // but remove any weird prefixes or temp markers
+        if (basename.length > 50) {
+            // If filename is too long, try to extract meaningful parts
+            const ext = path.extname(basename);
+            const nameWithoutExt = path.basename(basename, ext);
+
+            // Look for recognizable patterns
+            const patterns = [
+                /Screenshot.*(\d{4}-\d{2}-\d{2})/,
+                /([A-Za-z\s]+\d{4}-\d{2}-\d{2})/,
+                /(image|photo|file).*(\d+)/i,
+            ];
+
+            for (const pattern of patterns) {
+                const match = nameWithoutExt.match(pattern);
+                if (match) {
+                    return `${match[1] || match[0]}${ext}`;
+                }
+            }
+
+            // If no pattern matches, truncate intelligently
+            if (nameWithoutExt.length > 30) {
+                return `${nameWithoutExt.substring(0, 30)}...${ext}`;
+            }
+        }
+
+        return basename;
+    }
+
     private getMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
         const mimeTypes: Record<string, string> = {
@@ -416,11 +490,311 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     }
 }
 
+export class BlobResourceHandler implements InternalResourceHandler {
+    private config?: BlobResourceConfig;
+    private blobStore?: BlobStore;
+
+    getType(): string {
+        return 'blob';
+    }
+
+    async initialize(
+        config: InternalResourceConfig,
+        _services: InternalResourceServices
+    ): Promise<void> {
+        if (config.type !== 'blob') {
+            throw ResourceError.providerError(
+                'Blob',
+                'initialize',
+                'Invalid config type for BlobResourceHandler'
+            );
+        }
+        this.config = config;
+
+        // Initialize blob store with config
+        const storeConfig: BlobStoreConfig = {
+            maxBlobSize: config.maxBlobSize,
+            maxTotalSize: config.maxTotalSize,
+            cleanupAfterDays: config.cleanupAfterDays,
+            storePath: config.storePath,
+        };
+
+        this.blobStore = new BlobStore(storeConfig);
+        await this.blobStore.initialize();
+
+        logger.debug('BlobResourceHandler initialized');
+    }
+
+    async listResources(): Promise<ResourceMetadata[]> {
+        logger.debug('🔍 BlobResourceHandler.listResources() called');
+
+        if (!this.blobStore) {
+            logger.warn('❌ BlobResourceHandler: blobStore is undefined');
+            return [];
+        }
+
+        try {
+            const stats = await this.blobStore.getStats();
+            logger.debug(`📊 BlobStore stats: ${stats.count} blobs, path: ${stats.storePath}`);
+            const resources: ResourceMetadata[] = [];
+
+            // Add individual blob resources by scanning the blob store directory
+            const fs = await import('fs').then((m) => m.promises);
+            const path = await import('path');
+
+            try {
+                const files = await fs.readdir(stats.storePath);
+                logger.debug(
+                    `📁 Found ${files.length} files in blob directory: ${files.join(', ')}`
+                );
+                const metaFiles = files.filter((f) => f.endsWith('.meta.json'));
+                logger.debug(
+                    `📄 Found ${metaFiles.length} .meta.json files: ${metaFiles.join(', ')}`
+                );
+
+                for (const metaFile of metaFiles) {
+                    try {
+                        const metaPath = path.join(stats.storePath, metaFile);
+                        const metaContent = await fs.readFile(metaPath, 'utf-8');
+                        const metadata = JSON.parse(metaContent);
+                        const blobId = metaFile.replace('.meta.json', '');
+
+                        // Generate a user-friendly name with proper extension
+                        const displayName = this.generateBlobDisplayName(metadata, blobId);
+                        const friendlyType = this.getFriendlyType(metadata.mimeType);
+
+                        resources.push({
+                            uri: `blob:${blobId}`,
+                            name: displayName,
+                            description: `${friendlyType} (${this.formatSize(metadata.size)})${metadata.source ? ` • ${metadata.source}` : ''}`,
+                            source: 'custom',
+                            size: metadata.size,
+                            mimeType: metadata.mimeType,
+                            lastModified: new Date(metadata.createdAt),
+                            metadata: {
+                                type: 'blob',
+                                source: metadata.source,
+                                hash: metadata.hash,
+                                createdAt: metadata.createdAt,
+                                originalName: metadata.originalName,
+                            },
+                        });
+                    } catch (error) {
+                        logger.warn(
+                            `Failed to process blob metadata ${metaFile}: ${String(error)}`
+                        );
+                    }
+                }
+            } catch (error) {
+                logger.warn(`Failed to scan blob directory: ${String(error)}`);
+            }
+
+            // Add summary resource if we have blobs
+            if (resources.length > 0) {
+                resources.unshift({
+                    uri: 'blob:store',
+                    name: 'Blob Store',
+                    description: `Blob storage with ${stats.count} blobs (${Math.round(stats.totalSize / 1024)}KB)`,
+                    source: 'custom',
+                    size: stats.totalSize,
+                    metadata: {
+                        type: 'blob-store',
+                        count: stats.count,
+                        storePath: stats.storePath,
+                    },
+                });
+            }
+
+            logger.debug(`✅ BlobResourceHandler returning ${resources.length} resources`);
+            return resources;
+        } catch (error) {
+            logger.warn(`Failed to list blob resources: ${String(error)}`);
+            return [];
+        }
+    }
+
+    canHandle(uri: string): boolean {
+        return uri.startsWith('blob:');
+    }
+
+    async readResource(uri: string): Promise<ReadResourceResult> {
+        if (!this.canHandle(uri)) {
+            throw ResourceError.noSuitableProvider(uri);
+        }
+
+        if (!this.blobStore) {
+            throw ResourceError.providerNotInitialized('Blob', uri);
+        }
+
+        try {
+            // Extract blob ID from URI (remove 'blob:' prefix)
+            const blobId = uri.substring(5);
+
+            // Special case: blob store info
+            if (blobId === 'store') {
+                const stats = await this.blobStore.getStats();
+                return {
+                    contents: [
+                        {
+                            uri,
+                            mimeType: 'application/json',
+                            text: JSON.stringify(stats, null, 2),
+                        },
+                    ],
+                };
+            }
+
+            // Retrieve actual blob data
+            const result = await this.blobStore.retrieve(uri, 'base64');
+
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: result.metadata.mimeType,
+                        blob: result.data as string, // base64 data from retrieve call
+                    },
+                ],
+                _meta: {
+                    size: result.metadata.size,
+                    createdAt: result.metadata.createdAt,
+                    originalName: result.metadata.originalName,
+                    source: result.metadata.source,
+                },
+            };
+        } catch (error) {
+            if (error instanceof ResourceError) {
+                throw error;
+            }
+            throw ResourceError.readFailed(uri, error);
+        }
+    }
+
+    async refresh(): Promise<void> {
+        // Blob store doesn't need refresh as it's not file-system based scanning
+        // But we can perform cleanup of old blobs if needed
+        if (this.blobStore && this.config?.cleanupAfterDays) {
+            try {
+                await this.blobStore.cleanup();
+                logger.debug('Blob store cleanup completed');
+            } catch (error) {
+                logger.warn(`Blob store cleanup failed: ${String(error)}`);
+            }
+        }
+    }
+
+    getBlobStore(): BlobStore | undefined {
+        return this.blobStore;
+    }
+
+    /**
+     * Generate a user-friendly display name for a blob with proper file extension
+     */
+    private generateBlobDisplayName(metadata: any, blobId: string): string {
+        // If we have an original name with extension, use it
+        if (metadata.originalName && metadata.originalName.includes('.')) {
+            return metadata.originalName;
+        }
+
+        // Generate a name based on MIME type and content
+        let baseName =
+            metadata.originalName || this.generateNameFromType(metadata.mimeType, metadata.source);
+        const extension = this.getExtensionFromMimeType(metadata.mimeType);
+
+        // Add extension if not present
+        if (extension && !baseName.toLowerCase().endsWith(extension)) {
+            baseName += extension;
+        }
+
+        return baseName;
+    }
+
+    /**
+     * Generate a descriptive base name from MIME type and source
+     */
+    private generateNameFromType(mimeType: string, source?: string): string {
+        if (mimeType.startsWith('image/')) {
+            if (source === 'user') return 'uploaded-image';
+            if (source === 'tool') return 'generated-image';
+            return 'image';
+        }
+        if (mimeType.startsWith('text/')) {
+            if (source === 'tool') return 'tool-output';
+            return 'text-file';
+        }
+        if (mimeType.startsWith('application/pdf')) {
+            return 'document';
+        }
+        if (mimeType.startsWith('audio/')) {
+            return 'audio-file';
+        }
+        if (mimeType.startsWith('video/')) {
+            return 'video-file';
+        }
+
+        // Default based on source
+        if (source === 'user') return 'user-upload';
+        if (source === 'tool') return 'tool-result';
+        return 'file';
+    }
+
+    /**
+     * Get file extension from MIME type
+     */
+    private getExtensionFromMimeType(mimeType: string): string {
+        const mimeToExt: Record<string, string> = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'image/svg+xml': '.svg',
+            'text/plain': '.txt',
+            'text/markdown': '.md',
+            'text/html': '.html',
+            'text/css': '.css',
+            'application/json': '.json',
+            'application/pdf': '.pdf',
+            'application/xml': '.xml',
+            'audio/mpeg': '.mp3',
+            'audio/wav': '.wav',
+            'video/mp4': '.mp4',
+            'video/webm': '.webm',
+        };
+
+        return mimeToExt[mimeType] || '';
+    }
+
+    /**
+     * Convert MIME type to user-friendly type description
+     */
+    private getFriendlyType(mimeType: string): string {
+        if (mimeType.startsWith('image/')) return 'Image';
+        if (mimeType.startsWith('text/')) return 'Text File';
+        if (mimeType.startsWith('audio/')) return 'Audio File';
+        if (mimeType.startsWith('video/')) return 'Video File';
+        if (mimeType === 'application/pdf') return 'PDF Document';
+        if (mimeType === 'application/json') return 'JSON Data';
+        return 'File';
+    }
+
+    /**
+     * Format file size in human-readable format
+     */
+    private formatSize(bytes: number): string {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+}
+
 export function createInternalResourceHandler(type: string): InternalResourceHandler {
     if (type === 'filesystem') return new FileSystemResourceHandler();
+    if (type === 'blob') return new BlobResourceHandler();
     throw new Error(`Unsupported internal resource handler type: ${type}`);
 }
 
 export function getInternalResourceHandlerTypes(): string[] {
-    return ['filesystem'];
+    return ['filesystem', 'blob'];
 }

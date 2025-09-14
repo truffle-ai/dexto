@@ -71,10 +71,42 @@ const FileSystemResourceSchema = z
     .strict();
 
 /**
+ * Schema for blob storage resource configuration
+ */
+const BlobResourceSchema = z
+    .object({
+        type: z.literal('blob'),
+        maxBlobSize: z
+            .number()
+            .min(1024)
+            .max(100 * 1024 * 1024)
+            .default(50 * 1024 * 1024)
+            .describe('Maximum size per blob in bytes (default: 50MB)'),
+        maxTotalSize: z
+            .number()
+            .min(1024 * 1024)
+            .max(10 * 1024 * 1024 * 1024)
+            .default(1024 * 1024 * 1024)
+            .describe('Maximum total storage size in bytes (default: 1GB)'),
+        cleanupAfterDays: z
+            .number()
+            .min(1)
+            .max(365)
+            .default(30)
+            .describe('Automatically cleanup blobs older than N days (default: 30)'),
+        storePath: z
+            .string()
+            .optional()
+            .describe('Custom storage path (defaults to context-aware ~/.dexto/blobs)'),
+    })
+    .strict();
+
+/**
  * Union schema for all internal resource types
  */
 export const InternalResourceConfigSchema = z.discriminatedUnion('type', [
     FileSystemResourceSchema,
+    BlobResourceSchema,
 ]);
 
 /**

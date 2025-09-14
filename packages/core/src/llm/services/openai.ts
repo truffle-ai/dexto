@@ -35,7 +35,8 @@ export class OpenAIService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager?: import('../../resources/index.js').ResourceManager
     ) {
         this.config = config;
         this.openai = openai;
@@ -55,7 +56,9 @@ export class OpenAIService implements ILLMService {
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            undefined, // Use default compression strategies
+            resourceManager
         );
     }
 

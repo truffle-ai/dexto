@@ -33,7 +33,8 @@ export class AnthropicService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager?: import('../../resources/index.js').ResourceManager
     ) {
         this.config = config;
         this.anthropic = anthropic;
@@ -46,6 +47,8 @@ export class AnthropicService implements ILLMService {
         const tokenizer = createTokenizer(config.provider, config.model);
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
+        // Use the provided ResourceManager
+
         this.contextManager = new ContextManager<MessageParam>(
             config,
             formatter,
@@ -53,7 +56,9 @@ export class AnthropicService implements ILLMService {
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            undefined, // Use default compression strategies
+            resourceManager
         );
     }
 

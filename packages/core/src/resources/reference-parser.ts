@@ -14,6 +14,7 @@ export interface ResourceExpansionResult {
     expandedMessage: string;
     expandedReferences: ResourceReference[];
     unresolvedReferences: ResourceReference[];
+    extractedImages: Array<{ image: string; mimeType: string; name: string }>;
 }
 
 export function parseResourceReferences(message: string): ResourceReference[] {
@@ -103,7 +104,12 @@ export async function expandResourceReferences(
     message: string,
     _resourceReader: (uri: string) => Promise<ReadResourceResult>
 ): Promise<ResourceExpansionResult> {
-    return { expandedMessage: message, expandedReferences: [], unresolvedReferences: [] };
+    return {
+        expandedMessage: message,
+        expandedReferences: [],
+        unresolvedReferences: [],
+        extractedImages: [],
+    };
 }
 
 export function formatResourceContent(
@@ -133,7 +139,12 @@ export async function expandMessageReferences(
     logger.debug(`Expanding resource references in message: ${message.substring(0, 100)}...`);
     const parsedRefs = parseResourceReferences(message);
     if (parsedRefs.length === 0) {
-        return { expandedMessage: message, expandedReferences: [], unresolvedReferences: [] };
+        return {
+            expandedMessage: message,
+            expandedReferences: [],
+            unresolvedReferences: [],
+            extractedImages: [],
+        };
     }
 
     logger.debug(
@@ -151,19 +162,50 @@ export async function expandMessageReferences(
 
     let expandedMessage = message;
     const failedRefs: ResourceReference[] = [];
+    const extractedImages: Array<{ image: string; mimeType: string; name: string }> = [];
+
     for (const ref of expandedReferences) {
         try {
             const content = await resourceReader(ref.resourceUri!);
             const resource = availableResources[ref.resourceUri!];
-            const formattedContent = formatResourceContent(
-                ref.resourceUri!,
-                resource?.name || ref.identifier,
-                content
-            );
-            expandedMessage = expandedMessage.replace(ref.originalRef, formattedContent);
-            logger.debug(
-                `Expanded reference ${ref.originalRef} with ${content.contents.length} content items`
-            );
+
+            // Check if this is an image resource
+            let isImageResource = false;
+            for (const item of content.contents) {
+                if (
+                    item.blob &&
+                    item.mimeType &&
+                    item.mimeType.startsWith('image/') &&
+                    typeof item.blob === 'string'
+                ) {
+                    extractedImages.push({
+                        image: item.blob,
+                        mimeType: item.mimeType,
+                        name: resource?.name || ref.identifier,
+                    });
+                    isImageResource = true;
+                    break;
+                }
+            }
+
+            if (isImageResource) {
+                // Remove the reference from the message for images
+                expandedMessage = expandedMessage.replace(ref.originalRef, '').trim();
+                logger.debug(
+                    `Extracted image reference ${ref.originalRef} for separate processing`
+                );
+            } else {
+                // For non-image resources, expand them inline as before
+                const formattedContent = formatResourceContent(
+                    ref.resourceUri!,
+                    resource?.name || ref.identifier,
+                    content
+                );
+                expandedMessage = expandedMessage.replace(ref.originalRef, formattedContent);
+                logger.debug(
+                    `Expanded reference ${ref.originalRef} with ${content.contents.length} content items`
+                );
+            }
         } catch (error) {
             logger.error(
                 `Failed to read resource ${ref.resourceUri}: ${error instanceof Error ? error.message : String(error)}`
@@ -176,8 +218,13 @@ export async function expandMessageReferences(
     const finalExpandedReferences = expandedReferences.filter((ref) => !failedRefSet.has(ref));
     unresolvedReferences.push(...failedRefs);
     logger.info(
-        `Expanded ${finalExpandedReferences.length} resource references, ${unresolvedReferences.length} unresolved`
+        `Expanded ${finalExpandedReferences.length} resource references, ${unresolvedReferences.length} unresolved, ${extractedImages.length} images extracted`
     );
 
-    return { expandedMessage, expandedReferences: finalExpandedReferences, unresolvedReferences };
+    return {
+        expandedMessage,
+        expandedReferences: finalExpandedReferences,
+        unresolvedReferences,
+        extractedImages,
+    };
 }

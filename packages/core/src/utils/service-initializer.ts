@@ -139,7 +139,13 @@ export async function createAgentServices(
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
-    // 8. Initialize session manager
+    // 8. Initialize resource manager (MCP + internal resources)
+    const resourceManager = new ResourceManager(mcpManager, {
+        internalResourcesConfig: config.internalResources,
+    });
+    await resourceManager.initialize();
+
+    // 9. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,
@@ -147,6 +153,7 @@ export async function createAgentServices(
             toolManager,
             agentEventBus,
             storage, // Add storage backends to session services
+            resourceManager, // Add resource manager for blob storage
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -158,12 +165,6 @@ export async function createAgentServices(
     await sessionManager.init();
 
     logger.debug('Session manager initialized with storage support');
-
-    // 9. Initialize resource manager (MCP + internal resources)
-    const resourceManager = new ResourceManager(mcpManager, {
-        internalResourcesConfig: config.internalResources,
-    });
-    await resourceManager.initialize();
 
     // 10. Return the core services
     return {

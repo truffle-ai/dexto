@@ -57,6 +57,7 @@ export class SessionManager {
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
+            resourceManager: import('../resources/index.js').ResourceManager;
         },
         config: SessionManagerConfig = {}
     ) {
