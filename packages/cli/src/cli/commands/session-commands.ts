@@ -13,6 +13,13 @@ import {
 } from './interactive-commands/session/helpers/formatters.js';
 
 /**
+ * Escape special regex characters in a string to prevent ReDoS attacks
+ */
+function escapeRegExp(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Helper to get current session info
  */
 async function getCurrentSessionInfo(
@@ -55,7 +62,11 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
         const current = await getCurrentSessionInfo(agent);
 
         if (sessionIds.length === 0) {
-            console.log(chalk.dim('  No sessions found. Use `dexto session new` to create one.\n'));
+            console.log(
+                chalk.dim(
+                    '  No sessions found. Run `dexto` to start a new session, or use `dexto -c`/`dexto -r <id>`.\n'
+                )
+            );
             return;
         }
 
@@ -67,7 +78,9 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
                     return { id, metadata };
                 } catch (e) {
                     logger.error(
-                        `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`
+                        `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`,
+                        null,
+                        'red'
                     );
                     return { id, metadata: undefined as SessionMetadata | undefined };
                 }
@@ -86,7 +99,9 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
         console.log(chalk.dim('  💡 Use `dexto -r <id>` to resume a session\n'));
     } catch (error) {
         logger.error(
-            `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`,
+            null,
+            'red'
         );
         throw error;
     }
@@ -109,7 +124,9 @@ export async function handleSessionHistoryCommand(
             console.log(chalk.dim('   Use `dexto session list` to see available sessions'));
         } else {
             logger.error(
-                `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
+                `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
+                null,
+                'red'
             );
         }
         throw error;
@@ -137,7 +154,9 @@ export async function handleSessionDeleteCommand(
         console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
     } catch (error) {
         logger.error(
-            `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
+            null,
+            'red'
         );
         throw error;
     }
@@ -168,6 +187,15 @@ export async function handleSessionSearchCommand(
             searchOptions.sessionId = options.sessionId;
         }
         if (options.role) {
+            const allowed = new Set(['user', 'assistant', 'system', 'tool']);
+            if (!allowed.has(options.role)) {
+                console.log(
+                    chalk.red(
+                        `❌ Invalid role: ${options.role}. Use one of: user, assistant, system, tool`
+                    )
+                );
+                return;
+            }
             searchOptions.role = options.role;
         }
 
@@ -196,6 +224,11 @@ export async function handleSessionSearchCommand(
         }
         console.log();
 
+        // Precompile safe regex for highlighting (only if query is not empty)
+        const highlightRegex = query.trim()
+            ? new RegExp(`(${escapeRegExp(query.trim())})`, 'gi')
+            : null;
+
         // Display results
         results.results.forEach((result, index) => {
             const roleColor =
@@ -208,9 +241,13 @@ export async function handleSessionSearchCommand(
             console.log(
                 `${chalk.dim(`${index + 1}.`)} ${chalk.cyan(result.sessionId)} ${roleColor(`[${result.message.role}]`)}`
             );
-            console.log(
-                `   ${result.context.replace(new RegExp(`(${query})`, 'gi'), chalk.inverse('$1'))}`
-            );
+
+            // Safe highlighting - only if we have a valid regex
+            const highlightedContext = highlightRegex
+                ? result.context.replace(highlightRegex, chalk.inverse('$1'))
+                : result.context;
+
+            console.log(`   ${highlightedContext}`);
             console.log();
         });
 
@@ -218,7 +255,11 @@ export async function handleSessionSearchCommand(
             console.log(chalk.dim('💡 Use --limit to see more results'));
         }
     } catch (error) {
-        logger.error(`Search failed: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(
+            `Search failed: ${error instanceof Error ? error.message : String(error)}`,
+            null,
+            'red'
+        );
         throw error;
     }
 }

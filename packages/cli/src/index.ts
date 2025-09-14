@@ -250,6 +250,21 @@ program
         }
     });
 
+// Helper to bootstrap a minimal agent for non-interactive session/search ops
+async function bootstrapAgentFromGlobalOpts() {
+    const globalOpts = program.opts();
+    const resolvedPath = await resolveAgentPath(
+        globalOpts.agent,
+        globalOpts.autoInstall !== false,
+        true
+    );
+    const rawConfig = await loadAgentConfig(resolvedPath);
+    const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+    const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+    await agent.start();
+    return agent;
+}
+
 // 9) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
@@ -258,22 +273,7 @@ sessionCommand
     .description('List all sessions')
     .action(async () => {
         try {
-            // Create a minimal agent instance for session operations
-            const { DextoAgent } = await import('@dexto/core');
-            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
-            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
-
-            const globalOpts = program.opts();
-            const resolvedPath = await resolveAgentPath(
-                globalOpts.agent,
-                globalOpts.autoInstall !== false,
-                true
-            );
-            const rawConfig = await loadAgentConfig(resolvedPath);
-            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-
-            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
-            await agent.start();
+            const agent = await bootstrapAgentFromGlobalOpts();
 
             await handleSessionListCommand(agent);
             process.exit(0);
@@ -289,22 +289,7 @@ sessionCommand
     .argument('[sessionId]', 'Session ID (defaults to current session)')
     .action(async (sessionId: string) => {
         try {
-            // Create a minimal agent instance for session operations
-            const { DextoAgent } = await import('@dexto/core');
-            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
-            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
-
-            const globalOpts = program.opts();
-            const resolvedPath = await resolveAgentPath(
-                globalOpts.agent,
-                globalOpts.autoInstall !== false,
-                true
-            );
-            const rawConfig = await loadAgentConfig(resolvedPath);
-            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-
-            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
-            await agent.start();
+            const agent = await bootstrapAgentFromGlobalOpts();
 
             await handleSessionHistoryCommand(agent, sessionId);
             process.exit(0);
@@ -320,22 +305,7 @@ sessionCommand
     .argument('<sessionId>', 'Session ID to delete')
     .action(async (sessionId: string) => {
         try {
-            // Create a minimal agent instance for session operations
-            const { DextoAgent } = await import('@dexto/core');
-            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
-            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
-
-            const globalOpts = program.opts();
-            const resolvedPath = await resolveAgentPath(
-                globalOpts.agent,
-                globalOpts.autoInstall !== false,
-                true
-            );
-            const rawConfig = await loadAgentConfig(resolvedPath);
-            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-
-            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
-            await agent.start();
+            const agent = await bootstrapAgentFromGlobalOpts();
 
             await handleSessionDeleteCommand(agent, sessionId);
             process.exit(0);
@@ -355,22 +325,7 @@ program
     .option('--limit <number>', 'Limit number of results', '10')
     .action(async (query: string, options: { session?: string; role?: string; limit?: string }) => {
         try {
-            // Create a minimal agent instance for session operations
-            const { DextoAgent } = await import('@dexto/core');
-            const { resolveAgentPath, loadAgentConfig } = await import('@dexto/core');
-            const { applyCLIOverrides } = await import('./config/cli-overrides.js');
-
-            const globalOpts = program.opts();
-            const resolvedPath = await resolveAgentPath(
-                globalOpts.agent,
-                globalOpts.autoInstall !== false,
-                true
-            );
-            const rawConfig = await loadAgentConfig(resolvedPath);
-            const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-
-            const agent = new DextoAgent(mergedConfig, globalOpts.agent);
-            await agent.start();
+            const agent = await bootstrapAgentFromGlobalOpts();
 
             const searchOptions: {
                 sessionId?: string;
@@ -382,10 +337,24 @@ program
                 searchOptions.sessionId = options.session;
             }
             if (options.role) {
+                const allowed = new Set(['user', 'assistant', 'system', 'tool']);
+                if (!allowed.has(options.role)) {
+                    console.error(
+                        `❌ Invalid role: ${options.role}. Use one of: user, assistant, system, tool`
+                    );
+                    process.exit(1);
+                }
                 searchOptions.role = options.role as 'user' | 'assistant' | 'system' | 'tool';
             }
             if (options.limit) {
-                searchOptions.limit = parseInt(options.limit);
+                const parsed = parseInt(options.limit, 10);
+                if (Number.isNaN(parsed) || parsed <= 0) {
+                    console.error(
+                        `❌ Invalid --limit: ${options.limit}. Use a positive integer (e.g., 10).`
+                    );
+                    process.exit(1);
+                }
+                searchOptions.limit = parsed;
             }
 
             await handleSessionSearchCommand(agent, query, searchOptions);
@@ -502,7 +471,7 @@ program
             '  dexto --mode discord     Run as Discord bot\n' +
             '  dexto --mode telegram    Run as Telegram bot\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
-            'Session Commands: dexto session list|history|delete\n' +
+            'Session Commands: dexto session list|history|delete • search\n' +
             'Search: dexto search <query> [--session <id>] [--role <role>]\n\n' +
             'See https://github.com/truffle-ai/dexto for more examples and documentation'
     )
@@ -663,6 +632,13 @@ program
                 try {
                     // Continue from most recent session
                     await loadMostRecentSession(agent);
+                    // If no sessions existed, create a new one to honor default-new invariant
+                    const sessionsAfter = await agent.listSessions();
+                    if (sessionsAfter.length === 0) {
+                        const session = await agent.createSession();
+                        await agent.loadSessionAsDefault(session.id);
+                        logger.info(`Created new session: ${session.id}`, null, 'green');
+                    }
                 } catch (err) {
                     console.error(
                         `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
