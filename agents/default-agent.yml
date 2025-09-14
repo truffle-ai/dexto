@@ -13,7 +13,6 @@ mcpServers:
     args:
       - -y
       - "@playwright/mcp@latest"
-
   # hf:
   #   type: stdio
   #   command: npx
@@ -55,6 +54,25 @@ storage:
   database:
     type: sqlite
     # path: ./data/dexto.db
+
+toolConfirmation:
+  mode: auto-approve
+
+# Internal resources configuration - manages file system access and blob storage
+internalResources:
+  enabled: true
+  resources:
+    # - type: filesystem
+    #   paths: ["."]
+    #   maxFiles: 1000
+    #   maxDepth: 10
+    #   includeHidden: false
+    #   includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
+    - type: blob
+      maxBlobSize: 52428800    # 50MB per blob
+      maxTotalSize: 1073741824 # 1GB total storage
+      cleanupAfterDays: 30     # Auto-cleanup blobs older than 30 days
+      # storePath: ~/.dexto/blobs (defaults to context-aware path)
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
