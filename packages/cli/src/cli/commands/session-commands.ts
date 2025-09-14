@@ -7,10 +7,7 @@
 
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
-import {
-    formatSessionInfo,
-    formatHistoryMessage,
-} from './interactive-commands/session/helpers/formatters.js';
+import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
 
 /**
  * Escape special regex characters in a string to prevent ReDoS attacks
@@ -226,7 +223,7 @@ export async function handleSessionSearchCommand(
 
         // Precompile safe regex for highlighting (only if query is not empty)
         const highlightRegex = query.trim()
-            ? new RegExp(`(${escapeRegExp(query.trim())})`, 'gi')
+            ? new RegExp(`(${escapeRegExp(query.trim().slice(0, 256))})`, 'gi')
             : null;
 
         // Display results

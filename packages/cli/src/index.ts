@@ -262,6 +262,19 @@ async function bootstrapAgentFromGlobalOpts() {
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
     const agent = new DextoAgent(mergedConfig, globalOpts.agent);
     await agent.start();
+
+    // Register graceful shutdown
+    const shutdown = async () => {
+        try {
+            await agent.stop();
+        } catch (err) {
+            // Ignore shutdown errors
+        }
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
     return agent;
 }
 
@@ -276,6 +289,7 @@ sessionCommand
             const agent = await bootstrapAgentFromGlobalOpts();
 
             await handleSessionListCommand(agent);
+            await agent.stop();
             process.exit(0);
         } catch (err) {
             console.error(`❌ dexto session list command failed: ${err}`);
@@ -292,6 +306,7 @@ sessionCommand
             const agent = await bootstrapAgentFromGlobalOpts();
 
             await handleSessionHistoryCommand(agent, sessionId);
+            await agent.stop();
             process.exit(0);
         } catch (err) {
             console.error(`❌ dexto session history command failed: ${err}`);
@@ -308,6 +323,7 @@ sessionCommand
             const agent = await bootstrapAgentFromGlobalOpts();
 
             await handleSessionDeleteCommand(agent, sessionId);
+            await agent.stop();
             process.exit(0);
         } catch (err) {
             console.error(`❌ dexto session delete command failed: ${err}`);
@@ -358,6 +374,7 @@ program
             }
 
             await handleSessionSearchCommand(agent, query, searchOptions);
+            await agent.stop();
             process.exit(0);
         } catch (err) {
             console.error(`❌ dexto search command failed: ${err}`);

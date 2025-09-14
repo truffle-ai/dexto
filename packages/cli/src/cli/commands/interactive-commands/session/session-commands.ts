@@ -21,7 +21,7 @@
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
-import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
+import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 
 /**
  * Helper to get current session info
@@ -98,7 +98,9 @@ export const sessionCommand: CommandDefinition = {
                                 return { id, metadata };
                             } catch (e) {
                                 logger.error(
-                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`
+                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`,
+                                    null,
+                                    'red'
                                 );
                                 return { id, metadata: undefined as SessionMetadata | undefined };
                             }
@@ -143,7 +145,9 @@ export const sessionCommand: CommandDefinition = {
                         console.log(chalk.dim('   Use /session list to see available sessions'));
                     } else {
                         logger.error(
-                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
+                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
+                            null,
+                            'red'
                         );
                     }
                 }
@@ -180,7 +184,9 @@ export const sessionCommand: CommandDefinition = {
                     console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
                 } catch (error) {
                     logger.error(
-                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
+                        null,
+                        'red'
                     );
                 }
                 return true;
@@ -239,9 +245,7 @@ export const sessionCommand: CommandDefinition = {
         }
 
         console.log(chalk.red(`❌ Unknown session subcommand: ${subcommand}`));
-        console.log(
-            chalk.dim('Available subcommands: list, new, switch, current, history, delete, help')
-        );
+        console.log(chalk.dim('Available subcommands: list, history, delete, help'));
         console.log(chalk.dim('💡 Use /session help for detailed command descriptions'));
         return true;
     },
