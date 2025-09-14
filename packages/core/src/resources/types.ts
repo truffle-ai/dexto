@@ -27,8 +27,8 @@ export interface ResourceMetadata {
     serverName?: string;
     /** Size of the resource in bytes (if known) */
     size?: number;
-    /** Last modified timestamp (if available) */
-    lastModified?: Date;
+    /** Last modified timestamp (ISO string or Date) */
+    lastModified?: string | Date;
     /** Additional metadata specific to the resource type */
     metadata?: Record<string, unknown>;
 }

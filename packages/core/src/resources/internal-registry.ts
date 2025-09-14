@@ -245,7 +245,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             }
 
             try {
-                await this.scanPath(configPath, 0);
+                const root = await fs.realpath(path.resolve(configPath));
+                await this.scanPath(root, 0, root);
             } catch (error) {
                 logger.warn(
                     `Failed to scan path '${configPath}': ${error instanceof Error ? error.message : String(error)}`
@@ -258,8 +259,20 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         );
     }
 
-    private async scanPath(targetPath: string, currentDepth: number): Promise<void> {
+    private async scanPath(
+        targetPath: string,
+        currentDepth: number,
+        rootBase?: string
+    ): Promise<void> {
         const resolvedPath = path.resolve(targetPath);
+        let canonical: string;
+        try {
+            canonical = await fs.realpath(resolvedPath);
+        } catch {
+            return;
+        }
+        if (!this.isPathAllowed(canonical)) return;
+
         const maxDepth = this.config?.maxDepth ?? FileSystemResourceHandler.DEFAULT_MAX_DEPTH;
         const maxFiles = this.config?.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
         const includeHidden = this.config?.includeHidden ?? false;
@@ -268,21 +281,26 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 
         if (this.fileCount >= maxFiles) return;
         if (currentDepth > maxDepth) {
-            logger.debug(`Skipping path due to depth limit (${maxDepth}): ${resolvedPath}`);
+            logger.debug(`Skipping path due to depth limit (${maxDepth}): ${canonical}`);
             return;
         }
-        if (this.visitedPaths.has(resolvedPath)) return;
-        this.visitedPaths.add(resolvedPath);
+        if (this.visitedPaths.has(canonical)) return;
+        this.visitedPaths.add(canonical);
 
         try {
-            const stat = await fs.stat(resolvedPath);
+            const stat = await fs.stat(canonical);
             if (stat.isFile()) {
-                if (!this.shouldIncludeFile(resolvedPath, includeExtensions, includeHidden)) return;
+                if (!this.shouldIncludeFile(canonical, includeExtensions, includeHidden)) return;
 
-                const uri = `fs://${path.relative(process.cwd(), resolvedPath)}`;
+                const base =
+                    rootBase ??
+                    this.canonicalRoots.find((r) => canonical.startsWith(r)) ??
+                    process.cwd();
+                const rel = path.relative(base, canonical).replace(/\\/g, '/');
+                const uri = `fs://${rel}`;
                 this.resourcesCache.set(uri, {
                     uri,
-                    name: path.basename(resolvedPath),
+                    name: path.basename(canonical),
                     description: 'Filesystem resource',
                     source: 'custom',
                     size: stat.size,
@@ -293,15 +311,19 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             }
 
             if (stat.isDirectory()) {
-                const entries = await fs.readdir(resolvedPath);
+                const entries = await fs.readdir(canonical);
                 for (const entry of entries) {
-                    const entryPath = path.join(resolvedPath, entry);
-                    await this.scanPath(entryPath, currentDepth + 1);
+                    const entryPath = path.join(canonical, entry);
+                    await this.scanPath(
+                        entryPath,
+                        currentDepth + 1,
+                        rootBase ?? this.canonicalRoots.find((r) => canonical.startsWith(r))
+                    );
                 }
             }
         } catch (error) {
             logger.debug(
-                `Skipping inaccessible path: ${resolvedPath} - ${error instanceof Error ? error.message : String(error)}`
+                `Skipping inaccessible path: ${canonical} - ${error instanceof Error ? error.message : String(error)}`
             );
         }
     }

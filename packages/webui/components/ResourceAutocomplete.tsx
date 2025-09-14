@@ -1,14 +1,7 @@
 "use client";
 
 import React from 'react';
-
-export type ResourceMetadata = {
-  uri: string;
-  name?: string;
-  description?: string;
-  source: 'mcp' | 'plugin' | 'custom';
-  serverName?: string;
-};
+import type { ResourceMetadata } from './types/resources.js';
 
 interface ResourceAutocompleteProps {
   resources: ResourceMetadata[];

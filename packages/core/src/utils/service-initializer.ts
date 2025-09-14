@@ -161,7 +161,7 @@ export async function createAgentServices(
 
     // 9. Initialize resource manager (MCP + internal resources)
     const resourceManager = new ResourceManager(mcpManager, {
-        internalResourcesConfig: config.internalResources as any,
+        internalResourcesConfig: config.internalResources,
     });
     await resourceManager.initialize();
 

@@ -1059,7 +1059,7 @@ export class DextoAgent {
         this.ensureStarted();
         const internalProvider = this.resourceManager.getInternalResourcesProvider();
         if (!internalProvider) {
-            throw new Error('Internal resources are not enabled');
+            throw ResourceError.providerNotAvailable('Internal');
         }
         await internalProvider.removeResourceHandler(type);
         await this.resourceManager.refresh();

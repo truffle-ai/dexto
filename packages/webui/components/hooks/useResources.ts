@@ -1,16 +1,5 @@
 import { useEffect, useState } from 'react';
-
-export type ResourceMetadata = {
-    uri: string;
-    name?: string;
-    description?: string;
-    mimeType?: string;
-    source: 'mcp' | 'plugin' | 'custom';
-    serverName?: string;
-    size?: number;
-    lastModified?: string | Date;
-    metadata?: Record<string, unknown>;
-};
+import type { ResourceMetadata } from '../types/resources.js';
 
 export function useResources() {
     const [resources, setResources] = useState<ResourceMetadata[]>([]);
@@ -24,7 +13,10 @@ export function useResources() {
             setError(null);
             try {
                 const res = await fetch('/api/resources');
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) {
+                    const errorText = await res.text().catch(() => '');
+                    throw new Error(`HTTP ${res.status}${errorText ? `: ${errorText}` : ''}`);
+                }
                 const data = await res.json();
                 if (data.ok && Array.isArray(data.resources)) {
                     if (mounted) setResources(data.resources);
