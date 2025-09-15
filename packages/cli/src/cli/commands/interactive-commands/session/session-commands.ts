@@ -21,7 +21,7 @@
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
-import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
+import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 
 /**
  * Helper to get current session info
@@ -54,7 +54,9 @@ async function displaySessionHistory(sessionId: string, agent: DextoAgent): Prom
 
     console.log(chalk.dim(`\n  Total: ${history.length} messages`));
     console.log(
-        chalk.dim('  💡 Use /clear to reset session or /session switch to change sessions\n')
+        chalk.dim(
+            '  💡 Use /clear to reset session or dexto -r <id> to resume a different session\n'
+        )
     );
 }
 
@@ -81,7 +83,9 @@ export const sessionCommand: CommandDefinition = {
 
                     if (sessionIds.length === 0) {
                         console.log(
-                            chalk.dim('  No sessions found. Use /session new to create one.\n')
+                            chalk.dim(
+                                '  No sessions found. Run `dexto` to start a new session, or use `dexto -c`/`dexto -r <id>`.\n'
+                            )
                         );
                         return true;
                     }
@@ -94,7 +98,9 @@ export const sessionCommand: CommandDefinition = {
                                 return { id, metadata };
                             } catch (e) {
                                 logger.error(
-                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`
+                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`,
+                                    null,
+                                    'red'
                                 );
                                 return { id, metadata: undefined as SessionMetadata | undefined };
                             }
@@ -112,81 +118,10 @@ export const sessionCommand: CommandDefinition = {
                     console.log(
                         chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`)
                     );
-                    console.log(chalk.dim('  💡 Use /session switch <id> to change sessions\n'));
+                    console.log(chalk.dim('  💡 Use `dexto -r <id>` to resume a session\n'));
                 } catch (error) {
                     logger.error(
                         `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-                return true;
-            },
-        },
-        {
-            name: 'new',
-            description: 'Create a new session',
-            usage: '/session new [id]',
-            handler: async (args: string[], agent: DextoAgent) => {
-                try {
-                    const sessionId = args[0]; // Optional custom ID
-                    const session = await agent.createSession(sessionId);
-
-                    console.log(chalk.green(`✅ Created new session: ${chalk.bold(session.id)}`));
-
-                    // Switch to the new session
-                    await agent.loadSessionAsDefault(session.id);
-                    console.log(chalk.yellow(`🔄 Switched to new session`));
-                } catch (error) {
-                    logger.error(
-                        `Failed to create session: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-                return true;
-            },
-        },
-        {
-            name: 'switch',
-            description: 'Switch to a different session',
-            usage: '/session switch <id>',
-            handler: async (args: string[], agent: DextoAgent) => {
-                if (args.length === 0) {
-                    console.log(chalk.red('❌ Session ID required. Usage: /session switch <id>'));
-                    return true;
-                }
-
-                try {
-                    const sessionId = args[0]!; // Safe to assert non-null since we checked args.length
-
-                    await agent.loadSessionAsDefault(sessionId);
-
-                    const metadata = await agent.getSessionMetadata(sessionId);
-                    console.log(chalk.green(`✅ Switched to session: ${chalk.bold(sessionId)}`));
-
-                    if (metadata && metadata.messageCount > 0) {
-                        console.log(chalk.dim(`   ${metadata.messageCount} messages in history`));
-                    } else {
-                        console.log(chalk.dim('   New session - no previous messages'));
-                    }
-                } catch (error) {
-                    logger.error(
-                        `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-                return true;
-            },
-        },
-        {
-            name: 'current',
-            description: 'Show current session',
-            usage: '/session current',
-            handler: async (args: string[], agent: DextoAgent) => {
-                try {
-                    const current = await getCurrentSessionInfo(agent);
-                    console.log(chalk.blue('\n📍 Current Session:\n'));
-                    console.log('  ' + formatSessionInfo(current.id, current.metadata, true));
-                    console.log();
-                } catch (error) {
-                    logger.error(
-                        `Failed to get current session: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
                 return true;
@@ -210,7 +145,9 @@ export const sessionCommand: CommandDefinition = {
                         console.log(chalk.dim('   Use /session list to see available sessions'));
                     } else {
                         logger.error(
-                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
+                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
+                            null,
+                            'red'
                         );
                     }
                 }
@@ -247,7 +184,9 @@ export const sessionCommand: CommandDefinition = {
                     console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
                 } catch (error) {
                     logger.error(
-                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
+                        null,
+                        'red'
                     );
                 }
                 return true;
@@ -265,15 +204,6 @@ export const sessionCommand: CommandDefinition = {
                     `  ${chalk.yellow('/session list')} - List all sessions with their status and activity`
                 );
                 console.log(
-                    `  ${chalk.yellow('/session new')} ${chalk.blue('[name]')} - Create a new session (optional custom name)`
-                );
-                console.log(
-                    `  ${chalk.yellow('/session switch')} ${chalk.blue('<id>')} - Switch to a different session`
-                );
-                console.log(
-                    `  ${chalk.yellow('/session current')} - Show current session info and message count`
-                );
-                console.log(
                     `  ${chalk.yellow('/session history')} - Display session history for current session`
                 );
                 console.log(
@@ -284,8 +214,12 @@ export const sessionCommand: CommandDefinition = {
                 console.log(
                     chalk.dim('\n💡 Sessions allow you to maintain separate chat sessions')
                 );
-                console.log(chalk.dim('💡 Use /session switch <id> to change sessions'));
-                console.log(chalk.dim('💡 Session names can be custom or auto-generated UUIDs\n'));
+                console.log(chalk.dim('💡 Use `dexto -r <id>` to resume a different session'));
+                console.log(
+                    chalk.dim(
+                        '💡 Use `dexto` to start a new session or `dexto -c` to continue most recent\n'
+                    )
+                );
 
                 return true;
             },
@@ -311,9 +245,7 @@ export const sessionCommand: CommandDefinition = {
         }
 
         console.log(chalk.red(`❌ Unknown session subcommand: ${subcommand}`));
-        console.log(
-            chalk.dim('Available subcommands: list, new, switch, current, history, delete, help')
-        );
+        console.log(chalk.dim('Available subcommands: list, history, delete, help'));
         console.log(chalk.dim('💡 Use /session help for detailed command descriptions'));
         return true;
     },

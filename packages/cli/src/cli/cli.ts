@@ -13,7 +13,7 @@ import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } fro
  * Find and load the most recent session based on lastActivity.
  * This provides better UX than always loading the "default" session.
  */
-async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
+export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
     try {
         const sessionIds = await agent.listSessions();
 
@@ -54,7 +54,7 @@ async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
  * @param agent The DextoAgent instance providing access to all required services
  */
 async function _initCli(agent: DextoAgent): Promise<void> {
-    await loadMostRecentSession(agent);
+    // Note: Session loading is now handled by the main CLI logic, not here
     registerGracefulShutdown(agent);
 
     // Gather startup information

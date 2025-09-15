@@ -2,7 +2,7 @@
  * Session Formatting Utilities
  *
  * This module contains formatting functions for session-related CLI output.
- * Extracted from commands.ts as part of CLI refactoring to improve code organization.
+ * Shared between interactive and non-interactive session commands.
  */
 
 import chalk from 'chalk';

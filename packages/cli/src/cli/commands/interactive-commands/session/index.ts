@@ -13,7 +13,7 @@
  */
 
 export { sessionCommand, historyCommand, searchCommand } from './session-commands.js';
-export { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
+export { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 
 // Export all session commands as a convenient array
 import { sessionCommand, historyCommand, searchCommand } from './session-commands.js';
