@@ -44,5 +44,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "config": {
+    "dexto_api_url": "https://openrouter-keys.vercel.app"
   }
 }

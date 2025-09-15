@@ -129,7 +129,18 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     }
 
     // Get model and API key details
-    const model = validated.model || getDefaultModelForProvider(provider);
+    let model = validated.model;
+
+    // Special handling for OpenRouter (openai-compatible)
+    if (provider === 'openai-compatible') {
+        // Use a popular OpenRouter model as default
+        model = model || 'openai/gpt-4o-mini';
+    } else {
+        // For other providers, use the default model
+        const defaultModel = getDefaultModelForProvider(provider);
+        model = model || defaultModel || undefined;
+    }
+
     if (!model) {
         throw new Error(`Provider '${provider}' requires a specific model. Use --model option.`);
     }

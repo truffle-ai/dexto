@@ -15,6 +15,8 @@ interface AuthConfig {
     email?: string | undefined;
     expiresAt?: number | undefined;
     createdAt: number;
+    openRouterApiKey?: string | undefined;
+    openRouterKeyId?: string | undefined;
 }
 
 const AuthConfigSchema = z.object({
@@ -23,12 +25,14 @@ const AuthConfigSchema = z.object({
     email: z.string().email().optional(),
     expiresAt: z.number().optional(),
     createdAt: z.number(),
+    openRouterApiKey: z.string().optional(),
+    openRouterKeyId: z.string().optional(),
 });
 
 /**
  * Store authentication token
  */
-async function storeAuth(config: AuthConfig): Promise<void> {
+export async function storeAuth(config: AuthConfig): Promise<void> {
     const authPath = getDextoGlobalPath(AUTH_CONFIG_FILE);
     const dextoDir = getDextoGlobalPath('');
 
@@ -41,7 +45,7 @@ async function storeAuth(config: AuthConfig): Promise<void> {
 /**
  * Load authentication config
  */
-async function loadAuth(): Promise<AuthConfig | null> {
+export async function loadAuth(): Promise<AuthConfig | null> {
     const authPath = getDextoGlobalPath(AUTH_CONFIG_FILE);
 
     if (!existsSync(authPath)) {
@@ -94,6 +98,14 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getAuthToken(): Promise<string | null> {
     const auth = await loadAuth();
     return auth?.token || null;
+}
+
+/**
+ * Get OpenRouter API key from stored auth config
+ */
+export async function getOpenRouterApiKey(): Promise<string | null> {
+    const auth = await loadAuth();
+    return auth?.openRouterApiKey || null;
 }
 
 /**
@@ -172,7 +184,7 @@ export async function handleLoginCommand(
 /**
  * Browser-based OAuth login (proper OAuth flow)
  */
-async function handleBrowserLogin(): Promise<void> {
+export async function handleBrowserLogin(): Promise<void> {
     const { performOAuthLogin, DEFAULT_OAUTH_CONFIG } = await import('../utils/oauth-flow.js');
 
     try {
@@ -194,6 +206,9 @@ async function handleBrowserLogin(): Promise<void> {
         if (result.user?.email) {
             console.log(chalk.dim(`Welcome back, ${result.user.email}`));
         }
+
+        // Provision OpenRouter API key
+        await provisionOpenRouterKey(result.accessToken, result.user?.email);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -401,5 +416,40 @@ export async function handleWhoamiCommand(): Promise<void> {
 
     if (details.length > 0) {
         console.log(chalk.dim(`(${details.join(', ')})`));
+    }
+}
+
+/**
+ * Provision OpenRouter API key for authenticated user
+ */
+async function provisionOpenRouterKey(authToken: string, _userEmail?: string): Promise<void> {
+    try {
+        const { getDextoApiClient } = await import('../utils/dexto-api-client.js');
+
+        console.log(chalk.cyan('🔑 Provisioning OpenRouter API key...'));
+
+        const apiClient = await getDextoApiClient();
+        const { apiKey, keyId } = await apiClient.provisionOpenRouterKey(authToken);
+
+        // Update auth config with OpenRouter key
+        const auth = await loadAuth();
+        if (auth) {
+            await storeAuth({
+                ...auth,
+                openRouterApiKey: apiKey,
+                openRouterKeyId: keyId,
+            });
+        }
+
+        console.log(chalk.green('✅ OpenRouter API key provisioned successfully!'));
+        console.log(chalk.dim(`   Key ID: ${keyId}`));
+        console.log(chalk.dim('   You can now use all OpenRouter models without manual setup'));
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.log(chalk.yellow(`⚠️  Failed to provision OpenRouter API key: ${errorMessage}`));
+        console.log(chalk.dim('   You can still use Dexto with your own API keys'));
+
+        // Don't throw - this shouldn't block the login process
+        logger.warn(`OpenRouter provisioning failed: ${errorMessage}`);
     }
 }

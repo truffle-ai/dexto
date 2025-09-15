@@ -369,3 +369,8 @@ export const DEFAULT_OAUTH_CONFIG: OAuthConfig = {
     provider: 'google', // Can be 'google', 'github', 'discord', etc.
     scopes: ['openid', 'email', 'profile'],
 };
+
+/**
+ * Dexto API URL for OpenRouter provisioning
+ */
+export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://openrouter-keys.vercel.app';

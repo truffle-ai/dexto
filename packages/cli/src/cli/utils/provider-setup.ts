@@ -9,9 +9,14 @@ import { type LLMProvider } from '@dexto/core';
  */
 export const PROVIDER_OPTIONS = [
     {
+        value: 'openai-compatible',
+        label: '🚀 OpenRouter (Recommended)',
+        hint: 'Access 100+ models with automatic setup - No API keys needed!',
+    },
+    {
         value: 'google',
         label: '🟢 Google Gemini',
-        hint: 'Free tier available - Recommended for beginners',
+        hint: 'Free tier available - Good for beginners',
     },
     {
         value: 'groq',
@@ -53,6 +58,8 @@ export async function selectProvider(): Promise<LLMProvider> {
  */
 export function getProviderDisplayName(provider: LLMProvider): string {
     switch (provider) {
+        case 'openai-compatible':
+            return 'OpenRouter';
         case 'google':
             return 'Google Gemini';
         case 'openai':
@@ -71,6 +78,8 @@ export function getProviderDisplayName(provider: LLMProvider): string {
  */
 export function isValidApiKeyFormat(apiKey: string, provider: LLMProvider): boolean {
     switch (provider) {
+        case 'openai-compatible':
+            return apiKey.startsWith('sk-or-') && apiKey.length > 40;
         case 'google':
             return apiKey.startsWith('AIza') && apiKey.length > 20;
         case 'openai':
@@ -91,6 +100,17 @@ export function getProviderInstructions(
     provider: LLMProvider
 ): { title: string; content: string } | null {
     switch (provider) {
+        case 'openai-compatible':
+            return {
+                title: chalk.cyan('OpenRouter - Automatic Setup'),
+                content:
+                    `🚀 No manual API key setup needed!\n\n` +
+                    `1. Click "Login with OpenRouter" below\n` +
+                    `2. Sign in with Google/GitHub\n` +
+                    `3. API key is automatically provisioned\n` +
+                    `4. Access 100+ models instantly\n\n` +
+                    `${chalk.dim('✨ Free tier included • No manual setup required')}`,
+            };
         case 'google':
             return {
                 title: chalk.green('Google Gemini - Free API Key'),

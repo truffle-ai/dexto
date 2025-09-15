@@ -8,7 +8,7 @@ import type { LLMProvider } from '../llm/types.js';
 // Map the provider to its corresponding API key name (in order of preference)
 export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     openai: ['OPENAI_API_KEY', 'OPENAI_KEY'],
-    'openai-compatible': ['OPENAI_API_KEY', 'OPENAI_KEY'], // Uses same keys as openai
+    'openai-compatible': ['OPENAI_API_KEY', 'OPENAI_KEY', 'OPENROUTER_API_KEY'], // Uses same keys as openai, plus OpenRouter
     anthropic: ['ANTHROPIC_API_KEY', 'ANTHROPIC_KEY', 'CLAUDE_API_KEY'],
     google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
     groq: ['GROQ_API_KEY'],

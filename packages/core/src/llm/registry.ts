@@ -739,6 +739,12 @@ export function getMaxInputTokensForModel(provider: LLMProvider, model: string):
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
+
+    // Special case: providers that accept any model name (e.g., openai-compatible)
+    if (acceptsAnyModel(provider)) {
+        return true;
+    }
+
     return providerInfo.models.some((m) => m.name.toLowerCase() === model.toLowerCase());
 }
 

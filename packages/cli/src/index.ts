@@ -507,6 +507,57 @@ program
         }
     });
 
+// 12) `openrouter-status` SUB-COMMAND
+program
+    .command('openrouter-status')
+    .description('Show OpenRouter API key status')
+    .action(async () => {
+        try {
+            const { handleOpenRouterStatusCommand } = await import(
+                './cli/commands/openrouter-commands.js'
+            );
+            await handleOpenRouterStatusCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto openrouter-status command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 13) `openrouter-regenerate` SUB-COMMAND
+program
+    .command('openrouter-regenerate')
+    .description('Regenerate OpenRouter API key')
+    .action(async () => {
+        try {
+            const { handleOpenRouterRegenerateCommand } = await import(
+                './cli/commands/openrouter-commands.js'
+            );
+            await handleOpenRouterRegenerateCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto openrouter-regenerate command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 14) `openrouter-models` SUB-COMMAND
+program
+    .command('openrouter-models')
+    .description('Show available OpenRouter models')
+    .action(async () => {
+        try {
+            const { handleOpenRouterModelsCommand } = await import(
+                './cli/commands/openrouter-commands.js'
+            );
+            await handleOpenRouterModelsCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto openrouter-models command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
 // 12) `whoami` SUB-COMMAND
 program
     .command('whoami')
@@ -779,6 +830,19 @@ program
                     // Config loading failed completely
                     console.error(`❌ Failed to load configuration: ${err}`);
                     safeExit('main', 1, 'config-load-failed');
+                }
+
+                // ——— SETUP OPENROUTER (if available) ———
+                try {
+                    const { setupOpenRouterIfAvailable } = await import(
+                        './cli/utils/openrouter-setup.js'
+                    );
+                    const openRouterSetup = await setupOpenRouterIfAvailable();
+                    if (openRouterSetup) {
+                        logger.info('OpenRouter API key configured automatically');
+                    }
+                } catch (error) {
+                    logger.debug(`OpenRouter setup skipped: ${error}`);
                 }
 
                 // ——— CREATE AGENT ———
