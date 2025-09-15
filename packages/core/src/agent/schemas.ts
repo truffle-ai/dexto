@@ -12,6 +12,7 @@ import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
 import { z } from 'zod';
+import { InternalResourcesSchema } from '@core/resources/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
@@ -114,6 +115,11 @@ export const AgentConfigSchema = z
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
         ),
+
+        // Internal resources configuration (filesystem, etc.)
+        internalResources: InternalResourcesSchema.describe(
+            'Configuration for internal resources (filesystem, etc.)'
+        ).default([]),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
