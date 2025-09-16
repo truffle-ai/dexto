@@ -27,7 +27,7 @@ The SDK is built around a few core concepts:
 Here's a quick example of how to create a simple agent that uses the OpenAI API:
 
 ```typescript
-import { DextoAgent } from 'dexto';
+import { DextoAgent } from '@dexto/core';
 
 const agent = new DextoAgent({
   llm: {
@@ -77,7 +77,7 @@ npm install dexto
 ### Basic Agent Setup
 
 ```typescript
-import { DextoAgent } from 'dexto';
+import { DextoAgent } from '@dexto/core';
 
 // Create agent with minimal configuration
 const agent = new DextoAgent({
@@ -168,7 +168,7 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 ### Multi-User Chat Application
 
 ```typescript
-import { DextoAgent } from 'dexto';
+import { DextoAgent } from '@dexto/core';
 
 class ChatApplication {
   private agent: DextoAgent;

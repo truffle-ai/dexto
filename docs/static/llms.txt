@@ -6,9 +6,10 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 
 ### Getting Started
 
-- [Build Your First Agent](https://docs.dexto.ai/docs/getting-started/first-agent-tutorial.md): Build Your First Agent
-- [Installation](https://docs.dexto.ai/docs/getting-started/installation.md): Installation
 - [Introduction](https://docs.dexto.ai/docs/getting-started/intro.md): Introduction
+- [Installation](https://docs.dexto.ai/docs/getting-started/installation.md): Installation
+- [Build Your First Agent](https://docs.dexto.ai/docs/getting-started/build-first-agent-tutorial.md): Build Your First Agent
+- [Install Your First Agent](https://docs.dexto.ai/docs/getting-started/install-first-agent-tutorial.md): Install Your First Agent
 
 ### Guides
 

@@ -49,13 +49,12 @@ mcpServers:
       - "@modelcontextprotocol/server-filesystem"
       - .
     connectionMode: strict  # This server must connect successfully
-  puppeteer:
+  playwright:
     type: stdio
-    command: node
+    command: npx
     args:
-      - dist/src/servers/puppeteerServer.js
-    timeout: 30000
-    connectionMode: lenient  # This server is optional
+      - "-y"
+      - "@playwright/mcp@latest"
 ```
 
 ## Remote MCP Server (sse)

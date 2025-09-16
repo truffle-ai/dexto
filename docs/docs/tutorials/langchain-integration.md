@@ -108,10 +108,12 @@ mcpServers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
     
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
-    args: ["-y", "@truffle-ai/puppeteer-server"]
+    args:
+      - "-y"
+      - "@playwright/mcp@latest"
     
   langchain:
     type: stdio

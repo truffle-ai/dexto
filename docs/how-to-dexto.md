@@ -42,10 +42,12 @@ mcpServers:
     type: stdio
     command: npx
     args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
-    args: ['-y', '@truffle-ai/puppeteer-server']
+    args:
+      - "-y"
+      - "@playwright/mcp@latest"
 
 # Configure the Large Language Model
 llm:
@@ -184,7 +186,7 @@ npm install dexto
 **Example SDK Usage:**
 ```ts
 import 'dotenv/config';
-import { DextoAgent, loadAgentConfig } from 'dexto';
+import { DextoAgent, loadAgentConfig } from '@dexto/core';
 
 // Load configuration from default location (auto-discovery)
 const config = await loadAgentConfig();

@@ -24,7 +24,7 @@ npm install dexto
 ## Quick Start
 
 ```typescript
-import { MCPManager } from 'dexto';
+import { MCPManager } from '@dexto/core';
 
 // Create manager instance
 const manager = new MCPManager();
@@ -179,7 +179,7 @@ Create an API that exposes MCP tools:
 
 ```typescript
 import express from 'express';
-import { MCPManager } from 'dexto';
+import { MCPManager } from '@dexto/core';
 
 const app = express();
 app.use(express.json());
