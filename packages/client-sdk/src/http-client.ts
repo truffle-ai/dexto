@@ -1,5 +1,5 @@
 import { ClientConfig } from './types.js';
-import { ClientError, DextoRuntimeError } from './errors.js';
+import { ClientError } from './errors.js';
 
 // Derive fetch types to avoid relying on DOM lib globals in ESLint
 type FetchInput = Parameters<typeof fetch>[0];
@@ -108,7 +108,7 @@ export class HttpClient {
         } catch (error) {
             clearTimeout(timeoutId);
 
-            if (error instanceof DextoRuntimeError) {
+            if (error instanceof Error && error.name.startsWith('ClientError')) {
                 throw error;
             }
 
@@ -124,7 +124,7 @@ export class HttpClient {
     }
 
     private async fetchWithRetry(url: string, init: FetchInit): Promise<FetchResponse> {
-        let lastError: DextoRuntimeError | null = null;
+        let lastError: Error | null = null;
         const method = (init.method || 'GET').toUpperCase();
         const canRetry = ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method);
         const maxRetries = this.config.retries ?? 3;
@@ -163,7 +163,7 @@ export class HttpClient {
                 return response;
             } catch (error) {
                 lastError =
-                    error instanceof DextoRuntimeError
+                    error instanceof Error
                         ? error
                         : ClientError.networkError(
                               error instanceof Error ? error.message : String(error),

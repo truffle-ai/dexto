@@ -1,15 +1,24 @@
 // Client SDK types derived from @dexto/core to eliminate drift.
 // Most types are imported directly from core or derived from schemas.
 // Only wire-format specific types (like LLMConfig) differ from core for API compatibility.
-// Import core types for re-export and extension
+//
+// IMPORTANT: We use 'import type' for all core imports to avoid runtime dependencies.
+// This ensures the client SDK is truly a thin wrapper that works in all environments
+// (Node.js, browser, mobile) without pulling in Node.js-specific code.
+//
+// Why we don't need browser-safe exports for these types:
+// - Type-only imports are completely stripped at runtime (no JavaScript generated)
+// - No runtime dependencies are pulled in
+// - Works universally across all environments
+// - Keeps bundle size minimal
 import type {
-    SessionMetadata,
-    SearchOptions as CoreSearchOptions,
-    SearchResult as CoreSearchResult,
-    LLMProvider,
-    LLMRouter,
-    AgentEventMap,
-    SessionEventMap,
+    SessionMetadata, // Used: extends SessionInfo interface
+    SearchOptions as CoreSearchOptions, // Used: API parameter types
+    SearchResult as CoreSearchResult, // Used: API response types
+    LLMProvider, // Used: enum for type safety in LLM config
+    LLMRouter, // Used: enum for type safety in LLM config
+    AgentEventMap, // Used: WebSocket event types for real-time updates
+    SessionEventMap, // Used: WebSocket event types for real-time updates
 } from '@dexto/core';
 
 // Import schemas for type derivation
@@ -45,6 +54,7 @@ export interface SessionInfo extends SessionMetadata {
 }
 
 // Re-export core LLM types for strong typing
+// These are used by client SDK users for type safety when working with LLM configurations
 export type { ModelInfo, SupportedFileType, ProviderInfo } from '@dexto/core';
 
 // Re-export already imported core enum types

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DextoValidationError } from './errors.js';
+import { ClientError } from './errors.js';
 import { zodToIssues } from '@dexto/core';
 
 // ============= INPUT VALIDATION SCHEMAS =============
@@ -208,7 +208,7 @@ export const ToolSchema = z
 export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown): T {
     const result = schema.safeParse(data);
     if (!result.success) {
-        throw new DextoValidationError(zodToIssues(result.error));
+        throw ClientError.validationFailed(zodToIssues(result.error));
     }
     return result.data;
 }

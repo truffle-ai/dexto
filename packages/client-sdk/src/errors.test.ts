@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ClientError, DextoRuntimeError, DextoValidationError } from '../src/errors.js';
+import { ClientError } from '../src/errors.js';
 import { ErrorScope, ErrorType } from '@dexto/core';
 
 describe('ClientError Factory', () => {
@@ -10,18 +10,11 @@ describe('ClientError Factory', () => {
 
             const error = ClientError.connectionFailed(baseUrl, originalError);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('agent_initialization_failed');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.THIRD_PARTY);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('ConnectionError');
             expect(error.message).toBe(`Failed to connect to Dexto server at ${baseUrl}`);
-            expect(error.context).toEqual({
-                baseUrl,
-                originalError: 'Connection refused',
-            });
-            expect(error.recovery).toBe(
-                'Check that the Dexto server is running and the baseUrl is correct'
-            );
+            expect((error as any).baseUrl).toBe(baseUrl);
+            expect((error as any).originalError).toBe(originalError.message);
         });
 
         it('should create network error', () => {
@@ -30,81 +23,70 @@ describe('ClientError Factory', () => {
 
             const error = ClientError.networkError(message, originalError);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('mcp_connection_failed');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.THIRD_PARTY);
-            expect(error.message).toBe(message);
-            expect(error.context).toEqual({
-                originalError: 'ENOTFOUND',
-            });
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('NetworkError');
+            expect(error.message).toBe(`Network error: ${message}`);
+            expect((error as any).originalError).toBe(originalError.message);
         });
 
         it('should create HTTP error with correct error type for 4xx status', () => {
             const error = ClientError.httpError(400, 'Bad Request', '/api/test', {
-                detail: 'Invalid input',
+                field: 'invalid',
             });
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('mcp_connection_failed');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.USER);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('HttpError');
             expect(error.message).toBe('HTTP 400: Bad Request (/api/test)');
-            expect(error.context).toEqual({
-                status: 400,
-                statusText: 'Bad Request',
-                endpoint: '/api/test',
-                details: { detail: 'Invalid input' },
-            });
+            expect((error as any).status).toBe(400);
+            expect((error as any).statusText).toBe('Bad Request');
+            expect((error as any).endpoint).toBe('/api/test');
+            expect((error as any).details).toEqual({ field: 'invalid' });
         });
 
         it('should create HTTP error with correct error type for 5xx status', () => {
             const error = ClientError.httpError(500, 'Internal Server Error');
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.type).toBe(ErrorType.THIRD_PARTY);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('HttpError');
             expect(error.message).toBe('HTTP 500: Internal Server Error');
-            expect(error.recovery).toBe('Server error - try again later');
+            expect((error as any).status).toBe(500);
         });
 
         it('should create HTTP error with rate limit type for 429 status', () => {
             const error = ClientError.httpError(429, 'Too Many Requests');
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.type).toBe(ErrorType.RATE_LIMIT);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('HttpError');
+            expect(error.message).toBe('HTTP 429: Too Many Requests');
+            expect((error as any).status).toBe(429);
         });
 
         it('should create timeout error', () => {
-            const operation = 'fetchUser';
+            const operation = 'sendMessage';
             const timeout = 5000;
 
             const error = ClientError.timeoutError(operation, timeout);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('mcp_connection_failed');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.TIMEOUT);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('TimeoutError');
             expect(error.message).toBe(`Operation '${operation}' timed out after ${timeout}ms`);
-            expect(error.context).toEqual({ operation, timeout });
+            expect((error as any).operation).toBe(operation);
+            expect((error as any).timeout).toBe(timeout);
         });
     });
 
     describe('WebSocket Errors', () => {
         it('should create WebSocket connection failed error', () => {
             const url = 'ws://localhost:3000/ws';
-            const originalError = new Error('Connection failed');
+            const originalError = new Error('Connection refused');
 
             const error = ClientError.websocketConnectionFailed(url, originalError);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('mcp_connection_failed');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.THIRD_PARTY);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('WebSocketConnectionError');
             expect(error.message).toBe(`Failed to connect WebSocket to ${url}`);
-            expect(error.context).toEqual({
-                url,
-                originalError: 'Connection failed',
-            });
+            expect((error as any).url).toBe(url);
+            expect((error as any).originalError).toBe(originalError.message);
         });
 
         it('should create WebSocket send failed error', () => {
@@ -112,11 +94,10 @@ describe('ClientError Factory', () => {
 
             const error = ClientError.websocketSendFailed(originalError);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('mcp_connection_failed');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.SYSTEM);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('WebSocketSendError');
             expect(error.message).toBe('Failed to send WebSocket message');
+            expect((error as any).originalError).toBe(originalError.message);
         });
     });
 
@@ -124,53 +105,47 @@ describe('ClientError Factory', () => {
         it('should create validation failed error with issues', () => {
             const issues = [
                 {
-                    code: 'agent_api_validation_error' as any,
-                    message: 'Field is required',
+                    code: 'agent_api_validation_error' as const,
+                    message: 'Invalid field',
                     scope: ErrorScope.AGENT,
                     type: ErrorType.USER,
                     severity: 'error' as const,
-                    path: ['user', 'name'],
+                    context: { field: 'test' },
                 },
             ];
 
             const error = ClientError.validationFailed(issues);
 
-            expect(error).toBeInstanceOf(DextoValidationError);
-            expect(error.issues).toEqual(issues);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('ValidationError');
+            expect(error.message).toBe('Validation failed: Invalid field');
+            expect((error as any).issues).toEqual(issues);
         });
 
         it('should create invalid config error', () => {
-            const field = 'baseUrl';
-            const value = 'invalid-url';
-            const reason = 'Must be a valid URL';
+            const field = 'apiKey';
+            const value = '';
+            const reason = 'API key cannot be empty';
 
             const error = ClientError.invalidConfig(field, value, reason);
 
-            expect(error).toBeInstanceOf(DextoValidationError);
-            expect(error.issues).toHaveLength(1);
-            expect(error.issues[0]).toEqual({
-                code: 'agent_api_validation_error',
-                message: `Invalid configuration for ${field}: ${reason}`,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
-                severity: 'error',
-                context: { field, value },
-            });
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('InvalidConfigError');
+            expect(error.message).toBe(`Invalid configuration for ${field}: ${reason}`);
+            expect((error as any).field).toBe(field);
+            expect((error as any).value).toBe(value);
+            expect((error as any).reason).toBe(reason);
         });
 
         it('should create response parse error', () => {
-            const originalError = new Error('Invalid JSON');
+            const originalError = new Error('Unexpected token');
 
             const error = ClientError.responseParseError(originalError);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('agent_api_validation_error');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.THIRD_PARTY);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('ResponseParseError');
             expect(error.message).toBe('Failed to parse server response');
-            expect(error.context).toEqual({
-                originalError: 'Invalid JSON',
-            });
+            expect((error as any).originalError).toBe(originalError.message);
         });
     });
 
@@ -180,21 +155,17 @@ describe('ClientError Factory', () => {
 
             const error = ClientError.authenticationFailed(details);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('agent_api_validation_error');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.USER);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('AuthenticationError');
             expect(error.message).toBe('Authentication failed');
-            expect(error.context).toEqual({ details });
+            expect((error as any).details).toEqual(details);
         });
 
         it('should create unauthorized error', () => {
             const error = ClientError.unauthorized();
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('agent_api_validation_error');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.FORBIDDEN);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('UnauthorizedError');
             expect(error.message).toBe('Unauthorized access');
         });
 
@@ -203,20 +174,19 @@ describe('ClientError Factory', () => {
 
             const error = ClientError.rateLimited(retryAfter);
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe('agent_api_validation_error');
-            expect(error.scope).toBe(ErrorScope.AGENT);
-            expect(error.type).toBe(ErrorType.RATE_LIMIT);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('RateLimitError');
             expect(error.message).toBe('Rate limit exceeded');
-            expect(error.context).toEqual({ retryAfter });
-            expect(error.recovery).toBe(`Wait ${retryAfter} seconds before retrying`);
+            expect((error as any).retryAfter).toBe(retryAfter);
         });
 
         it('should create rate limited error without retry after', () => {
             const error = ClientError.rateLimited();
 
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.recovery).toBe('Wait before making more requests');
+            expect(error).toBeInstanceOf(Error);
+            expect(error.name).toBe('RateLimitError');
+            expect(error.message).toBe('Rate limit exceeded');
+            expect((error as any).retryAfter).toBeUndefined();
         });
     });
 });

@@ -1,169 +1,122 @@
-import {
-    DextoRuntimeError,
-    DextoValidationError,
-    ErrorScope,
-    ErrorType,
-    Issue,
-    type DextoErrorCode,
-} from '@dexto/core';
+import { ErrorScope, ErrorType } from '@dexto/core';
+import type { Issue, DextoErrorCode } from '@dexto/core';
 
 /**
  * Client SDK error factory
- * Creates properly typed errors following core error patterns
+ * Creates simple, browser-compatible errors without Node.js dependencies
  *
- * TODO: Re-evaluate if these client errors are necessary. Since client-sdk is above the API layer,
- * these typed errors may not add much value compared to core errors. Consider simplifying or
- * removing these in favor of direct core error usage.
+ * Why we don't use DextoRuntimeError/DextoValidationError:
+ * - They have Node.js dependencies (crypto.randomUUID)
+ * - They're overkill for client SDK users who just want simple error messages
+ * - They add unnecessary complexity and bundle size
+ * - Standard Error class works perfectly for client use cases
  */
 export class ClientError {
     /**
      * Connection and Network Errors
      */
     static connectionFailed(baseUrl: string, originalError?: Error) {
-        return new DextoRuntimeError(
-            'agent_initialization_failed' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.THIRD_PARTY,
-            `Failed to connect to Dexto server at ${baseUrl}`,
-            { baseUrl, originalError: originalError?.message },
-            'Check that the Dexto server is running and the baseUrl is correct'
-        );
+        const error = new Error(`Failed to connect to Dexto server at ${baseUrl}`);
+        error.name = 'ConnectionError';
+        // Add helpful context for debugging
+        (error as any).baseUrl = baseUrl;
+        (error as any).originalError = originalError?.message;
+        return error;
     }
 
     static networkError(message: string, originalError?: Error) {
-        return new DextoRuntimeError(
-            'mcp_connection_failed' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.THIRD_PARTY,
-            message,
-            { originalError: originalError?.message },
-            'Check your network connection and server availability'
-        );
+        const error = new Error(`Network error: ${message}`);
+        error.name = 'NetworkError';
+        (error as any).originalError = originalError?.message;
+        return error;
     }
 
     static httpError(status: number, statusText: string, endpoint?: string, details?: unknown) {
-        const errorType =
-            status === 429
-                ? ErrorType.RATE_LIMIT
-                : status >= 500
-                  ? ErrorType.THIRD_PARTY
-                  : ErrorType.USER;
-
-        return new DextoRuntimeError(
-            'mcp_connection_failed' as DextoErrorCode,
-            ErrorScope.AGENT,
-            errorType,
-            `HTTP ${status}: ${statusText}${endpoint ? ` (${endpoint})` : ''}`,
-            { status, statusText, endpoint, details },
-            status >= 500 ? 'Server error - try again later' : 'Check your request parameters'
-        );
+        const error = new Error(`HTTP ${status}: ${statusText}${endpoint ? ` (${endpoint})` : ''}`);
+        error.name = 'HttpError';
+        (error as any).status = status;
+        (error as any).statusText = statusText;
+        (error as any).endpoint = endpoint;
+        (error as any).details = details;
+        return error;
     }
 
     static timeoutError(operation: string, timeout: number) {
-        return new DextoRuntimeError(
-            'mcp_connection_failed' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.TIMEOUT,
-            `Operation '${operation}' timed out after ${timeout}ms`,
-            { operation, timeout },
-            'Try increasing the timeout value or check server response time'
-        );
+        const error = new Error(`Operation '${operation}' timed out after ${timeout}ms`);
+        error.name = 'TimeoutError';
+        (error as any).operation = operation;
+        (error as any).timeout = timeout;
+        return error;
     }
 
     /**
      * WebSocket Errors
      */
     static websocketConnectionFailed(url: string, originalError?: Error) {
-        return new DextoRuntimeError(
-            'mcp_connection_failed' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.THIRD_PARTY,
-            `Failed to connect WebSocket to ${url}`,
-            { url, originalError: originalError?.message },
-            'Check WebSocket endpoint and network connectivity'
-        );
+        const error = new Error(`Failed to connect WebSocket to ${url}`);
+        error.name = 'WebSocketConnectionError';
+        (error as any).url = url;
+        (error as any).originalError = originalError?.message;
+        return error;
     }
 
     static websocketSendFailed(originalError?: Error) {
-        return new DextoRuntimeError(
-            'mcp_connection_failed' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.SYSTEM,
-            'Failed to send WebSocket message',
-            { originalError: originalError?.message },
-            'WebSocket connection may be closed - try reconnecting'
-        );
+        const error = new Error('Failed to send WebSocket message');
+        error.name = 'WebSocketSendError';
+        (error as any).originalError = originalError?.message;
+        return error;
     }
 
     /**
      * Validation Errors
      */
     static validationFailed(issues: Issue[]) {
-        return new DextoValidationError(issues);
+        const error = new Error(`Validation failed: ${issues.map((i) => i.message).join(', ')}`);
+        error.name = 'ValidationError';
+        (error as any).issues = issues;
+        return error;
     }
 
     static invalidConfig(field: string, value: unknown, reason: string) {
-        const issue: Issue = {
-            code: 'agent_api_validation_error' as DextoErrorCode,
-            message: `Invalid configuration for ${field}: ${reason}`,
-            scope: ErrorScope.CONFIG,
-            type: ErrorType.USER,
-            severity: 'error',
-            context: { field, value },
-        };
-        return new DextoValidationError([issue]);
+        const error = new Error(`Invalid configuration for ${field}: ${reason}`);
+        error.name = 'InvalidConfigError';
+        (error as any).field = field;
+        (error as any).value = value;
+        (error as any).reason = reason;
+        return error;
     }
 
     static responseParseError(originalError?: Error) {
-        return new DextoRuntimeError(
-            'agent_api_validation_error' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.THIRD_PARTY,
-            'Failed to parse server response',
-            { originalError: originalError?.message },
-            'The server returned an invalid response format'
-        );
+        const error = new Error('Failed to parse server response');
+        error.name = 'ResponseParseError';
+        (error as any).originalError = originalError?.message;
+        return error;
     }
 
     /**
      * Authentication Errors
      */
     static authenticationFailed(details?: unknown) {
-        return new DextoRuntimeError(
-            'agent_api_validation_error' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.USER,
-            'Authentication failed',
-            { details },
-            'Check your API key and authentication credentials'
-        );
+        const error = new Error('Authentication failed');
+        error.name = 'AuthenticationError';
+        (error as any).details = details;
+        return error;
     }
 
     static unauthorized(details?: unknown) {
-        return new DextoRuntimeError(
-            'agent_api_validation_error' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.FORBIDDEN,
-            'Unauthorized access',
-            { details },
-            'You do not have permission to perform this action'
-        );
+        const error = new Error('Unauthorized access');
+        error.name = 'UnauthorizedError';
+        (error as any).details = details;
+        return error;
     }
 
     static rateLimited(retryAfter?: number) {
-        return new DextoRuntimeError(
-            'agent_api_validation_error' as DextoErrorCode,
-            ErrorScope.AGENT,
-            ErrorType.RATE_LIMIT,
-            'Rate limit exceeded',
-            { retryAfter },
-            retryAfter
-                ? `Wait ${retryAfter} seconds before retrying`
-                : 'Wait before making more requests'
-        );
+        const error = new Error('Rate limit exceeded');
+        error.name = 'RateLimitError';
+        (error as any).retryAfter = retryAfter;
+        return error;
     }
 }
 
-// Re-export core error types for testing and user convenience
-export { DextoRuntimeError, DextoValidationError } from '@dexto/core';
+// Re-export only the types that are actually used
 export type { Issue } from '@dexto/core';
