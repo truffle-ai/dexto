@@ -63,3 +63,5 @@ test-temp/
 
 # Temporarily ignore module READMEs in core package
 packages/core/src/*/README.md
+
+api/
