@@ -6,13 +6,9 @@ import { type LLMProvider } from '@dexto/core';
 
 /**
  * Standardized provider options used across all setup flows
+ * Note: OpenRouter is handled in the login flow, not here
  */
 export const PROVIDER_OPTIONS = [
-    {
-        value: 'openai-compatible',
-        label: '🚀 OpenRouter (Recommended)',
-        hint: 'Access 100+ models with automatic setup - No API keys needed!',
-    },
     {
         value: 'google',
         label: '🟢 Google Gemini',
@@ -100,17 +96,6 @@ export function getProviderInstructions(
     provider: LLMProvider
 ): { title: string; content: string } | null {
     switch (provider) {
-        case 'openai-compatible':
-            return {
-                title: chalk.cyan('OpenRouter - Automatic Setup'),
-                content:
-                    `🚀 No manual API key setup needed!\n\n` +
-                    `1. Click "Login with OpenRouter" below\n` +
-                    `2. Sign in with Google/GitHub\n` +
-                    `3. API key is automatically provisioned\n` +
-                    `4. Access 100+ models instantly\n\n` +
-                    `${chalk.dim('✨ Free tier included • No manual setup required')}`,
-            };
         case 'google':
             return {
                 title: chalk.green('Google Gemini - Free API Key'),

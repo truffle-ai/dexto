@@ -13,6 +13,8 @@ import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
 import { selectProvider } from '../utils/provider-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
+import { handleWelcomeFlow } from '../utils/welcome-flow.js';
+import { handleCompleteLoginFlow } from '../utils/login-flow.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -122,6 +124,20 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 
     console.log(chalk.cyan('\n🗿 Setting up Dexto...\n'));
 
+    // Show welcome flow for interactive setup without specific provider
+    if (validated.interactive && !validated.provider) {
+        const welcomeChoice = await handleWelcomeFlow();
+
+        if (welcomeChoice === 'login') {
+            await handleCompleteLoginFlow();
+            return; // Login flow handles complete setup
+        } else if (welcomeChoice === 'exit') {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+        // Continue with manual setup if 'manual' chosen
+    }
+
     // Determine provider (interactive or from options)
     let provider = validated.provider;
     if (!provider) {
@@ -131,15 +147,9 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     // Get model and API key details
     let model = validated.model;
 
-    // Special handling for OpenRouter (openai-compatible)
-    if (provider === 'openai-compatible') {
-        // Use a popular OpenRouter model as default
-        model = model || 'openai/gpt-4o-mini';
-    } else {
-        // For other providers, use the default model
-        const defaultModel = getDefaultModelForProvider(provider);
-        model = model || defaultModel || undefined;
-    }
+    // For all providers, use the default model
+    const defaultModel = getDefaultModelForProvider(provider);
+    model = model || defaultModel || undefined;
 
     if (!model) {
         throw new Error(`Provider '${provider}' requires a specific model. Use --model option.`);

@@ -55,14 +55,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             },
         ];
 
-        // Add OpenRouter login option if provider is openai-compatible
-        if (provider === 'openai-compatible') {
-            options.unshift({
-                value: 'login',
-                label: '🚀 Login with OpenRouter (Automatic)',
-                hint: 'No API key needed - automatic setup',
-            });
-        }
+        // No special options for any provider - all use manual API key setup
 
         const action = await p.select({
             message: 'What would you like to do?',
@@ -80,11 +73,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             process.exit(0);
         }
 
-        if (action === 'login') {
-            // Handle OpenRouter login flow
-            await handleOpenRouterLogin();
-            return; // Exit successfully after login
-        }
+        // No login option in manual API key setup
 
         if (p.isCancel(action)) {
             p.cancel('Setup cancelled');
@@ -205,83 +194,4 @@ function showManualSetupInstructions(provider: LLMProvider): void {
     p.note(instructions, chalk.bold('Manual Setup Instructions'));
 }
 
-/**
- * Handles OpenRouter login flow - login → provision → configure
- */
-async function handleOpenRouterLogin(): Promise<void> {
-    try {
-        // Import login functionality
-        const { handleLoginCommand } = await import('../commands/auth.js');
-
-        p.intro(chalk.cyan('🚀 OpenRouter Login'));
-
-        p.note(
-            'This will:\n' +
-                '1. Open your browser for authentication\n' +
-                '2. Automatically provision an OpenRouter API key\n' +
-                '3. Configure Dexto to use OpenRouter models\n' +
-                '4. Start chatting immediately!',
-            'Automatic Setup Process'
-        );
-
-        const shouldContinue = await p.confirm({
-            message: 'Continue with OpenRouter login?',
-            initialValue: true,
-        });
-
-        if (p.isCancel(shouldContinue) || !shouldContinue) {
-            p.cancel('OpenRouter login cancelled');
-            process.exit(0);
-        }
-
-        // Start the login process
-        const spinner = p.spinner();
-        spinner.start('Starting OpenRouter login...');
-
-        try {
-            // Call the browser login directly to avoid conflicting prompts
-            const { handleBrowserLogin } = await import('../commands/auth.js');
-            await handleBrowserLogin();
-
-            // Configure environment variables for OpenRouter
-            spinner.message('Configuring OpenRouter environment...');
-            await configureOpenRouterEnvironment();
-
-            spinner.stop(chalk.green('✅ OpenRouter setup complete!'));
-
-            p.outro(chalk.green("🎉 You're all set! Dexto is configured with OpenRouter."));
-            console.log(
-                chalk.dim('\n💡 You can now use any OpenRouter model in your agent configs.')
-            );
-            console.log(chalk.dim('   Example: model: openai/gpt-4o'));
-        } catch (error) {
-            spinner.stop(chalk.red('❌ OpenRouter login failed'));
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(chalk.red(`Error: ${errorMessage}`));
-            process.exit(1);
-        }
-    } catch (error) {
-        console.error(chalk.red('\n❌ OpenRouter login setup failed.'));
-        process.exit(1);
-    }
-}
-
-/**
- * Configures environment variables for OpenRouter after successful login
- */
-async function configureOpenRouterEnvironment(): Promise<void> {
-    try {
-        // Import the OpenRouter setup utility
-        const { setupOpenRouterIfAvailable } = await import('./openrouter-setup.js');
-
-        // This will set up the environment variables using the provisioned key
-        const success = await setupOpenRouterIfAvailable();
-
-        if (!success) {
-            throw new Error('Failed to configure OpenRouter environment variables');
-        }
-    } catch (error) {
-        logger.error(`Failed to configure OpenRouter environment: ${error}`);
-        throw error;
-    }
-}
+// OpenRouter login functionality has been moved to login-flow.ts
