@@ -10,14 +10,12 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
-  "dependencies": {
-    "@dexto/core": "workspace:*",
-    "zod": "^3.25.0"
-  },
+  "dependencies": {},
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",

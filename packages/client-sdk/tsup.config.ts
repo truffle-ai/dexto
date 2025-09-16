@@ -1,16 +1,17 @@
 import { defineConfig } from 'tsup';
 
-export default defineConfig([
-    {
-        entry: {
-            index: 'src/index.ts',
-        },
-        format: ['cjs', 'esm'],
-        outDir: 'dist',
-        // Generate declaration files without resolving workspace deps
-        dts: { resolve: false },
-        shims: true,
-        bundle: true,
-        platform: 'neutral',
-    },
-]);
+export default defineConfig({
+    entry: ['src/index.ts'],
+    format: ['cjs', 'esm'],
+    outDir: 'dist',
+    dts: { resolve: true },
+    shims: true,
+    bundle: true,
+    platform: 'neutral',
+    target: 'es2018',
+    minify: false,
+    splitting: false,
+    treeshake: false,
+    clean: true,
+    sourcemap: false,
+});

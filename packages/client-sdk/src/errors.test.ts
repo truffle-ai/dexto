@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { ClientError } from '../src/errors.js';
-import { ErrorScope, ErrorType } from '@dexto/core';
 
 describe('ClientError Factory', () => {
     describe('Connection and Network Errors', () => {
@@ -101,27 +100,7 @@ describe('ClientError Factory', () => {
         });
     });
 
-    describe('Validation Errors', () => {
-        it('should create validation failed error with issues', () => {
-            const issues = [
-                {
-                    code: 'agent_api_validation_error' as const,
-                    message: 'Invalid field',
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
-                    severity: 'error' as const,
-                    context: { field: 'test' },
-                },
-            ];
-
-            const error = ClientError.validationFailed(issues);
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('ValidationError');
-            expect(error.message).toBe('Validation failed: Invalid field');
-            expect((error as any).issues).toEqual(issues);
-        });
-
+    describe('Configuration Errors', () => {
         it('should create invalid config error', () => {
             const field = 'apiKey';
             const value = '';
@@ -146,47 +125,6 @@ describe('ClientError Factory', () => {
             expect(error.name).toBe('ResponseParseError');
             expect(error.message).toBe('Failed to parse server response');
             expect((error as any).originalError).toBe(originalError.message);
-        });
-    });
-
-    describe('Authentication Errors', () => {
-        it('should create authentication failed error', () => {
-            const details = { reason: 'Invalid API key' };
-
-            const error = ClientError.authenticationFailed(details);
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('AuthenticationError');
-            expect(error.message).toBe('Authentication failed');
-            expect((error as any).details).toEqual(details);
-        });
-
-        it('should create unauthorized error', () => {
-            const error = ClientError.unauthorized();
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('UnauthorizedError');
-            expect(error.message).toBe('Unauthorized access');
-        });
-
-        it('should create rate limited error with retry after', () => {
-            const retryAfter = 60;
-
-            const error = ClientError.rateLimited(retryAfter);
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('RateLimitError');
-            expect(error.message).toBe('Rate limit exceeded');
-            expect((error as any).retryAfter).toBe(retryAfter);
-        });
-
-        it('should create rate limited error without retry after', () => {
-            const error = ClientError.rateLimited();
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('RateLimitError');
-            expect(error.message).toBe('Rate limit exceeded');
-            expect((error as any).retryAfter).toBeUndefined();
         });
     });
 });

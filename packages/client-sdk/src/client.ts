@@ -1,11 +1,8 @@
-import { z } from 'zod';
 import { HttpClient } from './http-client.js';
 import { WebSocketClient, EventHandler } from './websocket-client.js';
 import {
     ClientConfig,
-    ClientConfigInput,
     ClientOptions,
-    ClientOptionsInput,
     MessageInput,
     MessageResponse,
     SessionInfo,
@@ -17,25 +14,16 @@ import {
     SessionSearchResponse,
     CatalogOptions,
     CatalogResponse,
+    ClientProviderInfo,
 } from './types.js';
 import { ClientError } from './errors.js';
-import type { ClientProviderInfo } from './types.js';
-
-import {
-    ClientConfigSchema,
-    ClientOptionsSchema,
-    MessageInputSchema,
-    LLMConfigInputSchema,
-    SearchOptionsSchema,
-    CatalogOptionsSchema,
-    validateInput,
-} from './schemas.js';
+import { isValidUrl } from './schemas.js';
 
 /**
- * Dexto Client SDK - A clean, TypeScript-first SDK for interacting with Dexto API
+ * Dexto Client SDK - Ultra-lightweight HTTP/WebSocket wrapper
  *
- * This SDK provides an interface for working with Dexto agents,
- * handling HTTP communication, WebSocket events, and providing excellent DX.
+ * This SDK provides a thin interface for interacting with Dexto API.
+ * All validation is handled by the server - we just pass data through.
  *
  * @example
  * ```typescript
@@ -59,10 +47,29 @@ export class DextoClient {
     private config: ClientConfig;
     private options: ClientOptions;
 
-    constructor(config: ClientConfigInput, options: ClientOptionsInput = {}) {
-        // Validate inputs with comprehensive Zod validation (defaults applied automatically)
-        this.config = validateInput(ClientConfigSchema, config) as ClientConfig;
-        this.options = validateInput(ClientOptionsSchema, options) as ClientOptions;
+    constructor(config: ClientConfig, options: ClientOptions = {}) {
+        // Basic config validation only
+        if (!isValidUrl(config.baseUrl)) {
+            throw ClientError.invalidConfig(
+                'baseUrl',
+                config.baseUrl,
+                'Must be a valid HTTP/HTTPS URL'
+            );
+        }
+
+        this.config = {
+            baseUrl: config.baseUrl,
+            apiKey: config.apiKey,
+            timeout: config.timeout ?? 30000,
+            retries: config.retries ?? 3,
+        };
+
+        this.options = {
+            enableWebSocket: options.enableWebSocket ?? true,
+            reconnect: options.reconnect ?? true,
+            reconnectInterval: options.reconnectInterval ?? 5000,
+            debug: options.debug ?? false,
+        };
 
         this.http = new HttpClient(this.config);
 
@@ -72,12 +79,10 @@ export class DextoClient {
     }
 
     private initializeWebSocket() {
-        // Convert HTTP URL to WebSocket URL, preserving security scheme
         const wsUrl = this.config.baseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
-
         this.ws = new WebSocketClient(wsUrl, {
-            reconnect: this.options.reconnect,
-            reconnectInterval: this.options.reconnectInterval,
+            reconnect: this.options.reconnect ?? true,
+            reconnectInterval: this.options.reconnectInterval ?? 5000,
         });
     }
 
@@ -98,24 +103,18 @@ export class DextoClient {
         }
 
         // Connect WebSocket if enabled
-        if (this.options.enableWebSocket) {
-            if (!this.ws) {
-                this.initializeWebSocket();
-            }
-            if (this.ws) {
-                try {
-                    await this.ws.connect();
-                } catch (error) {
-                    if (this.options.debug) {
-                        console.warn(
-                            `WebSocket connection failed, continuing with HTTP-only mode: ${
-                                error instanceof Error ? error.message : String(error)
-                            }`
-                        );
-                    }
-                    // Don't fail the entire connection if WebSocket fails
-                    this.ws = null;
+        if (this.options.enableWebSocket && this.ws) {
+            try {
+                await this.ws.connect();
+            } catch (error) {
+                if (this.options.debug) {
+                    console.warn(
+                        `WebSocket connection failed, continuing with HTTP-only mode: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
                 }
+                this.ws = null;
             }
         }
     }
@@ -136,36 +135,29 @@ export class DextoClient {
      * Send a message to the Dexto agent
      */
     async sendMessage(input: MessageInput): Promise<MessageResponse> {
-        // Validate input
-        const validatedInput = validateInput(MessageInputSchema, input);
-
-        if (validatedInput.stream === true) {
+        if (input.stream === true) {
             throw ClientError.invalidConfig(
-                'MessageInput.stream',
-                validatedInput.stream,
+                'input.stream',
+                input.stream,
                 'Use sendMessageStream() for streaming responses'
             );
         }
-        const endpoint = '/api/message-sync';
 
+        const endpoint = '/api/message-sync';
         const requestBody = {
-            message: validatedInput.content,
-            ...(validatedInput.sessionId && { sessionId: validatedInput.sessionId }),
-            ...(validatedInput.imageData && { imageData: validatedInput.imageData }),
-            ...(validatedInput.fileData && { fileData: validatedInput.fileData }),
+            message: input.content,
+            ...(input.sessionId && { sessionId: input.sessionId }),
+            ...(input.imageData && { imageData: input.imageData }),
+            ...(input.fileData && { fileData: input.fileData }),
         };
 
-        const response = await this.http.post<MessageResponse>(endpoint, requestBody);
-        return response;
+        return this.http.post<MessageResponse>(endpoint, requestBody);
     }
 
     /**
      * Send a message via WebSocket for streaming responses
      */
     sendMessageStream(input: MessageInput): boolean {
-        // Validate input
-        const validatedInput = validateInput(MessageInputSchema, input);
-
         if (!this.ws || this.ws.state !== 'open') {
             throw ClientError.connectionFailed(
                 'WebSocket endpoint',
@@ -175,10 +167,10 @@ export class DextoClient {
 
         return this.ws.send({
             type: 'message',
-            content: validatedInput.content,
-            ...(validatedInput.sessionId && { sessionId: validatedInput.sessionId }),
-            ...(validatedInput.imageData && { imageData: validatedInput.imageData }),
-            ...(validatedInput.fileData && { fileData: validatedInput.fileData }),
+            content: input.content,
+            ...(input.sessionId && { sessionId: input.sessionId }),
+            ...(input.imageData && { imageData: input.imageData }),
+            ...(input.fileData && { fileData: input.fileData }),
             stream: true,
         });
     }
@@ -197,11 +189,6 @@ export class DextoClient {
      * Create a new session
      */
     async createSession(sessionId?: string): Promise<SessionInfo> {
-        // Validate sessionId if provided
-        if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-        }
-
         const response = await this.http.post<{ session: SessionInfo }>('/api/sessions', {
             ...(sessionId && { sessionId }),
         });
@@ -212,9 +199,6 @@ export class DextoClient {
      * Get session details
      */
     async getSession(sessionId: string): Promise<SessionInfo> {
-        // Validate sessionId
-        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-
         const response = await this.http.get<{ session: SessionInfo }>(
             `/api/sessions/${encodeURIComponent(sessionId)}`
         );
@@ -225,9 +209,6 @@ export class DextoClient {
      * Get session conversation history
      */
     async getSessionHistory(sessionId: string): Promise<any[]> {
-        // Validate sessionId
-        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-
         const response = await this.http.get<{ history: unknown[] }>(
             `/api/sessions/${encodeURIComponent(sessionId)}/history`
         );
@@ -238,9 +219,6 @@ export class DextoClient {
      * Delete a session permanently
      */
     async deleteSession(sessionId: string): Promise<void> {
-        // Validate sessionId
-        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-
         await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}`);
     }
 
@@ -248,11 +226,6 @@ export class DextoClient {
      * Load a session as the current working session
      */
     async loadSession(sessionId: string | null): Promise<void> {
-        // Validate sessionId if not null
-        if (sessionId !== null) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-        }
-
         const id = sessionId === null ? 'null' : sessionId;
         await this.http.post(`/api/sessions/${encodeURIComponent(id)}/load`);
     }
@@ -269,11 +242,6 @@ export class DextoClient {
      * Reset conversation (clear history while keeping session alive)
      */
     async resetConversation(sessionId?: string): Promise<void> {
-        // Validate sessionId if provided
-        if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-        }
-
         await this.http.post('/api/reset', {
             ...(sessionId && { sessionId }),
         });
@@ -285,11 +253,6 @@ export class DextoClient {
      * Get current LLM configuration
      */
     async getCurrentLLMConfig(sessionId?: string): Promise<LLMConfig> {
-        // Validate sessionId if provided
-        if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-        }
-
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ config: LLMConfig }>(`/api/llm/current${params}`);
         return response.config;
@@ -299,16 +262,8 @@ export class DextoClient {
      * Switch LLM configuration
      */
     async switchLLM(config: Partial<LLMConfig>, sessionId?: string): Promise<LLMConfig> {
-        // Validate input config
-        const validatedConfig = validateInput(LLMConfigInputSchema, config);
-
-        // Validate sessionId if provided
-        if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-        }
-
         const requestBody = {
-            ...validatedConfig,
+            ...config,
             ...(sessionId && { sessionId }),
         };
 
@@ -333,24 +288,19 @@ export class DextoClient {
      * Get LLM catalog with filtering options
      */
     async getLLMCatalog(options: CatalogOptions = {}): Promise<CatalogResponse> {
-        // Validate catalog options
-        const validatedOptions = validateInput(CatalogOptionsSchema, options);
-
         const params = new globalThis.URLSearchParams();
 
-        if (validatedOptions.provider) params.set('provider', validatedOptions.provider);
-        if (validatedOptions.hasKey !== undefined)
-            params.set('hasKey', validatedOptions.hasKey.toString());
-        if (validatedOptions.router) params.set('router', validatedOptions.router);
-        if (validatedOptions.fileType) params.set('fileType', validatedOptions.fileType);
-        if (validatedOptions.defaultOnly) params.set('defaultOnly', 'true');
-        if (validatedOptions.mode) params.set('mode', validatedOptions.mode);
+        if (options.provider) params.set('provider', options.provider);
+        if (options.hasKey !== undefined) params.set('hasKey', options.hasKey.toString());
+        if (options.router) params.set('router', options.router);
+        if (options.fileType) params.set('fileType', options.fileType);
+        if (options.defaultOnly) params.set('defaultOnly', 'true');
+        if (options.mode) params.set('mode', options.mode);
 
         const queryString = params.toString();
         const endpoint = queryString ? `/api/llm/catalog?${queryString}` : '/api/llm/catalog';
 
-        const response = await this.http.get<CatalogResponse>(endpoint);
-        return response;
+        return this.http.get<CatalogResponse>(endpoint);
     }
 
     // ============= MCP SERVER MANAGEMENT =============
@@ -367,18 +317,6 @@ export class DextoClient {
      * Connect to a new MCP server
      */
     async connectMCPServer(name: string, config: Record<string, unknown>): Promise<void> {
-        // Validate server name
-        validateInput(z.string().min(1, 'Server name cannot be empty'), name);
-
-        // Validate config is not null/undefined
-        if (config === null || config === undefined) {
-            throw ClientError.invalidConfig(
-                'serverConfig',
-                config,
-                'Server config cannot be null or undefined'
-            );
-        }
-
         await this.http.post('/api/mcp/servers', { name, config });
     }
 
@@ -386,9 +324,6 @@ export class DextoClient {
      * Disconnect from an MCP server
      */
     async disconnectMCPServer(serverId: string): Promise<void> {
-        // Validate serverId
-        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId);
-
         await this.http.delete(`/api/mcp/servers/${encodeURIComponent(serverId)}`);
     }
 
@@ -396,9 +331,6 @@ export class DextoClient {
      * Get tools from a specific MCP server
      */
     async getMCPServerTools(serverId: string): Promise<Tool[]> {
-        // Validate serverId
-        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId);
-
         const response = await this.http.get<{ tools: Tool[] }>(
             `/api/mcp/servers/${encodeURIComponent(serverId)}/tools`
         );
@@ -409,19 +341,6 @@ export class DextoClient {
      * Execute a tool from an MCP server
      */
     async executeMCPTool(serverId: string, toolName: string, args: unknown): Promise<unknown> {
-        // Validate serverId and toolName
-        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId);
-        validateInput(z.string().min(1, 'Tool name cannot be empty'), toolName);
-
-        // Validate args is not null/undefined (empty object {} is allowed)
-        if (args === null || args === undefined) {
-            throw ClientError.invalidConfig(
-                'toolArgs',
-                args,
-                'Tool arguments cannot be null or undefined'
-            );
-        }
-
         const response = await this.http.post<{ success: boolean; data: unknown }>(
             `/api/mcp/servers/${encodeURIComponent(serverId)}/tools/${encodeURIComponent(toolName)}/execute`,
             args
@@ -435,43 +354,22 @@ export class DextoClient {
      * Search messages across sessions
      */
     async searchMessages(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
-        // Validate query
-        validateInput(z.string().min(1, 'Search query cannot be empty'), query);
-
-        // Validate search options
-        const validatedOptions = validateInput(SearchOptionsSchema, options);
-
         const params = new globalThis.URLSearchParams();
         params.append('q', query);
-        if (validatedOptions.limit !== undefined) {
-            params.append('limit', String(validatedOptions.limit));
-        }
-        if (validatedOptions.offset !== undefined) {
-            params.append('offset', String(validatedOptions.offset));
-        }
-        if (validatedOptions.sessionId) {
-            params.append('sessionId', validatedOptions.sessionId);
-        }
-        if (validatedOptions.role) {
-            params.append('role', validatedOptions.role);
-        }
+        if (options.limit !== undefined) params.append('limit', String(options.limit));
+        if (options.offset !== undefined) params.append('offset', String(options.offset));
+        if (options.sessionId) params.append('sessionId', options.sessionId);
+        if (options.role) params.append('role', options.role);
 
-        const response = await this.http.get<SearchResponse>(`/api/search/messages?${params}`);
-        return response;
+        return this.http.get<SearchResponse>(`/api/search/messages?${params}`);
     }
 
     /**
      * Search sessions that contain the query
      */
     async searchSessions(query: string): Promise<SessionSearchResponse> {
-        // Validate query
-        validateInput(z.string().min(1, 'Search query cannot be empty'), query);
-
         const params = new globalThis.URLSearchParams({ q: query });
-        const response = await this.http.get<SessionSearchResponse>(
-            `/api/search/sessions?${params}`
-        );
-        return response;
+        return this.http.get<SessionSearchResponse>(`/api/search/sessions?${params}`);
     }
 
     // ============= EVENT HANDLING =============
@@ -484,9 +382,8 @@ export class DextoClient {
             if (this.options.debug) {
                 console.warn('WebSocket not available, events will not be received');
             }
-            return () => {}; // Return no-op unsubscribe function
+            return () => {};
         }
-
         return this.ws.on(eventType, handler);
     }
 
@@ -499,7 +396,6 @@ export class DextoClient {
         if (!this.ws) {
             return () => {};
         }
-
         return this.ws.onConnectionState(handler);
     }
 
@@ -509,11 +405,6 @@ export class DextoClient {
      * Get agent greeting message
      */
     async getGreeting(sessionId?: string): Promise<string | null> {
-        // Validate sessionId if provided
-        if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
-        }
-
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ greeting: string | null }>(`/api/greeting${params}`);
         return response.greeting;
