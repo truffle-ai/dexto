@@ -123,18 +123,20 @@ export class DextoClient {
             if (!this.ws) {
                 this.initializeWebSocket();
             }
-            try {
-                await this.ws!.connect();
-            } catch (error) {
-                if (this.options.debug) {
-                    console.warn(
-                        `WebSocket connection failed, continuing with HTTP-only mode: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
-                    );
+            if (this.ws) {
+                try {
+                    await this.ws.connect();
+                } catch (error) {
+                    if (this.options.debug) {
+                        console.warn(
+                            `WebSocket connection failed, continuing with HTTP-only mode: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
+                    }
+                    // Don't fail the entire connection if WebSocket fails
+                    this.ws = null;
                 }
-                // Don't fail the entire connection if WebSocket fails
-                this.ws = null;
             }
         }
     }
