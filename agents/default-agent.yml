@@ -42,10 +42,10 @@ systemPrompt:
 greeting: "Hi! I’m Dexto — how can I help today?"
 
 # # describes the llm configuration
-# llm:
-#   provider: openai
-#   model: gpt-5-mini
-#   apiKey: $OPENAI_API_KEY
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
 
 # Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
 # Memory cache with file-based database (good for development with persistence)
@@ -65,12 +65,12 @@ storage:
 
 # To use OpenRouter models (automatically provisioned after login):
 # Run `dexto login` first to automatically get an OpenRouter API key
-llm:
-  provider: openai-compatible
-  router: vercel
-  baseURL: https://openrouter.ai/api/v1
-  model: openai/gpt-4o
-  apiKey: random
+# llm:
+#   provider: openai-compatible
+#   router: vercel
+#   baseURL: https://openrouter.ai/api/v1
+#   model: openai/gpt-4o
+#   apiKey: random
   # No apiKey needed - automatically uses provisioned OpenRouter key
 
 ## Popular OpenRouter models you can use:
