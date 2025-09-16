@@ -35,6 +35,8 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';
 
 export default function ChatApp() {
+  // SSR-safe platform check for Mac
+  const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
@@ -381,7 +383,6 @@ export default function ChatApp() {
 
   // Keyboard shortcuts
   useEffect(() => {
-  const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl + Backspace to delete current session
       if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
