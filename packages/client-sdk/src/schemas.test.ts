@@ -91,12 +91,22 @@ describe('Schema Validation', () => {
 
         it('should validate empty options', () => {
             const result = validateInput(ClientOptionsSchema, {});
-            expect(result).toEqual({});
+            expect(result).toEqual({
+                enableWebSocket: true,
+                reconnect: true,
+                reconnectInterval: 5000,
+                debug: false,
+            });
         });
 
         it('should validate undefined options', () => {
             const result = validateInput(ClientOptionsSchema, undefined);
-            expect(result).toBeUndefined();
+            expect(result).toEqual({
+                enableWebSocket: true,
+                reconnect: true,
+                reconnectInterval: 5000,
+                debug: false,
+            });
         });
 
         it('should reject invalid reconnect interval', () => {

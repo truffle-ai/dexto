@@ -16,13 +16,13 @@ export const ClientConfigSchema = z
             .number()
             .min(1000, 'Timeout must be at least 1000ms')
             .max(300000, 'Timeout cannot exceed 5 minutes')
-            .optional()
+            .default(30000)
             .describe('Request timeout in milliseconds'),
         retries: z
             .number()
             .min(0, 'Retries cannot be negative')
             .max(10, 'Retries cannot exceed 10')
-            .optional()
+            .default(3)
             .describe('Number of retry attempts for failed requests'),
     })
     .strict();
@@ -31,19 +31,19 @@ export const ClientOptionsSchema = z
     .object({
         enableWebSocket: z
             .boolean()
-            .optional()
+            .default(true)
             .describe('Enable WebSocket connection for real-time updates'),
-        reconnect: z.boolean().optional().describe('Automatically reconnect on connection loss'),
+        reconnect: z.boolean().default(true).describe('Automatically reconnect on connection loss'),
         reconnectInterval: z
             .number()
             .min(1000, 'Reconnect interval must be at least 1000ms')
             .max(60000, 'Reconnect interval cannot exceed 60s')
-            .optional()
+            .default(5000)
             .describe('Time between reconnection attempts in milliseconds'),
-        debug: z.boolean().optional().describe('Enable debug logging'),
+        debug: z.boolean().default(false).describe('Enable debug logging'),
     })
     .strict()
-    .optional()
+    .default({})
     .describe('Optional client configuration options');
 
 export const MessageInputSchema = z

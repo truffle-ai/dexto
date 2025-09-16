@@ -24,8 +24,13 @@ import type {
 import type { z } from 'zod';
 
 // Derive types from Zod schemas to eliminate duplication
-export type ClientConfig = z.infer<typeof ClientConfigSchema>;
-export type ClientOptions = z.infer<typeof ClientOptionsSchema>;
+// Input types (for constructor parameters) - before defaults applied
+export type ClientConfigInput = z.input<typeof ClientConfigSchema>;
+export type ClientOptionsInput = z.input<typeof ClientOptionsSchema>;
+
+// Output types (for validated data) - after defaults applied
+export type ClientConfig = z.output<typeof ClientConfigSchema>;
+export type ClientOptions = z.output<typeof ClientOptionsSchema>;
 export type MessageInput = z.infer<typeof MessageInputSchema>;
 
 // Wire format response types (no validation, direct from API)

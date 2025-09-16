@@ -3,7 +3,9 @@ import { HttpClient } from './http-client.js';
 import { WebSocketClient, EventHandler } from './websocket-client.js';
 import {
     ClientConfig,
+    ClientConfigInput,
     ClientOptions,
+    ClientOptionsInput,
     MessageInput,
     MessageResponse,
     SessionInfo,
@@ -51,39 +53,16 @@ import {
  * console.log(response.response);
  * ```
  */
-// Internal options with resolved defaults
-interface ResolvedClientOptions {
-    enableWebSocket: boolean;
-    reconnect: boolean;
-    reconnectInterval: number;
-    debug: boolean;
-}
-
 export class DextoClient {
     private http: HttpClient;
     private ws: WebSocketClient | null = null;
     private config: ClientConfig;
-    private options: ResolvedClientOptions;
+    private options: ClientOptions;
 
-    constructor(config: ClientConfig, options: ClientOptions = {}) {
-        // Validate inputs with comprehensive Zod validation
-        const validatedConfig = validateInput(ClientConfigSchema, config);
-        const validatedOptions = validateInput(ClientOptionsSchema, options);
-
-        // Apply defaults while avoiding undefined properties for exactOptionalPropertyTypes
-        this.config = {
-            baseUrl: validatedConfig.baseUrl,
-            ...(validatedConfig.apiKey !== undefined ? { apiKey: validatedConfig.apiKey } : {}),
-            timeout: validatedConfig.timeout ?? 30000,
-            retries: validatedConfig.retries ?? 3,
-        };
-
-        this.options = {
-            enableWebSocket: validatedOptions?.enableWebSocket ?? true,
-            reconnect: validatedOptions?.reconnect ?? true,
-            reconnectInterval: validatedOptions?.reconnectInterval ?? 5000,
-            debug: validatedOptions?.debug ?? false,
-        };
+    constructor(config: ClientConfigInput, options: ClientOptionsInput = {}) {
+        // Validate inputs with comprehensive Zod validation (defaults applied automatically)
+        this.config = validateInput(ClientConfigSchema, config) as ClientConfig;
+        this.options = validateInput(ClientOptionsSchema, options) as ClientOptions;
 
         this.http = new HttpClient(this.config);
 
@@ -97,8 +76,8 @@ export class DextoClient {
         const wsUrl = this.config.baseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
 
         this.ws = new WebSocketClient(wsUrl, {
-            reconnect: this.options.reconnect ?? true,
-            reconnectInterval: this.options.reconnectInterval ?? 5000,
+            reconnect: this.options.reconnect,
+            reconnectInterval: this.options.reconnectInterval,
         });
     }
 

@@ -25,7 +25,7 @@ export class HttpClient {
     private fetchFn: FetchFunction;
 
     constructor(config: ClientConfig) {
-        this.config = { timeout: 30000, retries: 3, ...config };
+        this.config = config;
 
         // Detect environment and set appropriate fetch function
         if (typeof window !== 'undefined' && window.fetch) {
