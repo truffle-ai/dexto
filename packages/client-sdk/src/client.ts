@@ -47,13 +47,6 @@ import {
 } from './schemas.js';
 
 /**
- * Helper function to safely encode path segments for URLs
- */
-function encodePathSegment(segment: string): string {
-    return encodeURIComponent(segment);
-}
-
-/**
  * Dexto Client SDK - A clean, TypeScript-first SDK for interacting with Dexto API
  *
  * This SDK provides an interface for working with Dexto agents,
@@ -83,8 +76,8 @@ export class DextoClient {
 
     constructor(config: ClientConfig, options: ClientOptions = {}) {
         // Validate inputs with comprehensive Zod validation
-        const validatedConfig = validateInput(ClientConfigSchema, config, 'ClientConfig');
-        const validatedOptions = validateInput(ClientOptionsSchema, options, 'ClientOptions');
+        const validatedConfig = validateInput(ClientConfigSchema, config);
+        const validatedOptions = validateInput(ClientOptionsSchema, options);
 
         // Apply defaults while avoiding undefined properties for exactOptionalPropertyTypes
         this.config = {
@@ -172,7 +165,7 @@ export class DextoClient {
      */
     async sendMessage(input: MessageInput): Promise<MessageResponse> {
         // Validate input
-        const validatedInput = validateInput(MessageInputSchema, input, 'MessageInput');
+        const validatedInput = validateInput(MessageInputSchema, input);
 
         if (validatedInput.stream === true) {
             throw ClientError.invalidConfig(
@@ -193,7 +186,7 @@ export class DextoClient {
         const response = await this.http.post<MessageResponse>(endpoint, requestBody);
 
         // Validate response
-        return validateResponse(MessageResponseSchema, response, 'sendMessage');
+        return validateResponse(MessageResponseSchema, response);
     }
 
     /**
@@ -201,7 +194,7 @@ export class DextoClient {
      */
     sendMessageStream(input: MessageInput): boolean {
         // Validate input
-        const validatedInput = validateInput(MessageInputSchema, input, 'MessageInput');
+        const validatedInput = validateInput(MessageInputSchema, input);
 
         if (!this.ws || this.ws.state !== 'open') {
             throw ClientError.connectionFailed(
@@ -227,11 +220,7 @@ export class DextoClient {
      */
     async listSessions(): Promise<SessionInfo[]> {
         const response = await this.http.get<{ sessions: SessionInfo[] }>('/api/sessions');
-        const validatedResponse = validateResponse(
-            SessionsListResponseSchema,
-            response,
-            'listSessions'
-        );
+        const validatedResponse = validateResponse(SessionsListResponseSchema, response);
         return validatedResponse.sessions;
     }
 
@@ -241,17 +230,13 @@ export class DextoClient {
     async createSession(sessionId?: string): Promise<SessionInfo> {
         // Validate sessionId if provided
         if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
         }
 
         const response = await this.http.post<{ session: SessionInfo }>('/api/sessions', {
             ...(sessionId && { sessionId }),
         });
-        const validatedResponse = validateResponse(
-            SessionCreateResponseSchema,
-            response,
-            'createSession'
-        );
+        const validatedResponse = validateResponse(SessionCreateResponseSchema, response);
         return validatedResponse.session;
     }
 
@@ -260,16 +245,12 @@ export class DextoClient {
      */
     async getSession(sessionId: string): Promise<SessionInfo> {
         // Validate sessionId
-        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
 
         const response = await this.http.get<{ session: SessionInfo }>(
-            `/api/sessions/${encodePathSegment(sessionId)}`
+            `/api/sessions/${encodeURIComponent(sessionId)}`
         );
-        const validatedResponse = validateResponse(
-            SessionGetResponseSchema,
-            response,
-            'getSession'
-        );
+        const validatedResponse = validateResponse(SessionGetResponseSchema, response);
         return validatedResponse.session;
     }
 
@@ -278,16 +259,12 @@ export class DextoClient {
      */
     async getSessionHistory(sessionId: string): Promise<any[]> {
         // Validate sessionId
-        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
 
         const response = await this.http.get<{ history: unknown[] }>(
-            `/api/sessions/${encodePathSegment(sessionId)}/history`
+            `/api/sessions/${encodeURIComponent(sessionId)}/history`
         );
-        const validatedResponse = validateResponse(
-            SessionHistoryResponseSchema,
-            response,
-            'getSessionHistory'
-        );
+        const validatedResponse = validateResponse(SessionHistoryResponseSchema, response);
         return validatedResponse.history;
     }
 
@@ -296,9 +273,9 @@ export class DextoClient {
      */
     async deleteSession(sessionId: string): Promise<void> {
         // Validate sessionId
-        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+        validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
 
-        await this.http.delete(`/api/sessions/${encodePathSegment(sessionId)}`);
+        await this.http.delete(`/api/sessions/${encodeURIComponent(sessionId)}`);
     }
 
     /**
@@ -307,11 +284,11 @@ export class DextoClient {
     async loadSession(sessionId: string | null): Promise<void> {
         // Validate sessionId if not null
         if (sessionId !== null) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
         }
 
         const id = sessionId === null ? 'null' : sessionId;
-        await this.http.post(`/api/sessions/${encodePathSegment(id)}/load`);
+        await this.http.post(`/api/sessions/${encodeURIComponent(id)}/load`);
     }
 
     /**
@@ -319,11 +296,7 @@ export class DextoClient {
      */
     async getCurrentSession(): Promise<string> {
         const response = await this.http.get<{ currentSessionId: string }>('/api/sessions/current');
-        const validatedResponse = validateResponse(
-            CurrentSessionResponseSchema,
-            response,
-            'getCurrentSession'
-        );
+        const validatedResponse = validateResponse(CurrentSessionResponseSchema, response);
         return validatedResponse.currentSessionId;
     }
 
@@ -333,7 +306,7 @@ export class DextoClient {
     async resetConversation(sessionId?: string): Promise<void> {
         // Validate sessionId if provided
         if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
         }
 
         await this.http.post('/api/reset', {
@@ -349,16 +322,12 @@ export class DextoClient {
     async getCurrentLLMConfig(sessionId?: string): Promise<LLMConfig> {
         // Validate sessionId if provided
         if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
         }
 
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ config: LLMConfig }>(`/api/llm/current${params}`);
-        const validatedResponse = validateResponse(
-            LLMCurrentResponseSchema,
-            response,
-            'getCurrentLLMConfig'
-        );
+        const validatedResponse = validateResponse(LLMCurrentResponseSchema, response);
         return validatedResponse.config;
     }
 
@@ -367,11 +336,11 @@ export class DextoClient {
      */
     async switchLLM(config: Partial<LLMConfig>, sessionId?: string): Promise<LLMConfig> {
         // Validate input config
-        const validatedConfig = validateInput(LLMConfigInputSchema, config, 'LLM config');
+        const validatedConfig = validateInput(LLMConfigInputSchema, config);
 
         // Validate sessionId if provided
         if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
         }
 
         const requestBody = {
@@ -383,7 +352,7 @@ export class DextoClient {
             '/api/llm/switch',
             requestBody
         );
-        const validatedResponse = validateResponse(LLMSwitchResponseSchema, response, 'switchLLM');
+        const validatedResponse = validateResponse(LLMSwitchResponseSchema, response);
         return validatedResponse.config;
     }
 
@@ -394,11 +363,7 @@ export class DextoClient {
         const response = await this.http.get<{ providers: Record<string, ClientProviderInfo> }>(
             '/api/llm/providers'
         );
-        const validatedResponse = validateResponse(
-            LLMProvidersResponseSchema,
-            response,
-            'getLLMProviders'
-        );
+        const validatedResponse = validateResponse(LLMProvidersResponseSchema, response);
         return validatedResponse.providers;
     }
 
@@ -407,7 +372,7 @@ export class DextoClient {
      */
     async getLLMCatalog(options: CatalogOptions = {}): Promise<CatalogResponse> {
         // Validate catalog options
-        const validatedOptions = validateInput(CatalogOptionsSchema, options, 'catalog options');
+        const validatedOptions = validateInput(CatalogOptionsSchema, options);
 
         const params = new globalThis.URLSearchParams();
 
@@ -423,7 +388,7 @@ export class DextoClient {
         const endpoint = queryString ? `/api/llm/catalog?${queryString}` : '/api/llm/catalog';
 
         const response = await this.http.get<CatalogResponse>(endpoint);
-        return validateResponse(CatalogResponseSchema, response, 'getLLMCatalog');
+        return validateResponse(CatalogResponseSchema, response);
     }
 
     // ============= MCP SERVER MANAGEMENT =============
@@ -433,11 +398,7 @@ export class DextoClient {
      */
     async listMCPServers(): Promise<McpServer[]> {
         const response = await this.http.get<{ servers: McpServer[] }>('/api/mcp/servers');
-        const validatedResponse = validateResponse(
-            MCPServersResponseSchema,
-            response,
-            'listMCPServers'
-        );
+        const validatedResponse = validateResponse(MCPServersResponseSchema, response);
         return validatedResponse.servers;
     }
 
@@ -446,7 +407,7 @@ export class DextoClient {
      */
     async connectMCPServer(name: string, config: Record<string, unknown>): Promise<void> {
         // Validate server name
-        validateInput(z.string().min(1, 'Server name cannot be empty'), name, 'server name');
+        validateInput(z.string().min(1, 'Server name cannot be empty'), name);
 
         // Validate config is not null/undefined
         if (config === null || config === undefined) {
@@ -465,9 +426,9 @@ export class DextoClient {
      */
     async disconnectMCPServer(serverId: string): Promise<void> {
         // Validate serverId
-        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
+        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId);
 
-        await this.http.delete(`/api/mcp/servers/${encodePathSegment(serverId)}`);
+        await this.http.delete(`/api/mcp/servers/${encodeURIComponent(serverId)}`);
     }
 
     /**
@@ -475,16 +436,12 @@ export class DextoClient {
      */
     async getMCPServerTools(serverId: string): Promise<Tool[]> {
         // Validate serverId
-        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
+        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId);
 
         const response = await this.http.get<{ tools: Tool[] }>(
-            `/api/mcp/servers/${encodePathSegment(serverId)}/tools`
+            `/api/mcp/servers/${encodeURIComponent(serverId)}/tools`
         );
-        const validatedResponse = validateResponse(
-            MCPServerToolsResponseSchema,
-            response,
-            'getMCPServerTools'
-        );
+        const validatedResponse = validateResponse(MCPServerToolsResponseSchema, response);
         return validatedResponse.tools;
     }
 
@@ -493,8 +450,8 @@ export class DextoClient {
      */
     async executeMCPTool(serverId: string, toolName: string, args: unknown): Promise<unknown> {
         // Validate serverId and toolName
-        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId, 'server ID');
-        validateInput(z.string().min(1, 'Tool name cannot be empty'), toolName, 'tool name');
+        validateInput(z.string().min(1, 'Server ID cannot be empty'), serverId);
+        validateInput(z.string().min(1, 'Tool name cannot be empty'), toolName);
 
         // Validate args is not null/undefined (empty object {} is allowed)
         if (args === null || args === undefined) {
@@ -506,14 +463,10 @@ export class DextoClient {
         }
 
         const response = await this.http.post<{ success: boolean; data: unknown }>(
-            `/api/mcp/servers/${encodePathSegment(serverId)}/tools/${encodePathSegment(toolName)}/execute`,
+            `/api/mcp/servers/${encodeURIComponent(serverId)}/tools/${encodeURIComponent(toolName)}/execute`,
             args
         );
-        const validatedResponse = validateResponse(
-            MCPToolExecuteResponseSchema,
-            response,
-            'executeMCPTool'
-        );
+        const validatedResponse = validateResponse(MCPToolExecuteResponseSchema, response);
         return validatedResponse.data;
     }
 
@@ -524,10 +477,10 @@ export class DextoClient {
      */
     async searchMessages(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
         // Validate query
-        validateInput(z.string().min(1, 'Search query cannot be empty'), query, 'search query');
+        validateInput(z.string().min(1, 'Search query cannot be empty'), query);
 
         // Validate search options
-        const validatedOptions = validateInput(SearchOptionsSchema, options, 'search options');
+        const validatedOptions = validateInput(SearchOptionsSchema, options);
 
         const params = new globalThis.URLSearchParams();
         params.append('q', query);
@@ -545,7 +498,7 @@ export class DextoClient {
         }
 
         const response = await this.http.get<SearchResponse>(`/api/search/messages?${params}`);
-        return validateResponse(SearchResponseSchema, response, 'searchMessages');
+        return validateResponse(SearchResponseSchema, response);
     }
 
     /**
@@ -553,13 +506,13 @@ export class DextoClient {
      */
     async searchSessions(query: string): Promise<SessionSearchResponse> {
         // Validate query
-        validateInput(z.string().min(1, 'Search query cannot be empty'), query, 'search query');
+        validateInput(z.string().min(1, 'Search query cannot be empty'), query);
 
         const params = new globalThis.URLSearchParams({ q: query });
         const response = await this.http.get<SessionSearchResponse>(
             `/api/search/sessions?${params}`
         );
-        return validateResponse(SessionSearchResponseSchema, response, 'searchSessions');
+        return validateResponse(SessionSearchResponseSchema, response);
     }
 
     // ============= EVENT HANDLING =============
@@ -599,12 +552,12 @@ export class DextoClient {
     async getGreeting(sessionId?: string): Promise<string | null> {
         // Validate sessionId if provided
         if (sessionId !== undefined) {
-            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId, 'sessionId');
+            validateInput(z.string().min(1, 'Session ID cannot be empty'), sessionId);
         }
 
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ greeting: string | null }>(`/api/greeting${params}`);
-        const validatedResponse = validateResponse(GreetingResponseSchema, response, 'getGreeting');
+        const validatedResponse = validateResponse(GreetingResponseSchema, response);
         return validatedResponse.greeting;
     }
 

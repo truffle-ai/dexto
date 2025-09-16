@@ -10,6 +10,10 @@ import {
 /**
  * Client SDK error factory
  * Creates properly typed errors following core error patterns
+ *
+ * TODO: Re-evaluate if these client errors are necessary. Since client-sdk is above the API layer,
+ * these typed errors may not add much value compared to core errors. Consider simplifying or
+ * removing these in favor of direct core error usage.
  */
 export class ClientError {
     /**

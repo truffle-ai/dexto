@@ -440,7 +440,7 @@ export const GreetingResponseSchema = z
 
 // ============= UTILITY FUNCTIONS =============
 
-export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown, _context: string): T {
+export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown): T {
     const result = schema.safeParse(data);
     if (!result.success) {
         throw new DextoValidationError(zodToIssues(result.error));
@@ -448,7 +448,7 @@ export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown, _context
     return result.data;
 }
 
-export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown, _context: string): T {
+export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown): T {
     const result = schema.safeParse(data);
     if (!result.success) {
         throw new DextoValidationError(zodToIssues(result.error));

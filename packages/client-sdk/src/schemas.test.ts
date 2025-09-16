@@ -19,7 +19,7 @@ describe('Schema Validation', () => {
                 retries: 3,
             };
 
-            const result = validateInput(ClientConfigSchema, validConfig, 'test');
+            const result = validateInput(ClientConfigSchema, validConfig);
             expect(result).toEqual(validConfig);
         });
 
@@ -28,7 +28,7 @@ describe('Schema Validation', () => {
                 baseUrl: 'not-a-url',
             };
 
-            expect(() => validateInput(ClientConfigSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(ClientConfigSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -38,7 +38,7 @@ describe('Schema Validation', () => {
                 baseUrl: 'ftp://example.com',
             };
 
-            expect(() => validateInput(ClientConfigSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(ClientConfigSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -49,7 +49,7 @@ describe('Schema Validation', () => {
                 timeout: 500, // too low
             };
 
-            expect(() => validateInput(ClientConfigSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(ClientConfigSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -60,7 +60,7 @@ describe('Schema Validation', () => {
                 retries: 15, // too high
             };
 
-            expect(() => validateInput(ClientConfigSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(ClientConfigSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -71,7 +71,7 @@ describe('Schema Validation', () => {
                 extraProperty: 'not allowed',
             };
 
-            expect(() => validateInput(ClientConfigSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(ClientConfigSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -86,17 +86,17 @@ describe('Schema Validation', () => {
                 debug: true,
             };
 
-            const result = validateInput(ClientOptionsSchema, validOptions, 'test');
+            const result = validateInput(ClientOptionsSchema, validOptions);
             expect(result).toEqual(validOptions);
         });
 
         it('should validate empty options', () => {
-            const result = validateInput(ClientOptionsSchema, {}, 'test');
+            const result = validateInput(ClientOptionsSchema, {});
             expect(result).toEqual({});
         });
 
         it('should validate undefined options', () => {
-            const result = validateInput(ClientOptionsSchema, undefined, 'test');
+            const result = validateInput(ClientOptionsSchema, undefined);
             expect(result).toBeUndefined();
         });
 
@@ -105,7 +105,7 @@ describe('Schema Validation', () => {
                 reconnectInterval: 500, // too low
             };
 
-            expect(() => validateInput(ClientOptionsSchema, invalidOptions, 'test')).toThrow(
+            expect(() => validateInput(ClientOptionsSchema, invalidOptions)).toThrow(
                 DextoValidationError
             );
         });
@@ -117,7 +117,7 @@ describe('Schema Validation', () => {
                 content: 'Hello, world!',
             };
 
-            const result = validateInput(MessageInputSchema, validMessage, 'test');
+            const result = validateInput(MessageInputSchema, validMessage);
             expect(result).toEqual(validMessage);
         });
 
@@ -137,7 +137,7 @@ describe('Schema Validation', () => {
                 stream: true,
             };
 
-            const result = validateInput(MessageInputSchema, validMessage, 'test');
+            const result = validateInput(MessageInputSchema, validMessage);
             expect(result).toEqual(validMessage);
         });
 
@@ -146,7 +146,7 @@ describe('Schema Validation', () => {
                 content: '',
             };
 
-            expect(() => validateInput(MessageInputSchema, invalidMessage, 'test')).toThrow(
+            expect(() => validateInput(MessageInputSchema, invalidMessage)).toThrow(
                 DextoValidationError
             );
         });
@@ -156,7 +156,7 @@ describe('Schema Validation', () => {
                 content: 'a'.repeat(50001),
             };
 
-            expect(() => validateInput(MessageInputSchema, invalidMessage, 'test')).toThrow(
+            expect(() => validateInput(MessageInputSchema, invalidMessage)).toThrow(
                 DextoValidationError
             );
         });
@@ -170,7 +170,7 @@ describe('Schema Validation', () => {
                 },
             };
 
-            expect(() => validateInput(MessageInputSchema, invalidMessage, 'test')).toThrow(
+            expect(() => validateInput(MessageInputSchema, invalidMessage)).toThrow(
                 DextoValidationError
             );
         });
@@ -181,7 +181,7 @@ describe('Schema Validation', () => {
                 sessionId: '',
             };
 
-            expect(() => validateInput(MessageInputSchema, invalidMessage, 'test')).toThrow(
+            expect(() => validateInput(MessageInputSchema, invalidMessage)).toThrow(
                 DextoValidationError
             );
         });
@@ -193,7 +193,7 @@ describe('Schema Validation', () => {
                 provider: 'openai',
             };
 
-            const result = validateInput(LLMConfigInputSchema, validConfig, 'test');
+            const result = validateInput(LLMConfigInputSchema, validConfig);
             expect(result).toEqual(validConfig);
         });
 
@@ -202,7 +202,7 @@ describe('Schema Validation', () => {
                 model: 'gpt-4',
             };
 
-            const result = validateInput(LLMConfigInputSchema, validConfig, 'test');
+            const result = validateInput(LLMConfigInputSchema, validConfig);
             expect(result).toEqual(validConfig);
         });
 
@@ -217,7 +217,7 @@ describe('Schema Validation', () => {
                 temperature: 0.7,
             };
 
-            const result = validateInput(LLMConfigInputSchema, validConfig, 'test');
+            const result = validateInput(LLMConfigInputSchema, validConfig);
             expect(result).toEqual(validConfig);
         });
 
@@ -226,7 +226,7 @@ describe('Schema Validation', () => {
                 temperature: 0.5,
             };
 
-            expect(() => validateInput(LLMConfigInputSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(LLMConfigInputSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -237,7 +237,7 @@ describe('Schema Validation', () => {
                 router: 'invalid-router' as any,
             };
 
-            expect(() => validateInput(LLMConfigInputSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(LLMConfigInputSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -248,7 +248,7 @@ describe('Schema Validation', () => {
                 temperature: 3.0, // too high
             };
 
-            expect(() => validateInput(LLMConfigInputSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(LLMConfigInputSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -259,7 +259,7 @@ describe('Schema Validation', () => {
                 maxTokens: 0, // too low
             };
 
-            expect(() => validateInput(LLMConfigInputSchema, invalidConfig, 'test')).toThrow(
+            expect(() => validateInput(LLMConfigInputSchema, invalidConfig)).toThrow(
                 DextoValidationError
             );
         });
@@ -270,7 +270,7 @@ describe('Schema Validation', () => {
             const schema = ClientConfigSchema.pick({ baseUrl: true });
             const validData = { baseUrl: 'https://example.com' };
 
-            const result = validateInput(schema, validData, 'test');
+            const result = validateInput(schema, validData);
             expect(result).toEqual(validData);
         });
 
@@ -278,14 +278,14 @@ describe('Schema Validation', () => {
             const schema = ClientConfigSchema.pick({ baseUrl: true });
             const invalidData = { baseUrl: 'invalid' };
 
-            expect(() => validateInput(schema, invalidData, 'test')).toThrow(DextoValidationError);
+            expect(() => validateInput(schema, invalidData)).toThrow(DextoValidationError);
         });
 
         it('should work the same for validateResponse', () => {
             const schema = ClientConfigSchema.pick({ baseUrl: true });
             const validData = { baseUrl: 'https://example.com' };
 
-            const result = validateResponse(schema, validData, 'test');
+            const result = validateResponse(schema, validData);
             expect(result).toEqual(validData);
         });
     });

@@ -12,6 +12,5 @@ export default defineConfig([
         shims: true,
         bundle: true,
         platform: 'neutral',
-        external: ['@dexto/core'],
     },
 ]);
