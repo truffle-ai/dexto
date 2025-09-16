@@ -120,6 +120,69 @@ export const AgentConfigSchema = z
         internalResources: InternalResourcesSchema.describe(
             'Configuration for internal resources (filesystem, etc.)'
         ).default([]),
+
+        // Agent-specific starter prompts configuration (used by WebUI and PromptsManager)
+        starterPrompts: z
+            .array(
+                z
+                    .object({
+                        id: z
+                            .string()
+                            .min(1)
+                            .max(64)
+                            .regex(/^[a-z0-9-]+$/)
+                            .describe(
+                                'Kebab-case slug id for the starter prompt (e.g., quick-start)'
+                            ),
+                        title: z
+                            .string()
+                            .optional()
+                            .describe('Display title for the starter prompt'),
+                        description: z
+                            .string()
+                            .optional()
+                            .default('')
+                            .describe('Description shown on hover or in the UI'),
+                        prompt: z
+                            .string()
+                            .describe('The actual prompt text that gets resolved and sent'),
+                        category: z
+                            .enum(['general', 'coding', 'analysis', 'tools', 'learning'])
+                            .optional()
+                            .default('general')
+                            .describe('Category for organizing starter prompts'),
+                        icon: z
+                            .string()
+                            .optional()
+                            .default('')
+                            .describe('Emoji or icon to display'),
+                        priority: z
+                            .number()
+                            .optional()
+                            .default(0)
+                            .describe('Higher numbers appear first'),
+                    })
+                    .strict()
+            )
+            .superRefine((arr, ctx) => {
+                const seen = new Map<string, number>();
+                arr.forEach((p, idx) => {
+                    if (seen.has(p.id)) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: `Duplicate starterPrompt id: ${p.id}`,
+                            path: ['starterPrompts', idx, 'id'],
+                        });
+                    } else {
+                        seen.set(p.id, idx);
+                    }
+                });
+            })
+            .transform((arr) =>
+                arr.map((p) => ({ ...p, title: p.title ?? p.id.replace(/-/g, ' ') }))
+            )
+            .default([])
+            .describe('Starter prompts that appear as clickable buttons in the WebUI'),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')

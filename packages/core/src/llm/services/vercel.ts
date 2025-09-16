@@ -26,7 +26,7 @@ import type { SessionEventBus } from '../../events/index.js';
 import { toError } from '../../utils/error-conversion.js';
 import { ToolErrorCode } from '../../tools/error-codes.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -56,7 +56,7 @@ export class VercelLLMService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         model: LanguageModel,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
@@ -79,7 +79,7 @@ export class VercelLLMService implements ILLMService {
         this.contextManager = new ContextManager<ModelMessage>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,

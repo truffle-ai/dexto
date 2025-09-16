@@ -74,7 +74,7 @@ describe('SessionManager', () => {
                 getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
-            promptManager: {
+            systemPromptManager: {
                 getSystemPrompt: vi.fn().mockReturnValue('System prompt'),
             },
             mcpManager: {

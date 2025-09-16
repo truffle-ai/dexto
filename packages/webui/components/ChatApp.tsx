@@ -62,6 +62,26 @@ export default function ChatApp() {
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
 
+  // Starter prompts state (from agent config via /api/prompts)
+  const [starterPrompts, setStarterPrompts] = useState<any[]>([]);
+
+  // Fetch starter prompts when in welcome state
+  useEffect(() => {
+    const fetchStarterPrompts = async () => {
+      try {
+        const response = await fetch('/api/prompts');
+        if (response.ok) {
+          const data = await response.json();
+          const starters = (data.prompts || []).filter((p: any) => p.source === 'starter');
+          setStarterPrompts(starters);
+        }
+      } catch (error) {
+        // ignore
+      }
+    };
+    if (isWelcomeState) fetchStarterPrompts();
+  }, [isWelcomeState]);
+
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
   const listContentRef = React.useRef<HTMLDivElement | null>(null);
@@ -379,6 +399,33 @@ export default function ChatApp() {
     }
   ];
 
+  // Merge dynamic quick actions from starter prompts
+  const dynamicQuickActions = React.useMemo(() => {
+    // If starter prompts are present, hide the built-in defaults to avoid duplication
+    const actions: Array<{ title: string; description: string; action: () => void; icon: string }> =
+      starterPrompts.length > 0 ? [] : [...quickActions];
+    starterPrompts.forEach((prompt) => {
+      const iconFromConfig = (prompt?.metadata && (prompt.metadata as any).icon) || undefined;
+      if (prompt?.name === 'starter:connect-tools') {
+        actions.push({
+          title: prompt.title || prompt.name,
+          description: prompt.description || 'Starter prompt',
+          action: () => setServersPanelOpen(true),
+          icon: iconFromConfig || '🔧',
+        });
+      } else {
+        const slash = `/${prompt.name}`;
+        actions.push({
+          title: prompt.title || prompt.name,
+          description: prompt.description || 'Starter prompt',
+          action: () => handleSend(slash),
+          icon: iconFromConfig || '⭐',
+        });
+      }
+    });
+    return actions;
+  }, [starterPrompts, handleSend, setServersPanelOpen]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -654,20 +701,25 @@ export default function ChatApp() {
 
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
-                    {quickActions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={action.action}
-                        className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-1.5">
-                          <span className="text-sm">{action.icon}</span>
-                          <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
-                            {action.title}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                    {dynamicQuickActions.map((action, index) => {
+                      const title = action.title || '';
+                      const icon = action.icon || '';
+                      const showIcon = Boolean(icon) && !title.includes(icon);
+                      return (
+                        <button
+                          key={index}
+                          onClick={action.action}
+                          className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
+                        >
+                          <div className="flex items-center space-x-1.5">
+                            {showIcon && <span className="text-sm">{icon}</span>}
+                            <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
+                              {title}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Central Search Bar with Full Features */}

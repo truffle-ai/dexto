@@ -2,8 +2,9 @@
 import path from 'path';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ResourceManager, ResourceError, expandMessageReferences } from '../resources/index.js';
+import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -40,7 +41,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'promptManager',
+    'systemPromptManager',
     'agentEventBus',
     'stateManager',
     'sessionManager',
@@ -104,8 +105,13 @@ export class DextoAgent {
      * But the main recommended entry points/functions would still be the wrapper methods we define below
      */
     public readonly mcpManager!: MCPManager;
-    public readonly promptManager!: PromptManager;
+    public readonly systemPromptManager!: SystemPromptManager;
+    // Deprecated: backward-compat alias for older integrations
+    public get promptManager(): SystemPromptManager {
+        return this.systemPromptManager;
+    }
     public readonly agentEventBus!: AgentEventBus;
+    public readonly promptsManager!: PromptsManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
@@ -171,7 +177,7 @@ export class DextoAgent {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
                 resourceManager: services.resourceManager,
-                promptManager: services.promptManager,
+                systemPromptManager: services.systemPromptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
@@ -180,6 +186,16 @@ export class DextoAgent {
 
             // Initialize search service from services
             this.searchService = services.searchService;
+
+            // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            const promptsManager = new PromptsManager(
+                this.mcpManager,
+                'prompts',
+                this.config,
+                this.agentEventBus
+            );
+            await promptsManager.initialize();
+            Object.assign(this, { promptsManager });
 
             this._isStarted = true;
             logger.info('DextoAgent started successfully.');
@@ -1131,7 +1147,7 @@ export class DextoAgent {
         const context = {
             mcpManager: this.mcpManager,
         };
-        return await this.promptManager.build(context);
+        return await this.systemPromptManager.build(context);
     }
 
     // ============= CONFIGURATION ACCESS =============

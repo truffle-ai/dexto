@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
@@ -38,11 +38,13 @@ import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
 import { ResourceError } from '@dexto/core';
+import { PromptError } from '@dexto/core';
+import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Helper function to send JSON response with optional pretty printing
  */
-function sendJsonResponse(res: any, data: any, statusCode = 200) {
+function sendJsonResponse<T>(res: Response, data: T, statusCode = 200) {
     const pretty = res.req.query.pretty === 'true' || res.req.query.pretty === '1';
     res.status(statusCode);
 
@@ -187,6 +189,126 @@ export async function initializeApi(
     app.get('/health', (req, res) => {
         res.status(200).send('OK');
     });
+
+    // Prompts listing endpoint (for WebUI slash command autocomplete)
+    app.get('/api/prompts', async (_req, res, next) => {
+        try {
+            if (!agent.promptsManager) {
+                return res.status(200).json({ prompts: [] });
+            }
+            const prompts = await agent.promptsManager.list();
+            const list = Object.values(prompts);
+            return res.status(200).json({ prompts: list });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Helper to extract text content from MCP GetPromptResult
+    function extractPromptText(result: GetPromptResult): string {
+        let text = '';
+        if (!result) return text;
+        const msgs = Array.isArray(result.messages) ? result.messages : [];
+        for (const m of msgs) {
+            const content = (m as { content?: unknown }).content;
+            if (!content) continue;
+
+            if (typeof content === 'string') {
+                text += content + '\n';
+                continue;
+            }
+
+            if (Array.isArray(content)) {
+                for (const part of content) {
+                    if (
+                        part &&
+                        typeof part === 'object' &&
+                        'type' in part &&
+                        (part as { type: string }).type === 'text' &&
+                        'text' in part
+                    ) {
+                        const t = (part as { text?: unknown }).text;
+                        if (typeof t === 'string') text += t + '\n';
+                    }
+                }
+                continue;
+            }
+
+            if (
+                typeof content === 'object' &&
+                'type' in content &&
+                (content as { type: string }).type === 'text' &&
+                'text' in content
+            ) {
+                const t = (content as { text?: unknown }).text;
+                if (typeof t === 'string') text += t + '\n';
+            }
+        }
+        return text.trim();
+    }
+
+    // Get a specific prompt definition
+    app.get('/api/prompts/:name', async (req, res, next) => {
+        try {
+            const name = req.params.name;
+            if (!name) throw PromptError.nameRequired();
+            if (!agent.promptsManager) {
+                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
+            }
+            const definition = await agent.promptsManager.getPromptDefinition(name);
+            if (!definition) throw PromptError.notFound(name);
+            return sendJsonResponse(res, { definition }, 200);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Resolve a prompt to text content (without sending to the agent)
+    // Supports optional args via query string. For natural language after the
+    // slash command, pass as `q` or `_context` (both map to `_context`).
+    app.get('/api/prompts/:name/resolve', async (req, res, next) => {
+        try {
+            const inputName = req.params.name;
+            if (!inputName) throw PromptError.nameRequired();
+
+            // Extract optional arguments from query string
+            // - `q` or `_context` → maps to special `_context` arg supported by providers
+            // - `args` (JSON string) → additional key/value args
+            const query = req.query as Record<string, unknown>;
+            const args: Record<string, unknown> = {};
+
+            const q = typeof query.q === 'string' ? query.q : undefined;
+            const ctx = typeof query._context === 'string' ? query._context : undefined;
+            if (q && q.trim()) args._context = q.trim();
+            else if (ctx && ctx.trim()) args._context = ctx.trim();
+
+            // Optional structured args in `args` query param as JSON
+            if (typeof query.args === 'string') {
+                try {
+                    const parsed = JSON.parse(query.args);
+                    if (parsed && typeof parsed === 'object') {
+                        Object.assign(args, parsed as Record<string, unknown>);
+                    }
+                } catch {
+                    // Ignore malformed args JSON; continue with whatever we have
+                }
+            }
+
+            // Resolve provided name to a valid prompt key using core manager
+            const resolvedName =
+                (await agent.promptsManager.resolvePromptKey(inputName)) ?? inputName;
+
+            const pr = await agent.promptsManager.getPrompt(resolvedName, args);
+            const text = extractPromptText(pr);
+            if (!text) throw PromptError.emptyResolvedContent(resolvedName);
+            return sendJsonResponse(res, { text }, 200);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Note: We intentionally omit an "execute" endpoint; clients resolve prompts
+    // and then call the regular message endpoint, keeping server surface minimal.
 
     app.post('/api/message', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message');

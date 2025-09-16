@@ -74,6 +74,37 @@ internalResources:
       cleanupAfterDays: 30     # Auto-cleanup blobs older than 30 days
       # storePath: ~/.dexto/blobs (defaults to context-aware path)
 
+# Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
+starterPrompts:
+  - id: quick-start
+    title: "Quick Start Guide"
+    description: "Learn the basics and see what you can do"
+    prompt: "I'd like to get started quickly. Can you show me a few examples of what you can do and help me understand how to work with you?"
+    category: learning
+    icon: "📚"
+    priority: 9
+  - id: tool-demo
+    title: "Tool Demonstration"
+    description: "See the tools in action with practical examples"
+    prompt: "I'd like to see your tools in action. Can you pick one of your most interesting tools and demonstrate it with a practical example? Show me what it can do and how it works."
+    category: tools
+    icon: "⚡"
+    priority: 5
+  - id: snake-game
+    title: "Create Snake Game"
+    description: "Build a fun interactive game with HTML, CSS, and JavaScript"
+    prompt: "Create a snake game in a new directory with HTML, CSS, and JavaScript, then open it in the browser for me to play."
+    category: coding
+    icon: "🐍"
+    priority: 4
+  - id: connect-tools
+    title: "Connect New Tools"
+    description: "Browse and add MCP servers to extend capabilities"
+    prompt: "I want to connect new tools to expand my capabilities. Can you help me understand what MCP servers are available and how to add them?"
+    category: tools
+    icon: "🔧"
+    priority: 3
+
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
 # llm:
