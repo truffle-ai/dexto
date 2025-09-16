@@ -23,27 +23,10 @@ import {
     ClientConfigSchema,
     ClientOptionsSchema,
     MessageInputSchema,
-    MessageResponseSchema,
     LLMConfigInputSchema,
     SearchOptionsSchema,
-    SearchResponseSchema,
-    SessionSearchResponseSchema,
     CatalogOptionsSchema,
-    CatalogResponseSchema,
-    SessionsListResponseSchema,
-    SessionCreateResponseSchema,
-    SessionGetResponseSchema,
-    SessionHistoryResponseSchema,
-    CurrentSessionResponseSchema,
-    LLMCurrentResponseSchema,
-    LLMSwitchResponseSchema,
-    LLMProvidersResponseSchema,
-    MCPServersResponseSchema,
-    MCPServerToolsResponseSchema,
-    MCPToolExecuteResponseSchema,
-    GreetingResponseSchema,
     validateInput,
-    validateResponse,
 } from './schemas.js';
 
 /**
@@ -68,11 +51,19 @@ import {
  * console.log(response.response);
  * ```
  */
+// Internal options with resolved defaults
+interface ResolvedClientOptions {
+    enableWebSocket: boolean;
+    reconnect: boolean;
+    reconnectInterval: number;
+    debug: boolean;
+}
+
 export class DextoClient {
     private http: HttpClient;
     private ws: WebSocketClient | null = null;
     private config: ClientConfig;
-    private options: ClientOptions;
+    private options: ResolvedClientOptions;
 
     constructor(config: ClientConfig, options: ClientOptions = {}) {
         // Validate inputs with comprehensive Zod validation
@@ -184,9 +175,7 @@ export class DextoClient {
         };
 
         const response = await this.http.post<MessageResponse>(endpoint, requestBody);
-
-        // Validate response
-        return validateResponse(MessageResponseSchema, response);
+        return response;
     }
 
     /**
@@ -220,8 +209,7 @@ export class DextoClient {
      */
     async listSessions(): Promise<SessionInfo[]> {
         const response = await this.http.get<{ sessions: SessionInfo[] }>('/api/sessions');
-        const validatedResponse = validateResponse(SessionsListResponseSchema, response);
-        return validatedResponse.sessions;
+        return response.sessions;
     }
 
     /**
@@ -236,8 +224,7 @@ export class DextoClient {
         const response = await this.http.post<{ session: SessionInfo }>('/api/sessions', {
             ...(sessionId && { sessionId }),
         });
-        const validatedResponse = validateResponse(SessionCreateResponseSchema, response);
-        return validatedResponse.session;
+        return response.session;
     }
 
     /**
@@ -250,8 +237,7 @@ export class DextoClient {
         const response = await this.http.get<{ session: SessionInfo }>(
             `/api/sessions/${encodeURIComponent(sessionId)}`
         );
-        const validatedResponse = validateResponse(SessionGetResponseSchema, response);
-        return validatedResponse.session;
+        return response.session;
     }
 
     /**
@@ -264,8 +250,7 @@ export class DextoClient {
         const response = await this.http.get<{ history: unknown[] }>(
             `/api/sessions/${encodeURIComponent(sessionId)}/history`
         );
-        const validatedResponse = validateResponse(SessionHistoryResponseSchema, response);
-        return validatedResponse.history;
+        return response.history;
     }
 
     /**
@@ -296,8 +281,7 @@ export class DextoClient {
      */
     async getCurrentSession(): Promise<string> {
         const response = await this.http.get<{ currentSessionId: string }>('/api/sessions/current');
-        const validatedResponse = validateResponse(CurrentSessionResponseSchema, response);
-        return validatedResponse.currentSessionId;
+        return response.currentSessionId;
     }
 
     /**
@@ -327,8 +311,7 @@ export class DextoClient {
 
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ config: LLMConfig }>(`/api/llm/current${params}`);
-        const validatedResponse = validateResponse(LLMCurrentResponseSchema, response);
-        return validatedResponse.config;
+        return response.config;
     }
 
     /**
@@ -352,8 +335,7 @@ export class DextoClient {
             '/api/llm/switch',
             requestBody
         );
-        const validatedResponse = validateResponse(LLMSwitchResponseSchema, response);
-        return validatedResponse.config;
+        return response.config;
     }
 
     /**
@@ -363,8 +345,7 @@ export class DextoClient {
         const response = await this.http.get<{ providers: Record<string, ClientProviderInfo> }>(
             '/api/llm/providers'
         );
-        const validatedResponse = validateResponse(LLMProvidersResponseSchema, response);
-        return validatedResponse.providers;
+        return response.providers;
     }
 
     /**
@@ -388,7 +369,7 @@ export class DextoClient {
         const endpoint = queryString ? `/api/llm/catalog?${queryString}` : '/api/llm/catalog';
 
         const response = await this.http.get<CatalogResponse>(endpoint);
-        return validateResponse(CatalogResponseSchema, response);
+        return response;
     }
 
     // ============= MCP SERVER MANAGEMENT =============
@@ -398,8 +379,7 @@ export class DextoClient {
      */
     async listMCPServers(): Promise<McpServer[]> {
         const response = await this.http.get<{ servers: McpServer[] }>('/api/mcp/servers');
-        const validatedResponse = validateResponse(MCPServersResponseSchema, response);
-        return validatedResponse.servers;
+        return response.servers;
     }
 
     /**
@@ -441,8 +421,7 @@ export class DextoClient {
         const response = await this.http.get<{ tools: Tool[] }>(
             `/api/mcp/servers/${encodeURIComponent(serverId)}/tools`
         );
-        const validatedResponse = validateResponse(MCPServerToolsResponseSchema, response);
-        return validatedResponse.tools;
+        return response.tools;
     }
 
     /**
@@ -466,8 +445,7 @@ export class DextoClient {
             `/api/mcp/servers/${encodeURIComponent(serverId)}/tools/${encodeURIComponent(toolName)}/execute`,
             args
         );
-        const validatedResponse = validateResponse(MCPToolExecuteResponseSchema, response);
-        return validatedResponse.data;
+        return response.data;
     }
 
     // ============= SEARCH =============
@@ -498,7 +476,7 @@ export class DextoClient {
         }
 
         const response = await this.http.get<SearchResponse>(`/api/search/messages?${params}`);
-        return validateResponse(SearchResponseSchema, response);
+        return response;
     }
 
     /**
@@ -512,7 +490,7 @@ export class DextoClient {
         const response = await this.http.get<SessionSearchResponse>(
             `/api/search/sessions?${params}`
         );
-        return validateResponse(SessionSearchResponseSchema, response);
+        return response;
     }
 
     // ============= EVENT HANDLING =============
@@ -557,8 +535,7 @@ export class DextoClient {
 
         const params = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
         const response = await this.http.get<{ greeting: string | null }>(`/api/greeting${params}`);
-        const validatedResponse = validateResponse(GreetingResponseSchema, response);
-        return validatedResponse.greeting;
+        return response.greeting;
     }
 
     // ============= UTILITY METHODS =============

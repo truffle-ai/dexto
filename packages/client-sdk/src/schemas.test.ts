@@ -5,7 +5,6 @@ import {
     MessageInputSchema,
     LLMConfigInputSchema,
     validateInput,
-    validateResponse,
 } from '../src/schemas.js';
 import { DextoValidationError } from '../src/errors.js';
 
@@ -265,7 +264,7 @@ describe('Schema Validation', () => {
         });
     });
 
-    describe('validateInput and validateResponse', () => {
+    describe('validateInput', () => {
         it('should return parsed data on success', () => {
             const schema = ClientConfigSchema.pick({ baseUrl: true });
             const validData = { baseUrl: 'https://example.com' };
@@ -279,14 +278,6 @@ describe('Schema Validation', () => {
             const invalidData = { baseUrl: 'invalid' };
 
             expect(() => validateInput(schema, invalidData)).toThrow(DextoValidationError);
-        });
-
-        it('should work the same for validateResponse', () => {
-            const schema = ClientConfigSchema.pick({ baseUrl: true });
-            const validData = { baseUrl: 'https://example.com' };
-
-            const result = validateResponse(schema, validData);
-            expect(result).toEqual(validData);
         });
     });
 });

@@ -154,11 +154,20 @@ export class WebSocketClient {
 
     private handleIncomingMessage(data: unknown) {
         const msgData = data as Record<string, unknown>;
+
+        // Validate that we have a valid event type
+        const eventType = msgData.type as string;
+        if (!eventType) {
+            console.warn('Received WebSocket message without event type:', msgData);
+            return;
+        }
+
+        // Construct properly typed event
         const event: DextoEvent = {
-            type: (msgData.type as string) || 'unknown',
+            type: eventType,
             data: msgData.data || msgData,
-            sessionId: msgData.sessionId as string | undefined,
-        };
+            sessionId: msgData.sessionId as string,
+        } as DextoEvent;
 
         // Emit to specific event handlers
         const handlers = this.eventHandlers.get(event.type);

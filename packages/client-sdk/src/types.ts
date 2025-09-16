@@ -1,53 +1,49 @@
-// Client SDK types where we intentionally keep API-facing shapes flexible.
-// Wherever possible, prefer importing types from @dexto/core to avoid drift.
-// The types below are kept relaxed (string-based, optional fields) because
-// they mirror HTTP responses and inputs exposed by the public API.
-// We re-export core types in index.ts for strong typing when needed.
-// Import core types for re-export
-import type { InternalMessage } from '@dexto/core';
+// Client SDK types derived from @dexto/core to eliminate drift.
+// Most types are imported directly from core or derived from schemas.
+// Only wire-format specific types (like LLMConfig) differ from core for API compatibility.
+// Import core types for re-export and extension
+import type {
+    SessionMetadata,
+    SearchOptions as CoreSearchOptions,
+    SearchResult as CoreSearchResult,
+    LLMProvider,
+    LLMRouter,
+    AgentEventMap,
+    SessionEventMap,
+} from '@dexto/core';
 
-export interface ClientConfig {
-    baseUrl: string;
-    apiKey?: string;
-    timeout?: number;
-    retries?: number;
-}
+// Import schemas for type derivation
+import type {
+    ClientConfigSchema,
+    ClientOptionsSchema,
+    MessageInputSchema,
+    CatalogOptionsSchema,
+    McpServerSchema,
+    ToolSchema,
+} from './schemas.js';
+import type { z } from 'zod';
 
-export interface MessageInput {
-    content: string;
-    imageData?: {
-        base64: string;
-        mimeType: string;
-    };
-    fileData?: {
-        base64: string;
-        mimeType: string;
-        filename?: string;
-    };
-    sessionId?: string;
-    stream?: boolean;
-}
+// Derive types from Zod schemas to eliminate duplication
+export type ClientConfig = z.infer<typeof ClientConfigSchema>;
+export type ClientOptions = z.infer<typeof ClientOptionsSchema>;
+export type MessageInput = z.infer<typeof MessageInputSchema>;
 
+// Wire format response types (no validation, direct from API)
 export interface MessageResponse {
     response: string;
     sessionId: string;
 }
 
-export interface SessionInfo {
+// Extend core SessionMetadata with id field required by API responses
+export interface SessionInfo extends SessionMetadata {
     id: string;
-    createdAt: number;
-    lastActivity: number;
-    messageCount: number;
 }
 
-// Re-export core LLM types
-export type {
-    LLMProvider,
-    LLMRouter,
-    ModelInfo,
-    SupportedFileType,
-    ProviderInfo,
-} from '@dexto/core';
+// Re-export core LLM types for strong typing
+export type { ModelInfo, SupportedFileType, ProviderInfo } from '@dexto/core';
+
+// Re-export already imported core enum types
+export type { LLMProvider, LLMRouter };
 
 // Client-specific provider info type that matches the API response
 export interface ClientProviderInfo {
@@ -59,17 +55,13 @@ export interface ClientProviderInfo {
     primaryEnvVar?: string | undefined;
 }
 
-// Client-specific LLM config that extends core types
-// Note: provider and router use string types for API compatibility
-// Intentionally relaxed: client-side LLMConfig keeps strings for provider/router
-// to match wire formats and allow looser API inputs.
+// Client LLM config uses string types for wire format compatibility
 export interface LLMConfig {
-    provider: string; // Use string for API compatibility, can be cast to LLMProvider when needed
+    provider: string; // Wire format: string, can be cast to LLMProvider
     model: string;
-    router?: string | undefined; // Use string for API compatibility, can be cast to LLMRouter when needed
+    router?: string | undefined; // Wire format: string, can be cast to LLMRouter
     apiKey?: string | undefined;
     baseUrl?: string | undefined;
-    baseURL?: string | undefined; // Alternative naming for consistency
     maxTokens?: number | undefined;
     maxInputTokens?: number | undefined;
     maxOutputTokens?: number | undefined;
@@ -78,70 +70,30 @@ export interface LLMConfig {
     displayName?: string | undefined;
 }
 
-// Intentionally minimal: surface only API response fields for MCP server status
-export interface McpServer {
-    id: string;
-    name: string;
-    status: 'connected' | 'disconnected' | 'error' | 'unknown';
-    error?: string | undefined;
-}
+// Derive MCP and Tool types from schemas
+export type McpServer = z.infer<typeof McpServerSchema>;
+export type Tool = z.infer<typeof ToolSchema>;
 
-// Intentionally minimal: matches API response shape for tools listing
-export interface Tool {
-    id: string;
-    name: string;
-    description: string;
-    inputSchema?: Record<string, unknown> | undefined;
-}
+// Use core SearchOptions directly
+export type SearchOptions = CoreSearchOptions;
 
-// Intentionally relaxed: SDK exposes flexible search options for API usage.
-// For stricter types, import CoreSearchOptions from '@dexto/core'.
-export interface SearchOptions {
-    limit?: number;
-    offset?: number;
-    sessionId?: string;
-    role?: 'user' | 'assistant' | 'system' | 'tool';
-}
+// Use core SearchResult directly
+export type SearchResult = CoreSearchResult;
 
-// Intentionally relaxed: many fields optional to align with API response variances.
-// For stricter types, import CoreSearchResult from '@dexto/core'.
-export interface SearchResult {
-    sessionId: string;
-    message?: InternalMessage | undefined; // Use core InternalMessage type
-    matchedText?: string | undefined;
-    context?: string | undefined;
-    messageIndex?: number | undefined;
-    // Allow additional fields for backward compatibility
-    id?: string | undefined;
-    content?: string | undefined;
-    role?: string | undefined;
-    timestamp?: number | undefined;
-}
-
-// Intentionally relaxed response shape to tolerate API additions.
-// For stricter types, import CoreSearchResponse from '@dexto/core'.
+// Wire format search response types (no validation, direct from API)
 export interface SearchResponse {
     results: SearchResult[];
     total: number;
     hasMore: boolean;
-    query?: string | undefined;
-    options?:
-        | {
-              sessionId?: string | undefined;
-              role?: 'user' | 'assistant' | 'system' | 'tool' | undefined;
-              limit?: number | undefined;
-              offset?: number | undefined;
-          }
-        | undefined;
+    query?: string;
+    options?: SearchOptions;
 }
 
-// Intentionally relaxed: allows optional firstMatch/sessions for backward compatibility.
-// For stricter types, import CoreSessionSearchResponse from '@dexto/core'.
 export interface SessionSearchResponse {
     results: {
         sessionId: string;
         matchCount: number;
-        firstMatch?: SearchResult | undefined;
+        firstMatch?: SearchResult;
         metadata: {
             createdAt: number;
             lastActivity: number;
@@ -150,76 +102,62 @@ export interface SessionSearchResponse {
     }[];
     total: number;
     hasMore: boolean;
-    query?: string | undefined;
-    // Allow backward compatibility with old structure
-    sessions?:
-        | {
-              id: string;
-              messageCount: number;
-              lastActivity: number;
-              createdAt: number;
-          }[]
-        | undefined;
+    query?: string;
 }
 
-// LLM Catalog types
-export interface CatalogOptions {
-    provider?: string;
-    hasKey?: boolean;
-    router?: string;
-    fileType?: string;
-    defaultOnly?: boolean;
-    mode?: 'grouped' | 'flat';
+// Derive catalog types from schemas
+export type CatalogOptions = z.infer<typeof CatalogOptionsSchema>;
+
+// Wire format catalog response (no validation, direct from API)
+export interface CatalogResponse {
+    providers?: Record<string, CatalogProvider>;
+    models?: Array<CatalogModel & { provider: string }>;
 }
 
-// Client-specific model info that's more flexible for API responses
-// Intentionally relaxed: catalog reflects API payloads (string unions, optional pricing fields).
 export interface CatalogModel {
     name: string;
-    displayName?: string | undefined;
-    default?: boolean | undefined;
+    displayName?: string;
+    default?: boolean;
     maxInputTokens: number;
-    supportedFileTypes: string[]; // Use string[] for API compatibility
-    supportedRouters?: string[] | undefined; // Use string[] for API compatibility
-    pricing?:
-        | {
-              inputPerM?: number | undefined;
-              outputPerM?: number | undefined;
-              cacheReadPerM?: number | undefined;
-              cacheWritePerM?: number | undefined;
-              currency?: 'USD' | undefined;
-              unit?: 'per_million_tokens' | undefined;
-          }
-        | undefined;
+    supportedFileTypes: string[];
+    supportedRouters?: string[];
+    pricing?: {
+        inputPerM?: number;
+        outputPerM?: number;
+        cacheReadPerM?: number;
+        cacheWritePerM?: number;
+        currency?: 'USD';
+        unit?: 'per_million_tokens';
+    };
 }
 
-// Intentionally relaxed: mirrors API provider payload.
 export interface CatalogProvider {
     name: string;
     hasApiKey: boolean;
     primaryEnvVar: string;
-    supportedRouters: string[]; // Use string[] for API compatibility
+    supportedRouters: string[];
     supportsBaseURL: boolean;
     models: CatalogModel[];
-    supportedFileTypes?: string[] | undefined; // Use string[] for API compatibility
+    supportedFileTypes?: string[];
 }
 
-// Intentionally relaxed: mirrors API response where providers/models can be omitted.
-export interface CatalogResponse {
-    providers?: Record<string, CatalogProvider> | undefined;
-    models?: Array<CatalogModel & { provider: string }> | undefined;
-}
+// WebSocket event types derived from core events
+// Creates a union type of all possible WebSocket events with proper typing
+export type DextoEvent =
+    // Agent events (already include sessionId in their data)
+    | {
+          [K in keyof AgentEventMap]: {
+              type: K;
+              data: AgentEventMap[K];
+          };
+      }[keyof AgentEventMap]
+    // Session events (need sessionId added for WebSocket transport)
+    | {
+          [K in keyof SessionEventMap]: {
+              type: K;
+              data: SessionEventMap[K];
+              sessionId: string; // Required for session events over WebSocket
+          };
+      }[keyof SessionEventMap];
 
-// Event types for WebSocket communication
-export interface DextoEvent {
-    type: string;
-    data: unknown;
-    sessionId?: string | undefined;
-}
-
-export interface ClientOptions {
-    enableWebSocket?: boolean | undefined;
-    reconnect?: boolean | undefined;
-    reconnectInterval?: number | undefined;
-    debug?: boolean | undefined;
-}
+// ClientOptions is now derived from schema above
