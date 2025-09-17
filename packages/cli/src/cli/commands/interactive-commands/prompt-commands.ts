@@ -64,6 +64,7 @@ export const promptCommands: CommandDefinition[] = [
                 const mcpPrompts: string[] = [];
                 const internalPrompts: string[] = [];
                 const starterPrompts: string[] = [];
+                const customPrompts: string[] = [];
 
                 for (const [name, info] of Object.entries(prompts)) {
                     if (info.source === 'mcp') {
@@ -72,6 +73,8 @@ export const promptCommands: CommandDefinition[] = [
                         internalPrompts.push(name);
                     } else if (info.source === 'starter') {
                         starterPrompts.push(name);
+                    } else if (info.source === 'custom') {
+                        customPrompts.push(name);
                     }
                 }
 
@@ -114,6 +117,21 @@ export const promptCommands: CommandDefinition[] = [
                 if (starterPrompts.length > 0) {
                     console.log(chalk.green('⭐ Starter Prompts:'));
                     starterPrompts.forEach((name) => {
+                        const info = prompts[name];
+                        if (info) {
+                            const title = info.title ? ` (${info.title})` : '';
+                            const desc = info.description ? ` - ${info.description}` : '';
+                            console.log(
+                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                            );
+                        }
+                    });
+                    console.log();
+                }
+
+                if (customPrompts.length > 0) {
+                    console.log(chalk.greenBright('✨ Custom Prompts:'));
+                    customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
                             const title = info.title ? ` (${info.title})` : '';

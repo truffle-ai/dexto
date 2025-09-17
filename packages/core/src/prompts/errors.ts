@@ -82,6 +82,20 @@ export class PromptError {
         ]);
     }
 
+    /** Duplicate prompt name validation error */
+    static alreadyExists(name: string) {
+        return new DextoValidationError([
+            {
+                code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+                message: `Prompt already exists: ${name}`,
+                scope: ErrorScope.SYSTEM_PROMPT,
+                type: ErrorType.USER,
+                severity: 'error',
+                context: { name },
+            },
+        ]);
+    }
+
     /**
      * Prompt resolved to empty content
      */

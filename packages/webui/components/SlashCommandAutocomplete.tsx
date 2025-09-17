@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Zap } from 'lucide-react';
+import { Sparkles, Zap, Plus } from 'lucide-react';
 import { Badge } from './ui/badge';
 import type { PromptArgument, PromptInfo as CorePromptInfo } from '@dexto/core';
 
@@ -9,10 +9,11 @@ import type { PromptArgument, PromptInfo as CorePromptInfo } from '@dexto/core';
 type PromptInfo = CorePromptInfo;
 
 // PromptItem component for rendering individual prompts
-const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: { 
+const PromptItem = ({ prompt, isSelected, onClick, onMouseEnter, dataIndex }: { 
   prompt: Prompt; 
   isSelected: boolean; 
   onClick: () => void; 
+  onMouseEnter?: () => void;
   dataIndex?: number;
 }) => (
   <div
@@ -22,6 +23,7 @@ const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: {
         : 'hover:bg-primary/10'
     }`}
     onClick={onClick}
+    onMouseEnter={onMouseEnter}
     data-index={dataIndex}
   >
     <div className="flex items-start gap-2">
@@ -48,6 +50,11 @@ const PromptItem = ({ prompt, isSelected, onClick, dataIndex }: {
           {prompt.source === 'internal' && (
             <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
               Internal
+            </Badge>
+          )}
+          {prompt.source === 'custom' && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4 bg-primary/10 text-primary border-primary/20">
+              Custom
             </Badge>
           )}
           {prompt.source === 'starter' && (
@@ -103,13 +110,17 @@ interface SlashCommandAutocompleteProps {
   searchQuery: string;
   onSelectPrompt: (prompt: Prompt) => void;
   onClose: () => void;
+  onCreatePrompt?: () => void;
+  refreshKey?: number;
 }
 
 export default function SlashCommandAutocomplete({ 
   isVisible, 
   searchQuery,
   onSelectPrompt, 
-  onClose 
+  onClose,
+  onCreatePrompt,
+  refreshKey,
 }: SlashCommandAutocompleteProps) {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
@@ -117,6 +128,23 @@ export default function SlashCommandAutocomplete({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const showCreateOption = React.useMemo(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return false;
+    if (trimmed === '/') return true;
+    if (trimmed.startsWith('/') && filteredPrompts.length === 0) return true;
+    return false;
+  }, [searchQuery, filteredPrompts.length]);
+
+  const combinedItems = React.useMemo(() => {
+    const items: Array<{ kind: 'create' } | { kind: 'prompt'; prompt: Prompt }> = [];
+    if (showCreateOption) {
+      items.push({ kind: 'create' });
+    }
+    filteredPrompts.forEach((prompt) => items.push({ kind: 'prompt', prompt }));
+    return items;
+  }, [showCreateOption, filteredPrompts]);
 
   // Fetch available prompts
   useEffect(() => {
@@ -139,7 +167,7 @@ export default function SlashCommandAutocomplete({
     };
 
     fetchPrompts();
-  }, [isVisible]);
+  }, [isVisible, refreshKey]);
 
   // Filter prompts based on search query from parent input
   useEffect(() => {
@@ -162,28 +190,50 @@ export default function SlashCommandAutocomplete({
     setSelectedIndex(0);
   }, [searchQuery, prompts]);
 
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [showCreateOption, filteredPrompts.length, searchQuery]);
+
+  useEffect(() => {
+    if (combinedItems.length === 0) {
+      setSelectedIndex(0);
+      return;
+    }
+    if (selectedIndex >= combinedItems.length) {
+      setSelectedIndex(combinedItems.length - 1);
+    }
+  }, [combinedItems, selectedIndex]);
+
   // Handle keyboard navigation
   useEffect(() => {
     if (!isVisible) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const items = combinedItems;
       switch (e.key) {
         case 'ArrowDown':
+          if (items.length === 0) return;
           e.preventDefault();
-          setSelectedIndex(prev => 
-            prev < filteredPrompts.length - 1 ? prev + 1 : 0
-          );
+          setSelectedIndex((prev) => (prev + 1) % items.length);
           break;
         case 'ArrowUp':
+          if (items.length === 0) return;
           e.preventDefault();
-          setSelectedIndex(prev => 
-            prev > 0 ? prev - 1 : filteredPrompts.length - 1
-          );
+          setSelectedIndex((prev) => (prev - 1 + items.length) % items.length);
           break;
         case 'Enter':
           e.preventDefault();
-          if (filteredPrompts[selectedIndex]) {
-            onSelectPrompt(filteredPrompts[selectedIndex]);
+          if (items.length === 0) {
+            onCreatePrompt?.();
+            return;
+          }
+          {
+            const item = items[selectedIndex];
+            if (item.kind === 'create') {
+              onCreatePrompt?.();
+            } else {
+              onSelectPrompt(item.prompt);
+            }
           }
           break;
         case 'Escape':
@@ -192,8 +242,17 @@ export default function SlashCommandAutocomplete({
           break;
         case 'Tab':
           e.preventDefault();
-          if (filteredPrompts[selectedIndex]) {
-            onSelectPrompt(filteredPrompts[selectedIndex]);
+          if (items.length === 0) {
+            onCreatePrompt?.();
+            return;
+          }
+          {
+            const item = items[selectedIndex];
+            if (item.kind === 'create') {
+              onCreatePrompt?.();
+            } else {
+              onSelectPrompt(item.prompt);
+            }
           }
           break;
       }
@@ -201,7 +260,7 @@ export default function SlashCommandAutocomplete({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isVisible, filteredPrompts, selectedIndex, onSelectPrompt, onClose]);
+  }, [isVisible, combinedItems, selectedIndex, onSelectPrompt, onClose, onCreatePrompt]);
 
   // Scroll selected item into view when selectedIndex changes
   useEffect(() => {
@@ -270,7 +329,7 @@ export default function SlashCommandAutocomplete({
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>Available Prompts</span>
           <Badge variant="secondary" className="ml-auto text-xs px-2 py-0.5">
-            {filteredPrompts.length}
+            {prompts.length}
           </Badge>
         </div>
       </div>
@@ -281,21 +340,50 @@ export default function SlashCommandAutocomplete({
           <div className="p-3 text-center text-xs text-muted-foreground">
             Loading prompts...
           </div>
-        ) : filteredPrompts.length === 0 ? (
-          <div className="p-3 text-center text-xs text-muted-foreground">
-            No prompts available.
-          </div>
         ) : (
           <>
-            {filteredPrompts.map((prompt, index) => (
-              <PromptItem 
-                key={prompt.name}
-                prompt={prompt}
-                isSelected={index === selectedIndex}
-                onClick={() => onSelectPrompt(prompt)}
-                dataIndex={index}
-              />
-            ))}
+            {showCreateOption && (
+              <div
+                className={`px-3 py-2 cursor-pointer transition-colors ${
+                  selectedIndex === 0
+                    ? 'bg-primary/20 ring-1 ring-primary/40'
+                    : 'hover:bg-primary/10'
+                }`}
+                onClick={() => onCreatePrompt?.()}
+                onMouseEnter={() => setSelectedIndex(0)}
+                data-index={0}
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                  <Plus className="h-3 w-3 text-primary" />
+                  <span>Create new prompt</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-1">
+                  Define a reusable prompt. Press Enter to continue.
+                </div>
+              </div>
+            )}
+
+            {filteredPrompts.length === 0 ? (
+              !showCreateOption && (
+                <div className="p-3 text-center text-xs text-muted-foreground">
+                  No prompts available.
+                </div>
+              )
+            ) : (
+              filteredPrompts.map((prompt, index) => {
+                const itemIndex = showCreateOption ? index + 1 : index;
+                return (
+                  <PromptItem 
+                    key={prompt.name}
+                    prompt={prompt}
+                    isSelected={itemIndex === selectedIndex}
+                    onClick={() => onSelectPrompt(prompt)}
+                    onMouseEnter={() => setSelectedIndex(itemIndex)}
+                    dataIndex={itemIndex}
+                  />
+                );
+              })
+            )}
           </>
         )}
       </div>

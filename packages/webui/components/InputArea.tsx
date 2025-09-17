@@ -25,6 +25,7 @@ import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from './types/resources';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import CreatePromptModal from './CreatePromptModal';
 import { parseSlashInput } from '../lib/parseSlash';
 
 interface ModelOption {
@@ -116,16 +117,40 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   // Slash command state
   const [showSlashCommands, setShowSlashCommands] = useState(false);
-  const [selectedPrompt, setSelectedPrompt] = useState<{
-    name: string;
-    arguments: Array<{ name: string; required?: boolean }>;
-  } | null>(null);
+  const [showCreatePromptModal, setShowCreatePromptModal] = useState(false);
+  const [slashRefreshKey, setSlashRefreshKey] = useState(0);
 
   const showUserError = (message: string) => {
     setFileUploadError(message);
     // Auto-clear error after 5 seconds
     setTimeout(() => setFileUploadError(null), 5000);
   };
+
+  const openCreatePromptModal = React.useCallback(() => {
+    setShowSlashCommands(false);
+    setShowCreatePromptModal(true);
+  }, []);
+
+  const handlePromptCreated = React.useCallback(
+    (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
+      setShowCreatePromptModal(false);
+      setSlashRefreshKey((prev) => prev + 1);
+      const slashCommand = `/${prompt.name}`;
+      setText(slashCommand);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(slashCommand.length, slashCommand.length);
+      }
+    },
+    []
+  );
+
+  const handleCloseCreatePrompt = React.useCallback(() => {
+    setShowCreatePromptModal(false);
+    if (text === '/') {
+      setText('');
+    }
+  }, [text]);
 
   // Fetch current LLM configuration
   useEffect(() => {
@@ -192,8 +217,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
     // If slash command typed, resolve to full prompt content at send time
     if (trimmed === '/') {
-      // Normalize lone slash to no-op
-      trimmed = '';
+      openCreatePromptModal();
+      return;
     } else if (trimmed.startsWith('/')) {
       const parsed = parseSlashInput(trimmed);
       const name = parsed.command;
@@ -313,7 +338,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     name: string; 
     arguments?: Array<{ name: string; required?: boolean }>
   }) => {
-    setSelectedPrompt({ name: prompt.name, arguments: prompt.arguments || [] });
     const slash = `/${prompt.name}`;
     setText(slash);
     setShowSlashCommands(false);
@@ -325,7 +349,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   const closeSlashCommands = () => {
     setShowSlashCommands(false);
-    setSelectedPrompt(null);
   };
 
   // Detect @mention context on text change and caret move
@@ -740,6 +763,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               searchQuery={text}
               onSelectPrompt={handlePromptSelect}
               onClose={closeSlashCommands}
+              onCreatePrompt={openCreatePromptModal}
+              refreshKey={slashRefreshKey}
             />
 
             {/* Footer row: normal flow */}
@@ -829,6 +854,12 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           accept="audio/*"
           className="hidden"
           onChange={handleAudioFileChange}
+        />
+
+        <CreatePromptModal
+          open={showCreatePromptModal}
+          onClose={handleCloseCreatePrompt}
+          onCreated={handlePromptCreated}
         />
       </div>
     </div>

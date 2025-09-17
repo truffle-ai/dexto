@@ -190,7 +190,8 @@ export class DextoAgent {
                 this.resourceManager,
                 'prompts',
                 this.config,
-                this.agentEventBus
+                this.agentEventBus,
+                services.storage.database
             );
             await promptsManager.initialize();
             Object.assign(this, { promptsManager });

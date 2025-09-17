@@ -117,6 +117,27 @@ const CancelRequestSchema = z.object({
     sessionId: z.string().min(1, 'Session ID is required'),
 });
 
+const PromptArgumentSchema = z.object({
+    name: z.string().min(1, 'Argument name is required'),
+    description: z.string().optional(),
+    required: z.boolean().optional(),
+});
+
+const CustomPromptRequestSchema = z.object({
+    name: z.string().min(1, 'Prompt name is required'),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    content: z.string().min(1, 'Prompt content is required'),
+    arguments: z.array(PromptArgumentSchema).optional(),
+    resource: z
+        .object({
+            base64: z.string().min(1, 'Resource data is required'),
+            mimeType: z.string().min(1, 'Resource MIME type is required'),
+            filename: z.string().optional(),
+        })
+        .optional(),
+});
+
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
     return schema.parse(body); // ZodError handled by error middleware
@@ -199,6 +220,55 @@ export async function initializeApi(
             const prompts = await agent.promptsManager.list();
             const list = Object.values(prompts);
             return res.status(200).json({ prompts: list });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    app.post('/api/prompts/custom', express.json({ limit: '10mb' }), async (req, res, next) => {
+        try {
+            const payload = parseBody(CustomPromptRequestSchema, req.body);
+            const promptArguments = payload.arguments
+                ?.map((arg) => ({
+                    name: arg.name,
+                    ...(arg.description ? { description: arg.description } : {}),
+                    ...(typeof arg.required === 'boolean' ? { required: arg.required } : {}),
+                }))
+                .filter(Boolean);
+
+            const createPayload = {
+                name: payload.name,
+                content: payload.content,
+                ...(payload.title ? { title: payload.title } : {}),
+                ...(payload.description ? { description: payload.description } : {}),
+                ...(promptArguments && promptArguments.length > 0
+                    ? { arguments: promptArguments }
+                    : {}),
+                ...(payload.resource
+                    ? {
+                          resource: {
+                              base64: payload.resource.base64,
+                              mimeType: payload.resource.mimeType,
+                              ...(payload.resource.filename
+                                  ? { filename: payload.resource.filename }
+                                  : {}),
+                          },
+                      }
+                    : {}),
+            };
+            const prompt = await agent.promptsManager.createCustomPrompt(createPayload);
+            return res.status(201).json({ prompt });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    app.delete('/api/prompts/custom/:name', async (req, res, next) => {
+        try {
+            const encodedName = req.params.name;
+            const name = decodeURIComponent(encodedName);
+            await agent.promptsManager.deleteCustomPrompt(name);
+            return res.status(204).send();
         } catch (error) {
             return next(error);
         }

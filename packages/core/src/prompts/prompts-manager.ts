@@ -6,9 +6,14 @@ import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
+import {
+    CustomPromptProvider,
+    type CreateCustomPromptInput,
+} from './providers/custom-prompt-provider.js';
 import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 import type { ResourceManager } from '../resources/manager.js';
+import type { DatabaseBackend } from '../storage/backend/database-backend.js';
 
 interface PromptCacheEntry {
     key: string;
@@ -29,12 +34,16 @@ export class PromptsManager {
         resourceManager: ResourceManager,
         promptsDir?: string,
         agentConfig?: ValidatedAgentConfig,
-        private readonly eventBus?: AgentEventBus
+        private readonly eventBus?: AgentEventBus,
+        private readonly database?: DatabaseBackend
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
         const internalOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
         this.providers.set('internal', new InternalPromptProvider(internalOptions));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
+        if (this.database) {
+            this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
+        }
 
         logger.debug(
             `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
@@ -117,6 +126,25 @@ export class PromptsManager {
         const normalized = nameOrAlias.startsWith('/') ? nameOrAlias.slice(1) : nameOrAlias;
         const aliasMatch = this.aliasMap.get(nameOrAlias) ?? this.aliasMap.get(normalized);
         return aliasMatch ?? null;
+    }
+
+    async createCustomPrompt(input: CreateCustomPromptInput): Promise<PromptInfo> {
+        const provider = this.providers.get('custom');
+        if (!provider || !(provider instanceof CustomPromptProvider)) {
+            throw PromptError.providerNotFound('custom');
+        }
+        const prompt = await provider.createPrompt(input);
+        await this.refresh();
+        return prompt;
+    }
+
+    async deleteCustomPrompt(name: string): Promise<void> {
+        const provider = this.providers.get('custom');
+        if (!provider || !(provider instanceof CustomPromptProvider)) {
+            throw PromptError.providerNotFound('custom');
+        }
+        await provider.deletePrompt(name);
+        await this.refresh();
     }
 
     async refresh(): Promise<void> {
