@@ -4,24 +4,20 @@
 ```ts
 import { loadAgentConfig } from '@dexto/core/config';
 import { DextoAgent } from '@dexto/core/agent';
-import { createDextoApp, createRuntimeContextFactory } from '@dexto/server/hono';
-import { createNodeAdapter } from './utils/node-adapter.js';
+import { createDextoApp, createNodeServer } from '@dexto/server/hono';
 import { createLoggerFromConfig } from './utils/logging.js';
+import { expandAgentConfig } from './utils/runtime.js';
 
 async function boot() {
-  const config = await loadAgentConfig('default-agent.yml');
+  const rawConfig = await loadAgentConfig('default-agent.yml');
+  const config = expandAgentConfig(rawConfig); // resolves @agent_dir, prefs, etc.
   const logger = createLoggerFromConfig(config.logging);
   const agent = new DextoAgent(config, { logger });
   await agent.start();
 
-  const createContext = createRuntimeContextFactory({
-    agentFactory: async () => agent,
-    logger,
-  });
-
-  const app = createDextoApp(createContext);
-  const server = createNodeAdapter(app);
-  server.listen(8000);
+  const app = createDextoApp(agent);
+  const { server } = createNodeServer(app, { agent, logger });
+  server.listen(8000, () => logger.info('CLI API available on http://localhost:8000'));
 
   // REPL continues to use `agent` directly
 }
@@ -29,14 +25,13 @@ async function boot() {
 
 ## Embedded server (hosted deployment)
 ```ts
-import { createDextoApp, createRuntimeContextFactory } from '@dexto/server/hono';
-import { serve } from '@hono/node-server';
+import { createDextoApp, createNodeServer } from '@dexto/server/hono';
 
 const agent = await buildAgentFromEnv();
-const logger = createLoggerFromEnv();
-const createContext = createRuntimeContextFactory({ agentFactory: async () => agent, logger });
+const app = createDextoApp(agent);
+const { server } = createNodeServer(app, { agent });
 
-serve({ fetch: createDextoApp(createContext).fetch, port: 3000 });
+server.listen(3000);
 ```
 
 ## Client SDK usage
@@ -71,4 +66,4 @@ ws.onmessage = (event) => {
 };
 ```
 
-These examples demonstrate how the new package layout supports CLI, hosted deployments, and consumer applications without depending on the old CLI-only Express server.
+These examples reflect the new package boundaries, config preprocessing, and the Node bridge powering the CLI/server deployments.

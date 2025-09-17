@@ -11,42 +11,40 @@
 ## High-level solution
 
 1. **Re-scope packages**
-   - `@dexto/core`: primitives only (agents, types, pure utilities). No filesystem dependencies.
-   - `@dexto/server`: handler modules + runtime context.
-   - `@dexto/server/hono`: subpath exposing the Hono app factory, context factory, websocket hub, and generated typed client.
-   - `@dexto/cli`: consumes server subpath, keeps REPL.
-   - `@dexto/client-sdk`: thin wrapper around the generated Hono client.
-   - *No backwards-compatibility shims: Express is fully replaced by the Hono implementation once the migration lands.*
+   - `@dexto/core`: primitives plus runtime services (agent, storage, MCP) with a console-first logger default. Node helpers (`getDextoPath`, env resolution, preferences loader, config discovery) move to the CLI; `DextoAgent` only depends on its validated config and an injected logger. Any path resolution happens before instantiation.
+   - `@dexto/server`: handler modules plus Hono/Node adapters. Exposes a typed API surface, websocket hub, and an MCP adapter that works with Hono’s request/response objects.
+   - `@dexto/server/hono`: subpath exporting the Hono app factory, Node server bridge (HTTP + WS upgrade), websocket hub, MCP transport helpers, and generated typed client tooling.
+   - `@dexto/cli`: owns YAML parsing, filesystem helpers, preferences, logging configuration, registry path expansion (e.g., `@agent_dir`), and the Node bootstrap wiring the server + REPL.
+   - `@dexto/client-sdk`: rebuilt as a thin wrapper over the generated typed client with retries and websocket conveniences.
 2. **Logging injection**
-   - Agents default to console logging (browser-safe).
-   - Hosts (CLI/server) build file loggers from YAML/env and inject them.
+   - `@dexto/core` ships an `ILogger` contract with `ConsoleLogger` default. `WinstonLogger` lives behind a node-only subpath. `DextoAgent` accepts a logger and propagates it to every service during construction.
+   - Hosts (CLI/server) build file loggers via YAML/env and pass them in. No singleton imports remain.
 3. **Move Node-only utilities out of core**
-   - Path resolution, execution-context detection, `.dexto` directory helpers migrate to CLI (shared runtime file). Server package reuses the CLI helper when needed.
-4. **Express → Hono**
-   - Express-specific code replaced with a Hono app built from handler modules. WebSocket events and REST endpoints share one implementation.
-   - Migration is a direct port of the existing lightweight routes (health, message, session, search, MCP, LLM); no behavioural changes or compatibility shims are introduced.
+   - Path resolution, execution-context detection, preferences loader, and `.dexto` helpers migrate to the CLI and run before instantiating the agent. File contributor defaults and docs are updated to rely on `@agent_dir` placeholders, removing the direct config-path dependency in core.
+4. **Express → Hono + Node bridge**
+   - Express code is replaced with a Hono app built from handler modules. A Node bridge (`createNodeServer`) adapts `app.fetch` to `http.createServer` and owns the websocket upgrade + MCP streamable HTTP wiring.
 5. **Typed client & docs**
-   - Use `hono/client` (`hc`) to generate a fully typed client. Client SDK wraps it. Optional OpenAPI generation from Hono routes keeps docs/tests in sync.
+   - Use `hono/client` (`hc`) to generate a typed client. Client SDK wraps it. Optional OpenAPI metadata keeps docs/tests in sync.
 
 ## Impacted user flows
 
-- CLI REPL continues to run locally, but the internal API now comes from `@dexto/server/hono`.
-- WebUI and hosted deployments talk to the same API surface, making it easier to scale beyond the CLI.
-- Client SDK becomes the recommended way for consumer apps to integrate (browser-friendly).
-- Logging configuration lives in YAML/env; defaults remain consistent (`~/.dexto` or project `.dexto`).
+- CLI REPL continues to run locally, but the internal API now comes from `@dexto/server/hono` via the Node bridge.
+- WebUI and hosted deployments talk to the same API surface.
+- Client SDK becomes the recommended integration path.
+- Logging configuration lives in YAML/env with injection into the agent; defaults remain consistent (`~/.dexto` or project `.dexto`).
 
 ## Detailed breakdown
 
-1. `01-package-structure.md` – package responsibilities and exports.
-2. `02-handler-refactor.md` – how we extract Express logic into pure handlers.
-3. `03-logging-config.md` – logging configuration and injection strategy.
-4. `04-express-to-hono-migration.md` – step-by-step server migration.
-5. `05-client-sdk.md` – SDK alignment and typed client usage.
-6. `06-cli-impact.md` – CLI utility moves and API wiring.
+1. `01-package-structure.md` – package responsibilities, injection boundaries, and exports.
+2. `02-handler-refactor.md` – extracting logic into agent-driven handlers.
+3. `03-logging-config.md` – logger interface, implementations, and host wiring.
+4. `04-express-to-hono-migration.md` – server migration plus Node bridge and websocket/MCP adapters.
+5. `05-client-sdk.md` – SDK rebuild around the typed client.
+6. `06-cli-impact.md` – CLI utility moves, registry path handling, and API wiring.
 7. `07-api-docs.md` – OpenAPI/typed client generation.
 8. `08-migration-checklist.md` – consolidated task list.
 9. `09-usage-examples.md` – sample code for CLI, server, and SDK consumers.
-10. `core-logger-browser-plan.md` – active logger refactor plan (console default + injected transports).
+10. `core-logger-browser-plan.md` – logger refactor details.
 11. `logger-migration.md` & `logger.md` – legacy notes kept for historical context.
 
 Refer to these documents as implementation proceeds.

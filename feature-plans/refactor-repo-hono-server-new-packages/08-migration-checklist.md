@@ -1,45 +1,50 @@
 # Migration Checklist
 
 ## Pre-work
-- [ ] Align team on package renames/exports (`@dexto/server`, `@dexto/server/hono`).
-- [ ] Freeze Express changes in CLI to avoid churn during migration (Express implementation will be retired once Hono ships).
+- [ ] Align on updated `DextoAgent` surface (config + logger) and remove legacy singleton usage.
+- [ ] Freeze Express changes in CLI to avoid churn during migration.
 
-## Phase 1 – Handlers & Utilities
-- [ ] Create `packages/server` scaffolding.
-- [ ] Move validation + route logic from CLI to handler modules.
-- [ ] Add unit tests for each handler.
-- [ ] Relocate path/execution helpers from `@dexto/core` to `packages/cli/src/utils/runtime.ts`.
-- [ ] Implement `createLoggerFromConfig` in CLI utilities.
+## Phase 1 – Core & Utilities
+- [ ] Introduce `ILogger`, `ConsoleLogger`, and node-only `WinstonLogger` subpath.
+- [ ] Update `DextoAgent` and `createAgentServices` to accept injected logger only.
+- [ ] Relocate filesystem + preferences utilities to CLI; update FileContributor/docs to rely on `@agent_dir` expansion.
+- [ ] Add unit tests covering logger injection and config preprocessing.
 
-## Phase 2 – Hono App
-- [ ] Build `createDextoApp`, routers, websocket hub.
-- [ ] Implement `createRuntimeContextFactory`.
-- [ ] Implement `createTypedClient` helper.
-- [ ] Add integration tests for key endpoints (`/api/message`, `/api/sessions`, `/api/search`, `/ws`).
+## Phase 2 – Handlers & Server Package
+- [ ] Scaffold `@dexto/server` (handlers, Hono routers, middleware, typed client helper).
+- [ ] Port validation + route logic from CLI to handler modules operating on `DextoAgent`.
+- [ ] Implement `createWebsocketHub` and MCP adapter utilities.
+- [ ] Add unit tests for handlers and websocket hub.
+
+## Phase 3 – Hono App & Node Bridge
+- [ ] Build `createDextoApp` with redaction + error middleware.
+- [ ] Implement `createNodeServer` (http bridge + websocket upgrade + MCP stream handling).
+- [ ] Generate typed client helper (`createTypedClient`).
+- [ ] Add integration tests for `/api/message`, `/api/sessions`, `/api/search`, `/api/webhooks`, `/mcp`, `/ws`.
 - [ ] (Optional) Hook up OpenAPI generation script.
 
-## Phase 3 – CLI Swap
-- [ ] Replace Express server with Hono app + Node adapter.
-- [ ] Update logging injection to use helper and pass logger into context factory.
-- [ ] Wire websocket hub to agent event bus.
+## Phase 4 – CLI Swap
+- [ ] Replace Express server with Hono app + Node bridge.
+- [ ] Ensure config preprocessing (macros, preferences) runs before `DextoAgent` instantiation.
+- [ ] Reuse `createWebsocketHub` for REPL + API event streaming.
 - [ ] Ensure WebUI static assets still serve correctly.
 - [ ] Run CLI integration suite.
 
-## Phase 4 – Client SDK & WebUI
-- [ ] Update SDK to use typed client.
-- [ ] Update SDK tests to spin up Hono app.
-- [ ] Verify bundle size/compatibility.
-- [ ] Adjust WebUI API calls if needed (base URL, endpoints).
-- [ ] Update docs referencing CLI endpoints.
+## Phase 5 – Client SDK & WebUI
+- [ ] Rebuild client SDK around `createTypedClient`.
+- [ ] Update SDK tests to spin up the Hono bridge.
+- [ ] Verify bundle size/compatibility (browser + RN smoke tests).
+- [ ] Adjust WebUI API calls if needed.
+- [ ] Update docs referencing CLI endpoints/SDK usage.
 
-## Phase 5 – Cleanup & Release
-- [ ] Delete Express code paths and unused middleware (no fallback path).
-- [ ] Update release notes highlighting package changes, logging configuration, and new API entrypoint.
+## Phase 6 – Cleanup & Release
+- [ ] Delete Express code paths and unused middleware.
+- [ ] Update release notes highlighting package changes, logging injection, and new API entrypoints.
 - [ ] Publish updated packages (`@dexto/core`, `@dexto/server`, `@dexto/client-sdk`, CLI version bump).
 - [ ] Notify downstream teams (webui, RN, hosted) about new integration points.
 - [ ] Monitor for regressions; keep rollback branch handy.
 
 ## Post-migration follow-ups
-- [ ] Explore hosted/edge deployment using the new server package.
+- [ ] Explore hosted/edge deployments using the new server package.
 - [ ] Flesh out monetization features (API keys, rate limiting).
-- [ ] Consider additional transports (gRPC, SSE) once Hono foundation is stable.
+- [ ] Consider additional transports (gRPC, SSE streams) once the Hono foundation is stable.

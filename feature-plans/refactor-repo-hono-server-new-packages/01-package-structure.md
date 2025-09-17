@@ -1,50 +1,52 @@
 # Package Structure & Responsibilities
 
 ## `@dexto/core`
-- Remains the primitives layer (agents, schemas, result helpers, safe-stringify, etc.).
-- Ships a lightweight `ILogger` interface plus `ConsoleLogger`/`WinstonLogger` implementations. `DextoAgent` owns a `logger` property and accepts overrides via constructor options.
-- All Node-only utilities (path resolution, execution context) move out.
+- Remains the primitives + runtime services layer (agents, schemas, storage, MCP, search, event bus).
+- Ships `ILogger`, `ConsoleLogger`, and lightweight factories. `DextoAgent` continues to accept only its validated config plus an injected logger.
+- Drops bundled filesystem helpers (`getDextoPath`, execution context, preferences loader). Core code that previously reached into these helpers either reads values from config (with `@agent_dir` resolution handled upstream) or relies on updated FileContributor defaults that no longer depend on raw config paths.
+- Storage and MCP modules stay in core; any filesystem access happens through configuration provided by the CLI/server before instantiation.
 - Conditional exports:
-  - `"."` → Node entry (still documented as Node-focused).
-  - `"./index.browser"` (if retained) or `index.browser.ts` trimmed to the SDK/UI-safe surface.
-  - Node-specific surfaces (storage, config, env) available as explicit subpaths.
+  - `"."` → Node entry (documented as server-first).
+  - `"./logger"` → interface + console implementation.
+  - `"./logger/node"` → Winston/file implementation (tree-shakeable from browsers).
+  - Additional node-only surfaces (storage/config/environment) stay behind explicit subpaths.
 
 ## `@dexto/server`
 - New package containing:
-  - `src/runtime-context.ts` – typed context shared across handlers.
-  - `src/errors.ts` – `HttpError`/`HttpException` wrappers.
-  - `src/handlers/*` – framework-agnostic functions for messages, sessions, search, MCP, events.
-  - `src/hono/*` – Hono app factory, routers, websocket hub, context factory, typed client helper (`hc`).
+  - `src/handlers/*` – framework-agnostic functions that operate on `DextoAgent` (no Express/Hono types).
+  - `src/hono/*` – Hono app factory, routers, middleware (redaction, error handling), websocket hub, MCP adapter, typed client helper (`hc`).
+  - `src/node/*` – `createNodeServer` bridge that wires `app.fetch` into `http.createServer`, performs websocket upgrades, and hands raw requests to the MCP Streamable HTTP transport.
 - Published with exports map:
   ```json
   {
     ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
     "./hono": { "import": "./dist/hono/index.js", "types": "./dist/hono/index.d.ts" },
+    "./hono/node": { "import": "./dist/hono/node.js", "types": "./dist/hono/node.d.ts" },
     "./hono/client": { "import": "./dist/hono/client.js", "types": "./dist/hono/client.d.ts" }
   }
   ```
-- Responsible for schema validation (Zod) previously in CLI.
+- Owns schema validation (Zod) formerly embedded in the CLI.
 
 ## `@dexto/server/hono`
-- Subpath (no separate package) exporting:
-  - `createDextoApp(createContext)`
-  - `createRuntimeContextFactory(options)`
-  - `createTypedClient(baseUrl, init)`
-  - `createWebsocketHub` helper for WS upgrade.
-- Consumers: CLI, dedicated server deployments, tests, client SDK typed client generation.
+- Subpath exporting:
+  - `createDextoApp(agent)` – builds the Hono app using handler modules.
+  - `createNodeServer(app, options)` – wraps `app.fetch` with Node’s `http` server, websocket upgrade handling, and MCP streaming support.
+  - `createWebsocketHub(agent, logger?)` – WS broadcasting + tool confirmation wiring.
+  - `createTypedClient(baseUrl, init)` – generated typed client helper.
+  - Middleware utilities (`redactResponse`, `withHttpErrorHandling`).
 
 ## `@dexto/cli`
-- Owns YAML/resolution logic, path utilities, logging helper (`createLoggerFromConfig`).
-- Uses `createRuntimeContextFactory` + `createDextoApp` to expose API/Web UI.
-- REPL commands continue to call `DextoAgent` directly but share the same agent instance.
+- Owns YAML/config resolution, filesystem utilities (`resolveDextoPath`, execution context), preferences loader, logging configuration (`createLoggerFromConfig`), and registry macros (e.g., `@agent_dir` → absolute path).
+- Preprocesses configs before creating `DextoAgent` so core no longer needs direct filesystem helpers.
+- Wires the agent + Hono Node bridge to serve the API/WebUI and maintains REPL commands against the shared agent instance.
 
 ## `@dexto/client-sdk`
-- Wraps generated typed client (`createTypedClient`) from server subpath.
-- Adds retry, websocket convenience, and domain-specific helpers.
-- `tsup` build outputs CJS + ESM with sourcemaps, TS declarations.
+- Rebuilt wrapper around the typed client (`createTypedClient`).
+- Provides retry/backoff, websocket conveniences, and domain helpers (sessions, messaging).
+- `tsup` build outputs ESM + CJS with sourcemaps and declarations.
 
 ## Optional future packages
-- Edge-specific bundles (`@dexto/server/cloudflare`?) can re-export handler modules if necessary.
-- Telemetry/logging transports can live in dedicated packages without polluting core.
+- Edge bundles (`@dexto/server/cloudflare`) can reuse handler modules with different adapters.
+- Additional logging transports can live outside core without polluting browser bundles.
 
-This structure keeps primitives portable for browser use while letting host code own Node-only concerns.
+This structure keeps primitives portable while letting host code own filesystem and logging responsibilities.

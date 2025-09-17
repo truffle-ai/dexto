@@ -1,50 +1,50 @@
 # Express → Hono Migration
 
 ## Current state
-- Express app defined in `packages/cli/src/api/server.ts` with a small set of routes (health, message/message-sync, session CRUD/search, LLM catalog, MCP configuration, webhook).
+- Express app defined in `packages/cli/src/api/server.ts` with routes for health, messaging, sessions, search, LLM catalog, MCP config, webhooks, and A2A.
 - Custom websocket implementation using `ws` directly.
+- MCP Streamable HTTP transport bound to Express `req`/`res` handlers.
 - Middleware for redaction, Zod validation inline.
 
 ## Target state
-- Hono app constructed via `createDextoApp(createContext)` in `@dexto/server/hono`, mirroring the existing route surface one-for-one.
-- WebSocket upgrades handled by a single hub (`createWebsocketHub`) using `ws` (Node) initially, with future compatibility for edge runtimes.
+- Hono app constructed via `createDextoApp(agent)` in `@dexto/server/hono`, mirroring the existing route surface.
+- Node bridge (`createNodeServer`) adapts `app.fetch` to `http.createServer`, handles websocket upgrades, and forwards raw requests to the MCP transport.
+- WebSocket hub (`createWebsocketHub`) sits alongside the Node bridge, managing connections and tool confirmation flow against `agent.agentEventBus`.
 - Middleware (redaction, error handling) implemented as Hono middleware functions.
 
 ## Migration steps
-> This is a direct lift-and-shift of the existing Express routes. No backward-compatibility layer is planned; once merged, the CLI ships with the Hono implementation exclusively.
+> This is a direct port; once merged, the CLI ships with the Hono implementation exclusively.
+
 1. **Extract handlers** (see `02-handler-refactor.md`).
 2. **Create Hono routers** under `packages/server/src/hono/routers`:
-   - `session.ts`, `search.ts`, `llm.ts`, `mcp.ts`, `webhook.ts`, etc.
-   - Each router mounts handler functions and attaches OpenAPI metadata (optional).
+   - `messages`, `sessions`, `search`, `llm`, `config`, `mcp`, `webhooks`, `health`.
+   - Routes call handler functions and attach optional OpenAPI metadata.
 3. **Implement `createDextoApp`**:
-   - Register middleware (JSON parsing, redaction, error handler).
-   - Mount routers under `/api/*` routes.
+   - Register middleware (JSON body parsing, redaction, error handling).
+   - Mount routers under `/api/*` plus `/.well-known/agent.json`.
    - Register `/health` endpoint.
-   - Wire websocket upgrade route `/ws`.
-4. **Context factory**: `createRuntimeContextFactory` builds `RuntimeContext` per request (reusing the shared `DextoAgent` instance from the host).
-5. **Replace Express in CLI**:
-   - Remove Express import and initialization.
-   - Use `createDextoApp` and a Node adapter (`app.fetch` via `@hono/node-server` helper or simple wrapper) to serve HTTP.
-   - Reuse existing static file serving (Next.js/React app) either via Hono `serveStatic` middleware or a lightweight custom handler.
-6. **WebSocket**:
-   - Replace `WebSocketServer` instantiation with `createWebsocketHub` that subscribes to `agent.agentEventBus`.
-   - Update tool confirmation flow if it depended on the Express-specific websocket.
+4. **Node bridge** (`createNodeServer`):
+   - Wrap `app.fetch` using `http.createServer` for Node environments.
+   - On `upgrade`, delegate to `createWebsocketHub` (which wraps `ws` and uses the agent event bus).
+   - For MCP routes (`/mcp`), forward Node `IncomingMessage`/`ServerResponse` to `StreamableHTTPServerTransport.handleRequest`, including SSE header negotiation and raw body parsing.
+5. **CLI swap**:
+   - Replace Express bootstrap with the new bridge: `const app = createDextoApp(agent); const server = createNodeServer(app, { logger, port });`.
+   - Share the injected logger with the hub.
+   - Ensure Next.js static serving continues via the Node server.
+6. **WebSocket flow**:
+   - `createWebsocketHub` owns tool confirmation responses, redaction, and broadcast events identical to the current subscriber.
+   - CLI passes the hub into the Node bridge; SDK connections remain unchanged (`ws://.../ws`).
 7. **Error pipeline**:
-   - Implement Hono middleware to catch thrown `HttpError` and map to JSON responses.
-   - Ensure unhandled errors return a safe 500 response.
+   - Hono middleware catches `HttpError` and maps to JSON.
+   - Node bridge logs upgrade/stream errors via the injected logger.
 8. **Testing**:
-   - Run existing CLI integration tests against the Hono server.
-   - Add tests for websocket broadcast and API endpoints.
+   - Run CLI integration tests against the Hono server.
+   - Add targeted tests for websocket broadcasting and MCP HTTP/SSE flows (using supertest + ws where possible).
 
 ## Considerations
-- `expressRedactionMiddleware` becomes a Hono middleware middleware under `/api/llm` and `/api/config.yaml` routes.
-- Body parsing: Hono handles JSON automatically; multipart/file uploads may require additional middleware or manual parsing.
-- Static assets for WebUI can be served via `serveStatic` in Hono or a separate Next.js dev server. Evaluate current deployment pipeline before replacing.
-
-## Timeline
-- Extract handlers (Phase 1).
-- Build Hono subpath (Phase 2).
-- Swap CLI to Hono (Phase 3); run regression suite.
+- Body parsing: Hono handles JSON; file uploads still need evaluation (current API expects base64 payloads, so no multipart requirement yet).
+- Static assets for WebUI served by the Node bridge via a simple file handler or existing Next.js server.
+- Node bridge is opinionated for now; future edge adapters can re-export the handlers without Node-specific code.
 
 ## Rollback plan
-- Keep Express implementation in a branch until Hono path is battle-tested.
+- Keep Express implementation in a branch until the Hono path is stable. No runtime toggle will be maintained post-merge.
