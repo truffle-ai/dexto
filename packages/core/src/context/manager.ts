@@ -115,9 +115,9 @@ export class ContextManager<TMessage = unknown> {
             source?: 'user' | 'system';
         }
     ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
-        // Only process if we have a blob store available
-        const blobStore = this.resourceManager?.getBlobStore();
-        if (!blobStore) {
+        // Only process if we have a blob service available
+        const blobService = this.resourceManager?.getBlobService();
+        if (!blobService) {
             return data;
         }
 
@@ -153,7 +153,7 @@ export class ContextManager<TMessage = unknown> {
 
         if (shouldStoreAsBlob) {
             try {
-                const blobRef = await blobStore.store(data, {
+                const blobRef = await blobService.store(data, {
                     mimeType: metadata.mimeType,
                     originalName: metadata.originalName,
                     source: metadata.source || 'user',
@@ -556,9 +556,9 @@ export class ContextManager<TMessage = unknown> {
         // Sanitize tool result to avoid adding non-text data as raw text
         // and to convert media/data-uris/base64 to structured parts.
         // If a resource manager is available, automatically store large media as blobs.
-        const blobStore = this.resourceManager?.getBlobStore();
-        const content = blobStore
-            ? await sanitizeToolResultToContentWithBlobs(result, blobStore)
+        const blobService = this.resourceManager?.getBlobService();
+        const content = blobService
+            ? await sanitizeToolResultToContentWithBlobs(result, blobService)
             : sanitizeToolResultToContent(result);
 
         // Log what we are storing (brief)

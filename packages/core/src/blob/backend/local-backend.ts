@@ -1,126 +1,107 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
-import { logger } from '../logger/index.js';
-import { getDextoPath } from '../utils/path.js';
-import { ResourceError } from './errors.js';
+import { logger } from '../../logger/index.js';
+import { getDextoPath } from '../../utils/path.js';
+import { BlobError } from '../errors.js';
+import type {
+    BlobBackend,
+    BlobInput,
+    BlobMetadata,
+    BlobReference,
+    BlobData,
+    BlobStats,
+    StoredBlobMetadata,
+    LocalBlobBackendConfig,
+} from '../types.js';
 
 /**
- * Input data for blob storage - supports various formats
+ * Internal configuration with all required properties
  */
-export type BlobInput =
-    | string // base64, data URI, or file path
-    | Uint8Array
-    | Buffer
-    | ArrayBuffer;
-
-/**
- * Metadata associated with a stored blob
- */
-export interface BlobMetadata {
-    mimeType?: string | undefined;
-    originalName?: string | undefined;
-    createdAt?: Date | undefined;
-    source?: 'tool' | 'user' | 'system' | undefined;
-    size?: number | undefined;
+interface ResolvedLocalBlobConfig {
+    type: 'local';
+    maxBlobSize: number;
+    maxTotalSize: number;
+    cleanupAfterDays: number;
+    storePath: string;
 }
 
 /**
- * Complete blob information including stored metadata
+ * Local filesystem blob backend implementation
+ *
+ * Stores blobs on the local filesystem with content-based deduplication
+ * and metadata tracking. This is the default backend for development
+ * and single-machine deployments.
  */
-export interface StoredBlobMetadata {
-    id: string;
-    mimeType: string;
-    originalName?: string | undefined;
-    createdAt: Date;
-    size: number;
-    hash: string;
-    source?: 'tool' | 'user' | 'system' | undefined;
-}
-
-/**
- * Reference to a stored blob
- */
-export interface BlobReference {
-    id: string;
-    uri: string; // blob:id format for ResourceManager
-    metadata: StoredBlobMetadata;
-}
-
-/**
- * Retrieved blob data in requested format
- */
-export type BlobData =
-    | { format: 'base64'; data: string; metadata: StoredBlobMetadata }
-    | { format: 'buffer'; data: Buffer; metadata: StoredBlobMetadata }
-    | { format: 'path'; data: string; metadata: StoredBlobMetadata };
-
-/**
- * Configuration for blob store
- */
-export interface BlobStoreConfig {
-    maxBlobSize?: number | undefined; // Max size per blob in bytes
-    maxTotalSize?: number | undefined; // Max total store size in bytes
-    cleanupAfterDays?: number | undefined; // Auto-cleanup blobs older than N days
-    storePath?: string | undefined; // Custom storage path (defaults to context-aware path)
-}
-
-/**
- * Core blob storage service that handles storing and retrieving binary data
- * with content-based deduplication and metadata tracking.
- */
-export class BlobStore {
-    private config: Required<BlobStoreConfig>;
+export class LocalBlobBackend implements BlobBackend {
+    private config: ResolvedLocalBlobConfig;
     private storePath: string;
-    private initialized = false;
+    private connected = false;
 
     private static readonly DEFAULT_CONFIG = {
         maxBlobSize: 50 * 1024 * 1024, // 50MB
         maxTotalSize: 1024 * 1024 * 1024, // 1GB
         cleanupAfterDays: 30,
-        storePath: '', // Will be set in constructor
     } as const;
 
-    constructor(config: BlobStoreConfig = {}) {
+    constructor(config: LocalBlobBackendConfig) {
+        const storePath = config.storePath || getDextoPath('data', 'blobs');
         this.config = {
-            ...BlobStore.DEFAULT_CONFIG,
-            ...config,
-            storePath: config.storePath || getDextoPath('data', 'blobs'),
+            type: 'local',
+            maxBlobSize: config.maxBlobSize ?? LocalBlobBackend.DEFAULT_CONFIG.maxBlobSize,
+            maxTotalSize: config.maxTotalSize ?? LocalBlobBackend.DEFAULT_CONFIG.maxTotalSize,
+            cleanupAfterDays:
+                config.cleanupAfterDays ?? LocalBlobBackend.DEFAULT_CONFIG.cleanupAfterDays,
+            storePath,
         };
-        this.storePath = this.config.storePath || getDextoPath('data', 'blobs');
+        this.storePath = storePath;
     }
 
-    /**
-     * Initialize the blob store - create directory structure if needed
-     */
-    async initialize(): Promise<void> {
-        if (this.initialized) return;
+    async connect(): Promise<void> {
+        if (this.connected) return;
 
         try {
             await fs.mkdir(this.storePath, { recursive: true });
-            this.initialized = true;
-            logger.debug(`BlobStore initialized at: ${this.storePath}`);
+            this.connected = true;
+            logger.debug(`LocalBlobBackend connected at: ${this.storePath}`);
         } catch (error) {
-            throw ResourceError.providerError('BlobStore', 'initialize', error);
+            throw BlobError.operationFailed('connect', 'local', error);
         }
     }
 
-    /**
-     * Store blob data and return a reference
-     */
+    async disconnect(): Promise<void> {
+        this.connected = false;
+        logger.debug('LocalBlobBackend disconnected');
+    }
+
+    isConnected(): boolean {
+        return this.connected;
+    }
+
+    getBackendType(): string {
+        return 'local';
+    }
+
     async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
-        await this.initialize();
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
 
         // Convert input to buffer for processing
         const buffer = await this.inputToBuffer(input);
 
-        const maxSize = this.config.maxBlobSize || BlobStore.DEFAULT_CONFIG.maxBlobSize;
-        if (buffer.length > maxSize) {
-            throw ResourceError.providerError(
-                'BlobStore',
-                'store',
-                `Blob size ${buffer.length} exceeds maximum ${maxSize} bytes`
-            );
+        // Check size limits
+        if (buffer.length > this.config.maxBlobSize) {
+            throw BlobError.sizeExceeded(buffer.length, this.config.maxBlobSize);
+        }
+
+        // Check total storage size if configured
+        const maxTotalSize = this.config.maxTotalSize;
+        if (maxTotalSize) {
+            const stats = await this.getStats();
+            if (stats.totalSize + buffer.length > maxTotalSize) {
+                throw BlobError.totalSizeExceeded(stats.totalSize + buffer.length, maxTotalSize);
+            }
         }
 
         // Generate content-based hash for deduplication
@@ -176,18 +157,17 @@ export class BlobStore {
                 fs.unlink(blobPath).catch(() => {}),
                 fs.unlink(metaPath).catch(() => {}),
             ]);
-            throw ResourceError.providerError('BlobStore', 'store', error);
+            throw BlobError.operationFailed('store', 'local', error);
         }
     }
 
-    /**
-     * Retrieve blob data in specified format
-     */
     async retrieve(
         reference: string,
-        format: 'base64' | 'buffer' | 'path' = 'buffer'
+        format: 'base64' | 'buffer' | 'path' | 'stream' | 'url' = 'buffer'
     ): Promise<BlobData> {
-        await this.initialize();
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
 
         const id = this.parseReference(reference);
         const blobPath = path.join(this.storePath, `${id}.dat`);
@@ -213,23 +193,30 @@ export class BlobStore {
                     await fs.access(blobPath);
                     return { format: 'path', data: blobPath, metadata };
                 }
+                case 'stream': {
+                    const stream = require('fs').createReadStream(blobPath);
+                    return { format: 'stream', data: stream, metadata };
+                }
+                case 'url': {
+                    // For local backend, return file:// URL
+                    const absolutePath = path.resolve(blobPath);
+                    return { format: 'url', data: `file://${absolutePath}`, metadata };
+                }
                 default:
-                    throw ResourceError.providerError(
-                        'BlobStore',
-                        'retrieve',
-                        `Unknown format: ${format}`
-                    );
+                    throw BlobError.invalidInput(format, `Unsupported format: ${format}`);
             }
-        } catch (_error) {
-            throw ResourceError.resourceNotFound(`blob:${id}`);
+        } catch (error) {
+            if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+                throw BlobError.notFound(reference);
+            }
+            throw BlobError.operationFailed('retrieve', 'local', error);
         }
     }
 
-    /**
-     * Check if blob exists
-     */
     async exists(reference: string): Promise<boolean> {
-        await this.initialize();
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
 
         const id = this.parseReference(reference);
         const blobPath = path.join(this.storePath, `${id}.dat`);
@@ -243,14 +230,32 @@ export class BlobStore {
         }
     }
 
-    /**
-     * Cleanup old blobs based on configuration
-     */
-    async cleanup(olderThan?: Date): Promise<number> {
-        await this.initialize();
+    async delete(reference: string): Promise<void> {
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
 
-        const cleanupDays =
-            this.config.cleanupAfterDays || BlobStore.DEFAULT_CONFIG.cleanupAfterDays;
+        const id = this.parseReference(reference);
+        const blobPath = path.join(this.storePath, `${id}.dat`);
+        const metaPath = path.join(this.storePath, `${id}.meta.json`);
+
+        try {
+            await Promise.all([fs.unlink(blobPath), fs.unlink(metaPath)]);
+            logger.debug(`Deleted blob: ${id}`);
+        } catch (error) {
+            if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+                throw BlobError.notFound(reference);
+            }
+            throw BlobError.operationFailed('delete', 'local', error);
+        }
+    }
+
+    async cleanup(olderThan?: Date): Promise<number> {
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
+
+        const cleanupDays = this.config.cleanupAfterDays;
         const cutoffDate = olderThan || new Date(Date.now() - cleanupDays * 24 * 60 * 60 * 1000);
         let deletedCount = 0;
 
@@ -286,16 +291,14 @@ export class BlobStore {
 
             return deletedCount;
         } catch (error) {
-            logger.error(`Blob cleanup failed: ${String(error)}`);
-            return 0;
+            throw BlobError.cleanupFailed('local', error);
         }
     }
 
-    /**
-     * Get storage statistics
-     */
-    async getStats(): Promise<{ count: number; totalSize: number; storePath: string }> {
-        await this.initialize();
+    async getStats(): Promise<BlobStats> {
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
 
         try {
             const files = await fs.readdir(this.storePath);
@@ -314,11 +317,51 @@ export class BlobStore {
             return {
                 count: datFiles.length,
                 totalSize,
+                backendType: 'local',
                 storePath: this.storePath,
             };
         } catch (error) {
             logger.warn(`Failed to get blob store stats: ${String(error)}`);
-            return { count: 0, totalSize: 0, storePath: this.storePath };
+            return {
+                count: 0,
+                totalSize: 0,
+                backendType: 'local',
+                storePath: this.storePath,
+            };
+        }
+    }
+
+    async listBlobs(): Promise<import('../types.js').BlobReference[]> {
+        if (!this.connected) {
+            throw BlobError.backendNotConnected('local');
+        }
+
+        try {
+            const files = await fs.readdir(this.storePath);
+            const metaFiles = files.filter((f) => f.endsWith('.meta.json'));
+            const blobs: import('../types.js').BlobReference[] = [];
+
+            for (const metaFile of metaFiles) {
+                try {
+                    const metaPath = path.join(this.storePath, metaFile);
+                    const metaContent = await fs.readFile(metaPath, 'utf-8');
+                    const metadata: StoredBlobMetadata = JSON.parse(metaContent);
+                    const blobId = metaFile.replace('.meta.json', '');
+
+                    blobs.push({
+                        id: blobId,
+                        uri: `blob:${blobId}`,
+                        metadata,
+                    });
+                } catch (error) {
+                    logger.warn(`Failed to process blob metadata ${metaFile}: ${String(error)}`);
+                }
+            }
+
+            return blobs;
+        } catch (error) {
+            logger.warn(`Failed to list blobs: ${String(error)}`);
+            return [];
         }
     }
 
@@ -346,52 +389,46 @@ export class BlobStore {
                     const base64Data = input.substring(commaIndex + 1);
                     return Buffer.from(base64Data, 'base64');
                 }
-                throw ResourceError.providerError(
-                    'BlobStore',
-                    'inputToBuffer',
-                    'Unsupported data URI format'
-                );
+                throw BlobError.encodingError('inputToBuffer', 'Unsupported data URI format');
             }
 
             // Handle file path - only if it looks like an actual file path
-            // Check if it's a valid file path by testing if it exists and is readable
             if ((input.includes('/') || input.includes('\\')) && input.length > 1) {
                 try {
-                    // Try to access the file to see if it exists
                     await fs.access(input);
                     return await fs.readFile(input);
-                } catch (_error) {
-                    // If file doesn't exist or can't be read, treat as base64
-                    // This handles cases where base64 strings contain '/' or '\'
+                } catch {
+                    // If file doesn't exist, treat as base64
                 }
             }
 
             // Assume base64 string
             try {
                 return Buffer.from(input, 'base64');
-            } catch (_error) {
-                throw ResourceError.providerError(
-                    'BlobStore',
-                    'inputToBuffer',
-                    'Invalid base64 string'
-                );
+            } catch {
+                throw BlobError.encodingError('inputToBuffer', 'Invalid base64 string');
             }
         }
 
-        throw ResourceError.providerError(
-            'BlobStore',
-            'inputToBuffer',
-            `Unsupported input type: ${typeof input}`
-        );
+        throw BlobError.invalidInput(input, `Unsupported input type: ${typeof input}`);
     }
 
     /**
      * Parse blob reference to extract ID
      */
     private parseReference(reference: string): string {
-        if (reference.startsWith('blob:')) {
-            return reference.substring(5);
+        if (!reference) {
+            throw BlobError.invalidReference(reference, 'Empty reference');
         }
+
+        if (reference.startsWith('blob:')) {
+            const id = reference.substring(5);
+            if (!id) {
+                throw BlobError.invalidReference(reference, 'Empty blob ID after prefix');
+            }
+            return id;
+        }
+
         return reference;
     }
 

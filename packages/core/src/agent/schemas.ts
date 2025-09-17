@@ -13,6 +13,7 @@ import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
+import { BlobServiceConfigSchema } from '@core/blob/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
@@ -183,6 +184,14 @@ export const AgentConfigSchema = z
             )
             .default([])
             .describe('Starter prompts that appear as clickable buttons in the WebUI'),
+
+        // Blob storage configuration (infrastructure-level blob storage)
+        blobStorage: BlobServiceConfigSchema.default({
+            type: 'local',
+            maxBlobSize: 50 * 1024 * 1024, // 50MB
+            maxTotalSize: 1024 * 1024 * 1024, // 1GB
+            cleanupAfterDays: 30,
+        }).describe('Blob storage backend configuration for large file handling'),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')

@@ -123,10 +123,10 @@ export class VercelLLMService implements ILLMService {
                             // then summarize to concise text suitable for Vercel tool output.
                             // Use blob-aware sanitization if blob store is available
                             const resourceManager = this.contextManager.getResourceManager();
-                            const blobStore = resourceManager?.getBlobStore();
+                            const blobService = resourceManager?.getBlobService();
 
-                            const safeContent = blobStore
-                                ? await sanitizeToolResultToContentWithBlobs(rawResult, blobStore)
+                            const safeContent = blobService
+                                ? await sanitizeToolResultToContentWithBlobs(rawResult, blobService)
                                 : sanitizeToolResultToContent(rawResult);
                             const summaryText = summarizeToolContentForText(safeContent);
                             return summaryText;

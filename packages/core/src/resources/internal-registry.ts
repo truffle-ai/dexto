@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
-import { BlobStore, BlobStoreConfig } from './blob-store.js';
+import type { BlobService } from '../blob/index.js';
 
 export interface FileSystemResourceConfig {
     type: 'filesystem';
@@ -25,7 +25,9 @@ export interface BlobResourceConfig {
 
 export type InternalResourceConfig = FileSystemResourceConfig | BlobResourceConfig;
 
-export type InternalResourceServices = {};
+export type InternalResourceServices = {
+    blobService?: import('../blob/index.js').BlobService;
+};
 
 export interface InternalResourceHandler {
     getType(): string;
@@ -492,7 +494,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 
 export class BlobResourceHandler implements InternalResourceHandler {
     private config?: BlobResourceConfig;
-    private blobStore?: BlobStore;
+    private blobService?: BlobService;
 
     getType(): string {
         return 'blob';
@@ -500,7 +502,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
 
     async initialize(
         config: InternalResourceConfig,
-        _services: InternalResourceServices
+        services: InternalResourceServices
     ): Promise<void> {
         if (config.type !== 'blob') {
             throw ResourceError.providerError(
@@ -511,96 +513,79 @@ export class BlobResourceHandler implements InternalResourceHandler {
         }
         this.config = config;
 
-        // Initialize blob store with config
-        const storeConfig: BlobStoreConfig = {
-            maxBlobSize: config.maxBlobSize,
-            maxTotalSize: config.maxTotalSize,
-            cleanupAfterDays: config.cleanupAfterDays,
-            storePath: config.storePath,
-        };
+        // Use the provided BlobService from services
+        if (!services.blobService) {
+            throw ResourceError.providerError(
+                'Blob',
+                'initialize',
+                'BlobService is required but not provided in services'
+            );
+        }
 
-        this.blobStore = new BlobStore(storeConfig);
-        await this.blobStore.initialize();
-
-        logger.debug('BlobResourceHandler initialized');
+        this.blobService = services.blobService;
+        logger.debug('BlobResourceHandler initialized with BlobService');
     }
 
     async listResources(): Promise<ResourceMetadata[]> {
         logger.debug('🔍 BlobResourceHandler.listResources() called');
 
-        if (!this.blobStore) {
-            logger.warn('❌ BlobResourceHandler: blobStore is undefined');
+        if (!this.blobService) {
+            logger.warn('❌ BlobResourceHandler: blobService is undefined');
             return [];
         }
 
         try {
-            const stats = await this.blobStore.getStats();
-            logger.debug(`📊 BlobStore stats: ${stats.count} blobs, path: ${stats.storePath}`);
+            const stats = await this.blobService.getStats();
+            logger.debug(
+                `📊 BlobService stats: ${stats.count} blobs, backend: ${stats.backendType}`
+            );
             const resources: ResourceMetadata[] = [];
 
-            // Add individual blob resources by scanning the blob store directory
-            const fs = await import('fs').then((m) => m.promises);
-            const path = await import('path');
-
+            // Try to list individual blobs if the backend supports it
             try {
-                const files = await fs.readdir(stats.storePath);
-                logger.debug(
-                    `📁 Found ${files.length} files in blob directory: ${files.join(', ')}`
-                );
-                const metaFiles = files.filter((f) => f.endsWith('.meta.json'));
-                logger.debug(
-                    `📄 Found ${metaFiles.length} .meta.json files: ${metaFiles.join(', ')}`
-                );
+                const blobs = await this.blobService.listBlobs();
+                logger.debug(`📄 Found ${blobs.length} individual blobs`);
 
-                for (const metaFile of metaFiles) {
-                    try {
-                        const metaPath = path.join(stats.storePath, metaFile);
-                        const metaContent = await fs.readFile(metaPath, 'utf-8');
-                        const metadata = JSON.parse(metaContent);
-                        const blobId = metaFile.replace('.meta.json', '');
+                for (const blob of blobs) {
+                    // Generate a user-friendly name with proper extension
+                    const displayName = this.generateBlobDisplayName(blob.metadata, blob.id);
+                    const friendlyType = this.getFriendlyType(blob.metadata.mimeType);
 
-                        // Generate a user-friendly name with proper extension
-                        const displayName = this.generateBlobDisplayName(metadata, blobId);
-                        const friendlyType = this.getFriendlyType(metadata.mimeType);
-
-                        resources.push({
-                            uri: `blob:${blobId}`,
-                            name: displayName,
-                            description: `${friendlyType} (${this.formatSize(metadata.size)})${metadata.source ? ` • ${metadata.source}` : ''}`,
-                            source: 'custom',
-                            size: metadata.size,
-                            mimeType: metadata.mimeType,
-                            lastModified: new Date(metadata.createdAt),
-                            metadata: {
-                                type: 'blob',
-                                source: metadata.source,
-                                hash: metadata.hash,
-                                createdAt: metadata.createdAt,
-                                originalName: metadata.originalName,
-                            },
-                        });
-                    } catch (error) {
-                        logger.warn(
-                            `Failed to process blob metadata ${metaFile}: ${String(error)}`
-                        );
-                    }
+                    resources.push({
+                        uri: blob.uri,
+                        name: displayName,
+                        description: `${friendlyType} (${this.formatSize(blob.metadata.size)})${blob.metadata.source ? ` • ${blob.metadata.source}` : ''}`,
+                        source: 'custom',
+                        size: blob.metadata.size,
+                        mimeType: blob.metadata.mimeType,
+                        lastModified: new Date(blob.metadata.createdAt),
+                        metadata: {
+                            type: 'blob',
+                            source: blob.metadata.source,
+                            hash: blob.metadata.hash,
+                            createdAt: blob.metadata.createdAt,
+                            originalName: blob.metadata.originalName,
+                        },
+                    });
                 }
             } catch (error) {
-                logger.warn(`Failed to scan blob directory: ${String(error)}`);
+                logger.warn(`Failed to list individual blobs: ${String(error)}`);
             }
 
             // Add summary resource if we have blobs
-            if (resources.length > 0) {
+            if (stats.count > 0) {
                 resources.unshift({
                     uri: 'blob:store',
-                    name: 'Blob Store',
-                    description: `Blob storage with ${stats.count} blobs (${Math.round(stats.totalSize / 1024)}KB)`,
+                    name: 'Blob Storage',
+                    description: `${stats.backendType} blob storage with ${stats.count} blobs (${Math.round(stats.totalSize / 1024)}KB)`,
                     source: 'custom',
                     size: stats.totalSize,
                     metadata: {
                         type: 'blob-store',
                         count: stats.count,
-                        storePath: stats.storePath,
+                        backendType: stats.backendType,
+                        ...(stats.storePath && { storePath: stats.storePath }),
+                        ...(stats.bucket && { bucket: stats.bucket }),
                     },
                 });
             }
@@ -622,7 +607,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
             throw ResourceError.noSuitableProvider(uri);
         }
 
-        if (!this.blobStore) {
+        if (!this.blobService) {
             throw ResourceError.providerNotInitialized('Blob', uri);
         }
 
@@ -632,7 +617,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
 
             // Special case: blob store info
             if (blobId === 'store') {
-                const stats = await this.blobStore.getStats();
+                const stats = await this.blobService.getStats();
                 return {
                     contents: [
                         {
@@ -645,7 +630,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
             }
 
             // Retrieve actual blob data
-            const result = await this.blobStore.retrieve(uri, 'base64');
+            const result = await this.blobService.retrieve(uri, 'base64');
 
             return {
                 contents: [
@@ -671,26 +656,26 @@ export class BlobResourceHandler implements InternalResourceHandler {
     }
 
     async refresh(): Promise<void> {
-        // Blob store doesn't need refresh as it's not file-system based scanning
+        // BlobService doesn't need refresh as it's not file-system based scanning
         // But we can perform cleanup of old blobs if needed
-        if (this.blobStore && this.config?.cleanupAfterDays) {
+        if (this.blobService && this.config?.cleanupAfterDays) {
             try {
-                await this.blobStore.cleanup();
-                logger.debug('Blob store cleanup completed');
+                await this.blobService.cleanup();
+                logger.debug('Blob service cleanup completed');
             } catch (error) {
-                logger.warn(`Blob store cleanup failed: ${String(error)}`);
+                logger.warn(`Blob service cleanup failed: ${String(error)}`);
             }
         }
     }
 
-    getBlobStore(): BlobStore | undefined {
-        return this.blobStore;
+    getBlobService(): BlobService | undefined {
+        return this.blobService;
     }
 
     /**
      * Generate a user-friendly display name for a blob with proper file extension
      */
-    private generateBlobDisplayName(metadata: any, blobId: string): string {
+    private generateBlobDisplayName(metadata: any, _blobId: string): string {
         // If we have an original name with extension, use it
         if (metadata.originalName && metadata.originalName.includes('.')) {
             return metadata.originalName;

@@ -1098,22 +1098,12 @@ export class DextoAgent {
     }
 
     /**
-     * Gets the blob store for storing and retrieving binary data.
+     * Gets the blob service for storing and retrieving binary data.
      * Returns undefined if blob storage is not configured.
      */
-    public getBlobStore(): import('../resources/index.js').BlobStore | undefined {
+    public getBlobService(): import('../blob/index.js').BlobService | undefined {
         this.ensureStarted();
-        const internalProvider = this.resourceManager.getInternalResourcesProvider();
-        if (!internalProvider) return undefined;
-
-        const handlers = internalProvider.getHandlers();
-        const blobHandler = handlers?.get('blob');
-
-        if (blobHandler && 'getBlobStore' in blobHandler) {
-            return (blobHandler as any).getBlobStore();
-        }
-
-        return undefined;
+        return this.services.blobService;
     }
 
     // ============= PROMPT MANAGEMENT =============

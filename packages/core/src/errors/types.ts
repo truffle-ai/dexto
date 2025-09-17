@@ -10,6 +10,7 @@ import type { ToolErrorCode } from '@core/tools/error-codes.js';
 import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
+import type { BlobErrorCode } from '@core/blob/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -28,6 +29,7 @@ export enum ErrorScope {
     PREFERENCE = 'preference', // Global preferences file operations and validation
     AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
+    BLOB = 'blob', // Blob storage operations and backend management
 }
 
 /**
@@ -61,7 +63,8 @@ export type DextoErrorCode =
     | SystemPromptErrorCode
     | PreferenceErrorCode
     | RegistryErrorCode
-    | ResourceErrorCode;
+    | ResourceErrorCode
+    | BlobErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

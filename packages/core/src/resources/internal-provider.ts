@@ -156,16 +156,16 @@ export class InternalResourcesProvider implements ResourceProvider {
     }
 
     /**
-     * Get the blob store instance from the blob resource handler if available.
+     * Get the blob service instance from the blob resource handler if available.
      */
-    getBlobStore(): import('./blob-store.js').BlobStore | undefined {
+    getBlobService(): import('../blob/index.js').BlobService | undefined {
         const blobHandler = this.handlers.get('blob');
         if (
             blobHandler &&
-            'getBlobStore' in blobHandler &&
-            typeof blobHandler.getBlobStore === 'function'
+            'getBlobService' in blobHandler &&
+            typeof blobHandler.getBlobService === 'function'
         ) {
-            return blobHandler.getBlobStore();
+            return blobHandler.getBlobService();
         }
         return undefined;
     }

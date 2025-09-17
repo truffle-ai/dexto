@@ -15,12 +15,5 @@ export type {
     BlobResourceConfig,
 } from './internal-registry.js';
 
-export { BlobStore } from './blob-store.js';
-export type {
-    BlobInput,
-    BlobMetadata,
-    StoredBlobMetadata,
-    BlobReference,
-    BlobData,
-    BlobStoreConfig,
-} from './blob-store.js';
+// Legacy BlobStore has been fully migrated to BlobService
+// All blob storage functionality is now provided by the infrastructure-level BlobService

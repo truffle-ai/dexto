@@ -8,6 +8,7 @@ import { ResourceError } from './errors.js';
 
 export interface ResourceManagerOptions {
     internalResourcesConfig?: ValidatedInternalResourcesConfig;
+    blobService?: import('../blob/index.js').BlobService;
 }
 
 export class ResourceManager {
@@ -17,8 +18,13 @@ export class ResourceManager {
     constructor(mcpManager: MCPManager, options?: ResourceManagerOptions) {
         this.mcpManager = mcpManager;
         if (options?.internalResourcesConfig?.enabled) {
+            const services: import('./internal-registry.js').InternalResourceServices = {};
+            if (options.blobService) {
+                services.blobService = options.blobService;
+            }
             this.internalResourcesProvider = new InternalResourcesProvider(
-                options.internalResourcesConfig
+                options.internalResourcesConfig,
+                services
             );
         }
         logger.debug('ResourceManager initialized as thin coordinator');
@@ -32,11 +38,11 @@ export class ResourceManager {
     }
 
     /**
-     * Get the blob store instance if available.
+     * Get the blob service instance if available.
      * Used for storing large media data and converting to resource references.
      */
-    getBlobStore(): import('./blob-store.js').BlobStore | undefined {
-        return this.internalResourcesProvider?.getBlobStore();
+    getBlobService(): import('../blob/index.js').BlobService | undefined {
+        return this.internalResourcesProvider?.getBlobService();
     }
 
     private extractResourceName(uri: string): string {

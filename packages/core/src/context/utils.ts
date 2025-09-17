@@ -464,7 +464,7 @@ function sanitizeDeepObject(obj: unknown): unknown {
  */
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
-    blobStore?: import('../resources/index.js').BlobStore
+    blobService?: import('../blob/index.js').BlobService
 ): Promise<InternalMessage['content']> {
     try {
         // Case 1: string outputs
@@ -479,14 +479,14 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 // Check if we should store as blob based on size
                 const approxSize = Math.floor((dataUri.base64.length * 3) / 4);
-                const shouldStoreAsBlob = blobStore && approxSize > 1024; // Store blobs > 1KB
+                const shouldStoreAsBlob = blobService && approxSize > 1024; // Store blobs > 1KB
 
                 if (shouldStoreAsBlob) {
                     try {
                         logger.info(
                             `🔍 BLOB DEBUG: Storing data URI as blob (${approxSize} bytes, ${mediaType})`
                         );
-                        const blobRef = await blobStore.store(result, {
+                        const blobRef = await blobService.store(result, {
                             mimeType: mediaType,
                             source: 'tool',
                             originalName: `tool-output.${mediaType.split('/')[1] || 'bin'}`,
@@ -518,11 +518,11 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 // Check if we should store as blob
                 const approxSize = Math.floor((result.length * 3) / 4);
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                const shouldStoreAsBlob = blobService && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobStore.store(result, {
+                        const blobRef = await blobService.store(result, {
                             mimeType: 'application/octet-stream',
                             source: 'tool',
                             originalName: 'tool-output.bin',
@@ -568,7 +568,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                 if (item == null) continue;
 
                 // Process each item recursively
-                const processedItem = await sanitizeToolResultToContentWithBlobs(item, blobStore);
+                const processedItem = await sanitizeToolResultToContentWithBlobs(item, blobService);
 
                 if (typeof processedItem === 'string') {
                     parts.push({ type: 'text', text: processedItem });
@@ -600,14 +600,14 @@ export async function sanitizeToolResultToContentWithBlobs(
                             typeof fileData === 'string'
                                 ? Math.floor((fileData.length * 3) / 4)
                                 : 0;
-                        const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                        const shouldStoreAsBlob = blobService && approxSize > 1024;
 
                         if (shouldStoreAsBlob) {
                             try {
                                 logger.info(
                                     `🔍 BLOB DEBUG: Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
                                 );
-                                const blobRef = await blobStore.store(fileData, {
+                                const blobRef = await blobService.store(fileData, {
                                     mimeType,
                                     source: 'tool',
                                     originalName:
@@ -658,11 +658,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Check if we should store as blob
                 const approxSize =
                     typeof imageData === 'string' ? Math.floor((imageData.length * 3) / 4) : 0;
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                const shouldStoreAsBlob = blobService && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobStore.store(imageData, {
+                        const blobRef = await blobService.store(imageData, {
                             mimeType,
                             source: 'tool',
                             originalName: `tool-image.${mimeType.split('/')[1] || 'jpg'}`,
@@ -694,11 +694,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Check if we should store as blob
                 const approxSize =
                     typeof fileData === 'string' ? Math.floor((fileData.length * 3) / 4) : 0;
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                const shouldStoreAsBlob = blobService && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobStore.store(fileData, {
+                        const blobRef = await blobService.store(fileData, {
                             mimeType,
                             source: 'tool',
                             originalName:
