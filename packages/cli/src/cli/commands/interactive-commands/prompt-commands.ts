@@ -7,7 +7,6 @@
  * Available Prompt Commands:
  * - /prompt - Display the current system prompt
  * - /prompts - List all available prompts (MCP + internal)
- * - /use <prompt-name> [args] - Use a specific prompt with optional arguments
  * - /<prompt-name> [args] - Direct prompt execution (auto-generated for each prompt)
  */
 
@@ -142,16 +141,16 @@ export const promptCommands: CommandDefinition[] = [
     {
         name: 'use',
         description: 'Use a specific prompt with optional arguments',
-        usage: '/use <prompt-name> [args]',
+        usage: '/<prompt-name> [args]',
         category: 'Prompt Management',
         handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
                 if (args.length === 0) {
                     console.log(chalk.red('❌ Please specify a prompt name'));
-                    console.log(chalk.dim('Usage: /use <prompt-name> [args]'));
+                    console.log(chalk.dim('Usage: /<prompt-name> [args]'));
                     console.log(
                         chalk.dim(
-                            'Example: /use code-review language=javascript code="console.log(\'hello\')"'
+                            'Example: /code-review language=javascript code="console.log(\'hello\')"'
                         )
                     );
                     return true;

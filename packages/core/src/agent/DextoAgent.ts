@@ -4,6 +4,7 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ResourceManager, ResourceError, expandMessageReferences } from '../resources/index.js';
+import { expandBlobReferences } from '../context/utils.js';
 import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
@@ -511,7 +512,17 @@ export class DextoAgent {
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return await session.getHistory();
+        const history = await session.getHistory();
+        if (!this.resourceManager) {
+            return history;
+        }
+
+        return await Promise.all(
+            history.map(async (message) => ({
+                ...message,
+                content: await expandBlobReferences(message.content, this.resourceManager),
+            }))
+        );
     }
 
     /**

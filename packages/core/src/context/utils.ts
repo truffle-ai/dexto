@@ -309,6 +309,31 @@ export async function expandBlobReferences(
                     typeof part.data === 'string' &&
                     part.data.startsWith('@blob:')
                 ) {
+                    if (resourceManager) {
+                        try {
+                            const uri = part.data.substring(1);
+                            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+                            const result = await resourceManager.read(resourceUri);
+                            const blobPart = result.contents[0];
+                            if (blobPart && typeof blobPart.blob === 'string') {
+                                const filename =
+                                    (result._meta?.originalName as string | undefined) ??
+                                    part.filename;
+                                return {
+                                    ...part,
+                                    data: blobPart.blob,
+                                    mimeType: blobPart.mimeType || part.mimeType,
+                                    ...(filename ? { filename } : {}),
+                                };
+                            }
+                            logger.warn(
+                                `Blob reference ${part.data} did not contain blob data; leaving placeholder`
+                            );
+                        } catch (error) {
+                            logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
+                        }
+                    }
+
                     try {
                         const resolvedData = await getFileDataWithBlobSupport(
                             part,
