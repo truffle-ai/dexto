@@ -3,8 +3,8 @@
 ## `@dexto/core`
 - Remains the primitives + runtime services layer (agents, schemas, storage, MCP, search, event bus).
 - Ships `ILogger`, `ConsoleLogger`, and lightweight factories. `DextoAgent` continues to accept only its validated config plus an injected logger.
-- Drops bundled filesystem helpers (`getDextoPath`, execution context, preferences loader). Core code that previously reached into these helpers either reads values from config (with `@agent_dir` resolution handled upstream) or relies on updated FileContributor defaults that no longer depend on raw config paths.
-- Storage and MCP modules stay in core; any filesystem access happens through configuration provided by the CLI/server before instantiation.
+- Drops bundled filesystem helpers (`getDextoPath`, execution context, preferences loader). Core code that previously relied on config-path lookups instead receives pre-normalised data (e.g., file contributors already hold absolute paths, registry macros resolved upstream).
+- Storage and MCP modules stay in core; any filesystem access happens through values already baked into the config or supplied by host services.
 - Conditional exports:
   - `"."` → Node entry (documented as server-first).
   - `"./logger"` → interface + console implementation.
@@ -36,8 +36,8 @@
   - Middleware utilities (`redactResponse`, `withHttpErrorHandling`).
 
 ## `@dexto/cli`
-- Owns YAML/config resolution, filesystem utilities (`resolveDextoPath`, execution context), preferences loader, logging configuration (`createLoggerFromConfig`), and registry macros (e.g., `@agent_dir` → absolute path).
-- Preprocesses configs before creating `DextoAgent` so core no longer needs direct filesystem helpers.
+- Owns YAML/config resolution, filesystem utilities, preferences loader, logging configuration (`createLoggerFromConfig`), and registry path expansion.
+- Normalises configs (e.g., resolves relative file contributor paths to absolute) before instantiating `DextoAgent`, so core stays free of filesystem lookups.
 - Wires the agent + Hono Node bridge to serve the API/WebUI and maintains REPL commands against the shared agent instance.
 
 ## `@dexto/client-sdk`
