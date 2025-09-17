@@ -11,9 +11,8 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
+import { logger, flattenPromptResult, type DextoAgent } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
-import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CommandDefinition } from './command-parser.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
@@ -184,62 +183,31 @@ export const promptCommands: CommandDefinition[] = [
                     return true;
                 }
 
-                // Parse arguments into key-value pairs
-                const parsedArgs: Record<string, string> = {};
-                for (const arg of promptArgs) {
-                    const [key, ...valueParts] = arg.split('=');
-                    if (key && valueParts.length > 0) {
-                        parsedArgs[key] = valueParts.join('=');
-                    }
-                }
+                const { argMap, context } = splitPromptArguments(promptArgs);
 
                 console.log(chalk.cyan(`🤖 Using prompt: ${promptName}`));
-                if (Object.keys(parsedArgs).length > 0) {
-                    console.log(chalk.dim(`Arguments: ${JSON.stringify(parsedArgs)}`));
+                if (Object.keys(argMap).length > 0) {
+                    console.log(chalk.dim(`Arguments: ${JSON.stringify(argMap)}`));
+                }
+                if (context) {
+                    console.log(chalk.dim(`Context: ${context}`));
                 }
 
-                // Get the prompt
-                const result: GetPromptResult = await agent.promptsManager.getPrompt(
-                    promptName!,
-                    parsedArgs
-                );
+                const result = await agent.promptsManager.getPrompt(promptName!, argMap);
 
-                // Extract the prompt text and send it to the agent
-                let promptText = '';
-                if (result.messages && result.messages.length > 0) {
-                    for (const message of result.messages) {
-                        const content = (message as { content?: unknown }).content;
-                        if (typeof content === 'string') {
-                            promptText += content + '\n';
-                        } else if (Array.isArray(content)) {
-                            for (const part of content) {
-                                if (
-                                    part &&
-                                    typeof part === 'object' &&
-                                    'type' in part &&
-                                    (part as { type: string }).type === 'text' &&
-                                    'text' in part
-                                ) {
-                                    const t = (part as { text?: unknown }).text;
-                                    if (typeof t === 'string') promptText += t + '\n';
-                                }
-                            }
-                        } else if (
-                            content &&
-                            typeof content === 'object' &&
-                            'type' in content &&
-                            (content as { type: string }).type === 'text' &&
-                            'text' in content
-                        ) {
-                            const t = (content as { text?: unknown }).text;
-                            if (typeof t === 'string') promptText += t + '\n';
-                        }
-                    }
+                const flattened = flattenPromptResult(result);
+                if (flattened.resourceUris.length > 0) {
+                    console.log(
+                        chalk.dim(
+                            `Resources: ${flattened.resourceUris.map((uri) => `@<${uri}>`).join(', ')}`
+                        )
+                    );
                 }
 
-                if (promptText.trim()) {
-                    // Send the populated prompt text to the AI agent for processing
-                    await agent.run(promptText.trim());
+                const finalText = appendContext(flattened.text, context);
+
+                if (finalText.trim()) {
+                    await agent.run(finalText.trim());
                 } else {
                     console.log(chalk.yellow(`⚠️  Prompt '${promptName}' returned no content`));
                 }
@@ -275,31 +243,18 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
         category: 'Dynamic Prompts',
         handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
-                // Parse arguments intelligently
-                const parsedArgs: Record<string, string> = {};
+                const { argMap, context: contextString } = splitPromptArguments(args);
 
-                // First, try to parse key=value format
-                for (const arg of args) {
-                    const [key, ...valueParts] = arg.split('=');
-                    if (key && valueParts.length > 0) {
-                        parsedArgs[key] = valueParts.join('=');
-                    }
-                }
-
-                // If no key=value args, treat all args as context for the LLM to extrapolate
-                if (Object.keys(parsedArgs).length === 0 && args.length > 0) {
-                    // For prompts like "explain", "code-review", etc., treat args as natural language context
-                    const contextString = args.join(' ');
-                    parsedArgs['_context'] = contextString;
+                if (Object.keys(argMap).length > 0) {
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.dim(`Explicit arguments: ${JSON.stringify(argMap)}`));
+                } else if (contextString) {
                     console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
                     console.log(
                         chalk.dim(
                             `Context: ${contextString} (LLM will extrapolate template variables)`
                         )
                     );
-                } else if (Object.keys(parsedArgs).length > 0) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
-                    console.log(chalk.dim(`Explicit arguments: ${JSON.stringify(parsedArgs)}`));
                 } else {
                     console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
                     console.log(
@@ -307,48 +262,21 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     );
                 }
 
-                // Get the prompt
-                const result: GetPromptResult = await agent.promptsManager.getPrompt(
-                    promptInfo.name,
-                    parsedArgs
-                );
+                const result = await agent.promptsManager.getPrompt(promptInfo.name, argMap);
 
-                // Extract the prompt text and send it to the agent
-                let promptText = '';
-                if (result.messages && result.messages.length > 0) {
-                    for (const message of result.messages) {
-                        const content = (message as { content?: unknown }).content;
-                        if (typeof content === 'string') {
-                            promptText += content + '\n';
-                        } else if (Array.isArray(content)) {
-                            for (const part of content) {
-                                if (
-                                    part &&
-                                    typeof part === 'object' &&
-                                    'type' in part &&
-                                    (part as { type: string }).type === 'text' &&
-                                    'text' in part
-                                ) {
-                                    const t = (part as { text?: unknown }).text;
-                                    if (typeof t === 'string') promptText += t + '\n';
-                                }
-                            }
-                        } else if (
-                            content &&
-                            typeof content === 'object' &&
-                            'type' in content &&
-                            (content as { type: string }).type === 'text' &&
-                            'text' in content
-                        ) {
-                            const t = (content as { text?: unknown }).text;
-                            if (typeof t === 'string') promptText += t + '\n';
-                        }
-                    }
+                const flattened = flattenPromptResult(result);
+                if (flattened.resourceUris.length > 0) {
+                    console.log(
+                        chalk.dim(
+                            `Resources: ${flattened.resourceUris.map((uri) => `@<${uri}>`).join(', ')}`
+                        )
+                    );
                 }
 
-                if (promptText.trim()) {
-                    // Send the populated prompt text to the AI agent for processing
-                    await agent.run(promptText.trim());
+                const finalText = appendContext(flattened.text, contextString);
+
+                if (finalText.trim()) {
+                    await agent.run(finalText.trim());
                 } else {
                     console.log(
                         chalk.yellow(`⚠️  Prompt '${promptInfo.name}' returned no content`)
@@ -384,4 +312,38 @@ export async function getDynamicPromptCommands(agent: DextoAgent): Promise<Comma
         );
         return [];
     }
+}
+
+function splitPromptArguments(args: string[]): {
+    argMap: Record<string, string>;
+    context?: string | undefined;
+} {
+    const map: Record<string, string> = {};
+    const contextParts: string[] = [];
+
+    for (const arg of args) {
+        const equalsIndex = arg.indexOf('=');
+        if (equalsIndex > 0) {
+            const key = arg.slice(0, equalsIndex).trim();
+            const value = arg.slice(equalsIndex + 1);
+            if (key.length > 0) {
+                map[key] = value;
+            }
+        } else if (arg.trim().length > 0) {
+            contextParts.push(arg);
+        }
+    }
+
+    const context = contextParts.length > 0 ? contextParts.join(' ') : undefined;
+    return { argMap: map, context };
+}
+
+function appendContext(text: string, context?: string): string {
+    if (!context || context.trim().length === 0) {
+        return text ?? '';
+    }
+    if (!text || text.trim().length === 0) {
+        return context;
+    }
+    return `${text.trim()}\n\n${context}`;
 }

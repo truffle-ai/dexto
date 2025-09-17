@@ -231,12 +231,9 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           const res = await fetch(url.toString());
           if (res.ok) {
             const data = await res.json();
-            const txt = (data?.text as string) || '';
-            if (txt) {
-              // Append original args only if server didn't interpolate them
-              trimmed = originalArgsText && !txt.includes(originalArgsText)
-                ? `${txt}\n\n${originalArgsText}`
-                : txt;
+            const txt = typeof data?.text === 'string' ? data.text : '';
+            if (txt.trim()) {
+              trimmed = txt;
             }
           }
         } catch {

@@ -38,8 +38,7 @@ import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
 import { ResourceError } from '@dexto/core';
-import { PromptError } from '@dexto/core';
-import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
+import { PromptError, flattenPromptResult } from '@dexto/core';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -206,6 +205,45 @@ export async function initializeApi(
         }
     }
 
+    function normalizePromptArgs(input: Record<string, unknown>): {
+        args: Record<string, string>;
+        context?: string | undefined;
+    } {
+        const args: Record<string, string> = {};
+        let context: string | undefined;
+
+        for (const [key, value] of Object.entries(input)) {
+            if (key === '_context') {
+                if (typeof value === 'string' && value.trim().length > 0) {
+                    context = value.trim();
+                }
+                continue;
+            }
+
+            if (typeof value === 'string') {
+                args[key] = value;
+            } else if (value !== undefined && value !== null) {
+                try {
+                    args[key] = JSON.stringify(value);
+                } catch {
+                    args[key] = String(value);
+                }
+            }
+        }
+
+        return { args, context };
+    }
+
+    function appendContext(text: string, context?: string): string {
+        if (!context || context.trim().length === 0) {
+            return text ?? '';
+        }
+        if (!text || text.trim().length === 0) {
+            return context;
+        }
+        return `${text.trim()}\n\n${context}`;
+    }
+
     // Health check endpoint
     app.get('/health', (req, res) => {
         res.status(200).send('OK');
@@ -274,49 +312,6 @@ export async function initializeApi(
         }
     });
 
-    // Helper to extract text content from MCP GetPromptResult
-    function extractPromptText(result: GetPromptResult): string {
-        let text = '';
-        if (!result) return text;
-        const msgs = Array.isArray(result.messages) ? result.messages : [];
-        for (const m of msgs) {
-            const content = (m as { content?: unknown }).content;
-            if (!content) continue;
-
-            if (typeof content === 'string') {
-                text += content + '\n';
-                continue;
-            }
-
-            if (Array.isArray(content)) {
-                for (const part of content) {
-                    if (
-                        part &&
-                        typeof part === 'object' &&
-                        'type' in part &&
-                        (part as { type: string }).type === 'text' &&
-                        'text' in part
-                    ) {
-                        const t = (part as { text?: unknown }).text;
-                        if (typeof t === 'string') text += t + '\n';
-                    }
-                }
-                continue;
-            }
-
-            if (
-                typeof content === 'object' &&
-                'type' in content &&
-                (content as { type: string }).type === 'text' &&
-                'text' in content
-            ) {
-                const t = (content as { text?: unknown }).text;
-                if (typeof t === 'string') text += t + '\n';
-            }
-        }
-        return text.trim();
-    }
-
     // Get a specific prompt definition
     app.get('/api/prompts/:name', async (req, res, next) => {
         try {
@@ -368,10 +363,19 @@ export async function initializeApi(
             const resolvedName =
                 (await agent.promptsManager.resolvePromptKey(inputName)) ?? inputName;
 
-            const pr = await agent.promptsManager.getPrompt(resolvedName, args);
-            const text = extractPromptText(pr);
-            if (!text) throw PromptError.emptyResolvedContent(resolvedName);
-            return sendJsonResponse(res, { text }, 200);
+            const normalized = normalizePromptArgs(args);
+
+            const pr = await agent.promptsManager.getPrompt(resolvedName, normalized.args);
+            const flattened = flattenPromptResult(pr);
+            const finalText = appendContext(flattened.text, normalized.context);
+            if (!finalText && flattened.resourceUris.length === 0) {
+                throw PromptError.emptyResolvedContent(resolvedName);
+            }
+            return sendJsonResponse(
+                res,
+                { text: finalText, resources: flattened.resourceUris },
+                200
+            );
         } catch (error) {
             return next(error);
         }

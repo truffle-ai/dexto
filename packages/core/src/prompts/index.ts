@@ -12,3 +12,5 @@ export type {
     PromptArgument,
     PromptDefinition,
 } from './types.js';
+export { flattenPromptResult } from './utils.js';
+export type { FlattenedPromptResult } from './utils.js';

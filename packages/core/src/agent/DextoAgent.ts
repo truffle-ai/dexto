@@ -907,6 +907,9 @@ export class DextoAgent {
             // Connect the server
             await this.mcpManager.connectServer(name, validatedConfig);
 
+            // Ensure tool cache reflects the newly connected server before notifying listeners
+            await this.toolManager.refresh();
+
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,
                 success: true,
@@ -955,6 +958,9 @@ export class DextoAgent {
 
         // Then remove from runtime state
         this.stateManager.removeMcpServer(name);
+
+        // Refresh tool cache after server removal so the LLM sees updated set
+        await this.toolManager.refresh();
     }
 
     /**
