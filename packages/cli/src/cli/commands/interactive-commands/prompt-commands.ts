@@ -161,7 +161,7 @@ export const promptCommands: CommandDefinition[] = [
                 const promptArgs = args.slice(1);
 
                 // Check if prompt exists
-                if (!promptName || !(await agent.promptsManager.hasPrompt(promptName))) {
+                if (!promptName || !(await agent.promptsManager.has(promptName))) {
                     console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
                     console.log(chalk.dim('Use /prompts to see available prompts'));
                     return true;

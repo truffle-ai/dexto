@@ -45,7 +45,7 @@ export class InternalResourcesProvider implements ResourceProvider {
     }
 
     getSource(): ResourceSource {
-        return 'custom';
+        return 'internal';
     }
 
     async listResources(): Promise<ResourceMetadata[]> {

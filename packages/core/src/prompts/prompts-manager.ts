@@ -1,5 +1,5 @@
 import type { MCPManager } from '../mcp/manager.js';
-import type { PromptSet, PromptListResult, PromptProvider, PromptInfo } from './types.js';
+import type { PromptSet, PromptProvider, PromptInfo } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
@@ -80,15 +80,6 @@ export class PromptsManager {
         return entry !== undefined;
     }
 
-    async hasPrompt(name: string): Promise<boolean> {
-        return this.has(name);
-    }
-
-    async listPrompts(_cursor?: string): Promise<PromptListResult> {
-        const prompts = Object.values(await this.list());
-        return { prompts };
-    }
-
     async getPromptDefinition(name: string): Promise<import('./types.js').PromptDefinition | null> {
         const entry = await this.findEntry(name);
         if (!entry) return null;
@@ -99,26 +90,6 @@ export class PromptsManager {
             ...(info.description && { description: info.description }),
             ...(info.arguments && { arguments: info.arguments }),
         };
-    }
-
-    async getPromptsBySource(source: 'mcp' | 'internal' | 'starter'): Promise<PromptInfo[]> {
-        await this.ensureCache();
-        const index = this.promptIndex ?? new Map();
-        return Array.from(index.values())
-            .filter((entry) => entry.info.source === source)
-            .map((entry) => entry.info);
-    }
-
-    async searchPrompts(query: string): Promise<PromptInfo[]> {
-        const searchTerm = query.toLowerCase();
-        const prompts = await this.list();
-        return Object.values(prompts).filter((prompt) => {
-            return (
-                prompt.name.toLowerCase().includes(searchTerm) ||
-                (prompt.description && prompt.description.toLowerCase().includes(searchTerm)) ||
-                (prompt.title && prompt.title.toLowerCase().includes(searchTerm))
-            );
-        });
     }
 
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
@@ -156,14 +127,6 @@ export class PromptsManager {
         }
         await this.ensureCache();
         logger.info('PromptsManager refreshed');
-    }
-
-    getProvider(source: string): PromptProvider | undefined {
-        return this.providers.get(source);
-    }
-
-    getProviderSources(): string[] {
-        return Array.from(this.providers.keys());
     }
 
     private sanitizePromptInfo(prompt: PromptInfo, providerName: string): PromptInfo {

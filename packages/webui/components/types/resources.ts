@@ -3,7 +3,7 @@ export type ResourceMetadata = {
     name?: string;
     description?: string;
     mimeType?: string;
-    source: 'mcp' | 'plugin' | 'custom';
+    source: 'mcp' | 'internal';
     serverName?: string;
     size?: number;
     lastModified?: string | Date;

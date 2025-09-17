@@ -139,6 +139,8 @@ export class InternalPromptProvider implements PromptProvider {
         const inlineMap: Map<string, string> = new Map();
 
         try {
+            // Prompts are treated as agent configuration, so this provider loads the markdown
+            // files directly before handing stored content off to ResourceManager/BlobService.
             const files = await readdir(this.promptsDir);
             const markdownFiles = files.filter((file) => extname(file).toLowerCase() === '.md');
 

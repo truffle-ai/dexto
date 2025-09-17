@@ -333,7 +333,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                     uri,
                     name: this.generateCleanFileName(canonical),
                     description: 'Filesystem resource',
-                    source: 'custom',
+                    source: 'internal',
                     size: stat.size,
                     lastModified: stat.mtime,
                 });
@@ -555,7 +555,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
                         uri: blob.uri,
                         name: displayName,
                         description: `${friendlyType} (${this.formatSize(blob.metadata.size)})${blob.metadata.source ? ` • ${blob.metadata.source}` : ''}`,
-                        source: 'custom',
+                        source: 'internal',
                         size: blob.metadata.size,
                         mimeType: blob.metadata.mimeType,
                         lastModified: new Date(blob.metadata.createdAt),
@@ -570,24 +570,6 @@ export class BlobResourceHandler implements InternalResourceHandler {
                 }
             } catch (error) {
                 logger.warn(`Failed to list individual blobs: ${String(error)}`);
-            }
-
-            // Add summary resource if we have blobs
-            if (stats.count > 0) {
-                resources.unshift({
-                    uri: 'blob:store',
-                    name: 'Blob Storage',
-                    description: `${stats.backendType} blob storage with ${stats.count} blobs (${Math.round(stats.totalSize / 1024)}KB)`,
-                    source: 'custom',
-                    size: stats.totalSize,
-                    metadata: {
-                        type: 'blob-store',
-                        count: stats.count,
-                        backendType: stats.backendType,
-                        ...(stats.storePath && { storePath: stats.storePath }),
-                        ...(stats.bucket && { bucket: stats.bucket }),
-                    },
-                });
             }
 
             logger.debug(`✅ BlobResourceHandler returning ${resources.length} resources`);

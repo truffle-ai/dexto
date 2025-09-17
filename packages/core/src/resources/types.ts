@@ -7,7 +7,7 @@ import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 /**
  * Supported resource sources
  */
-export type ResourceSource = 'mcp' | 'plugin' | 'custom';
+export type ResourceSource = 'mcp' | 'internal';
 
 /**
  * Resource metadata information
