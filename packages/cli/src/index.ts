@@ -267,7 +267,7 @@ async function bootstrapAgentFromGlobalOpts() {
     const shutdown = async () => {
         try {
             await agent.stop();
-        } catch (err) {
+        } catch (_err) {
             // Ignore shutdown errors
         }
     };
