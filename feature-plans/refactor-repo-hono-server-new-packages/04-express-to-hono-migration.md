@@ -11,6 +11,7 @@
 - Middleware (redaction, error handling) implemented as Hono middleware functions.
 
 ## Migration steps
+> This is a direct lift-and-shift of the existing Express routes. No backward-compatibility layer is planned; once merged, the CLI ships with the Hono implementation exclusively.
 1. **Extract handlers** (see `02-handler-refactor.md`).
 2. **Create Hono routers** under `packages/server/src/hono/routers`:
    - `session.ts`, `search.ts`, `llm.ts`, `mcp.ts`, `webhook.ts`, etc.

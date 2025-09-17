@@ -2,7 +2,7 @@
 
 ## Pre-work
 - [ ] Align team on package renames/exports (`@dexto/server`, `@dexto/server/hono`).
-- [ ] Freeze Express changes in CLI to avoid churn during migration.
+- [ ] Freeze Express changes in CLI to avoid churn during migration (Express implementation will be retired once Hono ships).
 
 ## Phase 1 – Handlers & Utilities
 - [ ] Create `packages/server` scaffolding.
@@ -33,7 +33,7 @@
 - [ ] Update docs referencing CLI endpoints.
 
 ## Phase 5 – Cleanup & Release
-- [ ] Delete Express code paths and unused middleware.
+- [ ] Delete Express code paths and unused middleware (no fallback path).
 - [ ] Update release notes highlighting package changes, logging configuration, and new API entrypoint.
 - [ ] Publish updated packages (`@dexto/core`, `@dexto/server`, `@dexto/client-sdk`, CLI version bump).
 - [ ] Notify downstream teams (webui, RN, hosted) about new integration points.

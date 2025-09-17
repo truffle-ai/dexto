@@ -39,6 +39,6 @@
    - Update CLI README to reflect Hono-based server, new logging configuration, and removal of Express-specific instructions.
 
 ## Considerations
-- Keep Express code on a temporary branch until Hono deployment is confirmed stable.
+- Keep Express code on a temporary branch until Hono deployment is confirmed stable (no runtime toggle once released).
 - Ensure Windows path handling continues to work when moving utilities.
 - Evaluate whether CLI should expose a command to print effective logging configuration for debugging.

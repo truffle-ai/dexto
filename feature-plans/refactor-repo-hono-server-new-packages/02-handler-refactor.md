@@ -1,7 +1,7 @@
 # Handler Refactor Plan
 
 ## Goal
-Move Express route logic from `packages/cli/src/api/server.ts` into framework-agnostic handler modules housed in `@dexto/server/src/handlers`. Each handler:
+Move the existing (already slim) Express route logic from `packages/cli/src/api/server.ts` into framework-agnostic handler modules housed in `@dexto/server/src/handlers`. Each handler:
 - Accepts a `RuntimeContext` (agent, logger, services).
 - Validates input with Zod.
 - Returns plain JSON serialisable objects (or throws `HttpError`).
