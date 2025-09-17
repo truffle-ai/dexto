@@ -38,11 +38,10 @@ function resolveImport(fromFile, subpath) {
 
     const candidates = [];
     for (const base of bases) {
-        candidates.push(
-            `${base}${preferredExt}`,
-            `${base}.js`,
-            base,
-        );
+        const exts = Array.from(new Set([preferredExt, '.mjs', '.js', '.cjs']));
+        for (const ext of exts) {
+            candidates.push(`${base}${ext}`);
+        }
     }
 
     for (const candidate of candidates) {
