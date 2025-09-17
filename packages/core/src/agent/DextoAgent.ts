@@ -106,10 +106,6 @@ export class DextoAgent {
      */
     public readonly mcpManager!: MCPManager;
     public readonly systemPromptManager!: SystemPromptManager;
-    // Deprecated: backward-compat alias for older integrations
-    public get promptManager(): SystemPromptManager {
-        return this.systemPromptManager;
-    }
     public readonly agentEventBus!: AgentEventBus;
     public readonly promptsManager!: PromptsManager;
     public readonly stateManager!: AgentStateManager;
@@ -190,6 +186,7 @@ export class DextoAgent {
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             const promptsManager = new PromptsManager(
                 this.mcpManager,
+                this.resourceManager,
                 'prompts',
                 this.config,
                 this.agentEventBus

@@ -44,8 +44,6 @@ export type AgentServices = {
     mcpManager: MCPManager;
     toolManager: ToolManager;
     systemPromptManager: SystemPromptManager;
-    // Deprecated: use systemPromptManager instead. Kept for backward compatibility.
-    promptManager?: SystemPromptManager;
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
@@ -180,8 +178,6 @@ export async function createAgentServices(
         mcpManager,
         toolManager,
         systemPromptManager,
-        // Back-compat alias
-        promptManager: systemPromptManager,
         agentEventBus,
         stateManager,
         sessionManager,

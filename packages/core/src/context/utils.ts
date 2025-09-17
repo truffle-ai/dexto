@@ -187,7 +187,7 @@ export async function getImageDataWithBlobSupport(
     if (typeof image === 'string' && image.startsWith('@blob:') && resourceManager) {
         try {
             const uri = image.substring(1); // Remove @ prefix
-            const resourceUri = `internal:${uri}`;
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
             const result = await resourceManager.read(resourceUri);
 
             if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
@@ -222,7 +222,7 @@ export async function getFileDataWithBlobSupport(
     if (typeof data === 'string' && data.startsWith('@blob:') && resourceManager) {
         try {
             const uri = data.substring(1); // Remove @ prefix
-            const resourceUri = `internal:${uri}`;
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
             const result = await resourceManager.read(resourceUri);
 
             if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
@@ -261,7 +261,7 @@ export async function expandBlobReferences(
             for (const match of matches) {
                 try {
                     const uri = match.substring(1); // Remove @ prefix
-                    const resourceUri = `internal:${uri}`;
+                    const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
                     const result = await resourceManager.read(resourceUri);
 
                     if (result.contents[0]?.blob) {

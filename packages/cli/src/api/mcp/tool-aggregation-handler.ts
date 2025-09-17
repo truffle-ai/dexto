@@ -87,17 +87,13 @@ export async function initializeMcpToolAggregationServer(
         const allResources = await mcpManager.listAllResources();
         logger.info(`Registering ${allResources.length} resources from connected MCP servers`);
 
-        // TODO: Properly handle resource name collisions by prefixing with client name
         let resourceIndex = 0;
-        for (const resourceUri of allResources) {
-            mcpServer.resource(
-                `resource_${resourceIndex}_${resourceUri.replace(/[^a-zA-Z0-9]/g, '_')}`,
-                resourceUri,
-                async (uri) => {
-                    logger.info(`Resource aggregation: reading ${uri.href}`);
-                    return await mcpManager.readResource(uri.href);
-                }
-            );
+        for (const resource of allResources) {
+            const safeId = resource.key.replace(/[^a-zA-Z0-9]/g, '_');
+            mcpServer.resource(`resource_${resourceIndex}_${safeId}`, resource.key, async (uri) => {
+                logger.info(`Resource aggregation: reading ${uri.href}`);
+                return await mcpManager.readResource(uri.href);
+            });
             resourceIndex++;
         }
     } catch (error) {

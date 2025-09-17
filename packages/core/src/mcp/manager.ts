@@ -1,7 +1,7 @@
 import { MCPClient } from './mcp-client.js';
 import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
-import { IMCPClient } from './types.js';
+import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js';
 import { ToolSet } from '../tools/types.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { MCPError } from './errors.js';
@@ -37,6 +37,13 @@ import { MCPError } from './errors.js';
  * const tools = await manager.getAllTools();
  * ```
  */
+type ResourceCacheEntry = {
+    key: string;
+    serverName: string;
+    client: IMCPClient;
+    summary: MCPResourceSummary;
+};
+
 export class MCPManager {
     private clients: Map<string, IMCPClient> = new Map();
     private connectionErrors: { [key: string]: string } = {};
@@ -44,7 +51,7 @@ export class MCPManager {
     private serverToolsMap: Map<string, Map<string, IMCPClient>> = new Map();
     private toolConflicts: Set<string> = new Set();
     private promptToClientMap: Map<string, IMCPClient> = new Map();
-    private resourceToClientMap: Map<string, IMCPClient> = new Map();
+    private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
@@ -52,6 +59,43 @@ export class MCPManager {
     private static readonly SERVER_DELIMITER = '--';
 
     constructor() {}
+
+    private buildQualifiedResourceKey(serverName: string, resourceUri: string): string {
+        return `mcp:${serverName}:${resourceUri}`;
+    }
+
+    private parseQualifiedResourceKey(key: string): { serverName: string; resourceUri: string } {
+        if (!key.startsWith('mcp:')) {
+            throw MCPError.resourceNotFound(key);
+        }
+        const [, serverName, ...rest] = key.split(':');
+        if (!serverName || rest.length === 0) {
+            throw MCPError.resourceNotFound(key);
+        }
+        return { serverName, resourceUri: rest.join(':') };
+    }
+
+    private removeServerResources(serverName: string): void {
+        for (const [key, entry] of Array.from(this.resourceCache.entries())) {
+            if (entry.serverName === serverName) {
+                this.resourceCache.delete(key);
+            }
+        }
+    }
+
+    private getResourceCacheEntry(resourceKey: string): ResourceCacheEntry | undefined {
+        if (this.resourceCache.has(resourceKey)) {
+            return this.resourceCache.get(resourceKey);
+        }
+
+        try {
+            const { serverName, resourceUri } = this.parseQualifiedResourceKey(resourceKey);
+            const canonicalKey = this.buildQualifiedResourceKey(serverName, resourceUri);
+            return this.resourceCache.get(canonicalKey);
+        } catch {
+            return undefined;
+        }
+    }
 
     /**
      * Register a client that provides tools (and potentially more)
@@ -95,15 +139,19 @@ export class MCPManager {
             this.sanitizedNameToServerMap.delete(sanitizedName);
         }
 
-        [this.toolToClientMap, this.promptToClientMap, this.resourceToClientMap].forEach(
-            (cacheMap) => {
-                for (const [key, mappedClient] of Array.from(cacheMap.entries())) {
-                    if (mappedClient === client) {
-                        cacheMap.delete(key);
-                    }
+        [this.toolToClientMap, this.promptToClientMap].forEach((cacheMap) => {
+            for (const [key, mappedClient] of Array.from(cacheMap.entries())) {
+                if (mappedClient === client) {
+                    cacheMap.delete(key);
                 }
             }
-        );
+        });
+
+        for (const [key, entry] of Array.from(this.resourceCache.entries())) {
+            if (entry.client === client || entry.serverName === clientName) {
+                this.resourceCache.delete(key);
+            }
+        }
 
         // Only rebuild conflicts if this client actually had tools
         if (hadServerTools) {
@@ -203,9 +251,16 @@ export class MCPManager {
         // Cache resources, if supported
         // TODO: HF SERVER HAS 100000+ RESOURCES - need to think of a way to make resources/caching optional or better.
         try {
+            this.removeServerResources(clientName);
             const resources = await client.listResources();
-            resources.forEach((resourceUri) => {
-                this.resourceToClientMap.set(resourceUri, client);
+            resources.forEach((summary) => {
+                const key = this.buildQualifiedResourceKey(clientName, summary.uri);
+                this.resourceCache.set(key, {
+                    key,
+                    serverName: clientName,
+                    client,
+                    summary,
+                });
             });
             logger.debug(`Cached resources for client: ${clientName}`);
         } catch (error) {
@@ -397,33 +452,47 @@ export class MCPManager {
     }
 
     /**
-     * Get all available resource URIs from all connected clients, updating the cache.
-     * @returns Promise resolving to an array of unique resource URIs.
+     * Get all cached MCP resources (no network calls).
      */
-    async listAllResources(): Promise<string[]> {
-        return Array.from(this.resourceToClientMap.keys());
+    async listAllResources(): Promise<MCPResolvedResource[]> {
+        return Array.from(this.resourceCache.values()).map(({ key, serverName, summary }) => ({
+            key,
+            serverName,
+            summary,
+        }));
     }
 
     /**
-     * Get the client that provides a specific resource from the cache.
-     * @param resourceUri URI of the resource.
-     * @returns The client instance or undefined.
+     * Determine if a qualified MCP resource is cached.
      */
-    getResourceClient(resourceUri: string): IMCPClient | undefined {
-        return this.resourceToClientMap.get(resourceUri);
+    hasResource(resourceKey: string): boolean {
+        return this.getResourceCacheEntry(resourceKey) !== undefined;
     }
 
     /**
-     * Read a specific resource by URI.
-     * @param uri URI of the resource.
+     * Get cached resource metadata by qualified key.
+     */
+    getResource(resourceKey: string): MCPResolvedResource | undefined {
+        const entry = this.getResourceCacheEntry(resourceKey);
+        if (!entry) return undefined;
+        return {
+            key: entry.key,
+            serverName: entry.serverName,
+            summary: entry.summary,
+        };
+    }
+
+    /**
+     * Read a specific resource by qualified URI.
+     * @param resourceKey Qualified resource key in the form mcp:server:uri.
      * @returns Promise resolving to the resource content.
      */
-    async readResource(uri: string): Promise<ReadResourceResult> {
-        const client = this.getResourceClient(uri);
-        if (!client) {
-            throw MCPError.resourceNotFound(uri);
+    async readResource(resourceKey: string): Promise<ReadResourceResult> {
+        const entry = this.getResourceCacheEntry(resourceKey);
+        if (!entry) {
+            throw MCPError.resourceNotFound(resourceKey);
         }
-        return await client.readResource(uri);
+        return await entry.client.readResource(entry.summary.uri);
     }
 
     /**
@@ -581,7 +650,7 @@ export class MCPManager {
         this.serverToolsMap.clear();
         this.toolConflicts.clear();
         this.promptToClientMap.clear();
-        this.resourceToClientMap.clear();
+        this.resourceCache.clear();
         this.sanitizedNameToServerMap.clear();
         logger.info('Disconnected all clients and cleared caches.');
     }

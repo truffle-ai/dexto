@@ -3,6 +3,7 @@ import type { ResourceSet, ResourceMetadata } from './types.js';
 import { InternalResourcesProvider } from './internal-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
+import type { InternalResourceServices } from './internal-registry.js';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
 
@@ -12,22 +13,28 @@ export interface ResourceManagerOptions {
 }
 
 export class ResourceManager {
-    private mcpManager: MCPManager;
+    private readonly mcpManager: MCPManager;
     private internalResourcesProvider?: InternalResourcesProvider;
+    private readonly blobService: import('../blob/index.js').BlobService | undefined;
 
     constructor(mcpManager: MCPManager, options?: ResourceManagerOptions) {
         this.mcpManager = mcpManager;
-        if (options?.internalResourcesConfig?.enabled) {
-            const services: import('./internal-registry.js').InternalResourceServices = {};
-            if (options.blobService) {
-                services.blobService = options.blobService;
-            }
+        this.blobService = options?.blobService;
+
+        const services: InternalResourceServices = {};
+        if (this.blobService) {
+            services.blobService = this.blobService;
+        }
+
+        const config = options?.internalResourcesConfig;
+        if (config?.enabled || this.blobService) {
             this.internalResourcesProvider = new InternalResourcesProvider(
-                options.internalResourcesConfig,
+                config ?? { enabled: true, resources: [] },
                 services
             );
         }
-        logger.debug('ResourceManager initialized as thin coordinator');
+
+        logger.debug('ResourceManager initialized');
     }
 
     async initialize(): Promise<void> {
@@ -37,61 +44,53 @@ export class ResourceManager {
         logger.debug('ResourceManager initialization complete');
     }
 
-    /**
-     * Get the blob service instance if available.
-     * Used for storing large media data and converting to resource references.
-     */
     getBlobService(): import('../blob/index.js').BlobService | undefined {
-        return this.internalResourcesProvider?.getBlobService();
+        return this.blobService;
     }
 
-    private extractResourceName(uri: string): string {
-        const forwardSlashParts = uri.split('/');
-        const lastForwardSlashPart = forwardSlashParts[forwardSlashParts.length - 1];
-        if (lastForwardSlashPart && lastForwardSlashPart.includes('\\')) {
-            const backslashParts = lastForwardSlashPart.split('\\');
-            return backslashParts[backslashParts.length - 1] || uri;
-        }
-        if (lastForwardSlashPart && forwardSlashParts.length > 1) {
-            return lastForwardSlashPart || uri;
-        }
-        if (uri.includes('\\')) {
-            const parts = uri.split('\\');
-            return parts[parts.length - 1] || uri;
-        }
-        return uri;
+    private deriveName(uri: string): string {
+        const segments = uri.split(/[\\/]/).filter(Boolean);
+        const lastSegment = segments[segments.length - 1];
+        return lastSegment ?? uri;
     }
 
     async list(): Promise<ResourceSet> {
         const resources: ResourceSet = {};
 
         try {
-            const mcpClients = this.mcpManager.getClients();
-            for (const [serverName, client] of mcpClients.entries()) {
-                try {
-                    const resourceUris = await client.listResources();
-                    logger.debug(`📁 Server '${serverName}' has ${resourceUris.length} resources`);
-                    for (const uri of resourceUris) {
-                        const qualifiedUri = `mcp:${serverName}:${uri}`;
-                        const metadata: ResourceMetadata = {
-                            uri: qualifiedUri,
-                            name: this.extractResourceName(uri),
-                            description: `Resource from MCP server: ${serverName}`,
-                            source: 'mcp',
-                            serverName,
-                            metadata: { originalUri: uri, serverName },
-                        };
-                        resources[qualifiedUri] = metadata;
-                    }
-                } catch (error) {
-                    logger.warn(
-                        `Failed to list resources from MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
-                    );
+            const mcpResources = await this.mcpManager.listAllResources();
+            for (const resource of mcpResources) {
+                const {
+                    key,
+                    serverName,
+                    summary: { uri, name, description, mimeType },
+                } = resource;
+                const metadata: ResourceMetadata = {
+                    uri: key,
+                    name: name ?? this.deriveName(uri),
+                    description: description ?? `Resource from MCP server: ${serverName}`,
+                    source: 'mcp',
+                    serverName,
+                    metadata: {
+                        originalUri: uri,
+                        serverName,
+                    },
+                };
+                if (mimeType) {
+                    metadata.mimeType = mimeType;
                 }
+                resources[key] = metadata;
+            }
+            if (mcpResources.length > 0) {
+                logger.debug(
+                    `🗃️ Resource discovery (MCP): ${mcpResources.length} resources across ${
+                        new Set(mcpResources.map((r) => r.serverName)).size
+                    } server(s)`
+                );
             }
         } catch (error) {
             logger.error(
-                `Failed to get MCP resources: ${error instanceof Error ? error.message : String(error)}`
+                `Failed to enumerate MCP resources: ${error instanceof Error ? error.message : String(error)}`
             );
         }
 
@@ -99,96 +98,77 @@ export class ResourceManager {
             try {
                 const internalResources = await this.internalResourcesProvider.listResources();
                 for (const resource of internalResources) {
-                    const qualifiedUri = `internal:${resource.uri.replace(/^fs:\/\//, '')}`;
-                    resources[qualifiedUri] = {
-                        ...resource,
-                        uri: qualifiedUri,
-                        source: 'custom',
-                        description: `${resource.description || 'Internal resource'}`,
-                    };
+                    resources[resource.uri] = resource;
+                }
+                if (internalResources.length > 0) {
+                    logger.debug(
+                        `🗃️ Resource discovery (internal): ${internalResources.length} resources`
+                    );
                 }
             } catch (error) {
                 logger.error(
-                    `Failed to get internal resources: ${error instanceof Error ? error.message : String(error)}`
+                    `Failed to enumerate internal resources: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         }
 
-        const totalResources = Object.keys(resources).length;
-        const mcpCount = Object.keys(resources).filter((k) => k.startsWith('mcp:')).length;
-        const internalCount = Object.keys(resources).filter((k) =>
-            k.startsWith('internal:')
-        ).length;
-        logger.debug(
-            `🗃️ Resource discovery: ${totalResources} total resources (${mcpCount} MCP, ${internalCount} internal)`
-        );
         return resources;
     }
 
     async has(uri: string): Promise<boolean> {
         if (uri.startsWith('mcp:')) {
-            const parts = uri.split(':');
-            if (parts.length >= 3) {
-                const originalUri = parts.slice(2).join(':');
-                const client = this.mcpManager.getResourceClient(originalUri);
-                return client !== undefined;
-            }
-        } else if (uri.startsWith('internal:')) {
-            const originalUri = uri.substring('internal:'.length);
-            if (this.internalResourcesProvider) {
-                // Use the same logic as read method for URI handling
-                const handlerUri = originalUri.startsWith('blob:')
-                    ? originalUri
-                    : `fs://${originalUri}`;
-                return await this.internalResourcesProvider.hasResource(handlerUri);
-            }
+            return this.mcpManager.hasResource(uri);
         }
-        return false;
+        if (!this.internalResourcesProvider) {
+            if (uri.startsWith('blob:') && this.blobService) {
+                try {
+                    return await this.blobService.exists(uri);
+                } catch (error) {
+                    logger.warn(
+                        `BlobService exists check failed for ${uri}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return false;
+                }
+            }
+            return false;
+        }
+        return await this.internalResourcesProvider.hasResource(uri);
     }
 
     async read(uri: string): Promise<ReadResourceResult> {
         logger.debug(`📖 Reading resource: ${uri}`);
         try {
             if (uri.startsWith('mcp:')) {
-                logger.debug(`🗃️ Detected MCP resource: '${uri}'`);
-                const parts = uri.split(':');
-                if (parts.length < 3)
-                    throw ResourceError.invalidUriFormat(uri, 'mcp:server:resource');
-                const originalUri = parts.slice(2).join(':');
-                if (originalUri.length === 0)
-                    throw ResourceError.invalidUriFormat(uri, 'mcp:server:resource');
-                logger.debug(`🎯 MCP routing: '${uri}' -> '${originalUri}'`);
-                const result = await this.mcpManager.readResource(originalUri);
+                const result = await this.mcpManager.readResource(uri);
                 logger.debug(`✅ Successfully read MCP resource: ${uri}`);
                 return result;
-            } else if (uri.startsWith('internal:')) {
-                logger.debug(`🗃️ Detected internal resource: '${uri}'`);
-                const originalUri = uri.substring('internal:'.length);
-                if (originalUri.length === 0) throw ResourceError.emptyUri();
-                if (!this.internalResourcesProvider)
-                    throw ResourceError.providerNotInitialized('Internal', uri);
-
-                // Determine the correct URI format based on the resource type
-                let handlerUri: string;
-                if (originalUri.startsWith('blob:')) {
-                    // Blob resources keep their blob: prefix
-                    handlerUri = originalUri;
-                    logger.debug(`🎯 Internal routing: '${uri}' -> '${handlerUri}'`);
-                } else {
-                    // Filesystem resources get fs:// prefix (legacy behavior)
-                    handlerUri = `fs://${originalUri}`;
-                    logger.debug(`🎯 Internal routing: '${uri}' -> '${handlerUri}'`);
-                }
-
-                const result = await this.internalResourcesProvider.readResource(handlerUri);
-                logger.debug(`✅ Successfully read internal resource: ${uri}`);
-                return result;
-            } else {
-                logger.error(
-                    `❌ Invalid resource URI format: '${uri}' (expected 'mcp:server:uri' or 'internal:path')`
-                );
-                throw ResourceError.invalidUriFormat(uri, 'mcp:server:resource or internal:path');
             }
+
+            if (!this.internalResourcesProvider) {
+                if (uri.startsWith('blob:') && this.blobService) {
+                    const blob = await this.blobService.retrieve(uri, 'base64');
+                    return {
+                        contents: [
+                            {
+                                uri,
+                                mimeType: blob.metadata.mimeType,
+                                blob: blob.data as string,
+                            },
+                        ],
+                        _meta: {
+                            size: blob.metadata.size,
+                            createdAt: blob.metadata.createdAt,
+                            originalName: blob.metadata.originalName,
+                            source: blob.metadata.source,
+                        },
+                    };
+                }
+                throw ResourceError.providerNotInitialized('Internal', uri);
+            }
+
+            const result = await this.internalResourcesProvider.readResource(uri);
+            logger.debug(`✅ Successfully read internal resource: ${uri}`);
+            return result;
         } catch (error) {
             logger.error(
                 `❌ Failed to read resource '${uri}': ${error instanceof Error ? error.message : String(error)}`

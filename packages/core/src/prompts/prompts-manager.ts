@@ -6,53 +6,40 @@ import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
 import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
-import type { PromptArgument } from './types.js';
 import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
+import type { ResourceManager } from '../resources/manager.js';
 
-/**
- * Unified Prompts Manager - Pure aggregator for prompt providers
- *
- * This class acts as a clean aggregator that delegates all operations to registered prompt providers.
- * It provides a unified interface for prompt discovery, metadata access, and prompt execution
- * across multiple prompt sources (MCP, internal, starter).
- *
- * Responsibilities:
- * - Register and manage prompt providers
- * - Aggregate prompts from all providers
- * - Provide unified prompt interface for discovery and access
- * - Cache aggregated prompt metadata for performance
- * - Handle cross-provider prompt conflicts with source prefixing
- * - Support filtering and querying of prompts
- *
- * Architecture:
- * Application → PromptsManager → [MCPPromptProvider, InternalPromptProvider, StarterPromptProvider]
- */
+interface PromptCacheEntry {
+    key: string;
+    providerName: string;
+    providerPromptName: string;
+    originalName: string;
+    info: PromptInfo;
+}
+
 export class PromptsManager {
     private providers: Map<string, PromptProvider> = new Map();
-
-    // Unified cache for all providers
-    private promptsCache: PromptSet = {};
-    private cacheValid: boolean = false;
-    private aliasMap = new Map<string, { baseName: string; providerName: string }>();
+    private promptIndex: Map<string, PromptCacheEntry> | undefined;
+    private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
 
     constructor(
         mcpManager: MCPManager,
+        resourceManager: ResourceManager,
         promptsDir?: string,
         agentConfig?: ValidatedAgentConfig,
-        private eventBus?: AgentEventBus
+        private readonly eventBus?: AgentEventBus
     ) {
-        // Register all prompt providers
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
-        this.providers.set('internal', new InternalPromptProvider(promptsDir));
+        const internalOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
+        this.providers.set('internal', new InternalPromptProvider(internalOptions));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
 
         logger.debug(
             `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
 
-        // If an event bus is provided and supports subscriptions, subscribe to MCP-related events
         if (this.eventBus && typeof (this.eventBus as any).on === 'function') {
             const refresh = async (reason: string) => {
                 logger.debug(`PromptsManager refreshing due to: ${reason}`);
@@ -70,50 +57,145 @@ export class PromptsManager {
             this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
                 await refresh(`mcpServerUpdated:${p.serverName}`);
             });
-        } else if (this.eventBus) {
-            logger.debug(
-                'PromptsManager received an event bus without subscription methods; skipping event subscriptions'
-            );
         }
     }
 
-    /**
-     * Initialize the PromptsManager and its components
-     */
     async initialize(): Promise<void> {
-        // Initial cache build
-        await this.buildPromptsCache();
+        await this.ensureCache();
         logger.debug('PromptsManager initialization complete');
     }
 
-    /**
-     * Invalidate the prompts cache for all providers
-     */
-    private invalidateCache(): void {
-        this.cacheValid = false;
-        this.promptsCache = {};
-        this.aliasMap.clear();
-        this.buildPromise = null; // Clear any in-flight build promise
+    async list(): Promise<PromptSet> {
+        await this.ensureCache();
+        const index = this.promptIndex ?? new Map();
+        const result: PromptSet = {};
+        for (const [key, entry] of index.entries()) {
+            result[key] = entry.info;
+        }
+        return result;
+    }
 
-        // Invalidate all provider caches
+    async has(name: string): Promise<boolean> {
+        const entry = await this.findEntry(name);
+        return entry !== undefined;
+    }
+
+    async hasPrompt(name: string): Promise<boolean> {
+        return this.has(name);
+    }
+
+    async listPrompts(_cursor?: string): Promise<PromptListResult> {
+        const prompts = Object.values(await this.list());
+        return { prompts };
+    }
+
+    async getPromptDefinition(name: string): Promise<import('./types.js').PromptDefinition | null> {
+        const entry = await this.findEntry(name);
+        if (!entry) return null;
+        const { info } = entry;
+        return {
+            name: info.name,
+            ...(info.title && { title: info.title }),
+            ...(info.description && { description: info.description }),
+            ...(info.arguments && { arguments: info.arguments }),
+        };
+    }
+
+    async getPromptsBySource(source: 'mcp' | 'internal' | 'starter'): Promise<PromptInfo[]> {
+        await this.ensureCache();
+        const index = this.promptIndex ?? new Map();
+        return Array.from(index.values())
+            .filter((entry) => entry.info.source === source)
+            .map((entry) => entry.info);
+    }
+
+    async searchPrompts(query: string): Promise<PromptInfo[]> {
+        const searchTerm = query.toLowerCase();
+        const prompts = await this.list();
+        return Object.values(prompts).filter((prompt) => {
+            return (
+                prompt.name.toLowerCase().includes(searchTerm) ||
+                (prompt.description && prompt.description.toLowerCase().includes(searchTerm)) ||
+                (prompt.title && prompt.title.toLowerCase().includes(searchTerm))
+            );
+        });
+    }
+
+    async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
+        const entry = await this.findEntry(name);
+        if (!entry) {
+            throw PromptError.notFound(name);
+        }
+
+        const provider = this.providers.get(entry.providerName);
+        if (!provider) {
+            throw PromptError.providerNotFound(entry.providerName);
+        }
+
+        return await provider.getPrompt(entry.providerPromptName, args);
+    }
+
+    async resolvePromptKey(nameOrAlias: string): Promise<string | null> {
+        await this.ensureCache();
+        if (!this.promptIndex) return null;
+
+        if (this.promptIndex.has(nameOrAlias)) {
+            return nameOrAlias;
+        }
+
+        const normalized = nameOrAlias.startsWith('/') ? nameOrAlias.slice(1) : nameOrAlias;
+        const aliasMatch = this.aliasMap.get(nameOrAlias) ?? this.aliasMap.get(normalized);
+        return aliasMatch ?? null;
+    }
+
+    async refresh(): Promise<void> {
+        this.promptIndex = undefined;
+        this.aliasMap.clear();
         for (const provider of this.providers.values()) {
             provider.invalidateCache();
         }
-
-        logger.debug('PromptsManager cache invalidated');
+        await this.ensureCache();
+        logger.info('PromptsManager refreshed');
     }
 
-    /**
-     * Build the unified prompts cache from all providers
-     */
-    private async buildPromptsCache(): Promise<void> {
-        // If a build is already in progress, wait for it to complete
-        if (this.buildPromise) {
-            return this.buildPromise;
-        }
+    getProvider(source: string): PromptProvider | undefined {
+        return this.providers.get(source);
+    }
 
-        // Create a new build promise
-        this.buildPromise = this._buildPromptsCache();
+    getProviderSources(): string[] {
+        return Array.from(this.providers.keys());
+    }
+
+    private sanitizePromptInfo(prompt: PromptInfo, providerName: string): PromptInfo {
+        const metadata = { ...(prompt.metadata ?? {}) } as Record<string, unknown>;
+        delete metadata.content;
+        delete metadata.prompt;
+        delete metadata.filePath;
+        delete metadata.messages;
+
+        if (!metadata.originalName) {
+            metadata.originalName = prompt.name;
+        }
+        metadata.provider = providerName;
+
+        const sanitized: PromptInfo = { ...prompt };
+        if (Object.keys(metadata).length > 0) {
+            sanitized.metadata = metadata;
+        } else {
+            delete sanitized.metadata;
+        }
+        return sanitized;
+    }
+
+    private async ensureCache(): Promise<void> {
+        if (this.promptIndex) {
+            return;
+        }
+        if (this.buildPromise) {
+            await this.buildPromise;
+            return;
+        }
+        this.buildPromise = this.buildCache();
         try {
             await this.buildPromise;
         } finally {
@@ -121,323 +203,112 @@ export class PromptsManager {
         }
     }
 
-    /**
-     * Internal method to actually build the prompts cache
-     */
-    private async _buildPromptsCache(): Promise<void> {
-        const allPrompts: PromptSet = {};
-        let totalPromptsCount = 0;
+    private async buildCache(): Promise<void> {
+        const index = new Map<string, PromptCacheEntry>();
+        const aliases = new Map<string, string>();
 
-        // Aggregate prompts from all registered providers
         for (const [providerName, provider] of this.providers) {
             try {
-                const { prompts: providerPrompts } = await provider.listPrompts();
-
-                providerPrompts.forEach((p) => {
-                    const baseName = p.name;
-                    let name = baseName;
-                    if (allPrompts[baseName] && allPrompts[baseName].source !== p.source) {
-                        name = `${providerName}:${baseName}`;
-
-                        // Also alias the previously inserted prompt under its provider
-                        const existing = allPrompts[baseName];
-                        const prevAlias = `${existing.source}:${baseName}`;
-                        if (!allPrompts[prevAlias]) {
-                            allPrompts[prevAlias] = { ...existing, name: prevAlias };
-                            this.aliasMap.set(prevAlias, {
-                                baseName,
-                                providerName: existing.source,
-                            });
-                        }
-
-                        logger.warn(
-                            `⚠️ Prompt name conflict for '${baseName}'. Prefixed as '${name}'.`,
-                            null,
-                            'yellow'
-                        );
-                        // Store the alias mapping for provider lookups
-                        this.aliasMap.set(name, { baseName, providerName });
-                    }
-                    allPrompts[name] = name === baseName ? p : { ...p, name };
-                });
-
-                totalPromptsCount += providerPrompts.length;
-                logger.debug(
-                    `📝 Cached ${providerPrompts.length} prompts from ${providerName} provider`
-                );
+                const { prompts } = await provider.listPrompts();
+                for (const prompt of prompts) {
+                    this.insertPrompt(index, aliases, providerName, prompt);
+                }
             } catch (error) {
                 logger.error(
-                    `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`,
-                    null,
-                    'red'
+                    `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         }
 
-        this.promptsCache = allPrompts;
-        this.cacheValid = true;
+        this.promptIndex = index;
+        this.aliasMap = aliases;
 
-        logger.debug(
-            `📋 Prompt discovery: ${totalPromptsCount} total prompts from ${this.providers.size} providers`
-        );
-
-        if (totalPromptsCount > 0) {
-            const sampleNames = Object.keys(allPrompts).slice(0, 5);
+        if (index.size > 0) {
+            const sample = Array.from(index.keys()).slice(0, 5);
             logger.debug(
-                `Sample prompts: ${sampleNames.join(', ')}${totalPromptsCount > 5 ? '...' : ''}`
+                `📋 Prompt discovery: ${index.size} prompts. Sample: ${sample.join(', ')}`
             );
         }
     }
 
-    /**
-     * List all available prompts with their info
-     */
-    async list(): Promise<PromptSet> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        // Return sanitized copies to avoid exposing sensitive metadata
-        const sanitizedCache: PromptSet = {};
-        for (const [name, prompt] of Object.entries(this.promptsCache)) {
-            sanitizedCache[name] = this.sanitizePromptMetadata(prompt);
-        }
-        return sanitizedCache;
-    }
-
-    /**
-     * Check if a prompt exists
-     */
-    async has(name: string): Promise<boolean> {
-        const prompts = await this.list();
-        return Object.prototype.hasOwnProperty.call(prompts, name);
-    }
-
-    /**
-     * Check if a prompt exists (alias for has)
-     */
-    async hasPrompt(name: string): Promise<boolean> {
-        return this.has(name);
-    }
-
-    /**
-     * List all available prompts with pagination support
-     */
-    async listPrompts(_cursor?: string): Promise<PromptListResult> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        const prompts = Object.values(this.promptsCache).map((prompt) =>
-            this.sanitizePromptMetadata(prompt)
-        );
-
-        // For now, return all prompts without pagination
-        // TODO: Implement proper pagination when needed
-        return {
-            prompts,
-        };
-    }
-
-    /**
-     * Get prompt definition (metadata only)
-     */
-    async getPromptDefinition(name: string): Promise<import('./types.js').PromptDefinition | null> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        const promptInfo = this.promptsCache[name];
-        if (!promptInfo) {
-            return null;
-        }
-
-        return {
-            name: promptInfo.name,
-            ...(promptInfo.title && { title: promptInfo.title }),
-            ...(promptInfo.description && { description: promptInfo.description }),
-            ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
-        };
-    }
-
-    /**
-     * Get prompts by source
-     */
-    async getPromptsBySource(source: 'mcp' | 'internal' | 'starter'): Promise<PromptInfo[]> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        return Object.values(this.promptsCache)
-            .filter((prompt) => prompt.source === source)
-            .map((p) => this.sanitizePromptMetadata(p));
-    }
-
-    /**
-     * Search prompts by name or description
-     */
-    async searchPrompts(query: string): Promise<PromptInfo[]> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        const searchTerm = query.toLowerCase();
-        const results = Object.values(this.promptsCache).filter(
-            (prompt) =>
-                prompt.name.toLowerCase().includes(searchTerm) ||
-                (prompt.description && prompt.description.toLowerCase().includes(searchTerm)) ||
-                (prompt.title && prompt.title.toLowerCase().includes(searchTerm))
-        );
-        return results.map((p) => this.sanitizePromptMetadata(p));
-    }
-
-    /**
-     * Get a specific prompt by name
-     */
-    async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        const promptInfo = this.promptsCache[name];
-        if (!promptInfo) {
-            throw PromptError.notFound(name);
-        }
-
-        // Validate arguments if the prompt has defined arguments
-        if (promptInfo.arguments && promptInfo.arguments.length > 0) {
-            this.validatePromptArguments(promptInfo.arguments, args || {});
-        }
-
-        // Find the provider that handles this prompt source
-        const provider = this.providers.get(promptInfo.source);
-        if (!provider) {
-            throw PromptError.providerNotFound(promptInfo.source);
-        }
-
-        // Get the original name for provider lookup (handle aliases)
-        const meta = promptInfo.metadata as Record<string, unknown> | undefined;
-        const resolvedOriginalName =
-            (typeof meta?.originalName === 'string' ? (meta!.originalName as string) : undefined) ??
-            this.aliasMap.get(name)?.baseName ??
-            name;
-
-        // Delegate to the appropriate provider
-        return await provider.getPrompt(resolvedOriginalName, args);
-    }
-
-    /**
-     * Resolve a user-provided prompt identifier to a concrete prompt key in the cache.
-     * Accepts any of:
-     *  - exact prompt key
-     *  - originalName (e.g., internal prompt filename without extension)
-     *  - command from front-matter (with or without leading slash)
-     */
-    async resolvePromptKey(nameOrAlias: string): Promise<string | null> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-
-        // Exact key
-        if (Object.prototype.hasOwnProperty.call(this.promptsCache, nameOrAlias)) {
-            return nameOrAlias;
-        }
-
-        const want = nameOrAlias.startsWith('/') ? nameOrAlias : `/${nameOrAlias}`;
-        const wantNoSlash = nameOrAlias.startsWith('/') ? nameOrAlias.slice(1) : nameOrAlias;
-
-        for (const [key, prompt] of Object.entries(this.promptsCache)) {
-            const meta = prompt.metadata as Record<string, unknown> | undefined;
-            const originalName =
-                typeof meta?.originalName === 'string' ? (meta!.originalName as string) : undefined;
-            const command =
-                typeof meta?.command === 'string' ? (meta!.command as string) : undefined;
-
-            if (originalName === nameOrAlias) return key;
-            if (command && (command === want || command === wantNoSlash)) return key;
-        }
-
-        return null;
-    }
-
-    /**
-     * Validate prompt arguments against the prompt definition
-     */
-    private validatePromptArguments(
-        expectedArgs: PromptArgument[],
-        providedArgs: Record<string, unknown>
+    private insertPrompt(
+        index: Map<string, PromptCacheEntry>,
+        aliases: Map<string, string>,
+        providerName: string,
+        prompt: PromptInfo
     ): void {
-        const missingRequired = expectedArgs
-            .filter((arg) => arg.required === true)
-            .filter((arg) => !Object.prototype.hasOwnProperty.call(providedArgs, arg.name));
+        const providerPromptName = prompt.name;
+        const prepared = this.sanitizePromptInfo(prompt, providerName);
+        let key = providerPromptName;
+        const originalName = providerPromptName;
 
-        if (missingRequired.length > 0) {
-            const missingNames = missingRequired.map((arg) => arg.name);
-            throw PromptError.missingRequiredArguments(missingNames);
+        if (index.has(key)) {
+            const existing = index.get(key)!;
+            index.delete(key);
+
+            const existingKey = `${existing.providerName}:${existing.originalName}`;
+            const updatedExisting: PromptCacheEntry = {
+                ...existing,
+                key: existingKey,
+                info:
+                    existing.info.name === existingKey
+                        ? existing.info
+                        : { ...existing.info, name: existingKey },
+            };
+            index.set(existingKey, updatedExisting);
+            aliases.set(existing.originalName, existingKey);
+            key = `${providerName}:${originalName}`;
         }
 
-        // Check for unknown arguments
-        const providedKeys = Object.keys(providedArgs).filter((k) => !k.startsWith('_'));
-        const expectedKeys = expectedArgs.map((arg) => arg.name);
-        const unknownArgs = providedKeys.filter((key) => !expectedKeys.includes(key));
+        const entryInfo =
+            prepared.name === key ? prepared : ({ ...prepared, name: key } as PromptInfo);
+        const entry: PromptCacheEntry = {
+            key,
+            providerName,
+            providerPromptName,
+            originalName,
+            info: entryInfo,
+        };
 
-        if (unknownArgs.length > 0) {
-            logger.warn(`Unknown arguments provided: ${unknownArgs.join(', ')}`, null, 'yellow');
+        index.set(key, entry);
+        aliases.set(originalName, key);
+
+        const metadata = entryInfo.metadata as Record<string, unknown> | undefined;
+        if (metadata) {
+            const aliasCandidates = new Set<string>();
+            if (typeof metadata.originalName === 'string') {
+                aliasCandidates.add(metadata.originalName);
+            }
+            if (typeof metadata.command === 'string') {
+                const command = metadata.command as string;
+                aliasCandidates.add(command);
+                if (command.startsWith('/')) {
+                    aliasCandidates.add(command.slice(1));
+                }
+            }
+
+            for (const candidate of aliasCandidates) {
+                if (candidate && !aliases.has(candidate)) {
+                    aliases.set(candidate, key);
+                }
+            }
         }
     }
 
-    /**
-     * Refresh all prompt caches
-     */
-    async refresh(): Promise<void> {
-        this.invalidateCache();
-        await this.buildPromptsCache();
-        logger.info('PromptsManager refreshed');
-    }
+    private async findEntry(name: string): Promise<PromptCacheEntry | undefined> {
+        await this.ensureCache();
+        if (!this.promptIndex) return undefined;
 
-    /**
-     * Get a specific provider by source name
-     */
-    getProvider(source: string): PromptProvider | undefined {
-        return this.providers.get(source);
-    }
-
-    /**
-     * Get all registered provider sources
-     */
-    getProviderSources(): string[] {
-        return Array.from(this.providers.keys());
-    }
-
-    /**
-     * Sanitize prompt metadata to remove sensitive information
-     */
-    private sanitizePromptMetadata(prompt: PromptInfo): PromptInfo {
-        const {
-            content: _content,
-            prompt: _promptText,
-            filePath: _filePath,
-            messages: _messages,
-            ...safeMetadata
-        } = prompt.metadata || {};
-
-        if (Object.keys(safeMetadata).length === 0) {
-            // If no safe metadata remains, omit the metadata property entirely
-            const { metadata: _metadata, ...promptWithoutMetadata } = prompt;
-            return promptWithoutMetadata;
+        if (this.promptIndex.has(name)) {
+            return this.promptIndex.get(name);
         }
 
-        return { ...prompt, metadata: safeMetadata };
-    }
-
-    /**
-     * Update starter prompts configuration (updates the starter provider)
-     */
-    updateStarterPrompts(agentConfig?: ValidatedAgentConfig): void {
-        const starterProvider = this.providers.get('starter') as StarterPromptProvider;
-        if (starterProvider) {
-            starterProvider.updateConfig(agentConfig);
-            this.invalidateCache();
+        const normalized = name.startsWith('/') ? name.slice(1) : name;
+        const alias = this.aliasMap.get(name) ?? this.aliasMap.get(normalized);
+        if (alias && this.promptIndex.has(alias)) {
+            return this.promptIndex.get(alias);
         }
+
+        return undefined;
     }
 }

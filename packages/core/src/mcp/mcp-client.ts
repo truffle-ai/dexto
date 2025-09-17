@@ -11,7 +11,7 @@ import type {
     ValidatedHttpServerConfig,
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
-import { IMCPClient } from './types.js';
+import { IMCPClient, MCPResourceSummary } from './types.js';
 import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
 import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
@@ -397,12 +397,17 @@ export class MCPClient implements IMCPClient {
      * @returns Array of available resource URIs
      * TODO: Turn exception logs back into error and only call this based on capabilities of the server
      */
-    async listResources(): Promise<string[]> {
+    async listResources(): Promise<MCPResourceSummary[]> {
         this.ensureConnected();
         try {
             const response = await this.client!.listResources();
             logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
-            return response.resources.map((r: any) => r.uri);
+            return response.resources.map((r: any) => ({
+                uri: r.uri,
+                name: r.name,
+                description: r.description,
+                mimeType: r.mimeType,
+            }));
         } catch (error) {
             logger.debug(
                 `Failed to list resources from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
