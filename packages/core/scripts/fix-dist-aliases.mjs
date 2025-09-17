@@ -1,13 +1,16 @@
 #!/usr/bin/env node
+/* eslint-env node */
+import console from 'node:console';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const DIST_DIR = resolve(__dirname, '../dist');
-const PROCESS_EXTENSIONS = new Set(['.js', '.cjs', '.mjs']);
-const IMPORT_PATTERN = /(['"])@core\/([^'\"]+)\1/g;
+const PROCESS_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts', '.mts', '.cts']);
+const IMPORT_PATTERN = /(['"])@core\/([^'"]+)\1/g;
 
 function collectFiles(root) {
     const entries = readdirSync(root);
@@ -27,13 +30,20 @@ function collectFiles(root) {
 function resolveImport(fromFile, subpath) {
     const fromExt = extname(fromFile);
     const preferredExt = fromExt === '.cjs' ? '.cjs' : '.js';
-    const candidateBase = subpath.endsWith('.js') ? subpath.slice(0, -3) : subpath;
+    const candidateBase = subpath.replace(/\.(mjs|cjs|js)$/, '');
+    const bases = [candidateBase];
+    if (!candidateBase.endsWith('index')) {
+        bases.push(join(candidateBase, 'index'));
+    }
 
-    const candidates = [
-        `${candidateBase}${preferredExt}`,
-        `${candidateBase}.js`,
-        candidateBase,
-    ];
+    const candidates = [];
+    for (const base of bases) {
+        candidates.push(
+            `${base}${preferredExt}`,
+            `${base}.js`,
+            base,
+        );
+    }
 
     for (const candidate of candidates) {
         const absolute = resolve(DIST_DIR, candidate);
