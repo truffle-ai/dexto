@@ -15,7 +15,9 @@
     },
     "./package.json": "./package.json"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@dexto/core": "workspace:*"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",

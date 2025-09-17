@@ -5,7 +5,7 @@ import {
     ClientOptions,
     MessageInput,
     MessageResponse,
-    SessionInfo,
+    SessionMetadata,
     LLMConfig,
     McpServer,
     Tool,
@@ -180,16 +180,16 @@ export class DextoClient {
     /**
      * List all sessions
      */
-    async listSessions(): Promise<SessionInfo[]> {
-        const response = await this.http.get<{ sessions: SessionInfo[] }>('/api/sessions');
+    async listSessions(): Promise<SessionMetadata[]> {
+        const response = await this.http.get<{ sessions: SessionMetadata[] }>('/api/sessions');
         return response.sessions;
     }
 
     /**
      * Create a new session
      */
-    async createSession(sessionId?: string): Promise<SessionInfo> {
-        const response = await this.http.post<{ session: SessionInfo }>('/api/sessions', {
+    async createSession(sessionId?: string): Promise<SessionMetadata> {
+        const response = await this.http.post<{ session: SessionMetadata }>('/api/sessions', {
             ...(sessionId && { sessionId }),
         });
         return response.session;
@@ -198,8 +198,8 @@ export class DextoClient {
     /**
      * Get session details
      */
-    async getSession(sessionId: string): Promise<SessionInfo> {
-        const response = await this.http.get<{ session: SessionInfo }>(
+    async getSession(sessionId: string): Promise<SessionMetadata> {
+        const response = await this.http.get<{ session: SessionMetadata }>(
             `/api/sessions/${encodeURIComponent(sessionId)}`
         );
         return response.session;

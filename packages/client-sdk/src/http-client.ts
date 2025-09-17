@@ -50,22 +50,8 @@ export class HttpClient {
         const url = new URL(endpoint, this.config.baseUrl).toString();
         const requestHeaders: Record<string, string> = { ...headers };
 
-        // Determine if body is a plain object that needs JSON stringification
-        const isPlainObject =
-            body !== undefined &&
-            typeof body === 'object' &&
-            body !== null &&
-            !(typeof globalThis.FormData !== 'undefined' && body instanceof globalThis.FormData) &&
-            !(typeof globalThis.Blob !== 'undefined' && body instanceof globalThis.Blob) &&
-            !(body instanceof ArrayBuffer) &&
-            !(body instanceof URLSearchParams) &&
-            !(
-                typeof globalThis.ReadableStream !== 'undefined' &&
-                body instanceof globalThis.ReadableStream
-            );
-
-        // Add Content-Type only for plain objects that will be JSON stringified
-        if (isPlainObject) {
+        // Add default Content-Type only when a body is present and caller didn't provide one
+        if (body !== undefined) {
             const hasContentType = Object.keys(requestHeaders).some(
                 (k) => k.toLowerCase() === 'content-type'
             );
@@ -82,9 +68,7 @@ export class HttpClient {
         const requestInit: FetchInit = {
             method,
             headers: requestHeaders,
-            ...(body !== undefined && {
-                body: isPlainObject ? JSON.stringify(body) : (body as any),
-            }),
+            ...(body !== undefined && { body: JSON.stringify(body) }),
         } as FetchInit;
 
         // Add timeout using AbortController

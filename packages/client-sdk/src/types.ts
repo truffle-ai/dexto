@@ -1,7 +1,49 @@
-// Lightweight client SDK types - simple interfaces, no validation
-// Let the server handle all validation and return appropriate errors
+import type {
+    SearchOptions,
+    SearchResult,
+    SearchResponse,
+    SessionSearchResult,
+    SessionSearchResponse,
+    AgentEventMap,
+    SessionEventMap,
+    ModelInfo,
+    ProviderInfo,
+    LLMProvider,
+    LLMRouter,
+    SupportedFileType,
+    LLMConfig,
+    ImageData,
+    FileData,
+    InternalMessage,
+    SessionMetadata,
+    ToolSet,
+    McpServerConfig,
+} from '@dexto/core';
 
-// Basic configuration types
+// Re-export core types for convenience
+export type {
+    SearchOptions,
+    SearchResult,
+    SearchResponse,
+    SessionSearchResult,
+    SessionSearchResponse,
+    AgentEventMap,
+    SessionEventMap,
+    ModelInfo,
+    ProviderInfo,
+    LLMProvider,
+    LLMRouter,
+    SupportedFileType,
+    LLMConfig,
+    ImageData,
+    FileData,
+    InternalMessage,
+    SessionMetadata,
+    ToolSet,
+    McpServerConfig,
+};
+
+// Client-specific configuration types (not in core - SDK-specific concerns)
 export interface ClientConfig {
     baseUrl: string;
     apiKey?: string | undefined;
@@ -16,18 +58,11 @@ export interface ClientOptions {
     debug?: boolean | undefined;
 }
 
-// Message types
+// API-specific message types (not in core - simplified interface for external clients)
 export interface MessageInput {
     content: string;
-    imageData?: {
-        base64: string;
-        mimeType: string;
-    };
-    fileData?: {
-        base64: string;
-        mimeType: string;
-        filename?: string;
-    };
+    imageData?: ImageData;
+    fileData?: FileData;
     sessionId?: string;
     stream?: boolean;
 }
@@ -37,97 +72,19 @@ export interface MessageResponse {
     sessionId: string;
 }
 
-// Session types
-export interface SessionInfo {
-    id: string;
-    name?: string;
-    description?: string;
-    createdAt: string;
-    updatedAt: string;
-    agentId: string;
-    userId?: string;
-    tags?: string[];
-    metadata?: Record<string, unknown>;
-}
+// Type aliases for API compatibility (using core types)
+export type ClientProviderInfo = ProviderInfo;
+export type McpServer = McpServerConfig;
+export type Tool = ToolSet;
+export type CatalogModel = ModelInfo;
+export type CatalogProvider = ProviderInfo;
 
-// LLM types
-export interface LLMConfig {
-    provider: string;
-    model: string;
-    router?: string;
-    apiKey?: string;
-    baseUrl?: string;
-    maxTokens?: number;
-    maxInputTokens?: number;
-    maxOutputTokens?: number;
-    maxIterations?: number;
-    temperature?: number;
-    displayName?: string;
-}
-
-export interface ClientProviderInfo {
-    name: string;
-    models: string[];
-    supportedRouters: string[];
-    supportsBaseURL: boolean;
-    hasApiKey?: boolean;
-    primaryEnvVar?: string;
-}
-
-// MCP types
-export interface McpServer {
-    id: string;
-    name: string;
-    status: 'connected' | 'disconnected' | 'error' | 'unknown';
-    error?: string;
-}
-
-export interface Tool {
-    id: string;
-    name: string;
-    description: string;
-    inputSchema?: Record<string, unknown>;
-}
-
-// Search types
-export interface SearchOptions {
-    limit?: number;
-    offset?: number;
-    sessionId?: string;
-    role?: 'user' | 'assistant' | 'system' | 'tool';
-}
-
-export interface SearchResult {
-    id: string;
-    content: string;
-    metadata: Record<string, unknown>;
-    score: number;
-    type: string;
-}
-
-export interface SearchResponse {
-    results: SearchResult[];
-    total: number;
-    hasMore: boolean;
-}
-
-export interface SessionSearchResult extends SearchResult {
-    sessionId: string;
-    sessionName?: string;
-}
-
-export interface SessionSearchResponse {
-    results: SessionSearchResult[];
-    total: number;
-    hasMore: boolean;
-}
-
-// Catalog types
+// API-specific catalog types (not in core - client-specific query options)
 export interface CatalogOptions {
     provider?: string;
     hasKey?: boolean;
-    router?: 'vercel' | 'in-built';
-    fileType?: 'audio' | 'pdf' | 'image' | 'text';
+    router?: LLMRouter;
+    fileType?: SupportedFileType;
     defaultOnly?: boolean;
     mode?: 'grouped' | 'flat';
 }
@@ -137,57 +94,16 @@ export interface CatalogResponse {
     models?: Array<CatalogModel & { provider: string }>;
 }
 
-export interface CatalogModel {
-    name: string;
-    displayName?: string;
-    default?: boolean;
-    maxInputTokens: number;
-    supportedFileTypes: string[];
-    supportedRouters?: string[];
-    pricing?: {
-        inputPerM?: number;
-        outputPerM?: number;
-        cacheReadPerM?: number;
-        cacheWritePerM?: number;
-        currency?: 'USD';
-        unit?: 'per_million_tokens';
-    };
-}
-
-export interface CatalogProvider {
-    name: string;
-    hasApiKey: boolean;
-    primaryEnvVar: string;
-    supportedRouters: string[];
-    supportsBaseURL: boolean;
-    models: CatalogModel[];
-    supportedFileTypes?: string[];
-}
-
-// Event types
-export interface AgentEventMap {
-    'agent:started': { agentId: string; timestamp: string };
-    'agent:stopped': { agentId: string; timestamp: string };
-    'agent:error': { agentId: string; error: string; timestamp: string };
-    'agent:message': { agentId: string; message: string; timestamp: string };
-}
-
-export interface SessionEventMap {
-    'session:created': { sessionId: string; agentId: string; timestamp: string };
-    'session:updated': { sessionId: string; changes: Record<string, unknown>; timestamp: string };
-    'session:deleted': { sessionId: string; timestamp: string };
-    'session:message': { sessionId: string; message: string; timestamp: string };
-}
-
+// Combined event type for client-sdk convenience (not in core - SDK-specific union)
 export type DextoEvent =
     | {
-          [K in keyof AgentEventMap]: {
+          [K in keyof AgentEventMap as K extends string ? K : never]: {
               type: K;
               data: AgentEventMap[K];
           };
       }[keyof AgentEventMap]
     | {
-          [K in keyof SessionEventMap]: {
+          [K in keyof SessionEventMap as K extends string ? K : never]: {
               type: K;
               data: SessionEventMap[K];
               sessionId: string;

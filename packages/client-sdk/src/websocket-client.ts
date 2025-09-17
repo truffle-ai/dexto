@@ -211,10 +211,7 @@ export class WebSocketClient {
             console.error(
                 `Failed to send WebSocket message: ${error instanceof Error ? error.message : String(error)}`
             );
-            // Throw ClientError for send failures
-            throw ClientError.websocketSendFailed(
-                error instanceof Error ? error : new Error('Failed to send WebSocket message')
-            );
+            return false;
         }
     }
 
