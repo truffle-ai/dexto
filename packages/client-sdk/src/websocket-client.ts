@@ -37,6 +37,8 @@ export class WebSocketClient {
         return new Promise((resolve, reject) => {
             try {
                 this.isIntentionallyClosed = false;
+                // Notify listeners that a connection attempt has started
+                this.emitState('connecting');
 
                 // Handle both browser and Node.js WebSocket implementations
                 if (typeof WebSocket !== 'undefined') {
@@ -120,12 +122,24 @@ export class WebSocketClient {
         this.ws.onclose = (_event) => {
             this.emitState('closed');
 
-            if (
+            const shouldReconnect =
                 !this.isIntentionallyClosed &&
                 this.reconnectEnabled &&
-                this.reconnectAttempts < this.maxReconnectAttempts
-            ) {
+                this.reconnectAttempts < this.maxReconnectAttempts;
+
+            if (shouldReconnect) {
                 this.scheduleReconnect();
+            } else if (
+                !this.isIntentionallyClosed &&
+                this.reconnectAttempts >= this.maxReconnectAttempts
+            ) {
+                // Initial connect() should not hang forever
+                reject(
+                    ClientError.websocketConnectionFailed(
+                        this.url,
+                        new Error(`Max reconnect attempts reached (${this.maxReconnectAttempts})`)
+                    )
+                );
             }
         };
 

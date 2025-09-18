@@ -49,14 +49,34 @@ export class HttpClient {
 
         const url = new URL(endpoint, this.config.baseUrl).toString();
         const requestHeaders: Record<string, string> = { ...headers };
+        const hasContentType = Object.keys(requestHeaders).some(
+            (k) => k.toLowerCase() === 'content-type'
+        );
 
-        // Add default Content-Type only when a body is present and caller didn't provide one
-        if (body !== undefined) {
-            const hasContentType = Object.keys(requestHeaders).some(
-                (k) => k.toLowerCase() === 'content-type'
+        // Decide payload and content-type
+        let payload: FetchInit['body'] | undefined = undefined;
+        const isBodyInit = (b: unknown): b is FetchInit['body'] => {
+            if (b == null) return false;
+            return (
+                typeof b === 'string' ||
+                (typeof globalThis.Blob !== 'undefined' && b instanceof globalThis.Blob) ||
+                (typeof globalThis.FormData !== 'undefined' && b instanceof globalThis.FormData) ||
+                (typeof globalThis.URLSearchParams !== 'undefined' &&
+                    b instanceof globalThis.URLSearchParams) ||
+                (typeof globalThis.ReadableStream !== 'undefined' &&
+                    b instanceof globalThis.ReadableStream) ||
+                (typeof ArrayBuffer !== 'undefined' && b instanceof ArrayBuffer)
             );
-            if (!hasContentType) {
-                requestHeaders['Content-Type'] = 'application/json';
+        };
+
+        if (body !== undefined) {
+            if (isBodyInit(body)) {
+                payload = body;
+            } else {
+                payload = JSON.stringify(body);
+                if (!hasContentType) {
+                    requestHeaders['Content-Type'] = 'application/json';
+                }
             }
         }
 
@@ -68,7 +88,7 @@ export class HttpClient {
         const requestInit: FetchInit = {
             method,
             headers: requestHeaders,
-            ...(body !== undefined && { body: JSON.stringify(body) }),
+            ...(payload !== undefined && { body: payload }),
         } as FetchInit;
 
         // Add timeout using AbortController
@@ -205,14 +225,14 @@ export class HttpClient {
 
     async post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
         const options: RequestOptions = { method: 'POST' };
-        if (body) options.body = body;
+        if (body !== undefined) options.body = body;
         if (headers) options.headers = headers;
         return this.request<T>(endpoint, options);
     }
 
     async put<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
         const options: RequestOptions = { method: 'PUT' };
-        if (body) options.body = body;
+        if (body !== undefined) options.body = body;
         if (headers) options.headers = headers;
         return this.request<T>(endpoint, options);
     }
