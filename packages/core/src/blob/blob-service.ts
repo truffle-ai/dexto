@@ -61,60 +61,51 @@ export class BlobService implements IBlobService {
     }
 
     /**
-     * Create S3 backend with lazy loading
+     * Create S3 backend - TODO: Implement S3BlobBackend
+     *
+     * TODO: Implement S3 blob storage backend:
+     * - Add AWS SDK dependency
+     * - Create S3BlobBackend class implementing BlobBackend interface
+     * - Support S3-compatible services (MinIO, etc.) via endpoint config
+     * - Handle AWS credential chain (access keys, IAM roles, etc.)
+     * - Implement proper error handling for S3 operations
      */
-    private createS3Backend(config: S3BlobBackendConfig): BlobBackend {
-        try {
-            // TODO: Implement S3BlobBackend in Phase 3
-            throw new Error('S3 backend not yet implemented - coming in Phase 3');
-        } catch (error) {
-            logger.warn(`S3 backend not available, falling back to local: ${error}`);
-            // Fallback to local backend
-            return new LocalBlobBackend({
-                type: 'local',
-                maxBlobSize: config.maxBlobSize,
-                maxTotalSize: config.maxTotalSize,
-                cleanupAfterDays: config.cleanupAfterDays,
-            });
-        }
+    private createS3Backend(_config: S3BlobBackendConfig): BlobBackend {
+        throw new Error(
+            'S3 backend not yet implemented. Please use local backend or implement S3BlobBackend.'
+        );
     }
 
     /**
-     * Create GCS backend with lazy loading
+     * Create GCS backend - TODO: Implement GCSBlobBackend
+     *
+     * TODO: Implement Google Cloud Storage blob backend:
+     * - Add @google-cloud/storage dependency
+     * - Create GCSBlobBackend class implementing BlobBackend interface
+     * - Support service account authentication (key file or default credentials)
+     * - Handle GCS-specific operations and error codes
+     * - Implement proper bucket and object lifecycle management
      */
-    private createGCSBackend(config: GCSBlobBackendConfig): BlobBackend {
-        try {
-            // TODO: Implement GCSBlobBackend in Phase 3
-            throw new Error('GCS backend not yet implemented - coming in Phase 3');
-        } catch (error) {
-            logger.warn(`GCS backend not available, falling back to local: ${error}`);
-            // Fallback to local backend
-            return new LocalBlobBackend({
-                type: 'local',
-                maxBlobSize: config.maxBlobSize,
-                maxTotalSize: config.maxTotalSize,
-                cleanupAfterDays: config.cleanupAfterDays,
-            });
-        }
+    private createGCSBackend(_config: GCSBlobBackendConfig): BlobBackend {
+        throw new Error(
+            'GCS backend not yet implemented. Please use local backend or implement GCSBlobBackend.'
+        );
     }
 
     /**
-     * Create Azure backend with lazy loading
+     * Create Azure backend - TODO: Implement AzureBlobBackend
+     *
+     * TODO: Implement Azure Blob Storage backend:
+     * - Add @azure/storage-blob dependency
+     * - Create AzureBlobBackend class implementing BlobBackend interface
+     * - Support connection string and managed identity authentication
+     * - Handle Azure-specific blob operations and container management
+     * - Implement proper error handling for Azure storage exceptions
      */
-    private createAzureBackend(config: AzureBlobBackendConfig): BlobBackend {
-        try {
-            // TODO: Implement AzureBlobBackend in Phase 3
-            throw new Error('Azure backend not yet implemented - coming in Phase 3');
-        } catch (error) {
-            logger.warn(`Azure backend not available, falling back to local: ${error}`);
-            // Fallback to local backend
-            return new LocalBlobBackend({
-                type: 'local',
-                maxBlobSize: config.maxBlobSize,
-                maxTotalSize: config.maxTotalSize,
-                cleanupAfterDays: config.cleanupAfterDays,
-            });
-        }
+    private createAzureBackend(_config: AzureBlobBackendConfig): BlobBackend {
+        throw new Error(
+            'Azure backend not yet implemented. Please use local backend or implement AzureBlobBackend.'
+        );
     }
 
     /**
@@ -227,25 +218,21 @@ export class BlobService implements IBlobService {
     }
 
     /**
-     * Switch to a different backend configuration
-     * This is useful for runtime configuration changes
+     * Switch to a different backend configuration - TODO: Implement if needed
+     *
+     * TODO: Implement backend switching if runtime configuration changes are required:
+     * - Add proper data migration between backends
+     * - Handle graceful failover scenarios
+     * - Implement rollback mechanism for failed switches
+     * - Add validation to ensure new backend can handle existing blob references
+     *
+     * Note: This method is currently unused and may not be needed for most use cases.
+     * Consider removing if not required, or implement with proper data migration.
      */
-    async switchBackend(config: BlobServiceConfig): Promise<void> {
-        logger.info(
-            `Switching blob backend from ${this.backend.getBackendType()} to ${config.type}`
+    async switchBackend(_config: BlobServiceConfig): Promise<void> {
+        throw new Error(
+            'Backend switching not yet implemented. Create a new BlobService instance instead.'
         );
-
-        // Disconnect current backend
-        if (this.connected) {
-            await this.disconnect();
-        }
-
-        // Create new backend
-        this.config = config;
-        this.backend = this.createBackend(config);
-
-        // Connect to new backend
-        await this.connect();
     }
 
     /**
