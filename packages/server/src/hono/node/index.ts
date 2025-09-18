@@ -22,6 +22,9 @@ import type { WebhookEventSubscriber } from '../../events/webhook-subscriber.js'
 
 type AppWithSubscriber = Hono & { webhookSubscriber?: WebhookEventSubscriber };
 
+type FetchRequest = globalThis.Request;
+type FetchBodyInit = globalThis.BodyInit;
+
 export type NodeBridgeOptions = {
     agent: DextoAgent;
     port?: number;
@@ -281,12 +284,12 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
     });
 }
 
-async function toRequest(req: IncomingMessage): Promise<Request> {
+async function toRequest(req: IncomingMessage): Promise<FetchRequest> {
     const protocol = (req.socket as any)?.encrypted ? 'https' : 'http';
     const host = req.headers.host ?? 'localhost';
     const url = new URL(req.url ?? '/', `${protocol}://${host}`);
 
-    const headers = new Headers();
+    const headers = new globalThis.Headers();
     for (const [key, value] of Object.entries(req.headers)) {
         if (value === undefined) continue;
         if (Array.isArray(value)) {
@@ -297,12 +300,13 @@ async function toRequest(req: IncomingMessage): Promise<Request> {
     }
 
     const method = req.method ?? 'GET';
-    const body = method === 'GET' || method === 'HEAD' ? null : (req as unknown as BodyInit);
+    const body: FetchBodyInit | null =
+        method === 'GET' || method === 'HEAD' ? null : (req as unknown as FetchBodyInit);
 
-    return new Request(url, {
+    return new globalThis.Request(url, {
         method,
         headers,
-        body,
+        body: body ?? undefined,
         duplex: body ? 'half' : undefined,
     } as RequestInit);
 }
