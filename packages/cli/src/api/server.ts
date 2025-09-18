@@ -1189,7 +1189,18 @@ export async function startApiServer(
     agent: DextoAgent,
     port = 3000,
     agentCardOverride?: Partial<AgentCard>
-) {
+): Promise<{
+    server: http.Server;
+    wss: WebSocketServer;
+    webSubscriber: WebSocketEventSubscriber;
+    webhookSubscriber?: WebhookEventSubscriber;
+}> {
+    if (shouldUseHonoServer()) {
+        // TODO: Remove feature flag and delete Express implementation once Hono server reaches GA.
+        const { startHonoApiServer } = await import('./server-hono.js');
+        return startHonoApiServer(agent, port, agentCardOverride);
+    }
+
     const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
         agentCardOverride,
@@ -1216,4 +1227,9 @@ export async function startApiServer(
     });
 
     return { server, wss, webSubscriber, webhookSubscriber };
+}
+
+export function shouldUseHonoServer(): boolean {
+    const flag = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
+    return flag === '1' || flag === 'true' || flag === 'yes';
 }
