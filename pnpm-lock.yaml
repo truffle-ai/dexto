@@ -160,6 +160,12 @@ importers:
         specifier: ^4.26.1
         version: 4.41.0
 
+  packages/client-sdk:
+    dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/core:
     dependencies:
       '@ai-sdk/anthropic':
