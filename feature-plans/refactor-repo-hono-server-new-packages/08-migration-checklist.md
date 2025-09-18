@@ -36,6 +36,7 @@
 - [ ] Reuse existing websocket + webhook subscribers inside the Node bridge to keep event flow
       identical.
 - [ ] Ensure MCP transport integration works through the Hono bridge (streamable HTTP + SSE).
+- [ ] *(Optional)* Add Hono route/unit tests that replace `scripts/test_api.sh` and legacy Express integration suites.
 
 ## Phase 4 – CLI Swap
 - [ ] Replace Express server bootstrap with `@dexto/server/hono` in the CLI (`startApiServer`).

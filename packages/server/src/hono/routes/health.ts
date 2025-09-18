@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import type { DextoAgent } from '@dexto/core';
-import { sendJson } from '../utils/response.js';
 
 /**
  * NOTE: If we introduce a transport-agnostic handler layer later, the logic in this module can move
@@ -9,7 +8,7 @@ import { sendJson } from '../utils/response.js';
 export function createHealthRouter(_agent: DextoAgent) {
     const app = new Hono();
 
-    app.get('/', (ctx) => sendJson(ctx, { status: 'ok' as const }));
+    app.get('/', (ctx) => ctx.text('OK'));
 
     return app;
 }
