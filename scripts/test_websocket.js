@@ -20,6 +20,7 @@ async function runWebSocketTest(name, message, expectations) {
         const ws = new WebSocket(WS_URL);
         let receivedEvents = [];
         let testPassed = false;
+        
 
         const timeout = setTimeout(() => {
             // Evaluate test results based on expectations

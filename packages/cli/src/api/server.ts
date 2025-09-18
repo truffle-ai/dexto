@@ -1200,6 +1200,7 @@ export async function startApiServer(
 }> {
     if (shouldUseHonoServer()) {
         // TODO: Remove feature flag and delete Express implementation once Hono server reaches GA.
+        console.log('🌐 USING HONO SERVER');
         const { startHonoApiServer } = await import('./server-hono.js');
         return startHonoApiServer(agent, port, agentCardOverride);
     }

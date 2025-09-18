@@ -99,6 +99,13 @@ export function createNodeServer(app: Hono, options: NodeBridgeOptions): NodeBri
     const webSubscriber = new WebSocketEventSubscriber(websocketServer);
     webSubscriber.subscribe(agent.agentEventBus);
 
+    // Normalize connection handling so both our subscriber and the per-connection
+    // message handler are wired via the same 'connection' event.
+    websocketServer.on('connection', (ws) => {
+        logger.info('WebSocket client connected.');
+        handleWebsocketConnection(agent, ws);
+    });
+
     const websocketPath = options.websocketPath ?? '/ws';
 
     server.on('close', () => {
@@ -113,8 +120,9 @@ export function createNodeServer(app: Hono, options: NodeBridgeOptions): NodeBri
         }
 
         websocketServer.handleUpgrade(req, socket, head, (ws) => {
-            logger.info('WebSocket client connected.');
-            handleWebsocketConnection(agent, ws);
+            // Emit the standard 'connection' event so any listeners (like our
+            // WebSocketEventSubscriber) can register this client.
+            websocketServer.emit('connection', ws, req);
         });
     });
 
