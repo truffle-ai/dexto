@@ -6,9 +6,16 @@
     "outDir": "dist",
     "noEmit": false,
     "paths": {
-      "@core/*": ["src/*"]
+      "@core/*": [
+        "src/*"
+      ]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
