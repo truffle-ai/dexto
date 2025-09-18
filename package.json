@@ -56,7 +56,7 @@
         "typecheck": "turbo run typecheck",
         "typecheck:core": "tsc --noEmit -p packages/core/tsconfig.json",
         "typecheck:watch": "turbo run typecheck --watch",
-        "unlink-cli": "pnpm rm dexto --global 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true",
+        "unlink-cli": "pnpm rm dexto --global 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true"
     },
     "keywords": [
         "mcp",
