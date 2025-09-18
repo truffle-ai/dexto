@@ -1,40 +1,100 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ResourceMetadata } from '../types/resources.js';
 
+let cachedResources: ResourceMetadata[] | null = null;
+let cachedError: string | null = null;
+let pendingRequest: Promise<ResourceMetadata[]> | null = null;
+
+async function fetchResources(): Promise<ResourceMetadata[]> {
+    const response = await fetch('/api/resources');
+    if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(text ? `HTTP ${response.status}: ${text}` : `HTTP ${response.status}`);
+    }
+    const body = await response.json();
+    if (!body || !body.ok || !Array.isArray(body.resources)) {
+        throw new Error('Invalid response shape');
+    }
+    return body.resources as ResourceMetadata[];
+}
+
+async function loadResources(forceRefresh = false): Promise<ResourceMetadata[]> {
+    if (forceRefresh) {
+        cachedResources = null;
+        cachedError = null;
+    }
+
+    if (cachedResources) {
+        return cachedResources;
+    }
+
+    if (!pendingRequest) {
+        pendingRequest = fetchResources()
+            .then((resources) => {
+                cachedResources = resources;
+                cachedError = null;
+                return resources;
+            })
+            .catch((error) => {
+                cachedError = error instanceof Error ? error.message : String(error);
+                throw error;
+            })
+            .finally(() => {
+                pendingRequest = null;
+            });
+    }
+
+    return pendingRequest;
+}
+
+export function clearResourcesCache(): void {
+    cachedResources = null;
+    cachedError = null;
+    pendingRequest = null;
+}
+
 export function useResources() {
-    const [resources, setResources] = useState<ResourceMetadata[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+    const [resources, setResources] = useState<ResourceMetadata[]>(() => cachedResources ?? []);
+    const [loading, setLoading] = useState<boolean>(() => cachedResources === null);
+    const [error, setError] = useState<string | null>(() => cachedError);
 
     useEffect(() => {
-        let mounted = true;
-        const load = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const res = await fetch('/api/resources');
-                if (!res.ok) {
-                    const errorText = await res.text().catch(() => '');
-                    throw new Error(`HTTP ${res.status}${errorText ? `: ${errorText}` : ''}`);
+        let cancelled = false;
+
+        loadResources()
+            .then((data) => {
+                if (!cancelled) {
+                    setResources(data);
+                    setError(null);
+                    setLoading(false);
                 }
-                const data = await res.json();
-                if (data.ok && Array.isArray(data.resources)) {
-                    if (mounted) setResources(data.resources);
-                } else {
-                    throw new Error('Invalid response shape');
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    setError(message);
+                    setLoading(false);
                 }
-            } catch (e) {
-                if (mounted) setError(e instanceof Error ? e.message : 'Failed to fetch resources');
-                // Do not throw; leave UI functional without resources.
-            } finally {
-                if (mounted) setLoading(false);
-            }
-        };
-        load();
+            });
+
         return () => {
-            mounted = false;
+            cancelled = true;
         };
     }, []);
 
-    return { resources, loading, error } as const;
+    const refresh = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await loadResources(true);
+            setResources(data);
+            setError(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            setError(message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { resources, loading, error, refresh } as const;
 }

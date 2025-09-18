@@ -27,6 +27,7 @@ import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
 import { parseSlashInput } from '../lib/parseSlash';
+import { clearPromptCache } from '../lib/promptCache';
 
 interface ModelOption {
   name: string;
@@ -74,19 +75,32 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
 
   // Resources (for @ mention autocomplete)
-  const { resources, loading: resourcesLoading } = useResources();
+  const { resources, loading: resourcesLoading, refresh: refreshResources } = useResources();
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMention, setShowMention] = useState(false);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | null>(null);
 
   // Helpers for @ mention parsing/filtering
-  const filterResources = (list: ReturnType<typeof useResources>['resources'], q: string) => {
-    const query = q.toLowerCase();
-    return list.filter((r) =>
-      (r.name || '').toLowerCase().includes(query) || r.uri.toLowerCase().includes(query) || (r.serverName || '').toLowerCase().includes(query)
-    ).slice(0, 50);
-  };
+  const filterResources = useCallback(
+    (list: ReturnType<typeof useResources>['resources'], q: string) => {
+      const query = q.toLowerCase();
+      const sorted = [...list].sort((a, b) => {
+        const aTime = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+        const bTime = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        return bTime - aTime;
+      });
+      return sorted
+        .filter(
+          (r) =>
+            (r.name || '').toLowerCase().includes(query) ||
+            r.uri.toLowerCase().includes(query) ||
+            (r.serverName || '').toLowerCase().includes(query)
+        )
+        .slice(0, 25);
+    },
+    []
+  );
 
   const findActiveAtIndex = (value: string, caret: number) => {
     // Walk backwards from caret to find an '@' not preceded by an alphanumeric
@@ -133,6 +147,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   const handlePromptCreated = React.useCallback(
     (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
+      clearPromptCache();
       setShowCreatePromptModal(false);
       setSlashRefreshKey((prev) => prev + 1);
       const slashCommand = `/${prompt.name}`;
@@ -380,6 +395,18 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       setDropdownStyle(null);
     }
   }, [text]);
+
+  const mentionActiveRef = React.useRef(false);
+  useEffect(() => {
+    if (showMention) {
+      if (!mentionActiveRef.current) {
+        mentionActiveRef.current = true;
+        void refreshResources();
+      }
+    } else {
+      mentionActiveRef.current = false;
+    }
+  }, [showMention, refreshResources]);
 
   // Large paste guard to prevent layout from exploding with very large text
   const LARGE_PASTE_THRESHOLD = 20000; // characters

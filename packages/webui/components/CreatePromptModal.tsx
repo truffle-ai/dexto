@@ -65,14 +65,26 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     setArgumentsState((prev) => [...prev, { ...initialArgument }]);
   };
 
-  const handleArgumentChange = (index: number, field: keyof PromptArgumentForm, value: string | boolean) => {
-    setArgumentsState((prev) => {
-      const next = [...prev];
-      const arg = { ...next[index] };
-      (arg as any)[field] = value;
-      next[index] = arg;
-      return next;
-    });
+  const handleArgumentChange = (
+    index: number,
+    field: keyof PromptArgumentForm,
+    value: string | boolean
+  ) => {
+    setArgumentsState((prev) =>
+      prev.map((arg, i) => {
+        if (i !== index) return arg;
+
+        if (field === 'required' && typeof value === 'boolean') {
+          return { ...arg, required: value };
+        }
+
+        if ((field === 'name' || field === 'description') && typeof value === 'string') {
+          return { ...arg, [field]: value } as PromptArgumentForm;
+        }
+
+        return arg;
+      })
+    );
   };
 
   const handleRemoveArgument = (index: number) => {

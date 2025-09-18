@@ -17,6 +17,10 @@ export interface ResourceExpansionResult {
     extractedImages: Array<{ image: string; mimeType: string; name: string }>;
 }
 
+function escapeRegExp(literal: string): string {
+    return literal.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
 export function parseResourceReferences(message: string): ResourceReference[] {
     const references: ResourceReference[] = [];
     const regex =
@@ -190,7 +194,11 @@ export async function expandMessageReferences(
 
             if (isImageResource) {
                 // Remove the reference from the message for images
-                expandedMessage = expandedMessage.replace(ref.originalRef, '').trim();
+                const pattern = new RegExp(escapeRegExp(ref.originalRef), 'g');
+                expandedMessage = expandedMessage
+                    .replace(pattern, ' ')
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
                 logger.debug(
                     `Extracted image reference ${ref.originalRef} for separate processing`
                 );
@@ -201,7 +209,8 @@ export async function expandMessageReferences(
                     resource?.name || ref.identifier,
                     content
                 );
-                expandedMessage = expandedMessage.replace(ref.originalRef, formattedContent);
+                const pattern = new RegExp(escapeRegExp(ref.originalRef), 'g');
+                expandedMessage = expandedMessage.replace(pattern, formattedContent);
                 logger.debug(
                     `Expanded reference ${ref.originalRef} with ${content.contents.length} content items`
                 );

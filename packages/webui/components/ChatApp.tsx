@@ -33,6 +33,8 @@ import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
+import { loadPrompts } from '../lib/promptCache';
 
 export default function ChatApp() {
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
@@ -63,23 +65,28 @@ export default function ChatApp() {
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
 
   // Starter prompts state (from agent config via /api/prompts)
-  const [starterPrompts, setStarterPrompts] = useState<any[]>([]);
+  const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
 
   // Fetch starter prompts when in welcome state
   useEffect(() => {
-    const fetchStarterPrompts = async () => {
-      try {
-        const response = await fetch('/api/prompts');
-        if (response.ok) {
-          const data = await response.json();
-          const starters = (data.prompts || []).filter((p: any) => p.source === 'starter');
-          setStarterPrompts(starters);
+    if (!isWelcomeState) return;
+
+    let cancelled = false;
+    loadPrompts()
+      .then((prompts) => {
+        if (!cancelled) {
+          setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
         }
-      } catch (error) {
-        // ignore
-      }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStarterPrompts([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
     };
-    if (isWelcomeState) fetchStarterPrompts();
   }, [isWelcomeState]);
 
   // Scroll management for robust autoscroll
@@ -405,7 +412,11 @@ export default function ChatApp() {
     const actions: Array<{ title: string; description: string; action: () => void; icon: string }> =
       starterPrompts.length > 0 ? [] : [...quickActions];
     starterPrompts.forEach((prompt) => {
-      const iconFromConfig = (prompt?.metadata && (prompt.metadata as any).icon) || undefined;
+      const iconFromConfig =
+        typeof prompt?.metadata === 'object' && prompt.metadata !== null &&
+        typeof (prompt.metadata as { icon?: unknown }).icon === 'string'
+          ? ((prompt.metadata as { icon?: unknown }).icon as string)
+          : undefined;
       if (prompt?.name === 'starter:connect-tools') {
         actions.push({
           title: prompt.title || prompt.name,

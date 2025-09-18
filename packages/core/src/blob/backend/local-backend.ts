@@ -37,6 +37,8 @@ export class LocalBlobBackend implements BlobBackend {
     private config: ResolvedLocalBlobConfig;
     private storePath: string;
     private connected = false;
+    private statsCache: { count: number; totalSize: number } | null = null;
+    private statsCachePromise: Promise<void> | null = null;
 
     private static readonly DEFAULT_CONFIG = {
         maxBlobSize: 50 * 1024 * 1024, // 50MB
@@ -62,6 +64,7 @@ export class LocalBlobBackend implements BlobBackend {
 
         try {
             await fs.mkdir(this.storePath, { recursive: true });
+            await this.refreshStatsCache();
             this.connected = true;
             logger.debug(`LocalBlobBackend connected at: ${this.storePath}`);
         } catch (error) {
@@ -95,15 +98,6 @@ export class LocalBlobBackend implements BlobBackend {
             throw BlobError.sizeExceeded(buffer.length, this.config.maxBlobSize);
         }
 
-        // Check total storage size if configured
-        const maxTotalSize = this.config.maxTotalSize;
-        if (maxTotalSize) {
-            const stats = await this.getStats();
-            if (stats.totalSize + buffer.length > maxTotalSize) {
-                throw BlobError.totalSizeExceeded(stats.totalSize + buffer.length, maxTotalSize);
-            }
-        }
-
         // Generate content-based hash for deduplication
         const hash = createHash('sha256').update(buffer).digest('hex').substring(0, 16);
         const id = hash;
@@ -126,6 +120,15 @@ export class LocalBlobBackend implements BlobBackend {
             // Blob doesn't exist, continue with storage
         }
 
+        // Check total storage size if configured (only for new blobs)
+        const maxTotalSize = this.config.maxTotalSize;
+        if (maxTotalSize) {
+            const stats = await this.ensureStatsCache();
+            if (stats.totalSize + buffer.length > maxTotalSize) {
+                throw BlobError.totalSizeExceeded(stats.totalSize + buffer.length, maxTotalSize);
+            }
+        }
+
         // Create complete metadata
         const storedMetadata: StoredBlobMetadata = {
             id,
@@ -145,6 +148,8 @@ export class LocalBlobBackend implements BlobBackend {
             ]);
 
             logger.debug(`Stored blob ${id} (${buffer.length} bytes, ${storedMetadata.mimeType})`);
+
+            this.updateStatsCacheAfterStore(buffer.length);
 
             return {
                 id,
@@ -240,8 +245,11 @@ export class LocalBlobBackend implements BlobBackend {
         const metaPath = path.join(this.storePath, `${id}.meta.json`);
 
         try {
+            const metaContent = await fs.readFile(metaPath, 'utf-8');
+            const metadata: StoredBlobMetadata = JSON.parse(metaContent);
             await Promise.all([fs.unlink(blobPath), fs.unlink(metaPath)]);
             logger.debug(`Deleted blob: ${id}`);
+            this.updateStatsCacheAfterDelete(metadata.size);
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
                 throw BlobError.notFound(reference);
@@ -278,6 +286,7 @@ export class LocalBlobBackend implements BlobBackend {
                             fs.unlink(metaPath).catch(() => {}),
                         ]);
                         deletedCount++;
+                        this.updateStatsCacheAfterDelete(metadata.size);
                         logger.debug(`Cleaned up old blob: ${id}`);
                     }
                 } catch (error) {
@@ -300,35 +309,14 @@ export class LocalBlobBackend implements BlobBackend {
             throw BlobError.backendNotConnected('local');
         }
 
-        try {
-            const files = await fs.readdir(this.storePath);
-            const datFiles = files.filter((f) => f.endsWith('.dat'));
+        const stats = await this.ensureStatsCache();
 
-            let totalSize = 0;
-            for (const datFile of datFiles) {
-                try {
-                    const stat = await fs.stat(path.join(this.storePath, datFile));
-                    totalSize += stat.size;
-                } catch {
-                    // Skip files that can't be stat'd
-                }
-            }
-
-            return {
-                count: datFiles.length,
-                totalSize,
-                backendType: 'local',
-                storePath: this.storePath,
-            };
-        } catch (error) {
-            logger.warn(`Failed to get blob store stats: ${String(error)}`);
-            return {
-                count: 0,
-                totalSize: 0,
-                backendType: 'local',
-                storePath: this.storePath,
-            };
-        }
+        return {
+            count: stats.count,
+            totalSize: stats.totalSize,
+            backendType: 'local',
+            storePath: this.storePath,
+        };
     }
 
     async listBlobs(): Promise<import('../types.js').BlobReference[]> {
@@ -363,6 +351,66 @@ export class LocalBlobBackend implements BlobBackend {
             logger.warn(`Failed to list blobs: ${String(error)}`);
             return [];
         }
+    }
+
+    private async ensureStatsCache(): Promise<{ count: number; totalSize: number }> {
+        if (this.statsCache) {
+            return this.statsCache;
+        }
+
+        if (!this.statsCachePromise) {
+            this.statsCachePromise = this.refreshStatsCache();
+        }
+
+        try {
+            await this.statsCachePromise;
+        } finally {
+            this.statsCachePromise = null;
+        }
+
+        return this.statsCache ?? { count: 0, totalSize: 0 };
+    }
+
+    private async refreshStatsCache(): Promise<void> {
+        const stats = { count: 0, totalSize: 0 };
+        try {
+            const files = await fs.readdir(this.storePath);
+            const datFiles = files.filter((f) => f.endsWith('.dat'));
+            stats.count = datFiles.length;
+
+            for (const datFile of datFiles) {
+                try {
+                    const stat = await fs.stat(path.join(this.storePath, datFile));
+                    stats.totalSize += stat.size;
+                } catch (error) {
+                    logger.debug(
+                        `Skipping size calculation for ${datFile}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+            }
+        } catch (error) {
+            logger.warn(`Failed to refresh blob stats cache: ${String(error)}`);
+        }
+
+        this.statsCache = stats;
+    }
+
+    private updateStatsCacheAfterStore(size: number): void {
+        if (!this.statsCache) {
+            this.statsCache = { count: 1, totalSize: size };
+            return;
+        }
+        this.statsCache.count += 1;
+        this.statsCache.totalSize += size;
+    }
+
+    private updateStatsCacheAfterDelete(size: number): void {
+        if (!this.statsCache) {
+            this.statsCache = { count: 0, totalSize: 0 };
+            return;
+        }
+        this.statsCache.count = Math.max(0, this.statsCache.count - 1);
+        this.statsCache.totalSize = Math.max(0, this.statsCache.totalSize - size);
     }
 
     /**
@@ -440,9 +488,15 @@ export class LocalBlobBackend implements BlobBackend {
         const header = buffer.subarray(0, 16);
 
         // Check common file signatures
+        if (header.length >= 3) {
+            const jpegSignature = header.subarray(0, 3);
+            if (jpegSignature.equals(Buffer.from([0xff, 0xd8, 0xff]))) {
+                return 'image/jpeg';
+            }
+        }
+
         if (header.length >= 4) {
             const signature = header.subarray(0, 4);
-            if (signature.equals(Buffer.from([0xff, 0xd8, 0xff]))) return 'image/jpeg';
             if (signature.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) return 'image/png';
             if (signature.equals(Buffer.from([0x47, 0x49, 0x46, 0x38]))) return 'image/gif';
             if (signature.equals(Buffer.from([0x25, 0x50, 0x44, 0x46]))) return 'application/pdf';

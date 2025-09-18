@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap, Plus } from 'lucide-react';
 import { Badge } from './ui/badge';
 import type { PromptArgument, PromptInfo as CorePromptInfo } from '@dexto/core';
+import { loadPrompts } from '../lib/promptCache';
 
 // Use canonical types from @dexto/core for alignment
 type PromptInfo = CorePromptInfo;
@@ -128,6 +129,7 @@ export default function SlashCommandAutocomplete({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastRefreshKeyRef = useRef<number>(0);
 
   const showCreateOption = React.useMemo(() => {
     const trimmed = searchQuery.trim();
@@ -150,23 +152,33 @@ export default function SlashCommandAutocomplete({
   useEffect(() => {
     if (!isVisible) return;
 
-    const fetchPrompts = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/prompts');
-        if (response.ok) {
-          const data = await response.json();
-          setPrompts(data.prompts || []);
-          setFilteredPrompts(data.prompts || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch prompts:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    let cancelled = false;
+    setIsLoading(true);
 
-    fetchPrompts();
+    const effectiveKey = refreshKey ?? 0;
+    const shouldForceRefresh = effectiveKey > 0 && effectiveKey !== lastRefreshKeyRef.current;
+
+    loadPrompts({ forceRefresh: shouldForceRefresh })
+      .then((data) => {
+        if (cancelled) return;
+        setPrompts(data);
+        setFilteredPrompts(data);
+        lastRefreshKeyRef.current = effectiveKey;
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPrompts([]);
+        setFilteredPrompts([]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isVisible, refreshKey]);
 
   // Filter prompts based on search query from parent input

@@ -15,9 +15,18 @@ interface ResourceAutocompleteProps {
 export default function ResourceAutocomplete({ resources, query, selectedIndex, onSelect, onHoverIndex, loading }: ResourceAutocompleteProps) {
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase();
-    return resources.filter((r) =>
-      (r.name || '').toLowerCase().includes(q) || r.uri.toLowerCase().includes(q) || (r.serverName || '').toLowerCase().includes(q)
-    ).slice(0, 10);
+    const sorted = [...resources].sort((a, b) => {
+      const aTime = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+      const bTime = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+      return bTime - aTime;
+    });
+    return sorted
+      .filter((r) =>
+        (r.name || '').toLowerCase().includes(q) ||
+        r.uri.toLowerCase().includes(q) ||
+        (r.serverName || '').toLowerCase().includes(q)
+      )
+      .slice(0, 25);
   }, [resources, query]);
 
   const itemRefs = React.useRef<HTMLLIElement[]>([]);

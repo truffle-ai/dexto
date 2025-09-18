@@ -148,8 +148,14 @@ export class ContextManager<TMessage = unknown> {
             return data;
         }
 
-        // Store as blob if estimated size > 5KB (reasonable threshold for user inputs)
-        shouldStoreAsBlob = estimatedSize > 5 * 1024;
+        const isLikelyBinary =
+            metadata.mimeType.startsWith('image/') ||
+            metadata.mimeType.startsWith('audio/') ||
+            metadata.mimeType.startsWith('video/') ||
+            metadata.mimeType === 'application/pdf';
+
+        // Store all binary attachments (images/audio/video/pdf) or anything over 5KB
+        shouldStoreAsBlob = isLikelyBinary || estimatedSize > 5 * 1024;
 
         if (shouldStoreAsBlob) {
             try {

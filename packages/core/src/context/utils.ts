@@ -11,6 +11,97 @@ const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format over
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
+async function resolveBlobReferenceToParts(
+    resourceUri: string,
+    resourceManager: import('../resources/index.js').ResourceManager
+): Promise<Array<TextPart | ImagePart | FilePart>> {
+    try {
+        const result = await resourceManager.read(resourceUri);
+        const parts: Array<TextPart | ImagePart | FilePart> = [];
+
+        for (const item of result.contents ?? []) {
+            if (!item || typeof item !== 'object') {
+                continue;
+            }
+
+            if (typeof (item as { text?: unknown }).text === 'string') {
+                parts.push({ type: 'text', text: item.text as string });
+                continue;
+            }
+
+            const base64Data =
+                typeof item.blob === 'string'
+                    ? item.blob
+                    : typeof item.data === 'string'
+                      ? item.data
+                      : undefined;
+            const mimeType = typeof item.mimeType === 'string' ? item.mimeType : undefined;
+            if (!base64Data || !mimeType) {
+                continue;
+            }
+
+            const resolvedMime = mimeType ?? 'application/octet-stream';
+
+            if (resolvedMime.startsWith('image/')) {
+                const dataUri = `data:${resolvedMime};base64,${base64Data}`;
+                const imagePart: ImagePart = {
+                    type: 'image',
+                    image: dataUri,
+                    mimeType: resolvedMime,
+                };
+                parts.push(imagePart);
+                continue;
+            }
+
+            const filePart: FilePart = {
+                type: 'file',
+                data: resolvedMime.startsWith('audio/')
+                    ? `data:${resolvedMime};base64,${base64Data}`
+                    : base64Data,
+                mimeType: resolvedMime,
+            };
+            if (typeof item.filename === 'string' && item.filename.length > 0) {
+                filePart.filename = item.filename;
+            } else if (typeof result._meta?.originalName === 'string') {
+                filePart.filename = result._meta.originalName;
+            }
+            parts.push(filePart);
+        }
+
+        if (parts.length === 0) {
+            const fallbackName =
+                (typeof result._meta?.originalName === 'string' && result._meta.originalName) ||
+                resourceUri;
+            parts.push({ type: 'text', text: `[Attachment: ${fallbackName}]` });
+        }
+
+        return parts;
+    } catch (error) {
+        logger.warn(`Failed to resolve blob reference ${resourceUri}: ${String(error)}`);
+        return [{ type: 'text', text: `[Attachment unavailable: ${resourceUri}]` }];
+    }
+}
+
+function cloneMessagePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart | FilePart {
+    if (part.type === 'text') {
+        return { type: 'text', text: part.text };
+    }
+    if (part.type === 'image') {
+        return part.mimeType !== undefined
+            ? { type: 'image', image: part.image, mimeType: part.mimeType }
+            : { type: 'image', image: part.image };
+    }
+    const cloned: FilePart = {
+        type: 'file',
+        data: part.data,
+        mimeType: part.mimeType,
+    };
+    if (part.filename) {
+        cloned.filename = part.filename;
+    }
+    return cloned;
+}
+
 /**
  * Counts the total tokens in an array of InternalMessages using a provided tokenizer.
  * Includes an estimated overhead per message.
@@ -253,107 +344,120 @@ export async function expandBlobReferences(
     if (typeof content === 'string') {
         // Check for blob references like @blob:abc123
         const blobRefPattern = /@blob:[a-f0-9]+/g;
-        const matches = content.match(blobRefPattern);
+        const matches = [...content.matchAll(blobRefPattern)];
 
-        if (matches) {
-            let expandedContent = content;
+        if (matches.length === 0) {
+            return content;
+        }
 
-            for (const match of matches) {
-                try {
-                    const uri = match.substring(1); // Remove @ prefix
-                    const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                    const result = await resourceManager.read(resourceUri);
+        const resolvedCache = new Map<string, Array<TextPart | ImagePart | FilePart>>();
+        const parts: Array<TextPart | ImagePart | FilePart> = [];
+        let lastIndex = 0;
 
-                    if (result.contents[0]?.blob) {
-                        // For text content, replace blob reference with a description
-                        const metadata = result._meta;
-                        const description = `[${metadata?.originalName || 'blob'}] (${metadata?.size || 0} bytes, ${result.contents[0].mimeType})`;
-                        expandedContent = expandedContent.replace(match, description);
-                        logger.debug(`Expanded blob reference ${match} to description in text`);
-                    }
-                } catch (error) {
-                    logger.warn(`Failed to expand blob reference ${match}: ${String(error)}`);
-                    // Leave the reference as-is if it can't be resolved
+        for (const match of matches) {
+            const matchIndex = match.index ?? 0;
+            const token = match[0];
+            if (matchIndex > lastIndex) {
+                const segment = content.slice(lastIndex, matchIndex);
+                if (segment.length > 0) {
+                    parts.push({ type: 'text', text: segment });
                 }
             }
 
-            return expandedContent;
+            const uri = token.substring(1); // Remove leading @
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+
+            let resolvedParts = resolvedCache.get(resourceUri);
+            if (!resolvedParts) {
+                resolvedParts = await resolveBlobReferenceToParts(resourceUri, resourceManager);
+                resolvedCache.set(resourceUri, resolvedParts);
+            }
+
+            if (resolvedParts.length > 0) {
+                parts.push(...resolvedParts.map(cloneMessagePart));
+            } else {
+                parts.push({ type: 'text', text: token });
+            }
+
+            lastIndex = matchIndex + token.length;
         }
 
-        return content;
+        if (lastIndex < content.length) {
+            const trailing = content.slice(lastIndex);
+            if (trailing.length > 0) {
+                parts.push({ type: 'text', text: trailing });
+            }
+        }
+
+        const normalized = parts.filter((part) => part.type !== 'text' || part.text.length > 0);
+
+        if (normalized.length === 1 && normalized[0]?.type === 'text') {
+            return normalized[0].text;
+        }
+
+        return normalized;
     }
 
     // Handle array of parts
     if (Array.isArray(content)) {
-        const expandedParts = await Promise.all(
-            content.map(async (part) => {
-                if (
-                    part.type === 'image' &&
-                    typeof part.image === 'string' &&
-                    part.image.startsWith('@blob:')
-                ) {
-                    try {
-                        const resolvedImage = await getImageDataWithBlobSupport(
-                            part,
-                            resourceManager
-                        );
-                        return { ...part, image: resolvedImage };
-                    } catch (error) {
-                        logger.warn(`Failed to resolve image blob reference: ${String(error)}`);
-                        return part; // Keep original if resolution fails
-                    }
+        const expandedParts: Array<TextPart | ImagePart | FilePart> = [];
+
+        for (const part of content) {
+            if (
+                part.type === 'image' &&
+                typeof part.image === 'string' &&
+                part.image.startsWith('@blob:')
+            ) {
+                const uri = part.image.substring(1);
+                const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+                const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
+                if (resolved.length > 0) {
+                    expandedParts.push(...resolved.map(cloneMessagePart));
+                } else {
+                    expandedParts.push(part);
                 }
+                continue;
+            }
 
-                if (
-                    part.type === 'file' &&
-                    typeof part.data === 'string' &&
-                    part.data.startsWith('@blob:')
-                ) {
-                    if (resourceManager) {
-                        try {
-                            const uri = part.data.substring(1);
-                            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                            const result = await resourceManager.read(resourceUri);
-                            const blobPart = result.contents[0];
-                            if (blobPart && typeof blobPart.blob === 'string') {
-                                const filename =
-                                    (result._meta?.originalName as string | undefined) ??
-                                    part.filename;
-                                return {
-                                    ...part,
-                                    data: blobPart.blob,
-                                    mimeType: blobPart.mimeType || part.mimeType,
-                                    ...(filename ? { filename } : {}),
-                                };
-                            }
-                            logger.warn(
-                                `Blob reference ${part.data} did not contain blob data; leaving placeholder`
-                            );
-                        } catch (error) {
-                            logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
-                        }
-                    }
-
+            if (
+                part.type === 'file' &&
+                typeof part.data === 'string' &&
+                part.data.startsWith('@blob:')
+            ) {
+                const uri = part.data.substring(1);
+                const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+                const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
+                if (resolved.length > 0) {
+                    expandedParts.push(...resolved.map(cloneMessagePart));
+                } else {
                     try {
                         const resolvedData = await getFileDataWithBlobSupport(
                             part,
                             resourceManager
                         );
-                        return { ...part, data: resolvedData };
+                        expandedParts.push({ ...part, data: resolvedData });
                     } catch (error) {
                         logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
-                        return part; // Keep original if resolution fails
+                        expandedParts.push(part);
                     }
                 }
+                continue;
+            }
 
-                if (part.type === 'text' && part.text.includes('@blob:')) {
-                    const expandedText = await expandBlobReferences(part.text, resourceManager);
-                    return { ...part, text: expandedText as string };
+            if (part.type === 'text' && part.text.includes('@blob:')) {
+                const expanded = await expandBlobReferences(part.text, resourceManager);
+                if (typeof expanded === 'string') {
+                    expandedParts.push({ ...part, text: expanded });
+                } else if (Array.isArray(expanded)) {
+                    expandedParts.push(...expanded.map(cloneMessagePart));
+                } else {
+                    expandedParts.push(part);
                 }
+                continue;
+            }
 
-                return part;
-            })
-        );
+            expandedParts.push(part);
+        }
 
         return expandedParts;
     }
@@ -508,23 +612,21 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 if (shouldStoreAsBlob) {
                     try {
-                        logger.info(
-                            `🔍 BLOB DEBUG: Storing data URI as blob (${approxSize} bytes, ${mediaType})`
+                        logger.debug(
+                            `Storing data URI as blob (${approxSize} bytes, ${mediaType})`
                         );
                         const blobRef = await blobService.store(result, {
                             mimeType: mediaType,
                             source: 'tool',
                             originalName: `tool-output.${mediaType.split('/')[1] || 'bin'}`,
                         });
-                        logger.info(
-                            `🔍 BLOB DEBUG: Successfully stored blob: ${blobRef.uri} (${approxSize} bytes)`
-                        );
+                        logger.debug(`Stored blob: ${blobRef.uri} (${approxSize} bytes)`);
 
                         // Return a text reference that can be resolved later
                         return `@${blobRef.uri}`;
                     } catch (error) {
                         logger.warn(
-                            `🔍 BLOB DEBUG: Failed to store blob, falling back to inline: ${String(error)}`
+                            `Failed to store blob, falling back to inline: ${String(error)}`
                         );
                         // Fall through to original behavior
                     }
@@ -610,8 +712,8 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Handle MCP tool results with nested content array
             if ('content' in anyObj && Array.isArray(anyObj.content)) {
-                logger.info(
-                    `🔍 BLOB DEBUG: Processing MCP tool result with ${anyObj.content.length} content items`
+                logger.debug(
+                    `Processing MCP tool result with ${anyObj.content.length} content items`
                 );
                 const processedContent = [];
 
@@ -629,8 +731,8 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                         if (shouldStoreAsBlob) {
                             try {
-                                logger.info(
-                                    `🔍 BLOB DEBUG: Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
+                                logger.debug(
+                                    `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
                                 );
                                 const blobRef = await blobService.store(fileData, {
                                     mimeType,
@@ -639,14 +741,14 @@ export async function sanitizeToolResultToContentWithBlobs(
                                         item.filename ||
                                         `tool-${item.type || 'file'}.${mimeType.split('/')[1] || 'bin'}`,
                                 });
-                                logger.info(
-                                    `🔍 BLOB DEBUG: Successfully stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
+                                logger.debug(
+                                    `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
                                 );
                                 processedContent.push(`@${blobRef.uri}`);
                                 continue;
                             } catch (error) {
                                 logger.warn(
-                                    `🔍 BLOB DEBUG: Failed to store MCP blob, falling back to inline: ${String(error)}`
+                                    `Failed to store MCP blob, falling back to inline: ${String(error)}`
                                 );
                             }
                         }
