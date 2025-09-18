@@ -7,10 +7,10 @@
 ## Phase 1 – Utility Migration & Config Normalisation
 - [x] Update FileContributor defaults + docs to remove `configDir` assumptions; rely on normalised paths from Phase 1.
 - [x] Move CLI-only runtime helpers (API key store, layered env loader, port utils) from core to `packages/cli/src/runtime/*` with colocated tests.
-- [ ] Move preferences loader/schemas/errors into the CLI runtime and update CLI commands to consume them.
-- [ ] Move agent resolution + registry helpers (resolveAgentPath, getAgentRegistry, etc.) into the CLI runtime, normalising paths before agent creation.
-- [ ] Introduce a CLI config normaliser that resolves file contributor paths, registry macros, and storage defaults before instantiating `DextoAgent`.
-- [ ] Add/refresh unit tests covering the migrated preferences/registry/config normaliser utilities.
+- [ ] (Deferred) Move preferences loader/schemas/errors into the CLI runtime and update CLI commands to consume them.
+- [ ] (Deferred) Move agent resolution + registry helpers (resolveAgentPath, getAgentRegistry, etc.) into the CLI runtime, normalising paths before agent creation.
+- [ ] (Deferred) Introduce a CLI config normaliser that resolves file contributor paths, registry macros, and storage defaults before instantiating `DextoAgent`.
+- [ ] (Deferred) Add/refresh unit tests covering the migrated preferences/registry/config normaliser utilities.
 
 ## Phase 2 – Logger & FileContributor Refactor
 - [ ] Introduce `ILogger`, `ConsoleLogger`, and node-only `WinstonLogger` subpath.
