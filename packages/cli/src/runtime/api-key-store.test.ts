@@ -18,7 +18,7 @@ describe('api-key-store', () => {
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'apikey-store-'));
         tempEnvPath = path.join(tempDir, '.env');
 
-        const pathUtils = await import('@core/utils/path.js');
+        const pathUtils = await import('@dexto/core');
         pathSpy = vi.spyOn(pathUtils, 'getDextoEnvPath').mockReturnValue(tempEnvPath);
 
         // Import module under test after mocks are set up

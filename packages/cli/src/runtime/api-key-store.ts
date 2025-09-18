@@ -1,8 +1,11 @@
-import type { LLMProvider } from '../llm/types.js';
-import { LLM_PROVIDERS } from '../llm/types.js';
-import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from './api-key-resolver.js';
+import type { LLMProvider } from '@dexto/core';
+import {
+    LLM_PROVIDERS,
+    getPrimaryApiKeyEnvVar,
+    resolveApiKeyForProvider,
+    getDextoEnvPath,
+} from '@dexto/core';
 import { updateEnvFile } from './env.js';
-import { getDextoEnvPath } from './path.js';
 
 /**
  * Save provider API key to the correct .env and make it immediately available in-process.

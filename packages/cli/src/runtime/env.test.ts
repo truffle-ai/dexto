@@ -2,16 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir, homedir } from 'os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-// Mock logger to prevent initialization issues
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-}));
 import { loadEnvironmentVariables, applyLayeredEnvironmentLoading, updateEnvFile } from './env.js';
 import { getExecutionContext } from './execution-context.js';
 import { getDextoEnvPath } from './path.js';
@@ -31,6 +21,12 @@ vi.mock('./path.js', async () => {
     return {
         ...actual,
         getDextoEnvPath: vi.fn(),
+        ensureDextoGlobalDirectory: vi.fn(async () => {
+            const dir = path.join(homedir(), '.dexto');
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+        }),
     };
 });
 vi.mock('./execution-context.js');
