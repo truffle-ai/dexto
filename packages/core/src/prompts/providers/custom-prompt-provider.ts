@@ -188,9 +188,6 @@ export class CustomPromptProvider implements PromptProvider {
             updatedAt: now,
             ...(input.title ? { title: input.title } : {}),
             ...(input.description ? { description: input.description } : {}),
-            ...(input.arguments && input.arguments.length > 0
-                ? { arguments: input.arguments }
-                : {}),
             ...(resourceUri ? { resourceUri } : {}),
             ...(resourceMetadata ? { resourceMetadata } : {}),
         };

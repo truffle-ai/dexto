@@ -6,23 +6,15 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
-import { Switch } from './ui/switch';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
-import { Loader2, Trash2, Plus } from 'lucide-react';
-
-interface PromptArgumentForm {
-  name: string;
-  description?: string;
-  required: boolean;
-}
+import { Loader2, Trash2, Upload, FileText } from 'lucide-react';
 
 interface CreatePromptModalProps {
   open: boolean;
   onClose: () => void;
   onCreated: (prompt: {
     name: string;
-    arguments?: Array<{ name: string; required?: boolean }>;
   }) => void;
 }
 
@@ -32,19 +24,18 @@ interface ResourcePayload {
   filename?: string;
 }
 
-const initialArgument: PromptArgumentForm = { name: '', description: '', required: false };
 
 export default function CreatePromptModal({ open, onClose, onCreated }: CreatePromptModalProps) {
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
-  const [argumentsState, setArgumentsState] = useState<PromptArgumentForm[]>([]);
   const [resource, setResource] = useState<ResourcePayload | null>(null);
   const [resourcePreview, setResourcePreview] = useState<string | null>(null);
   const [resourceName, setResourceName] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -52,43 +43,26 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
       setTitle('');
       setDescription('');
       setContent('');
-      setArgumentsState([]);
       setResource(null);
       setResourcePreview(null);
       setResourceName(null);
       setErrorMessage(null);
       setIsSaving(false);
+      setIsDragOver(false);
     }
   }, [open]);
 
-  const handleAddArgument = () => {
-    setArgumentsState((prev) => [...prev, { ...initialArgument }]);
-  };
 
-  const handleArgumentChange = (
-    index: number,
-    field: keyof PromptArgumentForm,
-    value: string | boolean
-  ) => {
-    setArgumentsState((prev) =>
-      prev.map((arg, i) => {
-        if (i !== index) return arg;
-
-        if (field === 'required' && typeof value === 'boolean') {
-          return { ...arg, required: value };
-        }
-
-        if ((field === 'name' || field === 'description') && typeof value === 'string') {
-          return { ...arg, [field]: value } as PromptArgumentForm;
-        }
-
-        return arg;
-      })
-    );
-  };
-
-  const handleRemoveArgument = (index: number) => {
-    setArgumentsState((prev) => prev.filter((_, i) => i !== index));
+  const handleFile = async (file: File) => {
+    try {
+      const base64 = await readFileAsDataUrl(file);
+      setResource({ base64, mimeType: file.type || 'application/octet-stream', filename: file.name });
+      setResourcePreview(base64);
+      setResourceName(file.name);
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      setErrorMessage('Failed to read file. Please try a different file.');
+    }
   };
 
   const handleResourceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,14 +73,26 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
       setResourceName(null);
       return;
     }
-    try {
-      const base64 = await readFileAsDataUrl(file);
-      setResource({ base64, mimeType: file.type || 'application/octet-stream', filename: file.name });
-      setResourcePreview(base64);
-      setResourceName(file.name);
-    } catch (error) {
-      console.error('Failed to read file:', error);
-      setErrorMessage('Failed to read file. Please try a different file.');
+    await handleFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      await handleFile(files[0]);
     }
   };
 
@@ -131,13 +117,6 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
       title: title.trim() || undefined,
       description: description.trim() || undefined,
       content,
-      arguments: argumentsState
-        .filter((arg) => arg.name.trim())
-        .map((arg) => ({
-          name: arg.name.trim(),
-          description: arg.description?.trim() || undefined,
-          required: arg.required || undefined,
-        })),
       resource: resource || undefined,
     };
 
@@ -158,7 +137,6 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
       if (data?.prompt) {
         onCreated({
           name: data.prompt.name,
-          arguments: data.prompt.arguments,
         });
       }
     } catch (error) {
@@ -171,7 +149,6 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     }
   };
 
-  const hasArguments = argumentsState.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -235,79 +212,15 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
               className="min-h-[160px]"
               required
             />
-            <p className="text-[11px] text-muted-foreground">
-              You can reference dynamic values using placeholders like <code>{'{{topic}}'}</code>.
-            </p>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label>Arguments</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Define optional parameters that can be supplied when using the prompt.
-                </p>
-              </div>
-              <Button type="button" size="sm" variant="outline" onClick={handleAddArgument}>
-                <Plus className="h-3 w-3 mr-2" /> Add argument
-              </Button>
-            </div>
-
-            {hasArguments ? (
-              <div className="space-y-2">
-                {argumentsState.map((arg, index) => (
-                  <div key={index} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                    <div className="sm:col-span-1">
-                      <Label htmlFor={`arg-name-${index}`} className="text-[12px]">Name</Label>
-                      <Input
-                        id={`arg-name-${index}`}
-                        value={arg.name}
-                        onChange={(e) => handleArgumentChange(index, 'name', e.target.value)}
-                        placeholder="topic"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label htmlFor={`arg-desc-${index}`} className="text-[12px]">Description</Label>
-                      <Input
-                        id={`arg-desc-${index}`}
-                        value={arg.description}
-                        onChange={(e) => handleArgumentChange(index, 'description', e.target.value)}
-                        placeholder="Topic to summarize"
-                      />
-                    </div>
-                    <div className="sm:col-span-1 flex items-center gap-2">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={arg.required}
-                          onCheckedChange={(checked) => handleArgumentChange(index, 'required', checked)}
-                        />
-                        <span className="text-sm">Required</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveArgument(index)}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-[11px] text-muted-foreground">
-                No arguments defined. Add arguments to parameterize this prompt.
-              </div>
-            )}
-          </div>
 
           <div className="space-y-3">
             <Label>Attach resource (optional)</Label>
             {resourcePreview ? (
-              <div className="flex items-center justify-between rounded-md border border-dashed border-border/60 bg-muted/40 px-4 py-3">
-                <div className="text-sm">
+              <div className="flex items-center justify-between rounded-lg border border-dashed border-border/60 bg-muted/40 px-4 py-3">
+                <div className="flex items-center text-sm">
+                  <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
                   <Badge variant="secondary" className="mr-2">Resource</Badge>
                   {resourceName || 'Attached file'}
                 </div>
@@ -316,7 +229,35 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
                 </Button>
               </div>
             ) : (
-              <Input type="file" onChange={handleResourceChange} />
+              <div
+                className={`relative rounded-lg border-2 border-dashed transition-colors ${
+                  isDragOver
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border/60 hover:border-border/80'
+                } px-6 py-8 text-center`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <input
+                  type="file"
+                  onChange={handleResourceChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  accept="*/*"
+                />
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <Upload className={`h-8 w-8 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <div className="text-sm">
+                    <span className="font-medium">
+                      {isDragOver ? 'Drop file here' : 'Click to upload'} 
+                    </span>
+                    <span className="text-muted-foreground"> or drag and drop</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Any file type supported
+                  </p>
+                </div>
+              </div>
             )}
             <p className="text-[11px] text-muted-foreground">
               The resource will be stored securely and referenced when this prompt is used.
