@@ -11,6 +11,7 @@ import { zodToIssues, toError } from '@dexto/core';
 import { logger } from '@dexto/core';
 
 /**
+ * TODO: temporarily DUPE OF cli
  * Standardized WebSocket error handler that mirrors HTTP error middleware
  * Sends consistent error messages over WebSocket following the same patterns as REST API
  *

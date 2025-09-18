@@ -19,6 +19,7 @@ const DEFAULT_DELIVERY_OPTIONS: Required<WebhookDeliveryOptions> = {
 };
 
 /**
+ * TODO: temporarily DUPE OF cli
  * Webhook event subscriber that delivers agent events via HTTP POST
  * Mirrors WebSocketEventSubscriber but sends HTTP requests to registered webhook URLs
  */

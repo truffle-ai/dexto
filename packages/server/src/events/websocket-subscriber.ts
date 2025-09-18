@@ -5,6 +5,7 @@ import { logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 
 /**
+ * TODO: temporarily DUPE OF cli
  * WebSocket event subscriber that broadcasts agent events to connected clients
  */
 export class WebSocketEventSubscriber implements EventSubscriber {

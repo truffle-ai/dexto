@@ -1,6 +1,7 @@
 import type { AgentEventMap, AgentEventName } from '@dexto/core';
 
 /**
+ * TODO: temporarily DUPE OF cli
  * Webhook configuration interface
  * Represents a registered webhook endpoint
  */
