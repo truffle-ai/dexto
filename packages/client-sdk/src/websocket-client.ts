@@ -37,6 +37,8 @@ export class WebSocketClient {
         return new Promise((resolve, reject) => {
             try {
                 this.isIntentionallyClosed = false;
+                // Notify listeners that a connection attempt has started
+                this.emitState('connecting');
 
                 // Handle both browser and Node.js WebSocket implementations
                 if (typeof WebSocket !== 'undefined') {
@@ -120,12 +122,24 @@ export class WebSocketClient {
         this.ws.onclose = (_event) => {
             this.emitState('closed');
 
-            if (
+            const shouldReconnect =
                 !this.isIntentionallyClosed &&
                 this.reconnectEnabled &&
-                this.reconnectAttempts < this.maxReconnectAttempts
+                this.reconnectAttempts < this.maxReconnectAttempts;
+
+            if (shouldReconnect) {
+                this.scheduleReconnect(resolve, reject);
+            } else if (
+                !this.isIntentionallyClosed &&
+                this.reconnectAttempts >= this.maxReconnectAttempts
             ) {
-                this.scheduleReconnect();
+                // Initial connect() should not hang forever
+                reject(
+                    ClientError.websocketConnectionFailed(
+                        this.url,
+                        new Error(`Max reconnect attempts reached (${this.maxReconnectAttempts})`)
+                    )
+                );
             }
         };
 
@@ -139,15 +153,21 @@ export class WebSocketClient {
         };
     }
 
-    private scheduleReconnect() {
+    private scheduleReconnect(resolve?: () => void, reject?: (error: Error) => void) {
         this.reconnectAttempts++;
 
         setTimeout(() => {
             if (!this.isIntentionallyClosed) {
                 this.emitState('connecting');
-                this.connect().catch(() => {
-                    // Connection failed, will try again or give up based on max attempts
-                });
+                if (resolve && reject) {
+                    // Initial connection context - chain the promises
+                    this.connect().then(resolve).catch(reject);
+                } else {
+                    // Subsequent reconnect - fire and forget
+                    this.connect().catch(() => {
+                        // Connection failed, will try again or give up based on max attempts
+                    });
+                }
             }
         }, this.reconnectInterval);
     }
