@@ -2,7 +2,12 @@ import { defineConfig } from 'tsup';
 
 export default defineConfig([
     {
-        entry: ['src/index.ts', 'src/hono/index.ts', 'src/hono/node/index.ts'],
+        entry: [
+            'src/**/*.ts',
+            '!src/**/*.test.ts',
+            '!src/**/*.spec.ts',
+            '!src/**/*.integration.test.ts',
+        ],
         format: ['esm', 'cjs'],
         outDir: 'dist',
         dts: true,

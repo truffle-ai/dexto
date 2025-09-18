@@ -32,7 +32,7 @@ export type HonoInitializationResult = {
     server: ReturnType<typeof createNodeServer>['server'];
     websocketServer: ReturnType<typeof createNodeServer>['websocketServer'];
     webSubscriber: ReturnType<typeof createNodeServer>['webSubscriber'];
-    webhookSubscriber?: ReturnType<typeof createNodeServer>['webhookSubscriber'];
+    webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
     agentCard: AgentCard;
     mcpTransport?: Transport;
 };
@@ -80,7 +80,7 @@ export async function initializeHonoApi(
         server: bridge.server,
         websocketServer: bridge.websocketServer,
         webSubscriber: bridge.webSubscriber,
-        webhookSubscriber: bridge.webhookSubscriber,
+        ...(bridge.webhookSubscriber ? { webhookSubscriber: bridge.webhookSubscriber } : {}),
         agentCard,
         ...(mcpTransport ? { mcpTransport } : {}),
     };
@@ -94,7 +94,7 @@ export async function startHonoApiServer(
     server: ReturnType<typeof createNodeServer>['server'];
     wss: ReturnType<typeof createNodeServer>['websocketServer'];
     webSubscriber: ReturnType<typeof createNodeServer>['webSubscriber'];
-    webhookSubscriber?: ReturnType<typeof createNodeServer>['webhookSubscriber'];
+    webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
 }> {
     const { server, websocketServer, webSubscriber, webhookSubscriber } = await initializeHonoApi(
         agent,
@@ -124,6 +124,6 @@ export async function startHonoApiServer(
         server,
         wss: websocketServer,
         webSubscriber,
-        webhookSubscriber,
+        ...(webhookSubscriber ? { webhookSubscriber } : {}),
     };
 }

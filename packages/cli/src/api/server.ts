@@ -3,9 +3,13 @@ import type { Express } from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { WebSocketEventSubscriber } from './websocket-subscriber.js';
-import { WebhookEventSubscriber } from './webhook-subscriber.js';
-import type { WebhookConfig } from './webhook-types.js';
+import type { WebhookConfig } from '@dexto/server';
+import {
+    WebSocketEventSubscriber,
+    WebhookEventSubscriber,
+    sendWebSocketError,
+    sendWebSocketValidationError,
+} from '@dexto/server';
 import { logger, redactSensitiveData, type AgentCard } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
 import {
@@ -35,7 +39,6 @@ import type { ProviderInfo, LLMProvider } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
-import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
 
 /**

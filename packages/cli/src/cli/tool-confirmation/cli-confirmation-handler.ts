@@ -7,7 +7,7 @@ import {
     type ToolConfirmationResponse,
     AgentEventBus,
 } from '@dexto/core';
-import { EventSubscriber } from '../../api/types.js';
+import { EventSubscriber } from '@dexto/server';
 
 /**
  * CLI-specific subscriber for tool confirmation events

@@ -1,7 +1,7 @@
 import { logger } from '@dexto/core';
 import boxen from 'boxen';
 import chalk from 'chalk';
-import { EventSubscriber } from '../api/types.js';
+import { EventSubscriber } from '@dexto/server';
 import { AgentEventBus } from '@dexto/core';
 
 /**
