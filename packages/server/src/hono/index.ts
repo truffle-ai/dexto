@@ -10,7 +10,7 @@ import { createMcpRouter } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
 import { createWebhooksRouter } from './routes/webhooks.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
-import { errorMiddleware } from './middleware/error.js';
+import { handleHonoError } from './middleware/error.js';
 
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
@@ -24,7 +24,8 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
     const webhookSubscriber = new WebhookEventSubscriber();
     webhookSubscriber.subscribe(agent.agentEventBus);
     app.webhookSubscriber = webhookSubscriber;
-    app.use('*', errorMiddleware);
+    // Global error handling for all routes
+    app.onError((err, ctx) => handleHonoError(ctx, err));
 
     app.route('/health', createHealthRouter(agent));
 
