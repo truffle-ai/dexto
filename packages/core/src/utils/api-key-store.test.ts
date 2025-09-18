@@ -1,27 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'fs';
-import * as fsp from 'fs/promises';
-import * as path from 'path';
-import { tmpdir } from 'os';
-import type { MockInstance } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import { tmpdir } from 'node:os';
 
-describe('api-key-store', () => {
+describe('core/utils/api-key-store', () => {
     const ORIGINAL_ENV = { ...process.env };
     let tempDir: string;
     let tempEnvPath: string;
     let apiKeyStore: typeof import('./api-key-store.js');
+    let pathUtils: typeof import('./path.js');
     let pathSpy: MockInstance;
 
     beforeEach(async () => {
         vi.clearAllMocks();
-        // Create a temp dir and point getDextoEnvPath to a file within it
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'apikey-store-'));
         tempEnvPath = path.join(tempDir, '.env');
 
-        const pathUtils = await import('@dexto/core');
+        pathUtils = await import('./path.js');
         pathSpy = vi.spyOn(pathUtils, 'getDextoEnvPath').mockReturnValue(tempEnvPath);
 
-        // Import module under test after mocks are set up
         apiKeyStore = await import('./api-key-store.js');
 
         delete process.env.OPENAI_API_KEY;
@@ -29,10 +27,8 @@ describe('api-key-store', () => {
     });
 
     afterEach(async () => {
-        // restore env
         process.env = { ...ORIGINAL_ENV };
-        if (pathSpy) pathSpy.mockRestore();
-        // cleanup temp dir
+        pathSpy?.mockRestore();
         if (fs.existsSync(tempDir)) {
             await fsp.rm(tempDir, { recursive: true, force: true });
         }
@@ -54,12 +50,10 @@ describe('api-key-store', () => {
     it('reports key status correctly before and after save', async () => {
         const { getProviderKeyStatus, saveProviderApiKey, listProviderKeyStatus } = apiKeyStore;
 
-        // Before
         const before = getProviderKeyStatus('openai');
         expect(before.hasApiKey).toBe(false);
         expect(before.envVar).toBe('OPENAI_API_KEY');
 
-        // After
         await saveProviderApiKey('openai', 'sk-new');
         const after = getProviderKeyStatus('openai');
         expect(after.hasApiKey).toBe(true);

@@ -1,0 +1,54 @@
+{
+  "name": "@dexto/server",
+  "version": "1.1.4",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./hono": {
+      "import": "./dist/hono/index.js",
+      "require": "./dist/hono/index.cjs",
+      "types": "./dist/hono/index.d.ts"
+    },
+    "./hono/node": {
+      "import": "./dist/hono/node/index.js",
+      "require": "./dist/hono/node/index.cjs",
+      "types": "./dist/hono/node/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "@hono/node-server": "^1.13.3",
+    "@hono/zod-openapi": "^0.19.1",
+    "hono": "^4.6.8",
+    "ws": "^8.18.1",
+    "yaml": "^2.7.1",
+    "zod": "^3.25.0",
+    "@modelcontextprotocol/sdk": "^1.17.2"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "devDependencies": {
+    "@types/ws": "^8.5.11"
+  }
+}

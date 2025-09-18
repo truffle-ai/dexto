@@ -1,49 +1,30 @@
-# Handler Refactor Plan
+# Transport Layer Structure
 
-## Goal
-Move the existing Express route logic from `packages/cli/src/api/server.ts` into framework-agnostic handler modules housed in `@dexto/server/src/handlers`. Each handler:
-- Accepts a `DextoAgent` (and optional injected dependencies such as logger, token redactor, preferences accessor).
-- Validates input with Zod.
-- Returns plain JSON-serialisable objects or throws an `HttpError`.
-- Contains no Express/Hono/Node HTTP specifics.
+We are skipping the dedicated `handlers/` abstraction for now to keep the migration lightweight. All
+business logic will live inside the Hono route modules, alongside the request/response validation
+schemas that power automatic OpenAPI generation.
 
-## Modules to create
+## Current approach
+- Each route module (e.g. `packages/server/src/hono/routes/messages.ts`) imports the shared
+  `DextoAgent` instance and invokes it directly.
+- Input validation is handled with Zod inside the route before calling the agent.
+- Responses are serialized directly in the route using the returned value.
+- WebSocket helpers remain colocated with the route/bridge code.
 
-| Handler | Responsibilities | Source of current logic |
-| --- | --- | --- |
-| `message.ts` | `/api/message`, `/api/message-sync`, websocket message routing; file/image payload handling | Express POST routes + WS branch |
-| `session.ts` | Session CRUD (`list`, `create`, `history`, `delete`, `search`), metadata retrieval | Express routes + CLI helpers |
-| `search.ts` | `/api/search`, parameter coercion, result shaping | Express search route |
-| `mcp.ts` | MCP registration endpoints, config export, transport helpers | Express MCP routes |
-| `llm.ts` | LLM catalog, current config, provider/router filters | Express `/api/llm/*` routes |
-| `config.ts` | `/api/config.yaml`, `/api/greeting`, agent card generation (A2A) | Express config routes + `setupA2ARoutes` |
-| `webhook.ts` | Webhook CRUD + test endpoint | Express webhook routes |
-| `events.ts` | Event serialization for WebSocket broadcast + tool confirmation plumbing | WebSocket subscriber |
+## Why this is acceptable today
+- The Express implementation already bundles transport + business logic; keeping the
+  consolidation avoids unnecessary churn while we ship the Hono swap.
+- We have no external consumers yet (0 users); backwards compatibility and multi-transport reuse
+  are not blockers.
+- Hono already gives us runtime portability. Platform adapters (Node, Cloudflare, Vercel) can
+  reuse the same `createDextoApp` without an intermediate layer.
 
-Each handler file exports:
-- Zod schemas for body/query params.
-- Business logic functions e.g. `postMessage(agent, input, deps)`, `listSessions(agent, filters)`, etc.
-- Shared helpers reused by CLI tests or SDK (e.g., serialising LLM catalog entries).
+## Future extraction (optional)
+If we later want a framework-agnostic handler layer (for SDK generation, edge deployers, or direct
+CLI reuse), we can lift the logic out of the route modules. To make that refactor easier:
+- Keep route code focused on validation + serialization.
+- Use well-typed helpers/utilities that can be shared later.
+- Add a TODO comment in each route module noting the potential extraction point.
 
-## Dependencies passed to handlers
-- `logger?: ILogger` – defaults to agent logger when omitted.
-- `redact?: <T>(payload: T) => T` – for config export/webhook responses.
-- `preferences?: PreferencesAccessor` – optional async accessor replacing direct file reads.
-- Additional adapters can be added via a small `HandlerDeps` object to avoid pulling Node modules into handler files.
-
-## Migration steps
-1. Copy validation schemas from Express to the corresponding handler modules.
-2. Replace direct `res.status().json()` calls with return values or thrown `HttpError`s.
-3. Port helper logic (config YAML redaction, webhook DTO shaping, agent card creation) into the relevant handler file.
-4. Update websocket logic to emit handler-produced payloads rather than mutating the `WebSocket` directly.
-5. Add comprehensive unit tests for handlers using mocked `DextoAgent` + injected deps.
-6. Remove duplicated code from CLI once handlers are verified.
-
-## Error handling
-- Use `HttpError` (`class HttpError extends Error { status: number; details?: unknown; }`).
-- Hono wrapper catches `HttpError`, sets status, and returns JSON; unexpected errors bubble to the shared error middleware.
-
-## Benefits
-- Reusable business logic across CLI, hosted server, and client SDK tests.
-- Cleaner layering: transport adapters (Hono/Node/WebSocket) only orchestrate requests and responses.
-- Easier to document and generate typed clients from a single source of truth.
+Until that need materialises, we will prioritise the direct Hono route implementation to unblock
+OpenAPI docs, typed client generation, and alternative deploy targets.

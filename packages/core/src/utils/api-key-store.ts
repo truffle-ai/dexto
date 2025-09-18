@@ -1,11 +1,8 @@
-import type { LLMProvider } from '@dexto/core';
-import {
-    LLM_PROVIDERS,
-    getPrimaryApiKeyEnvVar,
-    resolveApiKeyForProvider,
-    getDextoEnvPath,
-} from '@dexto/core';
-import { updateEnvFile } from './env.js';
+import { LLM_PROVIDERS } from '@core/llm/types.js';
+import type { LLMProvider } from '@core/llm/types.js';
+import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
+import { getDextoEnvPath } from '@core/utils/path.js';
+import { updateEnvFile } from './env-file.js';
 
 /**
  * Save provider API key to the correct .env and make it immediately available in-process.
@@ -24,15 +21,11 @@ export async function saveProviderApiKey(
 
     await updateEnvFile(targetEnvPath, { [envVar]: apiKey });
 
-    // Make key immediately available to the running process
     process.env[envVar] = apiKey;
 
     return { envVar, targetEnvPath };
 }
 
-/**
- * Get key presence and primary env var name for a provider.
- */
 export function getProviderKeyStatus(provider: LLMProvider): {
     hasApiKey: boolean;
     envVar: string;
@@ -42,13 +35,10 @@ export function getProviderKeyStatus(provider: LLMProvider): {
     return { hasApiKey: Boolean(key && key.trim()), envVar };
 }
 
-/**
- * List key presence across all known providers.
- */
 export function listProviderKeyStatus(): Record<string, { hasApiKey: boolean; envVar: string }> {
     const result: Record<string, { hasApiKey: boolean; envVar: string }> = {};
-    for (const p of LLM_PROVIDERS) {
-        result[p] = getProviderKeyStatus(p);
+    for (const provider of LLM_PROVIDERS) {
+        result[provider] = getProviderKeyStatus(provider);
     }
     return result;
 }

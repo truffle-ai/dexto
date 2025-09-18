@@ -1,6 +1,5 @@
 import * as path from 'path';
 import { homedir } from 'os';
-import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
 import { getExecutionContext, ensureDextoGlobalDirectory, getDextoEnvPath } from '@dexto/core';
 
@@ -20,8 +19,6 @@ export async function loadEnvironmentVariables(
     const context = getExecutionContext(startPath);
     const env: Record<string, string> = {};
 
-    // Layer 3: Global ~/.dexto/.env (lowest priority)
-    // TODO: Maybe don't load this if we are in dexto-source or dexto-project context? need to see
     const globalEnvPath = path.join(homedir(), '.dexto', '.env');
     try {
         const globalResult = dotenv.config({ path: globalEnvPath, processEnv: {} });
@@ -32,8 +29,6 @@ export async function loadEnvironmentVariables(
         // Global .env is optional, ignore errors
     }
 
-    // Layer 2: Project .env (medium priority)
-    // load in project/source context only
     if (context === 'dexto-source' || context === 'dexto-project') {
         const projectEnvPath = getDextoEnvPath(startPath);
         try {
@@ -46,8 +41,6 @@ export async function loadEnvironmentVariables(
         }
     }
 
-    // Layer 1: Shell environment (highest priority)
-    // Filter to only include defined, non-empty values
     for (const [key, value] of Object.entries(process.env)) {
         if (value !== undefined && value !== '') {
             env[key] = value;
@@ -67,135 +60,8 @@ export async function loadEnvironmentVariables(
 export async function applyLayeredEnvironmentLoading(
     startPath: string = process.cwd()
 ): Promise<void> {
-    // Ensure global directory exists for saving later
     await ensureDextoGlobalDirectory();
 
-    // Load layered environment and apply to process.env
     const layeredEnv = await loadEnvironmentVariables(startPath);
     Object.assign(process.env, layeredEnv);
-}
-
-/**
- * Core logic to update an .env file with Dexto environment variables.
- * This is the shared implementation used by both project and interactive env file updates.
- *
- * @param envFilePath - Absolute path to the .env file to update
- * @param updates - Object containing environment variable updates
- */
-export async function updateEnvFile(
-    envFilePath: string,
-    updates: Record<string, string>
-): Promise<void> {
-    const dextoEnvKeys = [
-        'OPENAI_API_KEY',
-        'ANTHROPIC_API_KEY',
-        'GOOGLE_GENERATIVE_AI_API_KEY',
-        'GROQ_API_KEY',
-        'COHERE_API_KEY',
-        'XAI_API_KEY',
-        'DEXTO_LOG_LEVEL',
-    ];
-
-    // Ensure directory exists (especially for global ~/.dexto/.env)
-    await fs.mkdir(path.dirname(envFilePath), { recursive: true });
-
-    // Read existing .env if present
-    let envLines: string[] = [];
-    try {
-        const existingEnv = await fs.readFile(envFilePath, 'utf8');
-        envLines = existingEnv.split('\n');
-    } catch {
-        // File may not exist, start with empty array
-    }
-
-    // Extract current values for Dexto environment variables
-    const currentValues: Record<string, string> = {};
-    envLines.forEach((line) => {
-        const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-        if (match && match[1] && match[2] !== undefined && dextoEnvKeys.includes(match[1])) {
-            currentValues[match[1]] = match[2];
-        }
-    });
-
-    // Merge updates with current values
-    const updatedValues: Record<string, string> = {
-        OPENAI_API_KEY: updates.OPENAI_API_KEY ?? currentValues.OPENAI_API_KEY ?? '',
-        ANTHROPIC_API_KEY: updates.ANTHROPIC_API_KEY ?? currentValues.ANTHROPIC_API_KEY ?? '',
-        GOOGLE_GENERATIVE_AI_API_KEY:
-            updates.GOOGLE_GENERATIVE_AI_API_KEY ??
-            currentValues.GOOGLE_GENERATIVE_AI_API_KEY ??
-            '',
-        GROQ_API_KEY: updates.GROQ_API_KEY ?? currentValues.GROQ_API_KEY ?? '',
-        COHERE_API_KEY: updates.COHERE_API_KEY ?? currentValues.COHERE_API_KEY ?? '',
-        XAI_API_KEY: updates.XAI_API_KEY ?? currentValues.XAI_API_KEY ?? '',
-        DEXTO_LOG_LEVEL: updates.DEXTO_LOG_LEVEL ?? currentValues.DEXTO_LOG_LEVEL ?? 'info',
-    };
-
-    // Extract content before and after the Dexto section
-    const sectionHeader = '## Dexto env variables';
-    const headerIndex = envLines.findIndex((line) => line.trim() === sectionHeader);
-
-    let contentLines: string[];
-
-    if (headerIndex !== -1) {
-        // Extract lines before the section header
-        const beforeSection = envLines.slice(0, headerIndex);
-
-        // Find the end of the section
-        let sectionEnd = headerIndex + 1;
-        while (sectionEnd < envLines.length && envLines[sectionEnd]?.trim() !== '') {
-            sectionEnd++;
-        }
-
-        // Skip the blank line after the section if present
-        if (sectionEnd < envLines.length && envLines[sectionEnd]?.trim() === '') {
-            sectionEnd++;
-        }
-
-        // Extract lines after the section
-        const afterSection = envLines.slice(sectionEnd);
-
-        // Combine sections
-        contentLines = [...beforeSection, ...afterSection];
-    } else {
-        contentLines = envLines;
-    }
-
-    // Identify env variables already present outside the Dexto section
-    const existingEnvVars: Record<string, string> = {};
-    contentLines.forEach((line) => {
-        const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-        if (match && match[1] && match[2] !== undefined && dextoEnvKeys.includes(match[1])) {
-            existingEnvVars[match[1]] = match[2];
-        }
-    });
-
-    // Ensure exactly one blank line before adding the new section
-    if (contentLines.length > 0) {
-        // If the last line is not blank, add a blank line
-        if (contentLines[contentLines.length - 1]?.trim() !== '') {
-            contentLines.push('');
-        }
-    } else {
-        // If the file was empty, add a blank line at the start
-        contentLines.push('');
-    }
-
-    // Add the section header
-    contentLines.push(sectionHeader);
-
-    // Add environment variables that should be included
-    for (const key of dextoEnvKeys) {
-        // Skip keys already present outside Dexto section (unless being updated)
-        if (key in existingEnvVars && !(key in updates)) {
-            continue;
-        }
-        contentLines.push(`${key}=${updatedValues[key]}`);
-    }
-
-    // End with a blank line
-    contentLines.push('');
-
-    // Write the updated content
-    await fs.writeFile(envFilePath, contentLines.join('\n'), 'utf8');
 }
