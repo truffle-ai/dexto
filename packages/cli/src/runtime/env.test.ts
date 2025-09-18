@@ -3,8 +3,9 @@ import * as path from 'path';
 import { tmpdir, homedir } from 'os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadEnvironmentVariables, applyLayeredEnvironmentLoading, updateEnvFile } from './env.js';
-import { getExecutionContext } from './execution-context.js';
-import { getDextoEnvPath } from './path.js';
+import * as core from '@dexto/core';
+import type { ExecutionContext } from '@dexto/core';
+import type { MockInstance } from 'vitest';
 
 // Mock homedir to control global .dexto location
 vi.mock('os', async () => {
@@ -14,22 +15,6 @@ vi.mock('os', async () => {
         homedir: vi.fn(),
     };
 });
-
-// Mock path functions for testing
-vi.mock('./path.js', async () => {
-    const actual = await vi.importActual('./path.js');
-    return {
-        ...actual,
-        getDextoEnvPath: vi.fn(),
-        ensureDextoGlobalDirectory: vi.fn(async () => {
-            const dir = path.join(homedir(), '.dexto');
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-            }
-        }),
-    };
-});
-vi.mock('./execution-context.js');
 
 function createTempDir() {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-env-test-'));
@@ -68,6 +53,9 @@ describe('Core Environment Loading', () => {
     let tempDir: string;
     let mockHomeDir: string;
     let originalEnv: Record<string, string | undefined>;
+    let executionContextSpy: MockInstance<(startPath?: string | undefined) => ExecutionContext>;
+    let dextoEnvPathSpy: MockInstance<(startPath?: string | undefined) => string>;
+    let ensureGlobalDirSpy: MockInstance<() => Promise<void>>;
 
     beforeEach(() => {
         // Save original environment
@@ -81,10 +69,18 @@ describe('Core Environment Loading', () => {
         vi.mocked(homedir).mockReturnValue(mockHomeDir);
 
         // Mock execution context by default to global-cli
-        vi.mocked(getExecutionContext).mockReturnValue('global-cli');
-        vi.mocked(getDextoEnvPath).mockImplementation(() => {
+        executionContextSpy = vi.spyOn(core, 'getExecutionContext').mockReturnValue('global-cli');
+        dextoEnvPathSpy = vi.spyOn(core, 'getDextoEnvPath').mockImplementation(() => {
             return path.join(mockHomeDir, '.dexto', '.env');
         });
+        ensureGlobalDirSpy = vi
+            .spyOn(core, 'ensureDextoGlobalDirectory')
+            .mockImplementation(async () => {
+                const dir = path.join(homedir(), '.dexto');
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+            });
 
         // Clean up environment variables that might interfere
         delete process.env.OPENAI_API_KEY;
@@ -102,6 +98,9 @@ describe('Core Environment Loading', () => {
         cleanupTempDir(tempDir);
         cleanupTempDir(mockHomeDir);
 
+        executionContextSpy.mockRestore();
+        dextoEnvPathSpy.mockRestore();
+        ensureGlobalDirSpy.mockRestore();
         vi.clearAllMocks();
     });
 
@@ -132,8 +131,8 @@ describe('Core Environment Loading', () => {
             );
 
             // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            executionContextSpy.mockReturnValue('dexto-project');
+            dextoEnvPathSpy.mockReturnValue(path.join(tempDir, '.env'));
 
             const env = await loadEnvironmentVariables(tempDir);
 
@@ -178,8 +177,8 @@ describe('Core Environment Loading', () => {
             );
 
             // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            executionContextSpy.mockReturnValue('dexto-project');
+            dextoEnvPathSpy.mockReturnValue(path.join(tempDir, '.env'));
 
             // Shell environment (highest priority) - only sets some keys
             process.env.OPENAI_API_KEY = 'shell-openai';
@@ -229,8 +228,8 @@ describe('Core Environment Loading', () => {
             );
 
             // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            executionContextSpy.mockReturnValue('dexto-project');
+            dextoEnvPathSpy.mockReturnValue(path.join(tempDir, '.env'));
 
             let env = await loadEnvironmentVariables(tempDir);
             expect(env.OPENAI_API_KEY).toBe('global-fallback');
@@ -265,8 +264,8 @@ describe('Core Environment Loading', () => {
             );
 
             // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            executionContextSpy.mockReturnValue('dexto-project');
+            dextoEnvPathSpy.mockReturnValue(path.join(tempDir, '.env'));
 
             const env = await loadEnvironmentVariables(tempDir);
 
@@ -291,8 +290,8 @@ describe('Core Environment Loading', () => {
             );
 
             // Mock execution context to return dexto-project and path to return project .env (missing)
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            executionContextSpy.mockReturnValue('dexto-project');
+            dextoEnvPathSpy.mockReturnValue(path.join(tempDir, '.env'));
 
             const env = await loadEnvironmentVariables(tempDir);
 

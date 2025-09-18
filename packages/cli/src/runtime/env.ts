@@ -2,8 +2,7 @@ import * as path from 'path';
 import { homedir } from 'os';
 import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
-import { getExecutionContext } from './execution-context.js';
-import { ensureDextoGlobalDirectory, getDextoEnvPath } from './path.js';
+import { getExecutionContext, ensureDextoGlobalDirectory, getDextoEnvPath } from '@dexto/core';
 
 /**
  * Multi-layer environment variable loading with context awareness.
