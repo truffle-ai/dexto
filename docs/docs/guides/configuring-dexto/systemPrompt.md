@@ -140,9 +140,9 @@ systemPrompt:
       type: file
       priority: 10
       files:
-        - ./README.md
-        - ./docs/guidelines.md
-        - ./CONTRIBUTING.txt
+        - "${{dexto.agent_dir}}/README.md"
+        - "${{dexto.agent_dir}}/docs/guidelines.md"
+        - "${{dexto.agent_dir}}/CONTRIBUTING.txt"
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"
@@ -152,7 +152,7 @@ systemPrompt:
 ```
 
 #### File Contributor Options
-- **`files`** (array): List of file paths to include (only `.md` and `.txt` files)
+- **`files`** (array): List of file paths to include (only `.md` and `.txt` files). Paths must be absolute after config loading—use `${{dexto.agent_dir}}` to keep them portable.
 - **`options.includeFilenames`** (boolean): Whether to include filename headers (default: `true`)
 - **`options.separator`** (string): Text to separate multiple files (default: `"\n\n---\n\n"`)
 - **`options.errorHandling`** (string): How to handle missing/invalid files - `"skip"`, `"error"` (default: `"skip"`)
@@ -163,54 +163,21 @@ systemPrompt:
 
 #### File Path Resolution
 
-**Important:** File paths in file contributors are resolved **relative to the config filepath**, not the current working directory.
+**Important:** File contributor paths must be absolute after configuration is loaded. The schema now enforces this to keep core free of runtime path resolution.
 
-**Examples:**
+Use the `${{dexto.agent_dir}}` template macro in your YAML to stay portable—the loader expands it to the directory that contains the agent config before validation runs. For example:
 
-If your config file is at `/project/agents/billing-agent.yml`:
-- `docs/policies.md` → `/project/agents/docs/policies.md`
-- `./README.md` → `/project/agents/README.md`
-- `../README.md` → `/project/README.md` (parent directory)
-- `/absolute/path/file.md` → `/absolute/path/file.md` (absolute paths unchanged)
+```yaml
+files:
+  - "${{dexto.agent_dir}}/docs/guidelines.md"
+  - "${{dexto.agent_dir}}/../README.md"
+```
 
 **Best Practices:**
-- Use relative paths for files near your config: `docs/guidelines.md`, `./README.md`
-- Use parent directory paths for project root files: `../README.md`
-- Use absolute paths for system-wide files: `/etc/project/config.md`
-- Organize your documentation files in a predictable structure relative to your config file
-
-**Example Directory Structure:**
-```
-project/
-├── README.md
-├── agents/
-│   ├── support-agent.yml
-│   └── docs/
-│       ├── guidelines.md
-│       └── policies.md
-└── shared/
-    └── common-instructions.md
-```
-
-**Config file paths:**
-```yaml
-# In agents/support-agent.yml
-systemPrompt:
-  contributors:
-    - id: project-readme
-      type: file
-      files:
-        - ../README.md                    # Project root README
-    - id: local-docs
-      type: file
-      files:
-        - docs/guidelines.md              # Local to agent directory
-        - docs/policies.md                # Local to agent directory
-    - id: shared-instructions
-      type: file
-      files:
-        - ../shared/common-instructions.md # Shared across agents
-```
+- Always use `${{dexto.agent_dir}}/relative/path` to reference files shipped alongside the agent.
+- Reserve hard-coded absolute paths for genuinely global resources (e.g., `/etc/dexto/certs/ca.md`).
+- Keep documentation next to the agent and reference it via the macro so projects remain relocatable.
+- Remember that non-absolute strings will fail validation—this is intentional to surface misconfigurations early.
 
 #### File Contributor Use Cases
 - Include project documentation and guidelines
@@ -340,4 +307,3 @@ systemPrompt:
 10. **Path organization:** Organize documentation files relative to your config file for cleaner, more maintainable paths
 11. **MCP resources:** Enable the `resources` contributor when you want to include context from MCP servers
 12. **Performance considerations:** Be mindful that the `resources` contributor fetches all MCP resources on each prompt build
-

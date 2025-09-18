@@ -226,7 +226,7 @@ systemPrompt:
     
     - id: company-info
       type: file
-      files: [company-info.md]  # Relative to config file location
+      files: ["${{dexto.agent_dir}}/company-info.md"]  # Resolve to absolute path at load time
 ```
 
 ### Production Deployment

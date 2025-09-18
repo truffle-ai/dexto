@@ -54,8 +54,8 @@ systemPrompt:
       priority: 5
       enabled: true
       files:
-        - "./docs/context.md"
-        - "./README.md"
+        - "${{dexto.agent_dir}}/docs/context.md"
+        - "${{dexto.agent_dir}}/README.md"
 
 # Alternatively, use simple string format:
 # systemPrompt: "You are a helpful AI assistant with access to tools."

@@ -5,15 +5,14 @@
 - [ ] Freeze Express changes in CLI to avoid churn during migration.
 
 ## Phase 1 – Utility Migration & Config Normalisation
-- [ ] Move filesystem helpers (`getDextoPath`, execution context, preferences loader) from core to CLI (`packages/cli/src/utils/runtime.ts`, `preferences.ts`).
-- [ ] Implement config normalisation (`normaliseFileContributors`, registry macro expansion) so agents receive absolute paths.
+- [x] Update FileContributor defaults + docs to remove `configDir` assumptions; rely on normalised paths from Phase 1.
+- [ ] Move filesystem helpers (`getDextoPath`, execution context, preferences loader, env.ts) from core to CLI (`packages/cli/src/utils/runtime.ts`, `preferences.ts`).
 - [ ] Add unit tests for the new runtime utilities.
 
 ## Phase 2 – Logger & FileContributor Refactor
 - [ ] Introduce `ILogger`, `ConsoleLogger`, and node-only `WinstonLogger` subpath.
 - [ ] Update `DextoAgent` and `createAgentServices` to accept injected logger only.
 - [ ] Replace singleton logger imports across core/CLI with injected instances.
-- [ ] Update FileContributor defaults + docs to remove `configDir` assumptions; rely on normalised paths from Phase 1.
 - [ ] Add tests validating logger injection and contributor path handling.
 
 ## Phase 3 – Handlers & Server Package

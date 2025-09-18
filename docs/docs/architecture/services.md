@@ -202,7 +202,7 @@ systemPrompt:
     - id: context
       type: file
       priority: 5
-      files: ["./docs/context.md"]
+      files: ["${{dexto.agent_dir}}/docs/context.md"]
 ```
 
 ## AgentEventBus
