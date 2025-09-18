@@ -93,7 +93,8 @@ export class HttpClient {
 
         // Add timeout using AbortController
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        const resolvedTimeout = timeout ?? this.config.timeout ?? 30000;
+        const timeoutId = setTimeout(() => controller.abort(), resolvedTimeout);
         requestInit.signal = controller.signal;
 
         try {
@@ -133,7 +134,7 @@ export class HttpClient {
             }
 
             if (error instanceof Error && error.name === 'AbortError') {
-                throw ClientError.timeoutError(endpoint, this.config.timeout || 30000);
+                throw ClientError.timeoutError(endpoint, resolvedTimeout);
             }
 
             throw ClientError.networkError(

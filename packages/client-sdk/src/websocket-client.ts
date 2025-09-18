@@ -128,7 +128,7 @@ export class WebSocketClient {
                 this.reconnectAttempts < this.maxReconnectAttempts;
 
             if (shouldReconnect) {
-                this.scheduleReconnect();
+                this.scheduleReconnect(resolve, reject);
             } else if (
                 !this.isIntentionallyClosed &&
                 this.reconnectAttempts >= this.maxReconnectAttempts
@@ -153,15 +153,21 @@ export class WebSocketClient {
         };
     }
 
-    private scheduleReconnect() {
+    private scheduleReconnect(resolve?: () => void, reject?: (error: Error) => void) {
         this.reconnectAttempts++;
 
         setTimeout(() => {
             if (!this.isIntentionallyClosed) {
                 this.emitState('connecting');
-                this.connect().catch(() => {
-                    // Connection failed, will try again or give up based on max attempts
-                });
+                if (resolve && reject) {
+                    // Initial connection context - chain the promises
+                    this.connect().then(resolve).catch(reject);
+                } else {
+                    // Subsequent reconnect - fire and forget
+                    this.connect().catch(() => {
+                        // Connection failed, will try again or give up based on max attempts
+                    });
+                }
             }
         }, this.reconnectInterval);
     }
