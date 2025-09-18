@@ -260,7 +260,7 @@ async function bootstrapAgentFromGlobalOpts() {
     );
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+    const agent = new DextoAgent(mergedConfig);
     await agent.start();
 
     // Register graceful shutdown
@@ -627,7 +627,7 @@ program
             }
 
             // DextoAgent will parse/validate again (parse-twice pattern)
-            agent = new DextoAgent(validatedConfig, opts.agent);
+            agent = new DextoAgent(validatedConfig);
 
             // Start the agent (initialize async services)
             await agent.start();

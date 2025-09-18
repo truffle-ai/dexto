@@ -28,7 +28,6 @@ import { PromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { dirname, resolve } from 'path';
 import { createStorageBackends, type StorageBackends, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';
@@ -54,13 +53,9 @@ export type AgentServices = {
 /**
  * Initializes all agent services from a validated configuration.
  * @param config The validated agent configuration object
- * @param configPath Optional path to the config file (for relative path resolution)
  * @returns All the initialized services required for a Dexto agent
  */
-export async function createAgentServices(
-    config: ValidatedAgentConfig,
-    configPath?: string
-): Promise<AgentServices> {
+export async function createAgentServices(config: ValidatedAgentConfig): Promise<AgentServices> {
     // 1. Initialize shared event bus
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
@@ -127,11 +122,8 @@ export async function createAgentServices(
     }
 
     // 6. Initialize prompt manager
-    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
-    logger.debug(
-        `[ServiceInitializer] Creating PromptManager with configPath: ${configPath} → configDir: ${configDir}`
-    );
-    const promptManager = new PromptManager(config.systemPrompt, configDir);
+    logger.debug('[ServiceInitializer] Creating PromptManager');
+    const promptManager = new PromptManager(config.systemPrompt);
 
     // 7. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);

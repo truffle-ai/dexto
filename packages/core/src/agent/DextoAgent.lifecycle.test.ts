@@ -107,7 +107,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(agent.isStarted()).toBe(true);
             expect(agent.isStopped()).toBe(false);
-            expect(mockCreateAgentServices).toHaveBeenCalledWith(mockValidatedConfig, undefined);
+            expect(mockCreateAgentServices).toHaveBeenCalledWith(mockValidatedConfig);
         });
 
         test('should start with per-server connection modes in config', async () => {
@@ -129,10 +129,7 @@ describe('DextoAgent Lifecycle Management', () => {
             await agent.start();
 
             const validatedConfigWithServerModes = AgentConfigSchema.parse(configWithServerModes);
-            expect(mockCreateAgentServices).toHaveBeenCalledWith(
-                validatedConfigWithServerModes,
-                undefined
-            );
+            expect(mockCreateAgentServices).toHaveBeenCalledWith(validatedConfigWithServerModes);
         });
 
         test('should throw error when starting twice', async () => {

@@ -13,12 +13,8 @@ import { SystemPromptError } from './errors.js';
  */
 export class PromptManager {
     private contributors: SystemPromptContributor[];
-    private configDir: string;
-
-    // TODO: move config dir logic somewhere else
-    constructor(config: ValidatedSystemPromptConfig, configDir: string = process.cwd()) {
-        this.configDir = configDir;
-        logger.debug(`[PromptManager] Initializing with configDir: ${configDir}`);
+    constructor(config: ValidatedSystemPromptConfig) {
+        logger.debug('[PromptManager] Initializing');
 
         // Filter enabled contributors and create contributor instances
         const enabledContributors = config.contributors.filter((c) => c.enabled !== false);
@@ -49,8 +45,7 @@ export class PromptManager {
                     config.id,
                     config.priority,
                     config.files,
-                    config.options,
-                    this.configDir
+                    config.options
                 );
             }
 

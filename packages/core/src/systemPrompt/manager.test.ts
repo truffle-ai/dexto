@@ -6,6 +6,7 @@ import * as registry from './registry.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import * as path from 'path';
 
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
@@ -263,7 +264,10 @@ You can help with:
                         id: 'docs',
                         type: 'file',
                         priority: 5,
-                        files: ['README.md', 'GUIDELINES.md'],
+                        files: [
+                            path.join(process.cwd(), 'README.md'),
+                            path.join(process.cwd(), 'GUIDELINES.md'),
+                        ],
                         options: {
                             includeFilenames: true,
                             separator: '\n\n---\n\n',
@@ -272,7 +276,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config, '/custom/config/dir');
+            const manager = new PromptManager(config);
             const contributors = manager.getContributors();
 
             expect(contributors).toHaveLength(1);
@@ -280,22 +284,20 @@ You can help with:
             expect(contributors[0]?.priority).toBe(5);
         });
 
-        it('should use custom config directory', () => {
+        it('should accept absolute paths without additional configuration', () => {
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
                     {
                         id: 'docs',
                         type: 'file',
                         priority: 5,
-                        files: ['context.md'],
+                        files: [path.join(process.cwd(), 'context.md')],
                     },
                 ],
             });
 
-            const customConfigDir = '/custom/project/path';
-            const manager = new PromptManager(config, customConfigDir);
+            const manager = new PromptManager(config);
 
-            // The FileContributor should receive the custom config directory
             expect(manager.getContributors()).toHaveLength(1);
         });
     });
@@ -486,7 +488,7 @@ You can help with:
                         id: 'context',
                         type: 'file',
                         priority: 5,
-                        files: ['context.md'],
+                        files: [path.join(process.cwd(), 'context.md')],
                         options: { includeFilenames: true },
                     },
                     {

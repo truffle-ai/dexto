@@ -125,10 +125,7 @@ export class DextoAgent {
     // Store config for async initialization
     private config: ValidatedAgentConfig;
 
-    constructor(
-        config: AgentConfig,
-        private configPath?: string
-    ) {
+    constructor(config: AgentConfig) {
         // Validate and transform the input config
         this.config = AgentConfigSchema.parse(config);
 
@@ -152,7 +149,7 @@ export class DextoAgent {
             logger.info('Starting DextoAgent...');
 
             // Initialize all services asynchronously
-            const services = await createAgentServices(this.config, this.configPath);
+            const services = await createAgentServices(this.config);
 
             // Validate all required services are provided
             for (const service of requiredServices) {
