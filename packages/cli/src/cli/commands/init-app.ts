@@ -8,7 +8,7 @@ import { executeWithTimeout } from '../utils/execute.js';
 import { createRequire } from 'module';
 import { type LLMProvider, logger } from '@dexto/core';
 import { updateDextoConfigFile } from '../utils/project-utils.js';
-import { saveProviderApiKey } from '../../runtime/api-key-store.js';
+import { saveProviderApiKey } from '@dexto/core';
 import {
     getProviderDisplayName,
     isValidApiKeyFormat,

@@ -32,7 +32,7 @@ import {
     isRouterSupportedForModel,
 } from '@dexto/core';
 import type { ProviderInfo, LLMProvider } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey } from '../runtime/api-key-store.js';
+import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';

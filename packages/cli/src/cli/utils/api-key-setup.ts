@@ -4,7 +4,7 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import type { LLMProvider } from '@dexto/core';
 import { logger, getPrimaryApiKeyEnvVar, getExecutionContext } from '@dexto/core';
-import { saveProviderApiKey } from '../../runtime/api-key-store.js';
+import { saveProviderApiKey } from '@dexto/core';
 import { applyLayeredEnvironmentLoading } from '../../runtime/env.js';
 import {
     getProviderDisplayName,
