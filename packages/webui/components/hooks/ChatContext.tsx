@@ -37,7 +37,12 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   // Determine WebSocket URL; replace localhost for network access
-  let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+  
+  // for express in production code, the default is picked up because process.env.NEXT_PUBLIC_WS_URL is set at build time for client side components, not at runtime
+  // let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+
+  // for hono in production code, same but add /ws to the end
+  let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
   if (typeof window !== 'undefined') {
     try {
       const urlObj = new URL(wsUrl);

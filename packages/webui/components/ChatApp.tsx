@@ -36,8 +36,16 @@ import type { McpServerConfig } from '@dexto/core';
 
 export default function ChatApp() {
 
-  // SSR-safe platform check for Mac
-  const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  // Avoid hydration mismatches: detect platform after mount
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    try {
+      // navigator is only available in the browser
+      setIsMac(/Mac|iPod|iPhone|iPad/.test(navigator.platform));
+    } catch {
+      setIsMac(false);
+    }
+  }, []);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
@@ -702,7 +710,7 @@ export default function ChatApp() {
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘K</kbd> for new chat,
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘J</kbd> for tools,
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘L</kbd> for playground,
-                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">{typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? '⌘⌫' : 'Ctrl+⌫'}</kbd> to delete session,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">{isMac ? '⌘⌫' : 'Ctrl+⌫'}</kbd> to delete session,
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘/</kbd> for shortcuts
                     </p>
                   </div>

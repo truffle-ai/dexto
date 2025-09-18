@@ -81,6 +81,15 @@ export async function startNextJsWebServer(
         const resolvedHostname = process.env.HOSTNAME ?? '0.0.0.0';
         const resolvedPort = process.env.FRONTEND_PORT ?? process.env.PORT ?? String(frontPort);
 
+        // Determine WS URL based on whether Hono server is enabled
+        const honoFlag = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
+        const honoEnabled = honoFlag === '1' || honoFlag === 'true' || honoFlag === 'yes';
+        const defaultWsUrl = `ws://localhost:${apiPort}${honoEnabled ? '/ws' : ''}`;
+        logger.info(`Using WS URL: ${defaultWsUrl}`);
+
+        // TODO: env variables set here are actually not used by client side code in next-js apps
+        // because process.env.NEXT_PUBLIC_WS_URL is set at build time for client side components, not at runtime
+        // we might need a better solution to configure these variables, or update the client side code to fetch this from server side code (which can read these runtime provided env variables)
         const nextProc = spawn('node', [serverToUse], {
             cwd: webuiPath,
             stdio: ['inherit', 'pipe', 'inherit'],
@@ -93,7 +102,7 @@ export async function startNextJsWebServer(
                 API_URL: apiUrl,
                 FRONTEND_URL: frontUrl,
                 NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? apiUrl,
-                NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL ?? `ws://localhost:${apiPort}`,
+                NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL ?? defaultWsUrl,
                 NEXT_PUBLIC_FRONTEND_URL: process.env.NEXT_PUBLIC_FRONTEND_URL ?? frontUrl,
             },
         });

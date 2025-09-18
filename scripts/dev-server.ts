@@ -86,6 +86,11 @@ apiProcess.on('error', (err) => {
     cleanup();
 });
 
+// Compute WS path based on Hono flag
+const useHono = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
+const honoEnabled = useHono === '1' || useHono === 'true' || useHono === 'yes';
+const wsUrl = `ws://localhost:3001${honoEnabled ? '/ws' : ''}`;
+
 // Give API server time to start
 setTimeout(() => {
     console.log('\n🎨 Starting WebUI dev server on port 3000...');
@@ -98,7 +103,7 @@ setTimeout(() => {
             PORT: '3000',
             API_PORT: '3001',
             NEXT_PUBLIC_API_URL: 'http://localhost:3001',
-            NEXT_PUBLIC_WS_URL: 'ws://localhost:3001',
+            NEXT_PUBLIC_WS_URL: wsUrl,
             NEXT_PUBLIC_FRONTEND_URL: 'http://localhost:3000',
         },
     });
