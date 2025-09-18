@@ -4,6 +4,7 @@ import type { DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify } from 'yaml';
 import { sendJson } from '../utils/response.js';
 import { parseQuery } from '../utils/validation.js';
+import { redactionMiddleware } from '../middleware/redaction.js';
 
 const querySchema = z.object({
     sessionId: z.string().optional(),
@@ -12,6 +13,8 @@ const querySchema = z.object({
 
 export function createConfigRouter(agent: DextoAgent) {
     const app = new Hono();
+
+    app.use('/config.yaml', redactionMiddleware);
 
     app.get('/config.yaml', async (ctx) => {
         const { sessionId } = parseQuery(ctx, querySchema);

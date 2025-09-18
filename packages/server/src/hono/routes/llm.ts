@@ -14,6 +14,7 @@ import {
     LLMUpdatesSchema,
 } from '@dexto/core';
 import { sendJson } from '../utils/response.js';
+import { redactionMiddleware } from '../middleware/redaction.js';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { parseJson, parseQuery } from '../utils/validation.js';
 
@@ -68,6 +69,8 @@ const SessionIdEnvelopeSchema = z
 
 export function createLlmRouter(agent: DextoAgent) {
     const app = new Hono();
+
+    app.use('*', redactionMiddleware);
 
     app.get('/llm/current', (ctx) => {
         const { sessionId } = parseQuery(ctx, CurrentQuerySchema);
