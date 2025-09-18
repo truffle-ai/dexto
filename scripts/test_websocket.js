@@ -200,17 +200,17 @@ async function main() {
         { shouldError: true }
     ))) failures++;
 
-    // Test unknown message type
+    // Test unknown message type (must include sessionId to receive an error frame)
     if (!(await runWebSocketTest(
         'Unknown message type',
-        { type: 'unknownType', data: 'test' },
+        { type: 'unknownType', data: 'test', sessionId: 'error-test' },
         { shouldError: true }
     ))) failures++;
 
-    // Test invalid JSON structure
+    // Test invalid JSON structure (include sessionId so server can return a validation error)
     if (!(await runWebSocketTest(
         'Invalid message structure',
-        { invalidField: 'test' },
+        { invalidField: 'test', sessionId: 'error-test' },
         { shouldError: true }
     ))) failures++;
 
@@ -263,11 +263,13 @@ async function main() {
 
     console.log(`${cyan('=== CONNECTION AND PROTOCOL ERRORS ===')}\n`);
 
-    // Test malformed JSON handling (server should send error event, not close connection)
+    // Test malformed JSON handling
+    // New server behavior: cannot parse to extract sessionId, so it logs the error
+    // and does not emit an error frame. Connection should remain open.
     if (!(await runWebSocketTest(
         'Malformed JSON handling',
         '{"type":"message","content":', // Intentionally malformed JSON - will be sent as string
-        { shouldError: true } // Expect error event, not connection closure
+        { expectNoEvents: true } // Expect no events (no sessionId to correlate error)
     ))) failures++;
 
     // Final results
