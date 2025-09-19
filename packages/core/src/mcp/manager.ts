@@ -5,6 +5,7 @@ import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js'
 import { ToolSet } from '../tools/types.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { MCPError } from './errors.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -120,6 +121,7 @@ export class MCPManager {
 
         this.clients.set(name, client);
         this.sanitizedNameToServerMap.set(sanitizedName, name);
+        this.setupClientNotifications(name, client);
 
         logger.info(`Registered client: ${name}`);
         delete this.connectionErrors[name];
@@ -653,5 +655,114 @@ export class MCPManager {
         this.resourceCache.clear();
         this.sanitizedNameToServerMap.clear();
         logger.info('Disconnected all clients and cleared caches.');
+    }
+
+    /**
+     * Set up notification listeners for a specific client
+     */
+    private setupClientNotifications(clientName: string, client: IMCPClient): void {
+        try {
+            // Listen for resource updates
+            client.on('resourceUpdated', async (params: { uri: string; title?: string }) => {
+                logger.debug(
+                    `Received resource update notification from ${clientName}: ${params.uri}`
+                );
+                await this.handleResourceUpdated(clientName, params);
+            });
+
+            // Listen for prompt list changes
+            client.on('promptsListChanged', async () => {
+                logger.debug(`Received prompts list change notification from ${clientName}`);
+                await this.handlePromptsListChanged(clientName, client);
+            });
+
+            logger.debug(`Set up notification listeners for client: ${clientName}`);
+        } catch (error) {
+            logger.debug(`Failed to set up notification listeners for ${clientName}: ${error}`);
+        }
+    }
+
+    /**
+     * Handle resource updated notification
+     */
+    private async handleResourceUpdated(
+        serverName: string,
+        params: { uri: string; title?: string }
+    ): Promise<void> {
+        try {
+            // Update the resource cache for this specific resource
+            const client = this.clients.get(serverName);
+            if (client) {
+                const key = this.buildQualifiedResourceKey(serverName, params.uri);
+
+                // Try to get updated resource info
+                try {
+                    const resources = await client.listResources();
+                    const updatedResource = resources.find((r) => r.uri === params.uri);
+
+                    if (updatedResource) {
+                        // Update cache with new resource info
+                        this.resourceCache.set(key, {
+                            key,
+                            serverName,
+                            client,
+                            summary: updatedResource,
+                        });
+                        logger.debug(`Updated resource cache for: ${params.uri}`);
+                    }
+                } catch (error) {
+                    logger.debug(`Failed to refresh resource ${params.uri}: ${error}`);
+                }
+            }
+
+            // Emit event to notify other parts of the system
+            const eventData: { serverName: string; resourceUri: string; title?: string } = {
+                serverName,
+                resourceUri: params.uri,
+            };
+            if (params.title) {
+                eventData.title = params.title;
+            }
+            eventBus.emit('dexto:mcpResourceUpdated', eventData);
+        } catch (error) {
+            logger.error(`Error handling resource update: ${error}`);
+        }
+    }
+
+    /**
+     * Handle prompts list changed notification
+     */
+    private async handlePromptsListChanged(serverName: string, client: IMCPClient): Promise<void> {
+        try {
+            // Refresh the prompts for this client
+            const existingPrompts = Array.from(this.promptToClientMap.entries())
+                .filter(([_, mappedClient]) => mappedClient === client)
+                .map(([promptName]) => promptName);
+
+            // Remove old prompts
+            existingPrompts.forEach((promptName) => {
+                this.promptToClientMap.delete(promptName);
+            });
+
+            // Add new prompts
+            try {
+                const newPrompts = await client.listPrompts();
+                newPrompts.forEach((promptName) => {
+                    this.promptToClientMap.set(promptName, client);
+                });
+
+                logger.debug(`Updated prompts cache for ${serverName}: [${newPrompts.join(', ')}]`);
+
+                // Emit event to notify other parts of the system
+                eventBus.emit('dexto:mcpPromptsListChanged', {
+                    serverName,
+                    prompts: newPrompts,
+                });
+            } catch (error) {
+                logger.debug(`Failed to refresh prompts for ${serverName}: ${error}`);
+            }
+        } catch (error) {
+            logger.error(`Error handling prompts list change: ${error}`);
+        }
     }
 }

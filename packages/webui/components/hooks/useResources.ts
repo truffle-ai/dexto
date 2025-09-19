@@ -96,5 +96,31 @@ export function useResources() {
         }
     }, []);
 
+    // Listen for real-time resource cache invalidation events
+    useEffect(() => {
+        const handleResourceCacheInvalidated = (event: any) => {
+            const detail = event?.detail || {};
+            console.log('💾 Resource cache invalidated:', detail);
+
+            // Refresh resources when cache is invalidated
+            refresh();
+        };
+
+        // Listen for our custom WebSocket event that gets dispatched when resources change
+        if (typeof window !== 'undefined') {
+            window.addEventListener(
+                'dexto:resourceCacheInvalidated',
+                handleResourceCacheInvalidated
+            );
+
+            return () => {
+                window.removeEventListener(
+                    'dexto:resourceCacheInvalidated',
+                    handleResourceCacheInvalidated
+                );
+            };
+        }
+    }, [refresh]);
+
     return { resources, loading, error, refresh } as const;
 }

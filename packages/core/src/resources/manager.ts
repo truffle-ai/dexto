@@ -6,6 +6,7 @@ import type { ValidatedInternalResourcesConfig } from './schemas.js';
 import type { InternalResourceServices } from './internal-registry.js';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
+import { eventBus } from '../events/index.js';
 
 export interface ResourceManagerOptions {
     internalResourcesConfig?: ValidatedInternalResourcesConfig;
@@ -33,6 +34,9 @@ export class ResourceManager {
                 services
             );
         }
+
+        // Listen for MCP resource notifications for real-time updates
+        this.setupNotificationListeners();
 
         logger.debug('ResourceManager initialized');
     }
@@ -186,5 +190,52 @@ export class ResourceManager {
 
     getInternalResourcesProvider(): InternalResourcesProvider | undefined {
         return this.internalResourcesProvider;
+    }
+
+    /**
+     * Set up listeners for MCP resource notifications to enable real-time updates
+     */
+    private setupNotificationListeners(): void {
+        // Listen for MCP resource updates
+        eventBus.on('dexto:mcpResourceUpdated', async (payload) => {
+            logger.debug(
+                `🔄 Resource updated notification: ${payload.resourceUri} from server '${payload.serverName}'`
+            );
+
+            // Emit a more specific event for components that need to refresh resource lists
+            eventBus.emit('dexto:resourceCacheInvalidated', {
+                resourceUri: payload.resourceUri,
+                serverName: payload.serverName,
+                action: 'updated',
+            });
+        });
+
+        // Listen for MCP server connection changes that affect resources
+        eventBus.on('dexto:mcpServerConnected', async (payload) => {
+            if (payload.success) {
+                logger.debug(`🔄 Server connected, resources may have changed: ${payload.name}`);
+                eventBus.emit('dexto:resourceCacheInvalidated', {
+                    serverName: payload.name,
+                    action: 'server_connected',
+                });
+            }
+        });
+
+        eventBus.on('dexto:mcpServerRemoved', async (payload) => {
+            logger.debug(`🔄 Server removed, resources invalidated: ${payload.serverName}`);
+            eventBus.emit('dexto:resourceCacheInvalidated', {
+                serverName: payload.serverName,
+                action: 'server_removed',
+            });
+        });
+    }
+
+    /**
+     * Force refresh of resource data (for components that need to update their local state)
+     */
+    async getUpdatedResourceList(): Promise<ResourceSet> {
+        // This method provides a way for components to get fresh resource data
+        // when they receive cache invalidation events
+        return await this.list();
     }
 }

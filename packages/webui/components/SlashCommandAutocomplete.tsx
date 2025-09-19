@@ -181,6 +181,40 @@ export default function SlashCommandAutocomplete({
     };
   }, [isVisible, refreshKey]);
 
+  // Listen for real-time prompts list changes
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const handlePromptsListChanged = (event: any) => {
+      const detail = event?.detail || {};
+      console.log('✨ Prompts list changed:', detail);
+      
+      // Refresh prompts when MCP server prompts change
+      setIsLoading(true);
+      loadPrompts({ forceRefresh: true })
+        .then((data) => {
+          setPrompts(data);
+          setFilteredPrompts(data);
+        })
+        .catch(() => {
+          setPrompts([]);
+          setFilteredPrompts([]);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    };
+
+    // Listen for WebSocket events that indicate prompts changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
+      
+      return () => {
+        window.removeEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
+      };
+    }
+  }, [isVisible]);
+
   // Filter prompts based on search query from parent input
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery === '/') {

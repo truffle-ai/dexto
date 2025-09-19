@@ -6,6 +6,7 @@ import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import { logger } from '../logger/index.js';
+import { eventBus } from '../events/index.js';
 import {
     countMessagesTokens,
     sanitizeToolResultToContent,
@@ -168,6 +169,14 @@ export class ContextManager<TMessage = unknown> {
                 logger.info(
                     `Stored user input as blob: ${blobRef.uri} (${estimatedSize} bytes, ${metadata.mimeType})`
                 );
+
+                // Emit event to invalidate resource cache so uploaded images appear in @ autocomplete
+                eventBus.emit('dexto:resourceCacheInvalidated', {
+                    resourceUri: blobRef.uri,
+                    serverName: 'internal',
+                    action: 'blob_stored',
+                });
+
                 return `@${blobRef.uri}`; // Return @blob:id reference for ResourceManager
             } catch (error) {
                 logger.warn(`Failed to store user input as blob: ${String(error)}`);

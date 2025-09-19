@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { EventEmitter } from 'events';
 
 import { logger } from '../logger/index.js';
 import type {
@@ -21,7 +22,7 @@ import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
-export class MCPClient implements IMCPClient {
+export class MCPClient extends EventEmitter implements IMCPClient {
     private client: Client | null = null;
     private transport: any = null;
     private isConnected = false;
@@ -33,6 +34,10 @@ export class MCPClient implements IMCPClient {
     private serverPid: number | null = null;
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
+
+    constructor() {
+        super();
+    }
 
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
@@ -148,6 +153,7 @@ export class MCPClient implements IMCPClient {
             logger.info(`✅ Stdio SERVER ${serverName} SPAWNED`);
             logger.info('Connection established!\n\n');
             this.isConnected = true;
+            this.setupNotificationHandlers();
 
             return this.client;
         } catch (error: any) {
@@ -192,6 +198,7 @@ export class MCPClient implements IMCPClient {
             logger.info(`✅ ${serverName} SSE SERVER SPAWNED`);
             logger.info('Connection established!\n\n');
             this.isConnected = true;
+            this.setupNotificationHandlers();
 
             return this.client;
         } catch (error: any) {
@@ -223,6 +230,7 @@ export class MCPClient implements IMCPClient {
             await this.client.connect(this.transport);
             this.isConnected = true;
             logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+            this.setupNotificationHandlers();
             return this.client;
         } catch (error: any) {
             logger.error(
@@ -491,5 +499,34 @@ export class MCPClient implements IMCPClient {
         if (!this.isConnected || !this.client) {
             throw MCPError.clientNotConnected('Please call connect() first');
         }
+    }
+
+    /**
+     * Set up notification handlers for MCP server notifications
+     */
+    private setupNotificationHandlers(): void {
+        if (!this.client) return;
+
+        // TODO: Implement actual notification handling when MCP SDK provides better client-side notification handling
+        // For now, we have the infrastructure in place for when notifications are supported
+        logger.debug(
+            'MCP notification infrastructure ready (actual notifications pending SDK support)'
+        );
+    }
+
+    /**
+     * Handle resource updated notification
+     */
+    private handleResourceUpdated(params: { uri: string; title?: string }): void {
+        logger.debug(`Resource updated: ${params.uri}`);
+        this.emit('resourceUpdated', params);
+    }
+
+    /**
+     * Handle prompts list changed notification
+     */
+    private handlePromptsListChanged(): void {
+        logger.debug('Prompts list changed');
+        this.emit('promptsListChanged');
     }
 }

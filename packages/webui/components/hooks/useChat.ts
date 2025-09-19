@@ -501,6 +501,25 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     });
                     break;
                 }
+                case 'resourceCacheInvalidated': {
+                    // Handle resource cache invalidation events
+                    console.log('💾 Resource cache invalidated via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:resourceCacheInvalidated', {
+                                detail: {
+                                    resourceUri: payload.resourceUri,
+                                    serverName: payload.serverName,
+                                    action: payload.action,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
                 default:
                     break;
             }

@@ -66,6 +66,14 @@ export class PromptsManager {
             this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
                 await refresh(`mcpServerUpdated:${p.serverName}`);
             });
+
+            // Listen for MCP notifications for surgical updates
+            this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
+                await this.updatePromptsForServer(p.serverName, p.prompts);
+                logger.debug(
+                    `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`
+                );
+            });
         }
     }
 
@@ -155,6 +163,72 @@ export class PromptsManager {
         }
         await this.ensureCache();
         logger.info('PromptsManager refreshed');
+    }
+
+    /**
+     * Surgically update prompts for a specific MCP server instead of full cache rebuild
+     */
+    private async updatePromptsForServer(serverName: string, _newPrompts: string[]): Promise<void> {
+        await this.ensureCache();
+        if (!this.promptIndex) return;
+
+        // Remove existing prompts from this server
+        this.removePromptsForServer(serverName);
+
+        // Add new prompts from this server
+        const mcpProvider = this.providers.get('mcp');
+        if (mcpProvider) {
+            try {
+                const { prompts } = await mcpProvider.listPrompts();
+                const serverPrompts = prompts.filter(
+                    (p) =>
+                        p.metadata &&
+                        typeof p.metadata === 'object' &&
+                        'serverName' in p.metadata &&
+                        p.metadata.serverName === serverName
+                );
+
+                for (const prompt of serverPrompts) {
+                    this.insertPrompt(this.promptIndex, this.aliasMap, 'mcp', prompt);
+                }
+            } catch (error) {
+                logger.debug(`Failed to get updated prompts for server '${serverName}': ${error}`);
+            }
+        }
+    }
+
+    /**
+     * Remove all prompts from a specific server
+     */
+    private removePromptsForServer(serverName: string): void {
+        if (!this.promptIndex) return;
+
+        const keysToRemove: string[] = [];
+        for (const [key, entry] of this.promptIndex.entries()) {
+            if (
+                entry.providerName === 'mcp' &&
+                entry.info.metadata &&
+                typeof entry.info.metadata === 'object' &&
+                'serverName' in entry.info.metadata &&
+                entry.info.metadata.serverName === serverName
+            ) {
+                keysToRemove.push(key);
+            }
+        }
+
+        // Remove from index and aliases
+        for (const key of keysToRemove) {
+            const entry = this.promptIndex.get(key);
+            if (entry) {
+                this.promptIndex.delete(key);
+                // Remove aliases that point to this key
+                for (const [aliasKey, aliasValue] of Array.from(this.aliasMap.entries())) {
+                    if (aliasValue === key) {
+                        this.aliasMap.delete(aliasKey);
+                    }
+                }
+            }
+        }
     }
 
     private sanitizePromptInfo(prompt: PromptInfo, providerName: string): PromptInfo {

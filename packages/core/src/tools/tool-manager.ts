@@ -6,6 +6,7 @@ import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -62,6 +63,9 @@ export class ToolManager {
             );
         }
 
+        // Set up event listeners for surgical cache updates
+        this.setupNotificationListeners();
+
         logger.debug('ToolManager initialized');
     }
 
@@ -81,6 +85,83 @@ export class ToolManager {
     private invalidateCache(): void {
         this.cacheValid = false;
         this.toolsCache = {};
+    }
+
+    /**
+     * Set up listeners for MCP notifications to enable surgical cache updates
+     */
+    private setupNotificationListeners(): void {
+        // Listen for MCP server connection changes that affect tools
+        eventBus.on('dexto:mcpServerConnected', async (payload) => {
+            if (payload.success) {
+                logger.debug(`🔄 MCP server connected, updating tool cache: ${payload.name}`);
+                await this.updateToolCacheForServer(payload.name);
+            }
+        });
+
+        eventBus.on('dexto:mcpServerRemoved', async (payload) => {
+            logger.debug(`🔄 MCP server removed, updating tool cache: ${payload.serverName}`);
+            this.removeToolsFromServer(payload.serverName);
+        });
+
+        // For now, we don't have specific tool change notifications from MCP servers
+        // but when they become available, we can add surgical updates here
+        // eventBus.on('dexto:mcpToolsChanged', ...)
+    }
+
+    /**
+     * Surgically update the tool cache when a specific MCP server's tools change
+     */
+    private async updateToolCacheForServer(serverName: string): Promise<void> {
+        if (!this.cacheValid) {
+            // Cache is already invalid, no need for surgical update
+            return;
+        }
+
+        try {
+            // Remove old tools from this server
+            this.removeToolsFromServer(serverName);
+
+            // Get fresh tools from MCP manager
+            const allMcpTools = await this.mcpManager.getAllTools();
+
+            // Add the new MCP tools with prefix to our cache
+            for (const [toolName, toolDef] of Object.entries(allMcpTools)) {
+                const qualifiedName = `${ToolManager.MCP_TOOL_PREFIX}${toolName}`;
+                this.toolsCache[qualifiedName] = {
+                    ...toolDef,
+                    name: qualifiedName,
+                    description: `${toolDef.description || 'No description provided'} (via MCP servers)`,
+                };
+            }
+
+            logger.debug(`✅ Surgically updated tool cache for server: ${serverName}`);
+        } catch (error) {
+            logger.debug(
+                `Failed to surgically update tools for server '${serverName}', will rebuild cache on next access: ${error}`
+            );
+            // Fall back to full cache invalidation
+            this.invalidateCache();
+        }
+    }
+
+    /**
+     * Remove tools from a specific MCP server from the cache
+     */
+    private removeToolsFromServer(serverName: string): void {
+        if (!this.cacheValid) return;
+
+        // Remove all MCP tools (we don't have server-specific tracking yet, so remove all MCP tools)
+        // In the future, we could enhance this to track which tools come from which server
+        const keysToRemove = Object.keys(this.toolsCache).filter((key) =>
+            key.startsWith(ToolManager.MCP_TOOL_PREFIX)
+        );
+
+        for (const key of keysToRemove) {
+            delete this.toolsCache[key];
+        }
+
+        logger.debug(`Removed MCP tools from cache for server: ${serverName}`);
     }
 
     getMcpManager(): MCPManager {
