@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { MCPManager, logger, type ValidatedServerConfigs, jsonSchemaToZodShape } from '@dexto/core';
+import { z } from 'zod';
 
 /**
  * Initializes MCP server for tool aggregation mode.
@@ -32,52 +33,39 @@ export async function initializeMcpToolAggregationServer(
         }
     );
 
-    // Get all tools from connected servers and register them
-    // TODO: Temporary hacky solution to get the tools from the connected servers, directly using the MCP Client to preserve types
-    // TODO: We should use the MCPManager or MCPClient instead of directly interacting with the raw client to get the tools, but we lose type information and it becomes any type which is hard to work with
-    const mcpClientsMap = mcpManager.getClients();
+    const toolDefinitions = await mcpManager.getAllTools();
     let toolCount = 0;
-    for (const [clientName, client] of mcpClientsMap.entries()) {
-        // Get the actual MCP Client
-        const connectedClient = await client.getConnectedClient();
-        // Get the tools from the MCP client
-        const mcpTools = await connectedClient.listTools({});
 
-        logger.debug(`MCP client name: ${clientName}`);
-        logger.debug(`MCP client tools: ${JSON.stringify(mcpTools, null, 2)}`);
+    for (const [toolName, toolDef] of Object.entries(toolDefinitions)) {
+        toolCount++;
+        const jsonSchema = toolDef.parameters ?? { type: 'object', properties: {} };
+        const paramsShape = jsonSchemaToZodShape(jsonSchema);
+        const _paramsSchema = z.object(paramsShape);
+        type ToolArgs = z.infer<typeof _paramsSchema>;
 
-        // TODO: Handle tool name/server name/prompt name collisions properly
-        for (const tool of mcpTools.tools) {
-            toolCount++;
-            logger.debug(`Registering tool: ${tool.name}`);
-
-            // Convert JSON Schema to Zod raw shape
-            const zodShape = jsonSchemaToZodShape(tool.inputSchema);
-
-            // Log the tool schema to debug the issue (safely handle Zod schema circular references)
+        const level = typeof logger.getLevel === 'function' ? logger.getLevel() : 'info';
+        if (level === 'debug' || level === 'verbose' || level === 'silly') {
             logger.debug(
-                `Tool ${tool.name} original inputSchema: ${JSON.stringify(tool.inputSchema, null, 2)}`
-            );
-
-            mcpServer.tool(
-                tool.name,
-                tool.description || `Tool: ${tool.name}`,
-                zodShape,
-                async (args: any) => {
-                    logger.info(
-                        `Tool aggregation: executing ${tool.name} with args: ${JSON.stringify(args)}`
-                    );
-                    try {
-                        const result = await mcpManager.executeTool(tool.name, args);
-                        logger.info(`Tool aggregation: ${tool.name} completed successfully`);
-                        return result;
-                    } catch (error) {
-                        logger.error(`Tool aggregation: ${tool.name} failed: ${error}`);
-                        throw error;
-                    }
-                }
+                `Registering tool '${toolName}' with schema: ${JSON.stringify(jsonSchema)}`
             );
         }
+
+        mcpServer.tool(
+            toolName,
+            toolDef.description || `Tool: ${toolName}`,
+            paramsShape,
+            async (args: ToolArgs) => {
+                logger.info(`Tool aggregation: executing ${toolName}`);
+                try {
+                    const result = await mcpManager.executeTool(toolName, args);
+                    logger.info(`Tool aggregation: ${toolName} completed successfully`);
+                    return result;
+                } catch (error) {
+                    logger.error(`Tool aggregation: ${toolName} failed: ${error}`);
+                    throw error;
+                }
+            }
+        );
     }
 
     logger.info(`Registered ${toolCount} tools from connected MCP servers`);
@@ -87,19 +75,13 @@ export async function initializeMcpToolAggregationServer(
         const allResources = await mcpManager.listAllResources();
         logger.info(`Registering ${allResources.length} resources from connected MCP servers`);
 
-        // TODO: Properly handle resource name collisions by prefixing with client name
-        let resourceIndex = 0;
-        for (const resourceUri of allResources) {
-            mcpServer.resource(
-                `resource_${resourceIndex}_${resourceUri.replace(/[^a-zA-Z0-9]/g, '_')}`,
-                resourceUri,
-                async (uri) => {
-                    logger.info(`Resource aggregation: reading ${uri.href}`);
-                    return await mcpManager.readResource(uri.href);
-                }
-            );
-            resourceIndex++;
-        }
+        allResources.forEach((resource, index) => {
+            const safeId = resource.key.replace(/[^a-zA-Z0-9]/g, '_');
+            mcpServer.resource(`resource_${index}_${safeId}`, resource.key, async () => {
+                logger.info(`Resource aggregation: reading ${resource.key}`);
+                return await mcpManager.readResource(resource.key);
+            });
+        });
     } catch (error) {
         logger.debug(`Skipping resource aggregation: ${error}`);
     }
@@ -111,10 +93,10 @@ export async function initializeMcpToolAggregationServer(
 
         for (const promptName of allPrompts) {
             mcpServer.prompt(promptName, `Prompt: ${promptName}`, async (extra) => {
-                logger.info(
-                    `Prompt aggregation: getting ${promptName} with args: ${JSON.stringify(extra)}`
-                );
-                return await mcpManager.getPrompt(promptName, {});
+                logger.info(`Prompt aggregation: resolving ${promptName}`);
+                const promptArgs =
+                    (extra && 'arguments' in extra ? extra.arguments : undefined) ?? {};
+                return await mcpManager.getPrompt(promptName, promptArgs);
             });
         }
     } catch (error) {

@@ -8,17 +8,17 @@ import { logger } from '../logger/index.js';
 import { SystemPromptError } from './errors.js';
 
 /**
- * PromptManager orchestrates registration, loading, and composition
+ * SystemPromptManager orchestrates registration, loading, and composition
  * of both static and dynamic system-prompt contributors.
  */
-export class PromptManager {
+export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
     private configDir: string;
 
     // TODO: move config dir logic somewhere else
     constructor(config: ValidatedSystemPromptConfig, configDir: string = process.cwd()) {
         this.configDir = configDir;
-        logger.debug(`[PromptManager] Initializing with configDir: ${configDir}`);
+        logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
 
         // Filter enabled contributors and create contributor instances
         const enabledContributors = config.contributors.filter((c) => c.enabled !== false);
@@ -43,7 +43,7 @@ export class PromptManager {
 
             case 'file': {
                 logger.debug(
-                    `[PromptManager] Creating FileContributor "${config.id}" with files: ${JSON.stringify(config.files)}`
+                    `[SystemPromptManager] Creating FileContributor "${config.id}" with files: ${JSON.stringify(config.files)}`
                 );
                 return new FileContributor(
                     config.id,

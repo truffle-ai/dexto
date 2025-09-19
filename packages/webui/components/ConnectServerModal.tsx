@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
+import { clearPromptCache } from '../lib/promptCache';
+import { clearResourcesCache } from './hooks/useResources';
 
 interface ConnectServerModalProps {
     isOpen: boolean;
@@ -237,6 +239,8 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 }
                 console.debug(`[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`);
             }
+            clearPromptCache();
+            clearResourcesCache();
             // Notify parent component that server was connected successfully
             if (onServerConnected) {
                 onServerConnected();

@@ -12,6 +12,8 @@ import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
 import { z } from 'zod';
+import { InternalResourcesSchema } from '@core/resources/schemas.js';
+import { BlobServiceConfigSchema } from '@core/blob/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
@@ -114,6 +116,82 @@ export const AgentConfigSchema = z
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
         ),
+
+        // Internal resources configuration (filesystem, etc.)
+        internalResources: InternalResourcesSchema.describe(
+            'Configuration for internal resources (filesystem, etc.)'
+        ).default([]),
+
+        // Agent-specific starter prompts configuration (used by WebUI and PromptsManager)
+        starterPrompts: z
+            .array(
+                z
+                    .object({
+                        id: z
+                            .string()
+                            .min(1)
+                            .max(64)
+                            .regex(/^[a-z0-9-]+$/)
+                            .describe(
+                                'Kebab-case slug id for the starter prompt (e.g., quick-start)'
+                            ),
+                        title: z
+                            .string()
+                            .optional()
+                            .describe('Display title for the starter prompt'),
+                        description: z
+                            .string()
+                            .optional()
+                            .default('')
+                            .describe('Description shown on hover or in the UI'),
+                        prompt: z
+                            .string()
+                            .describe('The actual prompt text that gets resolved and sent'),
+                        category: z
+                            .enum(['general', 'coding', 'analysis', 'tools', 'learning'])
+                            .optional()
+                            .default('general')
+                            .describe('Category for organizing starter prompts'),
+                        icon: z
+                            .string()
+                            .optional()
+                            .default('')
+                            .describe('Emoji or icon to display'),
+                        priority: z
+                            .number()
+                            .optional()
+                            .default(0)
+                            .describe('Higher numbers appear first'),
+                    })
+                    .strict()
+            )
+            .superRefine((arr, ctx) => {
+                const seen = new Map<string, number>();
+                arr.forEach((p, idx) => {
+                    if (seen.has(p.id)) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: `Duplicate starterPrompt id: ${p.id}`,
+                            path: ['starterPrompts', idx, 'id'],
+                        });
+                    } else {
+                        seen.set(p.id, idx);
+                    }
+                });
+            })
+            .transform((arr) =>
+                arr.map((p) => ({ ...p, title: p.title ?? p.id.replace(/-/g, ' ') }))
+            )
+            .default([])
+            .describe('Starter prompts that appear as clickable buttons in the WebUI'),
+
+        // Blob storage configuration (infrastructure-level blob storage)
+        blobStorage: BlobServiceConfigSchema.default({
+            type: 'local',
+            maxBlobSize: 50 * 1024 * 1024, // 50MB
+            maxTotalSize: 1024 * 1024 * 1024, // 1GB
+            cleanupAfterDays: 30,
+        }).describe('Blob storage backend configuration for large file handling'),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
