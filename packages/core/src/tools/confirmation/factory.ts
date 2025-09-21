@@ -4,6 +4,9 @@
  * Creates ToolConfirmationProvider instances with all required configuration.
  * All fields are mandatory - no defaults or fallbacks.
  *
+ * Note: event-based mode returns a UserApprovalProvider which supports both
+ * tool confirmations and MCP elicitation requests.
+ *
  * Usage:
  *   import { createToolConfirmationProvider } from './factory.js';
  *   const provider = createToolConfirmationProvider({
@@ -15,7 +18,7 @@
  */
 
 import { ToolConfirmationProvider } from './types.js';
-import { EventBasedConfirmationProvider } from './event-based-confirmation-provider.js';
+import { UserApprovalProvider } from './user-approval-provider.js';
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
 import { AgentEventBus } from '../../events/index.js';
@@ -40,13 +43,9 @@ export function createToolConfirmationProvider(
 ): ToolConfirmationProvider {
     switch (options.mode) {
         case 'event-based':
-            return new EventBasedConfirmationProvider(
-                options.allowedToolsProvider,
-                options.agentEventBus,
-                {
-                    confirmationTimeout: options.confirmationTimeout,
-                }
-            );
+            return new UserApprovalProvider(options.allowedToolsProvider, options.agentEventBus, {
+                confirmationTimeout: options.confirmationTimeout,
+            });
         case 'auto-approve':
             return new NoOpConfirmationProvider(options.allowedToolsProvider);
         case 'auto-deny':

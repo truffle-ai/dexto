@@ -765,4 +765,17 @@ export class MCPManager {
             logger.error(`Error handling prompts list change: ${error}`);
         }
     }
+
+    /**
+     * Set the approval provider for all connected MCP clients to enable elicitation
+     * @param approvalProvider The UserApprovalProvider instance
+     */
+    setApprovalProvider(approvalProvider: any): void {
+        for (const client of this.clients.values()) {
+            if (client && typeof (client as any).setApprovalProvider === 'function') {
+                (client as any).setApprovalProvider(approvalProvider);
+            }
+        }
+        logger.debug('Approval provider set for all MCP clients');
+    }
 }

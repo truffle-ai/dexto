@@ -748,6 +748,10 @@ export async function initializeApi(
                     // Route confirmation back via AgentEventBus and do not broadcast an error
                     agent.agentEventBus.emit('dexto:toolConfirmationResponse', data.data);
                     return;
+                } else if (data.type === 'elicitationResponse' && data.data) {
+                    // Route elicitation response back via AgentEventBus and do not broadcast an error
+                    agent.agentEventBus.emit('dexto:elicitationResponse', data.data);
+                    return;
                 } else if (
                     data.type === 'message' &&
                     (data.content || data.imageData || data.fileData)

@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { EventEmitter } from 'events';
 
 import { logger } from '../logger/index.js';
@@ -13,6 +14,12 @@ import type {
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
 import { IMCPClient, MCPResourceSummary } from './types.js';
+import type { ElicitationDetails, ElicitationResponse } from '../tools/confirmation/types.js';
+
+// Interface to avoid circular import with UserApprovalProvider
+interface UserApprovalProviderInterface {
+    requestElicitation(details: ElicitationDetails): Promise<ElicitationResponse>;
+}
 import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
 import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
@@ -34,6 +41,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverPid: number | null = null;
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
+    private approvalProvider: UserApprovalProviderInterface | null = null;
 
     constructor() {
         super();
@@ -140,7 +148,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 version: '1.0.0',
             },
             {
-                capabilities: { tools: {} },
+                capabilities: {
+                    tools: {},
+                    elicitation: {},
+                },
             }
         );
 
@@ -186,7 +197,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 version: '1.0.0',
             },
             {
-                capabilities: { tools: {} },
+                capabilities: {
+                    tools: {},
+                    elicitation: {},
+                },
             }
         );
 
@@ -223,7 +237,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         });
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
-            { capabilities: { tools: {} } }
+            {
+                capabilities: {
+                    tools: {},
+                    elicitation: {},
+                },
+            }
         );
         try {
             logger.info('Establishing HTTP connection...');
@@ -507,11 +526,32 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private setupNotificationHandlers(): void {
         if (!this.client) return;
 
-        // TODO: Implement actual notification handling when MCP SDK provides better client-side notification handling
-        // For now, we have the infrastructure in place for when notifications are supported
-        logger.debug(
-            'MCP notification infrastructure ready (actual notifications pending SDK support)'
-        );
+        // Set up elicitation request handler for server-to-client elicitation
+        try {
+            this.client.setRequestHandler(ElicitRequestSchema, async (request: any) => {
+                logger.debug(
+                    `Received elicitation request: ${JSON.stringify(request.params, null, 2)}`
+                );
+
+                try {
+                    const response = await this.handleElicitationRequest(request.params);
+                    logger.debug(`Elicitation response: ${JSON.stringify(response, null, 2)}`);
+
+                    // Convert our internal response format to MCP SDK format
+                    return {
+                        action: response.action,
+                        content: response.action === 'accept' ? response.data : undefined,
+                    };
+                } catch (error) {
+                    logger.error(`Error handling elicitation request: ${error}`);
+                    throw error;
+                }
+            });
+        } catch (error) {
+            logger.warn(`Could not set elicitation request handler: ${error}`);
+        }
+
+        logger.debug('MCP elicitation request handler registered');
     }
 
     /**
@@ -528,5 +568,56 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private handlePromptsListChanged(): void {
         logger.debug('Prompts list changed');
         this.emit('promptsListChanged');
+    }
+
+    /**
+     * Set the approval provider for handling elicitation requests
+     */
+    setApprovalProvider(provider: UserApprovalProviderInterface): void {
+        this.approvalProvider = provider;
+    }
+
+    /**
+     * Request elicitation from the user via the approval provider
+     */
+    async requestElicitation(details: ElicitationDetails): Promise<ElicitationResponse> {
+        if (!this.approvalProvider) {
+            throw new Error('No approval provider available for elicitation');
+        }
+
+        if (!this.approvalProvider.requestElicitation) {
+            throw new Error('Approval provider does not support elicitation');
+        }
+
+        // Add server name to the details for user context
+        const enrichedDetails = {
+            ...details,
+            serverName: this.serverAlias || this.serverCommand || 'Unknown MCP Server',
+        };
+
+        return await this.approvalProvider.requestElicitation(enrichedDetails);
+    }
+
+    /**
+     * Handle elicitation request from server
+     * This is called when the MCP server sends an elicitation/create request
+     * Note: Actual handling of user interaction is delegated to the UserApprovalProvider
+     */
+    async handleElicitationRequest(params: {
+        message: string;
+        requestedSchema: object;
+        sessionId?: string;
+    }): Promise<ElicitationResponse> {
+        logger.debug(`Handling elicitation request: ${params.message}`);
+
+        // Delegate to the approval provider
+        const details: ElicitationDetails = {
+            message: params.message,
+            requestedSchema: params.requestedSchema,
+        };
+        if (params.sessionId) {
+            details.sessionId = params.sessionId;
+        }
+        return await this.requestElicitation(details);
     }
 }

@@ -25,6 +25,9 @@ export const AGENT_EVENT_NAMES = [
     // Tool confirmation events
     'dexto:toolConfirmationRequest',
     'dexto:toolConfirmationResponse',
+    // Elicitation events
+    'dexto:elicitationRequest',
+    'dexto:elicitationResponse',
 ] as const;
 
 /**
@@ -213,6 +216,24 @@ export interface AgentEventMap {
         executionId: string;
         approved: boolean;
         rememberChoice?: boolean;
+        sessionId?: string;
+    };
+
+    /** Fired when elicitation is requested */
+    'dexto:elicitationRequest': {
+        message: string;
+        requestedSchema: object;
+        executionId: string;
+        timestamp: Date;
+        sessionId?: string;
+        serverName?: string;
+    };
+
+    /** Fired when elicitation response is received */
+    'dexto:elicitationResponse': {
+        executionId: string;
+        action: 'accept' | 'decline' | 'cancel';
+        data?: object;
         sessionId?: string;
     };
 

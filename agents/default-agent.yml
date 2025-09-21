@@ -13,6 +13,11 @@ mcpServers:
     args:
       - -y
       - "@playwright/mcp@latest"
+  elicitation-test:
+    type: stdio
+    command: node
+    args:
+      - elicitation-test-server.js
   # hf:
   #   type: stdio
   #   command: npx
@@ -56,7 +61,9 @@ storage:
     # path: ./data/dexto.db
 
 toolConfirmation:
-  mode: auto-approve
+  mode: event-based
+  timeout: 120000
+  allowedToolsStorage: memory
 
 # Internal resources configuration - manages file system access and blob storage
 internalResources:

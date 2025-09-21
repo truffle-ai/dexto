@@ -105,6 +105,9 @@ export async function createAgentServices(
     const mcpManager = new MCPManager();
     await mcpManager.initializeFromConfig(config.mcpServers);
 
+    // Set the approval provider on all MCP clients for elicitation support
+    mcpManager.setApprovalProvider(confirmationProvider);
+
     // 4. Initialize search service
     const searchService = new SearchService(storage.database);
 

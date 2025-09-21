@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { ToolProvider } from '../tools/types.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { EventEmitter } from 'events';
+import { ElicitationDetails, ElicitationResponse } from '../tools/confirmation/types.js';
 
 export interface MCPResourceSummary {
     uri: string;
@@ -35,4 +36,7 @@ export interface IMCPClient extends ToolProvider, EventEmitter {
 
     // MCP Client Management
     getConnectedClient(): Promise<Client>;
+
+    // Elicitation Management
+    requestElicitation?(details: ElicitationDetails): Promise<ElicitationResponse>;
 }
