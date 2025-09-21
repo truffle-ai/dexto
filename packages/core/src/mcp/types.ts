@@ -1,7 +1,12 @@
 import { ValidatedMcpServerConfig } from './schemas.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { ToolProvider } from '../tools/types.js';
-import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+    CreateMessageRequest,
+    CreateMessageResult,
+    GetPromptResult,
+    ReadResourceResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { EventEmitter } from 'events';
 import { ElicitationDetails, ElicitationResponse } from '../tools/confirmation/types.js';
 
@@ -17,6 +22,18 @@ export interface MCPResolvedResource {
     serverName: string;
     summary: MCPResourceSummary;
 }
+
+export interface SamplingRequestContext {
+    /** Human-friendly name reported by the MCP client (alias/command). */
+    clientName: string;
+    /** Internal identifier used by Dexto for this MCP server. */
+    serverName: string;
+}
+
+export type SamplingRequestHandler = (
+    params: CreateMessageRequest['params'],
+    context: SamplingRequestContext
+) => Promise<CreateMessageResult>;
 
 /**
  * Interface for MCP clients specifically, that can provide tools
@@ -39,4 +56,14 @@ export interface IMCPClient extends ToolProvider, EventEmitter {
 
     // Elicitation Management
     requestElicitation?(details: ElicitationDetails): Promise<ElicitationResponse>;
+
+    // Roots Management
+    setRoots?(roots: Array<{ uri: string; name?: string }>): void;
+    getRoots?(): Array<{ uri: string; name?: string }>;
+    notifyRootsListChanged?(): Promise<void>;
+
+    // Sampling Management
+    setSamplingEnabled?(enabled: boolean): void;
+    isSamplingEnabled?(): boolean;
+    setSamplingHandler?(handler: SamplingRequestHandler | null): void;
 }

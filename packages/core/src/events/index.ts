@@ -21,6 +21,7 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpServerUpdated',
     'dexto:mcpResourceUpdated',
     'dexto:mcpPromptsListChanged',
+    'dexto:mcpRootsChanged',
     'dexto:resourceCacheInvalidated',
     // Tool confirmation events
     'dexto:toolConfirmationRequest',
@@ -248,6 +249,11 @@ export interface AgentEventMap {
     'dexto:mcpPromptsListChanged': {
         serverName: string;
         prompts: string[];
+    };
+
+    /** Fired when MCP filesystem roots are updated */
+    'dexto:mcpRootsChanged': {
+        roots: Array<{ uri: string; name?: string }>;
     };
 
     /** Fired when resource cache should be invalidated */

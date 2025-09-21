@@ -2,7 +2,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+    CreateMessageRequest,
+    CreateMessageRequestSchema,
+    CreateMessageResult,
+    ElicitRequestSchema,
+    ListRootsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { EventEmitter } from 'events';
 
 import { logger } from '../logger/index.js';
@@ -13,7 +19,7 @@ import type {
     ValidatedHttpServerConfig,
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
-import { IMCPClient, MCPResourceSummary } from './types.js';
+import { IMCPClient, MCPResourceSummary, SamplingRequestHandler } from './types.js';
 import type { ElicitationDetails, ElicitationResponse } from '../tools/confirmation/types.js';
 
 // Interface to avoid circular import with UserApprovalProvider
@@ -42,6 +48,9 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
     private approvalProvider: UserApprovalProviderInterface | null = null;
+    private roots: Array<{ uri: string; name?: string }> = [];
+    private samplingEnabled: boolean = true;
+    private samplingHandler: SamplingRequestHandler | null = null;
 
     constructor() {
         super();
@@ -151,6 +160,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 capabilities: {
                     tools: {},
                     elicitation: {},
+                    roots: {
+                        listChanged: true,
+                    },
+                    sampling: {},
                 },
             }
         );
@@ -200,6 +213,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 capabilities: {
                     tools: {},
                     elicitation: {},
+                    roots: {
+                        listChanged: true,
+                    },
+                    sampling: {},
                 },
             }
         );
@@ -241,6 +258,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 capabilities: {
                     tools: {},
                     elicitation: {},
+                    roots: {
+                        listChanged: true,
+                    },
+                    sampling: {},
                 },
             }
         );
@@ -551,7 +572,25 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             logger.warn(`Could not set elicitation request handler: ${error}`);
         }
 
-        logger.debug('MCP elicitation request handler registered');
+        // Handle roots/list requests so servers can discover client roots
+        try {
+            this.client.setRequestHandler(ListRootsRequestSchema, async () => ({
+                roots: this.getRoots(),
+            }));
+        } catch (error) {
+            logger.warn(`Could not set roots/list request handler: ${error}`);
+        }
+
+        // Set up sampling request handler
+        try {
+            this.client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
+                return await this.handleSamplingRequest(request.params);
+            });
+        } catch (error) {
+            logger.warn(`Could not set sampling request handler: ${error}`);
+        }
+
+        logger.debug('MCP request handlers registered (elicitation, roots, sampling)');
     }
 
     /**
@@ -575,6 +614,60 @@ export class MCPClient extends EventEmitter implements IMCPClient {
      */
     setApprovalProvider(provider: UserApprovalProviderInterface): void {
         this.approvalProvider = provider;
+    }
+
+    setSamplingHandler(handler: SamplingRequestHandler | null): void {
+        this.samplingHandler = handler;
+    }
+
+    /**
+     * Set the filesystem roots that this client can access
+     */
+    setRoots(roots: Array<{ uri: string; name?: string }>): void {
+        this.roots = [...roots];
+        logger.debug(`Set ${roots.length} filesystem roots for MCP client`);
+    }
+
+    /**
+     * Get the current filesystem roots
+     */
+    getRoots(): Array<{ uri: string; name?: string }> {
+        return [...this.roots];
+    }
+
+    /**
+     * Notify the server that the roots list has changed
+     */
+    async notifyRootsListChanged(): Promise<void> {
+        if (!this.client || !this.isConnected) {
+            logger.debug('Cannot notify roots list changed - client not connected');
+            return;
+        }
+
+        try {
+            await this.client.notification({
+                method: 'notifications/roots/listChanged',
+                params: {},
+            });
+            logger.debug('Sent roots/listChanged notification to server');
+        } catch (error) {
+            logger.warn(`Failed to send roots/listChanged notification: ${error}`);
+        }
+    }
+
+    /**
+     * Set whether sampling is enabled for this client
+     */
+    setSamplingEnabled(enabled: boolean): void {
+        this.samplingEnabled = enabled;
+        logger.debug(`Sampling ${enabled ? 'enabled' : 'disabled'} for MCP client`);
+    }
+
+    /**
+     * Check if sampling is enabled
+     */
+    isSamplingEnabled(): boolean {
+        return this.samplingEnabled;
     }
 
     /**
@@ -619,5 +712,101 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             details.sessionId = params.sessionId;
         }
         return await this.requestElicitation(details);
+    }
+
+    /**
+     * Handle sampling request from server
+     * This is called when the MCP server sends a sampling/createMessage request
+     */
+    async handleSamplingRequest(
+        params: CreateMessageRequest['params']
+    ): Promise<CreateMessageResult> {
+        logger.debug('Handling sampling request');
+
+        if (!this.samplingEnabled) {
+            throw new Error('Sampling is disabled for this client');
+        }
+
+        if (!this.samplingHandler) {
+            throw new Error('No sampling handler configured for this client');
+        }
+
+        try {
+            if (this.approvalProvider) {
+                const elicitationDetails: ElicitationDetails = {
+                    message: this.buildSamplingApprovalMessage(params),
+                    requestedSchema: {
+                        type: 'object',
+                        properties: {
+                            approved: { type: 'boolean' },
+                        },
+                        required: ['approved'],
+                    },
+                };
+
+                const serverLabel = this.serverAlias || this.serverCommand;
+                if (serverLabel) {
+                    elicitationDetails.serverName = serverLabel;
+                }
+
+                const approval = await this.approvalProvider.requestElicitation(elicitationDetails);
+
+                const approved =
+                    approval.action === 'accept' && Boolean((approval.data as any)?.approved);
+
+                if (!approved) {
+                    return {
+                        model: 'user-declined',
+                        stopReason: 'user_declined',
+                        role: 'assistant',
+                        content: {
+                            type: 'text',
+                            text: 'Sampling request was declined by the user.',
+                        },
+                    };
+                }
+            }
+
+            return await this.samplingHandler(params, {
+                clientName: this.serverAlias || this.serverCommand || 'Unknown MCP Server',
+                serverName: this.serverAlias || this.serverCommand || 'Unknown MCP Server',
+            });
+        } catch (error) {
+            logger.error(`Error handling sampling request: ${error}`);
+            throw error;
+        }
+    }
+
+    private buildSamplingApprovalMessage(params: CreateMessageRequest['params']): string {
+        const messageCount = params.messages?.length ?? 0;
+        const lastMessage = params.messages?.[messageCount - 1];
+        let preview = '';
+
+        if (lastMessage && lastMessage.content?.type === 'text' && lastMessage.content.text) {
+            const trimmed = lastMessage.content.text.trim();
+            if (trimmed) {
+                const maxLength = 160;
+                preview = trimmed.length > maxLength ? `${trimmed.slice(0, maxLength)}…` : trimmed;
+            }
+        }
+
+        const serverLabel = this.serverAlias || this.serverCommand || 'MCP server';
+        let message = `${serverLabel} requested LLM sampling (${messageCount} message${
+            messageCount === 1 ? '' : 's'
+        }).`;
+
+        if (preview) {
+            message += `\n\nLatest user message preview:\n"${preview}"`;
+        }
+
+        if (typeof params.temperature === 'number') {
+            message += `\n\nRequested temperature: ${params.temperature}`;
+        }
+
+        if (typeof params.maxTokens === 'number') {
+            message += `\nRequested max tokens: ${params.maxTokens}`;
+        }
+
+        return message;
     }
 }

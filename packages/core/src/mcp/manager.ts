@@ -1,9 +1,16 @@
+import path from 'path';
+import { pathToFileURL } from 'url';
 import { MCPClient } from './mcp-client.js';
 import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
-import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js';
-import { ToolSet } from '../tools/types.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+    IMCPClient,
+    MCPResolvedResource,
+    MCPResourceSummary,
+    SamplingRequestHandler,
+} from './types.js';
+import { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
 
@@ -54,6 +61,7 @@ export class MCPManager {
     private promptToClientMap: Map<string, IMCPClient> = new Map();
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
+    private samplingHandler: SamplingRequestHandler | null = null;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
@@ -122,6 +130,7 @@ export class MCPManager {
         this.clients.set(name, client);
         this.sanitizedNameToServerMap.set(sanitizedName, name);
         this.setupClientNotifications(name, client);
+        this.bindSamplingHandlerToClient(name, client);
 
         logger.info(`Registered client: ${name}`);
         delete this.connectionErrors[name];
@@ -682,6 +691,25 @@ export class MCPManager {
         }
     }
 
+    private bindSamplingHandlerToClient(clientName: string, client: IMCPClient): void {
+        if (typeof client.setSamplingHandler !== 'function') {
+            return;
+        }
+
+        if (!this.samplingHandler) {
+            client.setSamplingHandler(null);
+            return;
+        }
+
+        const boundHandler: SamplingRequestHandler = async (params, context) =>
+            await this.samplingHandler!(params, {
+                clientName: context.clientName,
+                serverName: clientName,
+            });
+
+        client.setSamplingHandler(boundHandler);
+    }
+
     /**
      * Handle resource updated notification
      */
@@ -777,5 +805,206 @@ export class MCPManager {
             }
         }
         logger.debug('Approval provider set for all MCP clients');
+    }
+
+    /**
+     * Set filesystem roots for all connected MCP clients
+     * @param roots Array of root objects with uri and optional name
+     */
+    setRoots(roots: Array<{ uri: string; name?: string }>): void {
+        for (const [clientName, client] of this.clients.entries()) {
+            if (client && typeof (client as any).setRoots === 'function') {
+                (client as any).setRoots(roots);
+                logger.debug(`Set roots for MCP client: ${clientName}`);
+            }
+        }
+        logger.debug(`Set ${roots.length} filesystem roots for all MCP clients`);
+
+        // Emit event to notify system of roots change
+        eventBus.emit('dexto:mcpRootsChanged', { roots });
+    }
+
+    /**
+     * Set filesystem roots for a specific MCP client
+     * @param clientName Name of the client
+     * @param roots Array of root objects with uri and optional name
+     */
+    setClientRoots(clientName: string, roots: Array<{ uri: string; name?: string }>): void {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot set roots for unknown client: ${clientName}`);
+            return;
+        }
+
+        if (typeof (client as any).setRoots === 'function') {
+            (client as any).setRoots(roots);
+            logger.debug(`Set ${roots.length} roots for MCP client: ${clientName}`);
+        }
+    }
+
+    /**
+     * Get filesystem roots from a specific MCP client
+     * @param clientName Name of the client
+     * @returns Array of root objects, or empty array if client not found
+     */
+    getClientRoots(clientName: string): Array<{ uri: string; name?: string }> {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot get roots for unknown client: ${clientName}`);
+            return [];
+        }
+
+        if (typeof (client as any).getRoots === 'function') {
+            return (client as any).getRoots();
+        }
+        return [];
+    }
+
+    /**
+     * Notify all clients that roots have changed
+     */
+    async notifyRootsChanged(roots?: Array<{ uri: string; name?: string }>): Promise<void> {
+        const notificationPromises: Promise<void>[] = [];
+
+        for (const [clientName, client] of this.clients.entries()) {
+            if (client && typeof (client as any).notifyRootsListChanged === 'function') {
+                const notifyPromise = (client as any)
+                    .notifyRootsListChanged()
+                    .catch((error: Error) => {
+                        logger.warn(
+                            `Failed to notify roots change for client ${clientName}: ${error.message}`
+                        );
+                    });
+                notificationPromises.push(notifyPromise);
+            }
+        }
+
+        await Promise.all(notificationPromises);
+        logger.debug('Notified all MCP clients of roots list changes');
+
+        // Emit event if roots provided
+        if (roots) {
+            eventBus.emit('dexto:mcpRootsChanged', { roots });
+        }
+    }
+
+    /**
+     * Auto-configure roots from a ResourceManager's internal filesystem configuration
+     * @param resourceManager The ResourceManager instance to extract filesystem roots from
+     */
+    autoConfigureRootsFromResourceManager(resourceManager: any): void {
+        try {
+            // Access the internal resources provider to get filesystem handler
+            const provider = (resourceManager as any).internalResourcesProvider;
+            if (!provider) {
+                logger.debug(
+                    'No internal resources provider found - skipping auto-configure roots'
+                );
+                return;
+            }
+
+            // Get filesystem handler to extract root paths
+            const handlers = (provider as any).handlers;
+            const filesystemHandler = handlers?.get('filesystem');
+
+            if (filesystemHandler && (filesystemHandler as any).canonicalRoots) {
+                const canonicalRoots = (filesystemHandler as any).canonicalRoots as string[];
+
+                // Convert filesystem paths to MCP root format
+                const roots = canonicalRoots.map((rootPath: string) => {
+                    const uri = pathToFileURL(rootPath).toString();
+                    const name = path.basename(rootPath) || rootPath;
+                    return { uri, name };
+                });
+
+                if (roots.length > 0) {
+                    this.setRoots(roots);
+                    logger.info(
+                        `Auto-configured ${roots.length} MCP roots from filesystem resources`
+                    );
+                    logger.debug(
+                        `Configured MCP root URIs: ${roots.map((root) => root.uri).join(', ')}`
+                    );
+                } else {
+                    logger.debug('No filesystem roots found to configure');
+                }
+            } else {
+                logger.debug('No filesystem handler found - skipping auto-configure roots');
+            }
+        } catch (error) {
+            logger.warn(
+                `Failed to auto-configure MCP roots: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    /**
+     * Register or clear the sampling handler responsible for `sampling/createMessage` requests.
+     * @param handler Sampling handler implementation or null to disable handling
+     */
+    setSamplingHandler(handler: SamplingRequestHandler | null): void {
+        this.samplingHandler = handler;
+        for (const [clientName, client] of this.clients.entries()) {
+            this.bindSamplingHandlerToClient(clientName, client);
+        }
+        if (!handler) {
+            logger.debug('Cleared sampling handler for all MCP clients');
+        } else {
+            logger.debug('Sampling handler configured for MCP clients');
+        }
+    }
+
+    /**
+     * Enable or disable sampling for all connected MCP clients
+     * @param enabled Whether sampling should be enabled
+     */
+    setSamplingEnabled(enabled: boolean): void {
+        for (const [clientName, client] of this.clients.entries()) {
+            if (client && typeof (client as any).setSamplingEnabled === 'function') {
+                (client as any).setSamplingEnabled(enabled);
+                logger.debug(
+                    `Sampling ${enabled ? 'enabled' : 'disabled'} for MCP client: ${clientName}`
+                );
+            }
+        }
+        logger.debug(`Sampling ${enabled ? 'enabled' : 'disabled'} for all MCP clients`);
+    }
+
+    /**
+     * Enable or disable sampling for a specific MCP client
+     * @param clientName Name of the client
+     * @param enabled Whether sampling should be enabled
+     */
+    setClientSamplingEnabled(clientName: string, enabled: boolean): void {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot set sampling for unknown client: ${clientName}`);
+            return;
+        }
+
+        if (typeof (client as any).setSamplingEnabled === 'function') {
+            (client as any).setSamplingEnabled(enabled);
+            logger.debug(
+                `Sampling ${enabled ? 'enabled' : 'disabled'} for MCP client: ${clientName}`
+            );
+        }
+    }
+
+    /**
+     * Check if sampling is enabled for a specific MCP client
+     * @param clientName Name of the client
+     * @returns Whether sampling is enabled, or false if client not found
+     */
+    isClientSamplingEnabled(clientName: string): boolean {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot check sampling status for unknown client: ${clientName}`);
+            return false;
+        }
+
+        if (typeof (client as any).isSamplingEnabled === 'function') {
+            return (client as any).isSamplingEnabled();
+        }
+        return false;
     }
 }
