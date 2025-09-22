@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function POST(req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {
@@ -17,8 +18,11 @@ export async function POST(req: Request, context: { params: Promise<{ sessionId:
 
         await client.loadSession(sessionId);
         return NextResponse.json({ status: 'loaded', sessionId });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
-        return NextResponse.json({ error: err?.message || 'Failed to load session' }, { status });
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
+        return NextResponse.json(
+            { error: resolveMessage(err, 'Failed to load session') },
+            { status }
+        );
     }
 }

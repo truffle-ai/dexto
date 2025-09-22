@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function POST(
     req: Request,
@@ -37,10 +38,10 @@ export async function POST(
 
         const result = await client.executeMCPTool(serverId, toolName, body);
         return NextResponse.json({ success: true, data: result });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to execute MCP tool' },
+            { error: resolveMessage(err, 'Failed to execute MCP tool') },
             { status }
         );
     }

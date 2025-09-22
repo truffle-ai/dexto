@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function POST(req: Request) {
     try {
@@ -33,14 +34,13 @@ export async function POST(req: Request) {
         }
 
         // now that types are safe, connect
-        await client.connectMCPServer(name, config as object);
+        await client.connectMCPServer(name, config as Record<string, unknown>);
 
         return NextResponse.json({ status: 'connected', name });
     } catch (err: unknown) {
-        const anyErr = err as { statusCode?: number; message?: string };
-        const status = anyErr?.statusCode || 500;
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: anyErr?.message || 'Failed to connect server' },
+            { error: resolveMessage(err, 'Failed to connect server') },
             { status }
         );
     }

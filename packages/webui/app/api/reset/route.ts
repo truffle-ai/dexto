@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function POST(req: Request) {
     try {
@@ -33,10 +34,10 @@ export async function POST(req: Request) {
         // Proceed with reset
         await client.resetConversation(sessionId as string | undefined);
         return NextResponse.json({ status: 'reset initiated', sessionId });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to reset conversation' },
+            { error: resolveMessage(err, 'Failed to reset conversation') },
             { status }
         );
     }

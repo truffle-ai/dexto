@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(req: Request) {
     try {
@@ -55,10 +56,10 @@ export async function GET(req: Request) {
         });
 
         return NextResponse.json(results);
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to search messages' },
+            { error: resolveMessage(err, 'Failed to search messages') },
             { status }
         );
     }

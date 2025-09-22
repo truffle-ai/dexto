@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function DELETE(_req: Request, context: { params: Promise<{ serverId: string }> }) {
     try {
@@ -17,10 +18,10 @@ export async function DELETE(_req: Request, context: { params: Promise<{ serverI
 
         await client.disconnectMCPServer(serverId);
         return NextResponse.json({ status: 'disconnected', serverId });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to disconnect MCP server' },
+            { error: resolveMessage(err, 'Failed to disconnect MCP server') },
             { status }
         );
     }

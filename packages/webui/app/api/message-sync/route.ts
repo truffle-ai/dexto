@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage, errorHasCode } from '@/lib/api-error';
 
 export async function POST(req: Request) {
     try {
@@ -25,14 +26,21 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json(response);
-    } catch (err: any) {
-        const isValidation = err?.name === 'ZodError' || err?.code === 'VALIDATION_ERROR';
-        const isSyntaxError = err?.name === 'SyntaxError' || err?.type === 'entity.parse.failed';
-        const isForbidden = err?.code === 'FORBIDDEN_RUNTIME' || err?.statusCode === 403;
-        const status =
-            err?.statusCode || (isValidation || isSyntaxError ? 400 : isForbidden ? 403 : 500);
+    } catch (err: unknown) {
+        const anyErr = err as { name?: string; type?: string } | undefined;
+        const isValidation = anyErr?.name === 'ZodError' || errorHasCode(err, 'VALIDATION_ERROR');
+        const isSyntaxError =
+            anyErr?.name === 'SyntaxError' || anyErr?.type === 'entity.parse.failed';
+
+        const baseStatus = resolveStatus(err, 500);
+        const isForbidden = errorHasCode(err, 'FORBIDDEN_RUNTIME') || baseStatus === 403;
+        const status = isValidation || isSyntaxError ? 400 : isForbidden ? 403 : baseStatus;
+
         const errorMessage =
-            isValidation || isSyntaxError ? 'Invalid request body' : 'Failed to send message';
+            isValidation || isSyntaxError
+                ? 'Invalid request body'
+                : resolveMessage(err, 'Failed to send message');
+
         return NextResponse.json({ error: errorMessage }, { status });
     }
 }

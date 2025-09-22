@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function POST(req: Request) {
     try {
@@ -28,8 +29,10 @@ export async function POST(req: Request) {
         const newConfig = await client.switchLLM(config as any, sid);
         return NextResponse.json({ config: newConfig });
     } catch (err: unknown) {
-        const anyErr = err as { statusCode?: number; message?: string };
-        const status = anyErr?.statusCode || 500;
-        return NextResponse.json({ error: anyErr?.message || 'Failed to switch LLM' }, { status });
+        const status = resolveStatus(err, 500);
+        return NextResponse.json(
+            { error: resolveMessage(err, 'Failed to switch LLM') },
+            { status }
+        );
     }
 }

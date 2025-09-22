@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(_req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {
@@ -17,9 +18,12 @@ export async function GET(_req: Request, context: { params: Promise<{ sessionId:
 
         const session = await client.getSession(sessionId);
         return NextResponse.json({ session });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
-        return NextResponse.json({ error: err?.message || 'Failed to get session' }, { status });
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
+        return NextResponse.json(
+            { error: resolveMessage(err, 'Failed to get session') },
+            { status }
+        );
     }
 }
 
@@ -39,8 +43,11 @@ export async function DELETE(_req: Request, context: { params: Promise<{ session
 
         await client.deleteSession(sessionId);
         return NextResponse.json({ status: 'deleted', sessionId });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
-        return NextResponse.json({ error: err?.message || 'Failed to delete session' }, { status });
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
+        return NextResponse.json(
+            { error: resolveMessage(err, 'Failed to delete session') },
+            { status }
+        );
     }
 }

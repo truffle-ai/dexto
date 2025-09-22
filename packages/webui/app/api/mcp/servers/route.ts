@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(_req: Request) {
     try {
@@ -16,10 +17,10 @@ export async function GET(_req: Request) {
 
         const servers = await client.listMCPServers();
         return NextResponse.json({ servers });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to get MCP servers' },
+            { error: resolveMessage(err, 'Failed to get MCP servers') },
             { status }
         );
     }
@@ -44,10 +45,10 @@ export async function POST(req: Request) {
         }
         await client.connectMCPServer(name, config);
         return NextResponse.json({ status: 'connected', name });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to connect MCP server' },
+            { error: resolveMessage(err, 'Failed to connect MCP server') },
             { status }
         );
     }

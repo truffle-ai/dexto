@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(req: Request) {
     try {
@@ -18,8 +19,11 @@ export async function GET(req: Request) {
         const sessionId = url.searchParams.get('sessionId') || undefined;
         const config = await client.getCurrentLLMConfig(sessionId);
         return NextResponse.json({ config });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
-        return NextResponse.json({ error: err?.message || 'Failed to get LLM config' }, { status });
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
+        return NextResponse.json(
+            { error: resolveMessage(err, 'Failed to get LLM config') },
+            { status }
+        );
     }
 }

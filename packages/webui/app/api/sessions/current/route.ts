@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(_req: Request) {
     try {
@@ -16,10 +17,10 @@ export async function GET(_req: Request) {
 
         const currentSessionId = await client.getCurrentSession();
         return NextResponse.json({ currentSessionId });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to get current session' },
+            { error: resolveMessage(err, 'Failed to get current session') },
             { status }
         );
     }

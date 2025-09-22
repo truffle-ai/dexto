@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage, errorHasCode } from '@/lib/api-error';
 
 export async function POST(req: Request) {
     try {
@@ -25,8 +26,11 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json(response);
-    } catch (err: any) {
-        const status = err?.statusCode || (err?.code === 'VALIDATION_ERROR' ? 400 : 500);
-        return NextResponse.json({ error: err?.message || 'Failed to send message' }, { status });
+    } catch (err: unknown) {
+        const status = errorHasCode(err, 'VALIDATION_ERROR') ? 400 : resolveStatus(err, 500);
+        return NextResponse.json(
+            { error: resolveMessage(err, 'Failed to send message') },
+            { status }
+        );
     }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {
@@ -20,10 +21,10 @@ export async function GET(req: Request, context: { params: Promise<{ sessionId: 
 
         const history = await client.getSessionHistory(sessionId);
         return NextResponse.json({ history });
-    } catch (err: any) {
-        const status = err?.statusCode || 500;
+    } catch (err: unknown) {
+        const status = resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to get session history' },
+            { error: resolveMessage(err, 'Failed to get session history') },
             { status }
         );
     }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
 import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
 import type { CatalogQuery } from '@/lib/validation';
+import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
 export async function GET(request: Request) {
     try {
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
             ...(provider && { provider }),
             ...(typeof hasKey !== 'undefined' && { hasKey: hasKey === 'true' }),
             ...(router && { router: router as 'vercel' | 'in-built' }),
-            ...(fileType && { fileType: fileType as 'audio' | 'pdf' | 'image' | 'text' }),
+            ...(fileType && { fileType: fileType as 'audio' | 'pdf' | 'image' }),
             ...(typeof defaultOnly !== 'undefined' && { defaultOnly: defaultOnly === 'true' }),
             mode: (mode as 'grouped' | 'flat') ?? 'grouped',
         });
@@ -41,6 +42,10 @@ export async function GET(request: Request) {
         return NextResponse.json(catalog);
     } catch (error) {
         console.error('Error fetching LLM catalog:', error);
-        return NextResponse.json({ error: 'Failed to fetch LLM catalog' }, { status: 500 });
+        const status = resolveStatus(error, 500);
+        return NextResponse.json(
+            { error: resolveMessage(error, 'Failed to fetch LLM catalog') },
+            { status }
+        );
     }
 }

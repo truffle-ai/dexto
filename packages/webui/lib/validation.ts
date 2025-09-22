@@ -12,7 +12,7 @@ export const CatalogQuerySchema = z
         provider: z.string().optional(),
         hasKey: z.enum(['true', 'false']).optional(),
         router: z.enum(['vercel', 'in-built']).optional(),
-        fileType: z.enum(['audio', 'pdf', 'image', 'text']).optional(),
+        fileType: z.enum(['audio', 'pdf', 'image']).optional(),
         defaultOnly: z.enum(['true', 'false']).optional(),
         mode: z.enum(['grouped', 'flat']).optional(),
     })

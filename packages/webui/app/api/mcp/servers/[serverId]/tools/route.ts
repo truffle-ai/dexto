@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
+import { resolveStatus, resolveMessage, errorHasCode } from '@/lib/api-error';
 
 export async function GET(req: Request, context: { params: Promise<{ serverId: string }> }) {
     try {
@@ -17,10 +18,10 @@ export async function GET(req: Request, context: { params: Promise<{ serverId: s
 
         const tools = await client.getMCPServerTools(serverId);
         return NextResponse.json({ tools });
-    } catch (err: any) {
-        const status = err?.statusCode || (err?.code === 'VALIDATION_ERROR' ? 400 : 500);
+    } catch (err: unknown) {
+        const status = errorHasCode(err, 'VALIDATION_ERROR') ? 400 : resolveStatus(err, 500);
         return NextResponse.json(
-            { error: err?.message || 'Failed to get MCP server tools' },
+            { error: resolveMessage(err, 'Failed to get MCP server tools') },
             { status }
         );
     }
