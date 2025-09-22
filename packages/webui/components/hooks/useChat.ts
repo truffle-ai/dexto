@@ -1,10 +1,15 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { TextPart, InternalMessage, FilePart } from '@dexto/core';
-import type { LLMRouter, LLMProvider } from '@dexto/core';
-import { toError } from '@dexto/core';
-import type { Issue } from '@dexto/core';
+import type {
+    TextPart,
+    InternalMessage,
+    FilePart,
+    LLMRouter,
+    LLMProvider,
+    Issue,
+} from '@dexto/client-sdk';
+import { toAppError } from '@/lib/api-error';
 
 // Re-export types from lib
 export type { TextPart, InternalMessage, FilePart, Issue, LLMRouter, LLMProvider };
@@ -178,7 +183,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
             try {
                 msg = JSON.parse(event.data);
             } catch (err: unknown) {
-                const error = toError(err);
+                const error = toAppError(err);
                 console.error(`[useChat] WebSocket message parse error: ${error.message}`, {
                     error,
                 });
@@ -485,7 +490,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     }
 
                     // Otherwise, set an error banner (separate from messages)
-                    const errorMessage = toError(payload).message;
+                    const errorMessage = toAppError(payload).message;
                     setActiveError({
                         id: generateUniqueId(),
                         message: errorMessage,

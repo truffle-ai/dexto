@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { McpServerConfig, StdioServerConfig, SseServerConfig, HttpServerConfig } from '@dexto/core';
+import type {
+    McpServerConfig,
+    StdioServerConfig,
+    SseServerConfig,
+    HttpServerConfig,
+} from '@dexto/client-sdk';
 import {
     Dialog,
     DialogContent,

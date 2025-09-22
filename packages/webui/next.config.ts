@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
     // Ensure webpack can resolve ESM-style .js imports to .ts sources
     webpack: (config) => {
         config.resolve = config.resolve || {};
-        // Prefer package imports (@dexto/core); legacy alias can be removed once all imports migrate
+        // Prefer package imports (e.g. @dexto/client-sdk); legacy alias can be removed once all imports migrate
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
         } as Record<string, string>;

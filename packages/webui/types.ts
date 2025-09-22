@@ -3,9 +3,9 @@
  * Now using core types where possible
  */
 
-// Re-export core types
-export type { ToolResult, ToolCall } from '@dexto/core';
-import type { ToolCall } from '@dexto/core';
+// Re-export SDK tool types for playground consumers
+export type { ToolResult, ToolCall } from '@dexto/client-sdk';
+import type { ToolCall } from '@dexto/client-sdk';
 
 // WebUI-specific types that extend core types
 export interface JsonSchemaProperty {

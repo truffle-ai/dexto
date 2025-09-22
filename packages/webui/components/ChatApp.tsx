@@ -32,7 +32,7 @@ import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
-import type { McpServerConfig } from '@dexto/core';
+import type { McpServerConfig } from '@dexto/client-sdk';
 
 export default function ChatApp() {
 

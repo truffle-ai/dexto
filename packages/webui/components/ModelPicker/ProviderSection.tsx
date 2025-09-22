@@ -12,7 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMProvider } from "@dexto/core";
+import type { LLMProvider } from '@dexto/client-sdk';
 import { PROVIDER_LOGOS, needsDarkModeInversion, PROVIDER_PRICING_URLS, formatPricingLines } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 

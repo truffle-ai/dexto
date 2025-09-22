@@ -1,14 +1,31 @@
 /**
- * WebUI types that extend core types for UI-specific needs
- * Now using @core imports for shared types
+ * WebUI types that extend client SDK types for UI-specific needs.
+ * Import exclusively through @dexto/client-sdk so browser bundles
+ * never pull Node-centric @dexto/core modules.
  */
 
-// Import core types for local use (use package entry to avoid path drift)
-import type { TextPart, ImagePart, FilePart, LLMRouter, ModelInfo } from '@dexto/core';
+import type {
+    TextPart,
+    ImagePart,
+    FilePart,
+    LLMRouter,
+    ModelInfo,
+    CatalogProvider as SdkCatalogProvider,
+    CatalogResponse as SdkCatalogResponse,
+} from '@dexto/client-sdk';
 
-// Re-export core types that are commonly used in webui
-export type { TextPart, ImagePart, FilePart, InternalMessage, FileData } from '@dexto/core';
-export type { LLMRouter, SupportedFileType, LLMProvider, ModelInfo } from '@dexto/core';
+// Re-export SDK types that are commonly used across the WebUI
+export type {
+    TextPart,
+    ImagePart,
+    FilePart,
+    InternalMessage,
+    FileData,
+    LLMRouter,
+    SupportedFileType,
+    LLMProvider,
+    CatalogOptions,
+} from '@dexto/client-sdk';
 
 // WebUI-specific extensions
 export interface AudioPart {
@@ -20,17 +37,5 @@ export interface AudioPart {
 
 export type ContentPart = TextPart | ImagePart | AudioPart | FilePart;
 
-// WebUI-specific provider catalog types
-export interface ProviderCatalog {
-    name: string;
-    hasApiKey: boolean;
-    primaryEnvVar: string;
-    supportedRouters: LLMRouter[];
-    supportsBaseURL: boolean;
-    models: ModelInfo[];
-}
-
-export interface CatalogResponse {
-    providers?: Record<string, ProviderCatalog>;
-    models?: Array<ModelInfo & { provider: string }>;
-}
+export type ProviderCatalog = SdkCatalogProvider;
+export type CatalogResponse = SdkCatalogResponse;

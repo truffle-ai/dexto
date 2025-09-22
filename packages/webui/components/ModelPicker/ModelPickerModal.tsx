@@ -21,7 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { LLMRouter as SupportedRouter } from "@dexto/core";
+import type { LLMRouter as SupportedRouter } from '@dexto/client-sdk';
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines, type LLMProviderID } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 

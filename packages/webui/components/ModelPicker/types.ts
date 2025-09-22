@@ -1,23 +1,15 @@
-// Re-export types from core to avoid duplication
-export type { LLMRouter, SupportedFileType, ModelInfo } from '@dexto/core';
+// Surface SDK types to consumers of this helper module
+export type {
+    LLMRouter,
+    SupportedFileType,
+    ModelInfo,
+    CatalogProvider,
+    CatalogResponse,
+} from '@dexto/client-sdk';
 
-// Import for type annotation usage
-import type { LLMRouter, ModelInfo } from '@dexto/core';
+import type { LLMRouter, CatalogProvider as SdkCatalogProvider } from '@dexto/client-sdk';
 
-// Local types that extend core types for webui-specific needs
-export interface ProviderCatalog {
-    name: string;
-    hasApiKey: boolean;
-    primaryEnvVar: string;
-    supportedRouters: LLMRouter[];
-    supportsBaseURL: boolean;
-    models: ModelInfo[];
-}
-
-export interface CatalogResponse {
-    providers?: Record<string, ProviderCatalog>;
-    models?: Array<ModelInfo & { provider: string }>;
-}
+export type ProviderCatalog = SdkCatalogProvider;
 
 // Local utility types for this component
 export type CurrentLLMConfigResponse = {

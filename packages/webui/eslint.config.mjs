@@ -2,9 +2,9 @@ import tsParser from '@typescript-eslint/parser';
 
 // TODO: Improve imports to make them browser-safe.
 // Local ESLint config for the Web UI only.
-// Keeps the UI browser-safe by restricting imports to types (and `toError`) from '@dexto/core'.
-// If a rule fails, it means an import would pull Node-only modules (fs/path/winston) 
-// into the UI bundle — use the API for runtime instead.
+// Keeps the UI browser-safe by routing all shared types through '@dexto/client-sdk'.
+// Importing '@dexto/core' directly can pull Node-only modules (fs/path/winston)
+// into the bundle — use the API for runtime behavior instead.
 export default [
   {
     files: ['**/*.ts', '**/*.tsx'],
@@ -35,30 +35,12 @@ export default [
               message:
                 'Web UI must not import the Node logger. Use the API for runtime or rely on browser console logging.',
             },
+            {
+              name: '@dexto/core',
+              message:
+                'Web UI must source shared types from @dexto/client-sdk to keep browser bundles lean.',
+            },
           ],
-        },
-      ],
-      // Disallow value imports from '@dexto/core' except `toError`.
-      // Keep browser bundles safe while long-term logger split is pending.
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector:
-            "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportDefaultSpecifier",
-          message:
-            "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-        },
-        {
-          selector:
-            "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportNamespaceSpecifier",
-          message:
-            "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-        },
-        {
-          selector:
-            "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportSpecifier:not([imported.name='toError'])",
-          message:
-            "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
         },
       ],
     },
