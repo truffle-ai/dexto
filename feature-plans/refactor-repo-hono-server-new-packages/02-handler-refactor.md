@@ -3,6 +3,7 @@
 We are skipping the dedicated `handlers/` abstraction for now to keep the migration lightweight. All
 business logic will live inside the Hono route modules, alongside the request/response validation
 schemas that power automatic OpenAPI generation.
+Dedicated `handlers` would allow us to use tools other than hono to host the API layer - not reqd right now.
 
 ## Current approach
 - Each route module (e.g. `packages/server/src/hono/routes/messages.ts`) imports the shared
