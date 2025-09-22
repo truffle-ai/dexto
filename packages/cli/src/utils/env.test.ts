@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir, homedir } from 'os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { loadEnvironmentVariables, applyLayeredEnvironmentLoading } from './env.js';
+import { loadEnvironmentVariables, applyLayeredEnvironmentLoading } from '../utils/env.js';
 import { updateEnvFile } from '@dexto/core';
 import * as core from '@dexto/core';
 import type { ExecutionContext } from '@dexto/core';

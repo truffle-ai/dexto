@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Load environment variables FIRST with layered loading
-import { applyLayeredEnvironmentLoading } from './runtime/env.js';
+import { applyLayeredEnvironmentLoading } from './utils/env.js';
 
 // Apply layered environment loading before any other imports
 await applyLayeredEnvironmentLoading();
@@ -32,7 +32,7 @@ import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
-import { getPort } from './runtime/port-utils.js';
+import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
     createTsconfigJson,
@@ -562,9 +562,9 @@ program
             if (opts.agent && isPath(opts.agent)) {
                 resolvedPath = await resolveAgentPath(opts.agent, opts.autoInstall !== false, true);
             }
-            // Cases 2 & 3: Default agent or registry agent
+            // Cases 2 & 3: Registry agent or default agent
             else {
-                // Early registry validation for named agents
+                // Check if agent provided is a named registry agent
                 if (opts.agent) {
                     const registry = getAgentRegistry();
                     if (!registry.hasAgent(opts.agent)) {
@@ -613,9 +613,6 @@ program
         try {
             console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
 
-            // Set run mode for tool confirmation provider
-            process.env.DEXTO_RUN_MODE = opts.mode;
-
             // Apply --strict flag to all server configs
             if (opts.strict && validatedConfig.mcpServers) {
                 for (const [_serverName, serverConfig] of Object.entries(
@@ -626,7 +623,7 @@ program
                 }
             }
 
-            // DextoAgent will parse/validate again (parse-twice pattern)
+            // DextoAgent will parse/validate again
             agent = new DextoAgent(validatedConfig);
 
             // Start the agent (initialize async services)
