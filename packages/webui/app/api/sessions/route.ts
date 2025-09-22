@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
 import { resolveStatus, resolveMessage } from '@/lib/api-error';
+import { SessionCreateRequestSchema } from '@/lib/validation';
 
 export async function GET(_req: Request) {
     try {
@@ -39,8 +40,23 @@ export async function POST(req: Request) {
             { enableWebSocket: false }
         );
 
-        const { sessionId } = await req.json();
-        const session = await client.createSession(sessionId);
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+        }
+
+        const result = SessionCreateRequestSchema.safeParse(body);
+        if (!result.success) {
+            const message = result.error.errors.map((e) => e.message).join(', ');
+            return NextResponse.json({ error: `Invalid request: ${message}` }, { status: 400 });
+        }
+
+        const { sessionId } = result.data;
+        const normalizedSessionId =
+            sessionId && sessionId.trim().length > 0 ? sessionId.trim() : undefined;
+        const session = await client.createSession(normalizedSessionId);
         return NextResponse.json({ session });
     } catch (err: unknown) {
         const status = resolveStatus(err, 500);

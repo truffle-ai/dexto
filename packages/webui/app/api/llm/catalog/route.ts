@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
-import { CatalogQuerySchema, validateQuery } from '@/lib/validation';
+import { CatalogQuerySchema } from '@/lib/validation';
 import type { CatalogQuery } from '@/lib/validation';
 import { resolveStatus, resolveMessage } from '@/lib/api-error';
 
@@ -22,12 +22,16 @@ export async function GET(request: Request) {
         const queryObject = Object.fromEntries(url.searchParams.entries());
 
         // Validate query parameters
-        const validation = validateQuery<CatalogQuery>(CatalogQuerySchema, queryObject);
-        if (!validation.success) {
-            return NextResponse.json(validation.response, { status: 400 });
+        const result = CatalogQuerySchema.safeParse(queryObject);
+        if (!result.success) {
+            const message = result.error.errors.map((e) => e.message).join(', ');
+            return NextResponse.json(
+                { error: `Invalid query parameters: ${message}` },
+                { status: 400 }
+            );
         }
 
-        const { provider, hasKey, router, fileType, defaultOnly, mode } = validation.data;
+        const { provider, hasKey, router, fileType, defaultOnly, mode } = result.data;
 
         // Forward validated parameters to the client SDK
         const catalog = await client.getLLMCatalog({

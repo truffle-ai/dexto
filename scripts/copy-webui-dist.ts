@@ -25,9 +25,10 @@ async function copyWebUIBuild(): Promise<void> {
         // Create target directory
         await fs.ensureDir(targetDir);
 
-        // Copy standalone build files and necessary config
-        // Include entire .next for non-standalone fallback; standalone/static for legacy/optimized path
-        const filesToCopy = ['.next', '.next/standalone', '.next/static', 'public', 'package.json'];
+        // Copy standalone build files and necessary config. The root `.next` already
+        // contains both `standalone` and `static`, so avoid re-copying nested paths
+        // that can introduce symlink/self-reference errors during fs copy.
+        const filesToCopy = ['.next', 'public', 'package.json'];
 
         for (const file of filesToCopy) {
             const srcPath = path.join(sourceWebUIDir, file);
@@ -87,9 +88,14 @@ async function copyWebUIBuild(): Promise<void> {
 
         // Create a simple server.js file in the target directory for starting the app
         const serverContent = `#!/usr/bin/env node
-const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Resolve Next.js standalone server path across Next versions/layouts
 const standaloneRoot = path.join(__dirname, '.next', 'standalone');
@@ -101,60 +107,69 @@ const candidates = [
 ];
 const standaloneServer = candidates.find((p) => fs.existsSync(p));
 
-if (!standaloneServer) {
-  // Fallback A: run Next using CLI's installed Next with the embedded .next directory
-  const cliNext = path.join(__dirname, '..', '..', 'node_modules', 'next', 'dist', 'bin', 'next');
-  if (fs.existsSync(cliNext) && fs.existsSync(path.join(__dirname, '.next'))) {
-    console.warn('Standalone bundle missing. Using Next CLI from CLI package to serve embedded .next ...');
-    const env = {
+let childProcess = null;
+
+if (standaloneServer) {
+  console.log('Starting Dexto WebUI server...');
+  childProcess = spawn(process.execPath, [standaloneServer], {
+    stdio: 'inherit',
+    env: {
       ...process.env,
       HOSTNAME: process.env.HOSTNAME || '0.0.0.0',
       PORT: process.env.FRONTEND_PORT || process.env.PORT || '3000',
-      NODE_ENV: process.env.NODE_ENV || 'production',
-    };
-    const proc = spawn(process.execPath, [cliNext, 'start'], {
-      cwd: __dirname, // serve from embedded webui directory containing .next
-      stdio: 'inherit',
-      env,
-    });
-    proc.on('exit', (code) => process.exit(code || 0));
-    proc.on('error', (err) => {
-      console.error('Failed to start embedded .next via CLI Next:', err);
-      process.exit(1);
-    });
-    return;
+    },
+  });
+} else {
+  // Fallback A: resolve Next CLI robustly and serve embedded .next
+  let cliNext;
+  try {
+    cliNext = require.resolve('next/dist/bin/next');
+  } catch {
+    try {
+      cliNext = require.resolve('next/dist/bin/next', {
+        paths: [path.join(__dirname, '..', '..', '..')],
+      });
+    } catch {}
   }
 
-  // No workspace fallback: require embedded assets to be present
-  console.error('Dexto WebUI standalone server not found. Tried:');
-  for (const c of candidates) console.error('  -', c);
-  console.error('Please rebuild: npm run build (which builds the WebUI).');
+  if (cliNext && fs.existsSync(path.join(__dirname, '.next'))) {
+    console.warn('Standalone bundle missing. Using Next CLI to serve embedded .next ...');
+    childProcess = spawn(process.execPath, [cliNext, 'start'], {
+      cwd: __dirname,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        HOSTNAME: process.env.HOSTNAME || '0.0.0.0',
+        PORT: process.env.FRONTEND_PORT || process.env.PORT || '3000',
+        NODE_ENV: process.env.NODE_ENV || 'production',
+      },
+    });
+  } else {
+    console.error('Dexto WebUI standalone server not found. Tried:');
+    for (const candidate of candidates) console.error('  -', candidate);
+    console.error('Please rebuild: pnpm run build (which builds the WebUI).');
+    process.exit(1);
+  }
+}
+
+if (!childProcess) {
+  console.error('Unable to start Dexto WebUI server process.');
   process.exit(1);
 }
 
-console.log('Starting Dexto WebUI server...');
-
-const server = spawn('node', [standaloneServer], {
-  stdio: 'inherit',
-  env: {
-    ...process.env,
-    HOSTNAME: process.env.HOSTNAME || '0.0.0.0',
-    PORT: process.env.FRONTEND_PORT || process.env.PORT || '3000',
-  },
-});
-
-server.on('error', (err) => {
+childProcess.on('exit', (code) => process.exit(code ?? 0));
+childProcess.on('error', (err) => {
   console.error('Failed to start Next.js server:', err);
   process.exit(1);
 });
 
-process.on('SIGTERM', () => {
-  server.kill('SIGTERM');
-});
+const forwardSignal = (signal) => {
+  if (!childProcess || childProcess.killed) return;
+  childProcess.kill(signal);
+};
 
-process.on('SIGINT', () => {
-  server.kill('SIGINT');
-});
+process.on('SIGTERM', () => forwardSignal('SIGTERM'));
+process.on('SIGINT', () => forwardSignal('SIGINT'));
 `;
 
         await fs.writeFile(path.join(targetDir, 'server.js'), serverContent);

@@ -78,7 +78,7 @@ export interface ClientOptions {
 
 // API-specific message types (not in core - simplified interface for external clients)
 export interface MessageInput {
-    content: string;
+    message: string;
     imageData?: ImageData;
     fileData?: FileData;
     sessionId?: string;

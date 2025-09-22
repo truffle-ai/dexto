@@ -5,9 +5,10 @@ import { resolveStatus, resolveMessage } from '@/lib/api-error';
 export async function GET(req: Request, context: { params: Promise<{ sessionId: string }> }) {
     try {
         const { sessionId } = await context.params;
-        if (!sessionId || typeof sessionId !== 'string') {
+        if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
             return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
         }
+        const normalizedSessionId = sessionId.trim();
         const client = new DextoClient(
             {
                 baseUrl:
@@ -19,7 +20,7 @@ export async function GET(req: Request, context: { params: Promise<{ sessionId: 
             { enableWebSocket: false }
         );
 
-        const history = await client.getSessionHistory(sessionId);
+        const history = await client.getSessionHistory(normalizedSessionId);
         return NextResponse.json({ history });
     } catch (err: unknown) {
         const status = resolveStatus(err, 500);

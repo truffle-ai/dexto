@@ -16,7 +16,8 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@dexto/core": "workspace:*"
+    "@dexto/core": "workspace:*",
+    "zod": "^3.25.76"
   },
   "scripts": {
     "build": "tsup",

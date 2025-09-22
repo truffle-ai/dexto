@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { DextoClient } from '@dexto/client-sdk';
 import { resolveStatus, resolveMessage } from '@/lib/api-error';
+import { McpServerRequestSchema } from '@/lib/validation';
 
 export async function GET(_req: Request) {
     try {
@@ -39,12 +40,23 @@ export async function POST(req: Request) {
             { enableWebSocket: false }
         );
 
-        const { name, config } = await req.json();
-        if (typeof name !== 'string' || !name.trim() || config == null) {
-            return NextResponse.json({ error: 'Missing or invalid name/config' }, { status: 400 });
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
         }
-        await client.connectMCPServer(name, config);
-        return NextResponse.json({ status: 'connected', name });
+
+        const result = McpServerRequestSchema.safeParse(body);
+        if (!result.success) {
+            const message = result.error.errors.map((e) => e.message).join(', ');
+            return NextResponse.json({ error: `Invalid request: ${message}` }, { status: 400 });
+        }
+
+        const { name, config } = result.data;
+        const trimmedName = name.trim();
+        await client.connectMCPServer(trimmedName, config as Record<string, unknown>);
+        return NextResponse.json({ status: 'connected', name: trimmedName });
     } catch (err: unknown) {
         const status = resolveStatus(err, 500);
         return NextResponse.json(

@@ -5,6 +5,10 @@ import { resolveStatus, resolveMessage } from '@/lib/api-error';
 export async function DELETE(_req: Request, context: { params: Promise<{ serverId: string }> }) {
     try {
         const { serverId } = await context.params;
+        if (typeof serverId !== 'string' || serverId.trim().length === 0) {
+            return NextResponse.json({ error: 'serverId is required' }, { status: 400 });
+        }
+        const normalizedServerId = serverId.trim();
         const client = new DextoClient(
             {
                 baseUrl:
@@ -16,8 +20,8 @@ export async function DELETE(_req: Request, context: { params: Promise<{ serverI
             { enableWebSocket: false }
         );
 
-        await client.disconnectMCPServer(serverId);
-        return NextResponse.json({ status: 'disconnected', serverId });
+        await client.disconnectMCPServer(normalizedServerId);
+        return NextResponse.json({ status: 'disconnected', serverId: normalizedServerId });
     } catch (err: unknown) {
         const status = resolveStatus(err, 500);
         return NextResponse.json(
