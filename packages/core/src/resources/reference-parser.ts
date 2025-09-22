@@ -79,28 +79,65 @@ function findResourceByServerAndName(
     serverName: string,
     identifier: string
 ): string | undefined {
-    for (const [uri, resource] of Object.entries(resources)) {
-        if (resource.serverName === serverName) {
-            if (resource.name === identifier) return uri;
-            const originalUri = resource.metadata?.originalUri;
-            if (typeof originalUri === 'string' && originalUri.includes(identifier)) return uri;
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const matchingResources = Object.entries(resources).filter(
+        ([, resource]) => resource.serverName === serverName
+    );
+
+    for (const [uri, resource] of matchingResources) {
+        if (!resource.name) continue;
+        const normalizedName = resource.name.trim().toLowerCase();
+        if (
+            normalizedName === normalizedIdentifier ||
+            normalizedName.includes(normalizedIdentifier)
+        ) {
+            return uri;
         }
     }
+
+    for (const [uri, resource] of matchingResources) {
+        const metadataUri =
+            typeof resource.metadata?.originalUri === 'string'
+                ? resource.metadata.originalUri
+                : undefined;
+        if (
+            metadataUri?.toLowerCase().includes(normalizedIdentifier) ||
+            uri.toLowerCase().includes(normalizedIdentifier)
+        ) {
+            return uri;
+        }
+    }
+
     return undefined;
 }
 
 function findResourceByName(resources: ResourceSet, identifier: string): string | undefined {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+
     for (const [uri, resource] of Object.entries(resources)) {
-        if (resource.name === identifier) return uri;
+        if (!resource.name) continue;
+        const normalizedName = resource.name.trim().toLowerCase();
+        if (
+            normalizedName === normalizedIdentifier ||
+            normalizedName.includes(normalizedIdentifier)
+        ) {
+            return uri;
+        }
     }
+
     for (const [uri, resource] of Object.entries(resources)) {
-        if (resource.name?.includes(identifier)) return uri;
+        const originalUri =
+            typeof resource.metadata?.originalUri === 'string'
+                ? resource.metadata.originalUri
+                : undefined;
+        if (
+            originalUri?.toLowerCase().includes(normalizedIdentifier) ||
+            uri.toLowerCase().includes(normalizedIdentifier)
+        ) {
+            return uri;
+        }
     }
-    for (const [uri, resource] of Object.entries(resources)) {
-        if (uri.includes(identifier)) return uri;
-        const originalUri = resource.metadata?.originalUri;
-        if (typeof originalUri === 'string' && originalUri.includes(identifier)) return uri;
-    }
+
     return undefined;
 }
 
