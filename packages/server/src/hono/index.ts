@@ -26,14 +26,12 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
     app.webhookSubscriber = webhookSubscriber;
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
-
     app.route('/health', createHealthRouter(agent));
 
     if (options.agentCard) {
         app.route('/', createA2aRouter(options.agentCard));
     }
 
-    const apiPrefix = options.apiPrefix ?? '/api';
     const api = new Hono();
     api.route('/', createConfigRouter(agent));
     api.route('/', createMessagesRouter(agent));
@@ -43,6 +41,8 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
     api.route('/', createMcpRouter(agent));
     api.route('/', createWebhooksRouter(agent, webhookSubscriber));
 
+    // Apply prefix to all API routes if provided
+    const apiPrefix = options.apiPrefix ?? '/api';
     app.route(apiPrefix, api);
 
     return app;

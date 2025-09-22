@@ -4,21 +4,7 @@
     "baseUrl": ".",
     "noEmit": true,
     "paths": {
-      "@server/*": [
-        "src/*"
-      ],
-      "@dexto/core": [
-        "../core/src/index.ts"
-      ],
-      "@dexto/core/*": [
-        "../core/src/*"
-      ],
-      "@core/*": [
-        "../core/src/*"
-      ],
-      "@core": [
-        "../core/src/index.ts"
-      ]
+      "@dexto/core": ["../core/src/index.ts"]
     }
   },
   "include": [

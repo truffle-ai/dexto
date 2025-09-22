@@ -34,8 +34,7 @@
 4. **Node bridge** (`createNodeServer`):
    - Wrap `app.fetch` for Node, mirror websocket upgrade handling, and forward MCP requests to
      `StreamableHTTPServerTransport.handleRequest`.
-   - Reuse the existing `WebSocketEventSubscriber`/`WebhookEventSubscriber` to keep event flow
-     unchanged.
+   - Reuse the existing `WebSocketEventSubscriber`/`WebhookEventSubscriber` to keep event flow unchanged.
 5. **CLI swap**:
    - Replace Express bootstrap with the new bridge: `const app = createDextoApp(agent); const
      { server } = createNodeServer(app, { port, websocket: … });`.
