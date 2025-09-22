@@ -84,9 +84,10 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       } else {
         console.log("No MCP servers found or returned from API.");
       }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        handleError(err.message, 'servers');
+    } catch (err) {
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        const message = err instanceof Error ? err.message : String(err);
+        handleError(message, 'servers');
       }
     } finally {
       if (!signal?.aborted) {
@@ -125,8 +126,9 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       } catch (e) {
         console.warn('Failed to sync registry after server install:', e);
       }
-    } catch (error: any) {
-      throw new Error(error.message || 'Failed to install server');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to install server';
+      throw new Error(message);
     }
   };
 
@@ -182,8 +184,9 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
         // Non-fatal; continue
         console.warn('Failed to sync registry status after server deletion:', e);
       }
-    } catch (err: any) {
-      handleError(err.message, 'servers');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      handleError(message, 'servers');
     } finally {
       setIsDeletingServer(null);
     }
@@ -236,9 +239,10 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       if (!data.tools || data.tools.length === 0) {
         console.log(`No tools found for server "${server.name}".`);
       }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        handleError(err.message, 'tools');
+    } catch (err) {
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        const message = err instanceof Error ? err.message : String(err);
+        handleError(message, 'tools');
       }
     } finally {
       if (!signal?.aborted) {

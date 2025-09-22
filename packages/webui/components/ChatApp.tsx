@@ -33,6 +33,7 @@ import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/client-sdk';
+import type { ServerRegistryEntry } from '@/types';
 
 export default function ChatApp() {
 
@@ -241,12 +242,19 @@ export default function ChatApp() {
     }
   }, [exportContent]);
 
-  const handleSend = useCallback(async (content: string, imageData?: any, fileData?: any) => {
-    setIsSendingMessage(true);
-    setErrorMessage(null);
-    
-    try {
-      await sendMessage(content, imageData, fileData);
+  type SendMessageArgs = Parameters<typeof sendMessage>;
+
+  const handleSend = useCallback(
+    async (
+      content: string,
+      imageData?: SendMessageArgs[1],
+      fileData?: SendMessageArgs[2]
+    ) => {
+      setIsSendingMessage(true);
+      setErrorMessage(null);
+      
+      try {
+        await sendMessage(content, imageData, fileData);
       // After sending, position the new user message near the top,
       // then enable followStreaming to follow the assistant reply.
       setTimeout(() => {
@@ -279,7 +287,7 @@ export default function ChatApp() {
     setSessionsPanelOpen(false);
   }, [switchSession]);
 
-  const handleInstallServer = useCallback(async (entry: any) => {
+  const handleInstallServer = useCallback(async (entry: ServerRegistryEntry) => {
     // Open Connect modal with prefilled config
     const config = {
       type: entry.config.type,

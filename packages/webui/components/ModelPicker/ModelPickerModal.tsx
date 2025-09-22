@@ -238,7 +238,7 @@ export default function ModelPickerModal() {
     setError(null);
     try {
       const router = pickRouterFor(providerId, model);
-      const body: Record<string, any> = { provider: providerId, model: model.name, router };
+      const body: Record<string, unknown> = { provider: providerId, model: model.name, router };
       if (useBaseURL && providers[providerId]?.supportsBaseURL) body.baseURL = useBaseURL;
       if (currentSessionId) body.sessionId = currentSessionId;
 
