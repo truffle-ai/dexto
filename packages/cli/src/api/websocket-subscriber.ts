@@ -200,6 +200,63 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             },
             { signal }
         );
+
+        // Forward elicitation request events
+        eventBus.on(
+            'dexto:elicitationRequest',
+            (payload) => {
+                this.broadcast({
+                    event: 'elicitationRequest',
+                    data: payload,
+                });
+            },
+            { signal }
+        );
+
+        // Forward MCP notification events
+        eventBus.on(
+            'dexto:mcpResourceUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpResourceUpdated',
+                    data: {
+                        serverName: payload.serverName,
+                        resourceUri: payload.resourceUri,
+                        title: payload.title,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpPromptsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpPromptsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        prompts: payload.prompts,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:resourceCacheInvalidated',
+            (payload) => {
+                this.broadcast({
+                    event: 'resourceCacheInvalidated',
+                    data: {
+                        resourceUri: payload.resourceUri,
+                        serverName: payload.serverName,
+                        action: payload.action,
+                    },
+                });
+            },
+            { signal }
+        );
     }
 
     /**

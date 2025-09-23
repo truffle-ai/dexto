@@ -27,7 +27,7 @@
     "@ai-sdk/openai": "^2.0.0",
     "@ai-sdk/xai": "^2.0.0",
     "@anthropic-ai/sdk": "^0.60.0",
-    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@modelcontextprotocol/sdk": "^1.18.1",
     "ai": "^5.0.0",
     "better-sqlite3": "^11.10.0",
     "boxen": "^7.1.1",

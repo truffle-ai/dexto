@@ -25,29 +25,29 @@ export async function getMemorySummary(_context: DynamicContributorContext): Pro
 
 // TODO: This needs to be optimized to only fetch resources when needed. Curerntly this runs every time the prompt is generated.
 export async function getResourceData(context: DynamicContributorContext): Promise<string> {
-    const uris = await context.mcpManager.listAllResources();
-    if (!uris || uris.length === 0) {
+    const resources = await context.mcpManager.listAllResources();
+    if (!resources || resources.length === 0) {
         return '<resources></resources>';
     }
     const parts = await Promise.all(
-        uris.map(async (uri) => {
+        resources.map(async (resource) => {
             try {
-                const response = await context.mcpManager.readResource(uri);
+                const response = await context.mcpManager.readResource(resource.key);
+                const first = response?.contents?.[0];
                 let content: string;
-                if (typeof response === 'string') {
-                    content = response;
-                } else if (response && typeof response === 'object') {
-                    if ('content' in response && typeof response.content === 'string') {
-                        content = response.content;
-                    } else {
-                        content = JSON.stringify(response, null, 2);
-                    }
+                if (first?.text && typeof first.text === 'string') {
+                    content = first.text;
+                } else if (first?.blob && typeof first.blob === 'string') {
+                    content = first.blob;
                 } else {
-                    content = String(response);
+                    content = JSON.stringify(response, null, 2);
                 }
-                return `<resource uri="${uri}">${content}</resource>`;
+                const label = resource.summary.name || resource.summary.uri;
+                return `<resource uri="${resource.key}" name="${label}">${content}</resource>`;
             } catch (error: any) {
-                return `<resource uri="${uri}">Error loading resource: ${error.message || error}</resource>`;
+                return `<resource uri="${resource.key}">Error loading resource: ${
+                    error.message || error
+                }</resource>`;
             }
         })
     );

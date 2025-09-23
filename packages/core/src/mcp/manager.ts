@@ -1,10 +1,18 @@
+import path from 'path';
+import { pathToFileURL } from 'url';
 import { MCPClient } from './mcp-client.js';
 import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
-import { IMCPClient } from './types.js';
-import { ToolSet } from '../tools/types.js';
 import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+    IMCPClient,
+    MCPResolvedResource,
+    MCPResourceSummary,
+    SamplingRequestHandler,
+} from './types.js';
+import { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
+import { eventBus } from '../events/index.js';
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -37,6 +45,13 @@ import { MCPError } from './errors.js';
  * const tools = await manager.getAllTools();
  * ```
  */
+type ResourceCacheEntry = {
+    key: string;
+    serverName: string;
+    client: IMCPClient;
+    summary: MCPResourceSummary;
+};
+
 export class MCPManager {
     private clients: Map<string, IMCPClient> = new Map();
     private connectionErrors: { [key: string]: string } = {};
@@ -44,14 +59,53 @@ export class MCPManager {
     private serverToolsMap: Map<string, Map<string, IMCPClient>> = new Map();
     private toolConflicts: Set<string> = new Set();
     private promptToClientMap: Map<string, IMCPClient> = new Map();
-    private resourceToClientMap: Map<string, IMCPClient> = new Map();
+    private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
+    private samplingHandler: SamplingRequestHandler | null = null;
+    private approvalProvider?: any;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
     private static readonly SERVER_DELIMITER = '--';
 
     constructor() {}
+
+    private buildQualifiedResourceKey(serverName: string, resourceUri: string): string {
+        return `mcp:${serverName}:${resourceUri}`;
+    }
+
+    private parseQualifiedResourceKey(key: string): { serverName: string; resourceUri: string } {
+        if (!key.startsWith('mcp:')) {
+            throw MCPError.resourceNotFound(key);
+        }
+        const [, serverName, ...rest] = key.split(':');
+        if (!serverName || rest.length === 0) {
+            throw MCPError.resourceNotFound(key);
+        }
+        return { serverName, resourceUri: rest.join(':') };
+    }
+
+    private removeServerResources(serverName: string): void {
+        for (const [key, entry] of Array.from(this.resourceCache.entries())) {
+            if (entry.serverName === serverName) {
+                this.resourceCache.delete(key);
+            }
+        }
+    }
+
+    private getResourceCacheEntry(resourceKey: string): ResourceCacheEntry | undefined {
+        if (this.resourceCache.has(resourceKey)) {
+            return this.resourceCache.get(resourceKey);
+        }
+
+        try {
+            const { serverName, resourceUri } = this.parseQualifiedResourceKey(resourceKey);
+            const canonicalKey = this.buildQualifiedResourceKey(serverName, resourceUri);
+            return this.resourceCache.get(canonicalKey);
+        } catch {
+            return undefined;
+        }
+    }
 
     /**
      * Register a client that provides tools (and potentially more)
@@ -76,6 +130,13 @@ export class MCPManager {
 
         this.clients.set(name, client);
         this.sanitizedNameToServerMap.set(sanitizedName, name);
+        this.setupClientNotifications(name, client);
+        this.bindSamplingHandlerToClient(name, client);
+
+        // Apply approval provider if available
+        if (this.approvalProvider && typeof (client as any).setApprovalProvider === 'function') {
+            (client as any).setApprovalProvider(this.approvalProvider);
+        }
 
         logger.info(`Registered client: ${name}`);
         delete this.connectionErrors[name];
@@ -95,15 +156,19 @@ export class MCPManager {
             this.sanitizedNameToServerMap.delete(sanitizedName);
         }
 
-        [this.toolToClientMap, this.promptToClientMap, this.resourceToClientMap].forEach(
-            (cacheMap) => {
-                for (const [key, mappedClient] of Array.from(cacheMap.entries())) {
-                    if (mappedClient === client) {
-                        cacheMap.delete(key);
-                    }
+        [this.toolToClientMap, this.promptToClientMap].forEach((cacheMap) => {
+            for (const [key, mappedClient] of Array.from(cacheMap.entries())) {
+                if (mappedClient === client) {
+                    cacheMap.delete(key);
                 }
             }
-        );
+        });
+
+        for (const [key, entry] of Array.from(this.resourceCache.entries())) {
+            if (entry.client === client || entry.serverName === clientName) {
+                this.resourceCache.delete(key);
+            }
+        }
 
         // Only rebuild conflicts if this client actually had tools
         if (hadServerTools) {
@@ -203,9 +268,16 @@ export class MCPManager {
         // Cache resources, if supported
         // TODO: HF SERVER HAS 100000+ RESOURCES - need to think of a way to make resources/caching optional or better.
         try {
+            this.removeServerResources(clientName);
             const resources = await client.listResources();
-            resources.forEach((resourceUri) => {
-                this.resourceToClientMap.set(resourceUri, client);
+            resources.forEach((summary) => {
+                const key = this.buildQualifiedResourceKey(clientName, summary.uri);
+                this.resourceCache.set(key, {
+                    key,
+                    serverName: clientName,
+                    client,
+                    summary,
+                });
             });
             logger.debug(`Cached resources for client: ${clientName}`);
         } catch (error) {
@@ -397,33 +469,47 @@ export class MCPManager {
     }
 
     /**
-     * Get all available resource URIs from all connected clients, updating the cache.
-     * @returns Promise resolving to an array of unique resource URIs.
+     * Get all cached MCP resources (no network calls).
      */
-    async listAllResources(): Promise<string[]> {
-        return Array.from(this.resourceToClientMap.keys());
+    async listAllResources(): Promise<MCPResolvedResource[]> {
+        return Array.from(this.resourceCache.values()).map(({ key, serverName, summary }) => ({
+            key,
+            serverName,
+            summary,
+        }));
     }
 
     /**
-     * Get the client that provides a specific resource from the cache.
-     * @param resourceUri URI of the resource.
-     * @returns The client instance or undefined.
+     * Determine if a qualified MCP resource is cached.
      */
-    getResourceClient(resourceUri: string): IMCPClient | undefined {
-        return this.resourceToClientMap.get(resourceUri);
+    hasResource(resourceKey: string): boolean {
+        return this.getResourceCacheEntry(resourceKey) !== undefined;
     }
 
     /**
-     * Read a specific resource by URI.
-     * @param uri URI of the resource.
+     * Get cached resource metadata by qualified key.
+     */
+    getResource(resourceKey: string): MCPResolvedResource | undefined {
+        const entry = this.getResourceCacheEntry(resourceKey);
+        if (!entry) return undefined;
+        return {
+            key: entry.key,
+            serverName: entry.serverName,
+            summary: entry.summary,
+        };
+    }
+
+    /**
+     * Read a specific resource by qualified URI.
+     * @param resourceKey Qualified resource key in the form mcp:server:uri.
      * @returns Promise resolving to the resource content.
      */
-    async readResource(uri: string): Promise<ReadResourceResult> {
-        const client = this.getResourceClient(uri);
-        if (!client) {
-            throw MCPError.resourceNotFound(uri);
+    async readResource(resourceKey: string): Promise<ReadResourceResult> {
+        const entry = this.getResourceCacheEntry(resourceKey);
+        if (!entry) {
+            throw MCPError.resourceNotFound(resourceKey);
         }
-        return await client.readResource(uri);
+        return await entry.client.readResource(entry.summary.uri);
     }
 
     /**
@@ -581,8 +667,351 @@ export class MCPManager {
         this.serverToolsMap.clear();
         this.toolConflicts.clear();
         this.promptToClientMap.clear();
-        this.resourceToClientMap.clear();
+        this.resourceCache.clear();
         this.sanitizedNameToServerMap.clear();
         logger.info('Disconnected all clients and cleared caches.');
+    }
+
+    /**
+     * Set up notification listeners for a specific client
+     */
+    private setupClientNotifications(clientName: string, client: IMCPClient): void {
+        try {
+            // Listen for resource updates
+            client.on('resourceUpdated', async (params: { uri: string; title?: string }) => {
+                logger.debug(
+                    `Received resource update notification from ${clientName}: ${params.uri}`
+                );
+                await this.handleResourceUpdated(clientName, params);
+            });
+
+            // Listen for prompt list changes
+            client.on('promptsListChanged', async () => {
+                logger.debug(`Received prompts list change notification from ${clientName}`);
+                await this.handlePromptsListChanged(clientName, client);
+            });
+
+            logger.debug(`Set up notification listeners for client: ${clientName}`);
+        } catch (error) {
+            logger.debug(`Failed to set up notification listeners for ${clientName}: ${error}`);
+        }
+    }
+
+    private bindSamplingHandlerToClient(clientName: string, client: IMCPClient): void {
+        if (typeof client.setSamplingHandler !== 'function') {
+            return;
+        }
+
+        if (!this.samplingHandler) {
+            client.setSamplingHandler(null);
+            return;
+        }
+
+        const boundHandler: SamplingRequestHandler = async (params, context) =>
+            await this.samplingHandler!(params, {
+                clientName: context.clientName,
+                serverName: clientName,
+            });
+
+        client.setSamplingHandler(boundHandler);
+    }
+
+    /**
+     * Handle resource updated notification
+     */
+    private async handleResourceUpdated(
+        serverName: string,
+        params: { uri: string; title?: string }
+    ): Promise<void> {
+        try {
+            // Update the resource cache for this specific resource
+            const client = this.clients.get(serverName);
+            if (client) {
+                const key = this.buildQualifiedResourceKey(serverName, params.uri);
+
+                // Try to get updated resource info
+                try {
+                    const resources = await client.listResources();
+                    const updatedResource = resources.find((r) => r.uri === params.uri);
+
+                    if (updatedResource) {
+                        // Update cache with new resource info
+                        this.resourceCache.set(key, {
+                            key,
+                            serverName,
+                            client,
+                            summary: updatedResource,
+                        });
+                        logger.debug(`Updated resource cache for: ${params.uri}`);
+                    }
+                } catch (error) {
+                    logger.debug(`Failed to refresh resource ${params.uri}: ${error}`);
+                }
+            }
+
+            // Emit event to notify other parts of the system
+            const eventData: { serverName: string; resourceUri: string; title?: string } = {
+                serverName,
+                resourceUri: params.uri,
+            };
+            if (params.title) {
+                eventData.title = params.title;
+            }
+            eventBus.emit('dexto:mcpResourceUpdated', eventData);
+        } catch (error) {
+            logger.error(`Error handling resource update: ${error}`);
+        }
+    }
+
+    /**
+     * Handle prompts list changed notification
+     */
+    private async handlePromptsListChanged(serverName: string, client: IMCPClient): Promise<void> {
+        try {
+            // Refresh the prompts for this client
+            const existingPrompts = Array.from(this.promptToClientMap.entries())
+                .filter(([_, mappedClient]) => mappedClient === client)
+                .map(([promptName]) => promptName);
+
+            // Remove old prompts
+            existingPrompts.forEach((promptName) => {
+                this.promptToClientMap.delete(promptName);
+            });
+
+            // Add new prompts
+            try {
+                const newPrompts = await client.listPrompts();
+                newPrompts.forEach((promptName) => {
+                    this.promptToClientMap.set(promptName, client);
+                });
+
+                logger.debug(`Updated prompts cache for ${serverName}: [${newPrompts.join(', ')}]`);
+
+                // Emit event to notify other parts of the system
+                eventBus.emit('dexto:mcpPromptsListChanged', {
+                    serverName,
+                    prompts: newPrompts,
+                });
+            } catch (error) {
+                logger.debug(`Failed to refresh prompts for ${serverName}: ${error}`);
+            }
+        } catch (error) {
+            logger.error(`Error handling prompts list change: ${error}`);
+        }
+    }
+
+    /**
+     * Set the approval provider for all connected MCP clients to enable elicitation
+     * @param approvalProvider The UserApprovalProvider instance
+     */
+    setApprovalProvider(approvalProvider: any): void {
+        this.approvalProvider = approvalProvider;
+        for (const client of this.clients.values()) {
+            if (client && typeof (client as any).setApprovalProvider === 'function') {
+                (client as any).setApprovalProvider(approvalProvider);
+            }
+        }
+        logger.debug('Approval provider set for all MCP clients');
+    }
+
+    /**
+     * Set filesystem roots for all connected MCP clients
+     * @param roots Array of root objects with uri and optional name
+     */
+    setRoots(roots: Array<{ uri: string; name?: string }>): void {
+        for (const [clientName, client] of this.clients.entries()) {
+            if (client && typeof (client as any).setRoots === 'function') {
+                (client as any).setRoots(roots);
+                logger.debug(`Set roots for MCP client: ${clientName}`);
+            }
+        }
+        logger.debug(`Set ${roots.length} filesystem roots for all MCP clients`);
+
+        // Emit event to notify system of roots change
+        eventBus.emit('dexto:mcpRootsChanged', { roots });
+    }
+
+    /**
+     * Set filesystem roots for a specific MCP client
+     * @param clientName Name of the client
+     * @param roots Array of root objects with uri and optional name
+     */
+    setClientRoots(clientName: string, roots: Array<{ uri: string; name?: string }>): void {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot set roots for unknown client: ${clientName}`);
+            return;
+        }
+
+        if (typeof (client as any).setRoots === 'function') {
+            (client as any).setRoots(roots);
+            logger.debug(`Set ${roots.length} roots for MCP client: ${clientName}`);
+        }
+    }
+
+    /**
+     * Get filesystem roots from a specific MCP client
+     * @param clientName Name of the client
+     * @returns Array of root objects, or empty array if client not found
+     */
+    getClientRoots(clientName: string): Array<{ uri: string; name?: string }> {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot get roots for unknown client: ${clientName}`);
+            return [];
+        }
+
+        if (typeof (client as any).getRoots === 'function') {
+            return (client as any).getRoots();
+        }
+        return [];
+    }
+
+    /**
+     * Notify all clients that roots have changed
+     */
+    async notifyRootsChanged(roots?: Array<{ uri: string; name?: string }>): Promise<void> {
+        const notificationPromises: Promise<void>[] = [];
+
+        for (const [clientName, client] of this.clients.entries()) {
+            if (client && typeof (client as any).notifyRootsListChanged === 'function') {
+                const notifyPromise = (client as any)
+                    .notifyRootsListChanged()
+                    .catch((error: Error) => {
+                        logger.warn(
+                            `Failed to notify roots change for client ${clientName}: ${error.message}`
+                        );
+                    });
+                notificationPromises.push(notifyPromise);
+            }
+        }
+
+        await Promise.all(notificationPromises);
+        logger.debug('Notified all MCP clients of roots list changes');
+
+        // Emit event if roots provided
+        if (roots) {
+            eventBus.emit('dexto:mcpRootsChanged', { roots });
+        }
+    }
+
+    /**
+     * Auto-configure roots from a ResourceManager's internal filesystem configuration
+     * @param resourceManager The ResourceManager instance to extract filesystem roots from
+     */
+    autoConfigureRootsFromResourceManager(resourceManager: any): void {
+        try {
+            // Access the internal resources provider to get filesystem handler
+            const provider = (resourceManager as any).internalResourcesProvider;
+            if (!provider) {
+                logger.debug(
+                    'No internal resources provider found - skipping auto-configure roots'
+                );
+                return;
+            }
+
+            // Get filesystem handler to extract root paths
+            const handlers = (provider as any).handlers;
+            const filesystemHandler = handlers?.get('filesystem');
+
+            if (filesystemHandler && (filesystemHandler as any).canonicalRoots) {
+                const canonicalRoots = (filesystemHandler as any).canonicalRoots as string[];
+
+                // Convert filesystem paths to MCP root format
+                const roots = canonicalRoots.map((rootPath: string) => {
+                    const uri = pathToFileURL(rootPath).toString();
+                    const name = path.basename(rootPath) || rootPath;
+                    return { uri, name };
+                });
+
+                if (roots.length > 0) {
+                    this.setRoots(roots);
+                    logger.info(
+                        `Auto-configured ${roots.length} MCP roots from filesystem resources`
+                    );
+                    logger.debug(
+                        `Configured MCP root URIs: ${roots.map((root) => root.uri).join(', ')}`
+                    );
+                } else {
+                    logger.debug('No filesystem roots found to configure');
+                }
+            } else {
+                logger.debug('No filesystem handler found - skipping auto-configure roots');
+            }
+        } catch (error) {
+            logger.warn(
+                `Failed to auto-configure MCP roots: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    /**
+     * Register or clear the sampling handler responsible for `sampling/createMessage` requests.
+     * @param handler Sampling handler implementation or null to disable handling
+     */
+    setSamplingHandler(handler: SamplingRequestHandler | null): void {
+        this.samplingHandler = handler;
+        for (const [clientName, client] of this.clients.entries()) {
+            this.bindSamplingHandlerToClient(clientName, client);
+        }
+        if (!handler) {
+            logger.debug('Cleared sampling handler for all MCP clients');
+        } else {
+            logger.debug('Sampling handler configured for MCP clients');
+        }
+    }
+
+    /**
+     * Enable or disable sampling for all connected MCP clients
+     * @param enabled Whether sampling should be enabled
+     */
+    setSamplingEnabled(enabled: boolean): void {
+        for (const [clientName, client] of this.clients.entries()) {
+            if (client && typeof (client as any).setSamplingEnabled === 'function') {
+                (client as any).setSamplingEnabled(enabled);
+                logger.debug(
+                    `Sampling ${enabled ? 'enabled' : 'disabled'} for MCP client: ${clientName}`
+                );
+            }
+        }
+        logger.debug(`Sampling ${enabled ? 'enabled' : 'disabled'} for all MCP clients`);
+    }
+
+    /**
+     * Enable or disable sampling for a specific MCP client
+     * @param clientName Name of the client
+     * @param enabled Whether sampling should be enabled
+     */
+    setClientSamplingEnabled(clientName: string, enabled: boolean): void {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot set sampling for unknown client: ${clientName}`);
+            return;
+        }
+
+        if (typeof (client as any).setSamplingEnabled === 'function') {
+            (client as any).setSamplingEnabled(enabled);
+            logger.debug(
+                `Sampling ${enabled ? 'enabled' : 'disabled'} for MCP client: ${clientName}`
+            );
+        }
+    }
+
+    /**
+     * Check if sampling is enabled for a specific MCP client
+     * @param clientName Name of the client
+     * @returns Whether sampling is enabled, or false if client not found
+     */
+    isClientSamplingEnabled(clientName: string): boolean {
+        const client = this.clients.get(clientName);
+        if (!client) {
+            logger.warn(`Cannot check sampling status for unknown client: ${clientName}`);
+            return false;
+        }
+
+        if (typeof (client as any).isSamplingEnabled === 'function') {
+            return (client as any).isSamplingEnabled();
+        }
+        return false;
     }
 }

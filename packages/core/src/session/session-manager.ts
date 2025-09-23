@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { ChatSession } from './chat-session.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { AgentEventBus } from '../events/index.js';
 import { logger } from '../logger/index.js';
@@ -53,10 +53,11 @@ export class SessionManager {
     constructor(
         private services: {
             stateManager: AgentStateManager;
-            promptManager: PromptManager;
+            systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
+            resourceManager: import('../resources/index.js').ResourceManager;
         },
         config: SessionManagerConfig = {}
     ) {

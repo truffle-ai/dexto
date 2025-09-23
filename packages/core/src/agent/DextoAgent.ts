@@ -1,7 +1,11 @@
 // src/agent/DextoAgent.ts
+import path from 'path';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { ResourceManager, ResourceError, expandMessageReferences } from '../resources/index.js';
+import { expandBlobReferences } from '../context/utils.js';
+import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -16,6 +20,7 @@ import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
+import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -28,22 +33,43 @@ import { createAgentServices } from '../utils/service-initializer.js';
 import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
 import { AgentEventBus } from '../events/index.js';
-import type { IMCPClient } from '../mcp/types.js';
+import type { IMCPClient, SamplingRequestContext } from '../mcp/types.js';
 import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
+import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'promptManager',
+    'systemPromptManager',
     'agentEventBus',
     'stateManager',
     'sessionManager',
     'searchService',
 ];
+
+const SAMPLING_TOOL_BAN_PROMPT =
+    'Tools are unavailable for this sampling request. Respond with a direct natural-language answer only. Do not ask to call, reference, or request any tools or functions.';
+const SAMPLING_TIMEOUT_METADATA_KEY = 'timeoutMs';
+const SAMPLING_TIMEOUT_DEFAULT_MS = 120_000;
+const SAMPLING_TIMEOUT_MAX_MS = 300_000;
+
+type NormalizedSamplingRequest = {
+    messages: NonNullable<CreateMessageRequest['params']['messages']>;
+    systemPrompt?: string;
+    modelPreferences?: CreateMessageRequest['params']['modelPreferences'];
+    metadata?: Record<string, unknown>;
+    overrides: {
+        provider?: LLMProvider;
+        model?: string;
+        hintedModel?: string;
+        temperature?: number;
+        maxTokens?: number;
+    };
+};
 
 /**
  * The main entry point into Dexto's core functionality.
@@ -102,11 +128,13 @@ export class DextoAgent {
      * But the main recommended entry points/functions would still be the wrapper methods we define below
      */
     public readonly mcpManager!: MCPManager;
-    public readonly promptManager!: PromptManager;
+    public readonly systemPromptManager!: SystemPromptManager;
     public readonly agentEventBus!: AgentEventBus;
+    public readonly promptsManager!: PromptsManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -167,7 +195,8 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
-                promptManager: services.promptManager,
+                resourceManager: services.resourceManager,
+                systemPromptManager: services.systemPromptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
@@ -176,6 +205,31 @@ export class DextoAgent {
 
             // Initialize search service from services
             this.searchService = services.searchService;
+
+            // Auto-configure MCP roots from filesystem resources
+            if (this.resourceManager && this.mcpManager) {
+                this.mcpManager.autoConfigureRootsFromResourceManager(this.resourceManager);
+            }
+
+            if (this.mcpManager && typeof this.mcpManager.setSamplingHandler === 'function') {
+                this.mcpManager.setSamplingHandler(this.handleMcpSamplingRequest.bind(this));
+            } else {
+                logger.debug(
+                    'MCP manager does not support sampling handler registration; skipping'
+                );
+            }
+
+            // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            const promptsManager = new PromptsManager(
+                this.mcpManager,
+                this.resourceManager,
+                'prompts',
+                this.config,
+                this.agentEventBus,
+                services.storage.database
+            );
+            await promptsManager.initialize();
+            Object.assign(this, { promptsManager });
 
             this._isStarted = true;
             logger.info('DextoAgent started successfully.');
@@ -345,7 +399,32 @@ export class DextoAgent {
                     imageDataInput
                 )}, hasFile=${Boolean(fileDataInput)}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+            // Expand @resource mentions into content before sending to the model
+            let finalText = textInput;
+            let finalImageData = imageDataInput;
+            if (textInput && textInput.includes('@')) {
+                const resources = await this.resourceManager.list();
+                const expansion = await expandMessageReferences(textInput, resources, (uri) =>
+                    this.resourceManager.read(uri)
+                );
+                finalText = expansion.expandedMessage;
+
+                // If we extracted images from resources and don't already have image data, use the first extracted image
+                if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                    const firstImage = expansion.extractedImages[0];
+                    if (firstImage) {
+                        finalImageData = {
+                            image: firstImage.image,
+                            mimeType: firstImage.mimeType,
+                        };
+                        logger.debug(
+                            `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                        );
+                    }
+                }
+            }
+
+            const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -469,7 +548,17 @@ export class DextoAgent {
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return await session.getHistory();
+        const history = await session.getHistory();
+        if (!this.resourceManager) {
+            return history;
+        }
+
+        return await Promise.all(
+            history.map(async (message) => ({
+                ...message,
+                content: await expandBlobReferences(message.content, this.resourceManager),
+            }))
+        );
     }
 
     /**
@@ -853,6 +942,9 @@ export class DextoAgent {
             // Connect the server
             await this.mcpManager.connectServer(name, validatedConfig);
 
+            // Ensure tool cache reflects the newly connected server before notifying listeners
+            await this.toolManager.refresh();
+
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,
                 success: true,
@@ -901,6 +993,9 @@ export class DextoAgent {
 
         // Then remove from runtime state
         this.stateManager.removeMcpServer(name);
+
+        // Refresh tool cache after server removal so the LLM sees updated set
+        await this.toolManager.refresh();
     }
 
     /**
@@ -955,6 +1050,112 @@ export class DextoAgent {
         return this.mcpManager.getFailedConnections();
     }
 
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Lists all available resources with their info.
+     * This includes resources from MCP servers and any custom resource providers.
+     */
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.list();
+    }
+
+    /**
+     * Checks if a resource exists by URI.
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.has(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource by URI.
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+                return { uri: original, name, originalUri: original, serverName };
+            });
+        return serverResources;
+    }
+
+    /**
+     * Adds a filesystem resource configuration dynamically.
+     */
+    public async addFileSystemResource(paths: string[]): Promise<void> {
+        this.ensureStarted();
+        if (!paths || paths.length === 0) {
+            throw ResourceError.providerError(
+                'Internal',
+                'addFileSystemResource',
+                'paths must contain at least one entry'
+            );
+        }
+        for (const p of paths) {
+            if (p.includes('..') || path.isAbsolute(p)) {
+                throw ResourceError.providerError(
+                    'Internal',
+                    'addFileSystemResource',
+                    `Invalid path: ${p}. Paths must be relative and not contain '..'`
+                );
+            }
+        }
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw ResourceError.providerNotAvailable('Internal');
+        }
+        await internalProvider.addResourceConfig({ type: 'filesystem', paths });
+        await this.resourceManager.refresh();
+        logger.info(`Added filesystem resource with paths: ${paths.join(', ')}`);
+    }
+
+    /**
+     * Removes a resource handler by type.
+     */
+    public async removeResourceHandler(type: string): Promise<void> {
+        this.ensureStarted();
+        const internalProvider = this.resourceManager.getInternalResourcesProvider();
+        if (!internalProvider) {
+            throw ResourceError.providerNotAvailable('Internal');
+        }
+        await internalProvider.removeResourceHandler(type);
+        await this.resourceManager.refresh();
+        logger.info(`Removed resource handler: ${type}`);
+    }
+
+    /**
+     * Gets the blob service for storing and retrieving binary data.
+     * Returns undefined if blob storage is not configured.
+     */
+    public getBlobService(): import('../blob/index.js').BlobService | undefined {
+        this.ensureStarted();
+        return this.services.blobService;
+    }
+
     // ============= PROMPT MANAGEMENT =============
 
     /**
@@ -986,7 +1187,7 @@ export class DextoAgent {
         const context = {
             mcpManager: this.mcpManager,
         };
-        return await this.promptManager.build(context);
+        return await this.systemPromptManager.build(context);
     }
 
     // ============= CONFIGURATION ACCESS =============
@@ -1003,9 +1204,368 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig();
     }
 
+    private async handleMcpSamplingRequest(
+        params: CreateMessageRequest['params'],
+        context: SamplingRequestContext
+    ): Promise<CreateMessageResult> {
+        this.ensureStarted();
+
+        if (!this.sessionManager) {
+            throw AgentError.initializationFailed('Session manager not initialized');
+        }
+
+        const normalized = this.normalizeSamplingRequest(params);
+        if (!normalized.ok) {
+            return normalized.result;
+        }
+
+        const session = await this.sessionManager.createSession();
+        try {
+            const { finalUserText, finalUserImage } = await this.prepareSamplingConversation(
+                session,
+                normalized.request
+            );
+
+            await this.applySamplingOverrides(session, normalized.request);
+
+            const timeoutMs = this.resolveSamplingTimeout(normalized.request.metadata);
+            const responseText = await this.runWithSamplingTimeout(
+                session,
+                () => session.run(finalUserText, finalUserImage),
+                timeoutMs
+            );
+
+            return this.buildSamplingSuccessResult(responseText, session);
+        } catch (error) {
+            return this.buildSamplingFailureResult(error, context);
+        } finally {
+            await this.cleanupSamplingSession(session);
+        }
+    }
+
+    private normalizeSamplingRequest(
+        params: CreateMessageRequest['params']
+    ):
+        | { ok: true; request: NormalizedSamplingRequest }
+        | { ok: false; result: CreateMessageResult } {
+        if (!params || !Array.isArray(params.messages) || params.messages.length === 0) {
+            throw MCPError.protocolError('Sampling request must include at least one message');
+        }
+
+        const llmConfig = this.stateManager.getLLMConfig();
+        if (!this.isSamplingReady(llmConfig)) {
+            const reason = 'LLM provider is not fully configured (missing API key or credentials).';
+            logger.warn(`Sampling request skipped: ${reason}`);
+            return { ok: false, result: this.buildSamplingUnavailableResult(reason) };
+        }
+
+        const metadata = (params.metadata as Record<string, unknown> | undefined) ?? undefined;
+
+        const providerValue = metadata?.['provider'];
+        const modelValue = metadata?.['model'];
+        const hintedModel = params.modelPreferences?.hints?.find((hint) => hint?.name)?.name;
+
+        const overrides: NormalizedSamplingRequest['overrides'] = {};
+        if (typeof providerValue === 'string') {
+            overrides.provider = providerValue as LLMProvider;
+        }
+        if (typeof modelValue === 'string') {
+            overrides.model = modelValue;
+        }
+        if (hintedModel) {
+            overrides.hintedModel = hintedModel;
+        }
+        if (typeof params.temperature === 'number') {
+            overrides.temperature = params.temperature;
+        }
+        if (typeof params.maxTokens === 'number') {
+            overrides.maxTokens = params.maxTokens;
+        }
+
+        const request: NormalizedSamplingRequest = {
+            messages: params.messages!,
+            overrides,
+        };
+
+        if (params.systemPrompt && params.systemPrompt.trim()) {
+            request.systemPrompt = params.systemPrompt.trim();
+        }
+
+        if (params.modelPreferences) {
+            request.modelPreferences = params.modelPreferences;
+        }
+
+        if (metadata && Object.keys(metadata).length > 0) {
+            request.metadata = metadata;
+        }
+
+        return { ok: true, request };
+    }
+
+    private async prepareSamplingConversation(
+        session: ChatSession,
+        request: NormalizedSamplingRequest
+    ): Promise<{ finalUserText: string; finalUserImage?: { image: string; mimeType: string } }> {
+        const contextManager = session.getContextManager();
+
+        if (request.systemPrompt) {
+            await contextManager.addMessage({ role: 'system', content: request.systemPrompt });
+        }
+
+        await contextManager.addMessage({
+            role: 'system',
+            content: SAMPLING_TOOL_BAN_PROMPT,
+        });
+
+        const lastUserIndexFromEnd = [...request.messages]
+            .reverse()
+            .findIndex((msg) => msg.role === 'user');
+        const lastUserIndex =
+            lastUserIndexFromEnd === -1 ? -1 : request.messages.length - 1 - lastUserIndexFromEnd;
+
+        if (lastUserIndex === -1) {
+            throw MCPError.protocolError('Sampling request must contain at least one user message');
+        }
+
+        let finalUserText = '';
+        let finalUserImage: { image: string; mimeType: string } | undefined;
+
+        for (let i = 0; i < request.messages.length; i++) {
+            const message = request.messages[i]!;
+            const { text, imageData } = this.normalizeSamplingMessageContent(message);
+
+            if (i < lastUserIndex) {
+                if (message.role === 'user') {
+                    await contextManager.addUserMessage(text, imageData);
+                } else if (message.role === 'assistant') {
+                    await contextManager.addAssistantMessage(text ?? '');
+                }
+                continue;
+            }
+
+            if (i === lastUserIndex) {
+                finalUserText = text;
+                finalUserImage = imageData;
+                continue;
+            }
+
+            if (message.role === 'assistant') {
+                await contextManager.addAssistantMessage(text ?? '');
+            } else if (message.role === 'user') {
+                await contextManager.addUserMessage(text, imageData);
+            }
+        }
+
+        return finalUserImage ? { finalUserText, finalUserImage } : { finalUserText };
+    }
+
+    private async applySamplingOverrides(
+        session: ChatSession,
+        request: NormalizedSamplingRequest
+    ): Promise<void> {
+        const updates: Partial<LLMUpdates> = {};
+
+        if (typeof request.overrides.temperature === 'number') {
+            updates.temperature = request.overrides.temperature;
+        }
+
+        if (typeof request.overrides.maxTokens === 'number') {
+            updates.maxOutputTokens = request.overrides.maxTokens;
+        }
+
+        if (request.overrides.provider) {
+            updates.provider = request.overrides.provider;
+        }
+
+        const effectiveModel = request.overrides.model ?? request.overrides.hintedModel;
+        if (effectiveModel) {
+            updates.model = effectiveModel;
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return;
+        }
+
+        const parsedUpdates = LLMUpdatesSchema.safeParse(updates);
+        if (!parsedUpdates.success) {
+            logger.warn(
+                `Ignoring sampling overrides due to validation issues: ${parsedUpdates.error.issues
+                    .map((issue) => issue.message)
+                    .join(', ')}`
+            );
+            return;
+        }
+
+        const currentConfig = this.stateManager.getLLMConfig();
+        const result = resolveAndValidateLLMConfig(currentConfig, parsedUpdates.data);
+
+        try {
+            const validatedConfig = ensureOk(result);
+            await session.switchLLM(validatedConfig);
+
+            const warnings = result.issues.filter((issue) => issue.severity === 'warning');
+            if (warnings.length > 0) {
+                logger.warn(
+                    `Sampling overrides applied with warnings: ${warnings
+                        .map((warning) => warning.message)
+                        .join(', ')}`
+                );
+            }
+        } catch (error) {
+            logger.warn(
+                `Failed to apply sampling overrides: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    private resolveSamplingTimeout(metadata?: Record<string, unknown>): number {
+        const requested =
+            metadata && typeof metadata[SAMPLING_TIMEOUT_METADATA_KEY] === 'number'
+                ? Number(metadata[SAMPLING_TIMEOUT_METADATA_KEY])
+                : undefined;
+
+        if (requested && Number.isFinite(requested) && requested > 0) {
+            return Math.min(requested, SAMPLING_TIMEOUT_MAX_MS);
+        }
+
+        return SAMPLING_TIMEOUT_DEFAULT_MS;
+    }
+
+    private async runWithSamplingTimeout<T>(
+        session: ChatSession,
+        operation: () => Promise<T>,
+        timeoutMs: number
+    ): Promise<T> {
+        let timeout: NodeJS.Timeout | undefined;
+        const timeoutError = new Error(
+            `Sampling timed out after ${Math.round(timeoutMs / 1000)} seconds`
+        );
+
+        try {
+            return await Promise.race([
+                operation(),
+                new Promise<T>((_, reject) => {
+                    timeout = setTimeout(() => {
+                        session.cancel();
+                        reject(timeoutError);
+                    }, timeoutMs);
+                }),
+            ]);
+        } finally {
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+        }
+    }
+
+    private buildSamplingSuccessResult(
+        responseText: string,
+        session: ChatSession
+    ): CreateMessageResult {
+        const llmInfo = session.getLLMService().getConfig();
+        const modelId =
+            (llmInfo.model as any)?.id ||
+            (typeof llmInfo.model === 'string' ? llmInfo.model : 'unknown-model');
+
+        return {
+            model: modelId,
+            role: 'assistant',
+            stopReason: 'endTurn',
+            content: {
+                type: 'text',
+                text: responseText,
+            },
+        };
+    }
+
+    private buildSamplingFailureResult(
+        error: unknown,
+        context: SamplingRequestContext
+    ): CreateMessageResult {
+        const message =
+            error instanceof Error
+                ? error.message
+                : typeof error === 'string'
+                  ? error
+                  : 'Unknown error';
+        logger.warn(`Sampling request for ${context.serverName} failed: ${message}`);
+
+        return {
+            model: 'sampling-error',
+            role: 'assistant',
+            stopReason: 'error',
+            content: {
+                type: 'text',
+                text: `Sampling request failed: ${message}`,
+            },
+        };
+    }
+
+    private buildSamplingUnavailableResult(reason: string): CreateMessageResult {
+        return {
+            model: 'sampling-unavailable',
+            role: 'assistant',
+            stopReason: 'error',
+            content: {
+                type: 'text',
+                text: `Sampling is unavailable: ${reason} Configure your LLM credentials (for example by setting OPENAI_API_KEY) to enable this capability.`,
+            },
+        };
+    }
+
+    private async cleanupSamplingSession(session: ChatSession): Promise<void> {
+        try {
+            await this.sessionManager.deleteSession(session.id);
+        } catch (error) {
+            logger.warn(
+                `Failed to clean up sampling session ${session.id}: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    private normalizeSamplingMessageContent(
+        message: CreateMessageRequest['params']['messages'][number]
+    ): { text: string; imageData?: { image: string; mimeType: string } } {
+        const content = message.content;
+
+        if (!content) {
+            return { text: '' };
+        }
+
+        switch (content.type) {
+            case 'text':
+                return { text: content.text ?? '' };
+            case 'image':
+                if (!content.data) {
+                    throw MCPError.protocolError('Sampling image content is missing data');
+                }
+                return {
+                    text: '',
+                    imageData: {
+                        image: `data:${content.mimeType ?? 'image/png'};base64,${content.data}`,
+                        mimeType: content.mimeType ?? 'image/png',
+                    },
+                };
+            default:
+                throw MCPError.protocolError(`Unsupported sampling content type: ${content.type}`);
+        }
+    }
+
+    private isSamplingReady(config: ValidatedLLMConfig): boolean {
+        const explicitKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
+        if (explicitKey.length > 0) {
+            return true;
+        }
+
+        const resolvedKey = resolveApiKeyForProvider(config.provider);
+        return typeof resolvedKey === 'string' && resolvedKey.trim().length > 0;
+    }
+
     // Future methods could encapsulate more complex agent behaviors:
     // - Multi-step task execution with progress tracking
     // - Memory and context management across sessions
     // - Tool chaining and workflow automation
     // - Agent collaboration and delegation
 }
+
+// (resource methods are defined on the class above; no interface augmentation required)
