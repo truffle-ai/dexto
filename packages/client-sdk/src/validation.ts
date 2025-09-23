@@ -63,7 +63,7 @@ export const LLMSwitchRequestSchema = z
             .enum(['vercel', 'in-built'])
             .describe('Routing layer to use for the model')
             .optional(),
-        baseURL: z
+        baseUrl: z
             .string()
             .url()
             .describe('Optional custom API base URL for compatible providers')
