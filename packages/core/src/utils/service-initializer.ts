@@ -112,7 +112,7 @@ export async function createAgentServices(
     const searchService = new SearchService(storage.database);
 
     // 5. Initialize unified tool manager with internal tools options
-    const toolManager = new ToolManager(mcpManager, confirmationProvider, {
+    const toolManager = new ToolManager(mcpManager, confirmationProvider, agentEventBus, {
         internalToolsServices: { searchService },
         internalToolsConfig: config.internalTools,
     });

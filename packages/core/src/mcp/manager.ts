@@ -62,6 +62,7 @@ export class MCPManager {
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
     private samplingHandler: SamplingRequestHandler | null = null;
+    private approvalProvider?: any;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
@@ -131,6 +132,11 @@ export class MCPManager {
         this.sanitizedNameToServerMap.set(sanitizedName, name);
         this.setupClientNotifications(name, client);
         this.bindSamplingHandlerToClient(name, client);
+
+        // Apply approval provider if available
+        if (this.approvalProvider && typeof (client as any).setApprovalProvider === 'function') {
+            (client as any).setApprovalProvider(this.approvalProvider);
+        }
 
         logger.info(`Registered client: ${name}`);
         delete this.connectionErrors[name];
@@ -799,6 +805,7 @@ export class MCPManager {
      * @param approvalProvider The UserApprovalProvider instance
      */
     setApprovalProvider(approvalProvider: any): void {
+        this.approvalProvider = approvalProvider;
         for (const client of this.clients.values()) {
             if (client && typeof (client as any).setApprovalProvider === 'function') {
                 (client as any).setApprovalProvider(approvalProvider);

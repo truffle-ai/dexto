@@ -123,8 +123,14 @@ export const InternalResourcesSchema = z
         z.array(InternalResourceConfigSchema), // array-only form
         z
             .object({
-                enabled: z.boolean().optional(),
-                resources: z.array(InternalResourceConfigSchema).default([]),
+                enabled: z
+                    .boolean()
+                    .optional()
+                    .describe('Explicit toggle; auto-enabled when resources are non-empty'),
+                resources: z
+                    .array(InternalResourceConfigSchema)
+                    .default([])
+                    .describe('List of internal resource configurations'),
             })
             .strict(),
     ])

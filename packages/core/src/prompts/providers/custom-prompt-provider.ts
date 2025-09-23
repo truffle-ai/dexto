@@ -281,8 +281,8 @@ export class CustomPromptProvider implements PromptProvider {
         const slug = name
             .toLowerCase()
             .trim()
-            .replace(/[^a-z0-9\s-_]/g, '')
-            .replace(/[\s_-]+/g, '-')
+            .replace(/[^a-z0-9\s\-_]/g, '')
+            .replace(/[\s\-_]+/g, '-')
             .replace(/^-+|-+$/g, '');
         return slug;
     }

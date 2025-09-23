@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createAgentServices } from './utils/service-initializer.js';
-import { AgentConfigSchema, type ValidatedAgentConfig } from './agent/schemas.js';
+import { AgentConfigSchema } from './agent/schemas.js';
 import { MCPClient } from './mcp/mcp-client.js';
 import { UserApprovalProvider } from './tools/confirmation/user-approval-provider.js';
 import {

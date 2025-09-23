@@ -105,7 +105,8 @@
         ]
     },
     "overrides": {
-        "tough-cookie": "^4.1.3"
+        "tough-cookie": "^4.1.3",
+        "@modelcontextprotocol/sdk": "^1.18.1"
     },
     "preinstall": "npx only-allow pnpm",
     "dependencies": {

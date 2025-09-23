@@ -13,6 +13,10 @@ export enum ToolErrorCode {
     CONFIRMATION_TIMEOUT = 'tools_confirmation_timeout',
     CONFIRMATION_CANCELLED = 'tools_confirmation_cancelled',
 
+    // Elicitation
+    ELICITATION_TIMEOUT = 'tools_elicitation_timeout',
+    ELICITATION_CANCELLED = 'tools_elicitation_cancelled',
+
     // Tool management
     TOOL_NOT_FOUND = 'tools_tool_not_found',
     TOOL_INVALID_ARGS = 'tools_invalid_args',

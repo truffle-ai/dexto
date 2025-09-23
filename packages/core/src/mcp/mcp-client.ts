@@ -591,6 +591,28 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         }
 
         logger.debug('MCP request handlers registered (elicitation, roots, sampling)');
+
+        // Also handle server notifications
+        try {
+            // Resource updated
+            (this.client as any).setNotificationHandler?.(
+                'notifications/resources/updated',
+                (params: { uri: string; title?: string }) => this.handleResourceUpdated(params)
+            );
+        } catch (error) {
+            logger.warn(`Could not set resources/updated notification handler: ${error}`);
+        }
+        try {
+            // Prompts list changed
+            (this.client as any).setNotificationHandler?.(
+                'notifications/prompts/list_changed',
+                () => this.handlePromptsListChanged()
+            );
+        } catch (error) {
+            logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
+        }
+
+        logger.debug('MCP notification handlers registered (resources, prompts)');
     }
 
     /**
@@ -724,11 +746,11 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         logger.debug('Handling sampling request');
 
         if (!this.samplingEnabled) {
-            throw new Error('Sampling is disabled for this client');
+            throw MCPError.protocolError('Sampling is disabled for this client');
         }
 
         if (!this.samplingHandler) {
-            throw new Error('No sampling handler configured for this client');
+            throw MCPError.protocolError('No sampling handler configured for this client');
         }
 
         try {

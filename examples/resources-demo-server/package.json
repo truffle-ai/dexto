@@ -8,7 +8,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4"
+    "@modelcontextprotocol/sdk": "^1.18.1"
   },
   "keywords": ["mcp", "resources", "demo"],
   "license": "MIT"

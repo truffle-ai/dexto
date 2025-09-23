@@ -4,7 +4,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readFile, readdir, stat } from 'fs/promises';
-import { join, extname, relative } from 'path';
+import { join, extname, relative, resolve, sep } from 'path';
+import { fileURLToPath } from 'url';
 
 const MAX_CODE_SNIPPET = 4000;
 
@@ -430,8 +431,14 @@ ${snippet}
   async resolveFilePath(filePath) {
     // Try to find the file in any of the roots
     for (const root of this.roots) {
-      const rootPath = root.uri.replace('file://', '');
-      const fullPath = join(rootPath, filePath);
+      const rootPath = root.uri.startsWith('file:')
+        ? fileURLToPath(new URL(root.uri))
+        : root.uri;
+      const fullPath = resolve(rootPath, filePath);
+      // Enforce containment within root
+      if (!(fullPath.startsWith(rootPath + sep) || fullPath === rootPath)) {
+        continue;
+      }
       
       try {
         await stat(fullPath);

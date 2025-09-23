@@ -6,7 +6,7 @@ import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
-import { eventBus } from '../events/index.js';
+import type { AgentEventBus } from '../events/index.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -37,6 +37,7 @@ export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
     private confirmationProvider: ToolConfirmationProvider;
+    private agentEventBus: AgentEventBus;
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -49,10 +50,12 @@ export class ToolManager {
     constructor(
         mcpManager: MCPManager,
         confirmationProvider: ToolConfirmationProvider,
+        agentEventBus: AgentEventBus,
         options?: InternalToolsOptions
     ) {
         this.mcpManager = mcpManager;
         this.confirmationProvider = confirmationProvider;
+        this.agentEventBus = agentEventBus;
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
@@ -92,14 +95,14 @@ export class ToolManager {
      */
     private setupNotificationListeners(): void {
         // Listen for MCP server connection changes that affect tools
-        eventBus.on('dexto:mcpServerConnected', async (payload) => {
+        this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
             if (payload.success) {
                 logger.debug(`🔄 MCP server connected, updating tool cache: ${payload.name}`);
                 await this.updateToolCacheForServer(payload.name);
             }
         });
 
-        eventBus.on('dexto:mcpServerRemoved', async (payload) => {
+        this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
             logger.debug(`🔄 MCP server removed, updating tool cache: ${payload.serverName}`);
             this.removeToolsFromServer(payload.serverName);
         });

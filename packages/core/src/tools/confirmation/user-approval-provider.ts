@@ -169,9 +169,7 @@ export class UserApprovalProvider implements UserApprovalProviderInterface {
                 // Notify application layers
                 this.agentEventBus.emit('dexto:elicitationResponse', timeoutResponse);
 
-                reject(
-                    new Error(`Elicitation request timed out after ${this.confirmationTimeout}ms`)
-                );
+                reject(ToolError.elicitationTimeout(this.confirmationTimeout, details.sessionId));
             }, this.confirmationTimeout);
 
             // Store the promise resolvers with cleanup
@@ -273,7 +271,7 @@ export class UserApprovalProvider implements UserApprovalProviderInterface {
     cancelElicitation(executionId: string): void {
         const pending = this.pendingElicitations.get(executionId);
         if (pending) {
-            pending.reject(new Error('Elicitation request cancelled'));
+            pending.reject(ToolError.elicitationCancelled('individual request cancelled'));
             this.pendingElicitations.delete(executionId);
         }
     }
@@ -290,7 +288,7 @@ export class UserApprovalProvider implements UserApprovalProviderInterface {
         this.pendingConfirmations.clear();
 
         for (const [_executionId, pending] of this.pendingElicitations) {
-            pending.reject(new Error('All elicitation requests cancelled'));
+            pending.reject(ToolError.elicitationCancelled('all requests cancelled'));
         }
         this.pendingElicitations.clear();
     }

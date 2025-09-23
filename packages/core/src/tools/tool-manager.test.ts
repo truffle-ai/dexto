@@ -5,6 +5,7 @@ import { ToolConfirmationProvider } from './confirmation/types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import { AgentEventBus } from '../events/index.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -19,6 +20,7 @@ vi.mock('../logger/index.js', () => ({
 describe('ToolManager - Unit Tests (Pure Logic)', () => {
     let mockMcpManager: MCPManager;
     let mockConfirmationProvider: ToolConfirmationProvider;
+    let mockAgentEventBus: AgentEventBus;
 
     beforeEach(() => {
         mockMcpManager = {
@@ -32,26 +34,46 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             allowedToolsProvider: {} as any,
         };
 
+        mockAgentEventBus = {
+            on: vi.fn(),
+            emit: vi.fn(),
+            off: vi.fn(),
+            once: vi.fn(),
+            removeAllListeners: vi.fn(),
+        } as any;
+
         vi.clearAllMocks();
     });
 
     describe('Tool Source Detection Logic', () => {
         it('should correctly identify MCP tools', () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             expect(toolManager.getToolSource('mcp--file_read')).toBe('mcp');
             expect(toolManager.getToolSource('mcp--web_search')).toBe('mcp');
         });
 
         it('should correctly identify internal tools', () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             expect(toolManager.getToolSource('internal--search_history')).toBe('internal');
             expect(toolManager.getToolSource('internal--config_manager')).toBe('internal');
         });
 
         it('should identify unknown tools', () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             expect(toolManager.getToolSource('invalid_tool')).toBe('unknown');
             expect(toolManager.getToolSource('file_read')).toBe('unknown'); // No prefix
@@ -59,7 +81,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should handle edge cases with empty tool names', () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
             expect(toolManager.getToolSource('internal--')).toBe('unknown'); // Prefix but no name
@@ -94,7 +120,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should reject tools without proper prefix', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const error = (await toolManager
                 .executeTool('invalid_tool', {})
@@ -106,7 +136,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should reject tools with prefix but no name', async () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const mcpError = (await toolManager
                 .executeTool('mcp--', {})
@@ -129,7 +163,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should reject internal tools when provider not initialized', async () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             await expect(toolManager.executeTool('internal--search_history', {})).rejects.toThrow(
                 'Internal tools not initialized, cannot execute: internal--search_history'
@@ -142,7 +180,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
 
@@ -157,7 +199,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' });
 
@@ -170,7 +216,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should throw execution denied error when confirmation denied', async () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(false);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const error = (await toolManager
                 .executeTool('mcp--file_read', { path: '/test' }, 'session123')
@@ -187,7 +237,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
 
@@ -207,7 +261,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             };
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue(tools);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             // First call
             await toolManager.getAllTools();
@@ -223,7 +281,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             };
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue(tools);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             // First call
             await toolManager.getAllTools();
@@ -247,7 +309,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue(mcpTools);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const stats = await toolManager.getToolStats();
 
@@ -261,7 +327,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should handle empty tool sets', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const stats = await toolManager.getToolStats();
 
@@ -275,7 +345,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should handle MCP errors gracefully in statistics', async () => {
             mockMcpManager.getAllTools = vi.fn().mockRejectedValue(new Error('MCP failed'));
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const stats = await toolManager.getToolStats();
 
@@ -291,7 +365,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should check MCP tool existence correctly', async () => {
             mockMcpManager.getToolClient = vi.fn().mockReturnValue({});
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const exists = await toolManager.hasTool('mcp--file_read');
 
@@ -302,7 +380,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should return false for non-existent MCP tools', async () => {
             mockMcpManager.getToolClient = vi.fn().mockReturnValue(undefined);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const exists = await toolManager.hasTool('mcp--nonexistent');
 
@@ -310,7 +392,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should return false for tools without proper prefix', async () => {
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             const exists = await toolManager.hasTool('invalid_tool');
 
@@ -327,7 +413,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             const executionError = new Error('Tool execution failed');
             mockMcpManager.executeTool = vi.fn().mockRejectedValue(executionError);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             await expect(
                 toolManager.executeTool('mcp--file_read', { path: '/test' })
@@ -340,7 +430,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .fn()
                 .mockRejectedValue(confirmationError);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockConfirmationProvider,
+                mockAgentEventBus
+            );
 
             await expect(
                 toolManager.executeTool('mcp--file_read', { path: '/test' })

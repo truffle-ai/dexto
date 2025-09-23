@@ -123,17 +123,18 @@ export class ResourceManager {
         if (uri.startsWith('mcp:')) {
             return this.mcpManager.hasResource(uri);
         }
-        if (!this.internalResourcesProvider) {
-            if (uri.startsWith('blob:') && this.blobService) {
-                try {
-                    return await this.blobService.exists(uri);
-                } catch (error) {
-                    logger.warn(
-                        `BlobService exists check failed for ${uri}: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    return false;
-                }
+        // Always short-circuit blob: URIs to use blobService directly
+        if (uri.startsWith('blob:') && this.blobService) {
+            try {
+                return await this.blobService.exists(uri);
+            } catch (error) {
+                logger.warn(
+                    `BlobService exists check failed for ${uri}: ${error instanceof Error ? error.message : String(error)}`
+                );
+                return false;
             }
+        }
+        if (!this.internalResourcesProvider) {
             return false;
         }
         return await this.internalResourcesProvider.hasResource(uri);
@@ -148,25 +149,27 @@ export class ResourceManager {
                 return result;
             }
 
-            if (!this.internalResourcesProvider) {
-                if (uri.startsWith('blob:') && this.blobService) {
-                    const blob = await this.blobService.retrieve(uri, 'base64');
-                    return {
-                        contents: [
-                            {
-                                uri,
-                                mimeType: blob.metadata.mimeType,
-                                blob: blob.data as string,
-                            },
-                        ],
-                        _meta: {
-                            size: blob.metadata.size,
-                            createdAt: blob.metadata.createdAt,
-                            originalName: blob.metadata.originalName,
-                            source: blob.metadata.source,
+            // Always short-circuit blob: URIs to use blobService directly
+            if (uri.startsWith('blob:') && this.blobService) {
+                const blob = await this.blobService.retrieve(uri, 'base64');
+                return {
+                    contents: [
+                        {
+                            uri,
+                            mimeType: blob.metadata.mimeType,
+                            blob: blob.data as string,
                         },
-                    };
-                }
+                    ],
+                    _meta: {
+                        size: blob.metadata.size,
+                        createdAt: blob.metadata.createdAt,
+                        originalName: blob.metadata.originalName,
+                        source: blob.metadata.source,
+                    },
+                };
+            }
+
+            if (!this.internalResourcesProvider) {
                 throw ResourceError.providerNotInitialized('Internal', uri);
             }
 

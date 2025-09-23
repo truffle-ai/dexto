@@ -116,26 +116,31 @@ const CancelRequestSchema = z.object({
     sessionId: z.string().min(1, 'Session ID is required'),
 });
 
-const PromptArgumentSchema = z.object({
-    name: z.string().min(1, 'Argument name is required'),
-    description: z.string().optional(),
-    required: z.boolean().optional(),
-});
+const PromptArgumentSchema = z
+    .object({
+        name: z.string().min(1, 'Argument name is required'),
+        description: z.string().optional(),
+        required: z.boolean().optional(),
+    })
+    .strict();
 
-const CustomPromptRequestSchema = z.object({
-    name: z.string().min(1, 'Prompt name is required'),
-    title: z.string().optional(),
-    description: z.string().optional(),
-    content: z.string().min(1, 'Prompt content is required'),
-    arguments: z.array(PromptArgumentSchema).optional(),
-    resource: z
-        .object({
-            base64: z.string().min(1, 'Resource data is required'),
-            mimeType: z.string().min(1, 'Resource MIME type is required'),
-            filename: z.string().optional(),
-        })
-        .optional(),
-});
+const CustomPromptRequestSchema = z
+    .object({
+        name: z.string().min(1, 'Prompt name is required'),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        content: z.string().min(1, 'Prompt content is required'),
+        arguments: z.array(PromptArgumentSchema).optional(),
+        resource: z
+            .object({
+                base64: z.string().min(1, 'Resource data is required'),
+                mimeType: z.string().min(1, 'Resource MIME type is required'),
+                filename: z.string().optional(),
+            })
+            .strict()
+            .optional(),
+    })
+    .strict();
 
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {

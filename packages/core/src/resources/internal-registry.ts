@@ -323,12 +323,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             if (stat.isFile()) {
                 if (!this.shouldIncludeFile(canonical, includeExtensions, includeHidden)) return;
 
-                const base =
-                    rootBase ??
-                    this.canonicalRoots.find((r) => canonical.startsWith(r)) ??
-                    process.cwd();
-                const rel = path.relative(base, canonical).replace(/\\/g, '/');
-                const uri = `fs://${rel}`;
+                // Use absolute canonical path to ensure readResource resolves correctly
+                const uri = `fs://${canonical.replace(/\\/g, '/')}`;
                 this.resourcesCache.set(uri, {
                     uri,
                     name: this.generateCleanFileName(canonical),
@@ -759,7 +755,11 @@ export class BlobResourceHandler implements InternalResourceHandler {
 export function createInternalResourceHandler(type: string): InternalResourceHandler {
     if (type === 'filesystem') return new FileSystemResourceHandler();
     if (type === 'blob') return new BlobResourceHandler();
-    throw new Error(`Unsupported internal resource handler type: ${type}`);
+    throw ResourceError.providerError(
+        'Internal',
+        'createInternalResourceHandler',
+        `Unsupported internal resource handler type: ${type}`
+    );
 }
 
 export function getInternalResourceHandlerTypes(): string[] {

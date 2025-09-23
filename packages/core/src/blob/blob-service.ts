@@ -71,8 +71,9 @@ export class BlobService implements IBlobService {
      * - Implement proper error handling for S3 operations
      */
     private createS3Backend(_config: S3BlobBackendConfig): BlobBackend {
-        throw new Error(
-            'S3 backend not yet implemented. Please use local backend or implement S3BlobBackend.'
+        throw BlobError.invalidConfig(
+            'S3 backend not yet implemented. Please use local backend or implement S3BlobBackend.',
+            { backendType: 's3' }
         );
     }
 
@@ -87,8 +88,9 @@ export class BlobService implements IBlobService {
      * - Implement proper bucket and object lifecycle management
      */
     private createGCSBackend(_config: GCSBlobBackendConfig): BlobBackend {
-        throw new Error(
-            'GCS backend not yet implemented. Please use local backend or implement GCSBlobBackend.'
+        throw BlobError.invalidConfig(
+            'GCS backend not yet implemented. Please use local backend or implement GCSBlobBackend.',
+            { backendType: 'gcs' }
         );
     }
 
@@ -103,8 +105,9 @@ export class BlobService implements IBlobService {
      * - Implement proper error handling for Azure storage exceptions
      */
     private createAzureBackend(_config: AzureBlobBackendConfig): BlobBackend {
-        throw new Error(
-            'Azure backend not yet implemented. Please use local backend or implement AzureBlobBackend.'
+        throw BlobError.invalidConfig(
+            'Azure backend not yet implemented. Please use local backend or implement AzureBlobBackend.',
+            { backendType: 'azure' }
         );
     }
 
@@ -230,7 +233,7 @@ export class BlobService implements IBlobService {
      * Consider removing if not required, or implement with proper data migration.
      */
     async switchBackend(_config: BlobServiceConfig): Promise<void> {
-        throw new Error(
+        throw BlobError.invalidConfig(
             'Backend switching not yet implemented. Create a new BlobService instance instead.'
         );
     }

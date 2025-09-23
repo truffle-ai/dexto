@@ -1,6 +1,7 @@
-import { promises as fs } from 'fs';
+import { promises as fs, createReadStream } from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
+import { pathToFileURL } from 'url';
 import { logger } from '../../logger/index.js';
 import { getDextoPath } from '../../utils/path.js';
 import { BlobError } from '../errors.js';
@@ -77,6 +78,17 @@ export class LocalBlobBackend implements BlobBackend {
         logger.debug('LocalBlobBackend disconnected');
     }
 
+    /**
+     * Normalize metadata after JSON parsing to ensure createdAt is a Date object
+     */
+    private normalizeMetadata(parsed: any): StoredBlobMetadata {
+        return {
+            ...parsed,
+            createdAt:
+                parsed.createdAt instanceof Date ? parsed.createdAt : new Date(parsed.createdAt),
+        };
+    }
+
     isConnected(): boolean {
         return this.connected;
     }
@@ -108,7 +120,8 @@ export class LocalBlobBackend implements BlobBackend {
         // Check if blob already exists (deduplication)
         try {
             const existingMeta = await fs.readFile(metaPath, 'utf-8');
-            const existingMetadata: StoredBlobMetadata = JSON.parse(existingMeta);
+            const parsed = JSON.parse(existingMeta) as any;
+            const existingMetadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
             logger.debug(`Blob ${id} already exists, returning existing reference`);
 
             return {
@@ -181,7 +194,8 @@ export class LocalBlobBackend implements BlobBackend {
         try {
             // Load metadata
             const metaContent = await fs.readFile(metaPath, 'utf-8');
-            const metadata: StoredBlobMetadata = JSON.parse(metaContent);
+            const parsed = JSON.parse(metaContent) as any;
+            const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
 
             // Return data in requested format
             switch (format) {
@@ -199,13 +213,17 @@ export class LocalBlobBackend implements BlobBackend {
                     return { format: 'path', data: blobPath, metadata };
                 }
                 case 'stream': {
-                    const stream = require('fs').createReadStream(blobPath);
+                    const stream = createReadStream(blobPath);
                     return { format: 'stream', data: stream, metadata };
                 }
                 case 'url': {
-                    // For local backend, return file:// URL
+                    // For local backend, return file:// URL (cross‑platform)
                     const absolutePath = path.resolve(blobPath);
-                    return { format: 'url', data: `file://${absolutePath}`, metadata };
+                    return {
+                        format: 'url',
+                        data: pathToFileURL(absolutePath).toString(),
+                        metadata,
+                    };
                 }
                 default:
                     throw BlobError.invalidInput(format, `Unsupported format: ${format}`);
@@ -246,7 +264,8 @@ export class LocalBlobBackend implements BlobBackend {
 
         try {
             const metaContent = await fs.readFile(metaPath, 'utf-8');
-            const metadata: StoredBlobMetadata = JSON.parse(metaContent);
+            const parsed = JSON.parse(metaContent) as any;
+            const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
             await Promise.all([fs.unlink(blobPath), fs.unlink(metaPath)]);
             logger.debug(`Deleted blob: ${id}`);
             this.updateStatsCacheAfterDelete(metadata.size);
@@ -278,9 +297,10 @@ export class LocalBlobBackend implements BlobBackend {
 
                 try {
                     const metaContent = await fs.readFile(metaPath, 'utf-8');
-                    const metadata: StoredBlobMetadata = JSON.parse(metaContent);
+                    const parsed = JSON.parse(metaContent) as any;
+                    const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
 
-                    if (new Date(metadata.createdAt) < cutoffDate) {
+                    if (metadata.createdAt < cutoffDate) {
                         await Promise.all([
                             fs.unlink(blobPath).catch(() => {}),
                             fs.unlink(metaPath).catch(() => {}),
@@ -333,7 +353,8 @@ export class LocalBlobBackend implements BlobBackend {
                 try {
                     const metaPath = path.join(this.storePath, metaFile);
                     const metaContent = await fs.readFile(metaPath, 'utf-8');
-                    const metadata: StoredBlobMetadata = JSON.parse(metaContent);
+                    const parsed = JSON.parse(metaContent) as any;
+                    const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
                     const blobId = metaFile.replace('.meta.json', '');
 
                     blobs.push({
