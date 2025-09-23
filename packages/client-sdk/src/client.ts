@@ -145,7 +145,7 @@ export class DextoClient {
 
         const endpoint = '/api/message-sync';
         const requestBody = {
-            message: input.content,
+            message: input.message,
             ...(input.sessionId && { sessionId: input.sessionId }),
             ...(input.imageData && { imageData: input.imageData }),
             ...(input.fileData && { fileData: input.fileData }),
@@ -167,7 +167,7 @@ export class DextoClient {
 
         return this.ws.send({
             type: 'message',
-            content: input.content,
+            message: input.message,
             ...(input.sessionId && { sessionId: input.sessionId }),
             ...(input.imageData && { imageData: input.imageData }),
             ...(input.fileData && { fileData: input.fileData }),

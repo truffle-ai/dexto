@@ -32,7 +32,8 @@ import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
-import type { McpServerConfig } from '@dexto/core';
+import type { McpServerConfig } from '@dexto/client-sdk';
+import type { ServerRegistryEntry } from '@/types';
 
 export default function ChatApp() {
 
@@ -241,12 +242,19 @@ export default function ChatApp() {
     }
   }, [exportContent]);
 
-  const handleSend = useCallback(async (content: string, imageData?: any, fileData?: any) => {
-    setIsSendingMessage(true);
-    setErrorMessage(null);
-    
-    try {
-      await sendMessage(content, imageData, fileData);
+  type SendMessageArgs = Parameters<typeof sendMessage>;
+
+  const handleSend = useCallback(
+    async (
+      content: string,
+      imageData?: SendMessageArgs[1],
+      fileData?: SendMessageArgs[2]
+    ) => {
+      setIsSendingMessage(true);
+      setErrorMessage(null);
+      
+      try {
+        await sendMessage(content, imageData, fileData);
       // After sending, position the new user message near the top,
       // then enable followStreaming to follow the assistant reply.
       setTimeout(() => {
@@ -279,7 +287,7 @@ export default function ChatApp() {
     setSessionsPanelOpen(false);
   }, [switchSession]);
 
-  const handleInstallServer = useCallback(async (entry: any) => {
+  const handleInstallServer = useCallback(async (entry: ServerRegistryEntry) => {
     // Open Connect modal with prefilled config
     const config = {
       type: entry.config.type,
@@ -479,7 +487,7 @@ export default function ChatApp() {
         {/** Shared centered content width for welcome, messages, and composer */}
         {/** Keep this in sync to unify UI width like other chat apps */}
         {/** 720px base, expand to ~2xl on sm, ~3xl on lg */}
-        {/* Unused var directive removed; keep code clean */}
+        {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
         {(() => {
           /* no-op to allow inline constant-like usage below via variable */
           return null;

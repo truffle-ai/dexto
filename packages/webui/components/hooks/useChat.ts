@@ -1,12 +1,18 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { TextPart as CoreTextPart, InternalMessage, FilePart, Issue } from '@dexto/core';
-import { toError } from '@dexto/core';
-import type { LLMRouter, LLMProvider } from '@dexto/core';
+import type {
+    TextPart,
+    InternalMessage,
+    FilePart,
+    LLMRouter,
+    LLMProvider,
+    Issue,
+} from '@dexto/client-sdk';
+import { toAppError } from '@/lib/api-error';
 
-// Reuse the identical TextPart from core
-export type TextPart = CoreTextPart;
+// Re-export types from lib
+export type { TextPart, InternalMessage, FilePart, Issue, LLMRouter, LLMProvider };
 
 // Define WebUI-specific media parts
 export interface ImagePart {
@@ -177,7 +183,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
             try {
                 msg = JSON.parse(event.data);
             } catch (err: unknown) {
-                const error = toError(err);
+                const error = toAppError(err);
                 console.error(`[useChat] WebSocket message parse error: ${error.message}`, {
                     error,
                 });
@@ -285,9 +291,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             : undefined;
                     const model = typeof payload.model === 'string' ? payload.model : undefined;
                     const provider =
-                        typeof payload.provider === 'string'
-                            ? (payload.provider as LLMProvider)
-                            : undefined;
+                        typeof payload.provider === 'string' ? payload.provider : undefined;
                     const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
@@ -486,7 +490,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     }
 
                     // Otherwise, set an error banner (separate from messages)
-                    const errorMessage = toError(payload).message;
+                    const errorMessage = toAppError(payload).message;
                     setActiveError({
                         id: generateUniqueId(),
                         message: errorMessage,

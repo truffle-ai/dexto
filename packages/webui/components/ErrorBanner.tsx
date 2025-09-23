@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { ErrorMessage } from './hooks/useChat';
-import type { Issue } from '@dexto/core';
+import type { ErrorMessage } from './hooks/useChat';
+import type { Issue } from '@dexto/client-sdk';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
 

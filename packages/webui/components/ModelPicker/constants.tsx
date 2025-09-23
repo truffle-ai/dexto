@@ -1,9 +1,11 @@
 import React from 'react';
 import { Eye, FileAudio, FileText, Brain, Image, Sparkles, FlaskConical, Zap } from "lucide-react";
-import type { LLMProvider } from "@dexto/core";
+
+// Independent WebUI provider type - no @core imports for deployment separation
+export type LLMProviderID = 'openai' | 'openai-compatible' | 'anthropic' | 'google' | 'groq' | 'xai' | 'cohere';
 
 // Provider logo file mapping - single source of truth
-export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
+export const PROVIDER_LOGOS: Record<LLMProviderID, string> = {
   openai: "/logos/openai.svg",
   anthropic: "/logos/claude-color.svg",
   google: "/logos/gemini-color.svg",
@@ -14,7 +16,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
-export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
+export const PROVIDER_PRICING_URLS: Partial<Record<LLMProviderID, string>> = {
   openai: "https://platform.openai.com/docs/pricing",
   anthropic: "https://www.anthropic.com/pricing#api",
   google: "https://ai.google.dev/gemini-api/docs/pricing",
@@ -48,11 +50,11 @@ export function formatPricingLines(pricing?: {
 }
 
 // Logos that have hardcoded colors and don't need dark mode inversion
-export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere', 'anthropic'] as const;
+export const COLORED_LOGOS: readonly LLMProviderID[] = ['google', 'cohere', 'anthropic'] as const;
 
 // Helper to check if a logo needs dark mode inversion
-export const needsDarkModeInversion = (provider: LLMProvider): boolean => {
-  return !COLORED_LOGOS.includes(provider);
+export const needsDarkModeInversion = (provider: LLMProviderID | string): boolean => {
+  return !COLORED_LOGOS.includes(provider as LLMProviderID);
 };
 
 // Model capability icons - sleek emojis for current capabilities

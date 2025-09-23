@@ -15,9 +15,18 @@ import type {
     ImageData,
     FileData,
     InternalMessage,
+    TextPart,
+    ImagePart,
+    FilePart,
     SessionMetadata,
     ToolSet,
     McpServerConfig,
+    ToolResult,
+    ToolCall,
+    Issue,
+    StdioServerConfig,
+    SseServerConfig,
+    HttpServerConfig,
 } from '@dexto/core';
 
 // Re-export core types for convenience
@@ -38,9 +47,18 @@ export type {
     ImageData,
     FileData,
     InternalMessage,
+    TextPart,
+    ImagePart,
+    FilePart,
     SessionMetadata,
     ToolSet,
     McpServerConfig,
+    ToolResult,
+    ToolCall,
+    Issue,
+    StdioServerConfig,
+    SseServerConfig,
+    HttpServerConfig,
 };
 
 // Client-specific configuration types (not in core - SDK-specific concerns)
@@ -60,7 +78,7 @@ export interface ClientOptions {
 
 // API-specific message types (not in core - simplified interface for external clients)
 export interface MessageInput {
-    content: string;
+    message: string;
     imageData?: ImageData;
     fileData?: FileData;
     sessionId?: string;
@@ -77,7 +95,16 @@ export type ClientProviderInfo = ProviderInfo;
 export type McpServer = McpServerConfig;
 export type Tool = ToolSet;
 export type CatalogModel = ModelInfo;
-export type CatalogProvider = ProviderInfo;
+
+export interface CatalogProvider {
+    name: string;
+    hasApiKey: boolean;
+    primaryEnvVar: string;
+    supportedRouters: LLMRouter[];
+    supportsBaseURL: boolean;
+    models: CatalogModel[];
+    supportedFileTypes?: SupportedFileType[];
+}
 
 // API-specific catalog types (not in core - client-specific query options)
 export interface CatalogOptions {

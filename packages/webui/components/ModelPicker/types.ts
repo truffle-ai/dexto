@@ -1,33 +1,17 @@
-import type { LLMRouter, SupportedFileType } from '@dexto/core';
+// Surface SDK types to consumers of this helper module
+export type {
+    LLMRouter,
+    SupportedFileType,
+    ModelInfo,
+    CatalogProvider,
+    CatalogResponse,
+} from '@dexto/client-sdk';
 
-export type ModelInfo = {
-    name: string;
-    displayName?: string;
-    default?: boolean;
-    maxInputTokens: number;
-    supportedFileTypes: SupportedFileType[];
-    supportedRouters?: LLMRouter[];
-    pricing?: {
-        inputPerM: number;
-        outputPerM: number;
-        cacheReadPerM?: number;
-        cacheWritePerM?: number;
-        currency?: 'USD';
-        unit?: 'per_million_tokens';
-    };
-};
+import type { LLMRouter, CatalogProvider as SdkCatalogProvider } from '@dexto/client-sdk';
 
-export type ProviderCatalog = {
-    name: string;
-    hasApiKey: boolean;
-    primaryEnvVar: string;
-    supportedRouters: LLMRouter[];
-    supportsBaseURL: boolean;
-    models: ModelInfo[];
-};
+export type ProviderCatalog = SdkCatalogProvider;
 
-export type CatalogResponse = { providers: Record<string, ProviderCatalog> };
-
+// Local utility types for this component
 export type CurrentLLMConfigResponse = {
     config: {
         provider: string;
