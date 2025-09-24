@@ -78,14 +78,14 @@ function computeDistinctId(): string {
     try {
         // machineIdSync(true) returns a hashed, stable identifier
         const id = machineIdSync(true);
-        if (typeof id === 'string' && id.length > 0) return `dexto-${id}`;
+        if (typeof id === 'string' && id.length > 0) return `DEXTO-${id}`;
     } catch {
         // fall through to hostname hash
     }
     // Fallback: hash hostname to avoid exposing raw value
     const hostname = os.hostname() || 'unknown-host';
     const digest = createHash('sha256').update(hostname).digest('hex');
-    if (digest) return `dexto-${digest.slice(0, 32)}`;
+    if (digest) return `DEXTO-${digest.slice(0, 32)}`;
     // Last resort
-    return `dexto-${randomUUID()}`;
+    return `DEXTO-${randomUUID()}`;
 }
