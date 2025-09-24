@@ -10,3 +10,6 @@ export function isAnalyticsDisabled(): boolean {
     const v = process.env.DEXTO_ANALYTICS_DISABLED;
     return typeof v === 'string' && /^(1|true|yes)$/i.test(v);
 }
+
+// Generic command timeout used by the timing wrapper (milliseconds)
+export const COMMAND_TIMEOUT_MS = 60000; // 60s

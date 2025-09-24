@@ -11,6 +11,7 @@ import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, onCommandStart, onCommandEnd, capture } from './analytics/index.js';
+import { COMMAND_TIMEOUT_MS } from './analytics/constants.js';
 
 // Use createRequire to import package.json without experimental warning
 const require = createRequire(import.meta.url);
@@ -80,11 +81,72 @@ program.hook('preAction', (thisCommand) => {
     } catch {}
 });
 
-program.hook('postAction', (thisCommand) => {
-    try {
-        onCommandEnd(thisCommand.name(), true);
-    } catch {}
-});
+// Generic timing wrapper for all commander actions (success/error + duration)
+// Must be installed before any command .action handlers are defined
+{
+    const CmdProto: any = (Command as any).prototype;
+    const originalAction = CmdProto.action;
+
+    let currentCmdName: string | null = null;
+    let currentCmdStart: number | null = null;
+    let currentCmdTimeout: NodeJS.Timeout | null = null;
+
+    // Guard process.exit to emit a best-effort end event if a command forces exit
+    const originalExit = process.exit.bind(process) as (code?: number) => never;
+    (process as any).exit = ((code?: number) => {
+        try {
+            if (currentCmdName && currentCmdStart != null) {
+                const durationMs = Date.now() - currentCmdStart;
+                capture('dexto_cli_command', {
+                    name: currentCmdName,
+                    success: (code ?? 0) === 0,
+                    durationMs,
+                    reason: 'process.exit',
+                });
+            }
+        } catch {}
+        return originalExit(code);
+    }) as any;
+
+    CmdProto.action = function (fn: Function) {
+        const wrapped = async (...args: any[]) => {
+            const name = typeof this?.name === 'function' ? this.name() : 'unknown';
+            currentCmdName = name;
+            currentCmdStart = Date.now();
+            // one-shot timeout notice (non-terminating)
+            currentCmdTimeout = setTimeout(() => {
+                try {
+                    capture('dexto_cli_command', {
+                        name,
+                        phase: 'timeout',
+                        timeoutMs: COMMAND_TIMEOUT_MS,
+                    });
+                } catch {}
+            }, COMMAND_TIMEOUT_MS);
+
+            try {
+                const result = await fn.apply(this, args);
+                try {
+                    await onCommandEnd(name, true);
+                } catch {}
+                return result;
+            } catch (err) {
+                try {
+                    await onCommandEnd(name, false, {
+                        error: err instanceof Error ? err.message : String(err),
+                    });
+                } catch {}
+                throw err;
+            } finally {
+                if (currentCmdTimeout) clearTimeout(currentCmdTimeout);
+                currentCmdTimeout = null;
+                currentCmdName = null;
+                currentCmdStart = null;
+            }
+        };
+        return originalAction.call(this, wrapped);
+    };
+}
 
 // 1) GLOBAL OPTIONS
 program
