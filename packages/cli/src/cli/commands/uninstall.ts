@@ -102,7 +102,18 @@ export async function handleUninstallCommand(
         }
     }
 
-    // For single agent operations, throw error if it failed
+    // Emit analytics for both single- and multi-agent cases
+    try {
+        capture('dexto_uninstall', {
+            requested: agentsToUninstall,
+            uninstalled,
+            failed,
+            successCount,
+            errorCount,
+        });
+    } catch {}
+
+    // For single agent operations, throw error if it failed (after emitting analytics)
     if (agentsToUninstall.length === 1) {
         if (errorCount > 0) {
             throw new Error(errors[0]);
@@ -117,17 +128,6 @@ export async function handleUninstallCommand(
         console.log(`❌ Failed to uninstall: ${errorCount}`);
         errors.forEach((error) => console.log(`   • ${error}`));
     }
-
-    // Track analytics summary for uninstall
-    try {
-        capture('dexto_uninstall', {
-            requested: agentsToUninstall,
-            uninstalled,
-            failed,
-            successCount,
-            errorCount,
-        });
-    } catch {}
 
     if (errorCount > 0 && successCount === 0) {
         throw new Error('All uninstallations failed');

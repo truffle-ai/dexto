@@ -109,7 +109,19 @@ export async function handleInstallCommand(
         }
     }
 
-    // For single agent operations, throw error if it failed
+    // Emit analytics for both single- and multi-agent cases
+    try {
+        capture('dexto_install', {
+            requested: agentsToInstall,
+            installed,
+            skipped,
+            failed,
+            successCount,
+            errorCount,
+        });
+    } catch {}
+
+    // For single agent operations, throw error if it failed (after emitting analytics)
     if (agentsToInstall.length === 1) {
         if (errorCount > 0) {
             throw new Error(errors[0]);
@@ -124,18 +136,6 @@ export async function handleInstallCommand(
         console.log(`❌ Failed to install: ${errorCount}`);
         errors.forEach((error) => console.log(`   • ${error}`));
     }
-
-    // Track analytics summary for install
-    try {
-        capture('dexto_install', {
-            requested: agentsToInstall,
-            installed,
-            skipped,
-            failed,
-            successCount,
-            errorCount,
-        });
-    } catch {}
 
     if (errorCount > 0 && successCount === 0) {
         throw new Error('All installations failed');
