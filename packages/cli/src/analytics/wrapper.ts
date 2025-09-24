@@ -83,9 +83,23 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                 : null;
         try {
             const result = await handler(...args);
-            await onCommandEnd(commandName, true, { args: argsMeta });
+            const success = (typeof process.exitCode === 'number' ? process.exitCode : 0) === 0;
+            await onCommandEnd(commandName, success, { args: argsMeta });
             return result as R;
         } catch (err) {
+            if (err instanceof ExitSignal) {
+                // Honor requested exit without throwing further; set code and emit end event
+                process.exitCode = err.code ?? 0;
+                try {
+                    await onCommandEnd(commandName, err.code === 0, {
+                        reason: err.reason,
+                        command: err.commandName ?? commandName,
+                        args: argsMeta,
+                    });
+                } catch {}
+                // Swallow and finish gracefully
+                return undefined as unknown as R;
+            }
             try {
                 await onCommandEnd(commandName, false, {
                     error: err instanceof Error ? err.message : String(err),
@@ -99,14 +113,21 @@ export function withAnalytics<A extends unknown[], R = unknown>(
     };
 }
 
-/**
- * Emit a final completion event for the given command and exit the process.
- * Use this instead of process.exit inside command handlers.
- */
+// Special control-flow signal used to request an early, graceful command termination
+export class ExitSignal extends Error {
+    code: number;
+    reason?: string | undefined;
+    commandName?: string | undefined;
+    constructor(code: number = 0, reason?: string, commandName?: string) {
+        super('ExitSignal');
+        this.name = 'ExitSignal';
+        this.code = code;
+        this.reason = reason;
+        this.commandName = commandName;
+    }
+}
+
 export function safeExit(commandName: string, code: number = 0, reason?: string): never {
-    try {
-        void onCommandEnd(commandName, code === 0, { reason });
-    } catch {}
-    // eslint-disable-next-line no-process-exit
-    process.exit(code);
+    // Throw control-flow signal; caught by withAnalytics to emit end+set exitCode
+    throw new ExitSignal(code, reason, commandName);
 }

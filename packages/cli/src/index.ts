@@ -11,7 +11,7 @@ import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, capture } from './analytics/index.js';
-import { withAnalytics, safeExit } from './analytics/wrapper.js';
+import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 
 // Use createRequire to import package.json without experimental warning
 const require = createRequire(import.meta.url);
@@ -137,6 +137,7 @@ program
                 await postCreateDexto(appPath, userInput.directory);
                 safeExit('create-app', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto create-app command failed: ${err}`);
                 safeExit('create-app', 1, 'error');
             }
@@ -175,6 +176,7 @@ program
                 await postInitDexto(userInput.directory);
                 safeExit('init-app', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 // if the package.json or tsconfig.json is not found, we give instructions to create a new project
                 if (err instanceof FileNotFoundError) {
                     console.error(`❌ ${err.message} Run "dexto create-app" to create a new app`);
@@ -201,6 +203,7 @@ program
                 await handleSetupCommand(options);
                 safeExit('setup', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(
                     `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
                 );
@@ -224,6 +227,7 @@ program
                     await handleInstallCommand(agents, options);
                     safeExit('install', 0);
                 } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto install command failed: ${err}`);
                     safeExit('install', 1, 'error');
                 }
@@ -245,6 +249,7 @@ program
                     await handleUninstallCommand(agents, options);
                     safeExit('uninstall', 0);
                 } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto uninstall command failed: ${err}`);
                     safeExit('uninstall', 1, 'error');
                 }
@@ -265,6 +270,7 @@ program
                 await handleListAgentsCommand(options);
                 safeExit('list-agents', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto list-agents command failed: ${err}`);
                 safeExit('list-agents', 1, 'error');
             }
@@ -281,6 +287,7 @@ program
                 await handleWhichCommand(agent);
                 safeExit('which', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto which command failed: ${err}`);
                 safeExit('which', 1, 'error');
             }
@@ -330,6 +337,7 @@ sessionCommand
                 await agent.stop();
                 safeExit('session list', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto session list command failed: ${err}`);
                 safeExit('session list', 1, 'error');
             }
@@ -349,6 +357,7 @@ sessionCommand
                 await agent.stop();
                 safeExit('session history', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto session history command failed: ${err}`);
                 safeExit('session history', 1, 'error');
             }
@@ -368,6 +377,7 @@ sessionCommand
                 await agent.stop();
                 safeExit('session delete', 0);
             } catch (err) {
+                if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto session delete command failed: ${err}`);
                 safeExit('session delete', 1, 'error');
             }
@@ -427,6 +437,7 @@ program
                     await agent.stop();
                     safeExit('search', 0);
                 } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto search command failed: ${err}`);
                     safeExit('search', 1, 'error');
                 }
@@ -515,6 +526,7 @@ program
 
                     logger.info('MCP tool aggregation server started successfully');
                 } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
                     // Write to stderr to avoid interfering with MCP protocol
                     process.stderr.write(`MCP tool aggregation server startup failed: ${err}\n`);
                     safeExit('mcp', 1, 'mcp-agg-failed');
@@ -647,6 +659,7 @@ program
                                     console.log('📋 No agents available in registry');
                                 }
                                 safeExit('main', 1, 'agent-not-in-registry');
+                                return;
                             }
                         }
 
@@ -683,6 +696,7 @@ program
                         opts.interactive !== false
                     );
                 } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
                     // Config loading failed completely
                     console.error(`❌ Failed to load configuration: ${err}`);
                     safeExit('main', 1, 'config-load-failed');
@@ -756,6 +770,7 @@ program
                         }
                     }
                 } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
                     console.error(`❌ Configuration Error: ${(err as Error).message}`);
                     safeExit('main', 1, 'config-error');

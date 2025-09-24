@@ -71,20 +71,7 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
     });
     enabled = true;
 
-    // Flush on exit quickly
-    const graceful = async () => {
-        try {
-            if (client) {
-                await client.shutdown();
-            }
-        } catch {
-            // ignore
-        }
-    };
-    process.once('beforeExit', graceful);
-    process.once('SIGINT', graceful);
-    process.once('SIGTERM', graceful);
-    // Best-effort flush on hard exits
+    // Best-effort flush on hard exits (non-blocking)
     process.on('exit', () => {
         try {
             client?.flush?.();
