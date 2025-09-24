@@ -157,7 +157,7 @@ export async function onCommandEnd(name: string, success: boolean, extra: Proper
     const start = timers.get(name) ?? Date.now();
     const durationMs = Date.now() - start;
     timers.delete(name);
-    capture('dexto_cli_command', { name, success, durationMs, ...extra });
+    capture('dexto_cli_command', { name, phase: 'end', success, durationMs, ...extra });
     // Update optional local counts
     if (state) {
         state.commandRunCounts = state.commandRunCounts || {};
