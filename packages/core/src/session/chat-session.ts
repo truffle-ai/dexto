@@ -8,6 +8,9 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageBackends } from '../storage/backend/types.js';
+import type { ImageData, FileData } from '../context/types.js';
+import type { HookManager } from '../hooks/index.js';
+import { runBeforeInput } from '../hooks/index.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -118,6 +121,7 @@ export class ChatSession {
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
+            hookManager?: HookManager;
         },
         public readonly id: string
     ) {
@@ -234,6 +238,26 @@ export class ChatSession {
         );
 
         // Input validation is now handled at DextoAgent.run() level
+
+        // Run beforeInput hooks for filtering and policy enforcement
+        if (this.services.hookManager) {
+            const hookPayload: any = { text: input, sessionId: this.id };
+            if (imageDataInput !== undefined) hookPayload.imageData = imageDataInput;
+            if (fileDataInput !== undefined) hookPayload.fileData = fileDataInput;
+
+            const hookResult = await runBeforeInput(this.services.hookManager, hookPayload);
+            if (hookResult.canceled) {
+                const message =
+                    hookResult.responseOverride ||
+                    'Your input was blocked by a policy. Please revise and try again.';
+                logger.info(`Input blocked by hook for session ${this.id}: ${message}`);
+                return message;
+            }
+
+            // Use modified input from hooks if any
+            input = hookResult.payload.text;
+        }
+
         // Create an AbortController for this run and expose for cancellation
         this.currentRunController = new AbortController();
         const signal = this.currentRunController.signal;

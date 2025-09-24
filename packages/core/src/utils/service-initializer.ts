@@ -34,6 +34,7 @@ import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-
 import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
+import { HookManager, registerBuiltInHooks } from '../hooks/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -48,6 +49,7 @@ export type AgentServices = {
     searchService: SearchService;
     storage: StorageBackends;
     storageManager?: StorageManager;
+    hookManager?: HookManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -64,6 +66,10 @@ export async function createAgentServices(
     // 1. Initialize shared event bus
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
+
+    // 1.5 Initialize hook manager
+    const hookManager = new HookManager();
+    logger.debug('Hook manager initialized');
 
     // 2. Initialize storage backends (instance-specific, not singleton)
     logger.debug('Initializing storage backends');
@@ -108,6 +114,14 @@ export async function createAgentServices(
     const toolManager = new ToolManager(mcpManager, confirmationProvider, {
         internalToolsServices: { searchService },
         internalToolsConfig: config.internalTools,
+        hookManager,
+    });
+
+    // Register all built-in hooks in a single place
+    registerBuiltInHooks({
+        hookManager,
+        toolConfirmationProvider: confirmationProvider,
+        config,
     });
 
     // Initialize the tool manager
@@ -144,7 +158,8 @@ export async function createAgentServices(
             promptManager,
             toolManager,
             agentEventBus,
-            storage, // Add storage backends to session services
+            storage,
+            hookManager,
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -168,5 +183,6 @@ export async function createAgentServices(
         searchService,
         storage,
         storageManager,
+        hookManager,
     };
 }

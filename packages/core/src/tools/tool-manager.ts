@@ -6,6 +6,8 @@ import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
+import type { HookManager } from '../hooks/index.js';
+import { runBeforeToolCall, runAfterToolResult } from '../hooks/index.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -13,6 +15,7 @@ import { logger } from '../logger/index.js';
 export interface InternalToolsOptions {
     internalToolsServices?: InternalToolsServices;
     internalToolsConfig?: InternalToolsConfig;
+    hookManager?: HookManager;
 }
 
 /**
@@ -36,6 +39,7 @@ export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
     private confirmationProvider: ToolConfirmationProvider;
+    private hookManager?: HookManager;
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -52,6 +56,9 @@ export class ToolManager {
     ) {
         this.mcpManager = mcpManager;
         this.confirmationProvider = confirmationProvider;
+        if (options?.hookManager) {
+            this.hookManager = options.hookManager;
+        }
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
@@ -177,24 +184,33 @@ export class ToolManager {
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
-        sessionId?: string
+        sessionId?: string,
+        callId?: string
     ): Promise<unknown> {
         logger.debug(`🔧 Tool execution requested: '${toolName}'`);
         logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
-        // Centralized confirmation for ALL tools
-        const approved = await this.confirmationProvider.requestConfirmation({
-            toolName,
-            args,
-            ...(sessionId && { sessionId }),
-        });
+        // Run beforeToolCall hooks (centralized) to allow modification/cancellation
+        {
+            const hookRes = await runBeforeToolCall(this.hookManager, {
+                toolName,
+                args,
+                ...(sessionId && { sessionId }),
+                ...(callId && { callId }),
+            });
 
-        if (!approved) {
-            logger.debug(`🚫 Tool execution denied: ${toolName}`);
-            throw ToolError.executionDenied(toolName, sessionId);
+            if (hookRes.canceled) {
+                logger.debug(`🚫 Tool execution blocked by hooks: ${toolName}`);
+                throw ToolError.executionDenied(toolName, sessionId);
+            }
+
+            // Use modified args from hooks if any
+            if (hookRes.payload.args !== args) {
+                args = hookRes.payload.args;
+                logger.debug(`Hook modified args: ${JSON.stringify(args, null, 2)}`);
+            }
         }
 
-        logger.debug(`✅ Tool execution approved: ${toolName}`);
         logger.info(
             `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
@@ -248,12 +264,49 @@ export class ToolManager {
             logger.info(
                 `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
+
+            // Run afterToolResult hooks to allow result sanitization/transformation
+            if (this.hookManager) {
+                const hookRes = await runAfterToolResult(this.hookManager, {
+                    toolName,
+                    result,
+                    success: true,
+                    ...(sessionId && { sessionId }),
+                    ...(callId && { callId }),
+                });
+
+                // Use modified result from hooks if any
+                if (hookRes.payload.result !== result) {
+                    result = hookRes.payload.result;
+                    logger.debug(`Hook modified result`);
+                }
+            }
+
             return result;
         } catch (error) {
             const duration = Date.now() - startTime;
             logger.error(
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
+
+            // Still offer afterToolResult for failure case
+            if (this.hookManager) {
+                try {
+                    await runAfterToolResult(this.hookManager, {
+                        toolName,
+                        result:
+                            error instanceof Error
+                                ? { error: error.message }
+                                : { error: String(error) },
+                        success: false,
+                        ...(sessionId && { sessionId }),
+                        ...(callId && { callId }),
+                    });
+                } catch (hookError) {
+                    logger.error(`Hook error during failure handling: ${hookError}`);
+                }
+            }
+
             throw error;
         }
     }

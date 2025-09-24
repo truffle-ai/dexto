@@ -13,6 +13,25 @@ import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
 import { z } from 'zod';
 
+const HooksConfigSchema = z
+    .object({
+        contentPolicy: z
+            .object({
+                maxInputChars: z
+                    .number()
+                    .optional()
+                    .describe('Maximum allowed characters in input'),
+                redactEmails: z.boolean().optional().describe('Whether to redact email addresses'),
+                redactApiKeys: z.boolean().optional().describe('Whether to redact API keys'),
+            })
+            .strict()
+            .optional()
+            .describe('Content policy configuration for input filtering'),
+    })
+    .strict()
+    .optional()
+    .describe('Hooks configuration for security and content filtering');
+
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
 export const AgentCardSchema = z
@@ -114,6 +133,8 @@ export const AgentConfigSchema = z
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
         ),
+
+        hooks: HooksConfigSchema.describe('Hooks configuration for security and content filtering'),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')

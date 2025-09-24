@@ -56,6 +56,13 @@ storage:
     type: sqlite
     # path: ./data/dexto.db
 
+# Hooks configuration for security and content filtering
+hooks:
+  contentPolicy:
+    maxInputChars: 10000  # Limit input to reasonable size
+    redactEmails: true    # Redact email addresses from input
+    redactApiKeys: true   # Redact API keys from input
+
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
 # llm:
