@@ -55,6 +55,7 @@ function validateInstallCommand(
     return validated;
 }
 
+// TODO: move registry code into CLI and move dexto_install_agent metric into registry
 export async function handleInstallCommand(
     agents: string[],
     options: Partial<InstallCommandOptions>
@@ -93,6 +94,16 @@ export async function handleInstallCommand(
                 console.log(`⏭️  ${agentName} already installed (use --force to reinstall)`);
                 successCount++;
                 skipped.push(agentName);
+                // Per-agent analytics for skipped install
+                try {
+                    capture('dexto_install_agent', {
+                        agent: agentName,
+                        status: 'skipped',
+                        reason: 'already_installed',
+                        force: validated.force,
+                        injectPreferences: validated.injectPreferences,
+                    });
+                } catch {}
                 continue;
             }
 
@@ -100,12 +111,31 @@ export async function handleInstallCommand(
             successCount++;
             console.log(`✅ ${agentName} installed successfully`);
             installed.push(agentName);
+            // Per-agent analytics for successful install
+            try {
+                capture('dexto_install_agent', {
+                    agent: agentName,
+                    status: 'installed',
+                    force: validated.force,
+                    injectPreferences: validated.injectPreferences,
+                });
+            } catch {}
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to install ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(errorMsg);
             failed.push(agentName);
             console.error(`❌ ${errorMsg}`);
+            // Per-agent analytics for failed install
+            try {
+                capture('dexto_install_agent', {
+                    agent: agentName,
+                    status: 'failed',
+                    error_message: error instanceof Error ? error.message : String(error),
+                    force: validated.force,
+                    injectPreferences: validated.injectPreferences,
+                });
+            } catch {}
         }
     }
 

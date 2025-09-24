@@ -93,12 +93,29 @@ export async function handleUninstallCommand(
             successCount++;
             console.log(`✅ ${agentName} uninstalled successfully`);
             uninstalled.push(agentName);
+            // Per-agent analytics for successful uninstall
+            try {
+                capture('dexto_uninstall_agent', {
+                    agent: agentName,
+                    status: 'uninstalled',
+                    force: validated.force,
+                });
+            } catch {}
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to uninstall ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(errorMsg);
             failed.push(agentName);
             console.error(`❌ ${errorMsg}`);
+            // Per-agent analytics for failed uninstall
+            try {
+                capture('dexto_uninstall_agent', {
+                    agent: agentName,
+                    status: 'failed',
+                    error_message: error instanceof Error ? error.message : String(error),
+                    force: validated.force,
+                });
+            } catch {}
         }
     }
 
