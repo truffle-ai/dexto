@@ -2,7 +2,15 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
+import os from 'os';
+import { randomUUID, createHash } from 'crypto';
+import { createRequire } from 'module';
+const requireCJS = createRequire(import.meta.url);
+// node-machine-id is CommonJS; import via createRequire to avoid ESM interop issues
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { machineIdSync } = requireCJS('node-machine-id') as {
+    machineIdSync: (original?: boolean) => string;
+};
 import { getDextoGlobalPath } from '@dexto/core';
 
 /**
@@ -40,7 +48,7 @@ export async function loadState(): Promise<AnalyticsState> {
     } catch {
         await fs.mkdir(STATE_DIR, { recursive: true });
         const state: AnalyticsState = {
-            distinctId: randomUUID(),
+            distinctId: computeDistinctId(),
             createdAt: new Date().toISOString(),
             commandRunCounts: {},
         };
@@ -55,4 +63,29 @@ export async function loadState(): Promise<AnalyticsState> {
 export async function saveState(state: AnalyticsState): Promise<void> {
     await fs.mkdir(STATE_DIR, { recursive: true });
     await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+}
+
+/**
+ * Compute a stable, privacy‑safe machine identifier so identity
+ * survives ~/.dexto deletion by default.
+ *
+ * Strategy:
+ * - Prefer node-machine-id (hashed), which abstracts platform differences.
+ * - Fallback to a salted/hashed hostname.
+ * - As a last resort, generate a random UUID.
+ */
+function computeDistinctId(): string {
+    try {
+        // machineIdSync(true) returns a hashed, stable identifier
+        const id = machineIdSync(true);
+        if (typeof id === 'string' && id.length > 0) return `dexto-${id}`;
+    } catch {
+        // fall through to hostname hash
+    }
+    // Fallback: hash hostname to avoid exposing raw value
+    const hostname = os.hostname() || 'unknown-host';
+    const digest = createHash('sha256').update(hostname).digest('hex');
+    if (digest) return `dexto-${digest.slice(0, 32)}`;
+    // Last resort
+    return `dexto-${randomUUID()}`;
 }

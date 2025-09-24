@@ -134,6 +134,9 @@ importers:
       next:
         specifier: 15.5.2
         version: 15.5.2(@opentelemetry/api@1.9.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      node-machine-id:
+        specifier: ^1.1.12
+        version: 1.1.12
       open:
         specifier: ^10.2.0
         version: 10.2.0
@@ -3857,6 +3860,9 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
+
+  node-machine-id@1.1.12:
+    resolution: {integrity: sha512-QNABxbrPa3qEIfrE6GOJ7BYIuignnJw7iQ2YPbc3Nla1HzRJjXzZOiikfF8m7eAMfichLt3M4VgLOetqgDmgGQ==}
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -9092,6 +9098,8 @@ snapshots:
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
+
+  node-machine-id@1.1.12: {}
 
   node-releases@2.0.19: {}
 
