@@ -148,7 +148,6 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
         model,
         hadApiKeyBefore,
         setupMode: validated.interactive ? 'interactive' : 'non-interactive',
-        source: 'setup-command',
     });
 
     // Setup API key interactively (only if interactive mode enabled and key doesn't exist)

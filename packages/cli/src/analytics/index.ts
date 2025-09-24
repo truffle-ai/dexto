@@ -5,6 +5,7 @@ import os from 'os';
 import { isAnalyticsDisabled, DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_KEY } from './constants.js';
 import { AnalyticsState, loadState, saveState } from './state.js';
 import { getExecutionContext } from '@dexto/core';
+import { randomUUID } from 'crypto';
 
 type Properties = Record<string, unknown>;
 
@@ -15,16 +16,19 @@ interface InitOptions {
 let client: PostHog | null = null;
 let enabled = false;
 let state: AnalyticsState | null = null;
+let sessionId: string | null = null;
+let appVersion: string | null = null;
 
-function baseProps(version: string): Properties {
+function baseProps(): Properties {
     return {
         app: 'dexto',
-        app_version: version,
+        app_version: appVersion || 'unknown',
         node_version: process.version,
         os_platform: os.platform(),
         os_release: os.release(),
         os_arch: os.arch(),
         execution_context: getExecutionContext(),
+        session_id: sessionId,
     };
 }
 
@@ -36,11 +40,12 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
     }
     // Load or create state
     state = await loadState();
+    sessionId = randomUUID();
+    appVersion = opts.appVersion;
 
-    // Guard if key placeholder is not replaced
+    // Validate public key format (must look like PostHog public key: phc_*)
     const key = DEFAULT_POSTHOG_KEY;
-    if (!key || key === 'PH_PUBLIC_KEY_PLACEHOLDER') {
-        // Key is not configured; disable silently
+    if (typeof key !== 'string' || !/^phc_[A-Za-z0-9]+/.test(key)) {
         enabled = false;
         return;
     }
@@ -65,13 +70,15 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
     process.once('beforeExit', graceful);
     process.once('SIGINT', graceful);
     process.once('SIGTERM', graceful);
+    // Best-effort flush on hard exits
+    process.on('exit', () => {
+        try {
+            client?.flush?.();
+        } catch {}
+    });
 
-    // First run event
-    if (state && !state.firstRunTracked) {
-        capture('dexto_first_run', baseProps(opts.appVersion));
-        state.firstRunTracked = true;
-        await saveState(state);
-    }
+    // Session start event on every run
+    capture('dexto_session_start');
 }
 
 export function capture(event: string, properties: Properties = {}): void {
@@ -80,7 +87,7 @@ export function capture(event: string, properties: Properties = {}): void {
         client.capture({
             distinctId: state.distinctId,
             event,
-            properties: properties,
+            properties: { ...baseProps(), ...properties },
         });
     } catch {
         // swallow
@@ -94,15 +101,6 @@ export async function shutdownAnalytics(): Promise<void> {
         } catch {
             // ignore
         }
-    }
-}
-
-export async function captureFirstPromptOnce(props: Properties): Promise<void> {
-    if (!enabled || !state) return;
-    if (!state.firstPromptTracked) {
-        capture('dexto_first_prompt', props);
-        state.firstPromptTracked = true;
-        await saveState(state);
     }
 }
 

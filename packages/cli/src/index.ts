@@ -125,10 +125,9 @@ program
             // then get user inputs for directory, llm etc.
             const userInput = await getUserInputToInitDextoApp();
             try {
-                capture('dexto_setup', {
+                capture('dexto_create', {
                     provider: userInput.llmProvider,
                     providedKey: Boolean(userInput.llmApiKey),
-                    source: 'create-app',
                 });
             } catch {}
 
@@ -168,10 +167,9 @@ program
             p.intro(chalk.inverse('Dexto Init App'));
             const userInput = await getUserInputToInitDextoApp();
             try {
-                capture('dexto_setup', {
+                capture('dexto_init', {
                     provider: userInput.llmProvider,
                     providedKey: Boolean(userInput.llmApiKey),
-                    source: 'init-app',
                 });
             } catch {}
             await initDexto(
