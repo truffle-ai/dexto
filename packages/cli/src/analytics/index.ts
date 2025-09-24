@@ -7,7 +7,11 @@ import { AnalyticsState, loadState, saveState } from './state.js';
 import { getExecutionContext } from '@dexto/core';
 import { randomUUID } from 'crypto';
 
-type Properties = Record<string, unknown>;
+/**
+ * Generic event properties type for analytics capture.
+ * Keep values JSON-serializable. Do not include raw prompts or secrets.
+ */
+export type Properties = Record<string, unknown>;
 
 interface InitOptions {
     appVersion: string;
@@ -32,6 +36,16 @@ function baseProps(): Properties {
     };
 }
 
+/**
+ * Initialize the analytics client for the CLI.
+ *
+ * - Respects DEXTO_ANALYTICS_DISABLED.
+ * - Creates/loads the anonymous distinctId and a per-process session_id.
+ * - Emits a dexto_session_start event for each process run.
+ *
+ * Usage:
+ *   await initAnalytics({ appVersion: pkg.version });
+ */
 export async function initAnalytics(opts: InitOptions): Promise<void> {
     if (enabled || client) return; // idempotent
     if (isAnalyticsDisabled()) {
@@ -81,6 +95,10 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
     capture('dexto_session_start');
 }
 
+/**
+ * Capture a single analytics event with optional properties.
+ * Automatically enriches events with base context (app/os/node/session).
+ */
 export function capture(event: string, properties: Properties = {}): void {
     if (!enabled || !client || !state) return;
     try {
@@ -94,6 +112,10 @@ export function capture(event: string, properties: Properties = {}): void {
     }
 }
 
+/**
+ * Attempt a graceful shutdown of the analytics client, flushing queued events.
+ * Invoked automatically on process lifecycle events, but can be called manually.
+ */
 export async function shutdownAnalytics(): Promise<void> {
     if (client) {
         try {
@@ -108,7 +130,11 @@ export async function shutdownAnalytics(): Promise<void> {
 type TimerMap = Map<string, number>;
 const timers: TimerMap = new Map();
 
-export function onCommandStart(name: string) {
+/**
+ * Mark the start of a command for timing and emit a lightweight start event.
+ * Adds local counters as a coarse diagnostic aid.
+ */
+export function onCommandStart(name: string, extra: Properties = {}) {
     if (!enabled) return;
     timers.set(name, Date.now());
     // Count runs immediately to avoid missing due to early process.exit
@@ -119,9 +145,13 @@ export function onCommandStart(name: string) {
         void saveState(state);
     }
     // Fire a lightweight start event
-    capture('dexto_cli_command', { name, phase: 'start' });
+    capture('dexto_cli_command', { name, phase: 'start', ...extra });
 }
 
+/**
+ * Mark the end of a command and emit a completion event with success/failure
+ * and measured duration. Accepts optional extra properties.
+ */
 export async function onCommandEnd(name: string, success: boolean, extra: Properties = {}) {
     if (!enabled) return;
     const start = timers.get(name) ?? Date.now();
@@ -136,6 +166,9 @@ export async function onCommandEnd(name: string, success: boolean, extra: Proper
     }
 }
 
+/**
+ * Whether analytics are currently enabled for this process.
+ */
 export function getEnabled(): boolean {
     return enabled;
 }
