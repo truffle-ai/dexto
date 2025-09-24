@@ -105,42 +105,46 @@ program
     .command('create-app')
     .description('Scaffold a new Dexto Typescript app')
     .action(
-        withAnalytics('create-app', async () => {
-            try {
-                p.intro(chalk.inverse('Dexto Create App'));
-                // first setup the initial files in the project and get the project path
-                const appPath = await createDextoProject();
-
-                // then get user inputs for directory, llm etc.
-                const userInput = await getUserInputToInitDextoApp();
+        withAnalytics(
+            'create-app',
+            async () => {
                 try {
-                    capture('dexto_create', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {}
+                    p.intro(chalk.inverse('Dexto Create App'));
+                    // first setup the initial files in the project and get the project path
+                    const appPath = await createDextoProject();
 
-                // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
-                process.chdir(appPath);
-                await addDextoScriptsToPackageJson(userInput.directory, appPath);
-                await createTsconfigJson(appPath, userInput.directory);
+                    // then get user inputs for directory, llm etc.
+                    const userInput = await getUserInputToInitDextoApp();
+                    try {
+                        capture('dexto_create', {
+                            provider: userInput.llmProvider,
+                            providedKey: Boolean(userInput.llmApiKey),
+                        });
+                    } catch {}
 
-                // then initialize the other parts of the project
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
-                // add notes for users to get started with their newly created Dexto project
-                await postCreateDexto(appPath, userInput.directory);
-                safeExit('create-app', 0);
-            } catch (err) {
-                console.error(`❌ dexto create-app command failed: ${err}`);
-                safeExit('create-app', 1, 'error');
-            }
-        })
+                    // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
+                    process.chdir(appPath);
+                    await addDextoScriptsToPackageJson(userInput.directory, appPath);
+                    await createTsconfigJson(appPath, userInput.directory);
+
+                    // then initialize the other parts of the project
+                    await initDexto(
+                        userInput.directory,
+                        userInput.createExampleFile,
+                        userInput.llmProvider,
+                        userInput.llmApiKey
+                    );
+                    p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
+                    // add notes for users to get started with their newly created Dexto project
+                    await postCreateDexto(appPath, userInput.directory);
+                    safeExit('create-app', 0);
+                } catch (err) {
+                    console.error(`❌ dexto create-app command failed: ${err}`);
+                    safeExit('create-app', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 // 3) `init-app` SUB-COMMAND
@@ -148,42 +152,48 @@ program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
     .action(
-        withAnalytics('init-app', async () => {
-            try {
-                // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
-                await checkForFileInCurrentDirectory('package.json');
-                await checkForFileInCurrentDirectory('tsconfig.json');
-
-                // start intro
-                p.intro(chalk.inverse('Dexto Init App'));
-                const userInput = await getUserInputToInitDextoApp();
+        withAnalytics(
+            'init-app',
+            async () => {
                 try {
-                    capture('dexto_init', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {}
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app initialized successfully!'));
+                    // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
+                    await checkForFileInCurrentDirectory('package.json');
+                    await checkForFileInCurrentDirectory('tsconfig.json');
 
-                // add notes for users to get started with their new initialized Dexto project
-                await postInitDexto(userInput.directory);
-                safeExit('init-app', 0);
-            } catch (err) {
-                // if the package.json or tsconfig.json is not found, we give instructions to create a new project
-                if (err instanceof FileNotFoundError) {
-                    console.error(`❌ ${err.message} Run "dexto create-app" to create a new app`);
-                    safeExit('init-app', 1, 'file-not-found');
+                    // start intro
+                    p.intro(chalk.inverse('Dexto Init App'));
+                    const userInput = await getUserInputToInitDextoApp();
+                    try {
+                        capture('dexto_init', {
+                            provider: userInput.llmProvider,
+                            providedKey: Boolean(userInput.llmApiKey),
+                        });
+                    } catch {}
+                    await initDexto(
+                        userInput.directory,
+                        userInput.createExampleFile,
+                        userInput.llmProvider,
+                        userInput.llmApiKey
+                    );
+                    p.outro(chalk.greenBright('Dexto app initialized successfully!'));
+
+                    // add notes for users to get started with their new initialized Dexto project
+                    await postInitDexto(userInput.directory);
+                    safeExit('init-app', 0);
+                } catch (err) {
+                    // if the package.json or tsconfig.json is not found, we give instructions to create a new project
+                    if (err instanceof FileNotFoundError) {
+                        console.error(
+                            `❌ ${err.message} Run "dexto create-app" to create a new app`
+                        );
+                        safeExit('init-app', 1, 'file-not-found');
+                    }
+                    console.error(`❌ Initialization failed: ${err}`);
+                    safeExit('init-app', 1, 'error');
                 }
-                console.error(`❌ Initialization failed: ${err}`);
-                safeExit('init-app', 1, 'error');
-            }
-        })
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 // 4) `setup` SUB-COMMAND
@@ -196,17 +206,21 @@ program
     .option('--no-interactive', 'Skip interactive prompts and API key setup')
     .option('--force', 'Overwrite existing setup without confirmation')
     .action(
-        withAnalytics('setup', async (options: CLISetupOptionsInput) => {
-            try {
-                await handleSetupCommand(options);
-                safeExit('setup', 0);
-            } catch (err) {
-                console.error(
-                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
-                );
-                safeExit('setup', 1, 'error');
-            }
-        })
+        withAnalytics(
+            'setup',
+            async (options: CLISetupOptionsInput) => {
+                try {
+                    await handleSetupCommand(options);
+                    safeExit('setup', 0);
+                } catch (err) {
+                    console.error(
+                        `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+                    );
+                    safeExit('setup', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 // 5) `install` SUB-COMMAND
@@ -227,7 +241,8 @@ program
                     console.error(`❌ dexto install command failed: ${err}`);
                     safeExit('install', 1, 'error');
                 }
-            }
+            },
+            { timeoutMs: 120000 }
         )
     );
 
@@ -248,7 +263,8 @@ program
                     console.error(`❌ dexto uninstall command failed: ${err}`);
                     safeExit('uninstall', 1, 'error');
                 }
-            }
+            },
+            { timeoutMs: 120000 }
         )
     );
 
@@ -260,15 +276,19 @@ program
     .option('--installed', 'Show only installed agents')
     .option('--available', 'Show only available agents')
     .action(
-        withAnalytics('list-agents', async (options: ListAgentsCommandOptionsInput) => {
-            try {
-                await handleListAgentsCommand(options);
-                safeExit('list-agents', 0);
-            } catch (err) {
-                console.error(`❌ dexto list-agents command failed: ${err}`);
-                safeExit('list-agents', 1, 'error');
-            }
-        })
+        withAnalytics(
+            'list-agents',
+            async (options: ListAgentsCommandOptionsInput) => {
+                try {
+                    await handleListAgentsCommand(options);
+                    safeExit('list-agents', 0);
+                } catch (err) {
+                    console.error(`❌ dexto list-agents command failed: ${err}`);
+                    safeExit('list-agents', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 // 8) `which` SUB-COMMAND
@@ -276,15 +296,19 @@ program
     .command('which <agent>')
     .description('Show the path to an agent')
     .action(
-        withAnalytics('which', async (agent: string) => {
-            try {
-                await handleWhichCommand(agent);
-                safeExit('which', 0);
-            } catch (err) {
-                console.error(`❌ dexto which command failed: ${err}`);
-                safeExit('which', 1, 'error');
-            }
-        })
+        withAnalytics(
+            'which',
+            async (agent: string) => {
+                try {
+                    await handleWhichCommand(agent);
+                    safeExit('which', 0);
+                } catch (err) {
+                    console.error(`❌ dexto which command failed: ${err}`);
+                    safeExit('which', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
@@ -322,18 +346,22 @@ sessionCommand
     .command('list')
     .description('List all sessions')
     .action(
-        withAnalytics('session list', async () => {
-            try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+        withAnalytics(
+            'session list',
+            async () => {
+                try {
+                    const agent = await bootstrapAgentFromGlobalOpts();
 
-                await handleSessionListCommand(agent);
-                await agent.stop();
-                safeExit('session list', 0);
-            } catch (err) {
-                console.error(`❌ dexto session list command failed: ${err}`);
-                safeExit('session list', 1, 'error');
-            }
-        })
+                    await handleSessionListCommand(agent);
+                    await agent.stop();
+                    safeExit('session list', 0);
+                } catch (err) {
+                    console.error(`❌ dexto session list command failed: ${err}`);
+                    safeExit('session list', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 sessionCommand
@@ -341,18 +369,22 @@ sessionCommand
     .description('Show session history')
     .argument('[sessionId]', 'Session ID (defaults to current session)')
     .action(
-        withAnalytics('session history', async (sessionId: string) => {
-            try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+        withAnalytics(
+            'session history',
+            async (sessionId: string) => {
+                try {
+                    const agent = await bootstrapAgentFromGlobalOpts();
 
-                await handleSessionHistoryCommand(agent, sessionId);
-                await agent.stop();
-                safeExit('session history', 0);
-            } catch (err) {
-                console.error(`❌ dexto session history command failed: ${err}`);
-                safeExit('session history', 1, 'error');
-            }
-        })
+                    await handleSessionHistoryCommand(agent, sessionId);
+                    await agent.stop();
+                    safeExit('session history', 0);
+                } catch (err) {
+                    console.error(`❌ dexto session history command failed: ${err}`);
+                    safeExit('session history', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 sessionCommand
@@ -360,18 +392,22 @@ sessionCommand
     .description('Delete a session')
     .argument('<sessionId>', 'Session ID to delete')
     .action(
-        withAnalytics('session delete', async (sessionId: string) => {
-            try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+        withAnalytics(
+            'session delete',
+            async (sessionId: string) => {
+                try {
+                    const agent = await bootstrapAgentFromGlobalOpts();
 
-                await handleSessionDeleteCommand(agent, sessionId);
-                await agent.stop();
-                safeExit('session delete', 0);
-            } catch (err) {
-                console.error(`❌ dexto session delete command failed: ${err}`);
-                safeExit('session delete', 1, 'error');
-            }
-        })
+                    await handleSessionDeleteCommand(agent, sessionId);
+                    await agent.stop();
+                    safeExit('session delete', 0);
+                } catch (err) {
+                    console.error(`❌ dexto session delete command failed: ${err}`);
+                    safeExit('session delete', 1, 'error');
+                }
+            },
+            { timeoutMs: 120000 }
+        )
     );
 
 // 10) `search` SUB-COMMAND
@@ -430,7 +466,8 @@ program
                     console.error(`❌ dexto search command failed: ${err}`);
                     safeExit('search', 1, 'error');
                 }
-            }
+            },
+            { timeoutMs: 120000 }
         )
     );
 
@@ -450,71 +487,75 @@ program
     )
     .option('--name <n>', 'Name for the MCP server', 'dexto-tools')
     .option('--version <version>', 'Version for the MCP server', '1.0.0')
-    .action(async (options) => {
-        try {
-            // Validate that --group-servers flag is provided (mandatory for now)
-            if (!options.groupServers) {
-                console.error(
-                    '❌ The --group-servers flag is required. This command currently only supports aggregating and re-exposing tools from configured MCP servers.'
+    .action(
+        withAnalytics('mcp', async (options) => {
+            try {
+                // Validate that --group-servers flag is provided (mandatory for now)
+                if (!options.groupServers) {
+                    console.error(
+                        '❌ The --group-servers flag is required. This command currently only supports aggregating and re-exposing tools from configured MCP servers.'
+                    );
+                    console.error('Usage: dexto mcp --group-servers');
+                    safeExit('mcp', 1, 'missing-group-servers');
+                }
+
+                // Load and resolve config
+                // Get the global agent option from the main program
+                const globalOpts = program.opts();
+                const nameOrPath = globalOpts.agent;
+
+                const configPath = await resolveAgentPath(
+                    nameOrPath,
+                    globalOpts.autoInstall !== false,
+                    true
                 );
-                console.error('Usage: dexto mcp --group-servers');
-                process.exit(1);
-            }
+                console.log(`📄 Loading Dexto config from: ${configPath}`);
+                const config = await loadAgentConfig(configPath);
 
-            // Load and resolve config
-            // Get the global agent option from the main program
-            const globalOpts = program.opts();
-            const nameOrPath = globalOpts.agent;
+                logger.info(`Validating MCP servers...`);
+                // Validate that MCP servers are configured
+                if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
+                    console.error(
+                        '❌ No MCP servers configured. Please configure mcpServers in your config file.'
+                    );
+                    safeExit('mcp', 1, 'no-mcp-servers');
+                }
 
-            const configPath = await resolveAgentPath(
-                nameOrPath,
-                globalOpts.autoInstall !== false,
-                true
-            );
-            console.log(`📄 Loading Dexto config from: ${configPath}`);
-            const config = await loadAgentConfig(configPath);
-
-            logger.info(`Validating MCP servers...`);
-            // Validate that MCP servers are configured
-            if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
-                console.error(
-                    '❌ No MCP servers configured. Please configure mcpServers in your config file.'
+                const { ServerConfigsSchema } = await import('@dexto/core');
+                const validatedServers = ServerConfigsSchema.parse(config.mcpServers);
+                logger.info(
+                    `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
                 );
-                process.exit(1);
+
+                // Logs are already redirected to file by default to prevent interference with stdio transport
+                const currentLogPath = logger.getLogFilePath();
+                logger.info(
+                    `MCP mode using log file: ${currentLogPath || 'default .dexto location'}`
+                );
+
+                logger.info(
+                    `Starting MCP tool aggregation server: ${options.name} v${options.version}`
+                );
+
+                // Create stdio transport for MCP tool aggregation
+                const mcpTransport = await createMcpTransport('stdio');
+                // Initialize tool aggregation server
+                await initializeMcpToolAggregationServer(
+                    validatedServers,
+                    mcpTransport,
+                    options.name,
+                    options.version,
+                    options.strict
+                );
+
+                logger.info('MCP tool aggregation server started successfully');
+            } catch (err) {
+                // Write to stderr to avoid interfering with MCP protocol
+                process.stderr.write(`MCP tool aggregation server startup failed: ${err}\n`);
+                safeExit('mcp', 1, 'mcp-agg-failed');
             }
-
-            const { ServerConfigsSchema } = await import('@dexto/core');
-            const validatedServers = ServerConfigsSchema.parse(config.mcpServers);
-            logger.info(
-                `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
-            );
-
-            // Logs are already redirected to file by default to prevent interference with stdio transport
-            const currentLogPath = logger.getLogFilePath();
-            logger.info(`MCP mode using log file: ${currentLogPath || 'default .dexto location'}`);
-
-            logger.info(
-                `Starting MCP tool aggregation server: ${options.name} v${options.version}`
-            );
-
-            // Create stdio transport for MCP tool aggregation
-            const mcpTransport = await createMcpTransport('stdio');
-            // Initialize tool aggregation server
-            await initializeMcpToolAggregationServer(
-                validatedServers,
-                mcpTransport,
-                options.name,
-                options.version,
-                options.strict
-            );
-
-            logger.info('MCP tool aggregation server started successfully');
-        } catch (err) {
-            // Write to stderr to avoid interfering with MCP protocol
-            process.stderr.write(`MCP tool aggregation server startup failed: ${err}\n`);
-            process.exit(1);
-        }
-    });
+        })
+    );
 
 // 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
@@ -545,348 +586,360 @@ program
             'See https://github.com/truffle-ai/dexto for more examples and documentation'
     )
     .action(
-        withAnalytics('main', async (prompt: string[] = []) => {
-            // ——— ENV CHECK (optional) ———
-            if (!existsSync('.env')) {
-                logger.debug(
-                    'WARNING: .env file not found; copy .env.example and set your API keys.'
-                );
-            }
+        withAnalytics(
+            'main',
+            async (prompt: string[] = []) => {
+                // ——— ENV CHECK (optional) ———
+                if (!existsSync('.env')) {
+                    logger.debug(
+                        'WARNING: .env file not found; copy .env.example and set your API keys.'
+                    );
+                }
 
-            const opts = program.opts();
-            let headlessInput: string | undefined = undefined;
+                const opts = program.opts();
+                let headlessInput: string | undefined = undefined;
 
-            // Prefer explicit -p/--prompt for headless one-shot
-            if (opts.prompt !== undefined && String(opts.prompt).trim() !== '') {
-                headlessInput = String(opts.prompt);
-            } else if (opts.prompt !== undefined) {
-                // Explicit empty -p "" was provided
-                console.error(
-                    '❌ For headless one-shot mode, prompt cannot be empty. Provide a non-empty prompt with -p/--prompt or use positional argument.'
-                );
-                safeExit('main', 1, 'empty-prompt');
-            } else if (prompt.length > 0) {
-                // Enforce quoted single positional argument for headless mode
-                if (prompt.length === 1) {
-                    headlessInput = prompt[0];
-                } else {
+                // Prefer explicit -p/--prompt for headless one-shot
+                if (opts.prompt !== undefined && String(opts.prompt).trim() !== '') {
+                    headlessInput = String(opts.prompt);
+                } else if (opts.prompt !== undefined) {
+                    // Explicit empty -p "" was provided
                     console.error(
-                        '❌ For headless one-shot mode, pass the prompt in double quotes as a single argument (e.g., "say hello") or use -p/--prompt.'
+                        '❌ For headless one-shot mode, prompt cannot be empty. Provide a non-empty prompt with -p/--prompt or use positional argument.'
                     );
-                    safeExit('main', 1, 'too-many-positional');
-                }
-            }
-
-            // Note: Agent selection must be passed via -a/--agent. We no longer interpret
-            // the first positional argument as an agent name to avoid ambiguity with prompts.
-
-            // ——— Infer provider & API key from model ———
-            if (opts.model) {
-                let provider: LLMProvider;
-                try {
-                    provider = getProviderFromModel(opts.model);
-                } catch (err) {
-                    console.error(`❌ ${(err as Error).message}`);
-                    console.error(`Supported models: ${getAllSupportedModels().join(', ')}`);
-                    safeExit('main', 1, 'invalid-model');
-                }
-
-                const apiKey = resolveApiKeyForProvider(provider);
-                if (!apiKey) {
-                    console.error(
-                        `❌ Missing API key for provider '${provider}' - please set the appropriate environment variable`
-                    );
-                    safeExit('main', 1, 'missing-api-key');
-                }
-                opts.provider = provider;
-                opts.apiKey = apiKey;
-            }
-
-            try {
-                validateCliOptions(opts);
-            } catch (err) {
-                handleCliOptionsError(err);
-            }
-
-            // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
-            let validatedConfig: AgentConfig;
-            let resolvedPath: string;
-
-            try {
-                // Case 1: File path - skip all validation and setup
-                if (opts.agent && isPath(opts.agent)) {
-                    resolvedPath = await resolveAgentPath(
-                        opts.agent,
-                        opts.autoInstall !== false,
-                        true
-                    );
-                }
-                // Cases 2 & 3: Default agent or registry agent
-                else {
-                    // Early registry validation for named agents
-                    if (opts.agent) {
-                        const registry = getAgentRegistry();
-                        if (!registry.hasAgent(opts.agent)) {
-                            console.error(`❌ Agent '${opts.agent}' not found in registry`);
-
-                            // Show available agents
-                            const available = Object.keys(registry.getAvailableAgents());
-                            if (available.length > 0) {
-                                console.log(`📋 Available agents: ${available.join(', ')}`);
-                            } else {
-                                console.log('📋 No agents available in registry');
-                            }
-                            process.exit(1);
-                        }
-                    }
-
-                    // Check setup state and auto-trigger if needed
-                    if (await requiresSetup()) {
-                        if (opts.interactive === false) {
-                            console.error('❌ Setup required but --no-interactive flag is set.');
-                            console.error('💡 Run `dexto setup` to configure preferences first.');
-                            process.exit(1);
-                        }
-
-                        await handleSetupCommand({ interactive: true });
-                    }
-
-                    // Now resolve agent (will auto-install with preferences since setup is complete)
-                    resolvedPath = await resolveAgentPath(
-                        opts.agent,
-                        opts.autoInstall !== false,
-                        true
-                    );
-                }
-
-                // Load raw config and apply CLI overrides
-                const rawConfig = await loadAgentConfig(resolvedPath);
-                const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
-
-                // Validate with interactive setup if needed (for API key issues)
-                validatedConfig = await validateAgentConfig(
-                    mergedConfig,
-                    opts.interactive !== false
-                );
-            } catch (err) {
-                // Config loading failed completely
-                console.error(`❌ Failed to load configuration: ${err}`);
-                safeExit('main', 1, 'config-load-failed');
-            }
-
-            // ——— CREATE AGENT ———
-            let agent: DextoAgent;
-            try {
-                console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
-
-                // Set run mode for tool confirmation provider
-                process.env.DEXTO_RUN_MODE = opts.mode;
-
-                // Apply --strict flag to all server configs
-                if (opts.strict && validatedConfig.mcpServers) {
-                    for (const [_serverName, serverConfig] of Object.entries(
-                        validatedConfig.mcpServers
-                    )) {
-                        // All server config types have connectionMode field
-                        serverConfig.connectionMode = 'strict';
-                    }
-                }
-
-                // DextoAgent will parse/validate again (parse-twice pattern)
-                agent = new DextoAgent(validatedConfig, opts.agent);
-
-                // Start the agent (initialize async services)
-                await agent.start();
-
-                // Handle session options - simplified logic
-                if (opts.resume) {
-                    try {
-                        // Resume specific session by ID
-                        await agent.loadSessionAsDefault(opts.resume);
-                        logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
-                    } catch (err) {
+                    safeExit('main', 1, 'empty-prompt');
+                } else if (prompt.length > 0) {
+                    // Enforce quoted single positional argument for headless mode
+                    if (prompt.length === 1) {
+                        headlessInput = prompt[0];
+                    } else {
                         console.error(
-                            `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                            '❌ For headless one-shot mode, pass the prompt in double quotes as a single argument (e.g., "say hello") or use -p/--prompt.'
                         );
-                        console.error('💡 Use `dexto session list` to see available sessions');
-                        safeExit('main', 1, 'resume-failed');
+                        safeExit('main', 1, 'too-many-positional');
                     }
-                } else if (opts.continue) {
+                }
+
+                // Note: Agent selection must be passed via -a/--agent. We no longer interpret
+                // the first positional argument as an agent name to avoid ambiguity with prompts.
+
+                // ——— Infer provider & API key from model ———
+                if (opts.model) {
+                    let provider: LLMProvider;
                     try {
-                        // Continue from most recent session
-                        await loadMostRecentSession(agent);
-                        // If no sessions existed, create a new one to honor default-new invariant
-                        const sessionsAfter = await agent.listSessions();
-                        if (sessionsAfter.length === 0) {
+                        provider = getProviderFromModel(opts.model);
+                    } catch (err) {
+                        console.error(`❌ ${(err as Error).message}`);
+                        console.error(`Supported models: ${getAllSupportedModels().join(', ')}`);
+                        safeExit('main', 1, 'invalid-model');
+                    }
+
+                    const apiKey = resolveApiKeyForProvider(provider);
+                    if (!apiKey) {
+                        console.error(
+                            `❌ Missing API key for provider '${provider}' - please set the appropriate environment variable`
+                        );
+                        safeExit('main', 1, 'missing-api-key');
+                    }
+                    opts.provider = provider;
+                    opts.apiKey = apiKey;
+                }
+
+                try {
+                    validateCliOptions(opts);
+                } catch (err) {
+                    handleCliOptionsError(err);
+                }
+
+                // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
+                let validatedConfig: AgentConfig;
+                let resolvedPath: string;
+
+                try {
+                    // Case 1: File path - skip all validation and setup
+                    if (opts.agent && isPath(opts.agent)) {
+                        resolvedPath = await resolveAgentPath(
+                            opts.agent,
+                            opts.autoInstall !== false,
+                            true
+                        );
+                    }
+                    // Cases 2 & 3: Default agent or registry agent
+                    else {
+                        // Early registry validation for named agents
+                        if (opts.agent) {
+                            const registry = getAgentRegistry();
+                            if (!registry.hasAgent(opts.agent)) {
+                                console.error(`❌ Agent '${opts.agent}' not found in registry`);
+
+                                // Show available agents
+                                const available = Object.keys(registry.getAvailableAgents());
+                                if (available.length > 0) {
+                                    console.log(`📋 Available agents: ${available.join(', ')}`);
+                                } else {
+                                    console.log('📋 No agents available in registry');
+                                }
+                                safeExit('main', 1, 'agent-not-in-registry');
+                            }
+                        }
+
+                        // Check setup state and auto-trigger if needed
+                        if (await requiresSetup()) {
+                            if (opts.interactive === false) {
+                                console.error(
+                                    '❌ Setup required but --no-interactive flag is set.'
+                                );
+                                console.error(
+                                    '💡 Run `dexto setup` to configure preferences first.'
+                                );
+                                safeExit('main', 1, 'setup-required-non-interactive');
+                            }
+
+                            await handleSetupCommand({ interactive: true });
+                        }
+
+                        // Now resolve agent (will auto-install with preferences since setup is complete)
+                        resolvedPath = await resolveAgentPath(
+                            opts.agent,
+                            opts.autoInstall !== false,
+                            true
+                        );
+                    }
+
+                    // Load raw config and apply CLI overrides
+                    const rawConfig = await loadAgentConfig(resolvedPath);
+                    const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
+
+                    // Validate with interactive setup if needed (for API key issues)
+                    validatedConfig = await validateAgentConfig(
+                        mergedConfig,
+                        opts.interactive !== false
+                    );
+                } catch (err) {
+                    // Config loading failed completely
+                    console.error(`❌ Failed to load configuration: ${err}`);
+                    safeExit('main', 1, 'config-load-failed');
+                }
+
+                // ——— CREATE AGENT ———
+                let agent: DextoAgent;
+                try {
+                    console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
+
+                    // Set run mode for tool confirmation provider
+                    process.env.DEXTO_RUN_MODE = opts.mode;
+
+                    // Apply --strict flag to all server configs
+                    if (opts.strict && validatedConfig.mcpServers) {
+                        for (const [_serverName, serverConfig] of Object.entries(
+                            validatedConfig.mcpServers
+                        )) {
+                            // All server config types have connectionMode field
+                            serverConfig.connectionMode = 'strict';
+                        }
+                    }
+
+                    // DextoAgent will parse/validate again (parse-twice pattern)
+                    agent = new DextoAgent(validatedConfig, opts.agent);
+
+                    // Start the agent (initialize async services)
+                    await agent.start();
+
+                    // Handle session options - simplified logic
+                    if (opts.resume) {
+                        try {
+                            // Resume specific session by ID
+                            await agent.loadSessionAsDefault(opts.resume);
+                            logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                        } catch (err) {
+                            console.error(
+                                `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                            );
+                            console.error('💡 Use `dexto session list` to see available sessions');
+                            safeExit('main', 1, 'resume-failed');
+                        }
+                    } else if (opts.continue) {
+                        try {
+                            // Continue from most recent session
+                            await loadMostRecentSession(agent);
+                            // If no sessions existed, create a new one to honor default-new invariant
+                            const sessionsAfter = await agent.listSessions();
+                            if (sessionsAfter.length === 0) {
+                                const session = await agent.createSession();
+                                await agent.loadSessionAsDefault(session.id);
+                                logger.info(`Created new session: ${session.id}`, null, 'green');
+                            }
+                        } catch (err) {
+                            console.error(
+                                `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
+                            );
+                            safeExit('main', 1, 'continue-failed');
+                        }
+                    } else {
+                        // Default behavior: create new session
+                        try {
                             const session = await agent.createSession();
                             await agent.loadSessionAsDefault(session.id);
                             logger.info(`Created new session: ${session.id}`, null, 'green');
+                        } catch (err) {
+                            console.error(
+                                `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
+                            );
+                            safeExit('main', 1, 'create-session-failed');
                         }
-                    } catch (err) {
-                        console.error(
-                            `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
-                        );
-                        safeExit('main', 1, 'continue-failed');
                     }
-                } else {
-                    // Default behavior: create new session
-                    try {
-                        const session = await agent.createSession();
-                        await agent.loadSessionAsDefault(session.id);
-                        logger.info(`Created new session: ${session.id}`, null, 'green');
-                    } catch (err) {
-                        console.error(
-                            `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
-                        );
-                        safeExit('main', 1, 'create-session-failed');
-                    }
-                }
-            } catch (err) {
-                // Ensure config errors are shown to user, not hidden in logs
-                console.error(`❌ Configuration Error: ${(err as Error).message}`);
-                safeExit('main', 1, 'config-error');
-            }
-
-            // ——— Dispatch based on --mode ———
-            switch (opts.mode) {
-                case 'cli': {
-                    // Set up CLI tool confirmation subscriber
-                    const { CLIToolConfirmationSubscriber } = await import(
-                        './cli/tool-confirmation/cli-confirmation-handler.js'
-                    );
-                    const cliSubscriber = new CLIToolConfirmationSubscriber();
-                    cliSubscriber.subscribe(agent.agentEventBus);
-                    logger.info('Setting up CLI event subscriptions...');
-
-                    if (headlessInput) {
-                        // One shot CLI
-                        await startHeadlessCli(agent, headlessInput);
-                        safeExit('main', 0);
-                    } else {
-                        await startAiCli(agent); // Interactive CLI
-                    }
-                    break;
+                } catch (err) {
+                    // Ensure config errors are shown to user, not hidden in logs
+                    console.error(`❌ Configuration Error: ${(err as Error).message}`);
+                    safeExit('main', 1, 'config-error');
                 }
 
-                case 'web': {
-                    const webPort = parseInt(opts.webPort, 10);
-                    const frontPort = getPort(process.env.FRONTEND_PORT, webPort, 'FRONTEND_PORT');
-                    const apiPort = getPort(process.env.API_PORT, webPort + 1, 'API_PORT');
-                    const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
-                    const nextJSserverURL =
-                        process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
+                // ——— Dispatch based on --mode ———
+                switch (opts.mode) {
+                    case 'cli': {
+                        // Set up CLI tool confirmation subscriber
+                        const { CLIToolConfirmationSubscriber } = await import(
+                            './cli/tool-confirmation/cli-confirmation-handler.js'
+                        );
+                        const cliSubscriber = new CLIToolConfirmationSubscriber();
+                        cliSubscriber.subscribe(agent.agentEventBus);
+                        logger.info('Setting up CLI event subscriptions...');
 
-                    // Start API server
-                    await startApiServer(
-                        agent,
-                        apiPort,
-                        agent.getEffectiveConfig().agentCard || {}
-                    );
+                        if (headlessInput) {
+                            // One shot CLI
+                            await startHeadlessCli(agent, headlessInput);
+                            safeExit('main', 0);
+                        } else {
+                            await startAiCli(agent); // Interactive CLI
+                        }
+                        break;
+                    }
 
-                    // Start Next.js web server
-                    const webServerStarted = await startNextJsWebServer(
-                        apiUrl,
-                        frontPort,
-                        nextJSserverURL
-                    );
+                    case 'web': {
+                        const webPort = parseInt(opts.webPort, 10);
+                        const frontPort = getPort(
+                            process.env.FRONTEND_PORT,
+                            webPort,
+                            'FRONTEND_PORT'
+                        );
+                        const apiPort = getPort(process.env.API_PORT, webPort + 1, 'API_PORT');
+                        const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
+                        const nextJSserverURL =
+                            process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
 
-                    // Open WebUI in browser if server started successfully
-                    if (webServerStarted) {
+                        // Start API server
+                        await startApiServer(
+                            agent,
+                            apiPort,
+                            agent.getEffectiveConfig().agentCard || {}
+                        );
+
+                        // Start Next.js web server
+                        const webServerStarted = await startNextJsWebServer(
+                            apiUrl,
+                            frontPort,
+                            nextJSserverURL
+                        );
+
+                        // Open WebUI in browser if server started successfully
+                        if (webServerStarted) {
+                            try {
+                                const { default: open } = await import('open');
+                                await open(nextJSserverURL, { wait: false });
+                                console.log(
+                                    chalk.green(`🌐 Opened WebUI in browser: ${nextJSserverURL}`)
+                                );
+                            } catch (_error) {
+                                console.log(
+                                    chalk.yellow(`💡 WebUI is available at: ${nextJSserverURL}`)
+                                );
+                            }
+                        }
+
+                        break;
+                    }
+
+                    // Start server with REST APIs and WebSockets on port 3001
+                    // This also enables dexto to be used as a remote mcp server at localhost:3001/mcp
+                    case 'server': {
+                        // Start server with REST APIs and WebSockets only
+                        const agentCard = agent.getEffectiveConfig().agentCard ?? {};
+                        const apiPort = getPort(process.env.API_PORT, 3001, 'API_PORT');
+                        const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
+
+                        console.log('🌐 Starting server (REST APIs + WebSockets)...');
+                        await startApiServer(agent, apiPort, agentCard);
+                        console.log(`✅ Server running at ${apiUrl}`);
+                        console.log('Available endpoints:');
+                        console.log('  POST /api/message - Send async message');
+                        console.log('  POST /api/message-sync - Send sync message');
+                        console.log('  POST /api/reset - Reset conversation');
+                        console.log('  GET  /api/mcp/servers - List MCP servers');
+                        console.log('  WebSocket support available for real-time events');
+                        break;
+                    }
+
+                    case 'discord':
+                        console.log('🤖 Starting Discord bot…');
                         try {
-                            const { default: open } = await import('open');
-                            await open(nextJSserverURL, { wait: false });
-                            console.log(
-                                chalk.green(`🌐 Opened WebUI in browser: ${nextJSserverURL}`)
-                            );
-                        } catch (_error) {
-                            console.log(
-                                chalk.yellow(`💡 WebUI is available at: ${nextJSserverURL}`)
-                            );
+                            startDiscordBot(agent);
+                        } catch (err) {
+                            console.error('❌ Discord startup failed:', err);
+                            safeExit('main', 1, 'discord-startup-failed');
                         }
+                        break;
+
+                    case 'telegram':
+                        console.log('🤖 Starting Telegram bot…');
+                        try {
+                            startTelegramBot(agent);
+                        } catch (err) {
+                            console.error('❌ Telegram startup failed:', err);
+                            safeExit('main', 1, 'telegram-startup-failed');
+                        }
+                        break;
+
+                    // TODO: Remove if server mode is stable and supports mcp
+                    // Starts dexto as a local mcp server
+                    // Use `dexto --mode mcp` to start dexto as a local mcp server
+                    // Use `dexto --mode server` to start dexto as a remote server
+                    case 'mcp': {
+                        // Start stdio mcp server only
+                        const agentCardConfig = agent.getEffectiveConfig().agentCard || {
+                            name: 'dexto',
+                            version: '1.0.0',
+                        };
+
+                        try {
+                            // Logs are already redirected to file by default to prevent interference with stdio transport
+                            const agentCardData = createAgentCard(
+                                {
+                                    defaultName: agentCardConfig.name ?? 'dexto',
+                                    defaultVersion: agentCardConfig.version ?? '1.0.0',
+                                    defaultBaseUrl: 'stdio://local-dexto',
+                                },
+                                agentCardConfig // preserve overrides from agent file
+                            );
+                            // Use stdio transport in mcp mode
+                            const mcpTransport = await createMcpTransport('stdio');
+                            await initializeMcpServer(agent, agentCardData, mcpTransport);
+                        } catch (err) {
+                            // Write to stderr instead of stdout to avoid interfering with MCP protocol
+                            process.stderr.write(`MCP server startup failed: ${err}\n`);
+                            safeExit('main', 1, 'mcp-startup-failed');
+                        }
+                        break;
                     }
 
-                    break;
-                }
-
-                // Start server with REST APIs and WebSockets on port 3001
-                // This also enables dexto to be used as a remote mcp server at localhost:3001/mcp
-                case 'server': {
-                    // Start server with REST APIs and WebSockets only
-                    const agentCard = agent.getEffectiveConfig().agentCard ?? {};
-                    const apiPort = getPort(process.env.API_PORT, 3001, 'API_PORT');
-                    const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
-
-                    console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                    await startApiServer(agent, apiPort, agentCard);
-                    console.log(`✅ Server running at ${apiUrl}`);
-                    console.log('Available endpoints:');
-                    console.log('  POST /api/message - Send async message');
-                    console.log('  POST /api/message-sync - Send sync message');
-                    console.log('  POST /api/reset - Reset conversation');
-                    console.log('  GET  /api/mcp/servers - List MCP servers');
-                    console.log('  WebSocket support available for real-time events');
-                    break;
-                }
-
-                case 'discord':
-                    console.log('🤖 Starting Discord bot…');
-                    try {
-                        startDiscordBot(agent);
-                    } catch (err) {
-                        console.error('❌ Discord startup failed:', err);
-                        safeExit('main', 1, 'discord-startup-failed');
-                    }
-                    break;
-
-                case 'telegram':
-                    console.log('🤖 Starting Telegram bot…');
-                    try {
-                        startTelegramBot(agent);
-                    } catch (err) {
-                        console.error('❌ Telegram startup failed:', err);
-                        safeExit('main', 1, 'telegram-startup-failed');
-                    }
-                    break;
-
-                // TODO: Remove if server mode is stable and supports mcp
-                // Starts dexto as a local mcp server
-                // Use `dexto --mode mcp` to start dexto as a local mcp server
-                // Use `dexto --mode server` to start dexto as a remote server
-                case 'mcp': {
-                    // Start stdio mcp server only
-                    const agentCardConfig = agent.getEffectiveConfig().agentCard || {
-                        name: 'dexto',
-                        version: '1.0.0',
-                    };
-
-                    try {
-                        // Logs are already redirected to file by default to prevent interference with stdio transport
-                        const agentCardData = createAgentCard(
-                            {
-                                defaultName: agentCardConfig.name ?? 'dexto',
-                                defaultVersion: agentCardConfig.version ?? '1.0.0',
-                                defaultBaseUrl: 'stdio://local-dexto',
-                            },
-                            agentCardConfig // preserve overrides from agent file
+                    default:
+                        console.error(
+                            `❌ Unknown mode '${opts.mode}'. Use cli, web, server, discord, telegram, or mcp.`
                         );
-                        // Use stdio transport in mcp mode
-                        const mcpTransport = await createMcpTransport('stdio');
-                        await initializeMcpServer(agent, agentCardData, mcpTransport);
-                    } catch (err) {
-                        // Write to stderr instead of stdout to avoid interfering with MCP protocol
-                        process.stderr.write(`MCP server startup failed: ${err}\n`);
-                        safeExit('main', 1, 'mcp-startup-failed');
-                    }
-                    break;
+                        safeExit('main', 1, 'unknown-mode');
                 }
-
-                default:
-                    console.error(
-                        `❌ Unknown mode '${opts.mode}'. Use cli, web, server, discord, telegram, or mcp.`
-                    );
-                    safeExit('main', 1, 'unknown-mode');
-            }
-        })
+            },
+            { timeoutMs: 0 }
+        )
     );
 
 // 11) PARSE & EXECUTE

@@ -56,6 +56,8 @@ function buildArgsMeta(args: unknown[]): Properties {
  * Usage:
  *   program.command('install')
  *     .action(withAnalytics('install', async (agents: string[], opts: Options) => { ... }));
+ *
+ * Pass { timeoutMs: 0 } to disable the one‑shot timeout marker for long‑running commands.
  */
 export function withAnalytics<A extends unknown[], R = unknown>(
     commandName: string,
@@ -66,16 +68,19 @@ export function withAnalytics<A extends unknown[], R = unknown>(
     return async (...args: A): Promise<R> => {
         const argsMeta = buildArgsMeta(args as unknown[]);
         onCommandStart(commandName, { args: argsMeta });
-        const timeout = setTimeout(() => {
-            try {
-                capture('dexto_cli_command', {
-                    name: commandName,
-                    phase: 'timeout',
-                    timeoutMs,
-                    args: argsMeta,
-                });
-            } catch {}
-        }, timeoutMs);
+        const timeout =
+            timeoutMs > 0
+                ? setTimeout(() => {
+                      try {
+                          capture('dexto_cli_command', {
+                              name: commandName,
+                              phase: 'timeout',
+                              timeoutMs,
+                              args: argsMeta,
+                          });
+                      } catch {}
+                  }, timeoutMs)
+                : null;
         try {
             const result = await handler(...args);
             await onCommandEnd(commandName, true, { args: argsMeta });
@@ -89,7 +94,7 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             } catch {}
             throw err;
         } finally {
-            clearTimeout(timeout);
+            if (timeout) clearTimeout(timeout);
         }
     };
 }
