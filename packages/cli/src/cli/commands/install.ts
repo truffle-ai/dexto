@@ -103,7 +103,9 @@ export async function handleInstallCommand(
                         force: validated.force,
                         injectPreferences: validated.injectPreferences,
                     });
-                } catch {}
+                } catch {
+                    // Analytics failures should not block CLI execution.
+                }
                 continue;
             }
 
@@ -119,7 +121,9 @@ export async function handleInstallCommand(
                     force: validated.force,
                     injectPreferences: validated.injectPreferences,
                 });
-            } catch {}
+            } catch {
+                // Analytics failures should not block CLI execution.
+            }
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to install ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
@@ -135,7 +139,9 @@ export async function handleInstallCommand(
                     force: validated.force,
                     injectPreferences: validated.injectPreferences,
                 });
-            } catch {}
+            } catch {
+                // Analytics failures should not block CLI execution.
+            }
         }
     }
 
@@ -149,7 +155,9 @@ export async function handleInstallCommand(
             successCount,
             errorCount,
         });
-    } catch {}
+    } catch {
+        // Analytics failures should not block CLI execution.
+    }
 
     // For single agent operations, throw error if it failed (after emitting analytics)
     if (agentsToInstall.length === 1) {

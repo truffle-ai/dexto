@@ -62,7 +62,9 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                               timeoutMs,
                               args: argsMeta,
                           });
-                      } catch {}
+                      } catch {
+                          // Timeout instrumentation is best-effort.
+                      }
                   }, timeoutMs)
                 : null;
         try {
@@ -84,7 +86,9 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                         endMeta.command = err.commandName;
                     }
                     await onCommandEnd(commandName, err.code === 0, endMeta);
-                } catch {}
+                } catch {
+                    // Ignore analytics errors when propagating ExitSignal.
+                }
                 return undefined as unknown as R;
             }
             try {
@@ -92,7 +96,9 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                     error: err instanceof Error ? err.message : String(err),
                     args: argsMeta,
                 });
-            } catch {}
+            } catch {
+                // Ignore analytics errors when recording failures.
+            }
             throw err;
         } finally {
             if (timeout) clearTimeout(timeout);

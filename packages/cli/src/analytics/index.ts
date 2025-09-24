@@ -71,7 +71,9 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
     process.on('exit', () => {
         try {
             client?.flush?.();
-        } catch {}
+        } catch {
+            // Ignore flush errors: analytics should never block process exit.
+        }
     });
 
     capture('dexto_session_start', {});

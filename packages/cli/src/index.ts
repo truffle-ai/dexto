@@ -118,7 +118,9 @@ program
                         provider: userInput.llmProvider,
                         providedKey: Boolean(userInput.llmApiKey),
                     });
-                } catch {}
+                } catch {
+                    // Analytics failures should not block CLI execution.
+                }
 
                 // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
                 process.chdir(appPath);
@@ -163,7 +165,9 @@ program
                         provider: userInput.llmProvider,
                         providedKey: Boolean(userInput.llmApiKey),
                     });
-                } catch {}
+                } catch {
+                    // Analytics failures should not block CLI execution.
+                }
                 await initDexto(
                     userInput.directory,
                     userInput.createExampleFile,

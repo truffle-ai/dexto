@@ -7,7 +7,6 @@ import { randomUUID, createHash } from 'crypto';
 import { createRequire } from 'module';
 const requireCJS = createRequire(import.meta.url);
 // node-machine-id is CommonJS; import via createRequire to avoid ESM interop issues
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { machineIdSync } = requireCJS('node-machine-id') as {
     machineIdSync: (original?: boolean) => string;
 };

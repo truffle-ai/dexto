@@ -100,7 +100,9 @@ export async function handleUninstallCommand(
                     status: 'uninstalled',
                     force: validated.force,
                 });
-            } catch {}
+            } catch {
+                // Analytics failures should not block CLI execution.
+            }
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to uninstall ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
@@ -115,7 +117,9 @@ export async function handleUninstallCommand(
                     error_message: error instanceof Error ? error.message : String(error),
                     force: validated.force,
                 });
-            } catch {}
+            } catch {
+                // Analytics failures should not block CLI execution.
+            }
         }
     }
 
@@ -128,7 +132,9 @@ export async function handleUninstallCommand(
             successCount,
             errorCount,
         });
-    } catch {}
+    } catch {
+        // Analytics failures should not block CLI execution.
+    }
 
     // For single agent operations, throw error if it failed (after emitting analytics)
     if (agentsToUninstall.length === 1) {
