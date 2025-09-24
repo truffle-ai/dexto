@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { getAgentRegistry, getDextoGlobalPath } from '@dexto/core';
+import { capture } from '../../analytics/index.js';
 
 // Zod schema for install command validation
 const InstallCommandSchema = z
@@ -76,6 +77,9 @@ export async function handleInstallCommand(
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const installed: string[] = [];
+    const skipped: string[] = [];
+    const failed: string[] = [];
 
     // Install each agent
     for (const agentName of agentsToInstall) {
@@ -88,16 +92,19 @@ export async function handleInstallCommand(
             if (existsSync(installedPath) && !validated.force) {
                 console.log(`⏭️  ${agentName} already installed (use --force to reinstall)`);
                 successCount++;
+                skipped.push(agentName);
                 continue;
             }
 
             await registry.installAgent(agentName, validated.injectPreferences);
             successCount++;
             console.log(`✅ ${agentName} installed successfully`);
+            installed.push(agentName);
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to install ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(errorMsg);
+            failed.push(agentName);
             console.error(`❌ ${errorMsg}`);
         }
     }
@@ -117,6 +124,18 @@ export async function handleInstallCommand(
         console.log(`❌ Failed to install: ${errorCount}`);
         errors.forEach((error) => console.log(`   • ${error}`));
     }
+
+    // Track analytics summary for install
+    try {
+        capture('dexto_install', {
+            requested: agentsToInstall,
+            installed,
+            skipped,
+            failed,
+            successCount,
+            errorCount,
+        });
+    } catch {}
 
     if (errorCount > 0 && successCount === 0) {
         throw new Error('All installations failed');

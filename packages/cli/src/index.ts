@@ -10,8 +10,8 @@ import { createRequire } from 'module';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { initAnalytics, onCommandStart, onCommandEnd, capture } from './analytics/index.js';
-import { COMMAND_TIMEOUT_MS } from './analytics/constants.js';
+import { initAnalytics, capture } from './analytics/index.js';
+import { withAnalytics, safeExit } from './analytics/wrapper.js';
 
 // Use createRequire to import package.json without experimental warning
 const require = createRequire(import.meta.url);
@@ -74,80 +74,6 @@ const program = new Command();
 // Initialize analytics early (no-op if disabled)
 await initAnalytics({ appVersion: pkg.version });
 
-// Track CLI command runs centrally
-program.hook('preAction', (thisCommand) => {
-    try {
-        onCommandStart(thisCommand.name());
-    } catch {}
-});
-
-// Generic timing wrapper for all commander actions (success/error + duration)
-// Must be installed before any command .action handlers are defined
-{
-    const CmdProto: any = (Command as any).prototype;
-    const originalAction = CmdProto.action;
-
-    let currentCmdName: string | null = null;
-    let currentCmdStart: number | null = null;
-    let currentCmdTimeout: NodeJS.Timeout | null = null;
-
-    // Guard process.exit to emit a best-effort end event if a command forces exit
-    const originalExit = process.exit.bind(process) as (code?: number) => never;
-    (process as any).exit = ((code?: number) => {
-        try {
-            if (currentCmdName && currentCmdStart != null) {
-                const durationMs = Date.now() - currentCmdStart;
-                capture('dexto_cli_command', {
-                    name: currentCmdName,
-                    success: (code ?? 0) === 0,
-                    durationMs,
-                    reason: 'process.exit',
-                });
-            }
-        } catch {}
-        return originalExit(code);
-    }) as any;
-
-    CmdProto.action = function (fn: Function) {
-        const wrapped = async (...args: any[]) => {
-            const name = typeof this?.name === 'function' ? this.name() : 'unknown';
-            currentCmdName = name;
-            currentCmdStart = Date.now();
-            // one-shot timeout notice (non-terminating)
-            currentCmdTimeout = setTimeout(() => {
-                try {
-                    capture('dexto_cli_command', {
-                        name,
-                        phase: 'timeout',
-                        timeoutMs: COMMAND_TIMEOUT_MS,
-                    });
-                } catch {}
-            }, COMMAND_TIMEOUT_MS);
-
-            try {
-                const result = await fn.apply(this, args);
-                try {
-                    await onCommandEnd(name, true);
-                } catch {}
-                return result;
-            } catch (err) {
-                try {
-                    await onCommandEnd(name, false, {
-                        error: err instanceof Error ? err.message : String(err),
-                    });
-                } catch {}
-                throw err;
-            } finally {
-                if (currentCmdTimeout) clearTimeout(currentCmdTimeout);
-                currentCmdTimeout = null;
-                currentCmdName = null;
-                currentCmdStart = null;
-            }
-        };
-        return originalAction.call(this, wrapped);
-    };
-}
-
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
@@ -178,83 +104,87 @@ program
 program
     .command('create-app')
     .description('Scaffold a new Dexto Typescript app')
-    .action(async () => {
-        try {
-            p.intro(chalk.inverse('Dexto Create App'));
-            // first setup the initial files in the project and get the project path
-            const appPath = await createDextoProject();
-
-            // then get user inputs for directory, llm etc.
-            const userInput = await getUserInputToInitDextoApp();
+    .action(
+        withAnalytics('create-app', async () => {
             try {
-                capture('dexto_create', {
-                    provider: userInput.llmProvider,
-                    providedKey: Boolean(userInput.llmApiKey),
-                });
-            } catch {}
+                p.intro(chalk.inverse('Dexto Create App'));
+                // first setup the initial files in the project and get the project path
+                const appPath = await createDextoProject();
 
-            // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
-            process.chdir(appPath);
-            await addDextoScriptsToPackageJson(userInput.directory, appPath);
-            await createTsconfigJson(appPath, userInput.directory);
+                // then get user inputs for directory, llm etc.
+                const userInput = await getUserInputToInitDextoApp();
+                try {
+                    capture('dexto_create', {
+                        provider: userInput.llmProvider,
+                        providedKey: Boolean(userInput.llmApiKey),
+                    });
+                } catch {}
 
-            // then initialize the other parts of the project
-            await initDexto(
-                userInput.directory,
-                userInput.createExampleFile,
-                userInput.llmProvider,
-                userInput.llmApiKey
-            );
-            p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
-            // add notes for users to get started with their newly created Dexto project
-            await postCreateDexto(appPath, userInput.directory);
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto create-app command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+                // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
+                process.chdir(appPath);
+                await addDextoScriptsToPackageJson(userInput.directory, appPath);
+                await createTsconfigJson(appPath, userInput.directory);
+
+                // then initialize the other parts of the project
+                await initDexto(
+                    userInput.directory,
+                    userInput.createExampleFile,
+                    userInput.llmProvider,
+                    userInput.llmApiKey
+                );
+                p.outro(chalk.greenBright('Dexto app created and initialized successfully!'));
+                // add notes for users to get started with their newly created Dexto project
+                await postCreateDexto(appPath, userInput.directory);
+                safeExit('create-app', 0);
+            } catch (err) {
+                console.error(`❌ dexto create-app command failed: ${err}`);
+                safeExit('create-app', 1, 'error');
+            }
+        })
+    );
 
 // 3) `init-app` SUB-COMMAND
 program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
-    .action(async () => {
-        try {
-            // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
-            await checkForFileInCurrentDirectory('package.json');
-            await checkForFileInCurrentDirectory('tsconfig.json');
-
-            // start intro
-            p.intro(chalk.inverse('Dexto Init App'));
-            const userInput = await getUserInputToInitDextoApp();
+    .action(
+        withAnalytics('init-app', async () => {
             try {
-                capture('dexto_init', {
-                    provider: userInput.llmProvider,
-                    providedKey: Boolean(userInput.llmApiKey),
-                });
-            } catch {}
-            await initDexto(
-                userInput.directory,
-                userInput.createExampleFile,
-                userInput.llmProvider,
-                userInput.llmApiKey
-            );
-            p.outro(chalk.greenBright('Dexto app initialized successfully!'));
+                // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
+                await checkForFileInCurrentDirectory('package.json');
+                await checkForFileInCurrentDirectory('tsconfig.json');
 
-            // add notes for users to get started with their new initialized Dexto project
-            await postInitDexto(userInput.directory);
-            process.exit(0);
-        } catch (err) {
-            // if the package.json or tsconfig.json is not found, we give instructions to create a new project
-            if (err instanceof FileNotFoundError) {
-                console.error(`❌ ${err.message} Run "dexto create-app" to create a new app`);
-                process.exit(1);
+                // start intro
+                p.intro(chalk.inverse('Dexto Init App'));
+                const userInput = await getUserInputToInitDextoApp();
+                try {
+                    capture('dexto_init', {
+                        provider: userInput.llmProvider,
+                        providedKey: Boolean(userInput.llmApiKey),
+                    });
+                } catch {}
+                await initDexto(
+                    userInput.directory,
+                    userInput.createExampleFile,
+                    userInput.llmProvider,
+                    userInput.llmApiKey
+                );
+                p.outro(chalk.greenBright('Dexto app initialized successfully!'));
+
+                // add notes for users to get started with their new initialized Dexto project
+                await postInitDexto(userInput.directory);
+                safeExit('init-app', 0);
+            } catch (err) {
+                // if the package.json or tsconfig.json is not found, we give instructions to create a new project
+                if (err instanceof FileNotFoundError) {
+                    console.error(`❌ ${err.message} Run "dexto create-app" to create a new app`);
+                    safeExit('init-app', 1, 'file-not-found');
+                }
+                console.error(`❌ Initialization failed: ${err}`);
+                safeExit('init-app', 1, 'error');
             }
-            console.error(`❌ Initialization failed: ${err}`);
-            process.exit(1);
-        }
-    });
+        })
+    );
 
 // 4) `setup` SUB-COMMAND
 program
@@ -265,17 +195,19 @@ program
     .option('--default-agent <agent>', 'Default agent name (default: default-agent)')
     .option('--no-interactive', 'Skip interactive prompts and API key setup')
     .option('--force', 'Overwrite existing setup without confirmation')
-    .action(async (options: CLISetupOptionsInput) => {
-        try {
-            await handleSetupCommand(options);
-            process.exit(0);
-        } catch (err) {
-            console.error(
-                `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
-            );
-            process.exit(1);
-        }
-    });
+    .action(
+        withAnalytics('setup', async (options: CLISetupOptionsInput) => {
+            try {
+                await handleSetupCommand(options);
+                safeExit('setup', 0);
+            } catch (err) {
+                console.error(
+                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+                );
+                safeExit('setup', 1, 'error');
+            }
+        })
+    );
 
 // 5) `install` SUB-COMMAND
 program
@@ -284,15 +216,20 @@ program
     .option('--all', 'Install all available agents from registry')
     .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
     .option('--force', 'Force reinstall even if agent is already installed')
-    .action(async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
-        try {
-            await handleInstallCommand(agents, options);
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto install command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+    .action(
+        withAnalytics(
+            'install',
+            async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
+                try {
+                    await handleInstallCommand(agents, options);
+                    safeExit('install', 0);
+                } catch (err) {
+                    console.error(`❌ dexto install command failed: ${err}`);
+                    safeExit('install', 1, 'error');
+                }
+            }
+        )
+    );
 
 // 6) `uninstall` SUB-COMMAND
 program
@@ -300,15 +237,20 @@ program
     .description('Uninstall agents from the local installation')
     .option('--all', 'Uninstall all installed agents')
     .option('--force', 'Force uninstall even if agent is protected (e.g., default-agent)')
-    .action(async (agents: string[], options: Partial<UninstallCommandOptions>) => {
-        try {
-            await handleUninstallCommand(agents, options);
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto uninstall command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+    .action(
+        withAnalytics(
+            'uninstall',
+            async (agents: string[], options: Partial<UninstallCommandOptions>) => {
+                try {
+                    await handleUninstallCommand(agents, options);
+                    safeExit('uninstall', 0);
+                } catch (err) {
+                    console.error(`❌ dexto uninstall command failed: ${err}`);
+                    safeExit('uninstall', 1, 'error');
+                }
+            }
+        )
+    );
 
 // 7) `list-agents` SUB-COMMAND
 program
@@ -317,29 +259,33 @@ program
     .option('--verbose', 'Show detailed agent information')
     .option('--installed', 'Show only installed agents')
     .option('--available', 'Show only available agents')
-    .action(async (options: ListAgentsCommandOptionsInput) => {
-        try {
-            await handleListAgentsCommand(options);
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto list-agents command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+    .action(
+        withAnalytics('list-agents', async (options: ListAgentsCommandOptionsInput) => {
+            try {
+                await handleListAgentsCommand(options);
+                safeExit('list-agents', 0);
+            } catch (err) {
+                console.error(`❌ dexto list-agents command failed: ${err}`);
+                safeExit('list-agents', 1, 'error');
+            }
+        })
+    );
 
 // 8) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
-    .action(async (agent: string) => {
-        try {
-            await handleWhichCommand(agent);
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto which command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+    .action(
+        withAnalytics('which', async (agent: string) => {
+            try {
+                await handleWhichCommand(agent);
+                safeExit('which', 0);
+            } catch (err) {
+                console.error(`❌ dexto which command failed: ${err}`);
+                safeExit('which', 1, 'error');
+            }
+        })
+    );
 
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
 async function bootstrapAgentFromGlobalOpts() {
@@ -375,52 +321,58 @@ const sessionCommand = program.command('session').description('Manage chat sessi
 sessionCommand
     .command('list')
     .description('List all sessions')
-    .action(async () => {
-        try {
-            const agent = await bootstrapAgentFromGlobalOpts();
+    .action(
+        withAnalytics('session list', async () => {
+            try {
+                const agent = await bootstrapAgentFromGlobalOpts();
 
-            await handleSessionListCommand(agent);
-            await agent.stop();
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto session list command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+                await handleSessionListCommand(agent);
+                await agent.stop();
+                safeExit('session list', 0);
+            } catch (err) {
+                console.error(`❌ dexto session list command failed: ${err}`);
+                safeExit('session list', 1, 'error');
+            }
+        })
+    );
 
 sessionCommand
     .command('history')
     .description('Show session history')
     .argument('[sessionId]', 'Session ID (defaults to current session)')
-    .action(async (sessionId: string) => {
-        try {
-            const agent = await bootstrapAgentFromGlobalOpts();
+    .action(
+        withAnalytics('session history', async (sessionId: string) => {
+            try {
+                const agent = await bootstrapAgentFromGlobalOpts();
 
-            await handleSessionHistoryCommand(agent, sessionId);
-            await agent.stop();
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto session history command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+                await handleSessionHistoryCommand(agent, sessionId);
+                await agent.stop();
+                safeExit('session history', 0);
+            } catch (err) {
+                console.error(`❌ dexto session history command failed: ${err}`);
+                safeExit('session history', 1, 'error');
+            }
+        })
+    );
 
 sessionCommand
     .command('delete')
     .description('Delete a session')
     .argument('<sessionId>', 'Session ID to delete')
-    .action(async (sessionId: string) => {
-        try {
-            const agent = await bootstrapAgentFromGlobalOpts();
+    .action(
+        withAnalytics('session delete', async (sessionId: string) => {
+            try {
+                const agent = await bootstrapAgentFromGlobalOpts();
 
-            await handleSessionDeleteCommand(agent, sessionId);
-            await agent.stop();
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto session delete command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+                await handleSessionDeleteCommand(agent, sessionId);
+                await agent.stop();
+                safeExit('session delete', 0);
+            } catch (err) {
+                console.error(`❌ dexto session delete command failed: ${err}`);
+                safeExit('session delete', 1, 'error');
+            }
+        })
+    );
 
 // 10) `search` SUB-COMMAND
 program
@@ -430,48 +382,57 @@ program
     .option('--session <sessionId>', 'Search in specific session')
     .option('--role <role>', 'Filter by role (user, assistant, system, tool)')
     .option('--limit <number>', 'Limit number of results', '10')
-    .action(async (query: string, options: { session?: string; role?: string; limit?: string }) => {
-        try {
-            const agent = await bootstrapAgentFromGlobalOpts();
+    .action(
+        withAnalytics(
+            'search',
+            async (query: string, options: { session?: string; role?: string; limit?: string }) => {
+                try {
+                    const agent = await bootstrapAgentFromGlobalOpts();
 
-            const searchOptions: {
-                sessionId?: string;
-                role?: 'user' | 'assistant' | 'system' | 'tool';
-                limit?: number;
-            } = {};
+                    const searchOptions: {
+                        sessionId?: string;
+                        role?: 'user' | 'assistant' | 'system' | 'tool';
+                        limit?: number;
+                    } = {};
 
-            if (options.session) {
-                searchOptions.sessionId = options.session;
-            }
-            if (options.role) {
-                const allowed = new Set(['user', 'assistant', 'system', 'tool']);
-                if (!allowed.has(options.role)) {
-                    console.error(
-                        `❌ Invalid role: ${options.role}. Use one of: user, assistant, system, tool`
-                    );
-                    process.exit(1);
+                    if (options.session) {
+                        searchOptions.sessionId = options.session;
+                    }
+                    if (options.role) {
+                        const allowed = new Set(['user', 'assistant', 'system', 'tool']);
+                        if (!allowed.has(options.role)) {
+                            console.error(
+                                `❌ Invalid role: ${options.role}. Use one of: user, assistant, system, tool`
+                            );
+                            safeExit('search', 1, 'invalid-role');
+                        }
+                        searchOptions.role = options.role as
+                            | 'user'
+                            | 'assistant'
+                            | 'system'
+                            | 'tool';
+                    }
+                    if (options.limit) {
+                        const parsed = parseInt(options.limit, 10);
+                        if (Number.isNaN(parsed) || parsed <= 0) {
+                            console.error(
+                                `❌ Invalid --limit: ${options.limit}. Use a positive integer (e.g., 10).`
+                            );
+                            safeExit('search', 1, 'invalid-limit');
+                        }
+                        searchOptions.limit = parsed;
+                    }
+
+                    await handleSessionSearchCommand(agent, query, searchOptions);
+                    await agent.stop();
+                    safeExit('search', 0);
+                } catch (err) {
+                    console.error(`❌ dexto search command failed: ${err}`);
+                    safeExit('search', 1, 'error');
                 }
-                searchOptions.role = options.role as 'user' | 'assistant' | 'system' | 'tool';
             }
-            if (options.limit) {
-                const parsed = parseInt(options.limit, 10);
-                if (Number.isNaN(parsed) || parsed <= 0) {
-                    console.error(
-                        `❌ Invalid --limit: ${options.limit}. Use a positive integer (e.g., 10).`
-                    );
-                    process.exit(1);
-                }
-                searchOptions.limit = parsed;
-            }
-
-            await handleSessionSearchCommand(agent, query, searchOptions);
-            await agent.stop();
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto search command failed: ${err}`);
-            process.exit(1);
-        }
-    });
+        )
+    );
 
 // 11) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)

@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { getAgentRegistry } from '@dexto/core';
+import { capture } from '../../analytics/index.js';
 
 // Zod schema for uninstall command validation
 const UninstallCommandSchema = z
@@ -81,6 +82,8 @@ export async function handleUninstallCommand(
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const uninstalled: string[] = [];
+    const failed: string[] = [];
 
     // Uninstall each agent
     for (const agentName of agentsToUninstall) {
@@ -89,10 +92,12 @@ export async function handleUninstallCommand(
             await registry.uninstallAgent(agentName, validated.force);
             successCount++;
             console.log(`✅ ${agentName} uninstalled successfully`);
+            uninstalled.push(agentName);
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to uninstall ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(errorMsg);
+            failed.push(agentName);
             console.error(`❌ ${errorMsg}`);
         }
     }
@@ -112,6 +117,17 @@ export async function handleUninstallCommand(
         console.log(`❌ Failed to uninstall: ${errorCount}`);
         errors.forEach((error) => console.log(`   • ${error}`));
     }
+
+    // Track analytics summary for uninstall
+    try {
+        capture('dexto_uninstall', {
+            requested: agentsToUninstall,
+            uninstalled,
+            failed,
+            successCount,
+            errorCount,
+        });
+    } catch {}
 
     if (errorCount > 0 && successCount === 0) {
         throw new Error('All uninstallations failed');
