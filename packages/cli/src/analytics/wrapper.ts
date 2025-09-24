@@ -1,72 +1,48 @@
 // packages/cli/src/analytics/wrapper.ts
-import { onCommandStart, onCommandEnd, capture, Properties } from './index.js';
+import { onCommandStart, onCommandEnd, capture } from './index.js';
 import { COMMAND_TIMEOUT_MS } from './constants.js';
+import type { CliCommandEndEvent, CommandArgsMeta, SanitizedOptionValue } from './events.js';
 
-/**
- * Redact potentially sensitive option values (e.g., keys, tokens, prompts).
- *
- * - String values are fully redacted to avoid accidental leakage.
- * - Arrays/objects are summarized to shapes to keep analytics light and safe.
- */
-function sanitizeOptions(obj: Record<string, unknown>): Record<string, unknown> {
+function sanitizeOptions(obj: Record<string, unknown>): Record<string, SanitizedOptionValue> {
     const redactedKeys = /key|token|secret|password|api[_-]?key|authorization|auth/i;
     const truncate = (s: string, max = 256) => (s.length > max ? s.slice(0, max) + '…' : s);
-    const out: Record<string, unknown> = {};
+    const out: Record<string, SanitizedOptionValue> = {};
     for (const [k, v] of Object.entries(obj)) {
         if (typeof v === 'string') {
             out[k] = redactedKeys.test(k) ? '[REDACTED]' : truncate(v);
         } else if (Array.isArray(v)) {
             out[k] = { type: 'array', length: v.length };
         } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
-            out[k] = v;
+            out[k] = v as SanitizedOptionValue;
         } else if (typeof v === 'object' && v) {
             out[k] = { type: 'object' };
         } else {
-            out[k] = typeof v;
+            out[k] = String(v ?? 'unknown');
         }
     }
     return out;
 }
 
-/**
- * Convert command arguments into a compact, privacy-safe metadata payload.
- *
- * Captures:
- * - argTypes: basic JS types of each argument
- * - positionalCount: count of positional strings (first arg array)
- * - optionKeys: keys present in the last object-like argument
- * - options: sanitized summary of option values
- */
-function buildArgsPayload(args: unknown[]): Properties {
-    const meta: Properties = { argTypes: args.map((a) => (Array.isArray(a) ? 'array' : typeof a)) };
+function buildArgsPayload(args: unknown[]): CommandArgsMeta {
+    const meta: CommandArgsMeta = {
+        argTypes: args.map((a) => (Array.isArray(a) ? 'array' : typeof a)),
+    };
 
-    // Capture actual positional strings (limit count/length)
     if (args.length > 0 && Array.isArray(args[0])) {
         const list = (args[0] as unknown[]).map((x) => String(x));
         const trimmed = list.map((s) => (s.length > 512 ? s.slice(0, 512) + '…' : s)).slice(0, 10);
-        meta['positionalRaw'] = trimmed;
-        meta['positionalCount'] = list.length;
+        meta.positionalRaw = trimmed;
+        meta.positionalCount = list.length;
     }
 
-    // Include sanitized options (last param)
     const last = args[args.length - 1];
     if (last && typeof last === 'object' && !Array.isArray(last)) {
-        meta['optionKeys'] = Object.keys(last as Record<string, unknown>);
-        meta['options'] = sanitizeOptions(last as Record<string, unknown>);
+        meta.optionKeys = Object.keys(last as Record<string, unknown>);
+        meta.options = sanitizeOptions(last as Record<string, unknown>);
     }
     return meta;
 }
 
-/**
- * Wrap a Commander action with analytics timing, argument metadata,
- * timeout notice, and completion events.
- *
- * Usage:
- *   program.command('install')
- *     .action(withAnalytics('install', async (agents: string[], opts: Options) => { ... }));
- *
- * Pass { timeoutMs: 0 } to disable the one‑shot timeout marker for long‑running commands.
- */
 export function withAnalytics<A extends unknown[], R = unknown>(
     commandName: string,
     handler: (...args: A) => Promise<R> | R,
@@ -96,16 +72,19 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             return result as R;
         } catch (err) {
             if (err instanceof ExitSignal) {
-                // Honor requested exit without throwing further; set code and emit end event
                 process.exitCode = err.code ?? 0;
                 try {
-                    await onCommandEnd(commandName, err.code === 0, {
-                        reason: err.reason,
-                        command: err.commandName ?? commandName,
-                        args: argsMeta,
-                    });
+                    const endMeta: Partial<
+                        Omit<CliCommandEndEvent, 'name' | 'phase' | 'success' | 'durationMs'>
+                    > & { args: CommandArgsMeta } = { args: argsMeta };
+                    if (typeof err.reason === 'string') {
+                        endMeta.reason = err.reason;
+                    }
+                    if (err.commandName) {
+                        endMeta.command = err.commandName;
+                    }
+                    await onCommandEnd(commandName, err.code === 0, endMeta);
                 } catch {}
-                // Swallow and finish gracefully
                 return undefined as unknown as R;
             }
             try {
@@ -121,7 +100,6 @@ export function withAnalytics<A extends unknown[], R = unknown>(
     };
 }
 
-// Special control-flow signal used to request an early, graceful command termination
 export class ExitSignal extends Error {
     code: number;
     reason?: string | undefined;
@@ -136,6 +114,5 @@ export class ExitSignal extends Error {
 }
 
 export function safeExit(commandName: string, code: number = 0, reason?: string): never {
-    // Throw control-flow signal; caught by withAnalytics to emit end+set exitCode
     throw new ExitSignal(code, reason, commandName);
 }
