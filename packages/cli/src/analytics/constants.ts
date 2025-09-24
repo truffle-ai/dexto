@@ -24,4 +24,4 @@ export function isAnalyticsDisabled(): boolean {
  * This does NOT terminate the command. It emits a non-terminating timeout
  * event when the duration threshold is crossed to help diagnose long runs.
  */
-export const COMMAND_TIMEOUT_MS = 600000; // 10 minutes
+export const COMMAND_TIMEOUT_MS = 120000; // 2 minutes (default for quick commands)

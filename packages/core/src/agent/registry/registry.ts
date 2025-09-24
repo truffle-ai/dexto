@@ -36,10 +36,10 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         try {
             jsonPath = resolveBundledScript('agents/agent-registry.json');
-        } catch (_error) {
+        } catch (error) {
             // Preserve typed error semantics for missing registry
             throw RegistryError.registryNotFound(
-                'agents/agent-registry.json (bundle resolution failed)'
+                error instanceof Error ? error.message : String(error)
             );
         }
 
