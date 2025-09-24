@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { sendJson } from '../utils/response.js';
 import { parseQuery } from '../utils/validation.js';
@@ -19,9 +18,21 @@ const SessionSearchQuery = z.object({
 });
 
 export function createSearchRouter(agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
-    app.get('/search/messages', async (ctx) => {
+    const messagesRoute = createRoute({
+        method: 'get',
+        path: '/search/messages',
+        tags: ['search'],
+        request: { query: MessageSearchQuery },
+        responses: {
+            200: {
+                description: 'Message search results',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(messagesRoute, async (ctx: any) => {
         const { q, limit, offset, sessionId, role } = parseQuery(ctx, MessageSearchQuery);
         const options = {
             limit: limit || 20,
@@ -34,7 +45,19 @@ export function createSearchRouter(agent: DextoAgent) {
         return sendJson(ctx, searchResults);
     });
 
-    app.get('/search/sessions', async (ctx) => {
+    const sessionsRoute = createRoute({
+        method: 'get',
+        path: '/search/sessions',
+        tags: ['search'],
+        request: { query: SessionSearchQuery },
+        responses: {
+            200: {
+                description: 'Session search results',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(sessionsRoute, async (ctx: any) => {
         const { q } = parseQuery(ctx, SessionSearchQuery);
         const searchResults = await agent.searchSessions(q);
         return sendJson(ctx, searchResults);

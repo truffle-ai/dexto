@@ -47,6 +47,7 @@ This file tracks the Express → Hono migration across packages. The list below 
       `createDextoApp`.
 - [ ] Add `/openapi.json` endpoint powered by `@hono/zod-openapi` descriptors defined in the route
       modules.
+ - [ ] (Optional) After OpenAPI is stable, consider replacing parseJson/parseQuery with `@hono/zod-validator` middleware to reduce handler boilerplate while keeping centralized error handling.
 - [x] Reuse existing websocket + webhook subscribers inside the Node bridge to keep event flow
       identical.
 - [x] Ensure MCP transport integration works through the Hono bridge (HTTP handlers + transport wiring confirmed in logs).

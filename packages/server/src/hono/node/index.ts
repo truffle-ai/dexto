@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Hono } from 'hono';
+import { AgentConfigSchema } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 import {
     logger,
@@ -190,7 +191,9 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                 }
                 const stream = data.stream === true;
 
-                const currentConfig = agent.getEffectiveConfig(sessionId);
+                const currentConfig = AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId));
+                const llmProvider = currentConfig.llm.provider;
+                const llmModel = currentConfig.llm.model;
                 const validation = validateInputForLLM(
                     {
                         text: data.content,
@@ -198,16 +201,16 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                         ...(fileDataInput && { fileData: fileDataInput }),
                     },
                     {
-                        provider: currentConfig.llm.provider,
-                        model: currentConfig.llm.model,
+                        provider: llmProvider,
+                        model: llmModel,
                     }
                 );
 
                 if (!validation.ok) {
                     const redactedIssues = redactSensitiveData(validation.issues);
                     logger.error('Invalid input for current LLM configuration', {
-                        provider: currentConfig.llm.provider,
-                        model: currentConfig.llm.model,
+                        provider: llmProvider,
+                        model: llmModel,
                         issues: redactedIssues,
                     });
                     const hierarchicalError = new DextoValidationError([
@@ -218,8 +221,8 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                             type: ErrorType.USER,
                             severity: 'error',
                             context: {
-                                provider: currentConfig.llm.provider,
-                                model: currentConfig.llm.model,
+                                provider: llmProvider,
+                                model: llmModel,
                                 detailedIssues: validation.issues,
                             },
                         },

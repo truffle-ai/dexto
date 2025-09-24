@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import {
     LLM_REGISTRY,
@@ -68,15 +67,27 @@ const SessionIdEnvelopeSchema = z
     .passthrough();
 
 export function createLlmRouter(agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
     app.use('*', redactionMiddleware);
 
-    app.get('/llm/current', (ctx) => {
+    const currentRoute = createRoute({
+        method: 'get',
+        path: '/llm/current',
+        tags: ['llm'],
+        request: { query: CurrentQuerySchema },
+        responses: {
+            200: {
+                description: 'Current LLM config',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(currentRoute, (ctx: any) => {
         const { sessionId } = parseQuery(ctx, CurrentQuerySchema);
 
         const currentConfig = sessionId
-            ? agent.getEffectiveConfig(sessionId).llm
+            ? AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId)).llm
             : agent.getCurrentLLMConfig();
 
         let displayName: string | undefined;
@@ -94,7 +105,19 @@ export function createLlmRouter(agent: DextoAgent) {
         });
     });
 
-    app.get('/llm/catalog', (ctx) => {
+    const catalogRoute = createRoute({
+        method: 'get',
+        path: '/llm/catalog',
+        tags: ['llm'],
+        request: { query: CatalogQuerySchema },
+        responses: {
+            200: {
+                description: 'LLM catalog',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(catalogRoute, (ctx: any) => {
         type ProviderCatalog = Pick<
             ProviderInfo,
             'supportedRouters' | 'models' | 'supportedFileTypes'
@@ -207,13 +230,37 @@ export function createLlmRouter(agent: DextoAgent) {
         return sendJson(ctx, { providers: filtered });
     });
 
-    app.post('/llm/key', async (ctx) => {
+    const saveKeyRoute = createRoute({
+        method: 'post',
+        path: '/llm/key',
+        tags: ['llm'],
+        request: { body: { content: { 'application/json': { schema: SaveKeySchema } } } },
+        responses: {
+            200: {
+                description: 'API key saved',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(saveKeyRoute, async (ctx: any) => {
         const { provider, apiKey } = await parseJson(ctx, SaveKeySchema);
         const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
         return sendJson(ctx, { ok: true, provider, envVar: meta.envVar });
     });
 
-    app.post('/llm/switch', async (ctx) => {
+    const switchRoute = createRoute({
+        method: 'post',
+        path: '/llm/switch',
+        tags: ['llm'],
+        responses: {
+            200: {
+                description: 'LLM switch result',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+        request: { body: { content: { 'application/json': { schema: z.any() } } } },
+    });
+    (app as any).openapi(switchRoute, async (ctx: any) => {
         const raw = await ctx.req.json();
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...rest } = raw as Record<string, unknown>;

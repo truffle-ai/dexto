@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 
 /**
@@ -6,9 +6,20 @@ import type { DextoAgent } from '@dexto/core';
  * into that layer. For now we keep the implementation inline for simplicity.
  */
 export function createHealthRouter(_agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
-    app.get('/', (ctx) => ctx.text('OK'));
+    const route = createRoute({
+        method: 'get',
+        path: '/',
+        tags: ['system'],
+        responses: {
+            200: {
+                description: 'Server health',
+                content: { 'text/plain': { schema: z.string().openapi({ example: 'OK' }) } },
+            },
+        },
+    });
+    (app as any).openapi(route, (c: any) => c.text('OK'));
 
     return app;
 }

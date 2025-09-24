@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
 import type { DextoAgent, AgentCard } from '@dexto/core';
 import { createHealthRouter } from './routes/health.js';
 import { createConfigRouter } from './routes/config.js';
@@ -17,10 +18,10 @@ export type CreateDextoAppOptions = {
     agentCard?: AgentCard;
 };
 
-type DextoApp = Hono & { webhookSubscriber?: WebhookEventSubscriber };
+type DextoApp = OpenAPIHono & { webhookSubscriber?: WebhookEventSubscriber };
 
 export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions = {}) {
-    const app = new Hono({ strict: false }) as DextoApp;
+    const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
     webhookSubscriber.subscribe(agent.agentEventBus);
     app.webhookSubscriber = webhookSubscriber;
@@ -32,7 +33,7 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
         app.route('/', createA2aRouter(options.agentCard));
     }
 
-    const api = new Hono();
+    const api = new OpenAPIHono();
     api.route('/', createConfigRouter(agent));
     api.route('/', createMessagesRouter(agent));
     api.route('/', createLlmRouter(agent));
@@ -44,6 +45,16 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
     // Apply prefix to all API routes if provided
     const apiPrefix = options.apiPrefix ?? '/api';
     app.route(apiPrefix, api);
+
+    // Expose OpenAPI document at the root path for the entire app
+    app.doc('/openapi.json', {
+        openapi: '3.0.0',
+        info: {
+            title: 'Dexto API',
+            version: '1.0.0',
+            description: 'OpenAPI spec for the Dexto Hono server',
+        },
+    });
 
     return app;
 }

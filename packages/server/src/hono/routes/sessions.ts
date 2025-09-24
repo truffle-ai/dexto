@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { sendJson } from '../utils/response.js';
@@ -18,9 +17,20 @@ const CancelSessionParams = z.object({
 });
 
 export function createSessionsRouter(agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
-    app.get('/sessions', async (ctx) => {
+    const listRoute = createRoute({
+        method: 'get',
+        path: '/sessions',
+        tags: ['sessions'],
+        responses: {
+            200: {
+                description: 'List sessions',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(listRoute, async (ctx: any) => {
         const sessionIds = await agent.listSessions();
         const sessions = await Promise.all(
             sessionIds.map(async (id) => {
@@ -45,7 +55,19 @@ export function createSessionsRouter(agent: DextoAgent) {
         return sendJson(ctx, { sessions });
     });
 
-    app.post('/sessions', async (ctx) => {
+    const createRouteDef = createRoute({
+        method: 'post',
+        path: '/sessions',
+        tags: ['sessions'],
+        request: { body: { content: { 'application/json': { schema: CreateSessionSchema } } } },
+        responses: {
+            201: {
+                description: 'Session created',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(createRouteDef, async (ctx: any) => {
         const { sessionId } = await parseJson(ctx, CreateSessionSchema);
         const session = await agent.createSession(sessionId);
         const metadata = await agent.getSessionMetadata(session.id);
@@ -63,12 +85,35 @@ export function createSessionsRouter(agent: DextoAgent) {
         );
     });
 
-    app.get('/sessions/current', (ctx) => {
+    const currentRoute = createRoute({
+        method: 'get',
+        path: '/sessions/current',
+        tags: ['sessions'],
+        responses: {
+            200: {
+                description: 'Current session',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(currentRoute, (ctx: any) => {
         const currentSessionId = agent.getCurrentSessionId();
         return sendJson(ctx, { currentSessionId });
     });
 
-    app.get('/sessions/:sessionId', async (ctx) => {
+    const getRoute = createRoute({
+        method: 'get',
+        path: '/sessions/{sessionId}',
+        tags: ['sessions'],
+        request: { params: z.object({ sessionId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Session details',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(getRoute, async (ctx: any) => {
         const { sessionId } = ctx.req.param();
         const metadata = await agent.getSessionMetadata(sessionId);
         const history = await agent.getSessionHistory(sessionId);
@@ -83,19 +128,55 @@ export function createSessionsRouter(agent: DextoAgent) {
         });
     });
 
-    app.get('/sessions/:sessionId/history', async (ctx) => {
+    const historyRoute = createRoute({
+        method: 'get',
+        path: '/sessions/{sessionId}/history',
+        tags: ['sessions'],
+        request: { params: z.object({ sessionId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Session history',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(historyRoute, async (ctx: any) => {
         const { sessionId } = ctx.req.param();
         const history = await agent.getSessionHistory(sessionId);
         return sendJson(ctx, { history });
     });
 
-    app.delete('/sessions/:sessionId', async (ctx) => {
+    const deleteRoute = createRoute({
+        method: 'delete',
+        path: '/sessions/{sessionId}',
+        tags: ['sessions'],
+        request: { params: z.object({ sessionId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Session deleted',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(deleteRoute, async (ctx: any) => {
         const { sessionId } = ctx.req.param();
         await agent.deleteSession(sessionId);
         return sendJson(ctx, { status: 'deleted', sessionId });
     });
 
-    app.post('/sessions/:sessionId/cancel', async (ctx) => {
+    const cancelRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/cancel',
+        tags: ['sessions'],
+        request: { params: z.object({ sessionId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Cancel in-flight run',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(cancelRoute, async (ctx: any) => {
         const { sessionId } = parseParam(ctx, CancelSessionParams);
         const cancelled = await agent.cancel(sessionId);
         if (!cancelled) {
@@ -104,7 +185,22 @@ export function createSessionsRouter(agent: DextoAgent) {
         return sendJson(ctx, { cancelled, sessionId });
     });
 
-    app.post('/sessions/:sessionId/load', async (ctx) => {
+    const loadRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/load',
+        tags: ['sessions'],
+        request: {
+            params: z.object({ sessionId: z.string() }),
+            body: { content: { 'application/json': { schema: z.object({}).passthrough() } } },
+        },
+        responses: {
+            200: {
+                description: 'Session loaded/reset',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(loadRoute, async (ctx: any) => {
         const { sessionId } = parseParam(ctx, LoadSessionParams);
         if (sessionId === 'null' || sessionId === 'undefined') {
             await agent.loadSessionAsDefault(null);

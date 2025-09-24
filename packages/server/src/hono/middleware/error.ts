@@ -53,7 +53,7 @@ export function handleHonoError(ctx: Context, err: unknown) {
         return sendJson(ctx, dexErr.toJSON(), statusForValidation(issues));
     }
 
-    // Some handlers (e.g., ctx.req.json()) may throw SyntaxError for invalid/empty JSON
+    // Some hono specific handlers (e.g., ctx.req.json()) may throw SyntaxError for invalid/empty JSON
     if (err instanceof SyntaxError) {
         return sendJson(
             ctx,

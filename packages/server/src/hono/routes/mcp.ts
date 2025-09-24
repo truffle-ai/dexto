@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
 import { sendJson } from '../utils/response.js';
@@ -22,22 +21,54 @@ const ExecuteToolParams = z.object({
 const ExecuteToolBodySchema = z.any(); // TODO: tighten schema once tool input structure is standardised.
 
 export function createMcpRouter(agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
-    app.post('/connect-server', async (ctx) => {
+    const connectRoute = createRoute({
+        method: 'post',
+        path: '/connect-server',
+        tags: ['mcp'],
+        request: { body: { content: { 'application/json': { schema: ConnectServerSchema } } } },
+        responses: {
+            200: { description: 'Connected', content: { 'application/json': { schema: z.any() } } },
+        },
+    });
+    (app as any).openapi(connectRoute, async (ctx: any) => {
         const { name, config } = await parseJson(ctx, ConnectServerSchema);
         await agent.connectMcpServer(name, config);
         logger.info(`Successfully connected to new server '${name}' via API request.`);
         return sendJson(ctx, { status: 'connected', name });
     });
 
-    app.post('/mcp/servers', async (ctx) => {
+    const addServerRoute = createRoute({
+        method: 'post',
+        path: '/mcp/servers',
+        tags: ['mcp'],
+        request: { body: { content: { 'application/json': { schema: ConnectServerSchema } } } },
+        responses: {
+            201: {
+                description: 'Server added',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(addServerRoute, async (ctx: any) => {
         const { name, config } = await parseJson(ctx, ConnectServerSchema);
         await agent.connectMcpServer(name, config);
         return sendJson(ctx, { status: 'connected', name }, 201);
     });
 
-    app.get('/mcp/servers', async (ctx) => {
+    const listServersRoute = createRoute({
+        method: 'get',
+        path: '/mcp/servers',
+        tags: ['mcp'],
+        responses: {
+            200: {
+                description: 'Servers list',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(listServersRoute, async (ctx: any) => {
         const clientsMap = agent.getMcpClients();
         const failedConnections = agent.getMcpFailedConnections();
         const servers: Array<{ id: string; name: string; status: string }> = [];
@@ -50,7 +81,20 @@ export function createMcpRouter(agent: DextoAgent) {
         return sendJson(ctx, { servers });
     });
 
-    app.get('/mcp/servers/:serverId/tools', async (ctx) => {
+    const toolsRoute = createRoute({
+        method: 'get',
+        path: '/mcp/servers/{serverId}/tools',
+        tags: ['mcp'],
+        request: { params: z.object({ serverId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Tools list',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+    (app as any).openapi(toolsRoute, async (ctx: any) => {
         const { serverId } = parseParam(ctx, ServerParamSchema);
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
@@ -66,7 +110,20 @@ export function createMcpRouter(agent: DextoAgent) {
         return sendJson(ctx, { tools });
     });
 
-    app.delete('/mcp/servers/:serverId', async (ctx) => {
+    const deleteServerRoute = createRoute({
+        method: 'delete',
+        path: '/mcp/servers/{serverId}',
+        tags: ['mcp'],
+        request: { params: z.object({ serverId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Disconnected',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+    (app as any).openapi(deleteServerRoute, async (ctx: any) => {
         const { serverId } = parseParam(ctx, ServerParamSchema);
         const clientExists =
             agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
@@ -78,7 +135,23 @@ export function createMcpRouter(agent: DextoAgent) {
         return sendJson(ctx, { status: 'disconnected', id: serverId });
     });
 
-    app.post('/mcp/servers/:serverId/tools/:toolName/execute', async (ctx) => {
+    const execToolRoute = createRoute({
+        method: 'post',
+        path: '/mcp/servers/{serverId}/tools/{toolName}/execute',
+        tags: ['mcp'],
+        request: {
+            params: z.object({ serverId: z.string(), toolName: z.string() }),
+            body: { content: { 'application/json': { schema: ExecuteToolBodySchema } } },
+        },
+        responses: {
+            200: {
+                description: 'Tool executed',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+    (app as any).openapi(execToolRoute, async (ctx: any) => {
         const { serverId, toolName } = parseParam(ctx, ExecuteToolParams);
         const body = ExecuteToolBodySchema.parse(await ctx.req.json());
         const client = agent.getMcpClients().get(serverId);

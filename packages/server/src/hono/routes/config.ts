@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify } from 'yaml';
 import { sendJson } from '../utils/response.js';
@@ -12,21 +11,33 @@ const querySchema = z.object({
 });
 
 export function createConfigRouter(agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
     app.use('/config.yaml', redactionMiddleware);
 
-    app.get('/config.yaml', async (ctx) => {
+    const yamlRoute = createRoute({
+        method: 'get',
+        path: '/config.yaml',
+        tags: ['config'],
+        request: { query: querySchema },
+        responses: {
+            200: {
+                description: 'Effective agent config (YAML) with sensitive values redacted',
+                content: { 'application/x-yaml': { schema: z.string() } },
+            },
+        },
+    });
+    (app as any).openapi(yamlRoute, async (ctx: any) => {
         const { sessionId } = parseQuery(ctx, querySchema);
-        const config = agent.getEffectiveConfig(sessionId);
+        const cfg = AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId));
 
         const maskedConfig = {
-            ...config,
+            ...cfg,
             llm: {
-                ...config.llm,
-                apiKey: config.llm.apiKey ? '[REDACTED]' : undefined,
+                ...cfg.llm,
+                apiKey: cfg.llm.apiKey ? '[REDACTED]' : undefined,
             },
-            mcpServers: redactMcpServersConfig(config.mcpServers),
+            mcpServers: redactMcpServersConfig(cfg.mcpServers),
         };
 
         const yaml = yamlStringify(maskedConfig);
@@ -34,10 +45,19 @@ export function createConfigRouter(agent: DextoAgent) {
         return ctx.body(yaml);
     });
 
-    app.get('/greeting', (ctx) => {
+    const greetingRoute = createRoute({
+        method: 'get',
+        path: '/greeting',
+        tags: ['config'],
+        request: { query: querySchema.pick({ sessionId: true }) },
+        responses: {
+            200: { description: 'Greeting', content: { 'application/json': { schema: z.any() } } },
+        },
+    });
+    (app as any).openapi(greetingRoute, (ctx: any) => {
         const { sessionId } = parseQuery(ctx, querySchema.pick({ sessionId: true }));
-        const config = agent.getEffectiveConfig(sessionId);
-        return sendJson(ctx, { greeting: config.greeting });
+        const cfg = AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId));
+        return sendJson(ctx, { greeting: cfg.greeting });
     });
 
     return app;

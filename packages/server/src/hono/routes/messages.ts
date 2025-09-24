@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { sendJson } from '../utils/response.js';
@@ -37,9 +36,26 @@ const ResetBodySchema = z.object({
 });
 
 export function createMessagesRouter(agent: DextoAgent) {
-    const app = new Hono();
+    const app = new OpenAPIHono();
 
-    app.post('/message', async (ctx) => {
+    const messageRoute = createRoute({
+        method: 'post',
+        path: '/message',
+        tags: ['messages'],
+        request: {
+            body: {
+                content: { 'application/json': { schema: MessageBodySchema } },
+            },
+        },
+        responses: {
+            202: {
+                description: 'Message queued',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            400: { description: 'Validation error' },
+        },
+    });
+    (app as any).openapi(messageRoute, async (ctx: any) => {
         logger.info('Received message via POST /api/message');
         const { message, sessionId, stream, imageData, fileData } = await parseJson(
             ctx,
@@ -73,7 +89,22 @@ export function createMessagesRouter(agent: DextoAgent) {
         return sendJson(ctx, { response, sessionId }, 202);
     });
 
-    app.post('/message-sync', async (ctx) => {
+    const messageSyncRoute = createRoute({
+        method: 'post',
+        path: '/message-sync',
+        tags: ['messages'],
+        request: {
+            body: { content: { 'application/json': { schema: MessageBodySchema } } },
+        },
+        responses: {
+            200: {
+                description: 'Synchronous response',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            400: { description: 'Validation error' },
+        },
+    });
+    (app as any).openapi(messageSyncRoute, async (ctx: any) => {
         logger.info('Received message via POST /api/message-sync');
         const { message, sessionId, imageData, fileData } = await parseJson(ctx, MessageBodySchema);
 
@@ -103,7 +134,21 @@ export function createMessagesRouter(agent: DextoAgent) {
         return sendJson(ctx, { response, sessionId });
     });
 
-    app.post('/reset', async (ctx) => {
+    const resetRoute = createRoute({
+        method: 'post',
+        path: '/reset',
+        tags: ['messages'],
+        request: {
+            body: { content: { 'application/json': { schema: ResetBodySchema } } },
+        },
+        responses: {
+            200: {
+                description: 'Reset initiated',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    (app as any).openapi(resetRoute, async (ctx: any) => {
         logger.info('Received request via POST /api/reset');
         const { sessionId } = await parseJson(ctx, ResetBodySchema);
         await agent.resetConversation(sessionId);
