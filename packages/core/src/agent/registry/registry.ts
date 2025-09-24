@@ -13,6 +13,7 @@ let cachedRegistry: LocalAgentRegistry | null = null;
 
 /**
  * Local agent registry implementation
+ * TODO: MOVE THIS INTO CLI WHERE IT IS USED, and add posthog instrumentation for install/uninstall/resolve/etc, similar to manual install command
  */
 export class LocalAgentRegistry implements AgentRegistry {
     private _registry: Registry | null = null;
