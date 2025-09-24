@@ -10,6 +10,7 @@ import { createRequire } from 'module';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
+import { initAnalytics, onCommandStart, onCommandEnd, capture } from './analytics/index.js';
 
 // Use createRequire to import package.json without experimental warning
 const require = createRequire(import.meta.url);
@@ -69,6 +70,22 @@ import { CLIConfigOverrides } from './config/cli-overrides.js';
 
 const program = new Command();
 
+// Initialize analytics early (no-op if disabled)
+await initAnalytics({ appVersion: pkg.version });
+
+// Track CLI command runs centrally
+program.hook('preAction', (thisCommand) => {
+    try {
+        onCommandStart(thisCommand.name());
+    } catch {}
+});
+
+program.hook('postAction', (thisCommand) => {
+    try {
+        onCommandEnd(thisCommand.name(), true);
+    } catch {}
+});
+
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
@@ -107,6 +124,13 @@ program
 
             // then get user inputs for directory, llm etc.
             const userInput = await getUserInputToInitDextoApp();
+            try {
+                capture('dexto_setup', {
+                    provider: userInput.llmProvider,
+                    providedKey: Boolean(userInput.llmApiKey),
+                    source: 'create-app',
+                });
+            } catch {}
 
             // move to project directory, then add the dexto scripts to the package.json and create the tsconfig.json
             process.chdir(appPath);
@@ -143,6 +167,13 @@ program
             // start intro
             p.intro(chalk.inverse('Dexto Init App'));
             const userInput = await getUserInputToInitDextoApp();
+            try {
+                capture('dexto_setup', {
+                    provider: userInput.llmProvider,
+                    providedKey: Boolean(userInput.llmApiKey),
+                    source: 'init-app',
+                });
+            } catch {}
             await initDexto(
                 userInput.directory,
                 userInput.createExampleFile,

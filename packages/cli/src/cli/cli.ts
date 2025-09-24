@@ -8,6 +8,7 @@ import { executeCommand } from './commands/interactive-commands/commands.js';
 import { getDextoPath } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } from '@dexto/core';
+import { captureFirstPromptOnce } from '../analytics/index.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
@@ -179,6 +180,13 @@ export async function startAiCli(agent: DextoAgent) {
                 return await executeCommand(parsed.command, parsed.args || [], agent);
             } else {
                 // Handle regular prompt - pass to AI
+                // Mark first prompt once (for analytics)
+                const llm = agent.getCurrentLLMConfig();
+                await captureFirstPromptOnce({
+                    mode: 'cli',
+                    provider: llm.provider,
+                    model: llm.model,
+                });
                 return false;
             }
         }
@@ -273,6 +281,12 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
             // Execute the task as a regular AI prompt
             // uncomment if we need to reset conversation for headless mode
             // await agent.resetConversation();
+            const llm = agent.getCurrentLLMConfig();
+            await captureFirstPromptOnce({
+                mode: 'headless',
+                provider: llm.provider,
+                model: llm.model,
+            });
             await agent.run(prompt);
         }
     } catch (error: unknown) {
