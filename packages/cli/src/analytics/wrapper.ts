@@ -9,11 +9,12 @@ import { COMMAND_TIMEOUT_MS } from './constants.js';
  * - Arrays/objects are summarized to shapes to keep analytics light and safe.
  */
 function sanitizeOptions(obj: Record<string, unknown>): Record<string, unknown> {
-    const redactedKeys = /key|token|secret|password|prompt/i;
+    const redactedKeys = /key|token|secret|password|api[_-]?key|authorization|auth/i;
+    const truncate = (s: string, max = 256) => (s.length > max ? s.slice(0, max) + '…' : s);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
         if (typeof v === 'string') {
-            out[k] = redactedKeys.test(k) ? '[REDACTED]' : '[REDACTED]';
+            out[k] = redactedKeys.test(k) ? '[REDACTED]' : truncate(v);
         } else if (Array.isArray(v)) {
             out[k] = { type: 'array', length: v.length };
         } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
@@ -36,15 +37,22 @@ function sanitizeOptions(obj: Record<string, unknown>): Record<string, unknown> 
  * - optionKeys: keys present in the last object-like argument
  * - options: sanitized summary of option values
  */
-function buildArgsMeta(args: unknown[]): Properties {
+function buildArgsPayload(args: unknown[]): Properties {
     const meta: Properties = { argTypes: args.map((a) => (Array.isArray(a) ? 'array' : typeof a)) };
+
+    // Capture actual positional strings (limit count/length)
     if (args.length > 0 && Array.isArray(args[0])) {
-        meta.positionalCount = (args[0] as unknown[]).length;
+        const list = (args[0] as unknown[]).map((x) => String(x));
+        const trimmed = list.map((s) => (s.length > 512 ? s.slice(0, 512) + '…' : s)).slice(0, 10);
+        meta['positionalRaw'] = trimmed;
+        meta['positionalCount'] = list.length;
     }
+
+    // Include sanitized options (last param)
     const last = args[args.length - 1];
     if (last && typeof last === 'object' && !Array.isArray(last)) {
-        meta.optionKeys = Object.keys(last as Record<string, unknown>);
-        meta.options = sanitizeOptions(last as Record<string, unknown>);
+        meta['optionKeys'] = Object.keys(last as Record<string, unknown>);
+        meta['options'] = sanitizeOptions(last as Record<string, unknown>);
     }
     return meta;
 }
@@ -66,7 +74,7 @@ export function withAnalytics<A extends unknown[], R = unknown>(
 ): (...args: A) => Promise<R> {
     const timeoutMs = opts?.timeoutMs ?? COMMAND_TIMEOUT_MS;
     return async (...args: A): Promise<R> => {
-        const argsMeta = buildArgsMeta(args as unknown[]);
+        const argsMeta = buildArgsPayload(args as unknown[]);
         onCommandStart(commandName, { args: argsMeta });
         const timeout =
             timeoutMs > 0
