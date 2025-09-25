@@ -13,7 +13,6 @@ import {
     LLMUpdatesSchema,
 } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
-import { parseJson, parseQuery } from '../utils/validation.js';
 
 const CurrentQuerySchema = z.object({
     sessionId: z.string().optional(),
@@ -80,7 +79,7 @@ export function createLlmRouter(agent: DextoAgent) {
         },
     });
     app.openapi(currentRoute, (ctx) => {
-        const { sessionId } = parseQuery(ctx, CurrentQuerySchema);
+        const { sessionId } = ctx.req.valid('query');
 
         const currentConfig = sessionId
             ? agent.getEffectiveConfig(sessionId).llm
@@ -126,7 +125,7 @@ export function createLlmRouter(agent: DextoAgent) {
 
         type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
 
-        const queryParams = parseQuery(ctx, CatalogQuerySchema);
+        const queryParams = ctx.req.valid('query');
 
         const providers: Record<string, ProviderCatalog> = {};
         for (const provider of LLM_PROVIDERS) {
@@ -239,7 +238,7 @@ export function createLlmRouter(agent: DextoAgent) {
         },
     });
     app.openapi(saveKeyRoute, async (ctx) => {
-        const { provider, apiKey } = await parseJson(ctx, SaveKeySchema);
+        const { provider, apiKey } = ctx.req.valid('json');
         const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
         return ctx.json({ ok: true, provider, envVar: meta.envVar });
     });
@@ -257,7 +256,7 @@ export function createLlmRouter(agent: DextoAgent) {
         request: { body: { content: { 'application/json': { schema: z.any() } } } },
     });
     app.openapi(switchRoute, async (ctx) => {
-        const raw = await ctx.req.json();
+        const raw = ctx.req.valid('json');
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...rest } = raw as Record<string, unknown>;
         const llmUpdates = LLMUpdatesSchema.parse(rest);

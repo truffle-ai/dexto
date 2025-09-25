@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
-import { parseJson, parseParam } from '../utils/validation.js';
 
 const CreateSessionSchema = z.object({
     sessionId: z.string().optional(),
@@ -67,7 +66,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(createRouteDef, async (ctx) => {
-        const { sessionId } = await parseJson(ctx, CreateSessionSchema);
+        const { sessionId } = ctx.req.valid('json');
         const session = await agent.createSession(sessionId);
         const metadata = await agent.getSessionMetadata(session.id);
         return ctx.json(
@@ -175,7 +174,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(cancelRoute, async (ctx) => {
-        const { sessionId } = parseParam(ctx, CancelSessionParams);
+        const { sessionId } = ctx.req.valid('param');
         const cancelled = await agent.cancel(sessionId);
         if (!cancelled) {
             logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
@@ -199,7 +198,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(loadRoute, async (ctx) => {
-        const { sessionId } = parseParam(ctx, LoadSessionParams);
+        const { sessionId } = ctx.req.valid('param');
         if (sessionId === 'null' || sessionId === 'undefined') {
             await agent.loadSessionAsDefault(null);
             return ctx.json({

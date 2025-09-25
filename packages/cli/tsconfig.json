@@ -6,7 +6,8 @@
     "paths": {
       "@dexto/core": [
         "../core/src/index.ts"
-      ]
+      ],
+      "@core/*": ["../core/src/*"]
     }
   },
   "include": [

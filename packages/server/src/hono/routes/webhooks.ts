@@ -3,7 +3,6 @@ import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
-import { parseJson, parseParam } from '../utils/validation.js';
 
 const WebhookBodySchema = z.object({
     url: z.string().url('Invalid URL format'),
@@ -34,7 +33,7 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(registerRoute, async (ctx) => {
-        const { url, secret, description } = await parseJson(ctx, WebhookBodySchema);
+        const { url, secret, description } = ctx.req.valid('json');
 
         const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
         const webhook: WebhookConfig = {
@@ -94,7 +93,7 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(getRoute, (ctx) => {
-        const { webhookId } = parseParam(ctx, WebhookParamSchema);
+        const { webhookId } = ctx.req.valid('param');
         const webhook = webhookSubscriber.getWebhook(webhookId);
         if (!webhook) {
             return ctx.json({ error: 'Webhook not found' }, 404);
@@ -121,7 +120,7 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(deleteRoute, (ctx) => {
-        const { webhookId } = parseParam(ctx, WebhookParamSchema);
+        const { webhookId } = ctx.req.valid('param');
         const removed = webhookSubscriber.removeWebhook(webhookId);
         if (!removed) {
             return ctx.json({ error: 'Webhook not found' }, 404);
@@ -144,7 +143,7 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(testRoute, async (ctx) => {
-        const { webhookId } = parseParam(ctx, WebhookParamSchema);
+        const { webhookId } = ctx.req.valid('param');
         const webhook = webhookSubscriber.getWebhook(webhookId);
 
         if (!webhook) {
