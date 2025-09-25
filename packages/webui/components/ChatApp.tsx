@@ -36,8 +36,7 @@ import type { McpServerConfig } from '@dexto/core';
 
 export default function ChatApp() {
 
-  // SSR-safe platform check for Mac
-  const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
@@ -85,6 +84,12 @@ export default function ChatApp() {
     lockName?: boolean;
     registryEntryId?: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
+      setIsMac(true);
+    }
+  }, []);
 
   const recomputeIsAtBottom = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -658,7 +663,7 @@ export default function ChatApp() {
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
-                      <img src="/logos/dexto_logo_no_text.png" alt="Dexto" className="h-8 w-auto invert dark:invert-0" />
+                      <img src="/logos/new_dexto_logo_no_text.svg" alt="Dexto" className="h-8 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         {greeting ?? "Welcome to Dexto"}
                       </h2>
@@ -702,7 +707,7 @@ export default function ChatApp() {
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘K</kbd> for new chat,
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘J</kbd> for tools,
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘L</kbd> for playground,
-                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">{typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? '⌘⌫' : 'Ctrl+⌫'}</kbd> to delete session,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">{isMac ? '⌘⌫' : 'Ctrl+⌫'}</kbd> to delete session,
                       <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘/</kbd> for shortcuts
                     </p>
                   </div>
