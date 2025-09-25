@@ -9,6 +9,7 @@ import { getDextoPath } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } from '@dexto/core';
 import { capture } from '../analytics/index.js';
+import { safeExit } from 'src/analytics/wrapper.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
@@ -246,7 +247,7 @@ export async function startAiCli(agent: DextoAgent) {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error(`Error during CLI initialization: ${errorMessage}`);
-        process.exit(1); // Exit with error code if CLI setup fails
+        safeExit('main', 1); // Exit with error code if CLI setup fails
     }
 }
 
@@ -295,6 +296,6 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
                 `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
             );
         }
-        process.exit(1); // Exit with error code if headless execution fails
+        safeExit('main', 1); // Exit with error code if headless execution fails
     }
 }
