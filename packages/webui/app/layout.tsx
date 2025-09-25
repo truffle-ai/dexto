@@ -32,10 +32,10 @@ export const metadata: Metadata = {
   icons: {
     // Use the new transparent SVG logo for favicons
     icon: [
-      { url: "/logos/dexto_logo_icon_thicker.svg", type: "image/svg+xml" }
+      { url: "/logos/dexto_1_thicker/dexto_logo_icon_thicker.svg", type: "image/svg+xml" }
     ],
-    shortcut: [{ url: "/logos/dexto_logo_icon_thicker.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/logos/dexto_logo_icon_thicker.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/logos/dexto_1_thicker/dexto_logo_icon_thicker.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/logos/dexto_1_thicker/dexto_logo_icon_thicker.svg", type: "image/svg+xml" }],
   },
   openGraph: {
     title: "Dexto",
