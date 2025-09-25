@@ -121,18 +121,15 @@ const timers: TimerMap = new Map();
  * Mark the start of a command for timing and emit a lightweight start event.
  * Adds local counters as a coarse diagnostic aid.
  */
-export function onCommandStart(
+export async function onCommandStart(
     name: string,
     extra: Partial<Omit<CliCommandStartEvent, 'name' | 'phase'>> = {}
-): void {
+): Promise<void> {
     if (!enabled) return;
     timers.set(name, Date.now());
     if (state) {
-        state.commandRunCounts = state.commandRunCounts || {};
-        state.commandRunCounts[name] = (state.commandRunCounts[name] || 0) + 1;
-        void saveState(state);
+        await saveState(state);
     }
-
     const payload: CliCommandStartEvent = {
         name,
         phase: 'start',

@@ -51,7 +51,7 @@ export function withAnalytics<A extends unknown[], R = unknown>(
     const timeoutMs = opts?.timeoutMs ?? COMMAND_TIMEOUT_MS;
     return async (...args: A): Promise<R> => {
         const argsMeta = buildArgsPayload(args as unknown[]);
-        onCommandStart(commandName, { args: argsMeta });
+        await onCommandStart(commandName, { args: argsMeta });
         const timeout =
             timeoutMs > 0
                 ? setTimeout(() => {
