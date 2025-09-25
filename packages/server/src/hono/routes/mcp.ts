@@ -32,7 +32,7 @@ export function createMcpRouter(agent: DextoAgent) {
             200: { description: 'Connected', content: { 'application/json': { schema: z.any() } } },
         },
     });
-    (app as any).openapi(connectRoute, async (ctx: any) => {
+    app.openapi(connectRoute, async (ctx) => {
         const { name, config } = await parseJson(ctx, ConnectServerSchema);
         await agent.connectMcpServer(name, config);
         logger.info(`Successfully connected to new server '${name}' via API request.`);
@@ -51,7 +51,7 @@ export function createMcpRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(addServerRoute, async (ctx: any) => {
+    app.openapi(addServerRoute, async (ctx) => {
         const { name, config } = await parseJson(ctx, ConnectServerSchema);
         await agent.connectMcpServer(name, config);
         return sendJson(ctx, { status: 'connected', name }, 201);
@@ -68,7 +68,7 @@ export function createMcpRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(listServersRoute, async (ctx: any) => {
+    app.openapi(listServersRoute, async (ctx) => {
         const clientsMap = agent.getMcpClients();
         const failedConnections = agent.getMcpFailedConnections();
         const servers: Array<{ id: string; name: string; status: string }> = [];
@@ -94,7 +94,7 @@ export function createMcpRouter(agent: DextoAgent) {
             404: { description: 'Not found' },
         },
     });
-    (app as any).openapi(toolsRoute, async (ctx: any) => {
+    app.openapi(toolsRoute, async (ctx) => {
         const { serverId } = parseParam(ctx, ServerParamSchema);
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
@@ -123,7 +123,7 @@ export function createMcpRouter(agent: DextoAgent) {
             404: { description: 'Not found' },
         },
     });
-    (app as any).openapi(deleteServerRoute, async (ctx: any) => {
+    app.openapi(deleteServerRoute, async (ctx) => {
         const { serverId } = parseParam(ctx, ServerParamSchema);
         const clientExists =
             agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
@@ -151,7 +151,7 @@ export function createMcpRouter(agent: DextoAgent) {
             404: { description: 'Not found' },
         },
     });
-    (app as any).openapi(execToolRoute, async (ctx: any) => {
+    app.openapi(execToolRoute, async (ctx) => {
         const { serverId, toolName } = parseParam(ctx, ExecuteToolParams);
         const body = ExecuteToolBodySchema.parse(await ctx.req.json());
         const client = agent.getMcpClients().get(serverId);

@@ -3,7 +3,6 @@ import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Hono } from 'hono';
-import { AgentConfigSchema } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 import {
     logger,
@@ -191,7 +190,7 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                 }
                 const stream = data.stream === true;
 
-                const currentConfig = AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId));
+                const currentConfig = agent.getEffectiveConfig(sessionId);
                 const llmProvider = currentConfig.llm.provider;
                 const llmModel = currentConfig.llm.model;
                 const validation = validateInputForLLM(

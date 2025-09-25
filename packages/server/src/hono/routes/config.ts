@@ -27,9 +27,9 @@ export function createConfigRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(yamlRoute, async (ctx: any) => {
+    app.openapi(yamlRoute, async (ctx) => {
         const { sessionId } = parseQuery(ctx, querySchema);
-        const cfg = AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId));
+        const cfg = agent.getEffectiveConfig(sessionId);
 
         const maskedConfig = {
             ...cfg,
@@ -54,9 +54,9 @@ export function createConfigRouter(agent: DextoAgent) {
             200: { description: 'Greeting', content: { 'application/json': { schema: z.any() } } },
         },
     });
-    (app as any).openapi(greetingRoute, (ctx: any) => {
+    app.openapi(greetingRoute, (ctx) => {
         const { sessionId } = parseQuery(ctx, querySchema.pick({ sessionId: true }));
-        const cfg = AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId));
+        const cfg = agent.getEffectiveConfig(sessionId);
         return sendJson(ctx, { greeting: cfg.greeting });
     });
 

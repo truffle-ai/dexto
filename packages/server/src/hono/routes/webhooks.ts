@@ -34,7 +34,7 @@ export function createWebhooksRouter(
             },
         },
     });
-    (app as any).openapi(registerRoute, async (ctx: any) => {
+    app.openapi(registerRoute, async (ctx) => {
         const { url, secret, description } = await parseJson(ctx, WebhookBodySchema);
 
         const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -74,7 +74,7 @@ export function createWebhooksRouter(
             },
         },
     });
-    (app as any).openapi(listRoute, async (ctx: any) => {
+    app.openapi(listRoute, async (ctx) => {
         const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
             id: webhook.id,
             url: webhook.url,
@@ -95,7 +95,7 @@ export function createWebhooksRouter(
             404: { description: 'Not found' },
         },
     });
-    (app as any).openapi(getRoute, (ctx: any) => {
+    app.openapi(getRoute, (ctx) => {
         const { webhookId } = parseParam(ctx, WebhookParamSchema);
         const webhook = webhookSubscriber.getWebhook(webhookId);
         if (!webhook) {
@@ -122,7 +122,7 @@ export function createWebhooksRouter(
             404: { description: 'Not found' },
         },
     });
-    (app as any).openapi(deleteRoute, (ctx: any) => {
+    app.openapi(deleteRoute, (ctx) => {
         const { webhookId } = parseParam(ctx, WebhookParamSchema);
         const removed = webhookSubscriber.removeWebhook(webhookId);
         if (!removed) {
@@ -145,7 +145,7 @@ export function createWebhooksRouter(
             404: { description: 'Not found' },
         },
     });
-    (app as any).openapi(testRoute, async (ctx: any) => {
+    app.openapi(testRoute, async (ctx) => {
         const { webhookId } = parseParam(ctx, WebhookParamSchema);
         const webhook = webhookSubscriber.getWebhook(webhookId);
 

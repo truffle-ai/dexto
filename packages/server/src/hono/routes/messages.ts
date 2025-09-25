@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute, z, type OpenAPIContext } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { sendJson } from '../utils/response.js';
@@ -55,7 +55,7 @@ export function createMessagesRouter(agent: DextoAgent) {
             400: { description: 'Validation error' },
         },
     });
-    (app as any).openapi(messageRoute, async (ctx: any) => {
+    app.openapi(messageRoute, async (ctx: OpenAPIContext<typeof messageRoute>) => {
         logger.info('Received message via POST /api/message');
         const { message, sessionId, stream, imageData, fileData } = await parseJson(
             ctx,
@@ -104,7 +104,7 @@ export function createMessagesRouter(agent: DextoAgent) {
             400: { description: 'Validation error' },
         },
     });
-    (app as any).openapi(messageSyncRoute, async (ctx: any) => {
+    app.openapi(messageSyncRoute, async (ctx: OpenAPIContext<typeof messageSyncRoute>) => {
         logger.info('Received message via POST /api/message-sync');
         const { message, sessionId, imageData, fileData } = await parseJson(ctx, MessageBodySchema);
 
@@ -148,7 +148,7 @@ export function createMessagesRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(resetRoute, async (ctx: any) => {
+    app.openapi(resetRoute, async (ctx: OpenAPIContext<typeof resetRoute>) => {
         logger.info('Received request via POST /api/reset');
         const { sessionId } = await parseJson(ctx, ResetBodySchema);
         await agent.resetConversation(sessionId);

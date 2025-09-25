@@ -22,11 +22,13 @@ export function sendJson<T>(
     const shouldRedact = Boolean(redactionFlag);
     const payloadSource = shouldRedact ? redactSensitiveData(data) : data;
 
-    const payload = shouldPretty
-        ? JSON.stringify(payloadSource, null, 2)
-        : JSON.stringify(payloadSource);
+    if (!shouldPretty) {
+        return ctx.json(payloadSource, status as any);
+    }
 
-    return new Response(payload, {
+    const payload = JSON.stringify(payloadSource, null, 2);
+
+    return ctx.newResponse(payload, {
         status,
         headers: {
             'Content-Type': 'application/json',

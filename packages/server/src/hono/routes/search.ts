@@ -32,7 +32,7 @@ export function createSearchRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(messagesRoute, async (ctx: any) => {
+    app.openapi(messagesRoute, async (ctx) => {
         const { q, limit, offset, sessionId, role } = parseQuery(ctx, MessageSearchQuery);
         const options = {
             limit: limit || 20,
@@ -57,7 +57,7 @@ export function createSearchRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(sessionsRoute, async (ctx: any) => {
+    app.openapi(sessionsRoute, async (ctx) => {
         const { q } = parseQuery(ctx, SessionSearchQuery);
         const searchResults = await agent.searchSessions(q);
         return sendJson(ctx, searchResults);

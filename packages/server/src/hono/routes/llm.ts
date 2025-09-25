@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute, z, type OpenAPIContext } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import {
     LLM_REGISTRY,
@@ -83,11 +83,11 @@ export function createLlmRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(currentRoute, (ctx: any) => {
+    app.openapi(currentRoute, (ctx: OpenAPIContext<typeof currentRoute>) => {
         const { sessionId } = parseQuery(ctx, CurrentQuerySchema);
 
         const currentConfig = sessionId
-            ? AgentConfigSchema.parse(agent.getEffectiveConfig(sessionId)).llm
+            ? agent.getEffectiveConfig(sessionId).llm
             : agent.getCurrentLLMConfig();
 
         let displayName: string | undefined;
@@ -117,7 +117,7 @@ export function createLlmRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(catalogRoute, (ctx: any) => {
+    app.openapi(catalogRoute, (ctx: OpenAPIContext<typeof catalogRoute>) => {
         type ProviderCatalog = Pick<
             ProviderInfo,
             'supportedRouters' | 'models' | 'supportedFileTypes'
@@ -242,7 +242,7 @@ export function createLlmRouter(agent: DextoAgent) {
             },
         },
     });
-    (app as any).openapi(saveKeyRoute, async (ctx: any) => {
+    app.openapi(saveKeyRoute, async (ctx: OpenAPIContext<typeof saveKeyRoute>) => {
         const { provider, apiKey } = await parseJson(ctx, SaveKeySchema);
         const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
         return sendJson(ctx, { ok: true, provider, envVar: meta.envVar });
@@ -260,7 +260,7 @@ export function createLlmRouter(agent: DextoAgent) {
         },
         request: { body: { content: { 'application/json': { schema: z.any() } } } },
     });
-    (app as any).openapi(switchRoute, async (ctx: any) => {
+    app.openapi(switchRoute, async (ctx: OpenAPIContext<typeof switchRoute>) => {
         const raw = await ctx.req.json();
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...rest } = raw as Record<string, unknown>;
