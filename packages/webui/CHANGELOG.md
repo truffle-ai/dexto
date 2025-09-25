@@ -1,5 +1,12 @@
 # @dexto/webui
 
+## 0.1.3
+
+### Patch Changes
+
+- e6d029c: Update logos and fix build
+    - @dexto/core@1.1.6
+
 ## 0.1.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # dexto
 
+## 1.1.6
+
+### Patch Changes
+
+- e6d029c: Update logos and fix build
+    - @dexto/core@1.1.6
+
 ## 1.1.5
 
 ### Patch Changes
