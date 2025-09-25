@@ -30,12 +30,12 @@ export const metadata: Metadata = {
   description:
     "Interactive playground for testing MCP tools and talking to AI agents",
   icons: {
-    // Use the new SVG logo for favicons
+    // Use the new transparent SVG logo for favicons
     icon: [
-      { url: "/logos/new_dexto_logo_no_text.svg", type: "image/svg+xml" }
+      { url: "/logos/dexto_logo_icon.svg", type: "image/svg+xml" }
     ],
-    shortcut: [{ url: "/logos/new_dexto_logo_no_text.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/logos/new_dexto_logo_no_text.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/logos/dexto_logo_icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/logos/dexto_logo_icon.svg", type: "image/svg+xml" }],
   },
   openGraph: {
     title: "Dexto",
