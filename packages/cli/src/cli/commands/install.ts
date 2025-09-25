@@ -92,20 +92,15 @@ export async function handleInstallCommand(
             const installedPath = path.join(globalAgentsDir, agentName);
             if (existsSync(installedPath) && !validated.force) {
                 console.log(`⏭️  ${agentName} already installed (use --force to reinstall)`);
-                successCount++;
                 skipped.push(agentName);
                 // Per-agent analytics for skipped install
-                try {
-                    capture('dexto_install_agent', {
-                        agent: agentName,
-                        status: 'skipped',
-                        reason: 'already_installed',
-                        force: validated.force,
-                        injectPreferences: validated.injectPreferences,
-                    });
-                } catch {
-                    // Analytics failures should not block CLI execution.
-                }
+                capture('dexto_install_agent', {
+                    agent: agentName,
+                    status: 'skipped',
+                    reason: 'already_installed',
+                    force: validated.force,
+                    injectPreferences: validated.injectPreferences,
+                });
                 continue;
             }
 
