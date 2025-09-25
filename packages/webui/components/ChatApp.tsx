@@ -525,8 +525,8 @@ export default function ChatApp() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
               >
-                <img src="/logos/dexto_logo_light.svg" alt="Dexto" className="h-8 w-auto dark:hidden" />
-                <img src="/logos/dexto_logo.svg" alt="Dexto" className="h-8 w-auto hidden dark:block" />
+                <img src="/logos/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
+                <img src="/logos/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
               
