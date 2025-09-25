@@ -1,11 +1,9 @@
-# @dexto/core
+# @dexto/client-sdk
 
 ## 1.1.5
 
 ### Patch Changes
 
-- e2bd0ce: Update build to not bundle
-- 11cbec0: Update READMEs and docs
 - 795c7f1: feat: Add @dexto/client-sdk package
     - New lightweight cross-environment client SDK
     - HTTP + optional WebSocket support for messaging
@@ -16,10 +14,9 @@
     - Comprehensive TypeScript types and validation
     - Unit tests and documentation included
 
-- 9d7541c: Add posthog telemetry
-
-## 1.1.4
-
-### Patch Changes
-
-- 2fccffd: Migrating to monorepo
+- 09b8e33: Fix minor comments
+- Updated dependencies [e2bd0ce]
+- Updated dependencies [11cbec0]
+- Updated dependencies [795c7f1]
+- Updated dependencies [9d7541c]
+    - @dexto/core@1.1.5
