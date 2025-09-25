@@ -17,6 +17,8 @@
     "express": "^4.21.2",
     "fs-extra": "^11.3.0",
     "grammy": "^1.38.2",
+    "posthog-node": "^4.2.1",
+    "node-machine-id": "^1.1.12",
     "next": "15.5.2",
     "open": "^10.2.0",
     "react": "19.1.1",
@@ -26,7 +28,7 @@
     "zod": "^3.25.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && pnpm run copy-agents",
+    "build": "tsc -p tsconfig.build.json && pnpm run copy-agents",
     "copy-agents": "tsx scripts/copy-agents.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",

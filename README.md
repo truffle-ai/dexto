@@ -427,6 +427,20 @@ Commands:
 
 ---
 
+## Telemetry
+
+We collect anonymous usage data (no personal/sensitive info) to help improve Dexto. This includes:
+
+- Commands used
+- Command execution time
+- Error occurrences
+- System information (OS, Node version)
+- LLM Models used
+
+To opt-out:
+
+Set env variable `DEXTO_ANALYTICS_DISABLED=1` 
+
 ## Contributing
 
 We welcome contributions! Refer to our [Contributing Guide](./CONTRIBUTING.md) for more details.

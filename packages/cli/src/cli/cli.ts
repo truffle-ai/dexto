@@ -8,6 +8,8 @@ import { executeCommand } from './commands/interactive-commands/commands.js';
 import { getDextoPath } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } from '@dexto/core';
+import { capture } from '../analytics/index.js';
+import { safeExit } from 'src/analytics/wrapper.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
@@ -179,6 +181,8 @@ export async function startAiCli(agent: DextoAgent) {
                 return await executeCommand(parsed.command, parsed.args || [], agent);
             } else {
                 // Handle regular prompt - pass to AI
+                const llm = agent.getCurrentLLMConfig();
+                capture('dexto_prompt', { mode: 'cli', provider: llm.provider, model: llm.model });
                 return false;
             }
         }
@@ -243,7 +247,7 @@ export async function startAiCli(agent: DextoAgent) {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error(`Error during CLI initialization: ${errorMessage}`);
-        process.exit(1); // Exit with error code if CLI setup fails
+        safeExit('main', 1); // Exit with error code if CLI setup fails
     }
 }
 
@@ -273,6 +277,8 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
             // Execute the task as a regular AI prompt
             // uncomment if we need to reset conversation for headless mode
             // await agent.resetConversation();
+            const llm = agent.getCurrentLLMConfig();
+            capture('dexto_prompt', { mode: 'headless', provider: llm.provider, model: llm.model });
             await agent.run(prompt);
         }
     } catch (error: unknown) {
@@ -290,6 +296,6 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
                 `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
             );
         }
-        process.exit(1); // Exit with error code if headless execution fails
+        safeExit('main', 1); // Exit with error code if headless execution fails
     }
 }
