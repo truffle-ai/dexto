@@ -1,3 +1,7 @@
+<a href="https://dexto.ai">
+  <img src="https://raw.githubusercontent.com/truffle-ai/dexto/main/.github/assets/dexto-logo.svg" alt="Dexto" width="100%" style="max-width: 1000px" />
+</a>
+
 # Dexto
 
 <p align="center">
