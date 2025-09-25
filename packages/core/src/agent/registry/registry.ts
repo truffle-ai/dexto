@@ -40,12 +40,13 @@ export class LocalAgentRegistry implements AgentRegistry {
         } catch (error) {
             // Preserve typed error semantics for missing registry
             throw RegistryError.registryNotFound(
+                'agents/agent-registry.json',
                 error instanceof Error ? error.message : String(error)
             );
         }
 
         if (!existsSync(jsonPath)) {
-            throw RegistryError.registryNotFound(jsonPath);
+            throw RegistryError.registryNotFound(jsonPath, "File doesn't exist");
         }
 
         try {
