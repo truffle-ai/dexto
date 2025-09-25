@@ -525,8 +525,8 @@ export default function ChatApp() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
               >
-                <img src="/logos/dexto_1_thicker/dexto_logo_light_thicker.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
-                <img src="/logos/dexto_1_thicker/dexto_logo_thicker.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
+                <img src="/logos/dexto_2/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
+                <img src="/logos/dexto_2/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
               
@@ -663,7 +663,7 @@ export default function ChatApp() {
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
-                      <img src="/logos/dexto_1_thicker/dexto_logo_icon_thicker.svg" alt="Dexto" className="h-12 w-auto" />
+                      <img src="/logos/dexto_2/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         {greeting ?? "Welcome to Dexto"}
                       </h2>
