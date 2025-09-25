@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
-import { sendJson } from '../utils/response.js';
 import { parseJson, parseParam } from '../utils/validation.js';
 
 const ConnectServerSchema = z.object({
@@ -36,7 +35,7 @@ export function createMcpRouter(agent: DextoAgent) {
         const { name, config } = await parseJson(ctx, ConnectServerSchema);
         await agent.connectMcpServer(name, config);
         logger.info(`Successfully connected to new server '${name}' via API request.`);
-        return sendJson(ctx, { status: 'connected', name });
+        return ctx.json({ status: 'connected', name });
     });
 
     const addServerRoute = createRoute({
@@ -54,7 +53,7 @@ export function createMcpRouter(agent: DextoAgent) {
     app.openapi(addServerRoute, async (ctx) => {
         const { name, config } = await parseJson(ctx, ConnectServerSchema);
         await agent.connectMcpServer(name, config);
-        return sendJson(ctx, { status: 'connected', name }, 201);
+        return ctx.json({ status: 'connected', name }, 201);
     });
 
     const listServersRoute = createRoute({
@@ -78,7 +77,7 @@ export function createMcpRouter(agent: DextoAgent) {
         for (const name of Object.keys(failedConnections)) {
             servers.push({ id: name, name, status: 'error' });
         }
-        return sendJson(ctx, { servers });
+        return ctx.json({ servers });
     });
 
     const toolsRoute = createRoute({
@@ -98,7 +97,7 @@ export function createMcpRouter(agent: DextoAgent) {
         const { serverId } = parseParam(ctx, ServerParamSchema);
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
-            return sendJson(ctx, { error: `Server '${serverId}' not found` }, 404);
+            return ctx.json({ error: `Server '${serverId}' not found` }, 404);
         }
         const toolsMap = await client.getTools();
         const tools = Object.entries(toolsMap).map(([toolName, toolDef]) => ({
@@ -107,7 +106,7 @@ export function createMcpRouter(agent: DextoAgent) {
             description: toolDef.description || '',
             inputSchema: toolDef.parameters,
         }));
-        return sendJson(ctx, { tools });
+        return ctx.json({ tools });
     });
 
     const deleteServerRoute = createRoute({
@@ -128,11 +127,11 @@ export function createMcpRouter(agent: DextoAgent) {
         const clientExists =
             agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
         if (!clientExists) {
-            return sendJson(ctx, { error: `Server '${serverId}' not found.` }, 404);
+            return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
         }
 
         await agent.removeMcpServer(serverId);
-        return sendJson(ctx, { status: 'disconnected', id: serverId });
+        return ctx.json({ status: 'disconnected', id: serverId });
     });
 
     const execToolRoute = createRoute({
@@ -156,10 +155,10 @@ export function createMcpRouter(agent: DextoAgent) {
         const body = ExecuteToolBodySchema.parse(await ctx.req.json());
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
-            return sendJson(ctx, { success: false, error: `Server '${serverId}' not found` }, 404);
+            return ctx.json({ success: false, error: `Server '${serverId}' not found` }, 404);
         }
         const rawResult = await agent.executeTool(toolName, body);
-        return sendJson(ctx, { success: true, data: rawResult });
+        return ctx.json({ success: true, data: rawResult });
     });
 
     return app;

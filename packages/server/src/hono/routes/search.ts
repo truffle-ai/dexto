@@ -1,7 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { sendJson } from '../utils/response.js';
-import { parseQuery } from '../utils/validation.js';
 
 const MessageSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required'),
@@ -33,7 +31,7 @@ export function createSearchRouter(agent: DextoAgent) {
         },
     });
     app.openapi(messagesRoute, async (ctx) => {
-        const { q, limit, offset, sessionId, role } = parseQuery(ctx, MessageSearchQuery);
+        const { q, limit, offset, sessionId, role } = ctx.req.valid('query');
         const options = {
             limit: limit || 20,
             offset: offset || 0,
@@ -42,7 +40,7 @@ export function createSearchRouter(agent: DextoAgent) {
         };
 
         const searchResults = await agent.searchMessages(q, options);
-        return sendJson(ctx, searchResults);
+        return ctx.json(searchResults);
     });
 
     const sessionsRoute = createRoute({
@@ -58,9 +56,9 @@ export function createSearchRouter(agent: DextoAgent) {
         },
     });
     app.openapi(sessionsRoute, async (ctx) => {
-        const { q } = parseQuery(ctx, SessionSearchQuery);
+        const { q } = ctx.req.valid('query');
         const searchResults = await agent.searchSessions(q);
-        return sendJson(ctx, searchResults);
+        return ctx.json(searchResults);
     });
 
     return app;

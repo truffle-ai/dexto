@@ -1,9 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify } from 'yaml';
-import { sendJson } from '../utils/response.js';
-import { parseQuery } from '../utils/validation.js';
-import { redactionMiddleware } from '../middleware/redaction.js';
 
 const querySchema = z.object({
     sessionId: z.string().optional(),
@@ -12,8 +9,6 @@ const querySchema = z.object({
 
 export function createConfigRouter(agent: DextoAgent) {
     const app = new OpenAPIHono();
-
-    app.use('/config.yaml', redactionMiddleware);
 
     const yamlRoute = createRoute({
         method: 'get',
@@ -28,7 +23,7 @@ export function createConfigRouter(agent: DextoAgent) {
         },
     });
     app.openapi(yamlRoute, async (ctx) => {
-        const { sessionId } = parseQuery(ctx, querySchema);
+        const { sessionId } = ctx.req.valid('query');
         const cfg = agent.getEffectiveConfig(sessionId);
 
         const maskedConfig = {
@@ -54,10 +49,11 @@ export function createConfigRouter(agent: DextoAgent) {
             200: { description: 'Greeting', content: { 'application/json': { schema: z.any() } } },
         },
     });
+
     app.openapi(greetingRoute, (ctx) => {
-        const { sessionId } = parseQuery(ctx, querySchema.pick({ sessionId: true }));
+        const { sessionId } = ctx.req.valid('query');
         const cfg = agent.getEffectiveConfig(sessionId);
-        return sendJson(ctx, { greeting: cfg.greeting });
+        return ctx.json({ greeting: cfg.greeting });
     });
 
     return app;

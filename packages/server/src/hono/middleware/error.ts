@@ -1,5 +1,3 @@
-import type { MiddlewareHandler } from 'hono';
-import type { Context } from 'hono';
 import {
     DextoRuntimeError,
     DextoValidationError,
@@ -8,7 +6,6 @@ import {
     logger,
 } from '@dexto/core';
 import { ZodError } from 'zod';
-import { sendJson } from '../utils/response.js';
 
 export const mapErrorTypeToStatus = (type: ErrorType): number => {
     switch (type) {
@@ -38,25 +35,24 @@ export const statusForValidation = (issues: ReturnType<typeof zodToIssues>): num
     return mapErrorTypeToStatus(type);
 };
 
-export function handleHonoError(ctx: Context, err: unknown) {
+export function handleHonoError(ctx: any, err: unknown) {
     if (err instanceof DextoRuntimeError) {
-        return sendJson(ctx, err.toJSON(), mapErrorTypeToStatus(err.type));
+        return ctx.json(err.toJSON(), mapErrorTypeToStatus(err.type));
     }
 
     if (err instanceof DextoValidationError) {
-        return sendJson(ctx, err.toJSON(), statusForValidation(err.issues));
+        return ctx.json(err.toJSON(), statusForValidation(err.issues));
     }
 
     if (err instanceof ZodError) {
         const issues = zodToIssues(err);
         const dexErr = new DextoValidationError(issues);
-        return sendJson(ctx, dexErr.toJSON(), statusForValidation(issues));
+        return ctx.json(dexErr.toJSON(), statusForValidation(issues));
     }
 
     // Some hono specific handlers (e.g., ctx.req.json()) may throw SyntaxError for invalid/empty JSON
     if (err instanceof SyntaxError) {
-        return sendJson(
-            ctx,
+        return ctx.json(
             {
                 code: 'invalid_json',
                 message: err.message || 'Invalid JSON body',
@@ -76,8 +72,7 @@ export function handleHonoError(ctx: Context, err: unknown) {
         type: typeof err,
     });
 
-    return sendJson(
-        ctx,
+    return ctx.json(
         {
             code: 'internal_error',
             message: 'An unexpected error occurred',
@@ -89,7 +84,7 @@ export function handleHonoError(ctx: Context, err: unknown) {
     );
 }
 
-export const errorMiddleware: MiddlewareHandler = async (ctx, next) => {
+export const errorMiddleware = async (ctx: any, next: any) => {
     try {
         await next();
         return;

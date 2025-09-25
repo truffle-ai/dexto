@@ -3,7 +3,6 @@ import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
-import { sendJson } from '../utils/response.js';
 import { parseJson, parseParam } from '../utils/validation.js';
 
 const WebhookBodySchema = z.object({
@@ -49,8 +48,7 @@ export function createWebhooksRouter(
         webhookSubscriber.addWebhook(webhook);
         logger.info(`Webhook registered: ${webhookId} -> ${url}`);
 
-        return sendJson(
-            ctx,
+        return ctx.json(
             {
                 webhook: {
                     id: webhook.id,
@@ -82,7 +80,7 @@ export function createWebhooksRouter(
             createdAt: webhook.createdAt,
         }));
 
-        return sendJson(ctx, { webhooks });
+        return ctx.json({ webhooks });
     });
 
     const getRoute = createRoute({
@@ -99,10 +97,10 @@ export function createWebhooksRouter(
         const { webhookId } = parseParam(ctx, WebhookParamSchema);
         const webhook = webhookSubscriber.getWebhook(webhookId);
         if (!webhook) {
-            return sendJson(ctx, { error: 'Webhook not found' }, 404);
+            return ctx.json({ error: 'Webhook not found' }, 404);
         }
 
-        return sendJson(ctx, {
+        return ctx.json({
             webhook: {
                 id: webhook.id,
                 url: webhook.url,
@@ -126,10 +124,10 @@ export function createWebhooksRouter(
         const { webhookId } = parseParam(ctx, WebhookParamSchema);
         const removed = webhookSubscriber.removeWebhook(webhookId);
         if (!removed) {
-            return sendJson(ctx, { error: 'Webhook not found' }, 404);
+            return ctx.json({ error: 'Webhook not found' }, 404);
         }
         logger.info(`Webhook removed: ${webhookId}`);
-        return sendJson(ctx, { status: 'removed', webhookId });
+        return ctx.json({ status: 'removed', webhookId });
     });
 
     const testRoute = createRoute({
@@ -150,13 +148,13 @@ export function createWebhooksRouter(
         const webhook = webhookSubscriber.getWebhook(webhookId);
 
         if (!webhook) {
-            return sendJson(ctx, { error: 'Webhook not found' }, 404);
+            return ctx.json({ error: 'Webhook not found' }, 404);
         }
 
         logger.info(`Testing webhook: ${webhookId}`);
         const result = await webhookSubscriber.testWebhook(webhookId);
 
-        return sendJson(ctx, {
+        return ctx.json({
             test: 'completed',
             result: {
                 success: result.success,

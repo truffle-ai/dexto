@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute, z, type OpenAPIContext } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import {
     LLM_REGISTRY,
@@ -12,8 +12,6 @@ import {
     type LLMProvider,
     LLMUpdatesSchema,
 } from '@dexto/core';
-import { sendJson } from '../utils/response.js';
-import { redactionMiddleware } from '../middleware/redaction.js';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { parseJson, parseQuery } from '../utils/validation.js';
 
@@ -69,8 +67,6 @@ const SessionIdEnvelopeSchema = z
 export function createLlmRouter(agent: DextoAgent) {
     const app = new OpenAPIHono();
 
-    app.use('*', redactionMiddleware);
-
     const currentRoute = createRoute({
         method: 'get',
         path: '/llm/current',
@@ -83,7 +79,7 @@ export function createLlmRouter(agent: DextoAgent) {
             },
         },
     });
-    app.openapi(currentRoute, (ctx: OpenAPIContext<typeof currentRoute>) => {
+    app.openapi(currentRoute, (ctx) => {
         const { sessionId } = parseQuery(ctx, CurrentQuerySchema);
 
         const currentConfig = sessionId
@@ -100,7 +96,7 @@ export function createLlmRouter(agent: DextoAgent) {
             // ignore lookup errors
         }
 
-        return sendJson(ctx, {
+        return ctx.json({
             config: { ...currentConfig, ...(displayName ? { displayName } : {}) },
         });
     });
@@ -117,7 +113,7 @@ export function createLlmRouter(agent: DextoAgent) {
             },
         },
     });
-    app.openapi(catalogRoute, (ctx: OpenAPIContext<typeof catalogRoute>) => {
+    app.openapi(catalogRoute, (ctx) => {
         type ProviderCatalog = Pick<
             ProviderInfo,
             'supportedRouters' | 'models' | 'supportedFileTypes'
@@ -224,10 +220,10 @@ export function createLlmRouter(agent: DextoAgent) {
                     flat.push({ provider: id as LLMProvider, ...model });
                 }
             }
-            return sendJson(ctx, { models: flat });
+            return ctx.json({ models: flat });
         }
 
-        return sendJson(ctx, { providers: filtered });
+        return ctx.json({ providers: filtered });
     });
 
     const saveKeyRoute = createRoute({
@@ -242,10 +238,10 @@ export function createLlmRouter(agent: DextoAgent) {
             },
         },
     });
-    app.openapi(saveKeyRoute, async (ctx: OpenAPIContext<typeof saveKeyRoute>) => {
+    app.openapi(saveKeyRoute, async (ctx) => {
         const { provider, apiKey } = await parseJson(ctx, SaveKeySchema);
         const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
-        return sendJson(ctx, { ok: true, provider, envVar: meta.envVar });
+        return ctx.json({ ok: true, provider, envVar: meta.envVar });
     });
 
     const switchRoute = createRoute({
@@ -260,13 +256,13 @@ export function createLlmRouter(agent: DextoAgent) {
         },
         request: { body: { content: { 'application/json': { schema: z.any() } } } },
     });
-    app.openapi(switchRoute, async (ctx: OpenAPIContext<typeof switchRoute>) => {
+    app.openapi(switchRoute, async (ctx) => {
         const raw = await ctx.req.json();
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...rest } = raw as Record<string, unknown>;
         const llmUpdates = LLMUpdatesSchema.parse(rest);
         const config = await agent.switchLLM(llmUpdates, sessionId);
-        return sendJson(ctx, { config, sessionId });
+        return ctx.json({ config, sessionId });
     });
 
     return app;

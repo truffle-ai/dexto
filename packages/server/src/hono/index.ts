@@ -12,6 +12,7 @@ import { createA2aRouter } from './routes/a2a.js';
 import { createWebhooksRouter } from './routes/webhooks.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
+import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
@@ -34,6 +35,8 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
     }
 
     const api = new OpenAPIHono();
+    api.use('*', prettyJsonMiddleware);
+    api.use('*', redactionMiddleware);
     api.route('/', createConfigRouter(agent));
     api.route('/', createMessagesRouter(agent));
     api.route('/', createLlmRouter(agent));
