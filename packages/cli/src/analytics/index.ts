@@ -55,13 +55,14 @@ export async function initAnalytics(opts: InitOptions): Promise<void> {
     sessionId = randomUUID();
     appVersion = opts.appVersion;
 
-    const key = DEFAULT_POSTHOG_KEY;
-    if (typeof key !== 'string' || !/^phc_[A-Za-z0-9]+/.test(key)) {
+    const key = process.env.DEXTO_POSTHOG_KEY ?? DEFAULT_POSTHOG_KEY;
+    const host = process.env.DEXTO_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST;
+    if (typeof key !== 'string' || !/^phc_[A-Za-z0-9]+/.test(key) || !host) {
         enabled = false;
         return;
     }
     client = new PostHog(key, {
-        host: DEFAULT_POSTHOG_HOST,
+        host,
         flushAt: 1,
         flushInterval: 0,
         disableGeoip: false,
