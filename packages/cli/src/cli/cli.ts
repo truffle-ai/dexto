@@ -9,7 +9,7 @@ import { getDextoPath } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } from '@dexto/core';
 import { capture } from '../analytics/index.js';
-import { safeExit } from 'src/analytics/wrapper.js';
+import { safeExit } from '../analytics/wrapper.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
