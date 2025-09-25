@@ -1,7 +1,12 @@
 // packages/cli/src/analytics/wrapper.ts
 import { onCommandStart, onCommandEnd, capture } from './index.js';
 import { COMMAND_TIMEOUT_MS } from './constants.js';
-import type { CliCommandEndEvent, CommandArgsMeta, SanitizedOptionValue } from './events.js';
+import type {
+    CliCommandEndEvent,
+    CommandArgsMeta,
+    SanitizedOptionValue,
+    CliCommandTimeoutEvent,
+} from './events.js';
 
 function sanitizeOptions(obj: Record<string, unknown>): Record<string, SanitizedOptionValue> {
     const redactedKeys = /key|token|secret|password|api[_-]?key|authorization|auth/i;
@@ -54,18 +59,24 @@ export function withAnalytics<A extends unknown[], R = unknown>(
         await onCommandStart(commandName, { args: argsMeta });
         const timeout =
             timeoutMs > 0
-                ? setTimeout(() => {
-                      try {
-                          capture('dexto_cli_command', {
-                              name: commandName,
-                              phase: 'timeout',
-                              timeoutMs,
-                              args: argsMeta,
-                          });
-                      } catch {
-                          // Timeout instrumentation is best-effort.
-                      }
-                  }, timeoutMs)
+                ? (() => {
+                      const t = setTimeout(() => {
+                          try {
+                              const payload: CliCommandTimeoutEvent = {
+                                  name: commandName,
+                                  phase: 'timeout',
+                                  timeoutMs,
+                                  args: argsMeta,
+                              };
+                              capture('dexto_cli_command', payload);
+                          } catch {
+                              // Timeout instrumentation is best-effort.
+                          }
+                      }, timeoutMs);
+                      // Prevent timeout from keeping process alive
+                      t.unref();
+                      return t;
+                  })()
                 : null;
         try {
             const result = await handler(...args);
