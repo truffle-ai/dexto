@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { Hono } from 'hono';
+import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
 import {
     logger,
@@ -19,8 +19,6 @@ import {
     sendWebSocketValidationError,
 } from '../../events/websocket-error-handler.js';
 import type { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
-
-type AppWithSubscriber = Hono & { webhookSubscriber?: WebhookEventSubscriber };
 
 type FetchRequest = globalThis.Request;
 type FetchBodyInit = globalThis.BodyInit;
@@ -47,10 +45,9 @@ export type NodeBridgeResult = {
     webhookSubscriber?: WebhookEventSubscriber;
 };
 
-export function createNodeServer(app: Hono, options: NodeBridgeOptions): NodeBridgeResult {
+export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): NodeBridgeResult {
     const { agent } = options;
-    const appWithSubscriber = app as AppWithSubscriber;
-    const webhookSubscriber = appWithSubscriber.webhookSubscriber;
+    const webhookSubscriber = app.webhookSubscriber;
 
     const server = createServer(async (req, res) => {
         try {

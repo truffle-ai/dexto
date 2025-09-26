@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { DextoAgent, AgentCard } from '@dexto/core';
+import type { DextoApp } from './types.js';
 import { createHealthRouter } from './routes/health.js';
 import { createConfigRouter } from './routes/config.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -19,9 +20,7 @@ export type CreateDextoAppOptions = {
     agentCard?: AgentCard;
 };
 
-type DextoApp = OpenAPIHono & { webhookSubscriber?: WebhookEventSubscriber };
-
-export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions = {}) {
+export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions = {}): DextoApp {
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
     webhookSubscriber.subscribe(agent.agentEventBus);
