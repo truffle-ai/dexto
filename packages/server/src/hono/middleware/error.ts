@@ -83,12 +83,3 @@ export function handleHonoError(ctx: any, err: unknown) {
         500
     );
 }
-
-export const errorMiddleware = async (ctx: any, next: any) => {
-    try {
-        await next();
-        return;
-    } catch (err) {
-        return handleHonoError(ctx, err);
-    }
-};
