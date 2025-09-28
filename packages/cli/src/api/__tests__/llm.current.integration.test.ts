@@ -15,6 +15,10 @@ describe('GET /api/llm/current', () => {
         const mockAgent = {
             agentEventBus,
             stop: async () => {},
+            // Lifecycle methods required by server initialization
+            isStarted: () => true,
+            isStopped: () => false,
+            start: async () => {},
             getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
             getEffectiveConfig: (sessionId?: string) => ({
                 llm:
