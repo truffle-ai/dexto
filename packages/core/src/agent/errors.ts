@@ -63,4 +63,18 @@ export class AgentError {
             'Check logs for initialization errors'
         );
     }
+
+    /**
+     * API validation error
+     */
+    static apiValidationError(message: string, details?: unknown) {
+        return new DextoRuntimeError(
+            AgentErrorCode.API_VALIDATION_ERROR,
+            ErrorScope.AGENT,
+            ErrorType.USER,
+            message,
+            details,
+            'Check the request parameters and try again'
+        );
+    }
 }

@@ -14,7 +14,7 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, DextoAgent, getAgentRegistry, loadAgentConfig } from '@dexto/core';
+import { createAgentCard, DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify } from 'yaml';
 import os from 'os';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
@@ -36,7 +36,13 @@ import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
-import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
+import {
+    DextoValidationError,
+    ErrorScope,
+    ErrorType,
+    AgentErrorCode,
+    AgentError,
+} from '@dexto/core';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -173,9 +179,6 @@ export async function initializeApi(
 
     // Tool confirmation responses are handled by the main WebSocket handler below
 
-    // Cache agent registry for performance
-    const agentRegistry = getAgentRegistry();
-
     function ensureAgentAvailable(): void {
         // Fast path: most common case is agent is started and running
         if (activeAgent.isStarted() && !activeAgent.isStopped()) {
@@ -184,56 +187,23 @@ export async function initializeApi(
 
         // Provide specific error messages for better debugging
         if (activeAgent.isStopped()) {
-            throw new Error('Active agent has been stopped. Please switch agents or restart.');
+            throw AgentError.stopped();
         }
         if (!activeAgent.isStarted()) {
-            throw new Error('Active agent is not started. Please switch agents or restart.');
+            throw AgentError.notStarted();
         }
-    }
-
-    async function listAgents() {
-        const availableMap = agentRegistry.getAvailableAgents();
-        const installedNames = await agentRegistry.getInstalledAgents();
-
-        const installed = installedNames
-            .map((name) => {
-                const meta = availableMap[name];
-                return {
-                    name,
-                    description: meta?.description ?? 'Installed agent',
-                    author: meta?.author,
-                    tags: meta?.tags ?? [],
-                    installed: true,
-                };
-            })
-            .sort((a, b) => a.name.localeCompare(b.name));
-
-        const available = Object.entries(availableMap)
-            .filter(([name]) => !installedNames.includes(name))
-            .map(([name, meta]) => ({
-                name,
-                description: meta.description,
-                author: meta.author,
-                tags: meta.tags,
-                installed: false,
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-
-        return { installed, available };
     }
 
     async function switchAgentByName(name: string) {
         if (isSwitchingAgent) {
-            throw new Error('Agent switch already in progress');
+            throw AgentError.apiValidationError('Agent switch already in progress');
         }
         isSwitchingAgent = true;
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Resolve (auto-installs if missing)
-            const configPath = await agentRegistry.resolveAgent(name, true, true);
-            const config = await loadAgentConfig(configPath);
-            newAgent = new DextoAgent(config, configPath);
+            // Use domain layer method to create new agent
+            newAgent = await DextoAgent.createAgent(name);
 
             logger.info(`Starting new agent: ${name}`);
             await newAgent.start();
@@ -770,10 +740,11 @@ export async function initializeApi(
     // ===== Agents API =====
     app.get('/api/agents', async (_req, res, next) => {
         try {
-            const { installed, available } = await listAgents();
+            ensureAgentAvailable();
+            const agents = await activeAgent.listAgents();
             return sendJsonResponse(res, {
-                installed,
-                available,
+                installed: agents.installed,
+                available: agents.available,
                 current: { name: activeAgentName ?? 'default' },
             });
         } catch (error) {
@@ -793,11 +764,9 @@ export async function initializeApi(
 
     app.post('/api/agents/install', express.json(), async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { name } = AgentNameSchema.parse(req.body);
-            if (!agentRegistry.hasAgent(name)) {
-                return res.status(404).json({ error: `Agent '${name}' not found` });
-            }
-            await agentRegistry.installAgent(name, true);
+            await activeAgent.installAgent(name);
             return sendJsonResponse(res, { installed: true, name }, 201);
         } catch (error) {
             return next(error);

@@ -19,6 +19,9 @@ describe('GET /api/llm/current', () => {
             isStarted: () => true,
             isStopped: () => false,
             start: async () => {},
+            // Agent management methods required by server
+            listAgents: async () => ({ installed: [], available: [], current: { name: null } }),
+            installAgent: async () => {},
             getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
             getEffectiveConfig: (sessionId?: string) => ({
                 llm:
