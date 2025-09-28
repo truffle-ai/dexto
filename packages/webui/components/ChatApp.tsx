@@ -30,6 +30,7 @@ import {
 import { ThemeSwitch } from './ThemeSwitch';
 import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
+import AgentSelector from './AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';
@@ -491,7 +492,8 @@ export default function ChatApp() {
         })()}
         {/* Clean Header */}
         <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-          <div className="flex justify-between items-center px-4 py-3">
+          <div className="grid grid-cols-3 items-center px-4 py-3">
+            {/* Left Section */}
             <div className="flex items-center space-x-4">
               {/* Chat History Toggle */}
               <Tooltip>
@@ -532,16 +534,28 @@ export default function ChatApp() {
               
               {/* Current Session Indicator - Only show when there's an active session */}
               {currentSessionId && !isWelcomeState && (
-                <div className="flex items-center space-x-2">
-                  <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30">
-                    {currentSessionId}
-                  </Badge>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30 max-w-[120px] cursor-help">
+                      <span className="truncate">
+                        {currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId}
+                      </span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <span className="font-mono">{currentSessionId}</span>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
-          
-            {/* Minimal Action Bar */}
-            <div className="flex items-center space-x-1">
+
+            {/* Center Section - Agent Selector */}
+            <div className="flex justify-center">
+              <AgentSelector mode="badge" />
+            </div>
+
+            {/* Right Section */}
+            <div className="flex items-center justify-end space-x-2">
               <ThemeSwitch />
               <Tooltip>
                 <TooltipTrigger asChild>

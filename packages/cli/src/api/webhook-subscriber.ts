@@ -155,6 +155,21 @@ export class WebhookEventSubscriber implements EventSubscriber {
     }
 
     /**
+     * Unsubscribe from current event bus without clearing registered webhooks
+     */
+    unsubscribe(): void {
+        if (this.abortController) {
+            const controller = this.abortController;
+            delete this.abortController;
+            try {
+                controller.abort();
+            } catch (error) {
+                logger.debug('Error aborting controller during unsubscribe:', error);
+            }
+        }
+    }
+
+    /**
      * Deliver an event to all registered webhooks
      */
     private async deliverEvent<T extends AgentEventName>(
