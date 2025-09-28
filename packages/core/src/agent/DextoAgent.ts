@@ -1154,12 +1154,16 @@ export class DextoAgent {
 
             // Create new agent (not started)
             logger.info(`Creating agent: ${agentName}`);
-            const newAgent = new DextoAgent(config);
+            const newAgent = new DextoAgent(config, agentPath);
 
             logger.info(`Successfully created agent: ${agentName}`);
             return newAgent;
         } catch (error) {
-            logger.error(`Failed to create agent ${agentName}:`, error);
+            logger.error(
+                `Failed to create agent '${agentName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
             throw AgentError.apiValidationError(`Failed to create agent '${agentName}'`, error);
         }
     }

@@ -180,6 +180,11 @@ export async function initializeApi(
     // Tool confirmation responses are handled by the main WebSocket handler below
 
     function ensureAgentAvailable(): void {
+        // Gate requests during agent switching
+        if (isSwitchingAgent) {
+            throw AgentError.apiValidationError('Agent switch already in progress');
+        }
+
         // Fast path: most common case is agent is started and running
         if (activeAgent.isStarted() && !activeAgent.isStopped()) {
             return;
@@ -213,14 +218,22 @@ export async function initializeApi(
             try {
                 webSubscriber.unsubscribe();
             } catch (_err) {
-                logger.debug('Failed to unsubscribe webSubscriber:', _err);
+                logger.debug(
+                    `Failed to unsubscribe webSubscriber: ${
+                        _err instanceof Error ? _err.message : String(_err)
+                    }`
+                );
             }
             webSubscriber.subscribe(newAgent.agentEventBus);
 
             try {
                 webhookSubscriber.unsubscribe();
             } catch (_err) {
-                logger.debug('Failed to unsubscribe webhookSubscriber:', _err);
+                logger.debug(
+                    `Failed to unsubscribe webhookSubscriber: ${
+                        _err instanceof Error ? _err.message : String(_err)
+                    }`
+                );
             }
             webhookSubscriber.subscribe(newAgent.agentEventBus);
 
