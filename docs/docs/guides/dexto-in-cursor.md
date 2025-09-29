@@ -16,7 +16,9 @@ Cursor ships with native MCP support, which means you can talk to your Dexto age
 
 ## Configure `.cursor/mcp.json`
 
-Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root. Add an entry that launches Dexto with your preferred agent in MCP mode:
+Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root. Add an entry that launches Dexto with your preferred agent in MCP mode.
+
+### Use an in-built agent
 
 ```json title=".cursor/mcp.json"
 {
@@ -29,9 +31,9 @@ Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root.
 }
 ```
 
-> Prefer a globally installed CLI? Replace the command with `"command": "dexto"` and drop `npx`.
+Replace `music-agent` with any of the agents you see in `dexto list-agents`
 
-### Expose a specific agent
+### Expose a custom agent
 
 Point Cursor at a custom agent file to tailor the available tools:
 
@@ -41,19 +43,14 @@ Point Cursor at a custom agent file to tailor the available tools:
     "dexto": {
       "command": "npx",
       "args": [
-        "-y",
-        "dexto",
-        "--mode",
-        "mcp",
-        "--agent",
-        "./agents/product-researcher.yml"
+        "-y", "dexto", "--mode", "mcp", "--agent", "<path_to_your_custom_agent.yml>"
       ]
     }
   }
 }
 ```
 
-Restart Cursor after editing the configuration. On startup the editor connects to Dexto and exposes the tools defined by your agent (filesystem browsing, web search, custom MCP servers, etc.).
+After editing, Cursor automatically connects to Dexto and exposes the tools defined by your agent (filesystem browsing, web search, custom MCP servers, etc.).
 
 ## Working with the agent
 
@@ -65,9 +62,10 @@ Once connected, use Cursor's MCP panel or chat to run tools such as `chat_with_a
 
 Combine this with your own agent configuration to enable domain-specific workflows—everything from documentation search to infrastructure automation.
 
+
+
 ## Troubleshooting
 
-- **Dexto isn't listed:** verify `npx dexto --mode mcp` works in your shell and restart Cursor.
 - **Credentials not found:** rerun `dexto setup` to enter provider keys; Dexto persists them inside `~/.dexto`.
 - **Need verbose logs:** start the MCP server yourself with `DEXTO_LOG_LEVEL=debug dexto --mode mcp` before launching Cursor.
 
