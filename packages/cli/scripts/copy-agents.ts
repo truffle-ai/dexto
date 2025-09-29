@@ -22,6 +22,7 @@ const AGENTS_TO_COPY = [
     'triage-demo/',
     'podcast-agent/',
     'nano-banana-agent/',
+    'github-agent/',
 ];
 
 const SOURCE_DIR = join(__dirname, '../../../agents');

@@ -9,7 +9,7 @@
       "main": "database-agent.yml"
     },
     "github-agent": {
-      "description": "GitHub operations agent powered by the OAuth-enabled GitHub MCP server",
+      "description": "GitHub operations agent for analyzing pull requests, issues, repos and more",
       "author": "Truffle AI",
       "tags": ["github", "repositories", "collaboration", "devops", "mcp"],
       "source": "github-agent/",
