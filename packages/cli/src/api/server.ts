@@ -282,47 +282,50 @@ export async function initializeApi(
         res.status(200).send('OK');
     });
 
-    // TODO: Raise JSON body size limit for message endpoints
-    // Both /api/message and /api/message-sync accept base64 image/file payloads; express.json() defaults to ~100KB,
-    // which will reject typical attachments. Set an explicit limit (env-driven) to avoid 413s.
-    app.post('/api/message', express.json(), async (req, res, next) => {
-        logger.info('Received message via POST /api/message');
-        try {
-            ensureAgentAvailable();
-            const { message, sessionId, stream, imageData, fileData } = parseBody(
-                MessageRequestSchema,
-                req.body
-            );
+    // JSON body size limit for message endpoints supporting base64 image/file payloads
+    // Both /api/message and /api/message-sync accept base64 attachments; increased limit to avoid 413s.
+    app.post(
+        '/api/message',
+        express.json({ limit: process.env.MESSAGE_JSON_LIMIT || '10mb' }),
+        async (req, res, next) => {
+            logger.info('Received message via POST /api/message');
+            try {
+                ensureAgentAvailable();
+                const { message, sessionId, stream, imageData, fileData } = parseBody(
+                    MessageRequestSchema,
+                    req.body
+                );
 
-            const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
-                : undefined;
+                const imageDataInput = imageData
+                    ? { image: imageData.base64, mimeType: imageData.mimeType }
+                    : undefined;
 
-            // Process file data
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.base64,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
+                // Process file data
+                const fileDataInput = fileData
+                    ? {
+                          data: fileData.base64,
+                          mimeType: fileData.mimeType,
+                          ...(fileData.filename && { filename: fileData.filename }),
+                      }
+                    : undefined;
 
-            if (imageDataInput) logger.info('Image data included in message.');
-            if (fileDataInput) logger.info('File data included in message.');
-            if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                if (imageDataInput) logger.info('Image data included in message.');
+                if (fileDataInput) logger.info('File data included in message.');
+                if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            const response = await activeAgent.run(
-                message || '',
-                imageDataInput,
-                fileDataInput,
-                sessionId,
-                stream || false
-            );
-            return res.status(202).send({ response, sessionId });
-        } catch (error) {
-            return next(error);
+                const response = await activeAgent.run(
+                    message || '',
+                    imageDataInput,
+                    fileDataInput,
+                    sessionId,
+                    stream || false
+                );
+                return res.status(202).send({ response, sessionId });
+            } catch (error) {
+                return next(error);
+            }
         }
-    });
+    );
 
     // Cancel an in-flight run for a session
     app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
@@ -339,45 +342,49 @@ export async function initializeApi(
     });
 
     // Synchronous endpoint: await the full AI response and return it in one go
-    // TODO: Also needs JSON body size limit increase for image/file uploads
-    app.post('/api/message-sync', express.json(), async (req, res, next) => {
-        logger.info('Received message via POST /api/message-sync');
-        try {
-            ensureAgentAvailable();
-            const { message, sessionId, imageData, fileData } = parseBody(
-                MessageRequestSchema,
-                req.body
-            );
+    // JSON body size limit increased for image/file uploads
+    app.post(
+        '/api/message-sync',
+        express.json({ limit: process.env.MESSAGE_JSON_LIMIT || '10mb' }),
+        async (req, res, next) => {
+            logger.info('Received message via POST /api/message-sync');
+            try {
+                ensureAgentAvailable();
+                const { message, sessionId, imageData, fileData } = parseBody(
+                    MessageRequestSchema,
+                    req.body
+                );
 
-            // Extract optional image and file data
-            const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
-                : undefined;
+                // Extract optional image and file data
+                const imageDataInput = imageData
+                    ? { image: imageData.base64, mimeType: imageData.mimeType }
+                    : undefined;
 
-            // Process file data
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.base64,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
-            if (imageDataInput) logger.info('Image data included in message.');
-            if (fileDataInput) logger.info('File data included in message.');
-            if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                // Process file data
+                const fileDataInput = fileData
+                    ? {
+                          data: fileData.base64,
+                          mimeType: fileData.mimeType,
+                          ...(fileData.filename && { filename: fileData.filename }),
+                      }
+                    : undefined;
+                if (imageDataInput) logger.info('Image data included in message.');
+                if (fileDataInput) logger.info('File data included in message.');
+                if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            const response = await activeAgent.run(
-                message || '',
-                imageDataInput,
-                fileDataInput,
-                sessionId,
-                false // Force non-streaming for sync endpoint
-            );
-            return res.status(200).json({ response, sessionId });
-        } catch (error) {
-            return next(error);
+                const response = await activeAgent.run(
+                    message || '',
+                    imageDataInput,
+                    fileDataInput,
+                    sessionId,
+                    false // Force non-streaming for sync endpoint
+                );
+                return res.status(200).json({ response, sessionId });
+            } catch (error) {
+                return next(error);
+            }
         }
-    });
+    );
 
     app.post('/api/reset', express.json(), async (req, res, next) => {
         logger.info('Received request via POST /api/reset');
