@@ -17,77 +17,41 @@ Check out our [Configuration guide](../guides/configuring-dexto/overview)
 
 ## Local MCP Server
 
-### Setup in Cursor
+### Start the MCP server
 
-1. **Create or edit your `.cursor/mcp.json` file:**
+Run Dexto in MCP mode to expose your agent over stdio:
 
-Use the default Dexto configuration
-```json
-{
-  "mcpServers": {
-    "dexto": {
-      "command": "npx",
-      "args": ["-y", "dexto", "--mode", "mcp"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key"
-      }
-    }
-  }
-}
+```bash
+dexto --mode mcp
 ```
 
-Using a custom Dexto configuration:
-Note: if you use a different LLM in your config file, you will need to pass the appropriate environment variable for that provider.
+You can also use `npx dexto --mode mcp` without installing the CLI globally. Secrets configured through `dexto setup` are stored in `.dexto/.env`, so no additional environment variables are required.
+
+### Connect an MCP client
+
+Provide the command and arguments your client should execute. A minimal configuration looks like this:
 
 ```json
 {
   "mcpServers": {
     "dexto": {
       "command": "npx",
-      "args": ["-y", "dexto", "--mode", "mcp", "--agent", "path/to/your/agent.yml"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key"
-      }
+      "args": ["-y", "dexto", "--mode", "mcp"]
     }
   }
 }
 ```
 
+Want to expose a different agent?
 
-2. **Restart Cursor**
+```json
+{
+  "command": "npx",
+  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "./agents/support.yml"]
+}
+```
 
-### Using Dexto in Cursor
-
-**Available Tools in Cursor:**
-- `chat_with_agent`: Interact with Dexto AI agent
-
-**Available Dexto tools:**
-
-By default, Dexto CLI loads an AI agent that has tools to:
-- browse the web
-- search files on your local system
-
-But you can customize the tools by using a custom Dexto agent configuration file. Check out our [Configuration guide](../guides/configuring-dexto/overview).
-
-**Example Usage in Cursor:**
-
-1. **Refactor a function:**
-   ```bash
-   Ask Dexto agent to help me refactor this function to be more efficient
-   ```
-
-2. **Get file analysis:**
-   ```bash
-   Ask Dexto agent to analyze the architecture of this project
-   ```
-
-3. **Browse the web:**
-   ```bash
-   Ask Dexto agent to search the web for soccer shoes under $100
-   ```
-
-4. **Any custom functionality:**
-    You can configure your Dexto agent to have any other custom functionality by setting up your own config file and using it here. Check out our [Configuration guide](../guides/configuring-dexto/overview)
+> For a Cursor-specific walkthrough, see [Using Dexto Agents in Cursor](../guides/dexto-in-cursor).
 
 ## Remote MCP Server
 
@@ -131,8 +95,8 @@ http://localhost:3001/mcp
 http://YOUR_SERVER_IP:3001/mcp
 ```
 
-### Remote Server in Cursor (WIP)
-Cursor/Claude desktop don't support streamable http yet
+### Remote client limitations
+Clients such as Cursor and Claude Desktop currently lack support for streaming HTTP MCP connections. Use the local stdio mode in those environments until support lands.
 
 ## Troubleshooting
 

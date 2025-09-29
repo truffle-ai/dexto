@@ -1,12 +1,12 @@
 ---
 sidebar_position: 7
-title: "Using Dexto as an MCP Server"
-sidebar_label: "Using Dexto as an MCP Server"
+title: "Dexto Agents as MCP Servers"
+sidebar_label: "Dexto Agents as MCP Servers"
 ---
 
-# Using Dexto as an MCP Server
+# Dexto Agents as MCP Servers
 
-Dexto agents can act as Model Context Protocol (MCP) server, enabling external tools like Cursor/Claude Desktop or any MCP client to connect and interact with your Dexto agent.
+Any Dexto agent can also act as a Model Context Protocol (MCP) server, enabling external tools like Cursor/Claude Desktop or any MCP client to connect and interact with your Dexto agent.
 
 This means you can even connect one Dexto agent to another Dexto agent!
 
@@ -16,77 +16,43 @@ Check out our [Configuration guide](./configuring-dexto/overview)
 
 ## Local MCP Server Guide
 
-### Setup in Cursor
+### Start the MCP server
 
-1. **Create or edit your `.cursor/mcp.json` file:**
+Run Dexto in MCP mode to expose your agent over stdio:
 
-Use the default Dexto configuration
-```json
-{
-  "mcpServers": {
-    "dexto": {
-      "command": "npx",
-      "args": ["-y", "dexto", "--mode", "mcp"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key"
-      }
-    }
-  }
-}
+```bash
+dexto --mode mcp --auto-approve
 ```
 
-Using a custom Dexto configuration:
-Note: if you use a different LLM in your config file, you will need to pass the appropriate environment variable for that provider.
+The command works with globally installed CLIs as well as `npx dexto --mode mcp` for one-off runs. During startup Dexto reads secrets from `.dexto/.env`, so your LLM credentials travel with your profile—no additional environment variables are required.
+
+### Connect an MCP client
+
+Most MCP-compatible clients expect a command plus optional arguments. A minimal configuration looks like:
 
 ```json
 {
   "mcpServers": {
     "dexto": {
-      "command": "npx",
-      "args": ["-y", "dexto", "--mode", "mcp", "--agent", "path/to/your/agent.yml"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key"
-      }
+      "command": "dexto",
+      "args": ["--mode", "mcp", "--auto-approve"]
     }
   }
 }
 ```
 
+Use `--agent` if you want to expose a specific agent (installed or from file):
 
-2. **Restart Cursor**
+```json
+{
+  "command": "npx",
+  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "music-agent"]
+}
+```
 
-### Using Dexto in Cursor
+> Looking for Cursor-specific instructions? See [Using Dexto Agents in Cursor](./dexto-in-cursor.md).
 
-**Available Tools in Cursor:**
-- `chat_with_agent`: Interact with Dexto AI agent
-
-**Available Dexto tools:**
-
-By default, Dexto CLI loads an AI agent that has tools to:
-- browse the web
-- search files on your local system
-
-But you can customize the tools by using a custom Dexto agent configuration file. Check out our [Configuration guide](./configuring-dexto/overview).
-
-**Example Usage in Cursor:**
-
-1. **Refactor a function:**
-   ```bash
-   Ask Dexto agent to help me refactor this function to be more efficient
-   ```
-
-2. **Get file analysis:**
-   ```bash
-   Ask Dexto agent to analyze the architecture of this project
-   ```
-
-3. **Browse the web:**
-   ```bash
-   Ask Dexto agent to search the web for soccer shoes under $100
-   ```
-
-4. **Any custom functionality:**
-    You can configure your Dexto agent to have any other custom functionality by setting up your own config file and using it here. Check out our [Configuration guide](./configuring-dexto/overview)
+Once connected, clients gain access to the agent tools defined in your configuration (filesystem, web browsing, custom MCP servers, etc.).
 
 ## Remote MCP Server Setup
 
@@ -130,16 +96,15 @@ http://localhost:3001/mcp
 http://YOUR_SERVER_IP:3001/mcp
 ```
 
-### Remote Server in Cursor (WIP)
-Cursor/Claude desktop don't support streamable http yet
+### Remote client limitations
+Some MCP clients (including Cursor and Claude Desktop today) do not yet support streaming HTTP connections. For those clients, prefer the local stdio transport covered above.
 
 ## Troubleshooting
 
-**Cursor not detecting MCP server:**
-- Verify `.cursor/mcp.json` syntax is correct
-- Restart Cursor after configuration changes
-- Ensure dexto is installed and accessible
-- Verify environment variables are set correctly
+**Issues in Cursor:**
+- Check Dexto logs - `~/.dexto/logs/dexto.log`
+- Run agent in debug mode
+- Reach out for support on Truffle AI discord
 
 **Debug mode:**
 ```bash
