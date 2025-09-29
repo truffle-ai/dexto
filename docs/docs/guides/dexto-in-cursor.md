@@ -26,7 +26,7 @@ Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root.
   "mcpServers": {
     "dexto": {
       "command": "dexto",
-      "args": ["--mode", "mcp", "--agent", "music-agent", "--auto-approve"],
+      "args": ["--mode", "mcp", "--agent", "music-agent", "--auto-approve"]
     }
   }
 }
@@ -35,7 +35,7 @@ Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root.
 ```json title=".cursor/mcp.json (just dexto section)"
 "dexto": {
   "command": "dexto",
-  "args": ["--mode", "mcp", "--agent", "music-agent", "--auto-approve"],
+  "args": ["--mode", "mcp", "--agent", "music-agent", "--auto-approve"]
 }
 ```
 
