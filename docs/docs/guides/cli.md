@@ -199,7 +199,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Using dexto as an MCP Server](../mcp/dexto-as-mcp-server) to understand more about MCP servers.
+Check [Dexto Agents as MCP Servers](../mcp/dexto-as-mcp-server) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash

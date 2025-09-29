@@ -32,6 +32,13 @@ Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root.
 }
 ```
 
+```json title=".cursor/mcp.json (just dexto section)"
+"dexto": {
+  "command": "dexto",
+  "args": ["--mode", "mcp", "--agent", "music-agent", "--auto-approve"],
+}
+```
+
 Replace `music-agent` with any of the agents you see in `dexto list-agents`
 
 ### Expose a custom agent
@@ -48,6 +55,15 @@ Point Cursor at a custom agent file to tailor the available tools:
       ]
     }
   }
+}
+```
+
+```json title=".cursor/mcp.json (just dexto section)"
+"dexto": {
+  "command": "npx",
+  "args": [
+    "-y", "dexto", "--mode", "mcp", "--agent", "<path_to_your_custom_agent.yml>"
+  ]
 }
 ```
 

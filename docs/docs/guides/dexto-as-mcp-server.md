@@ -46,19 +46,29 @@ Most MCP-compatible clients expect a command plus optional arguments. A minimal 
 }
 ```
 
-Use `--agent` if you want to expose a specific agent (installed or from file):
+Just the `dexto` section for easy copying:
 
 ```json
-{
-  "command": "npx",
-  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "music-agent"]
+"dexto": {
+  "command": "dexto",
+  "args": ["--mode", "mcp", "--auto-approve"]
 }
 ```
 
-Need debug logs? Add DEXTO_LOG_LEVEL env variable
+
+Use `--agent` if you want to expose a specific agent (installed or from file):
 
 ```json
-{
+"dexto": {
+  "command": "dexto",
+  "args": ["--agent", "music-agent", "--mode", "mcp", "--auto-approve"]
+}
+```
+
+Need debug logs? Add `DEXTO_LOG_LEVEL` env variable
+
+```json
+"dexto": {
   "command": "npx",
   "args": ["-y", "dexto", "--mode", "mcp", "--agent", "music-agent"],
   "env": { "DEXTO_LOG_LEVEL": "debug" }
