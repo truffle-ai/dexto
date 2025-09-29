@@ -87,6 +87,7 @@ program
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
+    .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
@@ -671,13 +672,14 @@ program
                         }
 
                         // Check setup state and auto-trigger if needed
-                        if (await requiresSetup()) {
+                        // Skip if --skip-setup flag is set (for MCP mode, automation, etc.)
+                        if (!opts.skipSetup && (await requiresSetup())) {
                             if (opts.interactive === false) {
                                 console.error(
                                     '❌ Setup required but --no-interactive flag is set.'
                                 );
                                 console.error(
-                                    '💡 Run `dexto setup` to configure preferences first.'
+                                    '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.'
                                 );
                                 safeExit('main', 1, 'setup-required-non-interactive');
                             }
