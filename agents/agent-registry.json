@@ -8,6 +8,13 @@
       "source": "database-agent/",
       "main": "database-agent.yml"
     },
+    "github-agent": {
+      "description": "GitHub operations agent powered by the OAuth-enabled GitHub MCP server",
+      "author": "Truffle AI",
+      "tags": ["github", "repositories", "collaboration", "devops", "mcp"],
+      "source": "github-agent/",
+      "main": "github-agent.yml"
+    },
     "talk2pdf-agent": {
       "description": "PDF document analysis and conversation",
       "author": "Truffle AI",
