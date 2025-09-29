@@ -60,6 +60,8 @@ Once connected, use Cursor's MCP panel or chat to run tools such as `chat_with_a
 - **Project analysis:** “Ask Dexto agent to explain the current architecture.”
 - **Web research:** “Ask Dexto agent to find the latest React 19 release notes.”
 
+[![Cursor running Dexto MCP agent](/img/Cursor_Dexto_Agent_Screenshot.png)](/img/Cursor_Dexto_Agent_Screenshot.png)
+
 Combine this with your own agent configuration to enable domain-specific workflows—everything from documentation search to infrastructure automation.
 
 
