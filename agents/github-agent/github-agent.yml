@@ -13,6 +13,9 @@ mcpServers:
       - -y
       - '@truffle-ai/github-mcp-server'
       - stdio
+    # Optional: uncomment to override the default OAuth scopes requested during the device flow
+    # env:
+    #   GITHUB_OAUTH_SCOPES: 'repo read:user'
 
 systemPrompt:
   contributors:

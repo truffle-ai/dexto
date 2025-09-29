@@ -31,6 +31,7 @@ Subsequent sessions reuse the cached token unless it expires or you delete the f
 You can tailor the underlying MCP server by exporting environment variables before starting Dexto:
 
 - `GITHUB_PERSONAL_ACCESS_TOKEN`: Provide a PAT (with `repo` and `read:user` at minimum) if you need to bypass OAuth or run in headless environments.
+- `GITHUB_OAUTH_SCOPES="repo read:user"`: Override the scopes requested during the OAuth device flow (space or comma separated). Use this to request additional permissions (e.g., `gist`) or limit scopes in tightly controlled environments.
 - `GITHUB_TOOLSETS="repos,issues,pull_requests,actions"`: Restrict which groups of tools the agent loads. Available groups include `repos`, `issues`, `pull_requests`, `actions`, `notifications`, `discussions`, `projects`, `code_security`, `dependabot`, `secret_protection`, `security_advisories`, `users`, `orgs`, `gists`, `context`, and `experiments`.
 - `GITHUB_READ_ONLY=1`: Offer only read-only tools; write operations will be hidden.
 - `GITHUB_DYNAMIC_TOOLSETS=1`: Enable on-demand toolset discovery so the model only activates tools as needed.
