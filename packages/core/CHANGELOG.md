@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.1.9
+
+### Patch Changes
+
+- 27778ba: Add claude 4.5 sonnet and make it default
+
 ## 1.1.8
 
 ### Patch Changes
