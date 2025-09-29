@@ -1,5 +1,15 @@
 # dexto
 
+## 1.1.8
+
+### Patch Changes
+
+- 35d82cc: Add github agent and update registry
+- d79d358: Add agent toggle functionality to webui
+- d79d358: Add new functions for agent management to DextoAgent()
+- Updated dependencies [d79d358]
+    - @dexto/core@1.1.8
+
 ## 1.1.7
 
 ### Patch Changes

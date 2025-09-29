@@ -1,5 +1,12 @@
 # @dexto/webui
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [d79d358]
+    - @dexto/core@1.1.8
+
 ## 0.1.4
 
 ### Patch Changes
