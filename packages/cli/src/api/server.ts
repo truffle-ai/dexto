@@ -144,6 +144,10 @@ export async function initializeApi(
     webhookSubscriber: WebhookEventSubscriber;
 }> {
     const app = express();
+    // Declare before registering shutdown hook to avoid TDZ on signals
+    let activeAgent: DextoAgent = agent;
+    let activeAgentName: string | undefined = agentName || 'default';
+    let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
     // this will apply middleware to all /api/llm/* routes
     app.use('/api/llm', expressRedactionMiddleware);
@@ -151,12 +155,6 @@ export async function initializeApi(
 
     const server = http.createServer(app);
     const wss = new WebSocketServer({ server });
-
-    // set up event broadcasting over WebSocket
-    // Track active agent and identifier for switch/install APIs
-    let activeAgent: DextoAgent = agent;
-    let activeAgentName: string | undefined = agentName || 'default';
-    let isSwitchingAgent = false;
 
     logger.info(`Initializing API server with agent: ${activeAgentName}`);
 
