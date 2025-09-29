@@ -781,6 +781,7 @@ export async function initializeApi(
 
     app.get('/api/agents/current', async (_req, res, next) => {
         try {
+            // TODO: Consider exposing agent.getName() method or config.name for more accurate tracking
             return sendJsonResponse(res, { name: activeAgentName ?? 'default' });
         } catch (error) {
             return next(error);
