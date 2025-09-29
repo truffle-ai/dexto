@@ -46,6 +46,7 @@ Some of the cool things you can do with Dexto CLI:
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
 | `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
+| `--auto-approve` | Auto-approve all tool executions | `dexto --auto-approve -p "format my repo"` |
 | `--web-port <port>` | Web UI port | `dexto --mode web --web-port 3001` |
 
 ### Subcommands
@@ -138,6 +139,14 @@ dexto --strict
 ```
 
 This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers) for more details on connection modes.
+
+#### **Skip tool confirmation prompts during development**
+
+```bash
+dexto --auto-approve "refactor my project using the filesystem and browser tools"
+```
+
+Use the `--auto-approve` flag when you trust the tools being triggered and want to bypass interactive confirmation prompts. This flag overrides the `toolConfirmation.mode` defined in your agent config for the current run only.
 
 #### **Run a specific command with Dexto CLI:**
 

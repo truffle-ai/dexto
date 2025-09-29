@@ -2,8 +2,6 @@
   <img src="https://raw.githubusercontent.com/truffle-ai/dexto/main/.github/assets/dexto-logo.svg" alt="Dexto" width="100%" style="max-width: 1000px" />
 </a>
 
-# Dexto
-
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Beta-yellow">
   <img src="https://img.shields.io/badge/License-Elastic%202.0-blue.svg">
@@ -78,6 +76,14 @@ dexto --mode web
 ```
 
 In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI allows you to navigate previous conversations and experiment with different models, tools and more.
+
+### Skip Tool Prompts While Prototyping
+
+```bash
+dexto --auto-approve "refactor my project using the filesystem and browser tools"
+```
+
+Use the `--auto-approve` flag to bypass confirmation prompts when you trust the tools being invoked—perfect for fast local iteration. Remove the flag when you want explicit approval again.
 
 ## Agent Recipes
 

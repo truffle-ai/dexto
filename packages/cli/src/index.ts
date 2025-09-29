@@ -89,6 +89,7 @@ program
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
+    .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
     .option('-c, --continue', 'Continue most recent conversation')
     .option('-r, --resume <sessionId>', 'Resume session by ID')
     .option(
@@ -558,6 +559,8 @@ program
             '  dexto -c                 Continue most recent conversation\n' +
             '  dexto -c -p "query"      Continue conversation, then exit\n' +
             '  dexto -r "<session-id>" "query"  Resume session by ID\n\n' +
+            'Tool Confirmation:\n' +
+            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode web         Run web UI\n' +
             '  dexto --mode server      Run as API server\n' +
@@ -783,13 +786,22 @@ program
                 // ——— Dispatch based on --mode ———
                 switch (opts.mode) {
                     case 'cli': {
-                        // Set up CLI tool confirmation subscriber
-                        const { CLIToolConfirmationSubscriber } = await import(
-                            './cli/tool-confirmation/cli-confirmation-handler.js'
-                        );
-                        const cliSubscriber = new CLIToolConfirmationSubscriber();
-                        cliSubscriber.subscribe(agent.agentEventBus);
-                        logger.info('Setting up CLI event subscriptions...');
+                        const toolConfirmationMode =
+                            agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
+
+                        if (toolConfirmationMode === 'event-based') {
+                            // Set up CLI tool confirmation subscriber
+                            const { CLIToolConfirmationSubscriber } = await import(
+                                './cli/tool-confirmation/cli-confirmation-handler.js'
+                            );
+                            const cliSubscriber = new CLIToolConfirmationSubscriber();
+                            cliSubscriber.subscribe(agent.agentEventBus);
+                            logger.info('Setting up CLI event subscriptions...');
+                        } else {
+                            logger.info(
+                                `Tool confirmation mode '${toolConfirmationMode}' active – skipping interactive CLI approval prompts.`
+                            );
+                        }
 
                         if (headlessInput) {
                             // One shot CLI

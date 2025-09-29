@@ -28,6 +28,11 @@ export function validateCliOptions(opts: any): void {
             },
             { message: 'Web port must be a number between 1 and 65535' }
         ),
+        autoApprove: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe('Automatically approve all tool executions when true'),
         provider: z.string().optional(),
         model: z.string().optional(),
         router: z.enum(['vercel', 'in-built']).optional(),
@@ -88,6 +93,7 @@ export function validateCliOptions(opts: any): void {
         model: opts.model,
         router: opts.router,
         interactive: opts.interactive,
+        autoApprove: opts.autoApprove,
     });
 }
 
