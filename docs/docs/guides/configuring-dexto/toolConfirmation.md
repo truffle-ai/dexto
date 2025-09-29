@@ -146,6 +146,8 @@ toolConfirmation:
 - Trusted automation scripts
 - Testing scenarios where manual approval isn't practical
 
+> Tip: Running `dexto` from the CLI? Pass `--auto-approve` to override confirmation prompts without editing your `agent.yml`.
+
 ### `auto-deny`
 Automatically deny all tool execution attempts.
 

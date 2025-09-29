@@ -79,6 +79,14 @@ dexto --mode web
 
 In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI allows you to navigate previous conversations and experiment with different models, tools and more.
 
+### Skip Tool Prompts While Prototyping
+
+```bash
+dexto --auto-approve "refactor my project using the filesystem and browser tools"
+```
+
+Use the `--auto-approve` flag to bypass confirmation prompts when you trust the tools being invoked—perfect for fast local iteration. Remove the flag when you want explicit approval again.
+
 ## Agent Recipes
 
 Dexto comes with pre-built agent recipes for common use cases. Install and use them instantly:

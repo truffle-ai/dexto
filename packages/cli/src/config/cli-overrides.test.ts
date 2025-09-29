@@ -22,6 +22,11 @@ describe('CLI Overrides', () => {
             apiKey: 'file-api-key',
             router: 'vercel', // Add router field so test expectations work
         },
+        toolConfirmation: {
+            mode: 'event-based',
+            timeout: 120000,
+            allowedToolsStorage: 'storage',
+        },
     };
 
     test('applies CLI overrides correctly', () => {
@@ -96,6 +101,8 @@ describe('CLI Overrides', () => {
             expect(result.mcpServers.test.command).toBe('node');
             expect(result.mcpServers.test.args).toEqual(['agent-server.js']);
         }
+        expect(result.toolConfirmation?.timeout).toBe(120000);
+        expect(result.toolConfirmation?.allowedToolsStorage).toBe('storage');
     });
 
     test('handles undefined values in overrides gracefully', () => {
@@ -110,5 +117,16 @@ describe('CLI Overrides', () => {
         expect(result.llm.provider).toBe('openai'); // Original (undefined ignored)
         expect(result.llm.router).toBe('vercel'); // Original (undefined ignored)
         expect(result.llm.apiKey).toBe('file-api-key'); // Original (undefined ignored)
+    });
+
+    test('sets tool confirmation mode to auto-approve when override enabled', () => {
+        const cliOverrides: CLIConfigOverrides = {
+            autoApprove: true,
+        };
+
+        const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
+
+        expect(result.toolConfirmation?.mode).toBe('auto-approve');
+        expect(result.toolConfirmation?.timeout).toBe(120000); // Existing fields preserved
     });
 });
