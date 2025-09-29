@@ -111,13 +111,13 @@ dexto
 #### **Start dexto CLI with a different LLM**
 ```bash
 # openai
-dexto -m gpt-4o
+dexto -m gpt-5-mini
 
 # anthropic
-dexto -m claude-4-sonnet-20250514
+dexto -m claude-sonnet-4-5-20250929
 
 # google
-dexto -m gemini-2.0-flash
+dexto -m gemini-2.5-flash
 ```
 
 
