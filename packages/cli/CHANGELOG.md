@@ -1,5 +1,12 @@
 # dexto
 
+## 1.1.7
+
+### Patch Changes
+
+- 4216e79: Add auto approve flag
+    - @dexto/core@1.1.7
+
 ## 1.1.6
 
 ### Patch Changes
