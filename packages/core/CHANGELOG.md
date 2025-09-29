@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.1.8
+
+### Patch Changes
+
+- d79d358: Add new functions for agent management to DextoAgent()
+
 ## 1.1.7
 
 ## 1.1.6
