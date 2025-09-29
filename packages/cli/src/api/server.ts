@@ -144,7 +144,7 @@ export async function initializeApi(
     webhookSubscriber: WebhookEventSubscriber;
 }> {
     const app = express();
-    registerGracefulShutdown(agent);
+    registerGracefulShutdown(() => activeAgent);
     // this will apply middleware to all /api/llm/* routes
     app.use('/api/llm', expressRedactionMiddleware);
     app.use('/api/config.yaml', expressRedactionMiddleware);
@@ -257,7 +257,10 @@ export async function initializeApi(
 
             return { name };
         } catch (error) {
-            logger.error(`Failed to switch to agent ${name}:`, error);
+            logger.error(
+                `Failed to switch to agent '${name}': ${error instanceof Error ? error.message : String(error)}`,
+                { error }
+            );
 
             // Clean up the failed new agent if it was created
             if (newAgent) {
@@ -773,7 +776,7 @@ export async function initializeApi(
         }
     });
 
-    const AgentNameSchema = z.object({ name: z.string().min(1) });
+    const AgentNameSchema = z.object({ name: z.string().min(1) }).strict();
 
     app.post('/api/agents/install', express.json(), async (req, res, next) => {
         try {
