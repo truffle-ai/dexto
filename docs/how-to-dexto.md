@@ -154,7 +154,7 @@ dexto
 ```
 
 **Key CLI Flags:**
-- `-m, --model <model_name>`: Switch LLM model (e.g., `claude-4-sonnet-20250514`). Overrides config file.
+- `-m, --model <model_name>`: Switch LLM model (e.g., `claude-sonnet-4-5-20250929`). Overrides config file.
 - `-a, --agent <path/to/agent.yml>`: Use a specific agent configuration file.
 - `--mode <mode>`: Change the run mode.
 - `--new-session [id]`: Start a new chat session.
