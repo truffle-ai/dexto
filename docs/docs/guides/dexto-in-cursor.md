@@ -5,6 +5,7 @@ sidebar_label: "Dexto Agents in Cursor"
 description: Connect Dexto agents to Cursor via the Model Context Protocol (MCP).
 ---
 
+
 # Using Dexto Agents in Cursor
 
 Cursor ships with native MCP support, which means you can talk to your Dexto agents directly inside the editor. This guide walks through the minimal configuration required and highlights a few power tips for customizing the experience.
@@ -60,7 +61,16 @@ Once connected, use Cursor's MCP panel or chat to run tools such as `chat_with_a
 - **Project analysis:** “Ask Dexto agent to explain the current architecture.”
 - **Web research:** “Ask Dexto agent to find the latest React 19 release notes.”
 
-[![Cursor running Dexto MCP agent](/img/Cursor_Dexto_Agent_Screenshot.png)](/img/Cursor_Dexto_Agent_Screenshot.png)
+<p class="lightbox-gallery">
+  <a href="#cursor-dexto-screenshot" class="lightbox-thumb">
+    <img src="/img/cursor/dexto-agent-cursor.png" alt="Cursor running a Dexto MCP agent" />
+  </a>
+</p>
+
+<div id="cursor-dexto-screenshot" class="lightbox-target">
+  <img src="/img/cursor/dexto-agent-cursor.png" alt="Cursor running a Dexto MCP agent" />
+  <a class="lightbox-close" href="#"></a>
+</div>
 
 Combine this with your own agent configuration to enable domain-specific workflows—everything from documentation search to infrastructure automation.
 
