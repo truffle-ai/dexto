@@ -57,7 +57,7 @@ export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
  */
 async function _initCli(agent: DextoAgent): Promise<void> {
     // Note: Session loading is now handled by the main CLI logic, not here
-    registerGracefulShutdown(agent);
+    registerGracefulShutdown(() => agent);
 
     // Gather startup information
     const llmConfig = agent.getCurrentLLMConfig();

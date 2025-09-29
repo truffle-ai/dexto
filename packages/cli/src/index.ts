@@ -829,7 +829,8 @@ program
                         await startApiServer(
                             agent,
                             apiPort,
-                            agent.getEffectiveConfig().agentCard || {}
+                            agent.getEffectiveConfig().agentCard || {},
+                            opts.agent
                         );
 
                         // Start Next.js web server
@@ -866,7 +867,7 @@ program
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                        await startApiServer(agent, apiPort, agentCard);
+                        await startApiServer(agent, apiPort, agentCard, opts.agent);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
                         console.log('  POST /api/message - Send async message');
