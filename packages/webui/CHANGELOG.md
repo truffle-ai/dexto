@@ -1,5 +1,11 @@
 # @dexto/webui
 
+## 0.1.7
+
+### Patch Changes
+
+- @dexto/core@1.1.10
+
 ## 0.1.6
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # dexto
 
+## 1.1.10
+
+### Patch Changes
+
+- 0f4d181: Add skip setup flag
+    - @dexto/core@1.1.10
+
 ## 1.1.9
 
 ### Patch Changes
