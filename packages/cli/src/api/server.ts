@@ -282,6 +282,9 @@ export async function initializeApi(
         res.status(200).send('OK');
     });
 
+    // TODO: Raise JSON body size limit for message endpoints
+    // Both /api/message and /api/message-sync accept base64 image/file payloads; express.json() defaults to ~100KB,
+    // which will reject typical attachments. Set an explicit limit (env-driven) to avoid 413s.
     app.post('/api/message', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message');
         try {
@@ -336,6 +339,7 @@ export async function initializeApi(
     });
 
     // Synchronous endpoint: await the full AI response and return it in one go
+    // TODO: Also needs JSON body size limit increase for image/file uploads
     app.post('/api/message-sync', express.json(), async (req, res, next) => {
         logger.info('Received message via POST /api/message-sync');
         try {
@@ -736,7 +740,9 @@ export async function initializeApi(
         const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
         const mcpTransport = await createMcpTransport(transportType);
 
-        // TODO: Think of a better way to handle the MCP implementation
+        // TODO: MCP server is bound to the initial agent; breaks after agent switch
+        // initializeMcpServer receives the original agent, so MCP endpoints keep talking to the stale instance post-switch.
+        // Make MCP consume the current agent via a getter to stay in sync.
         await initializeMcpServer(
             agent,
             agentCardData, // Pass the agent card data for the MCP resource
