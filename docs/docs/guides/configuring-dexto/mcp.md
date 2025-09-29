@@ -35,12 +35,11 @@ See: [MCP › Configure Connections](../../mcp/connecting-servers)
 - Add/update/remove servers dynamically via the SDK or REST APIs
 - Events: `dexto:mcpServerAdded`, `dexto:mcpServerUpdated`, `dexto:mcpServerRemoved`
 
-See: [MCP › MCP Manager](../../mcp/mcp-manager)
+See: [MCP Manager](../mcp-manager)
 
 ## Next steps
 
 - [MCP › Overview](../../mcp/overview)
 - [MCP › Configure Connections](../../mcp/connecting-servers)
-- [MCP › Dexto as an MCP Server](../../mcp/dexto-as-mcp-server)
-
+- [Dexto as an MCP Server](../dexto-as-mcp-server)
 
