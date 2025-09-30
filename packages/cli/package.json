@@ -28,7 +28,7 @@
     "zod": "^3.25.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && pnpm run copy-agents",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.build.json && pnpm run copy-agents",
     "copy-agents": "tsx scripts/copy-agents.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",

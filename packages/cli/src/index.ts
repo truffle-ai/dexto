@@ -792,11 +792,11 @@ program
                             agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
 
                         if (toolConfirmationMode === 'event-based') {
-                            // Set up CLI tool confirmation subscriber
-                            const { CLIToolConfirmationSubscriber } = await import(
-                                './cli/tool-confirmation/cli-confirmation-handler.js'
+                            // Set up CLI user approval subscriber (tool confirmations + elicitation)
+                            const { CLIUserApprovalSubscriber } = await import(
+                                './cli/user-approval/cli-user-approval-subscriber.js'
                             );
-                            const cliSubscriber = new CLIToolConfirmationSubscriber();
+                            const cliSubscriber = new CLIUserApprovalSubscriber();
                             cliSubscriber.subscribe(agent.agentEventBus);
                             logger.info('Setting up CLI event subscriptions...');
                         } else {

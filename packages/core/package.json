@@ -46,7 +46,7 @@
     "@types/json-schema": "^7.0.15"
   },
   "scripts": {
-    "build": "tsup && node scripts/fix-dist-aliases.mjs",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"
   },
