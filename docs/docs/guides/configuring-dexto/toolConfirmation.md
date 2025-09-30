@@ -146,6 +146,8 @@ toolConfirmation:
 - Trusted automation scripts
 - Testing scenarios where manual approval isn't practical
 
+> Tip: Running `dexto` from the CLI? Pass `--auto-approve` to override confirmation prompts without editing your `agent.yml`.
+
 ### `auto-deny`
 Automatically deny all tool execution attempts.
 
@@ -327,7 +329,7 @@ When building custom applications with Dexto, you'll need to implement tool conf
 For custom applications using Dexto:
 
 ```typescript
-import { DextoAgent, AgentEventBus } from 'dexto';
+import { DextoAgent, AgentEventBus } from '@dexto/core';
 
 class CustomToolConfirmationHandler {
   constructor(private agentEventBus: AgentEventBus) {

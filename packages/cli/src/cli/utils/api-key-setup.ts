@@ -170,7 +170,7 @@ function showManualSetupInstructions(provider: LLMProvider): void {
         `${chalk.bold('1. Get an API key:')}`,
         `   • ${chalk.green('Google Gemini (Free)')}:  https://aistudio.google.com/apikey`,
         `   • ${chalk.blue('OpenAI')}:           https://platform.openai.com/api-keys`,
-        `   • ${chalk.magenta('Anthropic')}:        https://console.anthropic.com/keys`,
+        `   • ${chalk.magenta('Anthropic')}:        https://console.anthropic.com/settings/keys`,
         `   • ${chalk.yellow('Groq (Free)')}:      https://console.groq.com/keys`,
         ``,
         ...envInstructions,

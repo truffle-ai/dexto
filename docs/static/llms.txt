@@ -6,9 +6,10 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 
 ### Getting Started
 
-- [Build Your First Agent](https://docs.dexto.ai/docs/getting-started/first-agent-tutorial.md): Build Your First Agent
-- [Installation](https://docs.dexto.ai/docs/getting-started/installation.md): Installation
 - [Introduction](https://docs.dexto.ai/docs/getting-started/intro.md): Introduction
+- [Installation](https://docs.dexto.ai/docs/getting-started/installation.md): Installation
+- [Build Your First Agent](https://docs.dexto.ai/docs/getting-started/build-first-agent-tutorial.md): Build Your First Agent
+- [Install Your First Agent](https://docs.dexto.ai/docs/getting-started/install-first-agent-tutorial.md): Install Your First Agent
 
 ### Guides
 
@@ -26,7 +27,8 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [System Prompt Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/systemPrompt.md): System Prompt Configuration
 - [Tool Confirmation Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/toolConfirmation.md): Tool Confirmation Configuration
 - [Deployment Guide](https://docs.dexto.ai/docs/guides/deployment.md): Deployment Guide
-- [Using Dexto as an MCP Server](https://docs.dexto.ai/docs/guides/dexto-as-mcp-server.md): Using Dexto as an MCP Server
+- [Dexto as an MCP Server](https://docs.dexto.ai/docs/guides/dexto-as-mcp-server.md): Dexto Agent as an MCP Server
+- [Using Dexto Agents in Cursor](https://docs.dexto.ai/docs/guides/dexto-in-cursor.md): Using Dexto Agents in Cursor
 - [Using Dexto CLI to group MCP servers together](https://docs.dexto.ai/docs/guides/dexto-group-mcp-servers.md): Using Dexto CLI to group MCP servers together
 - [Dexto SDK Guide](https://docs.dexto.ai/docs/guides/dexto-sdk.md): Dexto SDK Guide
 - [MCP Manager](https://docs.dexto.ai/docs/guides/mcp-manager.md): MCP Manager
@@ -35,7 +37,7 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 ### MCP
 
 - [Configure MCP Connections](https://docs.dexto.ai/docs/mcp/connecting-servers.md): Configure MCP Connections
-- [Expose Dexto as an MCP Server](https://docs.dexto.ai/docs/mcp/dexto-as-mcp-server.md): Expose Dexto as an MCP Server
+- [Dexto as an MCP Server](https://docs.dexto.ai/docs/mcp/dexto-as-mcp-server.md): Expose Dexto as an MCP Server
 - [Aggregate Multiple MCP Servers](https://docs.dexto.ai/docs/mcp/grouping-servers.md): Aggregate Multiple MCP Servers
 - [MCP Manager](https://docs.dexto.ai/docs/mcp/mcp-manager.md): MCP Manager
 - [MCP Overview](https://docs.dexto.ai/docs/mcp/overview.md): MCP Overview
@@ -86,4 +88,3 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [System](https://docs.dexto.ai/api/rest/system.md): System
 - [SDK Types for TypeScript](https://docs.dexto.ai/api/types.md): SDK Types for TypeScript
 - [WebSocket API](https://docs.dexto.ai/api/websocket.md): WebSocket API
-

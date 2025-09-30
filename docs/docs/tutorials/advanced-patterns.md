@@ -74,7 +74,7 @@ mcpServers:
 ### Using Specialized Agents
 ```typescript
 // specialized-agents.ts
-import { loadConfigFile, DextoAgent } from 'dexto';
+import { loadConfigFile, DextoAgent } from '@dexto/core';
 
 class AgentOrchestrator {
   private codeReviewer: any;

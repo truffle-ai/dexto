@@ -279,6 +279,22 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         logger.debug('WebSocket event subscriber cleaned up');
     }
 
+    /**
+     * Unsubscribe from current event bus without closing WebSocket clients.
+     * Useful when switching the active agent and re-subscribing to a new bus.
+     */
+    unsubscribe(): void {
+        if (this.abortController) {
+            const controller = this.abortController;
+            delete this.abortController;
+            try {
+                controller.abort();
+            } catch (error) {
+                logger.debug('Error aborting controller during unsubscribe:', error);
+            }
+        }
+    }
+
     private broadcast(message: { event: string; data?: Record<string, any> }): void {
         const messageString = JSON.stringify(message);
         for (const client of this.connections) {

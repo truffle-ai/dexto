@@ -6,12 +6,13 @@
 import type { AgentConfig, LLMConfig } from '@dexto/core';
 
 /**
- * CLI config override type for LLM fields that can be overridden via CLI
+ * CLI config override type for fields that can be overridden via CLI
  * Uses input type (LLMConfig) since these represent user-provided CLI arguments
  */
-export type CLIConfigOverrides = Partial<
-    Pick<LLMConfig, 'provider' | 'model' | 'router' | 'apiKey'>
->;
+export interface CLIConfigOverrides
+    extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'router' | 'apiKey'>> {
+    autoApprove?: boolean;
+}
 
 /**
  * Applies CLI overrides to an agent configuration
@@ -51,6 +52,15 @@ export function applyCLIOverrides(
     }
     if (cliOverrides.apiKey) {
         mergedConfig.llm.apiKey = cliOverrides.apiKey;
+    }
+
+    if (cliOverrides.autoApprove) {
+        // Ensure toolConfirmation section exists before overriding
+        if (!mergedConfig.toolConfirmation) {
+            mergedConfig.toolConfirmation = {} as AgentConfig['toolConfirmation'];
+        }
+
+        mergedConfig.toolConfirmation.mode = 'auto-approve';
     }
 
     // Return merged config without validation - validation happens later

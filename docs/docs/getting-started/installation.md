@@ -8,7 +8,11 @@ This guide will walk you through installing the Dexto CLI and setting up your en
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/en/download) >= 20.0.0
-- An [OpenAI API Key](https://platform.openai.com/api-keys)
+- An LLM API Key:
+  -  [Get an OpenAI Key](https://platform.openai.com/api-keys)
+  -  [Get a Gemini Key](https://aistudio.google.com/apikey)
+  -  [Get a Claude Key](https://console.anthropic.com/settings/keys)
+  -  [Get a Groq Key](https://console.groq.com/keys)
 
 ### 1. Install Dexto
 Install Dexto globally using npm:
@@ -18,41 +22,19 @@ npm install -g dexto
 ```
 This adds the `dexto` command to your system, giving you access to the agent runtime.
 
-### 2. Set Your API Key
-Dexto agents use Large Language Models. Set the API key(s) for your chosen provider(s):
+### 2. Run dexto for the first time
 
 ```bash
-# OpenAI
-export OPENAI_API_KEY="sk-..."
-
-# Anthropic
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Google Gemini
-export GOOGLE_GENERATIVE_AI_API_KEY="AIza..."
-
-# Groq
-export GROQ_API_KEY="gsk_..."
-
-# XAI
-export XAI_API_KEY="xai_..."
-
-# Cohere
-export COHERE_API_KEY="cohere_..."
+dexto
 ```
 
-Dexto auto-detects keys based on provider selection (CLI flag `--model` can infer provider).
+This triggers the first time setup, where you will be asked to set up your preferred Large Language Model (LLM) and enter the API key.
 
-### 3. Verify Your Installation
-Test your installation with a simple command:
+Once setup is complete, you should see a terminal UI open, you can now interact with your first dexto agent! Say hi!
 
-```bash
-dexto "What is the meaning of life?"
-```
-
-If you receive a response, your installation is successful and the runtime is working correctly.
+Note: You can re-run the setup at any time with the command `dexto setup`
 
 ## Next Step: Build Your First Agent
 Now that Dexto is installed, you're ready to create your first custom agent with its own configuration and capabilities.
 
-Continue to the **[First Agent Tutorial](./first-agent-tutorial.md)** to learn how to build agents using declarative configuration. 
+Continue to the **[Build Your First Agent Tutorial](./build-first-agent-tutorial)** to learn how to build agents using declarative configuration. 

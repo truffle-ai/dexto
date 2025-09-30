@@ -13,6 +13,7 @@ let cachedRegistry: LocalAgentRegistry | null = null;
 
 /**
  * Local agent registry implementation
+ * TODO: MOVE THIS INTO CLI WHERE IT IS USED, and add posthog instrumentation for install/uninstall/resolve/etc, similar to manual install command
  */
 export class LocalAgentRegistry implements AgentRegistry {
     private _registry: Registry | null = null;
@@ -36,15 +37,16 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         try {
             jsonPath = resolveBundledScript('agents/agent-registry.json');
-        } catch (_error) {
+        } catch (error) {
             // Preserve typed error semantics for missing registry
             throw RegistryError.registryNotFound(
-                'agents/agent-registry.json (bundle resolution failed)'
+                'agents/agent-registry.json',
+                error instanceof Error ? error.message : String(error)
             );
         }
 
         if (!existsSync(jsonPath)) {
-            throw RegistryError.registryNotFound(jsonPath);
+            throw RegistryError.registryNotFound(jsonPath, "File doesn't exist");
         }
 
         try {

@@ -4,6 +4,9 @@ sidebar_position: 3
 
 # Build Your First Agent
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 Now that you have Dexto installed, let's build your first custom agent. This tutorial will guide you through creating an `agent.yml` file to define an agent with a unique personality and tools.
 
 ### 1. Create Your Agent Configuration
@@ -16,6 +19,20 @@ mkdir my-pirate-agent
 cd my-pirate-agent
 ```
 
+Now create a file `agent.yml`, and choose your LLM model and provider.
+
+Choose the same one you picked when you setup dexto.
+
+<Tabs groupId="llm-provider" defaultValue="openai" values={[
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'Anthropic', value: 'anthropic' },
+  { label: 'Google', value: 'google' },
+  { label: 'Groq', value: 'groq' },
+  { label: 'xAI', value: 'xai' },
+  { label: 'Cohere', value: 'cohere' },
+]}> 
+  <TabItem value="openai">
+
 ```yaml
 # agent.yml
 systemPrompt: |
@@ -24,9 +41,83 @@ systemPrompt: |
 llm:
   provider: openai
   model: gpt-4.1-mini
+  apiKey: $OPENAI_API_KEY
 ```
 
-This basic configuration tells the runtime to use OpenAI's `gpt-4.1-mini` model with a simple system prompt.
+  </TabItem>
+  <TabItem value="anthropic">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="google">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: google
+  model: gemini-2.5-pro
+  apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="groq">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: groq
+  model: llama-3.3-70b-versatile
+  apiKey: $GROQ_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="xai">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: xai
+  model: grok-4
+  apiKey: $XAI_API_KEY
+```
+
+  </TabItem>
+  <TabItem value="cohere">
+
+```yaml
+# agent.yml
+systemPrompt: |
+  You are a helpful AI assistant.
+
+llm:
+  provider: cohere
+  model: command-a-03-2025
+  apiKey: $COHERE_API_KEY
+```
+
+  </TabItem>
+</Tabs>
+
+This configuration sets your system prompt and selects a default model for the chosen provider. You can change models any time.
 
 ### 2. Give Your Agent a Personality
 Let's customize your agent by giving it a distinct personality. Modify the `systemPrompt` to create a pirate-themed agent:
@@ -35,10 +126,6 @@ Let's customize your agent by giving it a distinct personality. Modify the `syst
 # agent.yml
 systemPrompt: |
   Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
-
-llm:
-  provider: openai
-  model: gpt-4.1-mini
 ```
 
 Now run your agent from inside the `my-pirate-agent` directory:
@@ -49,40 +136,43 @@ dexto --agent agent.yml "Who are you?"
 
 Your agent should now respond like a pirate. You've just changed your agent's behavior through declarative configuration—no code required.
 
+Note: You can also use `dexto -a <agent>` instead of `dexto --agent <agent>` as a short-hand.
+
 ### 3. Add Tool Integration
 A core feature of Dexto is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
 
-Add the `puppeteer` tool to your configuration:
+Add the `playwright` tool to your configuration [llm section remains unchanged]:
 
 ```yaml
 # agent.yml
 systemPrompt: |
   Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
 
-llm:
-  provider: openai
-  model: gpt-4.1-mini
-
 mcpServers:
-  puppeteer:
+  playwright:
     type: stdio
     command: npx
-    args: ["-y", "@truffle-ai/puppeteer-server"]
+    args:
+      - "-y"
+      - "@playwright/mcp@latest"
 ```
 
 The runtime will automatically handle tool installation and integration when you first run the agent.
 
-### 4. Test Your Enhanced Agent
-Start an interactive session with your enhanced agent:
+### 4. Test Your Enhanced Agent In the Web UI
+Start an interactive session with your enhanced agent, this time in the web UI:
 
 ```bash
-dexto --agent agent.yml
+dexto --agent agent.yml --mode web
 ```
+
+This will open the Dexto Web UI, which is a web interface for you to talk to your agents.
 
 Now ask it to use its new web browsing capability:
 > `summarize the main points of the article at https://en.wikipedia.org/wiki/Piracy`
 
 Your agent will use the puppeteer tool to visit the webpage, read the content, and provide a summary (in pirate voice, of course).
+
 
 ## Congratulations!
 You've just built and customized your first AI agent using declarative configuration. You've learned how to:
@@ -94,4 +184,4 @@ You've just built and customized your first AI agent using declarative configura
 
 This is the fundamental development workflow with Dexto: configure declaratively, let the runtime handle orchestration, and focus on your agent's purpose rather than implementation details.
 
-**Next Steps**: Explore adding more [tools](../concepts/tools.md) or building [multi-agent systems](../tutorials/multi-agent-systems.md).
+Continue to the [Install Your First Agent Tutorial](./install-first-agent-tutorial) to explore in-built agents that come with Dexto!

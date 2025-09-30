@@ -30,6 +30,7 @@ import {
 import { ThemeSwitch } from './ThemeSwitch';
 import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
+import AgentSelector from './AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';
@@ -37,6 +38,8 @@ import type { PromptInfo } from '@dexto/core';
 import { loadPrompts } from '../lib/promptCache';
 
 export default function ChatApp() {
+
+  const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
@@ -109,6 +112,12 @@ export default function ChatApp() {
     lockName?: boolean;
     registryEntryId?: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
+      setIsMac(true);
+    }
+  }, []);
 
   const recomputeIsAtBottom = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -440,6 +449,19 @@ export default function ChatApp() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + Backspace to delete current session
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
+        if (currentSessionId && !isWelcomeState) {
+          e.preventDefault();
+          // If session has messages, show confirmation dialog
+          if (messages.length > 0) {
+            setDeleteDialogOpen(true);
+          } else {
+            // No messages, delete immediately
+            handleDeleteConversation();
+          }
+        }
+      }
       // Ctrl/Cmd + H to toggle sessions panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'h') {
         e.preventDefault();
@@ -528,7 +550,8 @@ export default function ChatApp() {
         })()}
         {/* Clean Header */}
         <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-          <div className="flex justify-between items-center px-4 py-3">
+          <div className="grid grid-cols-3 items-center px-4 py-3">
+            {/* Left Section */}
             <div className="flex items-center space-x-4">
               {/* Chat History Toggle */}
               <Tooltip>
@@ -562,23 +585,35 @@ export default function ChatApp() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
               >
-                <img src="/logos/dexto_logo_light.svg" alt="Dexto" className="h-8 w-auto dark:hidden" />
-                <img src="/logos/dexto_logo.svg" alt="Dexto" className="h-8 w-auto hidden dark:block" />
+                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
+                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
               
               {/* Current Session Indicator - Only show when there's an active session */}
               {currentSessionId && !isWelcomeState && (
-                <div className="flex items-center space-x-2">
-                  <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30">
-                    {currentSessionId}
-                  </Badge>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30 max-w-[120px] cursor-help">
+                      <span className="truncate">
+                        {currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId}
+                      </span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <span className="font-mono">{currentSessionId}</span>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
-          
-            {/* Minimal Action Bar */}
-            <div className="flex items-center space-x-1">
+
+            {/* Center Section - Agent Selector */}
+            <div className="flex justify-center">
+              <AgentSelector mode="badge" />
+            </div>
+
+            {/* Right Section */}
+            <div className="flex items-center justify-end space-x-2">
               <ThemeSwitch />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -700,7 +735,7 @@ export default function ChatApp() {
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
-                      <img src="/logos/dexto_logo_no_text.png" alt="Dexto" className="h-8 w-auto invert dark:invert-0" />
+                      <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                         {greeting ?? "Welcome to Dexto"}
                       </h2>
@@ -744,7 +779,14 @@ export default function ChatApp() {
                 
                   {/* Quick Tips */}
                   <div className="text-xs text-muted-foreground space-y-1 text-center">
-                    <p>💡 Try <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘K</kbd> for new chat, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘J</kbd> for tools, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘L</kbd> for playground, <kbd className="px-1 py-0.5 bg-muted rounded text-xs">⌘/</kbd> for shortcuts</p>
+                    <p>
+                      💡 Try
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘K</kbd> for new chat,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘J</kbd> for tools,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘L</kbd> for playground,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">{isMac ? '⌘⌫' : 'Ctrl+⌫'}</kbd> to delete session,
+                      <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">⌘/</kbd> for shortcuts
+                    </p>
                   </div>
                 </div>
               </div>
@@ -971,6 +1013,7 @@ export default function ChatApp() {
                 { key: '⌘L', desc: 'Open MCP playground' },
                 { key: '⌘⇧E', desc: 'Export config' },
                 { key: '⌘/', desc: 'Show shortcuts' },
+                { key: isMac ? '⌘⌫' : 'Ctrl+⌫', desc: 'Delete current session' },
                 { key: 'Esc', desc: 'Close panels' },
               ].map((shortcut, index) => (
                 <div key={index} className="flex justify-between items-center py-1">

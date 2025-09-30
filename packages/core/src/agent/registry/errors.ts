@@ -111,12 +111,12 @@ export class RegistryError {
     }
 
     // Registry file errors
-    static registryNotFound(registryPath: string) {
+    static registryNotFound(registryPath: string, cause: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.REGISTRY_NOT_FOUND,
             ErrorScope.AGENT_REGISTRY,
             ErrorType.SYSTEM,
-            `Agent registry not found: ${registryPath}`,
+            `Agent registry not found: ${registryPath}: ${cause}`,
             { registryPath },
             'This indicates a problem with the Dexto installation - please reinstall or report this issue'
         );

@@ -1,41 +1,20 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig([
-    // Node build - Full @dexto/core for server-side use
     {
-        entry: {
-            index: 'src/index.ts',
-        },
+        entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/*.integration.test.ts'],
         format: ['cjs', 'esm'],
         outDir: 'dist',
         dts: true,
-        shims: true,
-        bundle: true,
         platform: 'node',
-        noExternal: ['chalk', 'boxen'],
-        external: [
-            'better-sqlite3',
-            'pg',
-            'redis',
-            'winston',
-            'logform',
-            '@colors/colors',
-            'yaml',
-            'fs-extra',
-            'dotenv',
-            'cross-spawn',
-            'tiktoken',
-        ],
-    },
-    // Browser build - Minimal exports for type safety
-    {
-        entry: {
-            'index.browser': 'src/index.browser.ts',
+        bundle: false,
+        clean: true,
+        esbuildOptions(options) {
+            // Suppress empty import meta warnings which tsup anyway fixes
+            options.logOverride = {
+                ...(options.logOverride ?? {}),
+                'empty-import-meta': 'silent',
+            };
         },
-        format: ['cjs', 'esm'],
-        outDir: 'dist',
-        dts: true,
-        shims: true,
-        bundle: true,
     },
 ]);

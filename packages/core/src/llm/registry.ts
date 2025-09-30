@@ -294,10 +294,24 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
+                name: 'claude-sonnet-4-5-20250929',
+                displayName: 'Claude 4.5 Sonnet',
+                maxInputTokens: 200000,
+                default: true,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'claude-4-sonnet-20250514',
                 displayName: 'Claude 4 Sonnet',
                 maxInputTokens: 200000,
-                default: true,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,

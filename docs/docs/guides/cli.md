@@ -46,6 +46,7 @@ Some of the cool things you can do with Dexto CLI:
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
 | `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
+| `--auto-approve` | Auto-approve all tool executions | `dexto --auto-approve -p "format my repo"` |
 | `--web-port <port>` | Web UI port | `dexto --mode web --web-port 3001` |
 
 ### Subcommands
@@ -110,13 +111,13 @@ dexto
 #### **Start dexto CLI with a different LLM**
 ```bash
 # openai
-dexto -m gpt-4o
+dexto -m gpt-5-mini
 
 # anthropic
-dexto -m claude-4-sonnet-20250514
+dexto -m claude-sonnet-4-5-20250929
 
 # google
-dexto -m gemini-2.0-flash
+dexto -m gemini-2.5-flash
 ```
 
 
@@ -138,6 +139,14 @@ dexto --strict
 ```
 
 This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers) for more details on connection modes.
+
+#### **Skip tool confirmation prompts during development**
+
+```bash
+dexto --auto-approve "refactor my project using the filesystem and browser tools"
+```
+
+Use the `--auto-approve` flag when you trust the tools being triggered and want to bypass interactive confirmation prompts. This flag overrides the `toolConfirmation.mode` defined in your agent config for the current run only.
 
 #### **Run a specific command with Dexto CLI:**
 
@@ -190,7 +199,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Using dexto as an MCP Server](../mcp/dexto-as-mcp-server) to understand more about MCP servers.
+Check [Dexto Agents as MCP Servers](./dexto-as-mcp-server) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash
@@ -204,17 +213,63 @@ To use a specific config file:
 dexto mcp --group-servers -a ./dexto-tools.yml
 ```
 
-Check [Using Dexto to group MCP servers](../mcp/grouping-servers) to understand more about MCP server aggregation.
+Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers) to understand more about MCP server aggregation.
 
 
-#### **Change log level for dexto CLI**
+## Environment variables
 
-To change the logging level, set environment variable `DEXTO_LOG_LEVEL` to 'info', 'debug', or 'silly'. Default is 'info'.
+Dexto reads settings from the layered environment loader (`process.env`, `.env`, `.dexto/.env`). After you run `dexto setup`, your LLM credentials live in `~/.dexto/.env`, so you rarely need to touch these variables unless you are customizing runtime behaviour.
 
-ex: for debug logs:
+### General runtime controls
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DEXTO_LOG_LEVEL` | `info` | Controls log verbosity (`error`, `warn`, `info`, `debug`, `silly`). |
+| `DEXTO_LOG_TO_CONSOLE` | `false` | Force console logging even when logs are redirected to file (set to `true`). |
+| `DEXTO_ANALYTICS_DISABLED` | `false` | Opt out of analytics when truthy (`1`, `true`, `yes`). |
+
+### Analytics overrides
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DEXTO_POSTHOG_KEY` | Built-in public key | Supply a custom PostHog project key. |
+| `DEXTO_POSTHOG_HOST` | `https://app.posthog.com` | Point analytics to a self-hosted PostHog instance. |
+
+### Web UI & server configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HOSTNAME` | `0.0.0.0` | Hostname used when launching the Web UI. |
+| `FRONTEND_PORT` | `3000` | Overrides the Next.js port when running `--mode web`. |
+| `PORT` | `3000` | Fallback port used by the API server if `API_PORT` is not set. |
+| `API_PORT` | `3001` | Controls the REST/WebSocket API port for web/server modes. |
+| `API_URL` | `http://localhost:<API_PORT>` | Overrides the API base URL passed to the Web UI. |
+| `FRONTEND_URL` | `http://localhost:<FRONTEND_PORT>` | Overrides the URL opened in the browser when the Web UI starts. |
+| `NEXT_PUBLIC_API_URL` | Derived from `API_URL` | Injects a custom API URL into the Web UI bundle. |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:<API_PORT>` | Injects a custom WebSocket URL into the Web UI bundle. |
+| `NEXT_PUBLIC_FRONTEND_URL` | Derived from `FRONTEND_URL` | Injects a custom frontend URL into the Web UI bundle. |
+| `DEXTO_BASE_URL` | `http://localhost:<PORT>` | Base URL used by the REST server when generating absolute links. |
+| `DEXTO_MCP_TRANSPORT_TYPE` | `http` | Switch between `http` and `stdio` transports for the MCP aggregation server. |
+
+### Discord integration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DISCORD_BOT_TOKEN` | — | Required to enable `--mode discord`. |
+| `DISCORD_RATE_LIMIT_ENABLED` | `true` | Disable Discord rate limiting by setting to `false`. |
+| `DISCORD_RATE_LIMIT_SECONDS` | `5` | Cooldown window for rate limiting in seconds. |
+
+### Telegram integration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | — | Required to enable `--mode telegram`. |
+| `TELEGRAM_INLINE_QUERY_CONCURRENCY` | `4` | Maximum concurrent inline queries handled by the bot. |
+
+#### Change log level on the fly
+
 ```bash
-DEXTO_LOG_LEVEL=debug
-dexto what is the time
+DEXTO_LOG_LEVEL=debug dexto what is the time
 ```
 
 

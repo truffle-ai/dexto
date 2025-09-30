@@ -46,7 +46,7 @@ import {
   
   // Service types
   AgentServices,
-} from 'dexto';
+} from '@dexto/core';
 ```
 
 ---

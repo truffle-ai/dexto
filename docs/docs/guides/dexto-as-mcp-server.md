@@ -1,121 +1,106 @@
 ---
 sidebar_position: 7
-title: "Using Dexto as an MCP Server"
-sidebar_label: "Using Dexto as an MCP Server"
+title: "Dexto Agents as MCP Servers"
+sidebar_label: "Dexto Agents as MCP Servers"
 ---
 
-# Using Dexto as an MCP Server
+# Dexto Agents as MCP Servers
 
-Dexto agents can act as Model Context Protocol (MCP) server, enabling external tools like Cursor/Claude Desktop or any MCP client to connect and interact with your Dexto agent.
+Any Dexto agent can also act as a Model Context Protocol (MCP) server, enabling external tools like Cursor/Claude Desktop or any MCP client to connect and interact with your Dexto agent.
 
 This means you can even connect one Dexto agent to another Dexto agent!
 
-The default Dexto agent has tools to access files and browse the web, but you can configure this too by changing the config file!
+You can use any of our pre-installed Dexto Agents (music-agent, database-agent, podcast-agent, etc.), or use your own yml config file as well
 
-Check out our [Configuration guide](./configuring-dexto/overview)
+Check out our [Configuration guide](./configuring-dexto/overview) to configure your own agent
+
+## Prerequisites
+
+- Install the Dexto CLI globally (`pnpm install -g dexto`, `npm install -g dexto`)
+- Run `dexto` at least once so the setup flow can capture your provider credentials. Dexto stores secrets in `~/.dexto/.env`, so you no longer need to pass API keys through environment variables.
 
 ## Local MCP Server Guide
 
-### Setup in Cursor
+### Start the MCP server
 
-1. **Create or edit your `.cursor/mcp.json` file:**
+Run Dexto in MCP mode to expose your agent over stdio:
 
-Use the default Dexto configuration
-```json
-{
-  "mcpServers": {
-    "dexto": {
-      "command": "npx",
-      "args": ["-y", "dexto", "--mode", "mcp"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key"
-      }
-    }
-  }
-}
+```bash
+dexto --mode mcp --auto-approve
 ```
 
-Using a custom Dexto configuration:
-Note: if you use a different LLM in your config file, you will need to pass the appropriate environment variable for that provider.
+During startup Dexto reads secrets from `.dexto/.env`, so your LLM credentials travel with your profile—no additional environment variables are required.
+
+### Connect an MCP client
+
+Most MCP-compatible clients expect a command plus optional arguments. A minimal configuration looks like:
 
 ```json
 {
   "mcpServers": {
     "dexto": {
-      "command": "npx",
-      "args": ["-y", "dexto", "--mode", "mcp", "--agent", "path/to/your/agent.yml"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key"
-      }
+      "command": "dexto",
+      "args": ["--mode", "mcp", "--auto-approve"]
     }
   }
 }
 ```
 
+Just the `dexto` section for easy copying:
 
-2. **Restart Cursor**
+```json
+"dexto": {
+  "command": "dexto",
+  "args": ["--mode", "mcp", "--auto-approve"]
+}
+```
 
-### Using Dexto in Cursor
 
-**Available Tools in Cursor:**
-- `chat_with_agent`: Interact with Dexto AI agent
+Use `--agent` if you want to expose a specific agent (installed or from file):
 
-**Available Dexto tools:**
+```json
+"dexto": {
+  "command": "dexto",
+  "args": ["--agent", "music-agent", "--mode", "mcp", "--auto-approve"]
+}
+```
 
-By default, Dexto CLI loads an AI agent that has tools to:
-- browse the web
-- search files on your local system
+Need debug logs? Add `DEXTO_LOG_LEVEL` env variable
 
-But you can customize the tools by using a custom Dexto agent configuration file. Check out our [Configuration guide](./configuring-dexto/overview).
+```json
+"dexto": {
+  "command": "npx",
+  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "music-agent"],
+  "env": { "DEXTO_LOG_LEVEL": "debug" }
+}
+```
 
-**Example Usage in Cursor:**
+Logs will be stored in `~/.dexto/logs/dexto.log`
 
-1. **Refactor a function:**
-   ```bash
-   Ask Dexto agent to help me refactor this function to be more efficient
-   ```
+> Looking for Cursor-specific instructions? See [Using Dexto Agents in Cursor](./dexto-in-cursor.md).
 
-2. **Get file analysis:**
-   ```bash
-   Ask Dexto agent to analyze the architecture of this project
-   ```
+Once connected, clients gain access to the agent tools defined in your configuration (filesystem, web browsing, custom MCP servers, etc.).
 
-3. **Browse the web:**
-   ```bash
-   Ask Dexto agent to search the web for soccer shoes under $100
-   ```
+## Remote MCP Server Guide
 
-4. **Any custom functionality:**
-    You can configure your Dexto agent to have any other custom functionality by setting up your own config file and using it here. Check out our [Configuration guide](./configuring-dexto/overview)
-
-## Remote MCP Server Setup
+Need to run your dexto agent as a remote MCP server?
 
 ### Step 1: Start Dexto in Server Mode
 
 ```bash
-# If installed globally
 dexto --mode server
-
-# Or via npx
-npx dexto --mode server
 ```
 
 **Options:**
 ```bash
 # Custom port using environment variable
 API_PORT=8080 dexto --mode server
-# Or via npx
-API_PORT=8080 npx dexto --mode server
 
 # Custom port for network access
 API_PORT=3001 dexto --mode server
-# Or via npx
-API_PORT=3001 npx dexto --mode server
 
 # Enable debug logging
 dexto --mode server --debug
-# Or via npx
-npx dexto --mode server --debug
 ```
 
 ### Step 2: Configure the Connection URL
@@ -130,22 +115,18 @@ http://localhost:3001/mcp
 http://YOUR_SERVER_IP:3001/mcp
 ```
 
-### Remote Server in Cursor (WIP)
-Cursor/Claude desktop don't support streamable http yet
+### Remote client limitations
+Some MCP clients (including Cursor and Claude Desktop today) do not yet support streaming HTTP connections. For those clients, prefer the local stdio transport covered above.
 
 ## Troubleshooting
 
-**Cursor not detecting MCP server:**
-- Verify `.cursor/mcp.json` syntax is correct
-- Restart Cursor after configuration changes
-- Ensure dexto is installed and accessible
-- Verify environment variables are set correctly
+**Issues in Cursor:**
+- Check Dexto logs - `~/.dexto/logs/dexto.log`
+- Run agent in debug mode
+- Reach out for support on Truffle AI discord
 
 **Debug mode:**
 ```bash
 # If installed globally
 dexto --mode mcp --debug
-
-# Or via npx
-npx dexto --mode mcp --debug
 ``` 

@@ -36,7 +36,13 @@ import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
-import { DextoValidationError, ErrorScope, ErrorType, AgentErrorCode } from '@dexto/core';
+import {
+    DextoValidationError,
+    ErrorScope,
+    ErrorType,
+    AgentErrorCode,
+    AgentError,
+} from '@dexto/core';
 import { ResourceError } from '@dexto/core';
 import { PromptError, flattenPromptResult } from '@dexto/core';
 
@@ -156,7 +162,8 @@ function parseQuery<T>(schema: z.ZodSchema<T>, query: unknown): T {
 export async function initializeApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
-    listenPort?: number
+    listenPort?: number,
+    agentName?: string
 ): Promise<{
     app: Express;
     server: http.Server;
@@ -165,7 +172,11 @@ export async function initializeApi(
     webhookSubscriber: WebhookEventSubscriber;
 }> {
     const app = express();
-    registerGracefulShutdown(agent);
+    // Declare before registering shutdown hook to avoid TDZ on signals
+    let activeAgent: DextoAgent = agent;
+    let activeAgentName: string | undefined = agentName || 'default';
+    let isSwitchingAgent = false;
+    registerGracefulShutdown(() => activeAgent);
     // this will apply middleware to all /api/llm/* routes
     app.use('/api/llm', expressRedactionMiddleware);
     app.use('/api/config.yaml', expressRedactionMiddleware);
@@ -173,12 +184,124 @@ export async function initializeApi(
     const server = http.createServer(app);
     const wss = new WebSocketServer({ server });
 
-    // set up event broadcasting over WebSocket
+    logger.info(`Initializing API server with agent: ${activeAgentName}`);
+
+    // Ensure the initial agent is started
+    if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
+        logger.info('Starting initial agent...');
+        await activeAgent.start();
+    } else if (activeAgent.isStopped()) {
+        logger.warn('Initial agent is stopped, this may cause issues');
+    }
+
     const webSubscriber = new WebSocketEventSubscriber(wss);
     logger.info('Setting up API event subscriptions...');
-    webSubscriber.subscribe(agent.agentEventBus);
+    webSubscriber.subscribe(activeAgent.agentEventBus);
+
+    // Initialize webhook subscriber
+    const webhookSubscriber = new WebhookEventSubscriber();
+    logger.info('Setting up webhook event subscriptions...');
+    webhookSubscriber.subscribe(activeAgent.agentEventBus);
 
     // Tool confirmation responses are handled by the main WebSocket handler below
+
+    function ensureAgentAvailable(): void {
+        // Gate requests during agent switching
+        if (isSwitchingAgent) {
+            throw AgentError.apiValidationError('Agent switch already in progress');
+        }
+
+        // Fast path: most common case is agent is started and running
+        if (activeAgent.isStarted() && !activeAgent.isStopped()) {
+            return;
+        }
+
+        // Provide specific error messages for better debugging
+        if (activeAgent.isStopped()) {
+            throw AgentError.stopped();
+        }
+        if (!activeAgent.isStarted()) {
+            throw AgentError.notStarted();
+        }
+    }
+
+    async function switchAgentByName(name: string) {
+        if (isSwitchingAgent) {
+            throw AgentError.apiValidationError('Agent switch already in progress');
+        }
+        isSwitchingAgent = true;
+
+        let newAgent: DextoAgent | undefined;
+        try {
+            // Use domain layer method to create new agent
+            newAgent = await DextoAgent.createAgent(name);
+
+            logger.info(`Starting new agent: ${name}`);
+            await newAgent.start();
+
+            // Rewire event/webhook subscribers to new agent bus
+            logger.info('Rewiring event subscribers...');
+            try {
+                webSubscriber.unsubscribe();
+            } catch (_err) {
+                logger.debug(
+                    `Failed to unsubscribe webSubscriber: ${
+                        _err instanceof Error ? _err.message : String(_err)
+                    }`
+                );
+            }
+            webSubscriber.subscribe(newAgent.agentEventBus);
+
+            try {
+                webhookSubscriber.unsubscribe();
+            } catch (_err) {
+                logger.debug(
+                    `Failed to unsubscribe webhookSubscriber: ${
+                        _err instanceof Error ? _err.message : String(_err)
+                    }`
+                );
+            }
+            webhookSubscriber.subscribe(newAgent.agentEventBus);
+
+            // Stop previous agent last (only after new one is fully operational)
+            const previousAgent = activeAgent;
+            activeAgent = newAgent;
+            activeAgentName = name;
+
+            logger.info(`Successfully switched to agent: ${name}`);
+
+            // Now safely stop the previous agent
+            try {
+                if (previousAgent && previousAgent !== newAgent) {
+                    logger.info('Stopping previous agent...');
+                    await previousAgent.stop();
+                }
+            } catch (err) {
+                logger.warn(`Stopping previous agent failed: ${err}`);
+                // Don't throw here as the switch was successful
+            }
+
+            return { name };
+        } catch (error) {
+            logger.error(
+                `Failed to switch to agent '${name}': ${error instanceof Error ? error.message : String(error)}`,
+                { error }
+            );
+
+            // Clean up the failed new agent if it was created
+            if (newAgent) {
+                try {
+                    await newAgent.stop();
+                } catch (cleanupErr) {
+                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                }
+            }
+
+            throw error;
+        } finally {
+            isSwitchingAgent = false;
+        }
+    }
 
     // HTTP endpoints
 
@@ -389,49 +512,56 @@ export async function initializeApi(
     // Note: We intentionally omit an "execute" endpoint; clients resolve prompts
     // and then call the regular message endpoint, keeping server surface minimal.
 
-    app.post('/api/message', express.json(), async (req, res, next) => {
-        logger.info('Received message via POST /api/message');
-        try {
-            const { message, sessionId, stream, imageData, fileData } = parseBody(
-                MessageRequestSchema,
-                req.body
-            );
+    // JSON body size limit for message endpoints supporting base64 image/file payloads
+    // Both /api/message and /api/message-sync accept base64 attachments; increased limit to avoid 413s.
+    app.post(
+        '/api/message',
+        express.json({ limit: process.env.MESSAGE_JSON_LIMIT || '10mb' }),
+        async (req, res, next) => {
+            logger.info('Received message via POST /api/message');
+            try {
+                ensureAgentAvailable();
+                const { message, sessionId, stream, imageData, fileData } = parseBody(
+                    MessageRequestSchema,
+                    req.body
+                );
 
-            const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
-                : undefined;
+                const imageDataInput = imageData
+                    ? { image: imageData.base64, mimeType: imageData.mimeType }
+                    : undefined;
 
-            // Process file data
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.base64,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
+                // Process file data
+                const fileDataInput = fileData
+                    ? {
+                          data: fileData.base64,
+                          mimeType: fileData.mimeType,
+                          ...(fileData.filename && { filename: fileData.filename }),
+                      }
+                    : undefined;
 
-            if (imageDataInput) logger.info('Image data included in message.');
-            if (fileDataInput) logger.info('File data included in message.');
-            if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                if (imageDataInput) logger.info('Image data included in message.');
+                if (fileDataInput) logger.info('File data included in message.');
+                if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            const response = await agent.run(
-                message || '',
-                imageDataInput,
-                fileDataInput,
-                sessionId,
-                stream || false
-            );
-            return res.status(202).send({ response, sessionId });
-        } catch (error) {
-            return next(error);
+                const response = await activeAgent.run(
+                    message || '',
+                    imageDataInput,
+                    fileDataInput,
+                    sessionId,
+                    stream || false
+                );
+                return res.status(202).send({ response, sessionId });
+            } catch (error) {
+                return next(error);
+            }
         }
-    });
+    );
 
     // Cancel an in-flight run for a session
     app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
         try {
             const { sessionId } = parseQuery(CancelRequestSchema, req.params);
-            const cancelled = await agent.cancel(sessionId);
+            const cancelled = await activeAgent.cancel(sessionId);
             if (!cancelled) {
                 logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
             }
@@ -442,52 +572,59 @@ export async function initializeApi(
     });
 
     // Synchronous endpoint: await the full AI response and return it in one go
-    app.post('/api/message-sync', express.json(), async (req, res, next) => {
-        logger.info('Received message via POST /api/message-sync');
-        try {
-            const { message, sessionId, imageData, fileData } = parseBody(
-                MessageRequestSchema,
-                req.body
-            );
+    // JSON body size limit increased for image/file uploads
+    app.post(
+        '/api/message-sync',
+        express.json({ limit: process.env.MESSAGE_JSON_LIMIT || '10mb' }),
+        async (req, res, next) => {
+            logger.info('Received message via POST /api/message-sync');
+            try {
+                ensureAgentAvailable();
+                const { message, sessionId, imageData, fileData } = parseBody(
+                    MessageRequestSchema,
+                    req.body
+                );
 
-            // Extract optional image and file data
-            const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
-                : undefined;
+                // Extract optional image and file data
+                const imageDataInput = imageData
+                    ? { image: imageData.base64, mimeType: imageData.mimeType }
+                    : undefined;
 
-            // Process file data
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.base64,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
-            if (imageDataInput) logger.info('Image data included in message.');
-            if (fileDataInput) logger.info('File data included in message.');
-            if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                // Process file data
+                const fileDataInput = fileData
+                    ? {
+                          data: fileData.base64,
+                          mimeType: fileData.mimeType,
+                          ...(fileData.filename && { filename: fileData.filename }),
+                      }
+                    : undefined;
+                if (imageDataInput) logger.info('Image data included in message.');
+                if (fileDataInput) logger.info('File data included in message.');
+                if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-            const response = await agent.run(
-                message || '',
-                imageDataInput,
-                fileDataInput,
-                sessionId,
-                false // Force non-streaming for sync endpoint
-            );
-            return res.status(200).json({ response, sessionId });
-        } catch (error) {
-            return next(error);
+                const response = await activeAgent.run(
+                    message || '',
+                    imageDataInput,
+                    fileDataInput,
+                    sessionId,
+                    false // Force non-streaming for sync endpoint
+                );
+                return res.status(200).json({ response, sessionId });
+            } catch (error) {
+                return next(error);
+            }
         }
-    });
+    );
 
     app.post('/api/reset', express.json(), async (req, res, next) => {
         logger.info('Received request via POST /api/reset');
         try {
+            ensureAgentAvailable();
             const { sessionId } = parseBody(
                 z.object({ sessionId: z.string().optional() }),
                 req.body
             );
-            await agent.resetConversation(sessionId);
+            await activeAgent.resetConversation(sessionId);
             return res.status(200).send({ status: 'reset initiated', sessionId });
         } catch (error) {
             return next(error);
@@ -497,8 +634,9 @@ export async function initializeApi(
     // Dynamic MCP server connection endpoint (legacy)
     app.post('/api/connect-server', express.json(), async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { name, config } = parseBody(McpServerRequestSchema, req.body);
-            await agent.connectMcpServer(name, config);
+            await activeAgent.connectMcpServer(name, config);
             logger.info(`Successfully connected to new server '${name}' via API request.`);
             return res.status(200).send({ status: 'connected', name });
         } catch (error) {
@@ -509,8 +647,9 @@ export async function initializeApi(
     // Add a new MCP server
     app.post('/api/mcp/servers', express.json(), async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { name, config } = parseBody(McpServerRequestSchema, req.body);
-            await agent.connectMcpServer(name, config);
+            await activeAgent.connectMcpServer(name, config);
             return res.status(201).json({ status: 'connected', name });
         } catch (error) {
             return next(error);
@@ -520,8 +659,9 @@ export async function initializeApi(
     // Add MCP servers listing endpoint
     app.get('/api/mcp/servers', async (req, res, next) => {
         try {
-            const clientsMap = agent.getMcpClients();
-            const failedConnections = agent.getMcpFailedConnections();
+            ensureAgentAvailable();
+            const clientsMap = activeAgent.getMcpClients();
+            const failedConnections = activeAgent.getMcpFailedConnections();
             const servers: Array<{ id: string; name: string; status: string }> = [];
             for (const name of clientsMap.keys()) {
                 servers.push({ id: name, name, status: 'connected' });
@@ -537,12 +677,13 @@ export async function initializeApi(
 
     // Add MCP server tools listing endpoint
     app.get('/api/mcp/servers/:serverId/tools', async (req, res, next) => {
-        const serverId = req.params.serverId;
-        const client = agent.getMcpClients().get(serverId);
-        if (!client) {
-            return res.status(404).json({ error: `Server '${serverId}' not found` });
-        }
         try {
+            ensureAgentAvailable();
+            const serverId = req.params.serverId;
+            const client = activeAgent.getMcpClients().get(serverId);
+            if (!client) {
+                return res.status(404).json({ error: `Server '${serverId}' not found` });
+            }
             const toolsMap = await client.getTools();
             const tools = Object.entries(toolsMap).map(([toolName, toolDef]) => ({
                 id: toolName,
@@ -564,13 +705,14 @@ export async function initializeApi(
         try {
             // Check if server exists before attempting to disconnect
             const clientExists =
-                agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
+                activeAgent.getMcpClients().has(serverId) ||
+                activeAgent.getMcpFailedConnections()[serverId];
             if (!clientExists) {
                 logger.warn(`Attempted to delete non-existent server: ${serverId}`);
                 return res.status(404).json({ error: `Server '${serverId}' not found.` });
             }
 
-            await agent.removeMcpServer(serverId);
+            await activeAgent.removeMcpServer(serverId);
             return res.status(200).json({ status: 'disconnected', id: serverId });
         } catch (error) {
             return next(error);
@@ -584,7 +726,7 @@ export async function initializeApi(
         async (req, res, next) => {
             const { serverId, toolName } = req.params;
             // Verify server exists
-            const client = agent.getMcpClients().get(serverId);
+            const client = activeAgent.getMcpClients().get(serverId);
             if (!client) {
                 return res
                     .status(404)
@@ -592,7 +734,7 @@ export async function initializeApi(
             }
             try {
                 // Execute tool through the agent's unified wrapper method
-                const rawResult = await agent.executeTool(toolName, req.body);
+                const rawResult = await activeAgent.executeTool(toolName, req.body);
                 // Return standardized result shape
                 return res.json({ success: true, data: rawResult });
             } catch (error) {
@@ -751,7 +893,7 @@ export async function initializeApi(
                 const data = JSON.parse(messageString);
                 if (data.type === 'toolConfirmationResponse' && data.data) {
                     // Route confirmation back via AgentEventBus and do not broadcast an error
-                    agent.agentEventBus.emit('dexto:toolConfirmationResponse', data.data);
+                    activeAgent.agentEventBus.emit('dexto:toolConfirmationResponse', data.data);
                     return;
                 } else if (data.type === 'elicitationResponse' && data.data) {
                     // Route elicitation response back via AgentEventBus and do not broadcast an error
@@ -790,8 +932,21 @@ export async function initializeApi(
                     if (fileDataInput) logger.info('File data included in message.');
                     if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
+                    // Check if agent is available before processing
+                    try {
+                        ensureAgentAvailable();
+                    } catch (error) {
+                        logger.error(`Agent not available for WebSocket message: ${error}`);
+                        sendWebSocketError(
+                            ws,
+                            error instanceof Error ? error.message : 'Agent not available',
+                            sessionId
+                        );
+                        return;
+                    }
+
                     // Comprehensive input validation
-                    const currentConfig = agent.getEffectiveConfig(sessionId);
+                    const currentConfig = activeAgent.getEffectiveConfig(sessionId);
                     const validation = validateInputForLLM(
                         {
                             text: data.content,
@@ -832,19 +987,53 @@ export async function initializeApi(
                         return;
                     }
 
-                    await agent.run(data.content, imageDataInput, fileDataInput, sessionId, stream);
+                    await activeAgent.run(
+                        data.content,
+                        imageDataInput,
+                        fileDataInput,
+                        sessionId,
+                        stream
+                    );
                 } else if (data.type === 'reset') {
                     const sessionId = data.sessionId as string | undefined;
                     logger.info(
                         `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
-                    await agent.resetConversation(sessionId);
+
+                    // Check if agent is available before processing
+                    try {
+                        ensureAgentAvailable();
+                    } catch (error) {
+                        logger.error(`Agent not available for WebSocket reset: ${error}`);
+                        sendWebSocketError(
+                            ws,
+                            error instanceof Error ? error.message : 'Agent not available',
+                            sessionId || 'unknown'
+                        );
+                        return;
+                    }
+
+                    await activeAgent.resetConversation(sessionId);
                 } else if (data.type === 'cancel') {
                     const sessionId = data.sessionId as string | undefined;
                     logger.info(
                         `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
-                    const cancelled = await agent.cancel(sessionId);
+
+                    // Check if agent is available before processing
+                    try {
+                        ensureAgentAvailable();
+                    } catch (error) {
+                        logger.error(`Agent not available for WebSocket cancel: ${error}`);
+                        sendWebSocketError(
+                            ws,
+                            error instanceof Error ? error.message : 'Agent not available',
+                            sessionId || 'unknown'
+                        );
+                        return;
+                    }
+
+                    const cancelled = await activeAgent.cancel(sessionId);
                     if (!cancelled) {
                         logger.debug('No in-flight run to cancel');
                     }
@@ -918,7 +1107,9 @@ export async function initializeApi(
         const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
         const mcpTransport = await createMcpTransport(transportType);
 
-        // TODO: Think of a better way to handle the MCP implementation
+        // TODO: MCP server is bound to the initial agent; breaks after agent switch
+        // initializeMcpServer receives the original agent, so MCP endpoints keep talking to the stale instance post-switch.
+        // Make MCP consume the current agent via a getter to stay in sync.
         await initializeMcpServer(
             agent,
             agentCardData, // Pass the agent card data for the MCP resource
@@ -932,6 +1123,60 @@ export async function initializeApi(
             res.status(500).json({ error: 'MCP server initialization failed' });
         });
     }
+
+    // ===== Agents API =====
+    app.get('/api/agents', async (_req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const agents = await activeAgent.listAgents();
+            return sendJsonResponse(res, {
+                installed: agents.installed,
+                available: agents.available,
+                current: { name: activeAgentName ?? 'default' },
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    app.get('/api/agents/current', async (_req, res, next) => {
+        try {
+            // TODO: Consider exposing agent.getName() method or config.name for more accurate tracking
+            return sendJsonResponse(res, { name: activeAgentName ?? 'default' });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    const AgentNameSchema = z.object({ name: z.string().min(1) }).strict();
+
+    app.post('/api/agents/install', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { name } = AgentNameSchema.parse(req.body);
+            await activeAgent.installAgent(name);
+            return sendJsonResponse(res, { installed: true, name }, 201);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    app.post('/api/agents/switch', express.json(), async (req, res, next) => {
+        try {
+            const { name } = AgentNameSchema.parse(req.body);
+            const result = await switchAgentByName(name);
+            return sendJsonResponse(res, { switched: true, ...result });
+        } catch (error) {
+            if (
+                error instanceof Error &&
+                error.message &&
+                error.message.includes('already in progress')
+            ) {
+                return res.status(409).json({ error: error.message });
+            }
+            return next(error);
+        }
+    });
 
     // Configuration export endpoint
     /**
@@ -982,7 +1227,7 @@ export async function initializeApi(
     app.get('/api/config.yaml', async (req, res, next) => {
         try {
             const sessionId = req.query.sessionId as string | undefined;
-            const config = agent.getEffectiveConfig(sessionId);
+            const config = activeAgent.getEffectiveConfig(sessionId);
 
             // Export config as YAML, masking sensitive data
             const maskedConfig = {
@@ -1006,7 +1251,7 @@ export async function initializeApi(
     app.get('/api/greeting', async (req, res, next) => {
         try {
             const sessionId = req.query.sessionId as string | undefined;
-            const config = agent.getEffectiveConfig(sessionId);
+            const config = activeAgent.getEffectiveConfig(sessionId);
             res.json({ greeting: config.greeting });
         } catch (error) {
             return next(error);
@@ -1020,8 +1265,8 @@ export async function initializeApi(
 
             // Use session-specific config if sessionId is provided, otherwise use default
             const currentConfig = sessionId
-                ? agent.getEffectiveConfig(sessionId as string).llm
-                : agent.getCurrentLLMConfig();
+                ? activeAgent.getEffectiveConfig(sessionId as string).llm
+                : activeAgent.getCurrentLLMConfig();
 
             // Attach displayName for the current model if available in registry
             let displayName: string | undefined;
@@ -1232,7 +1477,7 @@ export async function initializeApi(
                 typeof body.sessionId === 'string' ? (body.sessionId as string) : undefined;
             const { sessionId: _omit, ...llmCandidate } = body;
             const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
-            const config = await agent.switchLLM(llmConfig, sessionId);
+            const config = await activeAgent.switchLLM(llmConfig, sessionId);
             return res.status(200).json({ config, sessionId });
         } catch (error) {
             return next(error);
@@ -1244,11 +1489,11 @@ export async function initializeApi(
     // List all active sessions
     app.get('/api/sessions', async (req, res, next) => {
         try {
-            const sessionIds = await agent.listSessions();
+            const sessionIds = await activeAgent.listSessions();
             const sessions = await Promise.all(
                 sessionIds.map(async (id) => {
                     try {
-                        const metadata = await agent.getSessionMetadata(id);
+                        const metadata = await activeAgent.getSessionMetadata(id);
                         return {
                             id,
                             createdAt: metadata?.createdAt || null,
@@ -1276,8 +1521,8 @@ export async function initializeApi(
     app.post('/api/sessions', express.json(), async (req, res, next) => {
         try {
             const { sessionId } = req.body;
-            const session = await agent.createSession(sessionId);
-            const metadata = await agent.getSessionMetadata(session.id);
+            const session = await activeAgent.createSession(sessionId);
+            const metadata = await activeAgent.getSessionMetadata(session.id);
             return res.status(201).json({
                 session: {
                     id: session.id,
@@ -1294,7 +1539,7 @@ export async function initializeApi(
     // Get current working session (must come before parameterized route)
     app.get('/api/sessions/current', async (req, res, next) => {
         try {
-            const currentSessionId = agent.getCurrentSessionId();
+            const currentSessionId = activeAgent.getCurrentSessionId();
             return res.json({ currentSessionId });
         } catch (error) {
             return next(error);
@@ -1305,8 +1550,8 @@ export async function initializeApi(
     app.get('/api/sessions/:sessionId', async (req, res, next) => {
         try {
             const { sessionId } = req.params;
-            const metadata = await agent.getSessionMetadata(sessionId);
-            const history = await agent.getSessionHistory(sessionId);
+            const metadata = await activeAgent.getSessionMetadata(sessionId);
+            const history = await activeAgent.getSessionHistory(sessionId);
 
             return res.json({
                 session: {
@@ -1327,7 +1572,7 @@ export async function initializeApi(
         try {
             const { sessionId } = req.params;
             // getSessionHistory already checks existence via getSession
-            const history = await agent.getSessionHistory(sessionId);
+            const history = await activeAgent.getSessionHistory(sessionId);
             return res.json({ history });
         } catch (error) {
             return next(error);
@@ -1352,7 +1597,7 @@ export async function initializeApi(
                 ...(role && { role }),
             };
 
-            const searchResults = await agent.searchMessages(query, options);
+            const searchResults = await activeAgent.searchMessages(query, options);
             return sendJsonResponse(res, searchResults);
         } catch (error) {
             return next(error);
@@ -1366,7 +1611,7 @@ export async function initializeApi(
                 z.object({ q: z.string().min(1, 'Search query is required') }),
                 req.query
             );
-            const searchResults = await agent.searchSessions(query);
+            const searchResults = await activeAgent.searchSessions(query);
             return sendJsonResponse(res, searchResults);
         } catch (error) {
             return next(error);
@@ -1378,7 +1623,7 @@ export async function initializeApi(
         try {
             const { sessionId } = req.params;
             // deleteSession already checks existence internally
-            await agent.deleteSession(sessionId);
+            await activeAgent.deleteSession(sessionId);
             return res.json({ status: 'deleted', sessionId });
         } catch (error) {
             return next(error);
@@ -1392,21 +1637,21 @@ export async function initializeApi(
 
             // Handle null/reset case
             if (sessionId === 'null' || sessionId === 'undefined') {
-                await agent.loadSessionAsDefault(null);
+                await activeAgent.loadSessionAsDefault(null);
                 res.json({
                     status: 'reset',
                     sessionId: null,
-                    currentSession: agent.getCurrentSessionId(),
+                    currentSession: activeAgent.getCurrentSessionId(),
                 });
                 return;
             }
 
             // loadSession already checks session existence
-            await agent.loadSessionAsDefault(sessionId);
+            await activeAgent.loadSessionAsDefault(sessionId);
             return res.json({
                 status: 'loaded',
                 sessionId,
-                currentSession: agent.getCurrentSessionId(),
+                currentSession: activeAgent.getCurrentSessionId(),
             });
         } catch (error) {
             return next(error);
@@ -1414,11 +1659,6 @@ export async function initializeApi(
     });
 
     // Webhook Management APIs
-
-    // Initialize webhook subscriber
-    const webhookSubscriber = new WebhookEventSubscriber();
-    logger.info('Setting up webhook event subscriptions...');
-    webhookSubscriber.subscribe(agent.agentEventBus);
 
     // Register a new webhook endpoint
     app.post('/api/webhooks', express.json(), async (req, res, next) => {
@@ -1548,12 +1788,14 @@ export async function initializeApi(
 export async function startApiServer(
     agent: DextoAgent,
     port = 3000,
-    agentCardOverride?: Partial<AgentCard>
+    agentCardOverride?: Partial<AgentCard>,
+    agentName?: string
 ) {
     const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
         agentCardOverride,
-        port
+        port,
+        agentName
     );
 
     // API server for REST endpoints and WebSocket connections

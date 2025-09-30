@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { getAgentRegistry } from '@dexto/core';
+import { capture } from '../../analytics/index.js';
 
 // Zod schema for uninstall command validation
 const UninstallCommandSchema = z
@@ -81,6 +82,8 @@ export async function handleUninstallCommand(
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const uninstalled: string[] = [];
+    const failed: string[] = [];
 
     // Uninstall each agent
     for (const agentName of agentsToUninstall) {
@@ -89,15 +92,51 @@ export async function handleUninstallCommand(
             await registry.uninstallAgent(agentName, validated.force);
             successCount++;
             console.log(`✅ ${agentName} uninstalled successfully`);
+            uninstalled.push(agentName);
+            // Per-agent analytics for successful uninstall
+            try {
+                capture('dexto_uninstall_agent', {
+                    agent: agentName,
+                    status: 'uninstalled',
+                    force: validated.force,
+                });
+            } catch {
+                // Analytics failures should not block CLI execution.
+            }
         } catch (error) {
             errorCount++;
             const errorMsg = `Failed to uninstall ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(errorMsg);
+            failed.push(agentName);
             console.error(`❌ ${errorMsg}`);
+            // Per-agent analytics for failed uninstall
+            try {
+                capture('dexto_uninstall_agent', {
+                    agent: agentName,
+                    status: 'failed',
+                    error_message: error instanceof Error ? error.message : String(error),
+                    force: validated.force,
+                });
+            } catch {
+                // Analytics failures should not block CLI execution.
+            }
         }
     }
 
-    // For single agent operations, throw error if it failed
+    // Emit analytics for both single- and multi-agent cases
+    try {
+        capture('dexto_uninstall', {
+            requested: agentsToUninstall,
+            uninstalled,
+            failed,
+            successCount,
+            errorCount,
+        });
+    } catch {
+        // Analytics failures should not block CLI execution.
+    }
+
+    // For single agent operations, throw error if it failed (after emitting analytics)
     if (agentsToUninstall.length === 1) {
         if (errorCount > 0) {
             throw new Error(errors[0]);

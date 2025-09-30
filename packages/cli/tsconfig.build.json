@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmitOnError": true,
+    "noEmit": false,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declarationDir": "./dist",
+    "paths": {
+      "@dexto/core": [
+        "../core/dist/index.d.ts"
+      ],
+      "@dexto/core/*": [
+        "../core/dist/*"
+      ]
+    }
+  },
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "dist", "node_modules"]
+}
