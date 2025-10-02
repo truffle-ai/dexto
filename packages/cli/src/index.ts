@@ -524,23 +524,6 @@ program
         }
     });
 
-// 13) `openrouter-regenerate` SUB-COMMAND
-program
-    .command('openrouter-regenerate')
-    .description('Regenerate OpenRouter API key')
-    .action(async () => {
-        try {
-            const { handleOpenRouterRegenerateCommand } = await import(
-                './cli/commands/openrouter-commands.js'
-            );
-            await handleOpenRouterRegenerateCommand();
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto openrouter-regenerate command failed: ${err}`);
-            process.exit(1);
-        }
-    });
-
 // 14) `openrouter-models` SUB-COMMAND
 program
     .command('openrouter-models')
