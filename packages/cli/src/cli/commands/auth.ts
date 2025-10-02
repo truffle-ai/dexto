@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { getDextoGlobalPath } from '@dexto/core';
 import { existsSync, promises as fs } from 'fs';
 import { logger } from '@dexto/core';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../utils/constants.js';
 
 const AUTH_CONFIG_FILE = 'auth.json';
 
@@ -270,21 +271,11 @@ async function handleTokenLogin(): Promise<void> {
  */
 async function verifyToken(token: string): Promise<boolean> {
     try {
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-        if (!supabaseUrl || !supabaseAnonKey) {
-            logger.warn(
-                'Supabase URL or Anon Key not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.'
-            );
-            return false;
-        }
-
         // Verify token directly with Supabase Auth API
-        const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
             headers: {
                 Authorization: `Bearer ${token}`,
-                apikey: supabaseAnonKey,
+                apikey: SUPABASE_ANON_KEY,
                 'User-Agent': 'dexto-cli/1.0.0',
             },
         });
@@ -426,10 +417,10 @@ async function provisionOpenRouterKey(authToken: string, _userEmail?: string): P
     try {
         const { getDextoApiClient } = await import('../utils/dexto-api-client.js');
 
-        console.log(chalk.cyan('🔑 Provisioning OpenRouter API key...'));
+        console.log(chalk.cyan('🔑 Setting up OpenRouter API key...'));
 
         const apiClient = await getDextoApiClient();
-        const { apiKey, keyId } = await apiClient.provisionOpenRouterKey(authToken);
+        const { apiKey, keyId, isNewKey } = await apiClient.provisionOpenRouterKey(authToken);
 
         // Update auth config with OpenRouter key
         const auth = await loadAuth();
@@ -441,12 +432,18 @@ async function provisionOpenRouterKey(authToken: string, _userEmail?: string): P
             });
         }
 
-        console.log(chalk.green('✅ OpenRouter API key provisioned successfully!'));
-        console.log(chalk.dim(`   Key ID: ${keyId}`));
+        if (isNewKey) {
+            console.log(chalk.green('✅ New OpenRouter API key created and configured!'));
+            console.log(chalk.dim(`   Key ID: ${keyId}`));
+            console.log(chalk.dim('   $10 spending limit set'));
+        } else {
+            console.log(chalk.green('✅ Using existing OpenRouter API key!'));
+            console.log(chalk.dim(`   Key ID: ${keyId}`));
+        }
         console.log(chalk.dim('   You can now use all OpenRouter models without manual setup'));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.log(chalk.yellow(`⚠️  Failed to provision OpenRouter API key: ${errorMessage}`));
+        console.log(chalk.yellow(`⚠️  Failed to set up OpenRouter API key: ${errorMessage}`));
         console.log(chalk.dim('   You can still use Dexto with your own API keys'));
 
         // Don't throw - this shouldn't block the login process

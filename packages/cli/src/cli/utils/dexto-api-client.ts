@@ -6,6 +6,7 @@ interface ProvisionResponse {
     success: boolean;
     apiKey?: string;
     keyId?: string;
+    isNewKey?: boolean;
     error?: string;
 }
 
@@ -22,7 +23,9 @@ export class DextoApiClient {
     /**
      * Provision OpenRouter API key for authenticated user
      */
-    async provisionOpenRouterKey(authToken: string): Promise<{ apiKey: string; keyId: string }> {
+    async provisionOpenRouterKey(
+        authToken: string
+    ): Promise<{ apiKey: string; keyId: string; isNewKey: boolean }> {
         try {
             logger.debug('Requesting OpenRouter API key from Dexto API');
 
@@ -53,9 +56,12 @@ export class DextoApiClient {
             return {
                 apiKey: result.apiKey,
                 keyId: result.keyId,
+                isNewKey: result.isNewKey ?? false,
             };
         } catch (error) {
-            logger.error(`Error provisioning OpenRouter API key: ${error}`);
+            logger.error(
+                `Error provisioning OpenRouter API key at ${this.baseUrl}/api/openrouter-provision: ${error}`
+            );
             throw error;
         }
     }
@@ -65,6 +71,6 @@ export class DextoApiClient {
  * Get default Dexto API client
  */
 export async function getDextoApiClient(): Promise<DextoApiClient> {
-    const { DEXTO_API_URL } = await import('./oauth-flow.js');
+    const { DEXTO_API_URL } = await import('./constants.js');
     return new DextoApiClient(DEXTO_API_URL);
 }

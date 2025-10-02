@@ -7,6 +7,7 @@ import * as querystring from 'querystring';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
 interface OAuthConfig {
     authUrl: string; // e.g. "https://project.supabase.co"
@@ -361,16 +362,11 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
 }
 
 /**
- * Default Supabase OAuth config
+ * Default Supabase OAuth configuration for Dexto CLI
  */
 export const DEFAULT_OAUTH_CONFIG: OAuthConfig = {
-    authUrl: process.env.SUPABASE_URL || 'https://your-project.supabase.co',
-    clientId: process.env.SUPABASE_ANON_KEY || 'your-supabase-anon-key',
-    provider: 'google', // Can be 'google', 'github', 'discord', etc.
+    authUrl: SUPABASE_URL,
+    clientId: SUPABASE_ANON_KEY,
+    provider: 'google',
     scopes: ['openid', 'email', 'profile'],
 };
-
-/**
- * Dexto API URL for OpenRouter provisioning
- */
-export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://openrouter-keys.vercel.app';

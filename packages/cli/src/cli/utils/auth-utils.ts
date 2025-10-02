@@ -1,6 +1,7 @@
 // packages/cli/src/cli/utils/auth-utils.ts
 
 import { getAuthToken } from '../commands/auth.js';
+import { DEXTO_API_URL } from './constants.js';
 
 /**
  * Add authentication headers to API requests
@@ -53,8 +54,6 @@ export async function requireAuth(): Promise<void> {
 export async function callProtectedAPI(endpoint: string, data?: any): Promise<any> {
     await requireAuth();
 
-    const apiUrl = process.env.DEXTO_API_URL || 'https://your-app.com';
-
     const fetchOptions: Parameters<typeof fetch>[1] = {
         method: data ? 'POST' : 'GET',
     };
@@ -63,7 +62,7 @@ export async function callProtectedAPI(endpoint: string, data?: any): Promise<an
         fetchOptions.body = JSON.stringify(data);
     }
 
-    const response = await authenticatedFetch(`${apiUrl}/api${endpoint}`, fetchOptions);
+    const response = await authenticatedFetch(`${DEXTO_API_URL}/api${endpoint}`, fetchOptions);
 
     if (!response.ok) {
         if (response.status === 401) {

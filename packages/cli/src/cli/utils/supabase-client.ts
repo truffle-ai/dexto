@@ -2,6 +2,7 @@
 
 import { getAuthToken } from '../commands/auth.js';
 import { logger } from '@dexto/core';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
 /**
  * Simple Supabase REST API client for CLI
@@ -11,14 +12,8 @@ export class SupabaseClient {
     private supabaseAnonKey: string;
 
     constructor() {
-        this.supabaseUrl = process.env.SUPABASE_URL || '';
-        this.supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
-
-        if (!this.supabaseUrl || !this.supabaseAnonKey) {
-            throw new Error(
-                'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required'
-            );
-        }
+        this.supabaseUrl = SUPABASE_URL;
+        this.supabaseAnonKey = SUPABASE_ANON_KEY;
     }
 
     /**
