@@ -12,6 +12,7 @@ const AUTH_CONFIG_FILE = 'auth.json';
 
 interface AuthConfig {
     token: string;
+    refreshToken?: string | undefined;
     userId?: string | undefined;
     email?: string | undefined;
     expiresAt?: number | undefined;
@@ -22,6 +23,7 @@ interface AuthConfig {
 
 const AuthConfigSchema = z.object({
     token: z.string().min(1),
+    refreshToken: z.string().optional(),
     userId: z.string().optional(),
     email: z.string().email().optional(),
     expiresAt: z.number().optional(),
@@ -95,10 +97,56 @@ export async function isAuthenticated(): Promise<boolean> {
 
 /**
  * Get current auth token for API calls
+ * Automatically refreshes the token if expired or expiring soon
  */
 export async function getAuthToken(): Promise<string | null> {
     const auth = await loadAuth();
-    return auth?.token || null;
+
+    if (!auth) {
+        return null;
+    }
+
+    // Check if token is expired or expiring soon (within 5 minutes)
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    const isExpiringSoon = auth.expiresAt && auth.expiresAt < now + fiveMinutes;
+
+    // If token is still valid and not expiring soon, return it
+    if (!isExpiringSoon) {
+        return auth.token;
+    }
+
+    // Token is expired or expiring soon - attempt refresh
+    if (!auth.refreshToken) {
+        logger.debug('Token expired but no refresh token available');
+        await removeAuth();
+        return null;
+    }
+
+    logger.debug('Access token expired or expiring soon, refreshing...');
+    console.log(chalk.cyan('🔄 Access token expiring soon, refreshing...'));
+
+    const refreshResult = await refreshAccessToken(auth.refreshToken);
+
+    if (!refreshResult) {
+        logger.debug('Token refresh failed, removing auth');
+        console.log(chalk.red('❌ Token refresh failed. Please login again.'));
+        await removeAuth();
+        return null;
+    }
+
+    // Store the new tokens
+    const newExpiresAt = Date.now() + refreshResult.expiresIn * 1000;
+    await storeAuth({
+        ...auth,
+        token: refreshResult.accessToken,
+        refreshToken: refreshResult.refreshToken,
+        expiresAt: newExpiresAt,
+    });
+
+    logger.debug('Token refreshed successfully');
+    console.log(chalk.green('✅ Access token refreshed successfully'));
+    return refreshResult.accessToken;
 }
 
 /**
@@ -107,6 +155,52 @@ export async function getAuthToken(): Promise<string | null> {
 export async function getOpenRouterApiKey(): Promise<string | null> {
     const auth = await loadAuth();
     return auth?.openRouterApiKey || null;
+}
+
+/**
+ * Refresh access token using refresh token
+ */
+async function refreshAccessToken(refreshToken: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+} | null> {
+    try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({
+                refresh_token: refreshToken,
+            }),
+        });
+
+        if (!response.ok) {
+            logger.debug(`Token refresh failed: ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json();
+
+        if (!data.access_token || !data.refresh_token) {
+            logger.debug('Token refresh response missing required tokens');
+            return null;
+        }
+
+        logger.debug('Successfully refreshed access token');
+        return {
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            expiresIn: data.expires_in || 3600,
+        };
+    } catch (error) {
+        logger.debug(
+            `Token refresh error: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return null;
+    }
 }
 
 /**
@@ -197,6 +291,7 @@ export async function handleBrowserLogin(): Promise<void> {
 
         await storeAuth({
             token: result.accessToken,
+            refreshToken: result.refreshToken,
             userId: result.user?.id,
             email: result.user?.email,
             createdAt: Date.now(),
