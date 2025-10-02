@@ -76,7 +76,7 @@ export class PostgresBackend implements DatabaseBackend {
         try {
             await client.query(
                 'INSERT INTO kv (key, value, updated_at) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = $3',
-                [key, JSON.stringify(value), new Date()]
+                [key, value, new Date()]
             );
         } finally {
             client.release();
@@ -129,7 +129,7 @@ export class PostgresBackend implements DatabaseBackend {
         try {
             await client.query('INSERT INTO lists (key, item, created_at) VALUES ($1, $2, $3)', [
                 key,
-                JSON.stringify(item),
+                item,
                 new Date(),
             ]);
         } finally {
@@ -145,7 +145,9 @@ export class PostgresBackend implements DatabaseBackend {
                 'SELECT item FROM lists WHERE key = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3',
                 [key, count, start]
             );
-            return result.rows.map((row) => JSON.parse(row.item));
+            // JSONB columns are automatically converted to JS objects by pg library
+            // No need to JSON.parse - it would fail with "[object Object]" is not valid JSON
+            return result.rows.map((row) => row.item);
         } finally {
             client.release();
         }
