@@ -6,7 +6,7 @@ import { logger } from '@dexto/core';
 import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar } from '@dexto/core';
 import { writePreferencesToAgent } from '@dexto/core';
-import { handleBrowserLogin } from '../commands/auth.js';
+import { handleBrowserLogin } from '../commands/auth/login.js';
 import { setupOpenRouterIfAvailable, OPENROUTER_CONFIG } from './openrouter-setup.js';
 
 /**

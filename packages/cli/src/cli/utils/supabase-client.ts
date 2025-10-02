@@ -1,6 +1,6 @@
 // packages/cli/src/cli/utils/supabase-client.ts
 
-import { getAuthToken } from '../commands/auth.js';
+import { getAuthToken } from './auth-service.js';
 import { logger } from '@dexto/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 

@@ -1,6 +1,6 @@
 // packages/cli/src/cli/utils/auth-utils.ts
 
-import { getAuthToken } from '../commands/auth.js';
+import { getAuthToken } from './auth-service.js';
 import { DEXTO_API_URL } from './constants.js';
 
 /**

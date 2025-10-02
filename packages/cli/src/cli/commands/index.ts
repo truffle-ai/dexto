@@ -26,6 +26,6 @@ export {
     handleLogoutCommand,
     handleStatusCommand,
     handleWhoamiCommand,
-    isAuthenticated,
-    getAuthToken,
-} from './auth.js';
+    handleBrowserLogin,
+} from './auth/index.js';
+export { isAuthenticated, getAuthToken } from '../utils/auth-service.js';

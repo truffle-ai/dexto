@@ -1,118 +1,18 @@
-// packages/cli/src/cli/commands/openrouter-commands.ts
+// packages/cli/src/cli/commands/openrouter/models.ts
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import { getOpenRouterApiKey, isAuthenticated } from './auth.js';
-import { getDextoApiClient } from '../utils/dexto-api-client.js';
 import {
     refreshOpenRouterModelCache,
     getCachedOpenRouterModels,
     getOpenRouterModelCacheInfo,
 } from '@dexto/core';
+import { getOpenRouterApiKey, isAuthenticated } from '../../utils/auth-service.js';
 
-/**
- * Show OpenRouter API key status
- */
-export async function handleOpenRouterStatusCommand(): Promise<void> {
-    try {
-        p.intro(chalk.inverse(' OpenRouter Status '));
-
-        // Check if user is authenticated
-        if (!(await isAuthenticated())) {
-            console.log(chalk.red('❌ Not authenticated. Please run `dexto login` first.'));
-            return;
-        }
-
-        const openRouterKey = await getOpenRouterApiKey();
-
-        if (!openRouterKey) {
-            console.log(chalk.yellow('⚠️  No OpenRouter API key found.'));
-            console.log(
-                chalk.dim('   Run `dexto login` to automatically provision an OpenRouter API key.')
-            );
-            return;
-        }
-
-        console.log(chalk.green('✅ OpenRouter API key is configured'));
-        console.log(chalk.dim(`   Key: ${openRouterKey.substring(0, 20)}...`));
-        console.log(chalk.dim('   You can use all OpenRouter models without manual setup'));
-
-        p.outro(chalk.green('OpenRouter is ready to use!'));
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        p.outro(chalk.red(`❌ Failed to check OpenRouter status: ${errorMessage}`));
-        process.exit(1);
-    }
-}
-
-/**
- * Regenerate OpenRouter API key
- */
-export async function handleOpenRouterRegenerateCommand(): Promise<void> {
-    try {
-        p.intro(chalk.inverse(' Regenerate OpenRouter Key '));
-
-        // Check if user is authenticated
-        if (!(await isAuthenticated())) {
-            console.log(chalk.red('❌ Not authenticated. Please run `dexto login` first.'));
-            return;
-        }
-
-        const shouldRegenerate = await p.confirm({
-            message:
-                'This will create a new OpenRouter API key and invalidate the old one. Continue?',
-            initialValue: false,
-        });
-
-        if (p.isCancel(shouldRegenerate) || !shouldRegenerate) {
-            p.cancel('Regeneration cancelled');
-            return;
-        }
-
-        console.log(chalk.cyan('🔄 Regenerating OpenRouter API key...'));
-
-        // Get auth token
-        const { getAuthToken } = await import('./auth.js');
-        const authToken = await getAuthToken();
-
-        if (!authToken) {
-            throw new Error('No authentication token found');
-        }
-
-        // Call API to regenerate key
-        const apiClient = await getDextoApiClient();
-        const { apiKey, keyId } = await apiClient.provisionOpenRouterKey(authToken);
-
-        // Update stored auth config
-        const { loadAuth, storeAuth } = await import('./auth.js');
-        const auth = await loadAuth();
-        if (auth) {
-            await storeAuth({
-                ...auth,
-                openRouterApiKey: apiKey,
-                openRouterKeyId: keyId,
-            });
-        }
-
-        console.log(chalk.green('✅ OpenRouter API key regenerated successfully!'));
-        console.log(chalk.dim(`   New Key ID: ${keyId}`));
-
-        p.outro(chalk.green('New OpenRouter key is ready to use!'));
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        p.outro(chalk.red(`❌ Failed to regenerate OpenRouter key: ${errorMessage}`));
-        process.exit(1);
-    }
-}
-
-/**
- * Show available OpenRouter models
- */
 export async function handleOpenRouterModelsCommand(): Promise<void> {
     try {
         p.intro(chalk.inverse(' OpenRouter Models '));
 
-        // Check if user is authenticated and has OpenRouter key
         if (!(await isAuthenticated())) {
             console.log(chalk.red('❌ Not authenticated. Please run `dexto login` first.'));
             return;
@@ -171,7 +71,7 @@ export async function handleOpenRouterModelsCommand(): Promise<void> {
         console.log(
             chalk.dim(`\nSample models (${Math.min(DISPLAY_LIMIT, models.length)} shown):`)
         );
-        models.slice(0, DISPLAY_LIMIT).forEach((model: string, index: number) => {
+        models.slice(0, DISPLAY_LIMIT).forEach((model, index) => {
             console.log(chalk.cyan(`   ${index + 1}. ${model}`));
         });
 

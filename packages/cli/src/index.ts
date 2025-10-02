@@ -514,7 +514,7 @@ program
     .action(async () => {
         try {
             const { handleOpenRouterStatusCommand } = await import(
-                './cli/commands/openrouter-commands.js'
+                './cli/commands/openrouter/index.js'
             );
             await handleOpenRouterStatusCommand();
             process.exit(0);
@@ -531,7 +531,7 @@ program
     .action(async () => {
         try {
             const { handleOpenRouterModelsCommand } = await import(
-                './cli/commands/openrouter-commands.js'
+                './cli/commands/openrouter/index.js'
             );
             await handleOpenRouterModelsCommand();
             process.exit(0);

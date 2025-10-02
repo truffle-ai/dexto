@@ -1,7 +1,7 @@
 // packages/cli/src/cli/utils/openrouter-setup.ts
 
 import { logger } from '@dexto/core';
-import { getOpenRouterApiKey } from '../commands/auth.js';
+import { getOpenRouterApiKey } from './auth-service.js';
 import { saveProviderApiKey } from '@dexto/core';
 
 /**

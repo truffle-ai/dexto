@@ -41,7 +41,7 @@ vi.mock('../utils/login-flow.js', () => ({
     handleCompleteLoginFlow: vi.fn(),
 }));
 
-vi.mock('./auth.js', () => ({
+vi.mock('../utils/auth-service.js', () => ({
     isAuthenticated: vi.fn().mockResolvedValue(false), // Default to not authenticated for tests
 }));
 
