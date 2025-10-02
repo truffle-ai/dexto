@@ -19,32 +19,6 @@ export class BlobError {
         ]);
     }
 
-    static invalidBackendType(backendType: string): DextoValidationError {
-        return new DextoValidationError([
-            {
-                code: BlobErrorCode.BLOB_INVALID_BACKEND_TYPE,
-                message: `Unsupported backend type: ${backendType}`,
-                scope: ErrorScope.BLOB,
-                type: ErrorType.USER,
-                severity: 'error' as const,
-                context: { backendType },
-            },
-        ]);
-    }
-
-    static backendConfigMissing(backendType: string): DextoValidationError {
-        return new DextoValidationError([
-            {
-                code: BlobErrorCode.BLOB_BACKEND_CONFIG_MISSING,
-                message: `Configuration required for backend type: ${backendType}`,
-                scope: ErrorScope.BLOB,
-                type: ErrorType.USER,
-                severity: 'error' as const,
-                context: { backendType },
-            },
-        ]);
-    }
-
     // Storage errors
     static sizeExceeded(size: number, maxSize: number): DextoRuntimeError {
         return new DextoRuntimeError(
@@ -145,26 +119,6 @@ export class BlobError {
             ErrorType.THIRD_PARTY,
             `Blob backend ${backendType} is unavailable`,
             { backendType, originalError: error instanceof Error ? error.message : String(error) }
-        );
-    }
-
-    static backendTimeout(backendType: string, operation: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            BlobErrorCode.BLOB_BACKEND_TIMEOUT,
-            ErrorScope.BLOB,
-            ErrorType.TIMEOUT,
-            `Blob backend ${backendType} timed out during ${operation}`,
-            { backendType, operation }
-        );
-    }
-
-    static credentialsInvalid(backendType: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            BlobErrorCode.BLOB_BACKEND_CREDENTIALS_INVALID,
-            ErrorScope.BLOB,
-            ErrorType.FORBIDDEN,
-            `Invalid credentials for blob backend ${backendType}`,
-            { backendType }
         );
     }
 

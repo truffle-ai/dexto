@@ -1,8 +1,8 @@
 /**
  * Core types for the Blob Service system
  *
- * The blob service handles large, unstructured data storage with support
- * for multiple backends (local filesystem, S3, GCS, Azure, etc.)
+ * The blob service handles large, unstructured data storage using
+ * the local filesystem backend.
  */
 
 /**
@@ -64,8 +64,7 @@ export interface BlobStats {
     count: number;
     totalSize: number;
     backendType: string;
-    storePath?: string; // For local backend
-    bucket?: string; // For cloud backends
+    storePath: string;
 }
 
 /**
@@ -86,44 +85,9 @@ export interface LocalBlobBackendConfig extends BlobBackendConfig {
 }
 
 /**
- * S3-compatible backend configuration
+ * Blob service configuration (currently only supports local filesystem)
  */
-export interface S3BlobBackendConfig extends BlobBackendConfig {
-    type: 's3';
-    bucket: string;
-    region: string;
-    accessKeyId?: string | undefined; // If not provided, uses AWS SDK default credential chain
-    secretAccessKey?: string | undefined;
-    endpoint?: string | undefined; // For S3-compatible services like MinIO
-}
-
-/**
- * Google Cloud Storage backend configuration
- */
-export interface GCSBlobBackendConfig extends BlobBackendConfig {
-    type: 'gcs';
-    bucket: string;
-    projectId: string;
-    keyFilename?: string | undefined; // Path to service account key file
-}
-
-/**
- * Azure Blob Storage backend configuration
- */
-export interface AzureBlobBackendConfig extends BlobBackendConfig {
-    type: 'azure';
-    containerName: string;
-    connectionString?: string | undefined; // If not provided, uses environment variables
-}
-
-/**
- * Union type for all backend configurations
- */
-export type BlobServiceConfig =
-    | LocalBlobBackendConfig
-    | S3BlobBackendConfig
-    | GCSBlobBackendConfig
-    | AzureBlobBackendConfig;
+export type BlobServiceConfig = LocalBlobBackendConfig;
 
 /**
  * Backend interface that all blob storage implementations must follow

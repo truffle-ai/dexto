@@ -30,65 +30,14 @@ const BlobBackendConfigSchema = z.object({
 /**
  * Local filesystem backend configuration
  */
-const LocalBlobBackendConfigSchema = BlobBackendConfigSchema.extend({
+export const BlobServiceConfigSchema = BlobBackendConfigSchema.extend({
     type: z.literal('local').describe('Backend type identifier'),
     storePath: z
         .string()
         .optional()
         .describe('Custom storage path (defaults to context-aware path)'),
-}).strict();
-
-/**
- * S3-compatible backend configuration
- */
-const S3BlobBackendConfigSchema = BlobBackendConfigSchema.extend({
-    type: z.literal('s3').describe('Backend type identifier'),
-    bucket: z.string().min(1).describe('S3 bucket name'),
-    region: z.string().min(1).describe('AWS region'),
-    accessKeyId: z
-        .string()
-        .optional()
-        .describe('AWS access key ID (if not using default credential chain)'),
-    secretAccessKey: z.string().optional().describe('AWS secret access key'),
-    endpoint: z
-        .string()
-        .url()
-        .optional()
-        .describe('Custom endpoint for S3-compatible services like MinIO'),
-}).strict();
-
-/**
- * Google Cloud Storage backend configuration
- */
-const GCSBlobBackendConfigSchema = BlobBackendConfigSchema.extend({
-    type: z.literal('gcs').describe('Backend type identifier'),
-    bucket: z.string().min(1).describe('GCS bucket name'),
-    projectId: z.string().min(1).describe('Google Cloud project ID'),
-    keyFilename: z.string().optional().describe('Path to service account key file'),
-}).strict();
-
-/**
- * Azure Blob Storage backend configuration
- */
-const AzureBlobBackendConfigSchema = BlobBackendConfigSchema.extend({
-    type: z.literal('azure').describe('Backend type identifier'),
-    containerName: z.string().min(1).describe('Azure blob container name'),
-    connectionString: z
-        .string()
-        .optional()
-        .describe('Azure storage connection string (if not using environment variables)'),
-}).strict();
-
-/**
- * Discriminated union for all blob backend configurations
- */
-export const BlobServiceConfigSchema = z
-    .discriminatedUnion('type', [
-        LocalBlobBackendConfigSchema,
-        S3BlobBackendConfigSchema,
-        GCSBlobBackendConfigSchema,
-        AzureBlobBackendConfigSchema,
-    ])
+})
+    .strict()
     .describe('Blob storage backend configuration');
 
 /**
@@ -141,8 +90,7 @@ export const BlobStatsSchema = z
         count: z.number().int().nonnegative().describe('Number of blobs stored'),
         totalSize: z.number().int().nonnegative().describe('Total size of all blobs in bytes'),
         backendType: z.string().describe('Type of storage backend'),
-        storePath: z.string().optional().describe('Storage path for local backend'),
-        bucket: z.string().optional().describe('Bucket name for cloud backends'),
+        storePath: z.string().describe('Storage path for local backend'),
     })
     .strict()
     .describe('Storage statistics');

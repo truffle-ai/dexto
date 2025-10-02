@@ -1,11 +1,7 @@
 /**
- * Blob Service - Infrastructure-level blob storage with pluggable backends
+ * Blob Service - Infrastructure-level blob storage
  *
- * Provides unified blob storage capabilities supporting multiple backends:
- * - Local filesystem (default)
- * - Amazon S3 (coming soon)
- * - Google Cloud Storage (coming soon)
- * - Azure Blob Storage (coming soon)
+ * Provides blob storage capabilities using the local filesystem backend.
  */
 
 // Core service
@@ -27,9 +23,6 @@ export type {
     BlobBackendConfig,
     BlobServiceConfig,
     LocalBlobBackendConfig,
-    S3BlobBackendConfig,
-    GCSBlobBackendConfig,
-    AzureBlobBackendConfig,
 } from './types.js';
 
 // Error handling
