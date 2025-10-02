@@ -109,13 +109,6 @@ export class InternalPromptProvider implements PromptProvider {
         };
     }
 
-    async hasPrompt(name: string): Promise<boolean> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
-        return this.promptsCache.some((prompt) => prompt.name === name);
-    }
-
     async getPromptDefinition(name: string): Promise<PromptDefinition | null> {
         if (!this.cacheValid) {
             await this.buildPromptsCache();

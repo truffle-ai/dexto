@@ -70,13 +70,6 @@ export class CustomPromptProvider implements PromptProvider {
         return { prompts: this.promptsCache };
     }
 
-    async hasPrompt(name: string): Promise<boolean> {
-        if (!this.cacheValid) {
-            await this.buildCache();
-        }
-        return this.promptRecords.has(name);
-    }
-
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
         if (!this.cacheValid) {
             await this.buildCache();

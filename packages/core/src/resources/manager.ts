@@ -232,13 +232,4 @@ export class ResourceManager {
             });
         });
     }
-
-    /**
-     * Force refresh of resource data (for components that need to update their local state)
-     */
-    async getUpdatedResourceList(): Promise<ResourceSet> {
-        // This method provides a way for components to get fresh resource data
-        // when they receive cache invalidation events
-        return await this.list();
-    }
 }

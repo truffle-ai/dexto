@@ -2,13 +2,7 @@
  * Core resource types and main manager
  */
 
-export type {
-    ResourceSource,
-    ResourceMetadata,
-    ResourceContent,
-    ResourceProvider,
-    ResourceSet,
-} from './types.js';
+export type { ResourceSource, ResourceMetadata, ResourceProvider, ResourceSet } from './types.js';
 
 export type { InternalResourcesConfig, ValidatedInternalResourcesConfig } from './schemas.js';
 

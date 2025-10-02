@@ -141,18 +141,6 @@ function findResourceByName(resources: ResourceSet, identifier: string): string 
     return undefined;
 }
 
-export async function expandResourceReferences(
-    message: string,
-    _resourceReader: (uri: string) => Promise<ReadResourceResult>
-): Promise<ResourceExpansionResult> {
-    return {
-        expandedMessage: message,
-        expandedReferences: [],
-        unresolvedReferences: [],
-        extractedImages: [],
-    };
-}
-
 export function formatResourceContent(
     resourceUri: string,
     resourceName: string,

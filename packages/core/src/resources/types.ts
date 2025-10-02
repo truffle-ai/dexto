@@ -34,16 +34,6 @@ export interface ResourceMetadata {
 }
 
 /**
- * Resource content with metadata
- */
-export interface ResourceContent {
-    /** The resource metadata */
-    metadata: ResourceMetadata;
-    /** The actual content of the resource */
-    content: ReadResourceResult;
-}
-
-/**
  * Resource provider interface - implemented by sources that can provide resources
  */
 export interface ResourceProvider {

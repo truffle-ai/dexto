@@ -104,23 +104,6 @@ export class InternalResourcesProvider implements ResourceProvider {
         }
     }
 
-    invalidateCache(): void {
-        logger.debug('Internal resources cache invalidated');
-        for (const [type, handler] of this.handlers.entries()) {
-            try {
-                Promise.resolve(handler.refresh?.()).catch((err) =>
-                    logger.error(`Failed to refresh ${type} resource handler`, err)
-                );
-            } catch (err) {
-                logger.error(`Failed to schedule refresh for ${type} handler`, err);
-            }
-        }
-    }
-
-    getHandlers(): Map<string, InternalResourceHandler> {
-        return this.handlers;
-    }
-
     async addResourceConfig(config: InternalResourceConfig): Promise<void> {
         try {
             const handler = createInternalResourceHandler(config.type);
@@ -153,20 +136,5 @@ export class InternalResourcesProvider implements ResourceProvider {
             this.config.resources = this.config.resources.filter((r) => r.type !== type);
             logger.info(`Removed ${type} resource handler`);
         }
-    }
-
-    /**
-     * Get the blob service instance from the blob resource handler if available.
-     */
-    getBlobService(): import('../blob/index.js').BlobService | undefined {
-        const blobHandler = this.handlers.get('blob');
-        if (
-            blobHandler &&
-            'getBlobService' in blobHandler &&
-            typeof blobHandler.getBlobService === 'function'
-        ) {
-            return blobHandler.getBlobService();
-        }
-        return undefined;
     }
 }

@@ -108,15 +108,13 @@ export class MCPPromptProvider implements PromptProvider {
     }
 
     /**
-     * List all available prompts from MCP servers with pagination support
+     * List all available prompts from MCP servers
      */
     async listPrompts(_cursor?: string): Promise<PromptListResult> {
         if (!this.cacheValid) {
             await this.buildPromptsCache();
         }
 
-        // For now, return all prompts without pagination
-        // TODO: Implement proper pagination when MCP servers support it
         return {
             prompts: this.promptsCache,
         };
@@ -128,14 +126,6 @@ export class MCPPromptProvider implements PromptProvider {
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
         logger.debug(`📝 Reading MCP prompt: ${name}`);
         return await this.mcpManager.getPrompt(name, args);
-    }
-
-    /**
-     * Check if a prompt exists
-     */
-    async hasPrompt(name: string): Promise<boolean> {
-        const prompts = await this.listPrompts();
-        return prompts.prompts.some((prompt) => prompt.name === name);
     }
 
     /**

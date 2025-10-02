@@ -87,7 +87,7 @@ export class StarterPromptProvider implements PromptProvider {
     }
 
     /**
-     * List all available starter prompts with pagination support
+     * List all available starter prompts
      */
     async listPrompts(_cursor?: string): Promise<PromptListResult> {
         if (!this.cacheValid) {
@@ -146,14 +146,6 @@ export class StarterPromptProvider implements PromptProvider {
                 },
             ],
         };
-    }
-
-    /**
-     * Check if a starter prompt exists
-     */
-    async hasPrompt(name: string): Promise<boolean> {
-        const prompts = await this.listPrompts();
-        return prompts.prompts.some((prompt) => prompt.name === name);
     }
 
     /**
