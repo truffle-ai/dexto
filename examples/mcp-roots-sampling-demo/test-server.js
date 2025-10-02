@@ -4,7 +4,7 @@
 // This sends basic MCP protocol messages to test server functionality
 
 import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -20,7 +20,19 @@ async function testServer() {
   let responseData = '';
 
   server.stdout.on('data', (data) => {
-    responseData += data.toString();
+    const text = data.toString();
+    responseData += text;
+    // Auto-reply to server -> client requests
+    for (const line of text.split('\n').filter(Boolean)) {
+      try {
+        const msg = JSON.parse(line);
+        if (msg.method === 'roots/list' && msg.id != null) {
+          const rootUri = pathToFileURL(__dirname).toString();
+          const reply = { jsonrpc: '2.0', id: msg.id, result: { roots: [{ name: 'demo-root', uri: rootUri }] } };
+          server.stdin.write(JSON.stringify(reply) + '\n');
+        }
+      } catch { /* ignore non-JSON lines */ }
+    }
   });
 
   server.stderr.on('data', (data) => {

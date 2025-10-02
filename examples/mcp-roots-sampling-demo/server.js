@@ -185,8 +185,10 @@ class CodeReviewServer {
     
     for (const root of this.roots) {
       try {
-        // Convert file:// URI to local path
-        const rootPath = root.uri.replace('file://', '');
+        // Convert file:// URI to local path safely
+        const rootPath = root.uri.startsWith('file:')
+          ? fileURLToPath(new URL(root.uri))
+          : root.uri;
         await this.walkDirectory(rootPath, files, extension, rootPath, maxFiles);
         
         if (files.length >= maxFiles) break;

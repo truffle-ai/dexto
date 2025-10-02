@@ -405,24 +405,31 @@ export class DextoAgent {
             let finalText = textInput;
             let finalImageData = imageDataInput;
             if (textInput && textInput.includes('@')) {
-                const resources = await this.resourceManager.list();
-                const expansion = await expandMessageReferences(textInput, resources, (uri) =>
-                    this.resourceManager.read(uri)
-                );
-                finalText = expansion.expandedMessage;
+                try {
+                    const resources = await this.resourceManager.list();
+                    const expansion = await expandMessageReferences(textInput, resources, (uri) =>
+                        this.resourceManager.read(uri)
+                    );
+                    finalText = expansion.expandedMessage;
 
-                // If we extracted images from resources and don't already have image data, use the first extracted image
-                if (expansion.extractedImages.length > 0 && !imageDataInput) {
-                    const firstImage = expansion.extractedImages[0];
-                    if (firstImage) {
-                        finalImageData = {
-                            image: firstImage.image,
-                            mimeType: firstImage.mimeType,
-                        };
-                        logger.debug(
-                            `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
-                        );
+                    // If we extracted images from resources and don't already have image data, use the first extracted image
+                    if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                        const firstImage = expansion.extractedImages[0];
+                        if (firstImage) {
+                            finalImageData = {
+                                image: firstImage.image,
+                                mimeType: firstImage.mimeType,
+                            };
+                            logger.debug(
+                                `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                            );
+                        }
                     }
+                } catch (error) {
+                    logger.error(
+                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    throw error;
                 }
             }
 
@@ -1531,6 +1538,9 @@ export class DextoAgent {
         request: NormalizedSamplingRequest
     ): Promise<void> {
         const updates: Partial<LLMUpdates> = {};
+
+        // Disable tool execution for sampling sessions
+        updates.maxIterations = 1;
 
         if (typeof request.overrides.temperature === 'number') {
             updates.temperature = request.overrides.temperature;

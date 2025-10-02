@@ -117,9 +117,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         if (credentialsResult.action === 'accept' && credentialsResult.content) {
             // Mask the API key for display
-            const maskedKey = credentialsResult.content.api_key.substring(0, 8) + '...' + 
-                             credentialsResult.content.api_key.slice(-4);
-            
+            const apiKey = credentialsResult.content.api_key;
+            const maskedKey = apiKey.length <= 8
+                ? '*'.repeat(apiKey.length)
+                : apiKey.substring(0, 4) + '...' + apiKey.slice(-4);
+
             return {
                 content: [
                     {

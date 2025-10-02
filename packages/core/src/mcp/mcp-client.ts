@@ -697,11 +697,11 @@ export class MCPClient extends EventEmitter implements IMCPClient {
      */
     async requestElicitation(details: ElicitationDetails): Promise<ElicitationResponse> {
         if (!this.approvalProvider) {
-            throw new Error('No approval provider available for elicitation');
+            throw MCPError.protocolError('No approval provider available for elicitation');
         }
 
         if (!this.approvalProvider.requestElicitation) {
-            throw new Error('Approval provider does not support elicitation');
+            throw MCPError.protocolError('Approval provider does not support elicitation');
         }
 
         // Add server name to the details for user context
