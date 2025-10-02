@@ -70,10 +70,9 @@ function _createInBuiltLLMService(
         }
         case 'openrouter': {
             // OpenRouter - hardcoded baseURL for unified LLM access
-            // Note: OpenAI SDK automatically appends /v1, so we only provide the base
             const openai = new OpenAI({
                 apiKey,
-                baseURL: 'https://openrouter.ai/api',
+                baseURL: 'https://openrouter.ai/api/v1',
             });
             return new OpenAIService(
                 toolManager,
@@ -118,15 +117,19 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey, baseURL })(model);
+            // Many OpenAI-compatible providers (OpenRouter, Groq, etc.) only expose the
+            // legacy /chat/completions endpoint. The default provider() helper uses the
+            // newer /responses API path, which causes the base URL path segments to be
+            // interpreted as the model name. For compatibility we explicitly select the
+            // chat-centric model factory so requests go to /chat/completions.
+            return createOpenAI({ apiKey, baseURL }).chat(model);
         }
         case 'openrouter': {
             // OpenRouter - hardcoded baseURL for unified LLM access
-            // Note: Vercel AI SDK automatically appends /v1, so we only provide the base
             return createOpenAI({
                 apiKey,
-                baseURL: 'https://openrouter.ai/api',
-            })(model);
+                baseURL: 'https://openrouter.ai/api/v1',
+            }).chat(model);
         }
         case 'anthropic':
             return createAnthropic({ apiKey })(model);
