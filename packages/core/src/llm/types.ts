@@ -2,6 +2,7 @@
 export const LLM_PROVIDERS = [
     'openai',
     'openai-compatible',
+    'openrouter',
     'anthropic',
     'google',
     'groq',

@@ -10,6 +10,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
   groq: "/logos/groq.svg",
   xai: "/logos/grok.svg",
   'openai-compatible': "/logos/openai.svg",
+  openrouter: "/logos/openai.svg", // TODO: Add OpenRouter-specific logo
   cohere: "/logos/cohere-color.svg",
 };
 
@@ -21,6 +22,7 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
   groq: "https://groq.com/pricing/",
   xai: "https://docs.x.ai/docs/models",
   cohere: "https://cohere.com/pricing",
+  openrouter: "https://openrouter.ai/models",
   // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 

@@ -263,6 +263,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
     },
+    openrouter: {
+        models: [], // Empty - OpenRouter proxies 100+ models, accepts any model name
+        supportedRouters: ['vercel', 'in-built'],
+        baseURLSupport: 'optional', // baseURL is automatically injected (https://openrouter.ai/api/v1)
+        supportedFileTypes: ['pdf', 'image', 'audio'], // OpenRouter models have varying capabilities - user assumes responsibility
+    },
     anthropic: {
         models: [
             {

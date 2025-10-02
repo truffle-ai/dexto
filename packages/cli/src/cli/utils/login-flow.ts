@@ -73,11 +73,10 @@ async function setupDefaultPreferences() {
     try {
         // Create preferences for OpenRouter with a popular model
         const preferences = createInitialPreferences(
-            'openai-compatible',
+            'openrouter',
             'openai/gpt-4o-mini',
-            getPrimaryApiKeyEnvVar('openai-compatible'),
-            'default-agent',
-            OPENROUTER_CONFIG.baseURL
+            getPrimaryApiKeyEnvVar('openrouter'),
+            'default-agent'
         );
 
         await saveGlobalPreferences(preferences);

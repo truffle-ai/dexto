@@ -9,7 +9,7 @@ import { saveProviderApiKey } from '@dexto/core';
  */
 export const OPENROUTER_CONFIG = {
     baseURL: 'https://openrouter.ai/api/v1',
-    provider: 'openai-compatible' as const,
+    provider: 'openrouter' as const,
     router: 'vercel' as const,
 };
 
@@ -26,10 +26,7 @@ export async function setupOpenRouterIfAvailable(): Promise<boolean> {
         }
 
         // Set the OpenRouter API key in the environment
-        const { envVar, targetEnvPath } = await saveProviderApiKey(
-            'openai-compatible',
-            openRouterKey
-        );
+        const { envVar, targetEnvPath } = await saveProviderApiKey('openrouter', openRouterKey);
 
         logger.debug(`OpenRouter API key configured: ${envVar} -> ${targetEnvPath}`);
         return true;

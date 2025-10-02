@@ -78,6 +78,11 @@ export const LLMConfigSchema = z
     })
     .strict()
     .superRefine((data, ctx) => {
+        // Inject hardcoded baseURL for providers that require it
+        if (data.provider === 'openrouter' && !data.baseURL) {
+            data.baseURL = 'https://openrouter.ai/api/v1';
+        }
+
         const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
         const maxInputTokensIsSet = data.maxInputTokens != null;
 

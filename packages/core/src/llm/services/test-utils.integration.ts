@@ -132,6 +132,7 @@ export const TestConfigs = {
             xai: 'grok-beta',
             cohere: 'command-r',
             'openai-compatible': 'gpt-4o-mini',
+            openrouter: 'openai/gpt-4o-mini',
         };
 
         return {
