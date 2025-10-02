@@ -114,18 +114,21 @@ export function getGlobalPreferencesPath(): string {
  * @param model Selected model
  * @param apiKeyVar Environment variable name for API key
  * @param defaultAgent Optional default agent name
+ * @param baseURL Optional base URL for API requests (required for openai-compatible)
  */
 export function createInitialPreferences(
     provider: LLMProvider,
     model: string,
     apiKeyVar: string,
-    defaultAgent: string = 'default-agent'
+    defaultAgent: string = 'default-agent',
+    baseURL?: string
 ): GlobalPreferences {
     return {
         llm: {
             provider,
             model,
             apiKey: `$${apiKeyVar}`,
+            ...(baseURL && { baseURL }),
         },
         defaults: {
             defaultAgent,

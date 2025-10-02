@@ -7,7 +7,7 @@ import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar } from '@dexto/core';
 import { writePreferencesToAgent } from '@dexto/core';
 import { handleBrowserLogin } from '../commands/auth.js';
-import { setupOpenRouterIfAvailable } from './openrouter-setup.js';
+import { setupOpenRouterIfAvailable, OPENROUTER_CONFIG } from './openrouter-setup.js';
 
 /**
  * Complete login flow that handles authentication, key provisioning, and configuration
@@ -24,16 +24,13 @@ export async function handleCompleteLoginFlow(): Promise<void> {
             return;
         }
 
-        // Start the login process
-        const spinner = p.spinner();
-        spinner.start('Starting authentication...');
-
         try {
-            // Perform browser-based OAuth login
+            // Perform browser-based OAuth login (handles its own UI)
             await handleBrowserLogin();
 
             // Configure OpenRouter environment
-            spinner.message('Configuring OpenRouter access...');
+            const spinner = p.spinner();
+            spinner.start('Configuring OpenRouter access...');
             const openRouterConfigured = await setupOpenRouterIfAvailable();
 
             if (!openRouterConfigured) {
@@ -58,9 +55,8 @@ export async function handleCompleteLoginFlow(): Promise<void> {
             console.log(chalk.dim('   Example: model: openai/gpt-4o'));
             console.log(chalk.dim('\n🚀 Run `dexto` to start chatting!'));
         } catch (error) {
-            spinner.stop(chalk.red('❌ Login setup failed'));
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(chalk.red(`Error: ${errorMessage}`));
+            console.error(chalk.red(`\n❌ Login setup failed: ${errorMessage}`));
             throw error;
         }
     } catch (error) {
@@ -80,7 +76,8 @@ async function setupDefaultPreferences() {
             'openai-compatible',
             'openai/gpt-4o-mini',
             getPrimaryApiKeyEnvVar('openai-compatible'),
-            'default-agent'
+            'default-agent',
+            OPENROUTER_CONFIG.baseURL
         );
 
         await saveGlobalPreferences(preferences);

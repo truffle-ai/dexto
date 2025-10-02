@@ -15,6 +15,8 @@ import { selectProvider } from '../utils/provider-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import { handleWelcomeFlow } from '../utils/welcome-flow.js';
 import { handleCompleteLoginFlow } from '../utils/login-flow.js';
+import { isAuthenticated } from './auth.js';
+import { setupOpenRouterIfAvailable, OPENROUTER_CONFIG } from '../utils/openrouter-setup.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -123,6 +125,54 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     }
 
     console.log(chalk.cyan('\n🗿 Setting up Dexto...\n'));
+
+    // Check if user is already logged in and can use OpenRouter
+    if (validated.interactive && !validated.provider && (await isAuthenticated())) {
+        console.log(chalk.green('✅ Already logged in!'));
+        console.log(chalk.cyan('🔑 Setting up OpenRouter with your existing credentials...\n'));
+
+        try {
+            // Configure OpenRouter environment
+            const openRouterConfigured = await setupOpenRouterIfAvailable();
+
+            if (openRouterConfigured) {
+                // Create preferences for OpenRouter
+                const preferences = createInitialPreferences(
+                    'openai-compatible',
+                    'openai/gpt-4o-mini',
+                    getPrimaryApiKeyEnvVar('openai-compatible'),
+                    validated.defaultAgent,
+                    OPENROUTER_CONFIG.baseURL
+                );
+
+                await saveGlobalPreferences(preferences);
+
+                console.log(
+                    chalk.green('\n✨ Setup complete! Dexto is configured with OpenRouter.\n')
+                );
+                console.log(chalk.dim('💡 You can now use any OpenRouter model in your agents.'));
+                console.log(chalk.dim('   Example: model: openai/gpt-4o\n'));
+
+                // Track successful auto-setup
+                capture('dexto_setup', {
+                    provider: 'openai-compatible',
+                    model: 'openai/gpt-4o-mini',
+                    hadApiKeyBefore: true,
+                    setupMode: 'interactive',
+                });
+
+                return; // Setup complete
+            }
+        } catch (error) {
+            logger.warn(`Failed to auto-configure OpenRouter: ${error}`);
+            console.log(
+                chalk.yellow(
+                    '⚠️  Could not automatically configure OpenRouter. Proceeding with manual setup...\n'
+                )
+            );
+            // Fall through to manual setup flow
+        }
+    }
 
     // Show welcome flow for interactive setup without specific provider
     if (validated.interactive && !validated.provider) {

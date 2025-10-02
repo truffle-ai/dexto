@@ -20,9 +20,16 @@ export const PreferenceLLMSchema = z
                 'Must be environment variable reference (e.g., $OPENAI_API_KEY)'
             )
             .describe('Environment variable reference for API key'),
+
+        baseURL: z
+            .string()
+            .url()
+            .optional()
+            .describe('Base URL for API requests (required for openai-compatible provider)'),
     })
     .strict()
     .superRefine((data, ctx) => {
+        // Validate provider/model compatibility
         if (!isValidProviderModel(data.provider, data.model)) {
             const supportedModels = getSupportedModels(data.provider);
             ctx.addIssue({
@@ -31,6 +38,20 @@ export const PreferenceLLMSchema = z
                 message: `Model '${data.model}' is not supported by provider '${data.provider}'. Supported models: ${supportedModels.join(', ')}`,
                 params: {
                     code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.PREFERENCE,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+
+        // Validate baseURL is provided for openai-compatible provider
+        if (data.provider === 'openai-compatible' && !data.baseURL) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['baseURL'],
+                message: `Provider 'openai-compatible' requires a 'baseURL' to be specified`,
+                params: {
+                    code: PreferenceErrorCode.MISSING_BASE_URL,
                     scope: ErrorScope.PREFERENCE,
                     type: ErrorType.USER,
                 },

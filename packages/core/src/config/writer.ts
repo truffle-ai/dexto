@@ -101,11 +101,13 @@ export async function writeLLMPreferences(
     const provider = overrides?.provider ?? preferences.llm.provider;
     const model = overrides?.model ?? preferences.llm.model;
     const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
+    const baseURL = preferences.llm.baseURL;
 
     logger.debug(`Applying LLM preferences`, {
         finalProvider: provider,
         finalModel: model,
         hasApiKey: Boolean(apiKey),
+        hasBaseURL: Boolean(baseURL),
         source: overrides ? 'CLI overrides + preferences' : 'preferences only',
     });
 
@@ -117,6 +119,7 @@ export async function writeLLMPreferences(
         provider, // Write user preference
         model, // Write user preference
         apiKey, // Write user preference
+        ...(baseURL && { baseURL }), // Write baseURL if present (required for openai-compatible)
     };
 
     // Write back to file using the shared writeConfigFile function
