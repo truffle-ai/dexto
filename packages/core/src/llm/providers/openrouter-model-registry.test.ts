@@ -57,6 +57,7 @@ describe('OpenRouter model registry', () => {
             refreshOpenRouterModelCache,
             lookupOpenRouterModel,
             getCachedOpenRouterModels,
+            getOpenRouterModelCacheInfo,
             __TEST_ONLY__,
         } = await import('./openrouter-model-registry.js');
 
@@ -70,6 +71,11 @@ describe('OpenRouter model registry', () => {
         expect(cachedModels).not.toBeNull();
         expect(cachedModels).toContain('openai/gpt-4o-mini');
 
+        const cacheInfo = getOpenRouterModelCacheInfo();
+        expect(cacheInfo.modelCount).toBeGreaterThan(0);
+        expect(cacheInfo.isFresh).toBe(true);
+        expect(cacheInfo.lastFetchedAt).not.toBeNull();
+
         expect(existsSync(__TEST_ONLY__.cachePath)).toBe(true);
         expect(fetchMock).toHaveBeenCalledOnce();
     });
@@ -80,9 +86,12 @@ describe('OpenRouter model registry', () => {
         const fetchMock = createFetchMock();
         vi.stubGlobal('fetch', fetchMock);
 
-        const { refreshOpenRouterModelCache, lookupOpenRouterModel, __TEST_ONLY__ } = await import(
-            './openrouter-model-registry.js'
-        );
+        const {
+            refreshOpenRouterModelCache,
+            lookupOpenRouterModel,
+            getOpenRouterModelCacheInfo,
+            __TEST_ONLY__,
+        } = await import('./openrouter-model-registry.js');
 
         const initialTime = new Date('2024-01-01T00:00:00Z');
         vi.setSystemTime(initialTime);
@@ -93,6 +102,9 @@ describe('OpenRouter model registry', () => {
         vi.setSystemTime(initialTime.getTime() + __TEST_ONLY__.CACHE_TTL_MS + 1000);
         const lookupResult = lookupOpenRouterModel('openai/gpt-4o-mini');
         expect(lookupResult).toBe('unknown');
+
+        const cacheInfo = getOpenRouterModelCacheInfo();
+        expect(cacheInfo.isFresh).toBe(false);
 
         // Allow pending refresh to run
         await vi.runAllTimersAsync();

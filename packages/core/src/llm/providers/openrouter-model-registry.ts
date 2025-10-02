@@ -127,6 +127,14 @@ class OpenRouterModelRegistry {
         return Array.from(this.models.values());
     }
 
+    getCacheMetadata(): { lastFetchedAt: Date | null; modelCount: number; isFresh: boolean } {
+        return {
+            lastFetchedAt: this.lastFetchedAt ? new Date(this.lastFetchedAt) : null,
+            modelCount: this.models ? this.models.size : 0,
+            isFresh: this.isCacheFresh(),
+        };
+    }
+
     private async refreshInternal(apiKey?: string): Promise<void> {
         try {
             const headers: Record<string, string> = {
@@ -278,6 +286,14 @@ export async function refreshOpenRouterModelCache(options?: RefreshOptions): Pro
 
 export function getCachedOpenRouterModels(): string[] | null {
     return openRouterModelRegistry.getCachedModels();
+}
+
+export function getOpenRouterModelCacheInfo(): {
+    lastFetchedAt: Date | null;
+    modelCount: number;
+    isFresh: boolean;
+} {
+    return openRouterModelRegistry.getCacheMetadata();
 }
 
 // Export internal constants for testing purposes
