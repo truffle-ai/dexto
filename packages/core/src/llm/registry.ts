@@ -9,6 +9,7 @@ import {
     type SupportedFileType,
 } from './types.js';
 import { logger } from '../logger/index.js';
+import { lookupOpenRouterModel } from './providers/openrouter-model-registry.js';
 
 export interface ModelInfo {
     name: string;
@@ -745,6 +746,15 @@ export function getMaxInputTokensForModel(provider: LLMProvider, model: string):
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
+
+    if (provider === 'openrouter') {
+        const lookup = lookupOpenRouterModel(model);
+        if (lookup === 'invalid') {
+            logger.debug(`Model '${model}' is not recognized by OpenRouter`);
+            return false;
+        }
+        return true;
+    }
 
     // Special case: providers that accept any model name (e.g., openai-compatible)
     if (acceptsAnyModel(provider)) {

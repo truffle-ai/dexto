@@ -5,3 +5,4 @@ export * from './validation.js';
 export * from './types.js';
 export * from './services/index.js';
 export * from './schemas.js';
+export * from './providers/openrouter-model-registry.js';
