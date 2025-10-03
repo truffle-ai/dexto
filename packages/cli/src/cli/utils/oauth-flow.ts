@@ -7,7 +7,28 @@ import * as querystring from 'querystring';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
+import { readFileSync } from 'node:fs';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
+
+const DEXTO_LOGO_DATA_URL = (() => {
+    try {
+        const svg = readFileSync(new URL('../../assets/dexto-logo.svg', import.meta.url), 'utf-8');
+        return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+    } catch (error) {
+        logger.warn(
+            `Failed to load Dexto logo asset for OAuth screen: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return '';
+    }
+})();
+
+const LOGO_FALLBACK_TEXT = DEXTO_LOGO_DATA_URL ? '' : 'D';
+const LOGO_HTML = `<div class="logo">${LOGO_FALLBACK_TEXT}</div>`;
+
+// Pre-generate HTML strings with logo to avoid nested template literal issues
+const ERROR_HTML = `${LOGO_HTML}<div class="error-icon">✕</div><h1 class="error-title">Authentication Failed</h1><p>You can close this window and try again in your terminal.</p>`;
+const SUCCESS_HTML = `${LOGO_HTML}<div class="success-icon">✓</div><h1 class="success-title">Login Successful!</h1><p>Welcome to Dexto! You can close this window and return to your terminal.</p>`;
+const NO_DATA_HTML = `${LOGO_HTML}<div class="error-icon">✕</div><h1 class="error-title">No Authentication Data</h1><p>Please try the login process again in your terminal.</p>`;
 
 interface OAuthConfig {
     authUrl: string; // e.g. "https://project.supabase.co"
@@ -65,6 +86,7 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                     res.end(`
                         <html>
                         <head>
+                            <meta charset="utf-8" />
                             <title>Dexto Authentication</title>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
                             <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -98,18 +120,19 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                                 }
                                 
                                 .logo {
-                                    width: 64px;
-                                    height: 64px;
-                                    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-                                    border-radius: 12px;
-                                    margin: 0 auto 24px;
+                                    width: 240px;
+                                    height: 70px;
+                                    margin: 0 auto 32px;
+                                    background-image: ${DEXTO_LOGO_DATA_URL ? `url("${DEXTO_LOGO_DATA_URL}")` : 'none'};
+                                    background-repeat: no-repeat;
+                                    background-position: center;
+                                    background-size: contain;
                                     display: flex;
                                     align-items: center;
                                     justify-content: center;
-                                    font-weight: 700;
-                                    font-size: 24px;
-                                    color: white;
-                                    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+                                    font-size: 28px;
+                                    font-weight: 600;
+                                    color: #4ec9b0;
                                 }
                                 
                                 .spinner {
@@ -171,7 +194,7 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                         </head>
                         <body>
                             <div class="container">
-                                <div class="logo">D</div>
+                                ${LOGO_HTML}
                                 <div class="spinner">◐</div>
                                 <h1>Processing Authentication...</h1>
                                 <p>Please wait while we complete your Dexto login.</p>
@@ -193,25 +216,22 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ error: error })
                                 }).then(() => {
-                                    document.querySelector('.container').innerHTML = 
-                                        '<div class="logo">D</div><div class="error-icon">✕</div><h1 class="error-title">Authentication Failed</h1><p>You can close this window and try again in your terminal.</p>';
+                                    document.querySelector('.container').innerHTML = '${ERROR_HTML}';
                                 });
                             } else if (accessToken) {
                                 fetch('/callback', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ 
+                                    body: JSON.stringify({
                                         access_token: accessToken,
                                         refresh_token: refreshToken,
                                         expires_in: expiresIn ? parseInt(expiresIn) : undefined
                                     })
                                 }).then(() => {
-                                    document.querySelector('.container').innerHTML = 
-                                        '<div class="logo">D</div><div class="success-icon">✓</div><h1 class="success-title">Login Successful!</h1><p>Welcome to Dexto! You can close this window and return to your terminal.</p>';
+                                    document.querySelector('.container').innerHTML = '${SUCCESS_HTML}';
                                 });
                             } else {
-                                document.querySelector('.container').innerHTML = 
-                                    '<div class="logo">D</div><div class="error-icon">✕</div><h1 class="error-title">No Authentication Data</h1><p>Please try the login process again in your terminal.</p>';
+                                document.querySelector('.container').innerHTML = '${NO_DATA_HTML}';
                             }
                             </script>
                         </body>
