@@ -20,6 +20,7 @@ Why a separate provider?
   - On login, we return only a Dexto-issued `DEXTO_API_KEY`.
   - The gateway mints/uses a per-user OpenRouter key internally and never returns it to the client.
   - BYOK (user-supplied provider keys) can still be configured manually by advanced users, but is not part of the login provisioning.
+  - No backward compatibility required (feature not shipped yet).
 
 ### Key Semantics (Decision)
 - Per-user OpenRouter keys are minted and stored server-side (encrypted) for every logged-in user. These are used only by the Dexto gateway.
@@ -84,6 +85,35 @@ Cons:
 
 Response example:
 - `{ success, dextoApiKey, keyId, isNewKey }` (no upstream `apiKey`)
+
+## API Contracts (MVP)
+- POST `/api/provision`
+  - Auth: Supabase session Bearer token (from CLI OAuth).
+  - Body: `{}` (no params) — server decides mint-or-fetch.
+  - Behavior: ensure per-user OR key exists (encrypted), mint/reuse DEXTO_API_KEY, return it.
+  - Response: `{ success: true, dextoApiKey: string, keyId: string, isNewKey: boolean }`.
+
+- POST `/v1/chat/completions`
+  - Auth: `Authorization: Bearer DEXTO_API_KEY`.
+  - Body: OpenAI chat payload (model uses OpenRouter id strings).
+  - Behavior: select upstream per-user OR key, forward to OpenRouter, meter usage, decrement wallet, return response.
+  - Headers: `X-Dexto-Credits-Remaining`, `X-Dexto-Cost-Cents` (and optional rate limit header).
+
+- GET `/v1/models`
+  - Auth: `Authorization: Bearer DEXTO_API_KEY` (or public if preferred).
+  - Behavior: return cached OpenRouter models list (or proxy).
+
+- GET `/me/usage`
+  - Auth: `Authorization: Bearer DEXTO_API_KEY`.
+  - Behavior: return `{ credits_cents, mtd_usage: {...}, recent: [...] }`.
+
+- POST `/api/keys/rotate` (web UI)
+  - Auth: Supabase session.
+  - Behavior: revoke old DEXTO_API_KEY, issue new, return once.
+
+- POST `/api/openrouter-key/rotate` (web UI)
+  - Auth: Supabase session.
+  - Behavior: mint new per-user OR key, update encrypted storage, do not return raw key.
 - Commands (phase 2):
   - `dexto billing status` (credits, MTD usage)
   - `dexto billing topup` (opens Stripe Checkout)

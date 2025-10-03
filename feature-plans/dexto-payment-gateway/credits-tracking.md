@@ -4,6 +4,7 @@
 - `balances (user_id, credits_cents)` — wallet balance.
 - `usage (user_id, key_id, model, input_tokens, output_tokens, cost_cents, ts)` — immutable ledger.
 - Price table: server-side map of OpenRouter model → USD per-token rates.
+- `api_keys (id, user_id, hash, scope, status, created_at)` — hashed DEXTO_API_KEYs.
 
 ## Request lifecycle (Gateway) — canonical metering
 1. Authenticate `DEXTO_API_KEY` → userId.

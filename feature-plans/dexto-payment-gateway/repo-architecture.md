@@ -23,6 +23,7 @@
 3. Configure DNS: `api.dexto.ai` → Vercel project, route to API entry.
 4. Switch CLI `dexto_api_url` to `https://api.dexto.ai`.
 5. Keep the old host alive; add 307 redirects to the new host for `/api/*` until all clients update.
+ 6. Add Supabase tables (api_keys, balances, usage), keep `openrouter_keys` as-is (encrypted, per-user upstream).
 
 ### Functions to migrate
 - `openrouter-provision` → becomes `/api/openrouter-provision` (for BYOK provisioning) and/or merged into a new `/api/auth/*` flow.
@@ -34,6 +35,11 @@
 ### Key handling
 - BYOK path (OpenRouter): keep storing per-user OpenRouter keys (encrypted) as implemented today; these keys are returned to users only on the BYOK flow.
 - Dexto gateway path (paid): prefer per-user OpenRouter keys stored server-side and never returned to clients; gateway selects the user key for upstream calls. Alternatively, use a pooled org key for MVP if time-constrained.
+
+### DEXTO_API_KEY storage
+- Generate cryptographically secure random keys; store only hashed (e.g., SHA-256) in `api_keys` with user_id, scope, status, created_at.
+- Show plaintext once on creation (dashboard/CLI); subsequent reads only return metadata.
+- Expose rotate/revoke endpoints; revoke marks key inactive and logs out sessions if desired.
 
 ## Website login
 - Add “Sign in” on `dexto.ai` (Supabase Auth). Store session JWT in httpOnly cookie.
