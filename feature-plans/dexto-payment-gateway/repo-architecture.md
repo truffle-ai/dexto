@@ -24,12 +24,24 @@
 4. Switch CLI `dexto_api_url` to `https://api.dexto.ai`.
 5. Keep the old host alive; add 307 redirects to the new host for `/api/*` until all clients update.
 
+### Functions to migrate
+- `openrouter-provision` → becomes `/api/openrouter-provision` (for BYOK provisioning) and/or merged into a new `/api/auth/*` flow.
+- New endpoints (paid gateway):
+  - `/v1/chat/completions` (OpenAI-compatible proxy)
+  - `/v1/models` (model list; cached)
+  - `/me/usage` (credits + MTD usage)
+
+### Key handling
+- BYOK path (OpenRouter): keep storing per-user OpenRouter keys (encrypted) as implemented today; these keys are returned to users only on the BYOK flow.
+- Dexto gateway path (paid): prefer per-user OpenRouter keys stored server-side and never returned to clients; gateway selects the user key for upstream calls. Alternatively, use a pooled org key for MVP if time-constrained.
+
 ## Website login
 - Add “Sign in” on `dexto.ai` (Supabase Auth). Store session JWT in httpOnly cookie.
 - Show a Dashboard page:
   - Copy/paste `DEXTO_API_KEY` (rotate/revoke)
   - Credits balance, usage (chart), top-up button
   - Model catalog link (OpenRouter-sourced)
+  - Per-user OpenRouter key status (exists/rotated/limit); never show raw key value for managed `dexto` path.
 
 ## Analytics
 - Tag requests by provider (`dexto`, `openrouter`, native providers) and router (`vercel`, `in-built`).

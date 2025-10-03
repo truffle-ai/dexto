@@ -20,6 +20,19 @@ Why a separate provider?
 - BYOK (Native): `provider: openai|anthropic|google|…`, direct keys (no billing by Dexto).
 - Dexto Credits (Paid): `provider: dexto`, `baseURL: https://api.dexto.ai/v1`, `apiKey: $DEXTO_API_KEY`.
 
+### Key Semantics (Decision)
+- We will use per-user OpenRouter keys for the paid `dexto` path, leveraging the existing minting logic in `../functions/openrouter-provision`.
+  - `DEXTO_API_KEY` authenticates to Dexto; the gateway selects the user’s OpenRouter key (stored encrypted in Supabase) for upstream calls.
+  - The per-user OpenRouter key is never returned to the client for the `dexto` path.
+  - BYOK `openrouter` remains a separate, free path that returns the OpenRouter key to the user for direct usage if they choose.
+
+Pros:
+- Upstream isolation and revocation per user; optional per-key spending caps at OpenRouter.
+- Clear audits per user at OpenRouter + internal wallet ledger.
+
+Cons:
+- More lifecycle management (rotation/limits sync). We’ll keep keys server-side only for paid path to reduce risk.
+
 ## Backend (Gateway) MVP
 - Host under `dexto.ai` (Vercel/Supabase Edge compatible).
 - Endpoints (OpenAI-compatible):
@@ -56,6 +69,25 @@ Why a separate provider?
     - `apiKey: $DEXTO_API_KEY`
   - Else if logged in and OpenRouter key provisioned → keep current OpenRouter flow.
   - Else BYOK native providers via setup.
+
+- UX safeguards:
+  - Preflight optional: call `/me/usage` to display balance.
+  - Read `X-Dexto-Credits-Remaining` header after each request and warn when low.
+  - On `402`, print friendly message and link to top-up.
+
+## Provisioning Endpoint Changes
+- Current: `../functions/openrouter-provision/api/openrouter-provision.ts` mints and returns an OpenRouter key (and stores it encrypted) after verifying the Supabase session.
+- New behavior:
+  - Accept a `mode` parameter: `mode=byok` (return key to client) or `mode=managed` (do NOT return upstream key).
+  - In `managed` mode:
+    - Ensure a per-user OpenRouter key exists (create if missing), store/update it as today.
+    - Return only a Dexto-issued `DEXTO_API_KEY` (or reuse an existing one) for CLI usage.
+    - Do not include `apiKey` (OpenRouter) in the response.
+  - Optional: expose an endpoint to rotate per-user OpenRouter keys (`POST /api/openrouter-key/rotate`) and to adjust per-key upstream spending limits to mirror wallet.
+
+Response examples:
+- BYOK: `{ success, apiKey, keyId, isNewKey }`
+- Managed: `{ success, dextoApiKey, keyId, isNewKey }` (no upstream `apiKey`)
 - Commands (phase 2):
   - `dexto billing status` (credits, MTD usage)
   - `dexto billing topup` (opens Stripe Checkout)
