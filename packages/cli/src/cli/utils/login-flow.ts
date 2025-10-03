@@ -7,7 +7,7 @@ import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar } from '@dexto/core';
 import { writePreferencesToAgent } from '@dexto/core';
 import { handleBrowserLogin } from '../commands/auth/login.js';
-import { setupOpenRouterIfAvailable, OPENROUTER_CONFIG } from './openrouter-setup.js';
+import { setupOpenRouterIfAvailable } from './openrouter-setup.js';
 
 /**
  * Complete login flow that handles authentication, key provisioning, and configuration
@@ -109,7 +109,7 @@ async function applyPreferencesToAgents(preferences: any): Promise<void> {
             await fs.access(defaultAgentPath);
             await writePreferencesToAgent(defaultAgentPath, preferences);
             logger.debug('Applied preferences to default agent');
-        } catch (error) {
+        } catch (_error) {
             logger.debug('Default agent not found, skipping preference application');
         }
 

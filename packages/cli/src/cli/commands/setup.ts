@@ -16,7 +16,7 @@ import { requiresSetup } from '../utils/setup-utils.js';
 import { handleWelcomeFlow } from '../utils/welcome-flow.js';
 import { handleCompleteLoginFlow } from '../utils/login-flow.js';
 import { isAuthenticated } from '../utils/auth-service.js';
-import { setupOpenRouterIfAvailable, OPENROUTER_CONFIG } from '../utils/openrouter-setup.js';
+import { setupOpenRouterIfAvailable } from '../utils/openrouter-setup.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';

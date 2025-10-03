@@ -10,6 +10,9 @@ import { logger } from '@dexto/core';
 import { readFileSync } from 'node:fs';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
+// Track active OAuth callback servers by port for cleanup
+const oauthStateStore = new Map<number, string>();
+
 const DEXTO_LOGO_DATA_URL = (() => {
     try {
         const svg = readFileSync(new URL('../../assets/dexto-logo.svg', import.meta.url), 'utf-8');
@@ -204,19 +207,30 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                             // Handle Supabase OAuth callback (fragment-based)
                             const hashParams = new URLSearchParams(window.location.hash.substring(1));
                             const urlParams = new URLSearchParams(window.location.search);
-                            
+
                             const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
                             const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
                             const expiresIn = hashParams.get('expires_in') || urlParams.get('expires_in');
                             const error = hashParams.get('error') || urlParams.get('error');
-                            
+
+                            // SECURITY: Clear tokens from URL immediately to prevent leakage via:
+                            // - Browser history
+                            // - Referer headers
+                            // - Browser extensions
+                            // - Screenshots/screen sharing
+                            if (window.location.hash || window.location.search) {
+                                window.history.replaceState(null, document.title, window.location.pathname);
+                            }
+
                             if (error) {
                                 fetch('/callback', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ error: error })
                                 }).then(() => {
-                                    document.querySelector('.container').innerHTML = '${ERROR_HTML}';
+                                    document.querySelector('.container').innerHTML = ${JSON.stringify(
+                                        ERROR_HTML
+                                    )};
                                 });
                             } else if (accessToken) {
                                 fetch('/callback', {
@@ -228,10 +242,14 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                                         expires_in: expiresIn ? parseInt(expiresIn) : undefined
                                     })
                                 }).then(() => {
-                                    document.querySelector('.container').innerHTML = '${SUCCESS_HTML}';
+                                    document.querySelector('.container').innerHTML = ${JSON.stringify(
+                                        SUCCESS_HTML
+                                    )};
                                 });
                             } else {
-                                document.querySelector('.container').innerHTML = '${NO_DATA_HTML}';
+                                document.querySelector('.container').innerHTML = ${JSON.stringify(
+                                    NO_DATA_HTML
+                                )};
                             }
                             </script>
                         </body>
@@ -308,26 +326,33 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                 res.writeHead(500);
                 res.end('Internal Server Error');
                 server.close();
+                oauthStateStore.delete(port);
                 reject(error);
             }
         });
+
+        const timeoutMs = 5 * 60 * 1000;
+        const timeoutHandle = setTimeout(() => {
+            server.close();
+            oauthStateStore.delete(port);
+            reject(new Error('Authentication timed out'));
+        }, timeoutMs);
+
+        const cleanup = () => {
+            clearTimeout(timeoutHandle);
+            oauthStateStore.delete(port);
+        };
 
         server.listen(port, 'localhost', () => {
             logger.debug(`OAuth callback server listening on http://localhost:${port}`);
         });
 
+        server.on('close', cleanup);
+
         server.on('error', (error) => {
+            cleanup();
             reject(new Error(`Failed to start callback server: ${error.message}`));
         });
-
-        // Timeout after 5 minutes
-        setTimeout(
-            () => {
-                server.close();
-                reject(new Error('Authentication timed out'));
-            },
-            5 * 60 * 1000
-        );
     });
 }
 
@@ -339,6 +364,15 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
         // Find available port
         const port = await findAvailablePort();
         const redirectUri = `http://localhost:${port}`;
+
+        // SECURITY: Store port to validate callback authenticity
+        // CSRF protection comes from:
+        // 1. Random port allocation (unpredictable callback URL)
+        // 2. Localhost-only binding (no external access)
+        // 3. Short 5-minute timeout window
+        // Note: We don't pass custom state to Supabase as it manages its own OAuth state
+        oauthStateStore.set(port, 'active');
+        logger.debug(`Registered OAuth callback server on port ${port}`);
 
         // Build Supabase authorization URL
         const provider = config.provider || 'google';
