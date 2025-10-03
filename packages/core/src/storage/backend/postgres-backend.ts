@@ -145,8 +145,6 @@ export class PostgresBackend implements DatabaseBackend {
                 'SELECT item FROM lists WHERE key = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3',
                 [key, count, start]
             );
-            // JSONB columns are automatically converted to JS objects by pg library
-            // No need to JSON.parse - it would fail with "[object Object]" is not valid JSON
             return result.rows.map((row) => row.item);
         } finally {
             client.release();
