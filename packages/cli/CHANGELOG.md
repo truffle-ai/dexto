@@ -1,5 +1,12 @@
 # dexto
 
+## 1.1.11
+
+### Patch Changes
+
+- Updated dependencies [0760f8a]
+    - @dexto/core@1.1.11
+
 ## 1.1.10
 
 ### Patch Changes
