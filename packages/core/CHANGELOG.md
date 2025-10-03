@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.1.11
+
+### Patch Changes
+
+- 0760f8a: Fixes to postgres data parsing and url env parsing.
+
 ## 1.1.10
 
 ## 1.1.9
