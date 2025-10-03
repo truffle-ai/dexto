@@ -226,7 +226,8 @@ export class AnthropicService implements ILLMService {
                         const result = await this.toolManager.executeTool(
                             toolName,
                             args,
-                            this.sessionId
+                            this.sessionId,
+                            toolUseId
                         );
 
                         // Add tool result to message manager

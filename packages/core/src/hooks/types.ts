@@ -55,6 +55,13 @@ export interface HookResult<T> {
     notices?: HookNotice[];
 }
 
+export interface HookRunResult<T> {
+    payload: T;
+    canceled: boolean;
+    responseOverride?: string;
+    notices?: HookNotice[];
+}
+
 export interface RegisterOptions {
     id?: string;
     priority?: number;

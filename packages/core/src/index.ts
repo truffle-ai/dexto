@@ -51,6 +51,9 @@ export * from './systemPrompt/index.js';
 // Tools
 export * from './tools/index.js';
 
+// Hooks
+export * from './hooks/index.js';
+
 // Context
 export * from './context/index.js';
 

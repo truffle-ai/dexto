@@ -1,4 +1,5 @@
 import type { HookManager } from '../manager.js';
+import type { HookNotice } from '../types.js';
 
 export interface ContentPolicyOptions {
     maxInputChars?: number;
@@ -24,37 +25,78 @@ export function registerContentPolicyBuiltin(
     hookManager: HookManager,
     opts?: ContentPolicyOptions
 ) {
-    const cfg = { ...DEFAULTS, ...(opts || {}) };
+    const maxInputChars = opts?.maxInputChars ?? DEFAULTS.maxInputChars;
+    const redactEmails = opts?.redactEmails ?? DEFAULTS.redactEmails;
+    const redactApiKeys = opts?.redactApiKeys ?? DEFAULTS.redactApiKeys;
 
     hookManager.use(
         'beforeInput',
         ({ text }) => {
+            const notices: HookNotice[] = [];
+
             if (containsAbusiveLanguage(text)) {
+                const abusiveNotice: HookNotice = {
+                    kind: 'block',
+                    code: 'content_policy.abusive_language',
+                    message: 'Input violates content policy due to abusive language.',
+                };
+                notices.push(abusiveNotice);
                 return {
                     cancel: true,
-                    responseOverride: 'Input violates content policy due to abusive language.',
+                    responseOverride: abusiveNotice.message,
+                    notices,
                 };
             }
 
             let modified = text;
-            if (cfg.maxInputChars > 0 && modified.length > cfg.maxInputChars) {
-                modified = modified.slice(0, cfg.maxInputChars);
+
+            if (maxInputChars > 0 && modified.length > maxInputChars) {
+                modified = modified.slice(0, maxInputChars);
+                notices.push({
+                    kind: 'warn',
+                    code: 'content_policy.truncated',
+                    message: `Input truncated to ${maxInputChars} characters to meet policy limits.`,
+                    details: { originalLength: text.length },
+                });
             }
-            if (cfg.redactEmails) {
-                modified = modified.replace(
+
+            if (redactEmails) {
+                const replaced = modified.replace(
                     /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
                     '[redacted-email]'
                 );
+                if (replaced !== modified) {
+                    notices.push({
+                        kind: 'info',
+                        code: 'content_policy.redact_email',
+                        message: 'Email addresses were redacted from the input.',
+                    });
+                    modified = replaced;
+                }
             }
-            if (cfg.redactApiKeys) {
-                modified = modified.replace(
-                    /(api_key|apikey|bearer)\s*[:=]?\s*([A-Za-z0-9_\-]{12,})/gi,
+
+            if (redactApiKeys) {
+                const replaced = modified.replace(
+                    /(api_key|apikey|bearer)\s*[:=]?\s*([A-Za-z0-9_-]{12,})/gi,
                     '$1 [redacted]'
                 );
+                if (replaced !== modified) {
+                    notices.push({
+                        kind: 'info',
+                        code: 'content_policy.redact_api_key',
+                        message: 'Potential API keys were redacted from the input.',
+                    });
+                    modified = replaced;
+                }
             }
-            if (modified !== text) {
-                return { modify: { text: modified } };
+
+            if (modified !== text || notices.length > 0) {
+                return {
+                    modify: { text: modified },
+                    ...(notices.length > 0 && { notices }),
+                };
             }
+
             return;
         },
         { priority: 10 }

@@ -6,7 +6,7 @@ import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
-import type { HookManager } from '../hooks/index.js';
+import type { HookManager, HookNotice, AfterToolResultPayload } from '../hooks/index.js';
 import { runBeforeToolCall, runAfterToolResult } from '../hooks/index.js';
 
 /**
@@ -70,6 +70,27 @@ export class ToolManager {
         }
 
         logger.debug('ToolManager initialized');
+    }
+
+    private logHookNotices(context: string, notices?: HookNotice[]) {
+        if (!notices || notices.length === 0) {
+            return;
+        }
+
+        notices.forEach((notice) => {
+            const metadata = {
+                context,
+                ...(notice.code && { code: notice.code }),
+                ...(notice.details && { details: notice.details }),
+            };
+
+            const message = `Hook notice (${notice.kind}) - ${notice.message}`;
+            if (notice.kind === 'block' || notice.kind === 'warn') {
+                logger.warn(message, metadata);
+            } else {
+                logger.info(message, metadata);
+            }
+        });
     }
 
     /**
@@ -195,13 +216,20 @@ export class ToolManager {
             const hookRes = await runBeforeToolCall(this.hookManager, {
                 toolName,
                 args,
-                ...(sessionId && { sessionId }),
-                ...(callId && { callId }),
+                ...(sessionId !== undefined ? { sessionId } : {}),
+                ...(callId !== undefined ? { callId } : {}),
             });
+
+            this.logHookNotices('beforeToolCall', hookRes.notices);
 
             if (hookRes.canceled) {
                 logger.debug(`🚫 Tool execution blocked by hooks: ${toolName}`);
-                throw ToolError.executionDenied(toolName, sessionId);
+                throw ToolError.executionDenied(
+                    toolName,
+                    sessionId,
+                    hookRes.responseOverride ?? hookRes.notices?.[0]?.message,
+                    hookRes.notices
+                );
             }
 
             // Use modified args from hooks if any
@@ -271,9 +299,11 @@ export class ToolManager {
                     toolName,
                     result,
                     success: true,
-                    ...(sessionId && { sessionId }),
-                    ...(callId && { callId }),
+                    ...(sessionId !== undefined ? { sessionId } : {}),
+                    ...(callId !== undefined ? { callId } : {}),
                 });
+
+                this.logHookNotices('afterToolResult:success', hookRes.notices);
 
                 // Use modified result from hooks if any
                 if (hookRes.payload.result !== result) {
@@ -289,25 +319,61 @@ export class ToolManager {
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
 
+            let thrownError: unknown = error;
             // Still offer afterToolResult for failure case
             if (this.hookManager) {
                 try {
-                    await runAfterToolResult(this.hookManager, {
+                    const failurePayload: AfterToolResultPayload = {
                         toolName,
                         result:
                             error instanceof Error
                                 ? { error: error.message }
                                 : { error: String(error) },
                         success: false,
-                        ...(sessionId && { sessionId }),
-                        ...(callId && { callId }),
-                    });
+                        ...(sessionId !== undefined ? { sessionId } : {}),
+                        ...(callId !== undefined ? { callId } : {}),
+                    };
+
+                    const hookRes = await runAfterToolResult(this.hookManager, failurePayload);
+                    this.logHookNotices('afterToolResult:failure', hookRes.notices);
+
+                    if (hookRes.responseOverride) {
+                        thrownError = ToolError.executionFailed(
+                            toolName,
+                            hookRes.responseOverride,
+                            sessionId,
+                            hookRes.notices
+                        );
+                    }
+
+                    if (hookRes.payload.result !== failurePayload.result) {
+                        logger.debug(`Hook modified failure result payload`);
+                        if (
+                            thrownError === error &&
+                            hookRes.payload.result &&
+                            typeof hookRes.payload.result === 'object' &&
+                            'error' in hookRes.payload.result
+                        ) {
+                            const sanitizedMessage = (hookRes.payload.result as any).error;
+                            if (
+                                typeof sanitizedMessage === 'string' &&
+                                sanitizedMessage.length > 0
+                            ) {
+                                thrownError = ToolError.executionFailed(
+                                    toolName,
+                                    sanitizedMessage,
+                                    sessionId,
+                                    hookRes.notices
+                                );
+                            }
+                        }
+                    }
                 } catch (hookError) {
                     logger.error(`Hook error during failure handling: ${hookError}`);
                 }
             }
 
-            throw error;
+            throw thrownError;
         }
     }
 

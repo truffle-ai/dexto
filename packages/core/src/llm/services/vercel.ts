@@ -100,7 +100,8 @@ export class VercelLLMService implements ILLMService {
                             const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
-                                this.sessionId
+                                this.sessionId,
+                                options.toolCallId
                             );
 
                             // Queue raw, unfiltered result under the specific toolCallId

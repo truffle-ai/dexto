@@ -12,7 +12,18 @@ export function registerToolConfirmationHook(
             if (sessionId !== undefined) details.sessionId = sessionId;
             const approved = await provider.requestConfirmation(details);
             if (!approved) {
-                return { cancel: true };
+                return {
+                    cancel: true,
+                    responseOverride: `Tool '${toolName}' execution was denied by the operator.`,
+                    notices: [
+                        {
+                            kind: 'block',
+                            code: 'tool_confirmation.denied',
+                            message: `Tool '${toolName}' execution request was denied.`,
+                            ...(sessionId ? { details: { sessionId } } : {}),
+                        },
+                    ],
+                };
             }
             return;
         },

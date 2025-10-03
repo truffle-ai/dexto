@@ -2,9 +2,11 @@ import { logger } from '../logger/index.js';
 import type {
     HookHandler,
     HookName,
+    HookNotice,
     HookPayloadMap,
     HookResult,
     RegisterOptions,
+    HookRunResult,
 } from './types.js';
 
 type HandlerEntry<T> = {
@@ -54,32 +56,32 @@ export class HookManager {
     async run<K extends HookName>(
         name: K,
         payload: HookPayloadMap[K]
-    ): Promise<{ payload: HookPayloadMap[K]; canceled: boolean; responseOverride?: string }> {
+    ): Promise<HookRunResult<HookPayloadMap[K]>> {
         const list = [...(this.handlers[name] as HandlerEntry<HookPayloadMap[K]>[])];
 
         let current = { ...payload } as HookPayloadMap[K];
+        let notices: HookNotice[] | undefined;
         for (const entry of list) {
             try {
                 const res = await entry.handler(current);
                 if (res && typeof res === 'object') {
                     const result = res as HookResult<HookPayloadMap[K]>;
+                    if (result.notices && result.notices.length > 0) {
+                        notices = notices ? [...notices, ...result.notices] : [...result.notices];
+                    }
                     if (result.modify) {
                         current = { ...current, ...result.modify };
                     }
                     if (result.cancel) {
                         if (entry.once) this.remove(name, entry.id);
-                        const ret: {
-                            payload: HookPayloadMap[K];
-                            canceled: boolean;
-                            responseOverride?: string;
-                        } = {
+                        return {
                             payload: current,
                             canceled: true,
+                            ...(result.responseOverride !== undefined && {
+                                responseOverride: result.responseOverride,
+                            }),
+                            ...(notices && { notices }),
                         };
-                        if (result.responseOverride !== undefined) {
-                            ret.responseOverride = result.responseOverride;
-                        }
-                        return ret;
                     }
                 }
                 if (entry.once) this.remove(name, entry.id);
@@ -87,9 +89,9 @@ export class HookManager {
                 logger.error(
                     `Hook '${name}' handler threw error: ${err instanceof Error ? err.message : String(err)}`
                 );
-                return { payload: current, canceled: true };
+                return { payload: current, canceled: true, ...(notices && { notices }) };
             }
         }
-        return { payload: current, canceled: false };
+        return { payload: current, canceled: false, ...(notices && { notices }) };
     }
 }

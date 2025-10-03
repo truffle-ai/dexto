@@ -1,10 +1,10 @@
 import type { HookManager } from '../manager.js';
-import type { BeforeInputPayload } from '../types.js';
+import type { BeforeInputPayload, HookRunResult } from '../types.js';
 
 export async function runBeforeInput(
     hookManager: HookManager | undefined,
     payload: BeforeInputPayload
-): Promise<{ payload: BeforeInputPayload; canceled: boolean; responseOverride?: string }> {
+): Promise<HookRunResult<BeforeInputPayload>> {
     if (!hookManager) {
         return { payload, canceled: false };
     }

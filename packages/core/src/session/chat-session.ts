@@ -8,8 +8,7 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageBackends } from '../storage/backend/types.js';
-import type { ImageData, FileData } from '../context/types.js';
-import type { HookManager } from '../hooks/index.js';
+import type { HookManager, BeforeInputPayload } from '../hooks/index.js';
 import { runBeforeInput } from '../hooks/index.js';
 import {
     SessionEventBus,
@@ -241,16 +240,41 @@ export class ChatSession {
 
         // Run beforeInput hooks for filtering and policy enforcement
         if (this.services.hookManager) {
-            const hookPayload: any = { text: input, sessionId: this.id };
-            if (imageDataInput !== undefined) hookPayload.imageData = imageDataInput;
-            if (fileDataInput !== undefined) hookPayload.fileData = fileDataInput;
+            const hookPayload: BeforeInputPayload = {
+                text: input,
+                sessionId: this.id,
+                ...(imageDataInput && { imageData: imageDataInput }),
+                ...(fileDataInput && { fileData: fileDataInput }),
+            };
 
             const hookResult = await runBeforeInput(this.services.hookManager, hookPayload);
+
+            if (hookResult.notices && hookResult.notices.length > 0) {
+                hookResult.notices.forEach((notice) => {
+                    const metadata = {
+                        sessionId: this.id,
+                        ...(notice.code && { code: notice.code }),
+                        ...(notice.details && { details: notice.details }),
+                    };
+                    const message = `Input hook notice (${notice.kind}) - ${notice.message}`;
+                    if (notice.kind === 'block' || notice.kind === 'warn') {
+                        logger.warn(message, metadata);
+                    } else {
+                        logger.info(message, metadata);
+                    }
+                });
+            }
+
             if (hookResult.canceled) {
                 const message =
                     hookResult.responseOverride ||
+                    hookResult.notices?.[0]?.message ||
                     'Your input was blocked by a policy. Please revise and try again.';
                 logger.info(`Input blocked by hook for session ${this.id}: ${message}`);
+                this.eventBus.emit('llmservice:response', {
+                    content: message,
+                    ...(hookResult.notices && { notices: hookResult.notices }),
+                });
                 return message;
             }
 

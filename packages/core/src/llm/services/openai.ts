@@ -220,7 +220,8 @@ export class OpenAIService implements ILLMService {
                         const result = await this.toolManager.executeTool(
                             toolName,
                             args,
-                            this.sessionId
+                            this.sessionId,
+                            toolCall.id
                         );
 
                         // Add tool result to message manager

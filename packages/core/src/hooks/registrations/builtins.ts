@@ -1,7 +1,8 @@
 import type { HookManager } from '../manager.js';
 import { registerToolConfirmationHook } from '../../tools/confirmation/hook.js';
 import type { ToolConfirmationProvider } from '../../tools/confirmation/types.js';
-import { registerContentPolicyBuiltin } from './content-policy.js';
+import { registerContentPolicyBuiltin, type ContentPolicyOptions } from './content-policy.js';
+import { registerNotificationBuiltin } from './notifications.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
 
 export function registerBuiltInHooks(args: {
@@ -11,8 +12,15 @@ export function registerBuiltInHooks(args: {
 }) {
     registerToolConfirmationHook(args.toolConfirmationProvider, args.hookManager);
 
-    const cp = (args.config as any).hooks?.contentPolicy;
+    const cp = args.config.hooks?.contentPolicy;
     if (cp && typeof cp === 'object') {
-        registerContentPolicyBuiltin(args.hookManager, cp);
+        const normalized: ContentPolicyOptions = {
+            ...(cp.maxInputChars !== undefined ? { maxInputChars: cp.maxInputChars } : {}),
+            ...(cp.redactEmails !== undefined ? { redactEmails: cp.redactEmails } : {}),
+            ...(cp.redactApiKeys !== undefined ? { redactApiKeys: cp.redactApiKeys } : {}),
+        };
+        registerContentPolicyBuiltin(args.hookManager, normalized);
     }
+
+    registerNotificationBuiltin(args.hookManager);
 }
