@@ -12,6 +12,7 @@ import { type AgentConfig } from '@core/agent/schemas.js';
 import { type GlobalPreferences } from '@core/preferences/schemas.js';
 import { ConfigErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { parse as parseYaml } from 'yaml';
 
 describe('Config Writer', () => {
     let tempDir: string;
@@ -206,6 +207,63 @@ describe('Config Writer', () => {
             expect(updatedContent).toContain('temperature: 0.7');
             expect(updatedContent).toContain('maxTokens: 4000');
             expect(updatedContent).toContain('router: vercel');
+        });
+
+        it('should inherit agent model for OpenRouter preferences', async () => {
+            const openRouterPreferences: GlobalPreferences = {
+                ...samplePreferences,
+                llm: {
+                    provider: 'openrouter',
+                    apiKey: '$OPENROUTER_API_KEY',
+                },
+            };
+
+            const agentWithOpenAIModel: AgentConfig = {
+                ...sampleConfig,
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-4o',
+                    apiKey: '$OPENAI_API_KEY',
+                },
+            };
+
+            await writeConfigFile(tempConfigPath, agentWithOpenAIModel);
+            await writeLLMPreferences(tempConfigPath, openRouterPreferences);
+
+            const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
+            const parsed = parseYaml(updatedContent) as AgentConfig;
+
+            expect(parsed.llm?.provider).toBe('openrouter');
+            expect(parsed.llm?.model).toBe('openai/gpt-4o');
+            expect(parsed.llm?.baseURL).toBe('https://openrouter.ai/api/v1');
+        });
+
+        it('should fall back to default OpenRouter model when inheritance fails', async () => {
+            const openRouterPreferences: GlobalPreferences = {
+                ...samplePreferences,
+                llm: {
+                    provider: 'openrouter',
+                    apiKey: '$OPENROUTER_API_KEY',
+                },
+            };
+
+            const agentWithoutModel: AgentConfig = {
+                ...sampleConfig,
+                llm: {
+                    provider: 'openai',
+                    apiKey: '$OPENAI_API_KEY',
+                },
+            } as AgentConfig;
+
+            await writeConfigFile(tempConfigPath, agentWithoutModel);
+            await writeLLMPreferences(tempConfigPath, openRouterPreferences);
+
+            const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
+            const parsed = parseYaml(updatedContent) as AgentConfig;
+
+            expect(parsed.llm?.provider).toBe('openrouter');
+            expect(parsed.llm?.model).toBe('openai/gpt-4o-mini');
+            expect(parsed.llm?.baseURL).toBe('https://openrouter.ai/api/v1');
         });
 
         it('should throw ConfigError for non-existent file', async () => {

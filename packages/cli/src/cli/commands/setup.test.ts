@@ -33,11 +33,24 @@ vi.mock('../utils/setup-utils.js', () => ({
     requiresSetup: vi.fn(),
 }));
 
+vi.mock('../utils/welcome-flow.js', () => ({
+    handleWelcomeFlow: vi.fn(),
+}));
+
+vi.mock('../utils/login-flow.js', () => ({
+    handleCompleteLoginFlow: vi.fn(),
+}));
+
+vi.mock('../utils/auth-service.js', () => ({
+    isAuthenticated: vi.fn().mockResolvedValue(false), // Default to not authenticated for tests
+}));
+
 vi.mock('@clack/prompts', () => ({
     intro: vi.fn(),
     note: vi.fn(),
     outro: vi.fn(),
     confirm: vi.fn(),
+    select: vi.fn(),
     cancel: vi.fn(),
     isCancel: vi.fn(),
     log: { warn: vi.fn() },

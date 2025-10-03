@@ -19,3 +19,13 @@ export {
     type ListAgentsCommandOptionsInput,
 } from './list-agents.js';
 export { handleWhichCommand, type WhichCommandOptions } from './which.js';
+
+// Authentication commands
+export {
+    handleLoginCommand,
+    handleLogoutCommand,
+    handleStatusCommand,
+    handleWhoamiCommand,
+    handleBrowserLogin,
+} from './auth/index.js';
+export { isAuthenticated, getAuthToken } from '../utils/auth-service.js';

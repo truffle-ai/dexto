@@ -94,6 +94,7 @@ export async function updateEnvFile(
         'GROQ_API_KEY',
         'COHERE_API_KEY',
         'XAI_API_KEY',
+        'OPENROUTER_API_KEY',
         'DEXTO_LOG_LEVEL',
     ];
 
@@ -129,6 +130,7 @@ export async function updateEnvFile(
         GROQ_API_KEY: updates.GROQ_API_KEY ?? currentValues.GROQ_API_KEY ?? '',
         COHERE_API_KEY: updates.COHERE_API_KEY ?? currentValues.COHERE_API_KEY ?? '',
         XAI_API_KEY: updates.XAI_API_KEY ?? currentValues.XAI_API_KEY ?? '',
+        OPENROUTER_API_KEY: updates.OPENROUTER_API_KEY ?? currentValues.OPENROUTER_API_KEY ?? '',
         DEXTO_LOG_LEVEL: updates.DEXTO_LOG_LEVEL ?? currentValues.DEXTO_LOG_LEVEL ?? 'info',
     };
 

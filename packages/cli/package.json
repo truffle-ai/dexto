@@ -28,8 +28,9 @@
     "zod": "^3.25.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && pnpm run copy-agents",
+    "build": "tsc -p tsconfig.build.json && pnpm run copy-agents && pnpm run copy-assets",
     "copy-agents": "tsx scripts/copy-agents.ts",
+    "copy-assets": "tsx scripts/copy-assets.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"
@@ -44,5 +45,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "config": {
+    "dexto_api_url": "https://openrouter-keys.vercel.app"
   }
 }

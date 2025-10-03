@@ -54,6 +54,10 @@ import {
     handleListAgentsCommand,
     type ListAgentsCommandOptionsInput,
     handleWhichCommand,
+    handleLoginCommand,
+    handleLogoutCommand,
+    handleStatusCommand,
+    handleWhoamiCommand,
 } from './cli/commands/index.js';
 import {
     handleSessionListCommand,
@@ -451,7 +455,107 @@ program
         )
     );
 
-// 11) `mcp` SUB-COMMAND
+// 11) `login` SUB-COMMAND
+program
+    .command('login')
+    .description('Authenticate with Dexto')
+    .option('--token <token>', 'API token to use for authentication')
+    .option('--no-interactive', 'Skip interactive prompts')
+    .action(async (options) => {
+        try {
+            await handleLoginCommand({
+                token: options.token,
+                interactive: options.interactive,
+            });
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto login command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 12) `logout` SUB-COMMAND
+program
+    .command('logout')
+    .description('Logout from Dexto')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--no-interactive', 'Skip interactive prompts')
+    .action(async (options) => {
+        try {
+            await handleLogoutCommand({
+                force: options.force,
+                interactive: options.interactive,
+            });
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto logout command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 13) `auth` SUB-COMMAND (status)
+program
+    .command('auth')
+    .description('Show authentication status')
+    .action(async () => {
+        try {
+            await handleStatusCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto auth command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 12) `openrouter-status` SUB-COMMAND
+program
+    .command('openrouter-status')
+    .description('Show OpenRouter API key status')
+    .action(async () => {
+        try {
+            const { handleOpenRouterStatusCommand } = await import(
+                './cli/commands/openrouter/index.js'
+            );
+            await handleOpenRouterStatusCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto openrouter-status command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 14) `openrouter-models` SUB-COMMAND
+program
+    .command('openrouter-models')
+    .description('Show available OpenRouter models')
+    .action(async () => {
+        try {
+            const { handleOpenRouterModelsCommand } = await import(
+                './cli/commands/openrouter/index.js'
+            );
+            await handleOpenRouterModelsCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto openrouter-models command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 12) `whoami` SUB-COMMAND
+program
+    .command('whoami')
+    .description('Show current user information')
+    .action(async () => {
+        try {
+            await handleWhoamiCommand();
+            process.exit(0);
+        } catch (err) {
+            console.error(`❌ dexto whoami command failed: ${err}`);
+            process.exit(1);
+        }
+    });
+
+// 13) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -542,7 +646,7 @@ program
         )
     );
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 15) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -709,6 +813,19 @@ program
                     // Config loading failed completely
                     console.error(`❌ Failed to load configuration: ${err}`);
                     safeExit('main', 1, 'config-load-failed');
+                }
+
+                // ——— SETUP OPENROUTER (if available) ———
+                try {
+                    const { setupOpenRouterIfAvailable } = await import(
+                        './cli/utils/openrouter-setup.js'
+                    );
+                    const openRouterSetup = await setupOpenRouterIfAvailable();
+                    if (openRouterSetup) {
+                        logger.info('OpenRouter API key configured automatically');
+                    }
+                } catch (error) {
+                    logger.debug(`OpenRouter setup skipped: ${error}`);
                 }
 
                 // ——— CREATE AGENT ———
@@ -943,5 +1060,5 @@ program
         )
     );
 
-// 11) PARSE & EXECUTE
+// 16) PARSE & EXECUTE
 program.parseAsync(process.argv);

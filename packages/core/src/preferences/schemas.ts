@@ -11,7 +11,7 @@ export const PreferenceLLMSchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider (openai, anthropic, google, etc.)'),
 
-        model: NonEmptyTrimmed.describe('Model name for the provider'),
+        model: NonEmptyTrimmed.optional().describe('Model name for the provider'),
 
         apiKey: z
             .string()
@@ -20,10 +20,32 @@ export const PreferenceLLMSchema = z
                 'Must be environment variable reference (e.g., $OPENAI_API_KEY)'
             )
             .describe('Environment variable reference for API key'),
+
+        baseURL: z
+            .string()
+            .url()
+            .optional()
+            .describe('Base URL for API requests (required for openai-compatible provider)'),
     })
     .strict()
     .superRefine((data, ctx) => {
-        if (!isValidProviderModel(data.provider, data.model)) {
+        const modelProvided = typeof data.model === 'string' && data.model.length > 0;
+
+        if (data.provider !== 'openrouter' && !modelProvided) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['model'],
+                message: `Provider '${data.provider}' requires a model to be specified`,
+                params: {
+                    code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.PREFERENCE,
+                    type: ErrorType.USER,
+                },
+            });
+            return;
+        }
+
+        if (modelProvided && !isValidProviderModel(data.provider, data.model!)) {
             const supportedModels = getSupportedModels(data.provider);
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
@@ -31,6 +53,20 @@ export const PreferenceLLMSchema = z
                 message: `Model '${data.model}' is not supported by provider '${data.provider}'. Supported models: ${supportedModels.join(', ')}`,
                 params: {
                     code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.PREFERENCE,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+
+        // Validate baseURL is provided for openai-compatible provider
+        if (data.provider === 'openai-compatible' && !data.baseURL) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['baseURL'],
+                message: `Provider 'openai-compatible' requires a 'baseURL' to be specified`,
+                params: {
+                    code: PreferenceErrorCode.MISSING_BASE_URL,
                     scope: ErrorScope.PREFERENCE,
                     type: ErrorType.USER,
                 },

@@ -319,6 +319,25 @@ setup:
 
             expect(preferences.llm.apiKey).toBe('$GOOGLE_API_KEY');
         });
+
+        it('should allow openrouter preferences without a model', () => {
+            const preferences = createInitialPreferences(
+                'openrouter',
+                undefined,
+                'OPENROUTER_API_KEY',
+                'my-agent'
+            );
+
+            expect(preferences.llm.provider).toBe('openrouter');
+            expect(preferences.llm.model).toBeUndefined();
+            expect(preferences.llm.baseURL).toBe('https://openrouter.ai/api/v1');
+        });
+
+        it('should require a model for non-openrouter providers', () => {
+            expect(() =>
+                createInitialPreferences('openai', undefined, 'OPENAI_API_KEY')
+            ).toThrowError(/requires a model/);
+        });
     });
 
     describe('updateGlobalPreferences', () => {
