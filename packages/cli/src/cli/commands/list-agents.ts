@@ -158,7 +158,8 @@ export async function handleListAgentsCommand(
     if (globalPreferencesExist()) {
         try {
             const preferences = await loadGlobalPreferences();
-            globalLLM = `${preferences.llm.provider}/${preferences.llm.model}`;
+            const modelLabel = preferences.llm.model ?? 'inherit';
+            globalLLM = `${preferences.llm.provider}/${modelLabel}`;
         } catch {
             // Ignore preference loading errors
         }

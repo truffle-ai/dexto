@@ -118,18 +118,29 @@ export function getGlobalPreferencesPath(): string {
  */
 export function createInitialPreferences(
     provider: LLMProvider,
-    model: string,
+    model: string | undefined,
     apiKeyVar: string,
     defaultAgent: string = 'default-agent',
     baseURL?: string
 ): GlobalPreferences {
+    if (provider !== 'openrouter' && (!model || model.trim().length === 0)) {
+        throw new Error(
+            `Provider '${provider}' requires a model when creating initial preferences`
+        );
+    }
+
+    const resolvedBaseURL =
+        baseURL ?? (provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined);
+
+    const llm: GlobalPreferences['llm'] = {
+        provider,
+        apiKey: `$${apiKeyVar}`,
+        ...(model ? { model } : {}),
+        ...(resolvedBaseURL && { baseURL: resolvedBaseURL }),
+    };
+
     return {
-        llm: {
-            provider,
-            model,
-            apiKey: `$${apiKeyVar}`,
-            ...(baseURL && { baseURL }),
-        },
+        llm,
         defaults: {
             defaultAgent,
         },

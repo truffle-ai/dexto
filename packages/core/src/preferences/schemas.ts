@@ -11,7 +11,7 @@ export const PreferenceLLMSchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider (openai, anthropic, google, etc.)'),
 
-        model: NonEmptyTrimmed.describe('Model name for the provider'),
+        model: NonEmptyTrimmed.optional().describe('Model name for the provider'),
 
         apiKey: z
             .string()
@@ -29,8 +29,23 @@ export const PreferenceLLMSchema = z
     })
     .strict()
     .superRefine((data, ctx) => {
-        // Validate provider/model compatibility
-        if (!isValidProviderModel(data.provider, data.model)) {
+        const modelProvided = typeof data.model === 'string' && data.model.length > 0;
+
+        if (data.provider !== 'openrouter' && !modelProvided) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['model'],
+                message: `Provider '${data.provider}' requires a model to be specified`,
+                params: {
+                    code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.PREFERENCE,
+                    type: ErrorType.USER,
+                },
+            });
+            return;
+        }
+
+        if (modelProvided && !isValidProviderModel(data.provider, data.model!)) {
             const supportedModels = getSupportedModels(data.provider);
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,

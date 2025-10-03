@@ -139,7 +139,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
                 // Create preferences for OpenRouter
                 const preferences = createInitialPreferences(
                     'openrouter',
-                    'openai/gpt-4o-mini',
+                    undefined,
                     getPrimaryApiKeyEnvVar('openrouter'),
                     validated.defaultAgent
                 );
@@ -155,7 +155,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
                 // Track successful auto-setup
                 capture('dexto_setup', {
                     provider: 'openrouter',
-                    model: 'openai/gpt-4o-mini',
+                    model: 'inherit',
                     hadApiKeyBefore: true,
                     setupMode: 'interactive',
                 });

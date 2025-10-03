@@ -3,16 +3,29 @@
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
-import type { LLMProvider } from '@core/llm/types.js';
+import { LLM_PROVIDERS, type LLMProvider } from '@core/llm/types.js';
 import { type GlobalPreferences } from '@core/preferences/schemas.js';
 import { logger } from '@core/logger/index.js';
 import { type AgentConfig } from '@core/agent/schemas.js';
 import { ConfigError } from './errors.js';
+import { getOpenRouterIdForModel } from '@core/llm/registry.js';
 
 export interface LLMOverrides {
     provider?: LLMProvider;
     model?: string;
     apiKey?: string;
+}
+
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4o-mini';
+
+function coerceLLMProvider(value: unknown): LLMProvider | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    return (LLM_PROVIDERS as readonly string[]).includes(value as LLMProvider)
+        ? (value as LLMProvider)
+        : undefined;
 }
 
 /**
@@ -99,15 +112,50 @@ export async function writeLLMPreferences(
 
     // Determine final values (precedence: CLI > preferences > agent defaults)
     const provider = overrides?.provider ?? preferences.llm.provider;
-    const model = overrides?.model ?? preferences.llm.model;
+    const explicitModel = overrides?.model ?? preferences.llm.model;
     const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
-    const baseURL = preferences.llm.baseURL;
+    const baseURLPreference = preferences.llm.baseURL;
+
+    let finalModel = explicitModel ?? undefined;
+    let finalBaseURL = baseURLPreference;
+
+    if (provider === 'openrouter') {
+        finalBaseURL = baseURLPreference ?? OPENROUTER_BASE_URL;
+
+        if (!finalModel || finalModel.trim().length === 0) {
+            const agentProvider = coerceLLMProvider(config.llm?.provider);
+            const agentModel = config.llm?.model;
+
+            if (config.llm?.provider === 'openrouter' && agentModel) {
+                finalModel = agentModel;
+            } else if (agentProvider && agentModel) {
+                finalModel = getOpenRouterIdForModel(agentProvider, agentModel) ?? undefined;
+            }
+
+            if (!finalModel && typeof agentModel === 'string' && agentModel.includes('/')) {
+                finalModel = agentModel;
+            }
+
+            if (!finalModel) {
+                finalModel = OPENROUTER_DEFAULT_MODEL;
+            }
+        }
+    } else if (!finalModel || finalModel.trim().length === 0) {
+        finalModel = config.llm?.model;
+    }
+
+    if (!finalModel) {
+        throw ConfigError.parseError(
+            configPath,
+            `Cannot determine model for provider '${provider}'.`
+        );
+    }
 
     logger.debug(`Applying LLM preferences`, {
         finalProvider: provider,
-        finalModel: model,
+        finalModel,
         hasApiKey: Boolean(apiKey),
-        hasBaseURL: Boolean(baseURL),
+        hasBaseURL: Boolean(finalBaseURL),
         source: overrides ? 'CLI overrides + preferences' : 'preferences only',
     });
 
@@ -117,16 +165,18 @@ export async function writeLLMPreferences(
     config.llm = {
         ...config.llm, // Preserve temperature, router, maxTokens, etc.
         provider, // Write user preference
-        model, // Write user preference
+        model: finalModel, // Write user preference
         apiKey, // Write user preference
-        ...(baseURL && { baseURL }), // Write baseURL if present (required for openai-compatible)
+        ...(finalBaseURL && { baseURL: finalBaseURL }), // Write baseURL if present (required for openai-compatible)
     };
 
     // Write back to file using the shared writeConfigFile function
     // Type assertion is safe: we read a valid config and only modified the LLM section
     await writeConfigFile(configPath, config);
 
-    logger.info(`✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${model})`);
+    logger.info(
+        `✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${finalModel})`
+    );
 }
 
 /**
@@ -205,8 +255,10 @@ async function writePreferencesToDirectory(
         }
     }
 
+    const describeModel = (model?: string) => model ?? 'inherit';
+
     logger.info(
-        `✓ Applied preferences to ${successCount}/${configFiles.length} config files (${oldProvider}→${newProvider}, ${oldModel}→${newModel})`
+        `✓ Applied preferences to ${successCount}/${configFiles.length} config files (${oldProvider}→${newProvider}, ${describeModel(oldModel)}→${describeModel(newModel)})`
     );
 }
 
