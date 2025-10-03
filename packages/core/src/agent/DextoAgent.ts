@@ -1,9 +1,8 @@
 // src/agent/DextoAgent.ts
-import path from 'path';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
-import { ResourceManager, ResourceError, expandMessageReferences } from '../resources/index.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
 import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
@@ -1112,59 +1111,6 @@ export class DextoAgent {
         return serverResources;
     }
 
-    /**
-     * Adds a filesystem resource configuration dynamically.
-     */
-    public async addFileSystemResource(paths: string[]): Promise<void> {
-        this.ensureStarted();
-        if (!paths || paths.length === 0) {
-            throw ResourceError.providerError(
-                'Internal',
-                'addFileSystemResource',
-                'paths must contain at least one entry'
-            );
-        }
-        for (const p of paths) {
-            if (p.includes('..') || path.isAbsolute(p)) {
-                throw ResourceError.providerError(
-                    'Internal',
-                    'addFileSystemResource',
-                    `Invalid path: ${p}. Paths must be relative and not contain '..'`
-                );
-            }
-        }
-        const internalProvider = this.resourceManager.getInternalResourcesProvider();
-        if (!internalProvider) {
-            throw ResourceError.providerNotAvailable('Internal');
-        }
-        await internalProvider.addResourceConfig({ type: 'filesystem', paths });
-        await this.resourceManager.refresh();
-        logger.info(`Added filesystem resource with paths: ${paths.join(', ')}`);
-    }
-
-    /**
-     * Removes a resource handler by type.
-     */
-    public async removeResourceHandler(type: string): Promise<void> {
-        this.ensureStarted();
-        const internalProvider = this.resourceManager.getInternalResourcesProvider();
-        if (!internalProvider) {
-            throw ResourceError.providerNotAvailable('Internal');
-        }
-        await internalProvider.removeResourceHandler(type);
-        await this.resourceManager.refresh();
-        logger.info(`Removed resource handler: ${type}`);
-    }
-
-    /**
-     * Gets the blob service for storing and retrieving binary data.
-     * Returns undefined if blob storage is not configured.
-     */
-    public getBlobService(): import('../blob/index.js').BlobService | undefined {
-        this.ensureStarted();
-        return this.services.blobService;
-    }
-
     // ============= PROMPT MANAGEMENT =============
 
     /**
@@ -1395,17 +1341,18 @@ export class DextoAgent {
 
         const session = await this.sessionManager.createSession();
         try {
-            const { finalUserText, finalUserImage } = await this.prepareSamplingConversation(
-                session,
-                normalized.request
-            );
+            // Add all messages from the sampling request to the session context
+            await this.prepareSamplingConversation(session, normalized.request);
 
+            // Apply any model/parameter overrides from the request
             await this.applySamplingOverrides(session, normalized.request);
 
+            // Generate response with timeout protection
+            // Empty string is passed since all messages are already in context
             const timeoutMs = this.resolveSamplingTimeout(normalized.request.metadata);
             const responseText = await this.runWithSamplingTimeout(
                 session,
-                () => session.run(finalUserText, finalUserImage),
+                () => session.run(''),
                 timeoutMs
             );
 
@@ -1426,8 +1373,14 @@ export class DextoAgent {
             throw MCPError.protocolError('Sampling request must include at least one message');
         }
 
+        // Check if LLM is configured with valid credentials
         const llmConfig = this.stateManager.getLLMConfig();
-        if (!this.isSamplingReady(llmConfig)) {
+        const explicitKey = typeof llmConfig.apiKey === 'string' ? llmConfig.apiKey.trim() : '';
+        const resolvedKey = explicitKey || resolveApiKeyForProvider(llmConfig.provider);
+        const hasValidCredentials =
+            typeof resolvedKey === 'string' && resolvedKey.trim().length > 0;
+
+        if (!hasValidCredentials) {
             const reason = 'LLM provider is not fully configured (missing API key or credentials).';
             logger.warn(`Sampling request skipped: ${reason}`);
             return { ok: false, result: this.buildSamplingUnavailableResult(reason) };
@@ -1476,63 +1429,56 @@ export class DextoAgent {
         return { ok: true, request };
     }
 
+    /**
+     * Prepares a sampling conversation by adding all messages to the session context.
+     * The MCP sampling protocol sends a complete conversation history that should be
+     * added to context before generating a response.
+     */
     private async prepareSamplingConversation(
         session: ChatSession,
         request: NormalizedSamplingRequest
-    ): Promise<{ finalUserText: string; finalUserImage?: { image: string; mimeType: string } }> {
+    ): Promise<void> {
         const contextManager = session.getContextManager();
 
+        // Add custom system prompt if provided by the MCP server
         if (request.systemPrompt) {
             await contextManager.addMessage({ role: 'system', content: request.systemPrompt });
         }
 
+        // Inform the LLM that tools are unavailable for this sampling request
         await contextManager.addMessage({
             role: 'system',
             content: SAMPLING_TOOL_BAN_PROMPT,
         });
 
-        const lastUserIndexFromEnd = [...request.messages]
-            .reverse()
-            .findIndex((msg) => msg.role === 'user');
-        const lastUserIndex =
-            lastUserIndexFromEnd === -1 ? -1 : request.messages.length - 1 - lastUserIndexFromEnd;
-
-        if (lastUserIndex === -1) {
+        // Validate that at least one user message exists
+        const hasUserMessage = request.messages.some((msg) => msg.role === 'user');
+        if (!hasUserMessage) {
             throw MCPError.protocolError('Sampling request must contain at least one user message');
         }
 
-        let finalUserText = '';
-        let finalUserImage: { image: string; mimeType: string } | undefined;
-
-        for (let i = 0; i < request.messages.length; i++) {
-            const message = request.messages[i]!;
+        // Add all conversation messages to context sequentially
+        // The session.run() call will automatically respond to the last message in context
+        for (const message of request.messages) {
             const { text, imageData } = this.normalizeSamplingMessageContent(message);
 
-            if (i < lastUserIndex) {
-                if (message.role === 'user') {
-                    await contextManager.addUserMessage(text, imageData);
-                } else if (message.role === 'assistant') {
-                    await contextManager.addAssistantMessage(text ?? '');
-                }
-                continue;
-            }
-
-            if (i === lastUserIndex) {
-                finalUserText = text;
-                finalUserImage = imageData;
-                continue;
-            }
-
-            if (message.role === 'assistant') {
-                await contextManager.addAssistantMessage(text ?? '');
-            } else if (message.role === 'user') {
+            if (message.role === 'user') {
                 await contextManager.addUserMessage(text, imageData);
+            } else if (message.role === 'assistant') {
+                await contextManager.addAssistantMessage(text ?? '');
             }
         }
-
-        return finalUserImage ? { finalUserText, finalUserImage } : { finalUserText };
     }
 
+    /**
+     * Applies LLM configuration overrides from the sampling request.
+     *
+     * Note: Per MCP spec, sampling requests can include modelPreferences with hints
+     * for preferred models. Invalid overrides are logged as warnings and ignored,
+     * falling back to default configuration. This best-effort approach ensures
+     * sampling requests don't fail due to unavailable models - better to respond
+     * with a different model than to reject the entire request.
+     */
     private async applySamplingOverrides(
         session: ChatSession,
         request: NormalizedSamplingRequest
@@ -1726,16 +1672,6 @@ export class DextoAgent {
             default:
                 throw MCPError.protocolError(`Unsupported sampling content type: ${content.type}`);
         }
-    }
-
-    private isSamplingReady(config: ValidatedLLMConfig): boolean {
-        const explicitKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
-        if (explicitKey.length > 0) {
-            return true;
-        }
-
-        const resolvedKey = resolveApiKeyForProvider(config.provider);
-        return typeof resolvedKey === 'string' && resolvedKey.trim().length > 0;
     }
 
     // Future methods could encapsulate more complex agent behaviors:
