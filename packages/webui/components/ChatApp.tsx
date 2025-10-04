@@ -563,8 +563,11 @@ export default function ChatApp() {
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center justify-end space-x-3">
-              <ThemeSwitch />
+            <div className="flex items-center justify-end">
+              <div className="mr-4">
+                <ThemeSwitch />
+              </div>
+              <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -674,6 +677,7 @@ export default function ChatApp() {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              </div>
             </div>
           </div>
         </header>
