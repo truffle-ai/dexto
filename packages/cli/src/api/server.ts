@@ -15,8 +15,10 @@ import {
     type McpTransportType,
 } from './mcp/mcp_handler.js';
 import { createAgentCard, DextoAgent } from '@dexto/core';
-import { stringify as yamlStringify } from 'yaml';
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
 import { z } from 'zod';
 import { LLMUpdatesSchema } from '@dexto/core';
@@ -42,6 +44,7 @@ import {
     ErrorType,
     AgentErrorCode,
     AgentError,
+    AgentConfigSchema,
 } from '@dexto/core';
 
 /**
@@ -893,6 +896,197 @@ export async function initializeApi(
             const sessionId = req.query.sessionId as string | undefined;
             const config = activeAgent.getEffectiveConfig(sessionId);
             res.json({ greeting: config.greeting });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // ============= AGENT CONFIGURATION MANAGEMENT =============
+
+    // Get agent file path
+    app.get('/api/agent/path', async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const sessionId = req.query.sessionId as string | undefined;
+            const agentPath = activeAgent.getAgentFilePath(sessionId);
+
+            res.json({
+                path: agentPath,
+                relativePath: path.basename(agentPath),
+                name: path.basename(agentPath, '.yml'),
+                isDefault: agentPath.includes('default-agent.yml'),
+                isSession: !!sessionId,
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Get editable agent configuration (non-redacted YAML)
+    app.get('/api/agent/config', async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const sessionId = req.query.sessionId as string | undefined;
+
+            // Get the agent file path being used
+            const agentPath = activeAgent.getAgentFilePath(sessionId);
+
+            // Read raw YAML from file (not expanded env vars)
+            const yamlContent = await fs.readFile(agentPath, 'utf-8');
+
+            // Get metadata
+            const stats = await fs.stat(agentPath);
+
+            res.json({
+                yaml: yamlContent,
+                path: agentPath,
+                relativePath: path.basename(agentPath),
+                lastModified: stats.mtime,
+                warnings: [
+                    'Environment variables ($VAR) will be resolved at runtime',
+                    'API keys should use environment variables',
+                ],
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Validate agent configuration without saving
+    app.post('/api/agent/validate', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { yaml } = req.body;
+
+            if (!yaml || typeof yaml !== 'string') {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_INPUT,
+                        message: 'yaml field is required',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
+
+            // Parse YAML
+            let parsed;
+            try {
+                parsed = yamlParse(yaml);
+            } catch (parseError: any) {
+                return res.json({
+                    valid: false,
+                    errors: [
+                        {
+                            line: parseError.linePos?.[0]?.line || 1,
+                            column: parseError.linePos?.[0]?.col || 1,
+                            message: parseError.message,
+                            code: 'YAML_PARSE_ERROR',
+                        },
+                    ],
+                    warnings: [],
+                });
+            }
+
+            // Validate against schema
+            const result = AgentConfigSchema.safeParse(parsed);
+
+            if (!result.success) {
+                const errors = result.error.errors.map((err) => ({
+                    path: err.path.join('.'),
+                    message: err.message,
+                    code: 'SCHEMA_VALIDATION_ERROR',
+                }));
+
+                return res.json({
+                    valid: false,
+                    errors,
+                    warnings: [],
+                });
+            }
+
+            // Check for warnings (e.g., plain text API keys)
+            const warnings: Array<{ path: string; message: string; code: string }> = [];
+            if (parsed.llm?.apiKey && !parsed.llm.apiKey.startsWith('$')) {
+                warnings.push({
+                    path: 'llm.apiKey',
+                    message: 'Consider using environment variable instead of plain text',
+                    code: 'SECURITY_WARNING',
+                });
+            }
+
+            res.json({
+                valid: true,
+                errors: [],
+                warnings,
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Save agent configuration
+    app.post('/api/agent/config', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { yaml, sessionId } = req.body;
+
+            if (!yaml || typeof yaml !== 'string') {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_INPUT,
+                        message: 'yaml field is required',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
+
+            // Validate first
+            const parsed = yamlParse(yaml);
+            const validationResult = AgentConfigSchema.safeParse(parsed);
+
+            if (!validationResult.success) {
+                throw new DextoValidationError(
+                    validationResult.error.errors.map((err) => ({
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: `${err.path.join('.')}: ${err.message}`,
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    }))
+                );
+            }
+
+            // Get target file path
+            const agentPath = activeAgent.getAgentFilePath(sessionId);
+
+            // Create backup
+            const backupPath = `${agentPath}.backup`;
+            await fs.copyFile(agentPath, backupPath);
+
+            try {
+                // Write new config
+                await fs.writeFile(agentPath, yaml, 'utf-8');
+
+                // Reload agent configuration
+                await activeAgent.reloadConfig();
+
+                logger.info(`Agent configuration saved: ${agentPath}`);
+
+                res.json({
+                    ok: true,
+                    path: agentPath,
+                    reloaded: true,
+                    message: 'Agent configuration saved successfully',
+                });
+            } catch (writeError) {
+                // Restore backup on error
+                await fs.copyFile(backupPath, agentPath);
+                throw writeError;
+            }
         } catch (error) {
             return next(error);
         }

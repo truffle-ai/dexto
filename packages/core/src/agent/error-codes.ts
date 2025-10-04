@@ -12,6 +12,8 @@ export enum AgentErrorCode {
 
     // Configuration
     NO_CONFIG_PATH = 'agent_no_config_path',
+    INVALID_CONFIG = 'agent_invalid_config',
+    INVALID_INPUT = 'agent_invalid_input',
 
     // API layer
     API_VALIDATION_ERROR = 'agent_api_validation_error',
