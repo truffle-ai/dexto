@@ -1025,6 +1025,16 @@ export class DextoAgent {
      * Reloads the agent configuration from disk.
      * This will re-read the config file and re-validate it.
      * Note: This does NOT reinitialize services - it only updates the config.
+     *
+     * TODO: Add dynamic config application (applyConfigChanges method)
+     * Currently, changes to MCP servers, LLM settings, or other services require
+     * a full agent restart to take effect. For better UX, implement a method that:
+     * - Diffs the old and new config
+     * - Reconnects/disconnects MCP servers as needed
+     * - Switches LLM provider/model if changed
+     * - Updates other services incrementally
+     * This would allow config changes to apply without restart.
+     *
      * @throws Error if config file cannot be read or is invalid
      */
     public async reloadConfig(): Promise<void> {
