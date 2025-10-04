@@ -563,7 +563,7 @@ export default function ChatApp() {
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center justify-end space-x-2">
+            <div className="flex items-center justify-end space-x-3">
               <ThemeSwitch />
               <Tooltip>
                 <TooltipTrigger asChild>
