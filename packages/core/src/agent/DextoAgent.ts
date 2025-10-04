@@ -37,7 +37,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
-import { stringify as yamlStringify } from 'yaml';
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -1044,7 +1044,9 @@ export class DextoAgent {
 
     /**
      * Updates and saves the agent configuration to disk.
-     * This merges the updates with the current config, validates, and writes to file.
+     * This merges the updates with the raw config from disk, validates, and writes to file.
+     * IMPORTANT: This preserves environment variable placeholders (e.g., $OPENAI_API_KEY)
+     * to avoid leaking secrets into the config file.
      * @param updates Partial configuration updates to apply
      * @param targetPath Optional path to save to (defaults to current config path)
      * @throws Error if validation fails or file cannot be written
@@ -1061,23 +1063,31 @@ export class DextoAgent {
 
         logger.info(`Updating and saving agent configuration to: ${path}`);
 
-        // Merge updates with current config
-        const updatedConfig = {
-            ...this.config,
+        // Read raw YAML from disk (without env var expansion)
+        const rawYaml = await fs.readFile(path, 'utf-8');
+        const rawConfig = yamlParse(rawYaml);
+
+        // Merge updates with raw config (preserves $VAR placeholders)
+        const updatedRawConfig = {
+            ...rawConfig,
             ...updates,
         };
 
-        // Validate the merged config
-        const validated = AgentConfigSchema.parse(updatedConfig);
+        // Validate the merged config (this expands env vars for validation only)
+        // We validate to ensure correctness but don't use the validated output for writing
+        const validationResult = AgentConfigSchema.safeParse(updatedRawConfig);
+        if (!validationResult.success) {
+            throw new Error(`Configuration validation failed: ${validationResult.error.message}`);
+        }
 
-        // Convert to YAML
-        const yamlContent = yamlStringify(validated);
+        // Convert raw config to YAML (preserves $VAR placeholders)
+        const yamlContent = yamlStringify(updatedRawConfig);
 
         // Write to file
         await fs.writeFile(path, yamlContent, 'utf-8');
 
-        // Update in-memory config
-        this.config = validated;
+        // Reload config with env var expansion for runtime use
+        await this.reloadConfig();
 
         logger.info(`Agent configuration saved to: ${path}`);
     }
