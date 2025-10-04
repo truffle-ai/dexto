@@ -21,14 +21,10 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpServerUpdated',
     'dexto:mcpResourceUpdated',
     'dexto:mcpPromptsListChanged',
-    'dexto:mcpRootsChanged',
     'dexto:resourceCacheInvalidated',
     // Tool confirmation events
     'dexto:toolConfirmationRequest',
     'dexto:toolConfirmationResponse',
-    // Elicitation events
-    'dexto:elicitationRequest',
-    'dexto:elicitationResponse',
 ] as const;
 
 /**
@@ -220,24 +216,6 @@ export interface AgentEventMap {
         sessionId?: string;
     };
 
-    /** Fired when elicitation is requested */
-    'dexto:elicitationRequest': {
-        message: string;
-        requestedSchema: object;
-        executionId: string;
-        timestamp: Date;
-        sessionId?: string;
-        serverName?: string;
-    };
-
-    /** Fired when elicitation response is received */
-    'dexto:elicitationResponse': {
-        executionId: string;
-        action: 'accept' | 'decline' | 'cancel';
-        data?: object;
-        sessionId?: string;
-    };
-
     /** Fired when MCP server resource is updated */
     'dexto:mcpResourceUpdated': {
         serverName: string;
@@ -249,11 +227,6 @@ export interface AgentEventMap {
     'dexto:mcpPromptsListChanged': {
         serverName: string;
         prompts: string[];
-    };
-
-    /** Fired when MCP filesystem roots are updated */
-    'dexto:mcpRootsChanged': {
-        roots: Array<{ uri: string; name?: string }>;
     };
 
     /** Fired when resource cache should be invalidated */

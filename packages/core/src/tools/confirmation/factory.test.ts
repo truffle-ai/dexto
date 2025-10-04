@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createToolConfirmationProvider } from './factory.js';
-import { UserApprovalProvider } from './user-approval-provider.js';
+import { EventBasedConfirmationProvider } from './event-based-confirmation-provider.js';
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
 import { InMemoryAllowedToolsProvider } from './allowed-tools-provider/in-memory.js';
 import { AgentEventBus } from '../../events/index.js';
@@ -28,7 +28,7 @@ describe('Tool Confirmation Factory', () => {
                 confirmationTimeout: 120000,
                 agentEventBus,
             });
-            expect(provider).toBeInstanceOf(UserApprovalProvider);
+            expect(provider).toBeInstanceOf(EventBasedConfirmationProvider);
         });
 
         it('should create auto-approve provider', () => {
@@ -64,7 +64,7 @@ describe('Tool Confirmation Factory', () => {
                 confirmationTimeout: 5000,
                 agentEventBus,
             });
-            expect(provider).toBeInstanceOf(UserApprovalProvider);
+            expect(provider).toBeInstanceOf(EventBasedConfirmationProvider);
         });
 
         it('should reject after the configured confirmation timeout if no response arrives', async () => {

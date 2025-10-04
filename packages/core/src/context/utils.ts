@@ -11,6 +11,61 @@ const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format over
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
+type ToolBlobNamingOptions = {
+    toolName?: string;
+    toolCallId?: string;
+};
+
+function slugifyForFilename(value: string, maxLength = 48): string | null {
+    if (!value) return null;
+    const slug = value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    if (!slug) return null;
+    return slug.length > maxLength ? slug.slice(0, maxLength) : slug;
+}
+
+function inferExtensionFromMime(mimeType: string | undefined, fallback: string): string {
+    if (!mimeType) return fallback;
+    const subtype = mimeType.split('/')[1]?.split(';')[0]?.split('+')[0];
+    if (!subtype) return fallback;
+    const clean = subtype.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    return clean || fallback;
+}
+
+function sanitizeExistingFilename(filename: string): string {
+    return filename.replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
+
+function generateUniqueSuffix(): string {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function buildToolBlobName(
+    kind: 'output' | 'image' | 'file',
+    mimeType: string | undefined,
+    options: ToolBlobNamingOptions | undefined,
+    preferredName?: string
+): string {
+    if (preferredName) {
+        return sanitizeExistingFilename(preferredName);
+    }
+
+    const toolSegment = slugifyForFilename(options?.toolName ?? '', 40);
+    const callSegment = slugifyForFilename(options?.toolCallId ?? '', 16);
+    const parts = ['tool'];
+    if (toolSegment) parts.push(toolSegment);
+    if (callSegment) parts.push(callSegment);
+    parts.push(kind);
+    const ext = inferExtensionFromMime(
+        mimeType,
+        kind === 'image' ? 'jpg' : kind === 'file' ? 'bin' : 'bin'
+    );
+    const unique = generateUniqueSuffix();
+    return `${parts.join('-')}-${unique}.${ext}`;
+}
+
 async function resolveBlobReferenceToParts(
     resourceUri: string,
     resourceManager: import('../resources/index.js').ResourceManager
@@ -593,7 +648,8 @@ function sanitizeDeepObject(obj: unknown): unknown {
  */
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
-    blobService?: import('../blob/index.js').BlobService
+    blobService?: import('../blob/index.js').BlobService,
+    namingOptions?: ToolBlobNamingOptions
 ): Promise<InternalMessage['content']> {
     try {
         // Case 1: string outputs
@@ -618,7 +674,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         const blobRef = await blobService.store(result, {
                             mimeType: mediaType,
                             source: 'tool',
-                            originalName: `tool-output.${mediaType.split('/')[1] || 'bin'}`,
+                            originalName: buildToolBlobName('output', mediaType, namingOptions),
                         });
                         logger.debug(`Stored blob: ${blobRef.uri} (${approxSize} bytes)`);
 
@@ -652,7 +708,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         const blobRef = await blobService.store(result, {
                             mimeType: 'application/octet-stream',
                             source: 'tool',
-                            originalName: 'tool-output.bin',
+                            originalName: buildToolBlobName('output', undefined, namingOptions),
                         });
                         logger.debug(
                             `Stored tool result as blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -695,7 +751,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 if (item == null) continue;
 
                 // Process each item recursively
-                const processedItem = await sanitizeToolResultToContentWithBlobs(item, blobService);
+                const processedItem = await sanitizeToolResultToContentWithBlobs(
+                    item,
+                    blobService,
+                    namingOptions
+                );
 
                 if (typeof processedItem === 'string') {
                     parts.push({ type: 'text', text: processedItem });
@@ -737,9 +797,12 @@ export async function sanitizeToolResultToContentWithBlobs(
                                 const blobRef = await blobService.store(fileData, {
                                     mimeType,
                                     source: 'tool',
-                                    originalName:
-                                        item.filename ||
-                                        `tool-${item.type || 'file'}.${mimeType.split('/')[1] || 'bin'}`,
+                                    originalName: buildToolBlobName(
+                                        item.type === 'image' ? 'image' : 'file',
+                                        mimeType,
+                                        namingOptions,
+                                        item.filename
+                                    ),
                                 });
                                 logger.debug(
                                     `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -792,7 +855,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         const blobRef = await blobService.store(imageData, {
                             mimeType,
                             source: 'tool',
-                            originalName: `tool-image.${mimeType.split('/')[1] || 'jpg'}`,
+                            originalName: buildToolBlobName('image', mimeType, namingOptions),
                         });
                         logger.debug(
                             `Stored tool image as blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -828,8 +891,12 @@ export async function sanitizeToolResultToContentWithBlobs(
                         const blobRef = await blobService.store(fileData, {
                             mimeType,
                             source: 'tool',
-                            originalName:
-                                anyObj.filename || `tool-file.${mimeType.split('/')[1] || 'bin'}`,
+                            originalName: buildToolBlobName(
+                                'file',
+                                mimeType,
+                                namingOptions,
+                                anyObj.filename
+                            ),
                         });
                         logger.debug(
                             `Stored tool file as blob: ${blobRef.uri} (${approxSize} bytes)`

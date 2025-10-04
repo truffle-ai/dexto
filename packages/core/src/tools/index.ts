@@ -10,7 +10,6 @@ export * from './types.js';
 
 // Confirmation types and providers
 export * from './confirmation/types.js';
-export { UserApprovalProvider } from './confirmation/user-approval-provider.js';
 
 // Internal tools provider and types
 export * from './internal-tools/index.js';

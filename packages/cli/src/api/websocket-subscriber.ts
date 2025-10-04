@@ -201,18 +201,6 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             { signal }
         );
 
-        // Forward elicitation request events
-        eventBus.on(
-            'dexto:elicitationRequest',
-            (payload) => {
-                this.broadcast({
-                    event: 'elicitationRequest',
-                    data: payload,
-                });
-            },
-            { signal }
-        );
-
         // Forward MCP notification events
         eventBus.on(
             'dexto:mcpResourceUpdated',

@@ -13,11 +13,6 @@ mcpServers:
     args:
       - -y
       - "@playwright/mcp@latest"
-  elicitation-test:
-    type: stdio
-    command: node
-    args:
-      - elicitation-test-server.js
   # hf:
   #   type: stdio
   #   command: npx

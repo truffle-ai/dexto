@@ -126,7 +126,14 @@ export class VercelLLMService implements ILLMService {
                             const blobService = resourceManager?.getBlobService();
 
                             const safeContent = blobService
-                                ? await sanitizeToolResultToContentWithBlobs(rawResult, blobService)
+                                ? await sanitizeToolResultToContentWithBlobs(
+                                      rawResult,
+                                      blobService,
+                                      {
+                                          toolName,
+                                          toolCallId: options.toolCallId,
+                                      }
+                                  )
                                 : sanitizeToolResultToContent(rawResult);
                             const summaryText = summarizeToolContentForText(safeContent);
                             return summaryText;

@@ -8,7 +8,7 @@ import ConnectServerModal from './ConnectServerModal';
 import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
-import { UserApprovalHandler } from './UserApprovalHandler';
+import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import { Button } from "./ui/button";
 import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check } from "lucide-react";
@@ -1044,8 +1044,8 @@ export default function ChatApp() {
         }}
       />
       
-      {/* User Approval Handler */}
-      <UserApprovalHandler websocket={websocket} />
+      {/* Tool Confirmation Handler */}
+      <ToolConfirmationHandler websocket={websocket} />
     </div>
   );
 } 

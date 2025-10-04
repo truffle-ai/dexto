@@ -149,30 +149,4 @@ export class ToolError {
             { toolName, reason }
         );
     }
-
-    /**
-     * Elicitation timeout
-     */
-    static elicitationTimeout(timeoutMs: number, sessionId?: string) {
-        return new DextoRuntimeError(
-            ToolErrorCode.ELICITATION_TIMEOUT,
-            ErrorScope.TOOLS,
-            ErrorType.TIMEOUT,
-            `Elicitation request timed out after ${timeoutMs}ms`,
-            { timeoutMs, sessionId }
-        );
-    }
-
-    /**
-     * Elicitation cancelled
-     */
-    static elicitationCancelled(reason: string) {
-        return new DextoRuntimeError(
-            ToolErrorCode.ELICITATION_CANCELLED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
-            `Elicitation request cancelled: ${reason}`,
-            { reason }
-        );
-    }
 }

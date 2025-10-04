@@ -573,7 +573,10 @@ export class ContextManager<TMessage = unknown> {
         // If a resource manager is available, automatically store large media as blobs.
         const blobService = this.resourceManager?.getBlobService();
         const content = blobService
-            ? await sanitizeToolResultToContentWithBlobs(result, blobService)
+            ? await sanitizeToolResultToContentWithBlobs(result, blobService, {
+                  toolName: name,
+                  toolCallId,
+              })
             : sanitizeToolResultToContent(result);
 
         // Log what we are storing (brief)
