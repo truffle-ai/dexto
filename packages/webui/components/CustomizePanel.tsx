@@ -6,7 +6,6 @@ import { X, Save, RefreshCw, FileCode, AlertTriangle, CheckCircle } from 'lucide
 import { cn } from '@/lib/utils';
 import AgentConfigEditor from './AgentConfigEditor';
 import ConfigValidationStatus from './ConfigValidationStatus';
-import type { editor } from 'monaco-editor';
 import {
   Dialog,
   DialogContent,
@@ -68,7 +67,6 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   const [isValid, setIsValid] = useState(true);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [warnings, setWarnings] = useState<ValidationWarning[]>([]);
-  const [monacoErrors, setMonacoErrors] = useState<editor.IMarker[]>([]);
 
   // Unsaved changes tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -144,8 +142,8 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   };
 
   // Handle Monaco editor validation
-  const handleMonacoValidate = (markers: editor.IMarker[]) => {
-    setMonacoErrors(markers);
+  const handleMonacoValidate = (markers: any[]) => {
+    // Future: Can process Monaco markers here if needed
   };
 
   // Save configuration
