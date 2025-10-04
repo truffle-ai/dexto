@@ -4,40 +4,45 @@ sidebar_position: 1
 
 # Introduction
 
-Dexto is an **agent orchestration layer** that enables the creation of AI-native applications, such as AI assistants and copilots, capable of responding to natural language inputs. By describing your agents and integrating your tools, Dexto orchestrates your databases, APIs, and services to execute tasks based on plain English commands.
+Dexto is an agent orchestration engine that connects your existing systems to language models, creating AI assistants that can actually use your tools, databases, and APIs.
 
-## The Intelligence Gap
+Instead of building AI applications from scratch, you connect what you already have—databases, APIs, development tools, business systems—and Dexto handles the orchestration. Users interact with everything through natural language, while Dexto manages the complexity of state, tool calling, and conversation context.
 
-Most applications today lack the intelligence to understand and act on natural language. You have:
-- **Databases** that require SQL knowledge to query
-- **APIs** that need technical expertise to integrate
-- **Services** that operate in isolation
-- **Tools** that require manual operation
-- **Systems** that can't communicate with each other
+This means you can turn any system into an intelligent assistant without writing custom integration code or managing LLM interactions yourself.
 
-Building AI assistants that can actually use these systems requires complex orchestration—managing state, handling tool calling, coordinating multiple services, and maintaining context across interactions.
+## The Problem
 
-## How Dexto Works
+Your systems require technical knowledge to use:
+- Databases need SQL queries
+- APIs need code integration  
+- Tools need manual operation
+- Services don't communicate with each other
 
-Dexto acts as an intelligence layer that:
+Building AI assistants that can actually use these systems requires managing state, tool calling, service coordination, and conversation context.
 
-- **Understands Natural Language** - Converts plain English commands into actionable tasks
-- **Plans Intelligently** - Decomposes requests into logical steps and selects appropriate tools
-- **Executes Actions** - Coordinates across files, databases, APIs, and web services
-- **Maintains Context** - Retains preferences and learns from interactions for personalized responses
+## The Solution
 
-Think of Dexto as the **intelligence bridge** between humans and machines—it makes everything you already have conversational and intelligent.
+Dexto handles the orchestration:
 
-## Transform Anything into an AI Assistant
+1. **Connect your systems** via Model Context Protocol (MCP)
+2. **Define agent behavior** in a YAML configuration
+3. **Users interact** through natural language
 
-With Dexto, you can turn:
+Dexto manages:
+- Converting natural language to system actions
+- Coordinating multiple tools and services
+- Maintaining conversation state and context
+- Error handling and retries
 
-- **Your SaaS Product** → Conversational AI interface for users
-- **Internal APIs** → Intelligent assistants for your team
-- **Development Tools** → AI-powered coding companions
-- **Business Systems** → Smart automation agents
-- **IoT Devices** → Voice-controlled smart systems
-- **Data Sources** → Interactive knowledge assistants
+## What You Can Build
+
+Connect any system to create AI assistants:
+- **Databases** → Query with natural language
+- **APIs** → Control through conversation
+- **Development tools** → AI coding assistants
+- **Business systems** → Automated workflows
+- **Web services** → Browser automation
+- **File systems** → Document management
 
 import ExpandableImage from '@site/src/components/ExpandableImage';
 
@@ -47,30 +52,20 @@ import ExpandableImage from '@site/src/components/ExpandableImage';
   title="Dexto Architecture Overview"
 />
 
-## Getting Started with Dexto
+## How to Use Dexto
 
-Dexto's intelligence layer handles the complexity so you don't have to:
-
-1. **Describe Your Agent** - Define how the AI should behave and what it can do
-2. **Integrate Your Tools** - Connect your databases, APIs, and services via MCP
-3. **Deploy & Interact** - Launch intelligent assistants that respond to natural language
-
-The intelligence layer manages:
-- **Natural Language Processing** - Converts plain English into actionable tasks
-- **Intelligent Planning** - Breaks down complex requests into logical steps
-- **Tool Execution** - Coordinates actions across multiple systems
-- **Context & Memory** - Maintains state and learns from interactions
+1. **Install**: `npm install -g dexto`
+2. **Configure**: Create an `agent.yml` file with your systems and LLM
+3. **Run**: `dexto --agent agent.yml`
 
 ## Key Features
 
-Dexto comes with everything needed for production-ready AI applications:
-
-- **Local-First** – Operate entirely on your infrastructure, ensuring data privacy and control
-- **MCP Integration** – Seamlessly connect with any Model Context Protocol-compatible tool
-- **LLM Agnostic** – Utilize various Large Language Models without being tied to a specific provider
-- **Multiple Interfaces** – CLI, Web UI, REST API, or embed directly into your applications
-- **Enterprise Storage** – Redis, PostgreSQL, SQLite with automatic scaling
-- **Observability** – Built-in monitoring, logging, and debugging for complex workflows
+- **20+ LLM providers** - OpenAI, Anthropic, Google, Groq, local models
+- **MCP integration** - Connect to 100+ tools and services
+- **Multiple interfaces** - CLI, Web UI, REST API, SDK
+- **Persistent sessions** - Maintain context across conversations
+- **Local-first** - Run on your infrastructure
+- **Production storage** - Redis, PostgreSQL, SQLite
 
 ## Ready to Get Started?
 
