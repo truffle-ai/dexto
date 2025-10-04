@@ -408,9 +408,44 @@ export async function initializeApi(
     app.post('/api/connect-server', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { name, config } = parseBody(McpServerRequestSchema, req.body);
+            const { name, config, persistToAgent } = req.body;
+
+            // Validate required fields
+            if (!name || !config) {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_INPUT,
+                        message: 'name and config are required',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
+
+            // Connect the server
             await activeAgent.connectMcpServer(name, config);
             logger.info(`Successfully connected to new server '${name}' via API request.`);
+
+            // If persistToAgent is true, save to agent config file
+            if (persistToAgent === true) {
+                try {
+                    const currentConfig = activeAgent.getConfig();
+                    const updatedConfig = {
+                        ...currentConfig,
+                        mcpServers: {
+                            ...(currentConfig.mcpServers || {}),
+                            [name]: config,
+                        },
+                    };
+                    await activeAgent.updateAndSaveConfig(updatedConfig);
+                    logger.info(`Saved server '${name}' to agent configuration file`);
+                } catch (saveError) {
+                    logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
+                    // Don't fail the request if saving fails - server is still connected
+                }
+            }
+
             return res.status(200).send({ status: 'connected', name });
         } catch (error) {
             return next(error);
