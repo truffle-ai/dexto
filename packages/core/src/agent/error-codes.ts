@@ -10,6 +10,9 @@ export enum AgentErrorCode {
     STOPPED = 'agent_stopped',
     INITIALIZATION_FAILED = 'agent_initialization_failed',
 
+    // Configuration
+    NO_CONFIG_PATH = 'agent_no_config_path',
+
     // API layer
     API_VALIDATION_ERROR = 'agent_api_validation_error',
 }

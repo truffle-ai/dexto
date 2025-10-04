@@ -36,6 +36,8 @@ import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
+import { promises as fs } from 'fs';
+import { stringify as yamlStringify } from 'yaml';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -1003,6 +1005,81 @@ export class DextoAgent {
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
             : this.stateManager.getRuntimeConfig();
+    }
+
+    /**
+     * Gets the file path of the agent configuration currently in use.
+     * This returns the source agent file path, not session-specific overrides.
+     * @param _sessionId Optional session ID (unused - sessions don't have separate files)
+     * @returns The path to the agent configuration file
+     * @throws AgentError if no config path is available
+     */
+    public getAgentFilePath(_sessionId?: string): string {
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
+        return this.configPath;
+    }
+
+    /**
+     * Reloads the agent configuration from disk.
+     * This will re-read the config file and re-validate it.
+     * Note: This does NOT reinitialize services - it only updates the config.
+     * @throws Error if config file cannot be read or is invalid
+     */
+    public async reloadConfig(): Promise<void> {
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
+
+        logger.info(`Reloading agent configuration from: ${this.configPath}`);
+
+        const newConfig = await loadAgentConfig(this.configPath);
+        const validated = AgentConfigSchema.parse(newConfig);
+
+        this.config = validated;
+
+        logger.info('Agent configuration reloaded successfully');
+    }
+
+    /**
+     * Updates and saves the agent configuration to disk.
+     * This merges the updates with the current config, validates, and writes to file.
+     * @param updates Partial configuration updates to apply
+     * @param targetPath Optional path to save to (defaults to current config path)
+     * @throws Error if validation fails or file cannot be written
+     */
+    public async updateAndSaveConfig(
+        updates: Partial<AgentConfig>,
+        targetPath?: string
+    ): Promise<void> {
+        const path = targetPath || this.configPath;
+
+        if (!path) {
+            throw AgentError.noConfigPath();
+        }
+
+        logger.info(`Updating and saving agent configuration to: ${path}`);
+
+        // Merge updates with current config
+        const updatedConfig = {
+            ...this.config,
+            ...updates,
+        };
+
+        // Validate the merged config
+        const validated = AgentConfigSchema.parse(updatedConfig);
+
+        // Convert to YAML
+        const yamlContent = yamlStringify(validated);
+
+        // Write to file
+        await fs.writeFile(path, yamlContent, 'utf-8');
+
+        // Update in-memory config
+        this.config = validated;
+
+        logger.info(`Agent configuration saved to: ${path}`);
     }
 
     // ============= AGENT MANAGEMENT =============

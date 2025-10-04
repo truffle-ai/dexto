@@ -65,6 +65,20 @@ export class AgentError {
     }
 
     /**
+     * No config path available
+     */
+    static noConfigPath() {
+        return new DextoRuntimeError(
+            AgentErrorCode.NO_CONFIG_PATH,
+            ErrorScope.AGENT,
+            ErrorType.SYSTEM,
+            'No configuration file path is available',
+            undefined,
+            'Agent was created without a config file path, cannot perform file operations'
+        );
+    }
+
+    /**
      * API validation error
      */
     static apiValidationError(message: string, details?: unknown) {
