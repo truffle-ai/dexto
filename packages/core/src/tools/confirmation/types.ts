@@ -47,7 +47,4 @@ export interface ToolExecutionDetails {
 export interface ToolConfirmationProvider {
     allowedToolsProvider: IAllowedToolsProvider;
     requestConfirmation(details: ToolExecutionDetails): Promise<boolean>;
-
-    // Only implemented by event-based providers – kept here for convenience
-    handleConfirmationResponse?(response: ToolConfirmationResponse): Promise<void>;
 }
