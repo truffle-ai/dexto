@@ -100,6 +100,7 @@ const MessageRequestSchema = z
 const McpServerRequestSchema = z.object({
     name: z.string().min(1, 'Server name is required'),
     config: McpServerConfigSchema,
+    persistToAgent: z.boolean().optional(),
 });
 
 // Based on existing WebhookRegistrationRequest interface
@@ -408,20 +409,7 @@ export async function initializeApi(
     app.post('/api/connect-server', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { name, config, persistToAgent } = req.body;
-
-            // Validate required fields
-            if (!name || !config) {
-                throw new DextoValidationError([
-                    {
-                        code: AgentErrorCode.INVALID_INPUT,
-                        message: 'name and config are required',
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
-                        severity: 'error',
-                    },
-                ]);
-            }
+            const { name, config, persistToAgent } = parseBody(McpServerRequestSchema, req.body);
 
             // Connect the server
             await activeAgent.connectMcpServer(name, config);
