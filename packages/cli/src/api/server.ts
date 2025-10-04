@@ -990,23 +990,27 @@ export async function initializeApi(
         }
     });
 
+    // Helper: Validate YAML field exists and return error if not
+    const validateYamlField = (yaml: any): void => {
+        if (!yaml || typeof yaml !== 'string') {
+            throw new DextoValidationError([
+                {
+                    code: AgentErrorCode.INVALID_INPUT,
+                    message: 'yaml field is required',
+                    scope: ErrorScope.AGENT,
+                    type: ErrorType.USER,
+                    severity: 'error',
+                },
+            ]);
+        }
+    };
+
     // Validate agent configuration without saving
     app.post('/api/agent/validate', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
             const { yaml } = req.body;
-
-            if (!yaml || typeof yaml !== 'string') {
-                throw new DextoValidationError([
-                    {
-                        code: AgentErrorCode.INVALID_INPUT,
-                        message: 'yaml field is required',
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
-                        severity: 'error',
-                    },
-                ]);
-            }
+            validateYamlField(yaml);
 
             // Parse YAML
             let parsed;
@@ -1069,12 +1073,17 @@ export async function initializeApi(
         try {
             ensureAgentAvailable();
             const { yaml, sessionId } = req.body;
+            validateYamlField(yaml);
 
-            if (!yaml || typeof yaml !== 'string') {
+            // Validate YAML syntax first
+            let parsed;
+            try {
+                parsed = yamlParse(yaml);
+            } catch (parseError: any) {
                 throw new DextoValidationError([
                     {
-                        code: AgentErrorCode.INVALID_INPUT,
-                        message: 'yaml field is required',
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: `Invalid YAML syntax: ${parseError.message}`,
                         scope: ErrorScope.AGENT,
                         type: ErrorType.USER,
                         severity: 'error',
@@ -1082,8 +1091,7 @@ export async function initializeApi(
                 ]);
             }
 
-            // Validate first
-            const parsed = yamlParse(yaml);
+            // Validate schema
             const validationResult = AgentConfigSchema.safeParse(parsed);
 
             if (!validationResult.success) {
@@ -1111,6 +1119,11 @@ export async function initializeApi(
 
                 // Reload agent configuration
                 await activeAgent.reloadConfig();
+
+                // Clean up backup file after successful save
+                await fs.unlink(backupPath).catch(() => {
+                    // Ignore errors if backup file doesn't exist
+                });
 
                 logger.info(`Agent configuration saved: ${agentPath}`);
 

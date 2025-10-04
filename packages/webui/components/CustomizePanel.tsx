@@ -141,8 +141,8 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     }, 500);
   };
 
-  // Handle Monaco editor validation
-  const handleMonacoValidate = (markers: any[]) => {
+  // Handle Monaco editor validation (reserved for future use)
+  const handleMonacoValidate = (_markers: any[]) => {
     // Future: Can process Monaco markers here if needed
   };
 
