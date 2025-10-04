@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ValidationError {
   line?: number;

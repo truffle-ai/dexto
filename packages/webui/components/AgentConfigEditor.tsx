@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import Editor, { type Monaco } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 
 interface AgentConfigEditorProps {
   value: string;
