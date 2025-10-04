@@ -430,15 +430,18 @@ export async function initializeApi(
             // If persistToAgent is true, save to agent config file
             if (persistToAgent === true) {
                 try {
-                    const currentConfig = activeAgent.getConfig();
-                    const updatedConfig = {
-                        ...currentConfig,
+                    // Get the current effective config to read existing mcpServers
+                    const currentConfig = activeAgent.getEffectiveConfig();
+
+                    // Create update with new server added to mcpServers
+                    const updates = {
                         mcpServers: {
                             ...(currentConfig.mcpServers || {}),
                             [name]: config,
                         },
                     };
-                    await activeAgent.updateAndSaveConfig(updatedConfig);
+
+                    await activeAgent.updateAndSaveConfig(updates);
                     logger.info(`Saved server '${name}' to agent configuration file`);
                 } catch (saveError) {
                     logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
