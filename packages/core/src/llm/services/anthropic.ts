@@ -13,6 +13,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -25,6 +27,7 @@ export class AnthropicService implements ILLMService {
     private contextManager: ContextManager<MessageParam>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private hookManager?: HookManager;
 
     constructor(
         toolManager: ToolManager,
@@ -33,13 +36,17 @@ export class AnthropicService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        hookManager?: HookManager
     ) {
         this.config = config;
         this.anthropic = anthropic;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
+        if (hookManager) {
+            this.hookManager = hookManager;
+        }
 
         // Create properly-typed ContextManager for Anthropic
         const formatter = new AnthropicMessageFormatter();
@@ -187,14 +194,64 @@ export class AnthropicService implements ILLMService {
                         this.contextManager.updateActualTokenCount(totalTokens);
                     }
 
-                    this.sessionEventBus.emit('llmservice:response', {
+                    // Build response payload
+                    let responsePayload: any = {
                         content: fullResponse,
                         provider: this.config.provider,
                         model: this.config.model,
-                        router: 'in-built',
+                        router: 'in-built' as const,
+                        sessionId: this.sessionId,
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
-                    });
-                    return fullResponse;
+                    };
+
+                    // Run beforeResponse hooks
+                    if (this.hookManager) {
+                        const hookResult = await runBeforeResponse(
+                            this.hookManager,
+                            responsePayload
+                        );
+
+                        if (hookResult.notices && hookResult.notices.length > 0) {
+                            hookResult.notices.forEach((notice) => {
+                                const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
+                                if (notice.kind === 'block' || notice.kind === 'warn') {
+                                    logger.warn(message, {
+                                        sessionId: this.sessionId,
+                                        ...(notice.code && { code: notice.code }),
+                                        ...(notice.details && { details: notice.details }),
+                                    });
+                                } else {
+                                    logger.info(message, {
+                                        sessionId: this.sessionId,
+                                        ...(notice.code && { code: notice.code }),
+                                        ...(notice.details && { details: notice.details }),
+                                    });
+                                }
+                            });
+                        }
+
+                        if (hookResult.canceled) {
+                            const overrideContent =
+                                hookResult.responseOverride ||
+                                'Response was blocked by a policy. Please try again.';
+                            responsePayload = {
+                                ...responsePayload,
+                                content: overrideContent,
+                                ...(hookResult.notices && { notices: hookResult.notices }),
+                            };
+                        } else {
+                            responsePayload = { ...responsePayload, ...hookResult.payload };
+                            if (hookResult.notices) {
+                                responsePayload = {
+                                    ...responsePayload,
+                                    notices: hookResult.notices,
+                                };
+                            }
+                        }
+                    }
+
+                    this.sessionEventBus.emit('llmservice:response', responsePayload);
+                    return responsePayload.content;
                 }
 
                 // If text content exists, append it to the full response
@@ -270,17 +327,62 @@ export class AnthropicService implements ILLMService {
                 this.contextManager.updateActualTokenCount(totalTokens);
             }
 
-            this.sessionEventBus.emit('llmservice:response', {
-                content: fullResponse,
+            const finalContent =
+                fullResponse ||
+                'Reached maximum number of tool call iterations without a final response.';
+
+            // Build response payload
+            let responsePayload: any = {
+                content: finalContent,
                 provider: this.config.provider,
                 model: this.config.model,
-                router: 'in-built',
+                router: 'in-built' as const,
+                sessionId: this.sessionId,
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
-            });
-            return (
-                fullResponse ||
-                'Reached maximum number of tool call iterations without a final response.'
-            );
+            };
+
+            // Run beforeResponse hooks
+            if (this.hookManager) {
+                const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
+
+                if (hookResult.notices && hookResult.notices.length > 0) {
+                    hookResult.notices.forEach((notice) => {
+                        const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
+                        if (notice.kind === 'block' || notice.kind === 'warn') {
+                            logger.warn(message, {
+                                sessionId: this.sessionId,
+                                ...(notice.code && { code: notice.code }),
+                                ...(notice.details && { details: notice.details }),
+                            });
+                        } else {
+                            logger.info(message, {
+                                sessionId: this.sessionId,
+                                ...(notice.code && { code: notice.code }),
+                                ...(notice.details && { details: notice.details }),
+                            });
+                        }
+                    });
+                }
+
+                if (hookResult.canceled) {
+                    const overrideContent =
+                        hookResult.responseOverride ||
+                        'Response was blocked by a policy. Please try again.';
+                    responsePayload = {
+                        ...responsePayload,
+                        content: overrideContent,
+                        ...(hookResult.notices && { notices: hookResult.notices }),
+                    };
+                } else {
+                    responsePayload = { ...responsePayload, ...hookResult.payload };
+                    if (hookResult.notices) {
+                        responsePayload = { ...responsePayload, notices: hookResult.notices };
+                    }
+                }
+            }
+
+            this.sessionEventBus.emit('llmservice:response', responsePayload);
+            return responsePayload.content;
         } catch (error) {
             if (
                 error instanceof Error &&

@@ -27,6 +27,24 @@ const HooksConfigSchema = z
             .strict()
             .optional()
             .describe('Content policy configuration for input filtering'),
+        responseSanitizer: z
+            .object({
+                redactEmails: z
+                    .boolean()
+                    .optional()
+                    .describe('Whether to redact email addresses from responses'),
+                redactApiKeys: z
+                    .boolean()
+                    .optional()
+                    .describe('Whether to redact API keys from responses'),
+                maxResponseLength: z
+                    .number()
+                    .optional()
+                    .describe('Maximum allowed characters in response (truncates if exceeded)'),
+            })
+            .strict()
+            .optional()
+            .describe('Response sanitizer configuration for output filtering'),
     })
     .strict()
     .optional()

@@ -26,6 +26,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -38,6 +40,7 @@ export class VercelLLMService implements ILLMService {
     private contextManager: ContextManager<ModelMessage>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private hookManager?: HookManager;
     private toolSupportCache: Map<string, boolean> = new Map();
     // Map of toolCallId -> queue of raw results to emit with that callId
     private rawResultsByCallId: Map<string, unknown[]> = new Map();
@@ -56,13 +59,17 @@ export class VercelLLMService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        hookManager?: HookManager
     ) {
         this.model = model;
         this.config = config;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
+        if (hookManager) {
+            this.hookManager = hookManager;
+        }
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter();
@@ -350,13 +357,14 @@ export class VercelLLMService implements ILLMService {
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
                 ...(temperature !== undefined && { temperature }),
             });
-            // Emit final response with reasoning and token usage (authoritative)
-            this.sessionEventBus.emit('llmservice:response', {
+
+            // Build response payload
+            let responsePayload: any = {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
                 provider: this.config.provider,
                 model: this.getModelId(),
-                router: 'vercel',
+                router: 'vercel' as const,
                 tokenUsage: {
                     ...(response.totalUsage.inputTokens !== undefined && {
                         inputTokens: response.totalUsage.inputTokens,
@@ -371,7 +379,53 @@ export class VercelLLMService implements ILLMService {
                         totalTokens: response.totalUsage.totalTokens,
                     }),
                 },
-            });
+                sessionId: this.sessionId,
+            };
+
+            // Run beforeResponse hooks
+            if (this.hookManager) {
+                const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
+
+                if (hookResult.notices && hookResult.notices.length > 0) {
+                    hookResult.notices.forEach((notice) => {
+                        const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
+                        if (notice.kind === 'block' || notice.kind === 'warn') {
+                            logger.warn(message, {
+                                sessionId: this.sessionId,
+                                ...(notice.code && { code: notice.code }),
+                                ...(notice.details && { details: notice.details }),
+                            });
+                        } else {
+                            logger.info(message, {
+                                sessionId: this.sessionId,
+                                ...(notice.code && { code: notice.code }),
+                                ...(notice.details && { details: notice.details }),
+                            });
+                        }
+                    });
+                }
+
+                if (hookResult.canceled) {
+                    // Hook canceled the response - use override or default message
+                    const overrideContent =
+                        hookResult.responseOverride ||
+                        'Response was blocked by a policy. Please try again.';
+                    responsePayload = {
+                        ...responsePayload,
+                        content: overrideContent,
+                        ...(hookResult.notices && { notices: hookResult.notices }),
+                    };
+                } else {
+                    // Apply modifications from hooks
+                    responsePayload = { ...responsePayload, ...hookResult.payload };
+                    if (hookResult.notices) {
+                        responsePayload = { ...responsePayload, notices: hookResult.notices };
+                    }
+                }
+            }
+
+            // Emit final response with reasoning and token usage (authoritative)
+            this.sessionEventBus.emit('llmservice:response', responsePayload);
 
             // Persist and update token count
             await this.contextManager.processLLMResponse(response);
@@ -379,8 +433,8 @@ export class VercelLLMService implements ILLMService {
                 this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
             }
 
-            // Return the plain text of the response
-            return response.text;
+            // Return the response content (potentially modified by hooks)
+            return responsePayload.content;
         } catch (err: unknown) {
             this.mapProviderError(err, 'generate');
         }
@@ -577,13 +631,14 @@ export class VercelLLMService implements ILLMService {
             // Don't re-throw to prevent duplicate error messages in WebSocket
             return '';
         }
-        // Emit final response with reasoning and full token usage (authoritative)
-        this.sessionEventBus.emit('llmservice:response', {
+
+        // Build response payload
+        let responsePayload: any = {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
             provider: this.config.provider,
             model: this.getModelId(),
-            router: 'vercel',
+            router: 'vercel' as const,
             tokenUsage: {
                 ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
                 ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
@@ -592,7 +647,53 @@ export class VercelLLMService implements ILLMService {
                 }),
                 ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
             },
-        });
+            sessionId: this.sessionId,
+        };
+
+        // Run beforeResponse hooks
+        if (this.hookManager) {
+            const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
+
+            if (hookResult.notices && hookResult.notices.length > 0) {
+                hookResult.notices.forEach((notice) => {
+                    const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
+                    if (notice.kind === 'block' || notice.kind === 'warn') {
+                        logger.warn(message, {
+                            sessionId: this.sessionId,
+                            ...(notice.code && { code: notice.code }),
+                            ...(notice.details && { details: notice.details }),
+                        });
+                    } else {
+                        logger.info(message, {
+                            sessionId: this.sessionId,
+                            ...(notice.code && { code: notice.code }),
+                            ...(notice.details && { details: notice.details }),
+                        });
+                    }
+                });
+            }
+
+            if (hookResult.canceled) {
+                // Hook canceled the response - use override or default message
+                const overrideContent =
+                    hookResult.responseOverride ||
+                    'Response was blocked by a policy. Please try again.';
+                responsePayload = {
+                    ...responsePayload,
+                    content: overrideContent,
+                    ...(hookResult.notices && { notices: hookResult.notices }),
+                };
+            } else {
+                // Apply modifications from hooks
+                responsePayload = { ...responsePayload, ...hookResult.payload };
+                if (hookResult.notices) {
+                    responsePayload = { ...responsePayload, notices: hookResult.notices };
+                }
+            }
+        }
+
+        // Emit final response with reasoning and full token usage (authoritative)
+        this.sessionEventBus.emit('llmservice:response', responsePayload);
 
         // Update ContextManager with actual token count
         if (typeof usage.totalTokens === 'number') {
@@ -604,8 +705,8 @@ export class VercelLLMService implements ILLMService {
 
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 
-        // Return the final text string
-        return finalText;
+        // Return the response content (potentially modified by hooks)
+        return responsePayload.content;
     }
 
     /**

@@ -3,6 +3,10 @@ import { registerToolConfirmationHook } from '../../tools/confirmation/hook.js';
 import type { ToolConfirmationProvider } from '../../tools/confirmation/types.js';
 import { registerContentPolicyBuiltin, type ContentPolicyOptions } from './content-policy.js';
 import { registerNotificationBuiltin } from './notifications.js';
+import {
+    registerResponseSanitizerBuiltin,
+    type ResponseSanitizerOptions,
+} from './response-sanitizer.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
 
 export function registerBuiltInHooks(args: {
@@ -20,6 +24,18 @@ export function registerBuiltInHooks(args: {
             ...(cp.redactApiKeys !== undefined ? { redactApiKeys: cp.redactApiKeys } : {}),
         };
         registerContentPolicyBuiltin(args.hookManager, normalized);
+    }
+
+    const rs = args.config.hooks?.responseSanitizer;
+    if (rs && typeof rs === 'object') {
+        const normalized: ResponseSanitizerOptions = {
+            ...(rs.redactEmails !== undefined ? { redactEmails: rs.redactEmails } : {}),
+            ...(rs.redactApiKeys !== undefined ? { redactApiKeys: rs.redactApiKeys } : {}),
+            ...(rs.maxResponseLength !== undefined
+                ? { maxResponseLength: rs.maxResponseLength }
+                : {}),
+        };
+        registerResponseSanitizerBuiltin(args.hookManager, normalized);
     }
 
     registerNotificationBuiltin(args.hookManager);

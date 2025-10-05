@@ -8,8 +8,8 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageBackends } from '../storage/backend/types.js';
-import type { HookManager, BeforeInputPayload } from '../hooks/index.js';
-import { runBeforeInput } from '../hooks/index.js';
+import type { HookManager, BeforeLLMRequestPayload } from '../hooks/index.js';
+import { runBeforeLLMRequest } from '../hooks/index.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -197,7 +197,8 @@ export class ChatSession {
             this.services.promptManager,
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
-            this.id
+            this.id,
+            this.services.hookManager
         );
 
         logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -238,16 +239,16 @@ export class ChatSession {
 
         // Input validation is now handled at DextoAgent.run() level
 
-        // Run beforeInput hooks for filtering and policy enforcement
+        // Run beforeLLMRequest hooks for filtering and policy enforcement
         if (this.services.hookManager) {
-            const hookPayload: BeforeInputPayload = {
+            const hookPayload: BeforeLLMRequestPayload = {
                 text: input,
                 sessionId: this.id,
                 ...(imageDataInput && { imageData: imageDataInput }),
                 ...(fileDataInput && { fileData: fileDataInput }),
             };
 
-            const hookResult = await runBeforeInput(this.services.hookManager, hookPayload);
+            const hookResult = await runBeforeLLMRequest(this.services.hookManager, hookPayload);
 
             if (hookResult.notices && hookResult.notices.length > 0) {
                 hookResult.notices.forEach((notice) => {
@@ -256,7 +257,7 @@ export class ChatSession {
                         ...(notice.code && { code: notice.code }),
                         ...(notice.details && { details: notice.details }),
                     };
-                    const message = `Input hook notice (${notice.kind}) - ${notice.message}`;
+                    const message = `LLM request hook notice (${notice.kind}) - ${notice.message}`;
                     if (notice.kind === 'block' || notice.kind === 'warn') {
                         logger.warn(message, metadata);
                     } else {
@@ -425,7 +426,8 @@ export class ChatSession {
                 this.services.promptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus, // Use session event bus
-                this.id
+                this.id,
+                this.services.hookManager
             );
 
             // Replace the LLM service

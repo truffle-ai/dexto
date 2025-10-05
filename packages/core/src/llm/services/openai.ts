@@ -15,6 +15,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
  * OpenAI implementation of LLMService
@@ -27,6 +29,7 @@ export class OpenAIService implements ILLMService {
     private contextManager: ContextManager<ChatCompletionMessageParam>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private hookManager?: HookManager;
 
     constructor(
         toolManager: ToolManager,
@@ -35,13 +38,17 @@ export class OpenAIService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        hookManager?: HookManager
     ) {
         this.config = config;
         this.openai = openai;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
+        if (hookManager) {
+            this.hookManager = hookManager;
+        }
 
         // Create properly-typed ContextManager for OpenAI
         const formatter = new OpenAIMessageFormatter();
@@ -136,15 +143,65 @@ export class OpenAIService implements ILLMService {
                         this.contextManager.updateActualTokenCount(totalTokens);
                     }
 
-                    // Always emit token usage
-                    this.sessionEventBus.emit('llmservice:response', {
+                    // Build response payload
+                    let responsePayload: any = {
                         content: finalContent,
                         provider: this.config.provider,
                         model: this.config.model,
-                        router: 'in-built',
+                        router: 'in-built' as const,
                         tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
-                    });
-                    return finalContent;
+                        sessionId: this.sessionId,
+                    };
+
+                    // Run beforeResponse hooks
+                    if (this.hookManager) {
+                        const hookResult = await runBeforeResponse(
+                            this.hookManager,
+                            responsePayload
+                        );
+
+                        if (hookResult.notices && hookResult.notices.length > 0) {
+                            hookResult.notices.forEach((notice) => {
+                                const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
+                                if (notice.kind === 'block' || notice.kind === 'warn') {
+                                    logger.warn(message, {
+                                        sessionId: this.sessionId,
+                                        ...(notice.code && { code: notice.code }),
+                                        ...(notice.details && { details: notice.details }),
+                                    });
+                                } else {
+                                    logger.info(message, {
+                                        sessionId: this.sessionId,
+                                        ...(notice.code && { code: notice.code }),
+                                        ...(notice.details && { details: notice.details }),
+                                    });
+                                }
+                            });
+                        }
+
+                        if (hookResult.canceled) {
+                            const overrideContent =
+                                hookResult.responseOverride ||
+                                'Response was blocked by a policy. Please try again.';
+                            responsePayload = {
+                                ...responsePayload,
+                                content: overrideContent,
+                                ...(hookResult.notices && { notices: hookResult.notices }),
+                            };
+                        } else {
+                            responsePayload = { ...responsePayload, ...hookResult.payload };
+                            if (hookResult.notices) {
+                                responsePayload = {
+                                    ...responsePayload,
+                                    notices: hookResult.notices,
+                                };
+                            }
+                        }
+                    }
+
+                    // Always emit token usage
+                    this.sessionEventBus.emit('llmservice:response', responsePayload);
+                    return responsePayload.content;
                 }
 
                 // Add assistant message with tool calls to history
@@ -277,15 +334,59 @@ export class OpenAIService implements ILLMService {
                 this.contextManager.updateActualTokenCount(totalTokens);
             }
 
-            // Always emit token usage
-            this.sessionEventBus.emit('llmservice:response', {
+            // Build response payload
+            let responsePayload: any = {
                 content: finalResponse,
                 provider: this.config.provider,
                 model: this.config.model,
-                router: 'in-built',
+                router: 'in-built' as const,
                 tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
-            });
-            return finalResponse;
+                sessionId: this.sessionId,
+            };
+
+            // Run beforeResponse hooks
+            if (this.hookManager) {
+                const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
+
+                if (hookResult.notices && hookResult.notices.length > 0) {
+                    hookResult.notices.forEach((notice) => {
+                        const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
+                        if (notice.kind === 'block' || notice.kind === 'warn') {
+                            logger.warn(message, {
+                                sessionId: this.sessionId,
+                                ...(notice.code && { code: notice.code }),
+                                ...(notice.details && { details: notice.details }),
+                            });
+                        } else {
+                            logger.info(message, {
+                                sessionId: this.sessionId,
+                                ...(notice.code && { code: notice.code }),
+                                ...(notice.details && { details: notice.details }),
+                            });
+                        }
+                    });
+                }
+
+                if (hookResult.canceled) {
+                    const overrideContent =
+                        hookResult.responseOverride ||
+                        'Response was blocked by a policy. Please try again.';
+                    responsePayload = {
+                        ...responsePayload,
+                        content: overrideContent,
+                        ...(hookResult.notices && { notices: hookResult.notices }),
+                    };
+                } else {
+                    responsePayload = { ...responsePayload, ...hookResult.payload };
+                    if (hookResult.notices) {
+                        responsePayload = { ...responsePayload, notices: hookResult.notices };
+                    }
+                }
+            }
+
+            // Always emit token usage
+            this.sessionEventBus.emit('llmservice:response', responsePayload);
+            return responsePayload.content;
         } catch (error) {
             if (
                 error instanceof Error &&

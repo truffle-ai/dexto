@@ -30,7 +30,7 @@ export function registerContentPolicyBuiltin(
     const redactApiKeys = opts?.redactApiKeys ?? DEFAULTS.redactApiKeys;
 
     hookManager.use(
-        'beforeInput',
+        'beforeLLMRequest',
         ({ text }) => {
             const notices: HookNotice[] = [];
 

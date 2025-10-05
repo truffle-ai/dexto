@@ -1,9 +1,9 @@
 import type { LLMRouter } from '../llm/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 
-export type HookName = 'beforeInput' | 'beforeToolCall' | 'afterToolResult' | 'beforeResponse';
+export type HookName = 'beforeLLMRequest' | 'beforeToolCall' | 'afterToolResult' | 'beforeResponse';
 
-export interface BeforeInputPayload {
+export interface BeforeLLMRequestPayload {
     text: string;
     imageData?: ImageData;
     fileData?: FileData;
@@ -40,7 +40,7 @@ export interface BeforeResponsePayload {
 }
 
 export type HookPayloadMap = {
-    beforeInput: BeforeInputPayload;
+    beforeLLMRequest: BeforeLLMRequestPayload;
     beforeToolCall: BeforeToolCallPayload;
     afterToolResult: AfterToolResultPayload;
     beforeResponse: BeforeResponsePayload;

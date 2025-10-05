@@ -62,6 +62,10 @@ hooks:
     maxInputChars: 10000  # Limit input to reasonable size
     redactEmails: true    # Redact email addresses from input
     redactApiKeys: true   # Redact API keys from input
+  # responseSanitizer:
+  #   redactEmails: true    # Redact email addresses from responses
+  #   redactApiKeys: true   # Redact API keys from responses
+  #   maxResponseLength: 50000  # Optional: truncate responses exceeding this length
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.

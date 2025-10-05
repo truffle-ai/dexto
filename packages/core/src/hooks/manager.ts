@@ -20,7 +20,7 @@ export class HookManager {
     private handlers: {
         [K in HookName]: HandlerEntry<HookPayloadMap[K]>[];
     } = {
-        beforeInput: [],
+        beforeLLMRequest: [],
         beforeToolCall: [],
         afterToolResult: [],
         beforeResponse: [],
