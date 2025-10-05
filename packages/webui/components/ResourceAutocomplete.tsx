@@ -18,9 +18,14 @@ interface ResourceAutocompleteProps {
 export default function ResourceAutocomplete({ resources, query, selectedIndex, onSelect, onHoverIndex, loading }: ResourceAutocompleteProps) {
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase();
+    const parseDate = (val?: string | Date): number => {
+      if (!val) return 0;
+      const time = new Date(val).getTime();
+      return isNaN(time) ? 0 : time;
+    };
     const sorted = [...resources].sort((a, b) => {
-      const aTime = a.lastModified ? new Date(a.lastModified).getTime() : 0;
-      const bTime = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+      const aTime = parseDate(a.lastModified);
+      const bTime = parseDate(b.lastModified);
       return bTime - aTime;
     });
     return sorted
@@ -57,10 +62,12 @@ export default function ResourceAutocomplete({ resources, query, selectedIndex, 
   ) : filtered.length === 0 ? (
     <div className="px-3 py-2 text-sm text-muted-foreground">No resources match "{query}"</div>
   ) : (
-    <ul className="py-1 text-sm max-h-64 overflow-y-auto">
+    <ul role="listbox" aria-label="Resource suggestions" className="py-1 text-sm max-h-64 overflow-y-auto">
       {filtered.map((r, idx) => (
         <li
           key={r.uri}
+          role="option"
+          aria-selected={idx === selectedIndex}
           ref={(node) => { if (node) itemRefs.current[idx] = node; }}
           className={
             'px-3 py-2 cursor-pointer flex items-center gap-3 ' +

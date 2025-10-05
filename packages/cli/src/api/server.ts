@@ -380,10 +380,10 @@ export async function initializeApi(
     // Prompts listing endpoint (for WebUI slash command autocomplete)
     app.get('/api/prompts', async (_req, res, next) => {
         try {
-            if (!agent.promptsManager) {
+            if (!activeAgent.promptsManager) {
                 return res.status(200).json({ prompts: [] });
             }
-            const prompts = await agent.promptsManager.list();
+            const prompts = await activeAgent.promptsManager.list();
             const list = Object.values(prompts);
             return res.status(200).json({ prompts: list });
         } catch (error) {
@@ -393,6 +393,9 @@ export async function initializeApi(
 
     app.post('/api/prompts/custom', express.json({ limit: '10mb' }), async (req, res, next) => {
         try {
+            if (!activeAgent.promptsManager) {
+                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
+            }
             const payload = parseBody(CustomPromptRequestSchema, req.body);
             const promptArguments = payload.arguments
                 ?.map((arg) => ({
@@ -422,7 +425,7 @@ export async function initializeApi(
                       }
                     : {}),
             };
-            const prompt = await agent.promptsManager.createCustomPrompt(createPayload);
+            const prompt = await activeAgent.promptsManager.createCustomPrompt(createPayload);
             return res.status(201).json({ prompt });
         } catch (error) {
             return next(error);
@@ -431,9 +434,12 @@ export async function initializeApi(
 
     app.delete('/api/prompts/custom/:name', async (req, res, next) => {
         try {
+            if (!activeAgent.promptsManager) {
+                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
+            }
             const encodedName = req.params.name;
             const name = decodeURIComponent(encodedName);
-            await agent.promptsManager.deleteCustomPrompt(name);
+            await activeAgent.promptsManager.deleteCustomPrompt(name);
             return res.status(204).send();
         } catch (error) {
             return next(error);
@@ -445,10 +451,10 @@ export async function initializeApi(
         try {
             const name = req.params.name;
             if (!name) throw PromptError.nameRequired();
-            if (!agent.promptsManager) {
+            if (!activeAgent.promptsManager) {
                 return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
             }
-            const definition = await agent.promptsManager.getPromptDefinition(name);
+            const definition = await activeAgent.promptsManager.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
             return sendJsonResponse(res, { definition }, 200);
         } catch (error) {
@@ -463,6 +469,9 @@ export async function initializeApi(
         try {
             const inputName = req.params.name;
             if (!inputName) throw PromptError.nameRequired();
+            if (!activeAgent.promptsManager) {
+                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
+            }
 
             // Extract optional arguments from query string
             // - `q` or `_context` → maps to special `_context` arg supported by providers
@@ -489,11 +498,11 @@ export async function initializeApi(
 
             // Resolve provided name to a valid prompt key using core manager
             const resolvedName =
-                (await agent.promptsManager.resolvePromptKey(inputName)) ?? inputName;
+                (await activeAgent.promptsManager.resolvePromptKey(inputName)) ?? inputName;
 
             const normalized = normalizePromptArgs(args);
 
-            const pr = await agent.promptsManager.getPrompt(resolvedName, normalized.args);
+            const pr = await activeAgent.promptsManager.getPrompt(resolvedName, normalized.args);
             const flattened = flattenPromptResult(pr);
             const finalText = appendContext(flattened.text, normalized.context);
             if (!finalText && flattened.resourceUris.length === 0) {
@@ -748,7 +757,7 @@ export async function initializeApi(
     // Get all available resources
     app.get('/api/resources', async (_req, res, next) => {
         try {
-            const resources = await agent.listResources();
+            const resources = await activeAgent.listResources();
             return res.status(200).json({ ok: true, resources: Object.values(resources) });
         } catch (error) {
             return next(error);
@@ -769,7 +778,7 @@ export async function initializeApi(
         const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
         try {
             const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
-            const content = await agent.readResource(validatedResourceId);
+            const content = await activeAgent.readResource(validatedResourceId);
             return res.status(200).json({ ok: true, content });
         } catch (error) {
             if (error instanceof z.ZodError)
@@ -795,7 +804,7 @@ export async function initializeApi(
         const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
         try {
             const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
-            const exists = await agent.hasResource(validatedResourceId);
+            const exists = await activeAgent.hasResource(validatedResourceId);
             return res.status(exists ? 200 : 404).end();
         } catch (error) {
             if (error instanceof z.ZodError)
@@ -812,7 +821,7 @@ export async function initializeApi(
     app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
         try {
             const { serverId } = z.object({ serverId: z.string().min(1) }).parse(req.params);
-            const resources = await agent.listResourcesForServer(serverId);
+            const resources = await activeAgent.listResourcesForServer(serverId);
             return sendJsonResponse(res, { success: true, resources }, 200);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -858,7 +867,7 @@ export async function initializeApi(
         }
         try {
             const qualifiedUri = `mcp:${serverId}:${decodedResourceId}`;
-            const content = await agent.readResource(qualifiedUri);
+            const content = await activeAgent.readResource(qualifiedUri);
             return sendJsonResponse(res, { success: true, data: { content } }, 200);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
