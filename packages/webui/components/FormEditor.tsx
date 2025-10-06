@@ -8,7 +8,7 @@ import { StorageSection } from './form-sections/StorageSection';
 import { ToolConfirmationSection } from './form-sections/ToolConfirmationSection';
 import { Collapsible } from './ui/collapsible';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
+import { LabelWithTooltip } from './ui/label-with-tooltip';
 import { AlertCircle } from 'lucide-react';
 import type { AgentConfig } from '@dexto/core';
 
@@ -86,20 +86,21 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
         <Collapsible title="Basic Information" defaultOpen={true}>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="agent-name">Agent Name</Label>
+              <LabelWithTooltip htmlFor="agent-name" tooltip="The unique identifier for this agent">
+                Agent Name
+              </LabelWithTooltip>
               <Input
                 id="agent-name"
                 value={config.agentCard?.name || ''}
                 onChange={(e) => updateBasicInfo('name', e.target.value)}
                 placeholder="my-custom-agent"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                The identifier for this agent
-              </p>
             </div>
 
             <div>
-              <Label htmlFor="agent-description">Description</Label>
+              <LabelWithTooltip htmlFor="agent-description" tooltip="A brief description of what this agent does">
+                Description
+              </LabelWithTooltip>
               <Input
                 id="agent-description"
                 value={config.agentCard?.description || ''}
@@ -109,16 +110,15 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
             </div>
 
             <div>
-              <Label htmlFor="agent-greeting">Greeting Message</Label>
+              <LabelWithTooltip htmlFor="agent-greeting" tooltip="The initial message shown to users when they start a conversation">
+                Greeting Message
+              </LabelWithTooltip>
               <Input
                 id="agent-greeting"
                 value={config.greeting || ''}
                 onChange={(e) => updateBasicInfo('greeting', e.target.value)}
                 placeholder="Hello! How can I help you today?"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Initial message shown to users (optional)
-              </p>
             </div>
           </div>
         </Collapsible>

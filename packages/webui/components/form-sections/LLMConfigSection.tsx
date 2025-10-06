@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { Collapsible } from '../ui/collapsible';
-import type { AgentConfig } from '@dexto/core';
+import { LLM_PROVIDERS, LLM_ROUTERS, type AgentConfig } from '@dexto/core';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -13,9 +13,6 @@ interface LLMConfigSectionProps {
   onChange: (value: LLMConfig) => void;
   errors?: Record<string, string>;
 }
-
-const PROVIDERS = ['openai', 'anthropic', 'google', 'groq', 'together', 'azure', 'bedrock', 'ollama'];
-const ROUTERS = ['vercel', 'in-built'];
 
 export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSectionProps) {
   const handleChange = (field: keyof LLMConfig, newValue: string | number | undefined) => {
@@ -27,7 +24,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
       <div className="space-y-4">
         {/* Provider */}
         <div>
-          <Label htmlFor="provider">Provider *</Label>
+          <LabelWithTooltip htmlFor="provider" tooltip="The LLM provider to use (e.g., OpenAI, Anthropic)">
+            Provider *
+          </LabelWithTooltip>
           <select
             id="provider"
             value={value.provider}
@@ -35,7 +34,7 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="">Select provider...</option>
-            {PROVIDERS.map((p) => (
+            {LLM_PROVIDERS.map((p) => (
               <option key={p} value={p}>
                 {p}
               </option>
@@ -46,7 +45,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
 
         {/* Model */}
         <div>
-          <Label htmlFor="model">Model *</Label>
+          <LabelWithTooltip htmlFor="model" tooltip="The specific model identifier (e.g., gpt-4, claude-3-opus)">
+            Model *
+          </LabelWithTooltip>
           <Input
             id="model"
             value={value.model}
@@ -58,7 +59,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
 
         {/* API Key */}
         <div>
-          <Label htmlFor="apiKey">API Key *</Label>
+          <LabelWithTooltip htmlFor="apiKey" tooltip="Use $ENV_VAR for environment variables or enter the API key directly">
+            API Key *
+          </LabelWithTooltip>
           <Input
             id="apiKey"
             type="password"
@@ -66,22 +69,21 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             onChange={(e) => handleChange('apiKey', e.target.value)}
             placeholder="$OPENAI_API_KEY or direct value"
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Use $ENV_VAR for environment variables or enter directly
-          </p>
           {errors.apiKey && <p className="text-xs text-destructive mt-1">{errors.apiKey}</p>}
         </div>
 
         {/* Router */}
         <div>
-          <Label htmlFor="router">Router</Label>
+          <LabelWithTooltip htmlFor="router" tooltip="LLM routing backend: 'vercel' uses Vercel AI SDK, 'in-built' uses provider-specific clients">
+            Router
+          </LabelWithTooltip>
           <select
             id="router"
             value={value.router || 'vercel'}
             onChange={(e) => handleChange('router', e.target.value)}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            {ROUTERS.map((r) => (
+            {LLM_ROUTERS.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -91,7 +93,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
 
         {/* Max Iterations */}
         <div>
-          <Label htmlFor="maxIterations">Max Iterations</Label>
+          <LabelWithTooltip htmlFor="maxIterations" tooltip="Maximum number of agent reasoning iterations per turn">
+            Max Iterations
+          </LabelWithTooltip>
           <Input
             id="maxIterations"
             type="number"
@@ -103,7 +107,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
 
         {/* Base URL */}
         <div>
-          <Label htmlFor="baseURL">Base URL (optional)</Label>
+          <LabelWithTooltip htmlFor="baseURL" tooltip="Custom base URL for the LLM provider (optional, for proxies or custom endpoints)">
+            Base URL
+          </LabelWithTooltip>
           <Input
             id="baseURL"
             value={value.baseURL || ''}
@@ -114,7 +120,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
 
         {/* Temperature */}
         <div>
-          <Label htmlFor="temperature">Temperature</Label>
+          <LabelWithTooltip htmlFor="temperature" tooltip="Controls randomness in responses (0.0 = deterministic, 1.0 = creative)">
+            Temperature
+          </LabelWithTooltip>
           <Input
             id="temperature"
             type="number"
@@ -132,7 +140,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
         {/* Max Input/Output Tokens */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="maxInputTokens">Max Input Tokens</Label>
+            <LabelWithTooltip htmlFor="maxInputTokens" tooltip="Maximum input tokens to send to the model">
+              Max Input Tokens
+            </LabelWithTooltip>
             <Input
               id="maxInputTokens"
               type="number"
@@ -145,7 +155,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             />
           </div>
           <div>
-            <Label htmlFor="maxOutputTokens">Max Output Tokens</Label>
+            <LabelWithTooltip htmlFor="maxOutputTokens" tooltip="Maximum output tokens the model can generate">
+              Max Output Tokens
+            </LabelWithTooltip>
             <Input
               id="maxOutputTokens"
               type="number"
