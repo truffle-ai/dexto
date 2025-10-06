@@ -38,6 +38,7 @@ export function LLMConfigSection({
       open={open}
       onOpenChange={onOpenChange}
       errorCount={errorCount}
+      sectionErrors={sectionErrors}
     >
       <div className="space-y-4">
         {/* Provider */}
@@ -122,7 +123,7 @@ export function LLMConfigSection({
           <Input
             id="maxIterations"
             type="number"
-            value={value.maxIterations !== undefined ? value.maxIterations : 50}
+            value={value.maxIterations !== undefined ? value.maxIterations : ''}
             onChange={(e) => {
               const val = e.target.value;
               if (val === '') {

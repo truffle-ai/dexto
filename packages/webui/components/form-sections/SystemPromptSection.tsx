@@ -31,6 +31,7 @@ export function SystemPromptSection({
       open={open}
       onOpenChange={onOpenChange}
       errorCount={errorCount}
+      sectionErrors={sectionErrors}
     >
       <div className="space-y-2">
         <LabelWithTooltip htmlFor="systemPrompt" tooltip="Define how the agent should behave, what it can do, and any specific instructions">

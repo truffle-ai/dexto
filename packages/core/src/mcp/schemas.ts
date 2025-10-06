@@ -27,7 +27,6 @@ export const StdioServerConfigSchema = z
                         scope: ErrorScope.MCP,
                         type: ErrorType.USER,
                     },
-                    path: ['command'],
                 });
             }
         }),

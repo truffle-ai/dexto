@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
 
 interface CollapsibleProps {
   title: string;
@@ -11,6 +12,7 @@ interface CollapsibleProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   errorCount?: number;
+  sectionErrors?: string[];
   className?: string;
 }
 
@@ -21,6 +23,7 @@ export function Collapsible({
   open: controlledOpen,
   onOpenChange,
   errorCount = 0,
+  sectionErrors = [],
   className
 }: CollapsibleProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
@@ -46,9 +49,20 @@ export function Collapsible({
         <div className="flex items-center gap-2">
           <span className="font-medium">{title}</span>
           {errorCount > 0 && (
-            <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-destructive text-destructive-foreground rounded-full">
-              {errorCount} {errorCount === 1 ? 'error' : 'errors'}
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-destructive text-destructive-foreground rounded-full cursor-help">
+                  {errorCount} {errorCount === 1 ? 'error' : 'errors'}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-sm">
+                <ul className="space-y-1 text-left">
+                  {sectionErrors.map((error, idx) => (
+                    <li key={idx}>• {error}</li>
+                  ))}
+                </ul>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
         <ChevronDown

@@ -145,6 +145,7 @@ export function McpServersSection({
       open={open}
       onOpenChange={onOpenChange}
       errorCount={errorCount}
+      sectionErrors={sectionErrors}
     >
       <div className="space-y-4">
         {servers.length === 0 ? (
@@ -246,7 +247,11 @@ export function McpServersSection({
                             value={'command' in server ? server.command : ''}
                             onChange={(e) => updateServer(name, { command: e.target.value })}
                             placeholder="e.g., npx, node, python"
+                            aria-invalid={!!errors[`mcpServers.${name}.command`]}
                           />
+                          {errors[`mcpServers.${name}.command`] && (
+                            <p className="text-xs text-destructive mt-1">{errors[`mcpServers.${name}.command`]}</p>
+                          )}
                         </div>
 
                         {/* Arguments */}
@@ -295,7 +300,11 @@ export function McpServersSection({
                             value={'url' in server ? server.url : ''}
                             onChange={(e) => updateServer(name, { url: e.target.value })}
                             placeholder="https://example.com/mcp"
+                            aria-invalid={!!errors[`mcpServers.${name}.url`]}
                           />
+                          {errors[`mcpServers.${name}.url`] && (
+                            <p className="text-xs text-destructive mt-1">{errors[`mcpServers.${name}.url`]}</p>
+                          )}
                         </div>
 
                         {/* Headers */}

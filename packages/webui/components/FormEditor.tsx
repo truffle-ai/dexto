@@ -127,6 +127,7 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
           open={openSections.basic}
           onOpenChange={() => toggleSection('basic')}
           errorCount={sectionErrors.basic.length}
+          sectionErrors={sectionErrors.basic}
         >
           <div className="space-y-4">
             <div>

@@ -52,6 +52,7 @@ export function StorageSection({
       open={open}
       onOpenChange={onOpenChange}
       errorCount={errorCount}
+      sectionErrors={sectionErrors}
     >
       <div className="space-y-6">
         {/* Cache Configuration */}

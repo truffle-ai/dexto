@@ -51,6 +51,7 @@ export function ToolConfirmationSection({
       open={open}
       onOpenChange={onOpenChange}
       errorCount={errorCount}
+      sectionErrors={sectionErrors}
     >
       <div className="space-y-4">
         {/* Confirmation Mode */}
