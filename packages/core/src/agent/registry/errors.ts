@@ -41,6 +41,17 @@ export class RegistryError {
         );
     }
 
+    static customAgentNameConflict(agentName: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_ALREADY_EXISTS,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Cannot create custom agent '${agentName}': name conflicts with builtin agent`,
+            { agentName, conflictType: 'builtin' },
+            'Choose a different name for your custom agent'
+        );
+    }
+
     // Installation errors
     static installationFailed(agentName: string, cause: string) {
         return new DextoRuntimeError(

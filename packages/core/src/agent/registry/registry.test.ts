@@ -81,9 +81,15 @@ describe('LocalAgentRegistry', () => {
 
         // Mock path functions
         mockResolveBundledScript.mockReturnValue(registryPath);
-        mockGetDextoGlobalPath.mockImplementation((subpath: string) =>
-            path.join(tempDir, 'global', subpath)
-        );
+        mockGetDextoGlobalPath.mockImplementation((type: string, filename?: string) => {
+            if (filename) {
+                return path.join(tempDir, filename);
+            }
+            if (type === 'agents') {
+                return path.join(tempDir, 'global', type);
+            }
+            return path.join(tempDir, 'global');
+        });
 
         // Mock preferences
         mockLoadGlobalPreferences.mockResolvedValue({
@@ -123,6 +129,7 @@ describe('LocalAgentRegistry', () => {
                     author: 'Test',
                     tags: ['test'],
                     source: 'test-agent.yml',
+                    type: 'builtin',
                 },
                 'dir-agent': {
                     description: 'Directory agent',
@@ -130,12 +137,14 @@ describe('LocalAgentRegistry', () => {
                     tags: ['test'],
                     source: 'dir-agent/',
                     main: 'main.yml',
+                    type: 'builtin',
                 },
                 'auto-test-agent': {
                     description: 'Auto-install test agent',
                     author: 'Test',
                     tags: ['test'],
                     source: 'auto-test-agent.yml',
+                    type: 'builtin',
                 },
             });
 
@@ -156,6 +165,7 @@ describe('LocalAgentRegistry', () => {
                         author: 'Test',
                         tags: ['test'],
                         source: 'test-agent.yml',
+                        type: 'builtin',
                     },
                     'dir-agent': {
                         description: 'Directory agent',
@@ -163,12 +173,14 @@ describe('LocalAgentRegistry', () => {
                         tags: ['test'],
                         source: 'dir-agent/',
                         main: 'main.yml',
+                        type: 'builtin',
                     },
                     'auto-test-agent': {
                         description: 'Auto-install test agent',
                         author: 'Test',
                         tags: ['test'],
                         source: 'auto-test-agent.yml',
+                        type: 'builtin',
                     },
                 },
             });
