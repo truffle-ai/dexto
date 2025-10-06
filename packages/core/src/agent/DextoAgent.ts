@@ -306,11 +306,7 @@ export class DextoAgent {
     public async restart(): Promise<void> {
         await this.stop();
         await this.start();
-
-        // Auto-resubscribe all registered subscribers to the new event bus
-        for (const subscriber of this.eventSubscribers) {
-            subscriber.subscribe(this.agentEventBus);
-        }
+        // Note: start() handles re-subscribing all registered subscribers
     }
 
     /**

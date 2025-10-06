@@ -172,6 +172,15 @@ export async function initializeApi(
 
     logger.info(`Initializing API server with agent: ${activeAgentName}`);
 
+    // Initialize event subscribers
+    const webSubscriber = new WebSocketEventSubscriber(wss);
+    const webhookSubscriber = new WebhookEventSubscriber();
+
+    // Register subscribers before starting agent
+    logger.info('Registering event subscribers with agent...');
+    activeAgent.registerSubscriber(webSubscriber);
+    activeAgent.registerSubscriber(webhookSubscriber);
+
     // Ensure the initial agent is started
     if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
         logger.info('Starting initial agent...');
@@ -179,15 +188,6 @@ export async function initializeApi(
     } else if (activeAgent.isStopped()) {
         logger.warn('Initial agent is stopped, this may cause issues');
     }
-
-    const webSubscriber = new WebSocketEventSubscriber(wss);
-    logger.info('Setting up API event subscriptions...');
-    activeAgent.registerSubscriber(webSubscriber);
-
-    // Initialize webhook subscriber
-    const webhookSubscriber = new WebhookEventSubscriber();
-    logger.info('Setting up webhook event subscriptions...');
-    activeAgent.registerSubscriber(webhookSubscriber);
 
     // Tool confirmation responses are handled by the main WebSocket handler below
 
