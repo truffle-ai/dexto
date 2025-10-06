@@ -11,11 +11,20 @@
  * The actual editing is delegated to:
  * - YAMLEditorView - for YAML mode
  * - FormEditorView - for Form mode
+ *
+ * TODO: Future optimization - derive form metadata from schemas
+ * Currently form sections have manual field definitions. Consider deriving:
+ * - Required/optional fields from schema
+ * - Default values from schema defaults
+ * - Enum options from schema enums
+ * - Field types from schema types
+ * This would eliminate hardcoded UI metadata and reduce maintenance.
+ * See packages/core/src/utils/schema-metadata.ts for runtime introspection approach.
  */
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Button } from './ui/button';
+import { Button } from '../ui/button';
 import { X, Save, RefreshCw, FileCode, FormInput, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import YAMLEditorView from './YAMLEditorView';
@@ -28,8 +37,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from './ui/dialog';
-import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+} from '../ui/dialog';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import * as yaml from 'yaml';
 import type { AgentConfig } from '@dexto/core';
 

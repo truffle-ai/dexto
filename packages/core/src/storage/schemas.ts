@@ -69,7 +69,7 @@ const PostgresBackendSchema = BaseBackendSchema.extend({
 
 export type PostgresBackendConfig = z.output<typeof PostgresBackendSchema>;
 // Backend configuration using discriminated union
-const BackendConfigSchema = z
+export const BackendConfigSchema = z
     .discriminatedUnion(
         'type',
         [InMemoryBackendSchema, RedisBackendSchema, SqliteBackendSchema, PostgresBackendSchema],

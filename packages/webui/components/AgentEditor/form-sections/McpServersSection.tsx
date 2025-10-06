@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Input } from '../ui/input';
-import { LabelWithTooltip } from '../ui/label-with-tooltip';
-import { Button } from '../ui/button';
-import { Collapsible } from '../ui/collapsible';
+import { Input } from '../../ui/input';
+import { LabelWithTooltip } from '../../ui/label-with-tooltip';
+import { Button } from '../../ui/button';
+import { Collapsible } from '../../ui/collapsible';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

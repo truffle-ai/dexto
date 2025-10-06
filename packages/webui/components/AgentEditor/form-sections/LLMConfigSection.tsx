@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Input } from '../ui/input';
-import { LabelWithTooltip } from '../ui/label-with-tooltip';
-import { Collapsible } from '../ui/collapsible';
+import { Input } from '../../ui/input';
+import { LabelWithTooltip } from '../../ui/label-with-tooltip';
+import { Collapsible } from '../../ui/collapsible';
 import { LLM_PROVIDERS, LLM_ROUTERS, type AgentConfig } from '@dexto/core';
 
 type LLMConfig = AgentConfig['llm'];

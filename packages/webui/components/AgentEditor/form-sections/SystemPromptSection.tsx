@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Textarea } from '../ui/textarea';
-import { LabelWithTooltip } from '../ui/label-with-tooltip';
-import { Collapsible } from '../ui/collapsible';
+import { Textarea } from '../../ui/textarea';
+import { LabelWithTooltip } from '../../ui/label-with-tooltip';
+import { Collapsible } from '../../ui/collapsible';
 
 interface SystemPromptSectionProps {
   value: string;

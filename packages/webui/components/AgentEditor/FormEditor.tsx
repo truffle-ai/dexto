@@ -6,9 +6,9 @@ import { SystemPromptSection } from './form-sections/SystemPromptSection';
 import { McpServersSection } from './form-sections/McpServersSection';
 import { StorageSection } from './form-sections/StorageSection';
 import { ToolConfirmationSection } from './form-sections/ToolConfirmationSection';
-import { Collapsible } from './ui/collapsible';
-import { Input } from './ui/input';
-import { LabelWithTooltip } from './ui/label-with-tooltip';
+import { Collapsible } from '../ui/collapsible';
+import { Input } from '../ui/input';
+import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { AlertCircle } from 'lucide-react';
 import type { AgentConfig } from '@dexto/core';
 

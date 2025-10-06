@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Input } from '../ui/input';
-import { LabelWithTooltip } from '../ui/label-with-tooltip';
-import { Collapsible } from '../ui/collapsible';
+import { Input } from '../../ui/input';
+import { LabelWithTooltip } from '../../ui/label-with-tooltip';
+import { Collapsible } from '../../ui/collapsible';
 import type { AgentConfig } from '@dexto/core';
 import {
   TOOL_CONFIRMATION_MODES,
