@@ -1087,9 +1087,6 @@ export class DextoAgent {
 
         logger.info(`Updating and saving agent configuration to: ${path}`);
 
-        // Store old config before changes
-        const oldConfig = this.config;
-
         // Read raw YAML from disk (without env var expansion)
         const rawYaml = await fs.readFile(path, 'utf-8');
         const rawConfig = yamlParse(rawYaml);

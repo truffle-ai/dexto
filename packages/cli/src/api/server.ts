@@ -118,7 +118,6 @@ const AgentConfigValidateSchema = z.object({
 // Agent configuration save request schema
 const AgentConfigSaveSchema = z.object({
     yaml: z.string().min(1, 'YAML content is required'),
-    sessionId: z.string().optional(),
 });
 
 // Schema for search query parameters
@@ -951,11 +950,15 @@ export async function initializeApi(
             ensureAgentAvailable();
             const agentPath = activeAgent.getAgentFilePath();
 
+            const relativePath = path.basename(agentPath);
+            const ext = path.extname(agentPath);
+            const name = path.basename(agentPath, ext);
+
             res.json({
                 path: agentPath,
-                relativePath: path.basename(agentPath),
-                name: path.basename(agentPath, '.yml'),
-                isDefault: agentPath.includes('default-agent.yml'),
+                relativePath,
+                name,
+                isDefault: name === 'default-agent',
             });
         } catch (error) {
             return next(error);
@@ -1057,7 +1060,7 @@ export async function initializeApi(
     app.post('/api/agent/config', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { yaml, sessionId } = parseBody(AgentConfigSaveSchema, req.body);
+            const { yaml } = parseBody(AgentConfigSaveSchema, req.body);
 
             // Validate YAML syntax first
             let parsed;

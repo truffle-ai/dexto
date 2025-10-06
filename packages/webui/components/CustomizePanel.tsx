@@ -100,6 +100,8 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
   // Debounce timer for validation
   const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Track the most recent validation request to avoid stale updates
+  const latestValidationRequestRef = useRef(0);
 
   // Load agent configuration
   const loadAgentConfig = useCallback(async () => {
@@ -130,6 +132,8 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
   // Validate YAML content
   const validateYaml = async (yaml: string) => {
+    const requestId = latestValidationRequestRef.current + 1;
+    latestValidationRequestRef.current = requestId;
     setIsValidating(true);
     try {
       const response = await fetch(`${API_BASE_URL}/agent/validate`, {
@@ -139,15 +143,21 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       });
 
       const data: ValidationResponse = await response.json();
-      setIsValid(data.valid);
-      setErrors(data.errors || []);
-      setWarnings(data.warnings || []);
+      if (latestValidationRequestRef.current === requestId) {
+        setIsValid(data.valid);
+        setErrors(data.errors || []);
+        setWarnings(data.warnings || []);
+      }
     } catch (err: any) {
-      console.error('Validation error:', err);
-      setIsValid(false);
-      setErrors([{ message: 'Failed to validate configuration', code: 'VALIDATION_ERROR' }]);
+      console.error(`Validation error: ${err instanceof Error ? err.message : String(err)}`);
+      if (latestValidationRequestRef.current === requestId) {
+        setIsValid(false);
+        setErrors([{ message: 'Failed to validate configuration', code: 'VALIDATION_ERROR' }]);
+      }
     } finally {
-      setIsValidating(false);
+      if (latestValidationRequestRef.current === requestId) {
+        setIsValidating(false);
+      }
     }
   };
 
