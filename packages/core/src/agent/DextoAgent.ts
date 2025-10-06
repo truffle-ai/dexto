@@ -1073,6 +1073,8 @@ export class DextoAgent {
      *
      * @returns Object containing list of changes that require restart
      * @throws Error if config file cannot be read or is invalid
+     *
+     * TODO: improve hot reload capabilites so that we don't always require a restart
      */
     public async reloadConfig(): Promise<{
         restartRequired: string[];
