@@ -72,7 +72,7 @@ export function McpServersSection({
     });
   };
 
-  const updateServer = (oldName: string, updates: Partial<Record<string, unknown>> & { name?: string }) => {
+  const updateServer = (oldName: string, updates: Partial<Record<string, unknown> & { name?: string }>) => {
     const server = value[oldName];
 
     // Extract name from updates if present (it's not part of the server config, just used for the key)
@@ -80,7 +80,7 @@ export function McpServersSection({
     const newServer = { ...server, ...serverUpdates } as McpServersConfig[string];
 
     // If name changed via updates, handle the name change
-    if (newName && newName !== oldName) {
+    if (newName && typeof newName === 'string' && newName !== oldName) {
       const newValue = { ...value };
       delete newValue[oldName];
       newValue[newName] = newServer;
