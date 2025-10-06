@@ -85,9 +85,14 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const filterResources = useCallback(
     (list: ReturnType<typeof useResources>['resources'], q: string) => {
       const query = q.toLowerCase();
+      const parseDate = (val?: string | Date): number => {
+        if (!val) return 0;
+        const time = new Date(val).getTime();
+        return isNaN(time) ? 0 : time;
+      };
       const sorted = [...list].sort((a, b) => {
-        const aTime = a.lastModified ? new Date(a.lastModified).getTime() : 0;
-        const bTime = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        const aTime = parseDate(a.lastModified);
+        const bTime = parseDate(b.lastModified);
         return bTime - aTime;
       });
       return sorted
@@ -250,13 +255,23 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         try {
           const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
           if (originalArgsText) url.searchParams.set('_context', originalArgsText);
-          const res = await fetch(url.toString());
-          if (res.ok) {
-            const data = await res.json();
-            const txt = typeof data?.text === 'string' ? data.text : '';
-            if (txt.trim()) {
-              trimmed = txt;
+
+          // Add timeout to prevent hanging on slow responses
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+          try {
+            const res = await fetch(url.toString(), { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              const data = await res.json();
+              const txt = typeof data?.text === 'string' ? data.text : '';
+              if (txt.trim()) {
+                trimmed = txt;
+              }
             }
+          } finally {
+            clearTimeout(timeoutId);
           }
         } catch {
           // keep original

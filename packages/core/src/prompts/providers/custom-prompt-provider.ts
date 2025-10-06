@@ -100,20 +100,33 @@ export class CustomPromptProvider implements PromptProvider {
             },
         });
 
-        if (record.resourceUri) {
-            messages.push({
-                role: 'user',
-                content: {
-                    type: 'resource',
-                    resource: {
-                        uri: record.resourceUri,
-                        name: record.resourceMetadata?.originalName || record.name,
-                        title: record.title || record.name,
-                        mimeType: record.resourceMetadata?.mimeType || 'application/octet-stream',
-                        text: '',
-                    },
-                },
-            });
+        if (record.resourceUri && this.resourceManager) {
+            try {
+                const blobService = this.resourceManager.getBlobService();
+                if (blobService) {
+                    const blobData = await blobService.retrieve(record.resourceUri, 'base64');
+                    if (blobData.format === 'base64') {
+                        messages.push({
+                            role: 'user',
+                            content: {
+                                type: 'resource',
+                                resource: {
+                                    uri: record.resourceUri,
+                                    blob: blobData.data,
+                                    mimeType:
+                                        record.resourceMetadata?.mimeType ||
+                                        blobData.metadata?.mimeType ||
+                                        'application/octet-stream',
+                                },
+                            },
+                        });
+                    }
+                }
+            } catch (error) {
+                logger.warn(
+                    `Failed to load blob resource for custom prompt ${name}: ${String(error)}`
+                );
+            }
         }
 
         return {

@@ -226,8 +226,13 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       const detail = event?.detail || {};
       console.log('💾 Resource cache invalidated for server panel:', detail);
       // If we have a selected server and it matches the updated server, refresh tools
-      if (selectedServerId && detail.serverName && selectedServerId.includes(detail.serverName)) {
-        handleServerSelect(selectedServerId);
+      if (selectedServerId && detail.serverName) {
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const normalizedSelectedId = normalize(selectedServerId);
+        const normalizedServerName = normalize(detail.serverName);
+        if (normalizedSelectedId === normalizedServerName) {
+          handleServerSelect(selectedServerId);
+        }
       }
     };
 

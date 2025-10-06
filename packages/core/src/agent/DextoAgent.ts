@@ -374,6 +374,26 @@ export class DextoAgent {
                     const expansion = await expandMessageReferences(textInput, resources, (uri) =>
                         this.resourceManager.read(uri)
                     );
+
+                    // Warn about unresolved references
+                    if (expansion.unresolvedReferences.length > 0) {
+                        const unresolvedNames = expansion.unresolvedReferences
+                            .map((ref) => ref.originalRef)
+                            .join(', ');
+                        logger.warn(
+                            `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+                        );
+                    }
+
+                    // Validate expanded message size (5MB limit)
+                    const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                    const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
+                    if (expandedSize > MAX_EXPANDED_SIZE) {
+                        logger.warn(
+                            `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                        );
+                    }
+
                     finalText = expansion.expandedMessage;
 
                     // If we extracted images from resources and don't already have image data, use the first extracted image
@@ -390,10 +410,11 @@ export class DextoAgent {
                         }
                     }
                 } catch (error) {
+                    // Log error but continue with original message to avoid blocking the user
                     logger.error(
-                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
                     );
-                    throw error;
+                    // Continue with original text instead of throwing
                 }
             }
 

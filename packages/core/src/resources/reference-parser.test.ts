@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-    parseResourceReferences,
-    expandMessageReferences,
-    type ResourceReference,
-} from './reference-parser.js';
+import { parseResourceReferences, expandMessageReferences } from './reference-parser.js';
 import type { ResourceSet } from './types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 
