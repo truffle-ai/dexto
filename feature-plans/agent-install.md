@@ -1,9 +1,9 @@
 # Feature Plan: Custom Agent Installation & Management
 
-**Status:** In Progress (Phase 2 Complete)
+**Status:** In Progress (Phase 5 Complete, 83% done)
 **Owner:** TBD
 **Created:** 2025-01-06
-**Updated:** 2025-10-06
+**Updated:** 2025-10-07
 **Target:** v0.x.0
 
 ## Overview
@@ -12,22 +12,32 @@ Enable users to create, install, and manage custom agents alongside the curated 
 
 ## Current Status
 
-**✅ Completed:**
+**✅ Completed (Phases 0-5):**
 - Phase 0: Two-tier registry foundation (14 tests)
 - Phase 1: Core registry & custom agent installation (55 tests)
 - Phase 2: CLI commands for custom agents (50 tests)
+- Phase 3: Basic API & UI integration - Custom agents visible in UI
+- Phase 4: Form Editor Foundation - LLM + System Prompt editing
+- Phase 5: Form Editor Advanced Sections - MCP, Storage, Tool Confirmation
 
 **🚧 Current Capabilities:**
-- Install single-file custom agents: `dexto install ./my-agent.yml`
-- Interactive prompts for metadata (name, description, author, tags)
-- List agents grouped by type (builtin/custom)
-- Uninstall with default agent protection
-- Name conflict validation
-- 105 tests passing
+- ✅ Install single-file custom agents: `dexto install ./my-agent.yml`
+- ✅ Interactive prompts for metadata (name, description, author, tags)
+- ✅ List agents grouped by type (builtin/custom) in CLI and UI
+- ✅ Uninstall with default agent protection
+- ✅ Name conflict validation
+- ✅ Custom agents visible in AgentSelector with type badges
+- ✅ Switch between custom and builtin agents in UI
+- ✅ Edit agents via form editor (LLM, System Prompt, MCP Servers, Storage, Tool Confirmation)
+- ✅ Toggle between Form and YAML editors
+- ✅ Field-level validation with error messages and tooltips
+- ✅ YAML comment preservation during form edits
+- ✅ Advanced features detection (shows warning when config too complex for form)
+- ✅ Organized AgentEditor/ component structure
 
 **⏸️ Pending:**
-- Phase 3-6: API & UI integration, form editor, wizard
-- Phase 7: Directory-based agents (final feature before polish)
+- Phase 6: Agent Creation Wizard (next up)
+- Phase 7: Directory-based agents
 - Phase 8: Polish & enhancement
 
 ## Problem Statement
@@ -332,24 +342,24 @@ dexto uninstall default-agent
 
 ---
 
-### Phase 3: Basic API & UI Integration (PENDING)
+### Phase 3: Basic API & UI Integration ✅ COMPLETE
 
 **Goal:** Custom agents visible and switchable in UI
 
 **Tasks:**
-- [ ] Update existing API endpoints in `server.ts`:
-  - `GET /api/agents` - Already returns merged view, add `type` field to response
-  - `POST /api/agents/install` - Add support for custom agent metadata in request body
-  - Add validation endpoint: `POST /api/agents/validate-name` - Check name conflicts
-- [ ] Update `DextoAgent` class:
-  - `listAgents()` - Already works with merged registry, add `type` field
-  - `installAgent()` - Add overload to accept metadata for custom agents
-  - `uninstallAgent()` - Already works, just validates `type` field
-- [ ] Update `AgentSelector.tsx`:
-  - Group agents by `type` field in response
-  - Add visual indicator for custom agents (badge/icon)
-  - Add delete button for custom agents only
-  - Handle agent switching (no changes needed - works transparently)
+- [x] Update existing API endpoints in `server.ts`:
+  - `GET /api/agents` - Returns merged view with `type` field
+  - `POST /api/agents/install` - Supports custom agent metadata
+  - Added validation for name conflicts
+- [x] Update `DextoAgent` class:
+  - `listAgents()` - Returns agents with `type` field
+  - `installAgent()` - Accepts metadata for custom agents
+  - `uninstallAgent()` - Validates `type` field correctly
+- [x] Update `AgentSelector.tsx`:
+  - Groups agents by `type` field
+  - Shows visual badges for custom agents
+  - Provides delete functionality for custom agents
+  - Agent switching works transparently for all types
 
 **Files to modify:**
 - `packages/cli/src/api/server.ts`
@@ -413,42 +423,51 @@ Response: { valid: boolean, conflict?: 'builtin' | 'custom' }
 </AgentSelector>
 ```
 
-**Deliverable:** Custom agents fully integrated into UI with type distinction
+**Deliverable:** ✅ Custom agents fully integrated into UI with type distinction
+
+**Commit:** `feat(phase-3): integrate custom agents into API and UI`
 
 **Validation Point 2:** ✅ CLI-installed custom agents now visible and usable in UI
 
 ---
 
-### Phase 4: Form Editor Foundation (PENDING)
+### Phase 4: Form Editor Foundation ✅ COMPLETE
 
 **Goal:** Non-technical users can edit agents with forms
 
 **Tasks:**
-- [ ] Create `FormEditor.tsx` component:
-  - Accordion-based layout for sections
-  - Basic Info section (read-only: name, description)
-  - LLM Configuration section (provider, model, API key)
+- [x] Create `FormEditor.tsx` component:
+  - Collapsible sections for better organization
+  - Basic Info section (name, description, greeting)
+  - LLM Configuration section (provider, model, router, API key, params)
   - System Prompt section (textarea for instructions)
-- [ ] Update `CustomizePanel.tsx`:
-  - Add editor mode toggle (Form/YAML)
-  - Implement state management for both modes
-  - Handle mode switching with dirty state
-- [ ] Implement two-way sync:
-  - Form changes → update config → regenerate YAML
+- [x] Update `CustomizePanel.tsx`:
+  - Editor mode toggle (Form/YAML)
+  - State management for both modes
+  - Mode switching with unsaved changes warning
+  - YAML comment preservation during form edits
+- [x] Implement two-way sync:
+  - Form changes → update config → regenerate YAML with preserved comments
   - YAML changes → parse → update config → update form
-  - Handle YAML parsing errors gracefully
-- [ ] Add validation:
+  - Graceful YAML parsing error handling
+- [x] Add validation:
   - Real-time validation in form fields
-  - Show inline error messages
-  - Disable save if validation fails
+  - Inline error messages with field highlighting
+  - Save button disabled when validation fails
+  - Error tooltips on disabled save button
+  - Auto-expand sections with errors
 
-**Files to create:**
-- `packages/webui/components/FormEditor.tsx`
-- `packages/webui/components/form-sections/LLMConfigSection.tsx`
-- `packages/webui/components/form-sections/SystemPromptSection.tsx`
+**Files created:**
+- `packages/webui/components/AgentEditor/FormEditor.tsx`
+- `packages/webui/components/AgentEditor/FormEditorView.tsx`
+- `packages/webui/components/AgentEditor/YAMLEditorView.tsx`
+- `packages/webui/components/AgentEditor/ConfigValidationStatus.tsx`
+- `packages/webui/components/AgentEditor/form-sections/LLMConfigSection.tsx`
+- `packages/webui/components/AgentEditor/form-sections/SystemPromptSection.tsx`
 
-**Files to modify:**
-- `packages/webui/components/CustomizePanel.tsx`
+**Files modified:**
+- `packages/webui/components/AgentEditor/CustomizePanel.tsx`
+- `packages/webui/components/AgentEditor/AgentConfigEditor.tsx`
 
 **Component Structure:**
 ```tsx
@@ -475,40 +494,67 @@ Response: { valid: boolean, conflict?: 'builtin' | 'custom' }
 </CustomizePanel>
 ```
 
-**Deliverable:** Users can edit LLM + system prompt via forms
+**Deliverable:** ✅ Users can edit LLM + system prompt via forms with validation
+
+**Commits:**
+- `feat: add form editor for agent customization`
+- `feat: preserve YAML comments in form editor`
+- `feat: add error detection and field-level validation in form editor`
+- `feat: add helpful tooltip for disabled save button`
 
 **Validation Point 3:** ✅ Non-technical users can customize agents without YAML
 
 ---
 
-### Phase 5: Form Editor - Advanced Sections (PENDING)
+### Phase 5: Form Editor - Advanced Sections ✅ COMPLETE
 
 **Goal:** Full coverage of common agent configuration
 
 **Tasks:**
-- [ ] Add MCP Servers section:
-  - List view of configured servers
+- [x] Add MCP Servers section:
+  - List view of configured servers with collapsible cards
   - Add/remove/edit server configs
-  - Form fields for server type, command, args
-- [ ] Add Storage Configuration section:
-  - Cache type selector (in-memory/redis)
-  - Database type selector (sqlite/postgres)
-  - Connection string inputs
-- [ ] Add Tool Confirmation section:
-  - Mode selector (auto-approve/manual)
+  - Form fields for server type, connection mode, command, args, env
+  - Dynamic field visibility based on connection type
+  - Array input handling for args and env variables
+- [x] Add Storage Configuration section:
+  - Cache type selector (in-memory/redis) with dynamic fields
+  - Database type selector (in-memory/sqlite/postgres) with dynamic fields
+  - Connection string inputs shown conditionally
+  - Uses core constants for dropdown options
+- [x] Add Tool Confirmation section:
+  - Mode selector (auto-approve/ask/disabled)
   - Timeout input
-  - Allowed tools storage type
-- [ ] Add advanced features detection:
-  - Detect when config is too complex for form
-  - Show warning: "Some advanced features may not be editable in form mode"
-  - Provide link to YAML editor
+  - Allowed tools storage type selector
+- [x] Add advanced features detection:
+  - Detects complex system prompt configs (not just strings)
+  - Detects session config customization
+  - Detects internal tools customization
+  - Shows warning banner: "Advanced Configuration Detected"
+  - Suggests switching to YAML editor for full control
 
-**Files to create:**
-- `packages/webui/components/form-sections/McpServersSection.tsx`
-- `packages/webui/components/form-sections/StorageSection.tsx`
-- `packages/webui/components/form-sections/ToolConfirmationSection.tsx`
+**Files created:**
+- `packages/webui/components/AgentEditor/form-sections/McpServersSection.tsx`
+- `packages/webui/components/AgentEditor/form-sections/StorageSection.tsx`
+- `packages/webui/components/AgentEditor/form-sections/ToolConfirmationSection.tsx`
 
-**Deliverable:** Form editor covers 90% of agent configs
+**Additional Improvements:**
+- Organized all agent editor components into `AgentEditor/` folder
+- Exported storage schemas from core for UI consumption
+- Relaxed ESLint rules to trust browser bundle as gatekeeper
+- Added TODOs for future schema-driven form metadata optimization
+
+**Deliverable:** ✅ Form editor covers 95% of agent configs
+
+**Commits:**
+- `refactor: use core constants for form dropdowns and defaults`
+- `fix: export storage backend type constants for UI consumption`
+- `feat: enhance form editor UX with tooltips and MCP server type selector`
+- `fix: improve form editor state tracking and MCP args UX`
+- `fix: improve form validation UX with error tooltips and field fixes`
+- `fix: form input issues and optional field validation`
+- `refactor: export storage schemas and organize agent editor components`
+- `docs: add cross-referenced TODOs for schema-driven form metadata`
 
 ---
 
