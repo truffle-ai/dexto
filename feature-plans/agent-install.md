@@ -26,8 +26,9 @@ Enable users to create, install, and manage custom agents alongside the curated 
 - 105 tests passing
 
 **⏸️ Pending:**
-- Phase 2.5: Directory-based agents (requires `main` field prompt)
-- Phase 3+: API & UI integration
+- Phase 3-6: API & UI integration, form editor, wizard
+- Phase 7: Directory-based agents (final feature before polish)
+- Phase 8: Polish & enhancement
 
 ## Problem Statement
 
@@ -331,72 +332,6 @@ dexto uninstall default-agent
 
 ---
 
-### Phase 2.5: Directory-Based Custom Agents (PENDING)
-
-**Goal:** Support installing directory-based custom agents with multiple files
-
-**Status:** Deferred - niche use case, single-file agents cover 90% of needs
-
-**Problem:**
-Currently, installing a directory like `./my-agent/` fails because:
-1. No prompt for `main` field (required for directory agents)
-2. Without `main`, `resolveMainConfig()` throws error when agent is used
-
-**Tasks:**
-- [ ] Enhance `promptForMetadata()` in `install.ts`:
-  - Detect if source is directory (check `fs.stat()` before prompting)
-  - If directory: scan for `.yml` files
-  - Show dropdown using `@clack/prompts` `select()` with found YAML files
-  - Set selected file as `main` field
-- [ ] Update `installCustomAgentFromPath()` to use `main` field:
-  - Already accepts `main` parameter
-  - Already handles directory agents
-  - Just need to pass it from CLI
-- [ ] Add integration test for directory agent installation
-- [ ] Document `${{dexto.agent_dir}}` template variable in wizard/prompts
-
-**Files to modify:**
-- `packages/cli/src/cli/commands/install.ts`
-- `packages/cli/src/cli/commands/install.test.ts`
-
-**CLI Flow:**
-```bash
-dexto install ./my-agent-directory/
-
-📝 Custom Agent Installation
-? Agent name: my-agent
-? Description: Custom directory-based agent
-? Author: John Doe
-? Tags: custom
-? Main config file: (select from dropdown)
-  ▸ agent.yml
-    config.yml
-    my-agent.yml
-✓ Installed custom agent 'my-agent'
-```
-
-**Technical Details:**
-```typescript
-// Scan directory for YAML files
-const ymlFiles = await fs.readdir(resolvedPath)
-  .then(files => files.filter(f => f.endsWith('.yml') || f.endsWith('.yaml')));
-
-if (ymlFiles.length === 0) {
-  throw new Error('No YAML files found in directory');
-}
-
-// Prompt with dropdown
-const main = await p.select({
-  message: 'Select main config file:',
-  options: ymlFiles.map(f => ({ value: f, label: f })),
-  initialValue: ymlFiles.find(f => f === 'agent.yml') || ymlFiles[0]
-});
-```
-
-**Deliverable:** Directory-based custom agents fully supported
-
----
-
 ### Phase 3: Basic API & UI Integration (PENDING)
 
 **Goal:** Custom agents visible and switchable in UI
@@ -660,6 +595,105 @@ Step 5: Review
 **Deliverable:** Beautiful onboarding for creating custom agents
 
 **Validation Point 4:** ✅ Users can create custom agents entirely from UI with guided wizard
+
+---
+
+### Phase 7: Directory-Based Custom Agents (PENDING)
+
+**Goal:** Support installing directory-based custom agents with multiple files
+
+**Status:** Deferred until after UI/wizard - niche use case, single-file agents cover 90% of needs
+
+**Problem:**
+Currently, installing a directory like `./my-agent/` fails because:
+1. No prompt for `main` field (required for directory agents)
+2. Without `main`, `resolveMainConfig()` throws error when agent is used
+
+**Tasks:**
+- [ ] Enhance `promptForMetadata()` in `install.ts`:
+  - Detect if source is directory (check `fs.stat()` before prompting)
+  - If directory: scan for `.yml` files in the directory
+  - Show dropdown using `@clack/prompts` `select()` with found YAML files
+  - Set selected file as `main` field
+- [ ] Update installation flow to pass `main` field:
+  - Already accepted by `installCustomAgentFromPath()` method
+  - Already handles directory agents in registry
+  - Just need to pass it from CLI prompt
+- [ ] Add integration test for directory agent installation
+- [ ] Document `${{dexto.agent_dir}}` template variable:
+  - Add hint in CLI prompt
+  - Add to agent template
+  - Add to wizard documentation
+
+**Files to modify:**
+- `packages/cli/src/cli/commands/install.ts`
+- `packages/cli/src/cli/commands/install.test.ts`
+
+**CLI Flow:**
+```bash
+dexto install ./my-agent-directory/
+
+📝 Custom Agent Installation
+? Agent name: my-agent
+? Description: Custom directory-based agent
+? Author: John Doe
+? Tags: custom
+? Main config file: (select from dropdown)
+  ▸ agent.yml
+    config.yml
+    my-agent.yml
+✓ Installed custom agent 'my-agent'
+
+💡 Tip: Use ${{dexto.agent_dir}} in your config for relative paths
+```
+
+**Technical Details:**
+```typescript
+// After basic prompts, detect if source is directory
+const stats = await fs.stat(resolvedPath);
+const isDirectory = stats.isDirectory();
+
+let main: string | undefined;
+
+if (isDirectory) {
+  // Scan for YAML files
+  const files = await fs.readdir(resolvedPath);
+  const ymlFiles = files.filter(f =>
+    f.endsWith('.yml') || f.endsWith('.yaml')
+  );
+
+  if (ymlFiles.length === 0) {
+    throw new Error('No YAML files found in directory');
+  }
+
+  // Show dropdown selector
+  const selected = await p.select({
+    message: 'Select main config file:',
+    options: ymlFiles.map(f => ({ value: f, label: f })),
+    initialValue: ymlFiles.find(f => f === 'agent.yml') || ymlFiles[0]
+  });
+
+  if (p.isCancel(selected)) {
+    p.cancel('Installation cancelled');
+    process.exit(0);
+  }
+
+  main = selected as string;
+}
+
+// Pass main field to installation
+await registry.installCustomAgentFromPath(
+  metadata.agentName,
+  resolvedPath,
+  {
+    ...metadata,
+    main  // Include main field for directory agents
+  },
+  validated.injectPreferences
+);
+```
+
+**Deliverable:** Directory-based custom agents fully supported
 
 ---
 
