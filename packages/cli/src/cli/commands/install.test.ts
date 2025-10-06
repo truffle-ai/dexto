@@ -1,13 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { existsSync } from 'fs';
 
-// Mock @dexto/core partially: preserve real exports and override getAgentRegistry only
+// Mock @dexto/core partially: preserve real exports and override specific functions
 vi.mock('@dexto/core', async (importOriginal) => {
     const actual = await importOriginal<any>();
     return {
         ...actual,
         getAgentRegistry: vi.fn(),
+        getDextoGlobalPath: vi.fn(),
     };
 });
+
+// Mock fs
+vi.mock('fs', () => ({
+    existsSync: vi.fn(),
+}));
+
+// Mock @clack/prompts
+vi.mock('@clack/prompts', () => ({
+    intro: vi.fn(),
+    text: vi.fn(),
+    outro: vi.fn(),
+    cancel: vi.fn(),
+    isCancel: vi.fn(),
+}));
+
+// Mock analytics
+vi.mock('../../analytics/index.js', () => ({
+    capture: vi.fn(),
+}));
 
 // Import SUT after mocks
 import { handleInstallCommand } from './install.js';
@@ -24,11 +45,16 @@ describe('Install Command', () => {
             hasAgent: vi.fn(),
             getAvailableAgents: vi.fn(),
             installAgent: vi.fn(),
+            installCustomAgentFromPath: vi.fn(),
         };
 
-        // Mock getAgentRegistry to return our mock
+        // Mock @dexto/core functions
         const registryModule = await import('@dexto/core');
         vi.mocked(registryModule.getAgentRegistry).mockReturnValue(mockRegistry);
+        vi.mocked(registryModule.getDextoGlobalPath).mockReturnValue('/mock/global/path');
+
+        // Mock existsSync to return false by default (agent not installed)
+        vi.mocked(existsSync).mockReturnValue(false);
 
         // Mock console
         consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -186,6 +212,102 @@ describe('Install Command', () => {
 
             // Single agent failure should propagate the error directly
             await expect(handleInstallCommand(['bad-agent'], {})).rejects.toThrow();
+        });
+    });
+
+    describe('Custom agent installation from file paths', () => {
+        let mockPrompts: any;
+
+        beforeEach(async () => {
+            const prompts = await import('@clack/prompts');
+            mockPrompts = {
+                intro: vi.mocked(prompts.intro),
+                text: vi.mocked(prompts.text),
+                outro: vi.mocked(prompts.outro),
+                isCancel: vi.mocked(prompts.isCancel),
+            };
+
+            // Default prompt responses
+            mockPrompts.text.mockImplementation(async (opts: any) => {
+                if (opts.message.includes('Agent name')) return 'my-custom-agent';
+                if (opts.message.includes('Description')) return 'Test description';
+                if (opts.message.includes('Author')) return 'Test Author';
+                if (opts.message.includes('Tags')) return 'custom, test';
+                return '';
+            });
+            mockPrompts.isCancel.mockReturnValue(false);
+        });
+
+        it('detects file paths and installs custom agent', async () => {
+            // Mock existsSync: source file exists, installed path does not
+            vi.mocked(existsSync).mockImplementation((path: any) => {
+                if (path.toString().includes('my-agent.yml')) return true;
+                return false; // Not installed yet
+            });
+            mockRegistry.installCustomAgentFromPath.mockResolvedValue('/path/to/installed.yml');
+
+            await handleInstallCommand(['./my-agent.yml'], {});
+
+            expect(mockRegistry.installCustomAgentFromPath).toHaveBeenCalledWith(
+                'my-custom-agent',
+                expect.stringContaining('my-agent.yml'),
+                {
+                    description: 'Test description',
+                    author: 'Test Author',
+                    tags: ['custom', 'test'],
+                },
+                true
+            );
+        });
+
+        it('detects paths with forward slashes', async () => {
+            vi.mocked(existsSync).mockImplementation((path: any) => {
+                if (path.toString().includes('custom.yml')) return true;
+                return false;
+            });
+            mockRegistry.installCustomAgentFromPath.mockResolvedValue('/path/to/installed.yml');
+
+            await handleInstallCommand(['./agents/custom.yml'], {});
+
+            expect(mockRegistry.installCustomAgentFromPath).toHaveBeenCalled();
+        });
+
+        it('validates file exists before installation', async () => {
+            vi.mocked(existsSync).mockReturnValue(false);
+
+            await expect(handleInstallCommand(['./nonexistent.yml'], {})).rejects.toThrow(
+                /File not found/
+            );
+
+            expect(mockRegistry.installCustomAgentFromPath).not.toHaveBeenCalled();
+        });
+
+        it('treats non-path strings as registry names', async () => {
+            mockRegistry.hasAgent.mockReturnValue(true);
+            mockRegistry.installAgent.mockResolvedValue('/path/to/agent.yml');
+
+            await handleInstallCommand(['builtin-agent'], {});
+
+            // Should use registry installation, not custom
+            expect(mockRegistry.installAgent).toHaveBeenCalledWith('builtin-agent', true);
+            expect(mockRegistry.installCustomAgentFromPath).not.toHaveBeenCalled();
+        });
+
+        it('respects injectPreferences flag for custom agents', async () => {
+            vi.mocked(existsSync).mockImplementation((path: any) => {
+                if (path.toString().includes('agent.yml')) return true;
+                return false;
+            });
+            mockRegistry.installCustomAgentFromPath.mockResolvedValue('/path/to/installed.yml');
+
+            await handleInstallCommand(['./agent.yml'], { injectPreferences: false });
+
+            expect(mockRegistry.installCustomAgentFromPath).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.any(String),
+                expect.any(Object),
+                false
+            );
         });
     });
 });
