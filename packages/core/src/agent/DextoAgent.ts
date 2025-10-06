@@ -14,6 +14,7 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -36,6 +37,8 @@ import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
+import { promises as fs } from 'fs';
+import { parseDocument } from 'yaml';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -46,6 +49,14 @@ const requiredServices: (keyof AgentServices)[] = [
     'sessionManager',
     'searchService',
 ];
+
+/**
+ * Interface for objects that can subscribe to the agent's event bus.
+ * Typically used by API layer subscribers (WebSocket, Webhooks, etc.)
+ */
+export interface AgentEventSubscriber {
+    subscribe(eventBus: AgentEventBus): void;
+}
 
 /**
  * The main entry point into Dexto's core functionality.
@@ -127,6 +138,9 @@ export class DextoAgent {
     // Store config for async initialization
     private config: ValidatedAgentConfig;
 
+    // Event subscribers (e.g., WebSocket, Webhook handlers)
+    private eventSubscribers: Set<AgentEventSubscriber> = new Set();
+
     constructor(
         config: AgentConfig,
         private configPath?: string
@@ -180,6 +194,7 @@ export class DextoAgent {
             this.searchService = services.searchService;
 
             this._isStarted = true;
+            this._isStopped = false; // Reset stopped flag to allow restart
             logger.info('DextoAgent started successfully.');
 
             // Show log location for SDK users
@@ -259,6 +274,37 @@ export class DextoAgent {
         } catch (error) {
             logger.error('Failed to stop DextoAgent', error);
             throw error;
+        }
+    }
+
+    /**
+     * Register an event subscriber that will be automatically re-subscribed on agent restart.
+     * Subscribers are typically API layer components (WebSocket, Webhook handlers) that need
+     * to receive agent events. If the agent is already started, the subscriber is immediately subscribed.
+     *
+     * @param subscriber - Object implementing AgentEventSubscriber interface
+     */
+    public registerSubscriber(subscriber: AgentEventSubscriber): void {
+        this.eventSubscribers.add(subscriber);
+        if (this._isStarted) {
+            subscriber.subscribe(this.agentEventBus);
+        }
+    }
+
+    /**
+     * Restart the agent by stopping and starting it.
+     * Automatically re-subscribes all registered event subscribers to the new event bus.
+     * This is useful when configuration changes require a full agent restart.
+     *
+     * @throws Error if restart fails during stop or start phases
+     */
+    public async restart(): Promise<void> {
+        await this.stop();
+        await this.start();
+
+        // Auto-resubscribe all registered subscribers to the new event bus
+        for (const subscriber of this.eventSubscribers) {
+            subscriber.subscribe(this.agentEventBus);
         }
     }
 
@@ -1005,6 +1051,186 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig();
     }
 
+    /**
+     * Gets the file path of the agent configuration currently in use.
+     * This returns the source agent file path, not session-specific overrides.
+     * @returns The path to the agent configuration file
+     * @throws AgentError if no config path is available
+     */
+    public getAgentFilePath(): string {
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
+        return this.configPath;
+    }
+
+    /**
+     * Reloads the agent configuration from disk.
+     * This will re-read the config file, validate it, and detect what changed.
+     * Most configuration changes require a full agent restart to take effect.
+     *
+     * To apply changes: stop the agent and start it again with the new config.
+     *
+     * @returns Object containing list of changes that require restart
+     * @throws Error if config file cannot be read or is invalid
+     *
+     * TODO: improve hot reload capabilites so that we don't always require a restart
+     */
+    public async reloadConfig(): Promise<{
+        restartRequired: string[];
+    }> {
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
+
+        logger.info(`Reloading agent configuration from: ${this.configPath}`);
+
+        const oldConfig = this.config;
+        const newConfig = await loadAgentConfig(this.configPath);
+        const validated = AgentConfigSchema.parse(newConfig);
+
+        // Detect what changed
+        const restartRequired = this.detectRestartRequiredChanges(oldConfig, validated);
+
+        // Update the config reference (but services won't pick up changes until restart)
+        this.config = validated;
+
+        if (restartRequired.length > 0) {
+            logger.warn(
+                `Configuration updated. Restart required to apply: ${restartRequired.join(', ')}`
+            );
+        } else {
+            logger.info('Agent configuration reloaded successfully (no changes detected)');
+        }
+
+        return {
+            restartRequired,
+        };
+    }
+
+    /**
+     * Updates and saves the agent configuration to disk.
+     * This merges the updates with the raw config from disk, validates, and writes to file.
+     * IMPORTANT: This preserves environment variable placeholders (e.g., $OPENAI_API_KEY)
+     * to avoid leaking secrets into the config file.
+     * @param updates Partial configuration updates to apply
+     * @param targetPath Optional path to save to (defaults to current config path)
+     * @returns Object containing list of changes that require restart
+     * @throws Error if validation fails or file cannot be written
+     */
+    public async updateAndSaveConfig(
+        updates: Partial<AgentConfig>,
+        targetPath?: string
+    ): Promise<{
+        restartRequired: string[];
+    }> {
+        const path = targetPath || this.configPath;
+
+        if (!path) {
+            throw AgentError.noConfigPath();
+        }
+
+        logger.info(`Updating and saving agent configuration to: ${path}`);
+
+        // Read raw YAML from disk (without env var expansion)
+        const rawYaml = await fs.readFile(path, 'utf-8');
+
+        // Use YAML Document API to preserve comments/anchors/formatting
+        const doc = parseDocument(rawYaml);
+        const rawConfig = doc.toJSON() as Record<string, unknown>;
+
+        // Shallow merge top-level updates
+        const updatedRawConfig = { ...rawConfig, ...updates };
+
+        // Validate merged config using Result helpers
+        const parsed = AgentConfigSchema.safeParse(updatedRawConfig);
+        if (!parsed.success) {
+            // Convert Zod errors to DextoValidationError using Result helpers
+            const result = fail(zodToIssues(parsed.error, 'error'));
+            throw new DextoValidationError(result.issues);
+        }
+
+        // Apply updates to the YAML document (preserves formatting/comments)
+        for (const [key, value] of Object.entries(updates)) {
+            doc.set(key, value);
+        }
+
+        // Serialize the Document back to YAML
+        const yamlContent = String(doc);
+
+        // Atomic write: write to temp file then rename
+        const tmpPath = `${path}.tmp`;
+        await fs.writeFile(tmpPath, yamlContent, 'utf-8');
+        await fs.rename(tmpPath, path);
+
+        // Reload config with env var expansion for runtime use (this applies hot reload)
+        const reloadResult = await this.reloadConfig();
+
+        logger.info(`Agent configuration saved to: ${path}`);
+
+        return reloadResult;
+    }
+
+    /**
+     * Detects configuration changes that require a full agent restart.
+     * Returns an array of change descriptions.
+     *
+     * @param oldConfig Previous validated configuration
+     * @param newConfig New validated configuration
+     * @returns Array of restart-required change descriptions
+     * @private
+     */
+    private detectRestartRequiredChanges(
+        oldConfig: ValidatedAgentConfig,
+        newConfig: ValidatedAgentConfig
+    ): string[] {
+        const changes: string[] = [];
+
+        // Storage backend changes require restart
+        if (JSON.stringify(oldConfig.storage) !== JSON.stringify(newConfig.storage)) {
+            changes.push('Storage backend');
+        }
+
+        // Session config changes require restart (maxSessions, sessionTTL are readonly)
+        if (JSON.stringify(oldConfig.sessions) !== JSON.stringify(newConfig.sessions)) {
+            changes.push('Session configuration');
+        }
+
+        // System prompt changes require restart (PromptManager caches contributors)
+        if (JSON.stringify(oldConfig.systemPrompt) !== JSON.stringify(newConfig.systemPrompt)) {
+            changes.push('System prompt');
+        }
+
+        // Tool confirmation changes require restart (ConfirmationProvider caches config)
+        if (
+            JSON.stringify(oldConfig.toolConfirmation) !==
+            JSON.stringify(newConfig.toolConfirmation)
+        ) {
+            changes.push('Tool confirmation');
+        }
+
+        // Internal tools changes require restart (InternalToolsProvider caches config)
+        if (JSON.stringify(oldConfig.internalTools) !== JSON.stringify(newConfig.internalTools)) {
+            changes.push('Internal tools');
+        }
+
+        // MCP server changes require restart
+        if (JSON.stringify(oldConfig.mcpServers) !== JSON.stringify(newConfig.mcpServers)) {
+            changes.push('MCP servers');
+        }
+
+        // LLM configuration changes require restart
+        if (
+            oldConfig.llm.provider !== newConfig.llm.provider ||
+            oldConfig.llm.model !== newConfig.llm.model ||
+            oldConfig.llm.apiKey !== newConfig.llm.apiKey
+        ) {
+            changes.push('LLM configuration');
+        }
+
+        return changes;
+    }
+
     // ============= AGENT MANAGEMENT =============
 
     /**
@@ -1103,6 +1329,7 @@ export class DextoAgent {
      * await agent.installAgent('productivity');
      * console.log('Productivity agent installed successfully');
      * ```
+     * TODO: move out of DextoAgent
      */
     public async installAgent(agentName: string): Promise<void> {
         const agentRegistry = getAgentRegistry();

@@ -15,8 +15,10 @@ import {
     type McpTransportType,
 } from './mcp/mcp_handler.js';
 import { createAgentCard, DextoAgent } from '@dexto/core';
-import { stringify as yamlStringify } from 'yaml';
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { expressRedactionMiddleware } from './middleware/expressRedactionMiddleware.js';
 import { z } from 'zod';
 import { LLMUpdatesSchema } from '@dexto/core';
@@ -42,6 +44,7 @@ import {
     ErrorType,
     AgentErrorCode,
     AgentError,
+    AgentConfigSchema,
 } from '@dexto/core';
 
 /**
@@ -97,6 +100,7 @@ const MessageRequestSchema = z
 const McpServerRequestSchema = z.object({
     name: z.string().min(1, 'Server name is required'),
     config: McpServerConfigSchema,
+    persistToAgent: z.boolean().optional(),
 });
 
 // Based on existing WebhookRegistrationRequest interface
@@ -104,6 +108,16 @@ const WebhookRequestSchema = z.object({
     url: z.string().url('Invalid URL format'),
     secret: z.string().optional(),
     description: z.string().optional(),
+});
+
+// Agent configuration validation request schema
+const AgentConfigValidateSchema = z.object({
+    yaml: z.string().min(1, 'YAML content is required'),
+});
+
+// Agent configuration save request schema
+const AgentConfigSaveSchema = z.object({
+    yaml: z.string().min(1, 'YAML content is required'),
 });
 
 // Schema for search query parameters
@@ -168,12 +182,12 @@ export async function initializeApi(
 
     const webSubscriber = new WebSocketEventSubscriber(wss);
     logger.info('Setting up API event subscriptions...');
-    webSubscriber.subscribe(activeAgent.agentEventBus);
+    activeAgent.registerSubscriber(webSubscriber);
 
     // Initialize webhook subscriber
     const webhookSubscriber = new WebhookEventSubscriber();
     logger.info('Setting up webhook event subscriptions...');
-    webhookSubscriber.subscribe(activeAgent.agentEventBus);
+    activeAgent.registerSubscriber(webhookSubscriber);
 
     // Tool confirmation responses are handled by the main WebSocket handler below
 
@@ -208,32 +222,13 @@ export async function initializeApi(
             // Use domain layer method to create new agent
             newAgent = await DextoAgent.createAgent(name);
 
+            // Register event subscribers with new agent before starting
+            logger.info('Registering event subscribers with new agent...');
+            newAgent.registerSubscriber(webSubscriber);
+            newAgent.registerSubscriber(webhookSubscriber);
+
             logger.info(`Starting new agent: ${name}`);
             await newAgent.start();
-
-            // Rewire event/webhook subscribers to new agent bus
-            logger.info('Rewiring event subscribers...');
-            try {
-                webSubscriber.unsubscribe();
-            } catch (_err) {
-                logger.debug(
-                    `Failed to unsubscribe webSubscriber: ${
-                        _err instanceof Error ? _err.message : String(_err)
-                    }`
-                );
-            }
-            webSubscriber.subscribe(newAgent.agentEventBus);
-
-            try {
-                webhookSubscriber.unsubscribe();
-            } catch (_err) {
-                logger.debug(
-                    `Failed to unsubscribe webhookSubscriber: ${
-                        _err instanceof Error ? _err.message : String(_err)
-                    }`
-                );
-            }
-            webhookSubscriber.subscribe(newAgent.agentEventBus);
 
             // Stop previous agent last (only after new one is fully operational)
             const previousAgent = activeAgent;
@@ -405,9 +400,34 @@ export async function initializeApi(
     app.post('/api/connect-server', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { name, config } = parseBody(McpServerRequestSchema, req.body);
+            const { name, config, persistToAgent } = parseBody(McpServerRequestSchema, req.body);
+
+            // Connect the server
             await activeAgent.connectMcpServer(name, config);
             logger.info(`Successfully connected to new server '${name}' via API request.`);
+
+            // If persistToAgent is true, save to agent config file
+            if (persistToAgent === true) {
+                try {
+                    // Get the current effective config to read existing mcpServers
+                    const currentConfig = activeAgent.getEffectiveConfig();
+
+                    // Create update with new server added to mcpServers
+                    const updates = {
+                        mcpServers: {
+                            ...(currentConfig.mcpServers || {}),
+                            [name]: config,
+                        },
+                    };
+
+                    await activeAgent.updateAndSaveConfig(updates);
+                    logger.info(`Saved server '${name}' to agent configuration file`);
+                } catch (saveError) {
+                    logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
+                    // Don't fail the request if saving fails - server is still connected
+                }
+            }
+
             return res.status(200).send({ status: 'connected', name });
         } catch (error) {
             return next(error);
@@ -575,6 +595,7 @@ export async function initializeApi(
                     // Check if agent is available before processing
                     try {
                         ensureAgentAvailable();
+                        logger.debug('Agent availability check passed');
                     } catch (error) {
                         logger.error(`Agent not available for WebSocket message: ${error}`);
                         sendWebSocketError(
@@ -586,7 +607,9 @@ export async function initializeApi(
                     }
 
                     // Comprehensive input validation
+                    logger.debug('Getting effective config for validation');
                     const currentConfig = activeAgent.getEffectiveConfig(sessionId);
+                    logger.debug('Validating input for LLM');
                     const validation = validateInputForLLM(
                         {
                             text: data.content,
@@ -627,6 +650,7 @@ export async function initializeApi(
                         return;
                     }
 
+                    logger.debug('Validation passed, calling activeAgent.run()');
                     await activeAgent.run(
                         data.content,
                         imageDataInput,
@@ -634,6 +658,7 @@ export async function initializeApi(
                         sessionId,
                         stream
                     );
+                    logger.debug('activeAgent.run() completed');
                 } else if (data.type === 'reset') {
                     const sessionId = data.sessionId as string | undefined;
                     logger.info(
@@ -864,7 +889,224 @@ export async function initializeApi(
         return redactedServers;
     }
 
-    app.get('/api/config.yaml', async (req, res, next) => {
+    // Get default greeting (for UI consumption)
+    app.get('/api/greeting', async (req, res, next) => {
+        try {
+            const sessionId = req.query.sessionId as string | undefined;
+            const config = activeAgent.getEffectiveConfig(sessionId);
+            res.json({ greeting: config.greeting });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // ============= AGENT CONFIGURATION MANAGEMENT =============
+
+    // Get agent file path
+    app.get('/api/agent/path', async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const agentPath = activeAgent.getAgentFilePath();
+
+            const relativePath = path.basename(agentPath);
+            const ext = path.extname(agentPath);
+            const name = path.basename(agentPath, ext);
+
+            res.json({
+                path: agentPath,
+                relativePath,
+                name,
+                isDefault: name === 'default-agent',
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Get editable agent configuration (non-redacted YAML)
+    app.get('/api/agent/config', async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+
+            // Get the agent file path being used
+            const agentPath = activeAgent.getAgentFilePath();
+
+            // Read raw YAML from file (not expanded env vars)
+            const yamlContent = await fs.readFile(agentPath, 'utf-8');
+
+            // Get metadata
+            const stats = await fs.stat(agentPath);
+
+            res.json({
+                yaml: yamlContent,
+                path: agentPath,
+                relativePath: path.basename(agentPath),
+                lastModified: stats.mtime,
+                warnings: [
+                    'Environment variables ($VAR) will be resolved at runtime',
+                    'API keys should use environment variables',
+                ],
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Validate agent configuration without saving
+    app.post('/api/agent/validate', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { yaml } = parseBody(AgentConfigValidateSchema, req.body);
+
+            // Parse YAML
+            let parsed;
+            try {
+                parsed = yamlParse(yaml);
+            } catch (parseError: any) {
+                return res.json({
+                    valid: false,
+                    errors: [
+                        {
+                            line: parseError.linePos?.[0]?.line || 1,
+                            column: parseError.linePos?.[0]?.col || 1,
+                            message: parseError.message,
+                            code: 'YAML_PARSE_ERROR',
+                        },
+                    ],
+                    warnings: [],
+                });
+            }
+
+            // Validate against schema
+            const result = AgentConfigSchema.safeParse(parsed);
+
+            if (!result.success) {
+                const errors = result.error.errors.map((err) => ({
+                    path: err.path.join('.'),
+                    message: err.message,
+                    code: 'SCHEMA_VALIDATION_ERROR',
+                }));
+
+                return res.json({
+                    valid: false,
+                    errors,
+                    warnings: [],
+                });
+            }
+
+            // Check for warnings (e.g., plain text API keys)
+            const warnings: Array<{ path: string; message: string; code: string }> = [];
+            if (parsed.llm?.apiKey && !parsed.llm.apiKey.startsWith('$')) {
+                warnings.push({
+                    path: 'llm.apiKey',
+                    message: 'Consider using environment variable instead of plain text',
+                    code: 'SECURITY_WARNING',
+                });
+            }
+
+            res.json({
+                valid: true,
+                errors: [],
+                warnings,
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Save agent configuration
+    app.post('/api/agent/config', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { yaml } = parseBody(AgentConfigSaveSchema, req.body);
+
+            // Validate YAML syntax first
+            let parsed;
+            try {
+                parsed = yamlParse(yaml);
+            } catch (parseError: any) {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: `Invalid YAML syntax: ${parseError.message}`,
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
+
+            // Validate schema
+            const validationResult = AgentConfigSchema.safeParse(parsed);
+
+            if (!validationResult.success) {
+                throw new DextoValidationError(
+                    validationResult.error.errors.map((err) => ({
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: `${err.path.join('.')}: ${err.message}`,
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    }))
+                );
+            }
+
+            // Get target file path
+            const agentPath = activeAgent.getAgentFilePath();
+
+            // Create backup
+            const backupPath = `${agentPath}.backup`;
+            await fs.copyFile(agentPath, backupPath);
+
+            try {
+                // Write new config
+                await fs.writeFile(agentPath, yaml, 'utf-8');
+
+                // Reload configuration to detect what changed
+                const reloadResult = await activeAgent.reloadConfig();
+
+                // If any changes require restart, automatically restart the agent
+                if (reloadResult.restartRequired.length > 0) {
+                    logger.info(
+                        `Auto-restarting agent to apply changes: ${reloadResult.restartRequired.join(', ')}`
+                    );
+
+                    await activeAgent.restart();
+                    logger.info(
+                        'Agent restarted successfully with all event subscribers reconnected'
+                    );
+                }
+
+                // Clean up backup file after successful save
+                await fs.unlink(backupPath).catch(() => {
+                    // Ignore errors if backup file doesn't exist
+                });
+
+                logger.info(`Agent configuration saved and applied: ${agentPath}`);
+
+                res.json({
+                    ok: true,
+                    path: agentPath,
+                    reloaded: true,
+                    restarted: reloadResult.restartRequired.length > 0,
+                    changesApplied: reloadResult.restartRequired,
+                    message:
+                        reloadResult.restartRequired.length > 0
+                            ? 'Configuration saved and applied successfully (agent restarted)'
+                            : 'Configuration saved successfully (no changes detected)',
+                });
+            } catch (writeError) {
+                // Restore backup on error
+                await fs.copyFile(backupPath, agentPath);
+                throw writeError;
+            }
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Export effective agent configuration (with masked secrets)
+    app.get('/api/agent/config/export', async (req, res, next) => {
         try {
             const sessionId = req.query.sessionId as string | undefined;
             const config = activeAgent.getEffectiveConfig(sessionId);
@@ -887,16 +1129,7 @@ export async function initializeApi(
         }
     });
 
-    // Get default greeting (for UI consumption)
-    app.get('/api/greeting', async (req, res, next) => {
-        try {
-            const sessionId = req.query.sessionId as string | undefined;
-            const config = activeAgent.getEffectiveConfig(sessionId);
-            res.json({ greeting: config.greeting });
-        } catch (error) {
-            return next(error);
-        }
-    });
+    // ============= LLM MANAGEMENT =============
 
     // Get current LLM configuration
     app.get('/api/llm/current', async (req, res, next) => {

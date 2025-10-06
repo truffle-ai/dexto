@@ -10,8 +10,9 @@ import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
+import CustomizePanel from './CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -47,6 +48,7 @@ export default function ChatApp() {
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [isExportOpen, setExportOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
+  const [isCustomizePanelOpen, setCustomizePanelOpen] = useState(false);
   const [exportName, setExportName] = useState('dexto-config');
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
@@ -184,10 +186,10 @@ export default function ChatApp() {
   useEffect(() => {
     if (isExportOpen) {
       // Include current session ID in config export if available
-      const exportUrl = currentSessionId 
-        ? `/api/config.yaml?sessionId=${currentSessionId}`
-        : '/api/config.yaml';
-      
+      const exportUrl = currentSessionId
+        ? `/api/agent/config/export?sessionId=${currentSessionId}`
+        : '/api/agent/config/export';
+
       fetch(exportUrl)
         .then((res) => {
           if (!res.ok) throw new Error('Failed to fetch configuration');
@@ -210,10 +212,10 @@ export default function ChatApp() {
 
   const handleDownload = useCallback(async () => {
     try {
-      const exportUrl = currentSessionId 
-        ? `/api/config.yaml?sessionId=${currentSessionId}`
-        : '/api/config.yaml';
-      
+      const exportUrl = currentSessionId
+        ? `/api/agent/config/export?sessionId=${currentSessionId}`
+        : '/api/agent/config/export';
+
       const res = await fetch(exportUrl);
       if (!res.ok) throw new Error('Failed to fetch configuration');
       const yamlText = await res.text();
@@ -430,6 +432,11 @@ export default function ChatApp() {
         e.preventDefault();
         window.open('/playground', '_blank');
       }
+      // Ctrl/Cmd + E to open customize panel
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'e') {
+        e.preventDefault();
+        setCustomizePanelOpen(prev => !prev);
+      }
       // Ctrl/Cmd + Shift + E to export config
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'e') {
         e.preventDefault();
@@ -442,7 +449,8 @@ export default function ChatApp() {
       }
       // Escape to close panels or cancel run
       if (e.key === 'Escape') {
-        if (isServersPanelOpen) setServersPanelOpen(false);
+        if (isCustomizePanelOpen) setCustomizePanelOpen(false);
+        else if (isServersPanelOpen) setServersPanelOpen(false);
         else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
         else if (isServerRegistryOpen) setServerRegistryOpen(false);
         else if (isExportOpen) setExportOpen(false);
@@ -455,7 +463,7 @@ export default function ChatApp() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isServersPanelOpen, isSessionsPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen]);
+  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen]);
 
   return (
     <div className="flex h-screen bg-background">
@@ -555,8 +563,28 @@ export default function ChatApp() {
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center justify-end space-x-2">
-              <ThemeSwitch />
+            <div className="flex items-center justify-end">
+              <div className="mr-4">
+                <ThemeSwitch />
+              </div>
+              <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}
+                    className={cn(
+                      "h-8 w-8 p-0",
+                      isCustomizePanelOpen && "bg-muted"
+                    )}
+                    aria-label="Customize agent"
+                  >
+                    <FileEditIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Customize Agent (⌘E)</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -649,6 +677,7 @@ export default function ChatApp() {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              </div>
             </div>
           </div>
         </header>
@@ -793,6 +822,13 @@ export default function ChatApp() {
             )}
           </div>
         </div>
+
+        {/* Customize Panel - Overlay Animation */}
+        <CustomizePanel
+          isOpen={isCustomizePanelOpen}
+          onClose={() => setCustomizePanelOpen(false)}
+          variant="overlay"
+        />
         
         {/* Connect Server Modal */}
         <ConnectServerModal 
@@ -946,6 +982,7 @@ export default function ChatApp() {
                 { key: '⌘H', desc: 'Toggle chat history panel' },
                 { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
+                { key: '⌘E', desc: 'Customize agent' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
                 { key: '⌘L', desc: 'Open MCP playground' },
                 { key: '⌘⇧E', desc: 'Export config' },
