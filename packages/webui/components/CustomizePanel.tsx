@@ -372,6 +372,25 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
   if (!isOpen) return null;
 
+  // Calculate save button disabled reason
+  const getSaveDisabledReason = (): string | null => {
+    if (isSaving) return null; // Not really disabled, just in progress
+    if (!hasUnsavedChanges) return 'No changes to save';
+    if (errors.length > 0) {
+      // Find the most relevant error
+      const firstError = errors[0];
+      if (firstError.path) {
+        return `Configuration error in ${firstError.path}: ${firstError.message}`;
+      }
+      return `Configuration error: ${firstError.message}`;
+    }
+    if (!isValid) return 'Configuration has validation errors';
+    return null;
+  };
+
+  const saveDisabledReason = getSaveDisabledReason();
+  const isSaveDisabled = !hasUnsavedChanges || isSaving || !isValid || errors.length > 0;
+
   const panelContent = (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -540,26 +559,30 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
               </Button>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleSave}
-                    disabled={!hasUnsavedChanges || isSaving || !isValid || errors.length > 0}
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save
-                      </>
-                    )}
-                  </Button>
+                  <div>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleSave}
+                      disabled={isSaveDisabled}
+                    >
+                      {isSaving ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </TooltipTrigger>
-                <TooltipContent>Save configuration (⌘S)</TooltipContent>
+                <TooltipContent>
+                  {saveDisabledReason || 'Save configuration (⌘S)'}
+                </TooltipContent>
               </Tooltip>
             </div>
           </div>
