@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { ChevronDown, Check, DownloadCloud, Sparkles } from 'lucide-react';
+import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck } from 'lucide-react';
 import { useChatContext } from './hooks/ChatContext';
 
 type AgentItem = {
@@ -18,6 +18,7 @@ type AgentItem = {
   author?: string;
   tags?: string[];
   installed: boolean;
+  type: 'builtin' | 'custom';
 };
 
 type AgentsResponse = {
@@ -108,6 +109,36 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }
   }, [returnToWelcome]);
 
+  const handleDelete = useCallback(async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering switch when clicking delete
+    if (!confirm(`Are you sure you want to delete the custom agent "${name}"?`)) {
+      return;
+    }
+    try {
+      setSwitching(true);
+      const res = await fetch('/api/agents/uninstall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Delete failed: ${res.status}`);
+      }
+      await loadAgents();
+      // If we deleted the current agent, clear current
+      if (current === name) {
+        setCurrent(null);
+      }
+    } catch (err) {
+      console.error('Delete agent failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete agent';
+      alert(`Failed to delete agent: ${errorMessage}`);
+    } finally {
+      setSwitching(false);
+    }
+  }, [loadAgents, current]);
+
   const currentLabel = useMemo(() => current || 'Choose Agent', [current]);
 
   const getButtonClassName = (mode: string) => {
@@ -145,71 +176,124 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         )}
         {!loading && (
           <>
-            {installed.length > 0 && (
+            {/* Installed Custom Agents */}
+            {installed.filter((a) => a.type === 'custom').length > 0 && (
               <>
+                <div className="px-2 py-1.5 text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                  <BadgeCheck className="w-3 h-3" />
+                  Custom Agents
+                </div>
+                {installed
+                  .filter((a) => a.type === 'custom')
+                  .map((agent) => (
+                    <DropdownMenuItem
+                      key={agent.name}
+                      onClick={() => handleSwitch(agent.name)}
+                      disabled={switching || agent.name === current}
+                      className="cursor-pointer py-3"
+                    >
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{agent.name}</span>
+                            {agent.name === current && (
+                              <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {agent.description}
+                          </p>
+                          {agent.author && (
+                            <p className="text-xs text-muted-foreground/80 mt-0.5">
+                              by {agent.author}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => handleDelete(agent.name, e)}
+                          disabled={switching}
+                          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                          title="Delete custom agent"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        </button>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+              </>
+            )}
+            {/* Installed Builtin Agents */}
+            {installed.filter((a) => a.type === 'builtin').length > 0 && (
+              <>
+                {installed.filter((a) => a.type === 'custom').length > 0 && <DropdownMenuSeparator />}
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Installed
                 </div>
-                {installed.map((agent) => (
-                  <DropdownMenuItem
-                    key={agent.name}
-                    onClick={() => handleSwitch(agent.name)}
-                    disabled={switching || agent.name === current}
-                    className="cursor-pointer py-3"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">{agent.name}</span>
-                          {agent.name === current && (
-                            <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
+                {installed
+                  .filter((a) => a.type === 'builtin')
+                  .map((agent) => (
+                    <DropdownMenuItem
+                      key={agent.name}
+                      onClick={() => handleSwitch(agent.name)}
+                      disabled={switching || agent.name === current}
+                      className="cursor-pointer py-3"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{agent.name}</span>
+                            {agent.name === current && (
+                              <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {agent.description}
+                          </p>
+                          {agent.author && (
+                            <p className="text-xs text-muted-foreground/80 mt-0.5">
+                              by {agent.author}
+                            </p>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {agent.description}
-                        </p>
-                        {agent.author && (
-                          <p className="text-xs text-muted-foreground/80 mt-0.5">
-                            by {agent.author}
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  </DropdownMenuItem>
-                ))}
+                    </DropdownMenuItem>
+                  ))}
               </>
             )}
-            {installed.length > 0 && available.length > 0 && <DropdownMenuSeparator />}
-            {available.length > 0 && (
+            {/* Available Builtin Agents */}
+            {available.filter((a) => a.type === 'builtin').length > 0 && (
               <>
+                {installed.length > 0 && <DropdownMenuSeparator />}
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Available
                 </div>
-                {available.map((agent) => (
-                  <DropdownMenuItem
-                    key={agent.name}
-                    onClick={() => handleInstall(agent.name)}
-                    disabled={switching}
-                    className="cursor-pointer py-3"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">{agent.name}</span>
-                          <DownloadCloud className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {agent.description}
-                        </p>
-                        {agent.author && (
-                          <p className="text-xs text-muted-foreground/80 mt-0.5">
-                            by {agent.author}
+                {available
+                  .filter((a) => a.type === 'builtin')
+                  .map((agent) => (
+                    <DropdownMenuItem
+                      key={agent.name}
+                      onClick={() => handleInstall(agent.name)}
+                      disabled={switching}
+                      className="cursor-pointer py-3"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{agent.name}</span>
+                            <DownloadCloud className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {agent.description}
                           </p>
-                        )}
+                          {agent.author && (
+                            <p className="text-xs text-muted-foreground/80 mt-0.5">
+                              by {agent.author}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </DropdownMenuItem>
-                ))}
+                    </DropdownMenuItem>
+                  ))}
               </>
             )}
             {!loading && installed.length === 0 && available.length === 0 && (

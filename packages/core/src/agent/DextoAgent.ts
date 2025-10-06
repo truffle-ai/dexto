@@ -1249,8 +1249,20 @@ export class DextoAgent {
      * ```
      */
     public async listAgents(): Promise<{
-        installed: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        available: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
+        installed: Array<{
+            name: string;
+            description: string;
+            author?: string;
+            tags?: string[];
+            type: 'builtin' | 'custom';
+        }>;
+        available: Array<{
+            name: string;
+            description: string;
+            author?: string;
+            tags?: string[];
+            type: 'builtin' | 'custom';
+        }>;
         current?: { name?: string | null };
     }> {
         const agentRegistry = getAgentRegistry();
@@ -1267,6 +1279,7 @@ export class DextoAgent {
                         description: registryEntry.description,
                         author: registryEntry.author,
                         tags: registryEntry.tags,
+                        type: registryEntry.type,
                     };
                 } else {
                     // Handle locally installed agents not in registry
@@ -1278,21 +1291,31 @@ export class DextoAgent {
                             description: string;
                             author?: string;
                             tags?: string[];
+                            type: 'builtin' | 'custom';
                         } = {
                             name,
                             description: config.agentCard?.description || 'Local agent',
                             tags: [],
+                            type: 'custom' as const, // Assume custom if not in registry
                         };
                         if (author) {
                             result.author = author;
                         }
                         return result;
                     } catch {
-                        return {
+                        const result: {
+                            name: string;
+                            description: string;
+                            author?: string;
+                            tags?: string[];
+                            type: 'builtin' | 'custom';
+                        } = {
                             name,
                             description: 'Local agent (config unavailable)',
                             tags: [],
+                            type: 'custom' as const, // Assume custom if not in registry
                         };
+                        return result;
                     }
                 }
             })
@@ -1306,6 +1329,7 @@ export class DextoAgent {
                 description: entry.description,
                 author: entry.author,
                 tags: entry.tags,
+                type: entry.type,
             }));
 
         return {
@@ -1345,6 +1369,93 @@ export class DextoAgent {
             logger.error(`Failed to install agent ${agentName}:`, error);
             throw AgentError.apiValidationError(
                 `Installation failed for agent '${agentName}'`,
+                error
+            );
+        }
+    }
+
+    /**
+     * Installs a custom agent from a local file or directory path.
+     * Creates a new custom agent entry in the user registry with provided metadata.
+     *
+     * @param agentName The name to use for the custom agent (must be unique)
+     * @param sourcePath Absolute path to the agent YAML file or directory
+     * @param metadata Agent metadata (description, author, tags, main config file)
+     * @param injectPreferences Whether to inject global preferences into agent config (default: true)
+     * @returns Promise resolving to the path of the installed main config file
+     *
+     * @throws {AgentError} When name conflicts with existing agent or installation fails
+     *
+     * @example
+     * ```typescript
+     * await agent.installCustomAgent('my-coding-agent', '/path/to/agent.yml', {
+     *   description: 'Custom coding assistant',
+     *   author: 'John Doe',
+     *   tags: ['coding', 'custom']
+     * });
+     * console.log('Custom agent installed successfully');
+     * ```
+     * TODO: move out of DextoAgent
+     */
+    public async installCustomAgent(
+        agentName: string,
+        sourcePath: string,
+        metadata: {
+            description: string;
+            author: string;
+            tags: string[];
+            main?: string;
+        },
+        injectPreferences: boolean = true
+    ): Promise<string> {
+        const agentRegistry = getAgentRegistry();
+
+        try {
+            const mainConfigPath = await agentRegistry.installCustomAgentFromPath(
+                agentName,
+                sourcePath,
+                metadata,
+                injectPreferences
+            );
+            logger.info(`Successfully installed custom agent: ${agentName}`);
+            return mainConfigPath;
+        } catch (error) {
+            logger.error(`Failed to install custom agent ${agentName}:`, error);
+            throw AgentError.apiValidationError(
+                `Installation failed for custom agent '${agentName}'`,
+                error
+            );
+        }
+    }
+
+    /**
+     * Uninstalls an agent by removing its directory from disk.
+     * For custom agents: also removes from user registry.
+     * For builtin agents: only removes from disk (can be reinstalled).
+     *
+     * @param agentName The name of the agent to uninstall
+     * @param force Whether to force uninstall even if agent is protected (default: false)
+     * @returns Promise that resolves when uninstallation is complete
+     *
+     * @throws {AgentError} When agent is not installed or uninstallation fails
+     *
+     * @example
+     * ```typescript
+     * await agent.uninstallAgent('my-custom-agent');
+     * console.log('Agent uninstalled successfully');
+     * ```
+     * TODO: move out of DextoAgent
+     */
+    public async uninstallAgent(agentName: string, force: boolean = false): Promise<void> {
+        const agentRegistry = getAgentRegistry();
+
+        try {
+            await agentRegistry.uninstallAgent(agentName, force);
+            logger.info(`Successfully uninstalled agent: ${agentName}`);
+        } catch (error) {
+            logger.error(`Failed to uninstall agent ${agentName}:`, error);
+            throw AgentError.apiValidationError(
+                `Uninstallation failed for agent '${agentName}'`,
                 error
             );
         }

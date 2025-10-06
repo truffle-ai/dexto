@@ -815,12 +815,58 @@ export async function initializeApi(
 
     const AgentNameSchema = z.object({ name: z.string().min(1) }).strict();
 
+    // Schema for custom agent installation
+    const CustomAgentInstallSchema = z
+        .object({
+            name: z.string().min(1),
+            sourcePath: z.string().min(1),
+            metadata: z.object({
+                description: z.string().min(1),
+                author: z.string().min(1),
+                tags: z.array(z.string()),
+                main: z.string().optional(),
+            }),
+            injectPreferences: z.boolean().default(true),
+        })
+        .strict();
+
     app.post('/api/agents/install', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { name } = AgentNameSchema.parse(req.body);
-            await activeAgent.installAgent(name);
-            return sendJsonResponse(res, { installed: true, name }, 201);
+
+            // Check if this is a custom agent installation (has sourcePath and metadata)
+            if (req.body.sourcePath && req.body.metadata) {
+                const { name, sourcePath, metadata, injectPreferences } =
+                    CustomAgentInstallSchema.parse(req.body);
+
+                // Clean metadata to match exact optional property types
+                const cleanMetadata: {
+                    description: string;
+                    author: string;
+                    tags: string[];
+                    main?: string;
+                } = {
+                    description: metadata.description,
+                    author: metadata.author,
+                    tags: metadata.tags,
+                };
+                if (metadata.main !== undefined) {
+                    cleanMetadata.main = metadata.main;
+                }
+
+                await activeAgent.installCustomAgent(
+                    name,
+                    sourcePath,
+                    cleanMetadata,
+                    injectPreferences
+                );
+                return sendJsonResponse(res, { installed: true, name, type: 'custom' }, 201);
+            } else {
+                // Registry agent installation
+                const { name } = AgentNameSchema.parse(req.body);
+                await activeAgent.installAgent(name);
+                return sendJsonResponse(res, { installed: true, name, type: 'builtin' }, 201);
+            }
         } catch (error) {
             return next(error);
         }
@@ -839,6 +885,56 @@ export async function initializeApi(
             ) {
                 return res.status(409).json({ error: error.message });
             }
+            return next(error);
+        }
+    });
+
+    app.post('/api/agents/validate-name', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { name } = AgentNameSchema.parse(req.body);
+            const agents = await activeAgent.listAgents();
+
+            // Check if name exists in installed agents
+            const installedAgent = agents.installed.find((a) => a.name === name);
+            if (installedAgent) {
+                return sendJsonResponse(res, {
+                    valid: false,
+                    conflict: installedAgent.type,
+                    message: `Agent name '${name}' already exists (${installedAgent.type})`,
+                });
+            }
+
+            // Check if name exists in available agents (registry)
+            const availableAgent = agents.available.find((a) => a.name === name);
+            if (availableAgent) {
+                return sendJsonResponse(res, {
+                    valid: false,
+                    conflict: availableAgent.type,
+                    message: `Agent name '${name}' conflicts with ${availableAgent.type} agent`,
+                });
+            }
+
+            return sendJsonResponse(res, { valid: true });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    const UninstallAgentSchema = z
+        .object({
+            name: z.string().min(1),
+            force: z.boolean().default(false),
+        })
+        .strict();
+
+    app.post('/api/agents/uninstall', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { name, force } = UninstallAgentSchema.parse(req.body);
+            await activeAgent.uninstallAgent(name, force);
+            return sendJsonResponse(res, { uninstalled: true, name });
+        } catch (error) {
             return next(error);
         }
     });
