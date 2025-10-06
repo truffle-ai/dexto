@@ -56,6 +56,8 @@ Currently, users can only use agents from the curated registry. Power users want
 
 At runtime, both registries are merged. **Agent names must be unique across both registries** - custom agents cannot have the same name as bundled agents.
 
+**Important:** User registry only contains custom agents. Builtin agents are NOT added to user registry when installed - installation state is tracked by filesystem presence in `~/.dexto/agents/`.
+
 ### Registry Entry Schema
 
 Both bundled and user registries use the same structure:
@@ -106,6 +108,37 @@ User registry entry (custom agent):
 }
 ```
 
+### How Registry Merging Works
+
+```
+Bundled Registry (agents/agent-registry.json):
+{
+  "default-agent": { type: "builtin", ... },
+  "database-agent": { type: "builtin", ... }
+}
+
+User Registry (~/.dexto/agent-registry.json):
+{
+  "my-coding-agent": { type: "custom", ... },
+  "my-research-agent": { type: "custom", ... }
+}
+
+Merged View at Runtime:
+{
+  "default-agent": { type: "builtin", ... },      // from bundled
+  "database-agent": { type: "builtin", ... },     // from bundled
+  "my-coding-agent": { type: "custom", ... },     // from user
+  "my-research-agent": { type: "custom", ... }    // from user
+}
+
+Installation State (checked via filesystem):
+~/.dexto/agents/
+├── default-agent/      ✓ installed (builtin)
+├── my-coding-agent/    ✓ installed (custom)
+└── my-research-agent/  ✓ installed (custom)
+(database-agent is available but not installed)
+```
+
 ### Agent Resolution Priority
 
 ```
@@ -125,13 +158,16 @@ User registry entry (custom agent):
 **Tasks:**
 - [ ] Add `type: "builtin" | "custom"` field to `AgentRegistryEntrySchema`
 - [ ] Make `type` field optional with default `"builtin"` (backwards compat)
-- [ ] Create user registry utilities:
-  - `loadUserRegistry()` - Load `~/.dexto/agent-registry.json`
-  - `saveUserRegistry()` - Write user registry
-  - `mergeRegistries()` - Merge bundled + user registries
-  - `addAgentToUserRegistry()` - Add custom agent entry
+- [ ] Create user registry utilities (`user-registry.ts`):
+  - `loadUserRegistry()` - Load `~/.dexto/agent-registry.json`, return empty if not exists
+  - `saveUserRegistry()` - Write user registry atomically
+  - `mergeRegistries()` - Merge bundled + user registries (user for custom only)
+  - `addAgentToUserRegistry()` - Add custom agent entry with `type: "custom"`
   - `removeAgentFromUserRegistry()` - Remove custom agent entry
+  - `userRegistryHasAgent()` - Check if agent exists in user registry
 - [ ] Write unit tests for user registry utilities
+
+**Note:** User registry only contains custom agents. Builtin agents are never added to user registry.
 
 **Files to modify:**
 - `packages/core/src/agent/registry/types.ts` - Add `type` field
@@ -152,12 +188,15 @@ User registry entry (custom agent):
   - `installAgent()` - Detect file path vs name, handle both:
     - If file path: install as custom agent + add to user registry
     - If name: install from bundled registry (existing behavior)
-  - `uninstallAgent()` - Check agent type, only allow if `type === "custom"`
+  - `uninstallAgent()` - Improve protection logic:
+    - Current: Hardcoded protection for 'default-agent'
+    - New: Check preferences to get default agent, protect that one
+    - Builtin agents: Can be uninstalled from disk (stay in bundled registry, can reinstall)
+    - Custom agents: Uninstalled from disk AND removed from user registry
   - `hasAgent()` - Check merged registry
 - [ ] Add validation:
   - Prevent custom agent names that conflict with bundled registry
   - Validate YAML before installation
-  - Only allow uninstalling custom agents
 - [ ] Update `agent-resolver.ts`:
   - No changes needed - already uses `registry.hasAgent()` and `registry.resolveAgent()`
   - Resolution automatically works with merged registry
@@ -207,9 +246,10 @@ registry.installAgent('./agent.yml', metadata: { name: 'default-agent', ... })
   - Show "Custom Agents" and "Built-in Agents" sections
   - Add badge/indicator for agent type
 - [ ] Extend existing `uninstall.ts` command:
-  - Check agent `type` field before uninstall
-  - Block uninstall if `type === "builtin"`
-  - Add check to prevent uninstalling current agent
+  - Check preferences to get default agent, block uninstalling it (unless --force)
+  - Builtin agents: Can be uninstalled (deleted from disk only)
+  - Custom agents: Fully uninstalled (disk + user registry)
+  - Show different messages based on agent type
 
 **Files to modify:**
 - `packages/cli/src/cli/commands/install.ts`
@@ -242,13 +282,17 @@ Built-in Agents:
   • default-agent - Default Dexto agent
   • database-agent - AI agent for database operations
 
-# Uninstall custom agent
+# Uninstall custom agent (removed from disk + user registry)
 dexto uninstall my-coding-agent
-✓ Uninstalled 'my-coding-agent'
+✓ Uninstalled custom agent 'my-coding-agent'
 
-# Uninstall built-in agent (blocked)
+# Uninstall builtin agent (removed from disk only, can reinstall)
+dexto uninstall database-agent
+✓ Uninstalled agent 'database-agent' (can reinstall with: dexto install database-agent)
+
+# Uninstall default agent (blocked - it's the default in preferences)
 dexto uninstall default-agent
-✗ Cannot uninstall built-in agent 'default-agent'
+✗ Cannot uninstall default agent. Change your default agent first with: dexto setup
 ```
 
 **Deliverable:** CLI workflow complete and tested
