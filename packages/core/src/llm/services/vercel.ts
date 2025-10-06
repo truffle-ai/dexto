@@ -26,7 +26,7 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import type { HookManager } from '../../hooks/index.js';
 import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
@@ -427,8 +427,9 @@ export class VercelLLMService implements ILLMService {
             // Emit final response with reasoning and token usage (authoritative)
             this.sessionEventBus.emit('llmservice:response', responsePayload);
 
-            // Persist and update token count
-            await this.contextManager.processLLMResponse(response);
+            // Persist with hook-modified content and update token count
+            const modifiedResponse = { ...response, text: responsePayload.content };
+            await this.contextManager.processLLMResponse(modifiedResponse);
             if (typeof response.totalUsage.totalTokens === 'number') {
                 this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
             }
@@ -700,8 +701,9 @@ export class VercelLLMService implements ILLMService {
             this.contextManager.updateActualTokenCount(usage.totalTokens);
         }
 
-        // Persist the messages via formatter
-        await this.contextManager.processLLMStreamResponse(response);
+        // Persist with hook-modified content via formatter
+        const modifiedResponse = { ...response, text: Promise.resolve(responsePayload.content) };
+        await this.contextManager.processLLMStreamResponse(modifiedResponse);
 
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 

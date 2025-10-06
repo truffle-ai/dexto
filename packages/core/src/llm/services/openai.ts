@@ -15,7 +15,7 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import type { HookManager } from '../../hooks/index.js';
 import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
@@ -125,19 +125,6 @@ export class OpenAIService implements ILLMService {
                     const responseText = message.content || '';
                     const finalContent = stream ? fullResponse + responseText : responseText;
 
-                    // Add assistant message to history (include streamed prefix if any)
-                    await this.contextManager.addAssistantMessage(finalContent, undefined, {
-                        tokenUsage:
-                            totalTokens > 0
-                                ? {
-                                      totalTokens,
-                                      inputTokens,
-                                      outputTokens,
-                                      reasoningTokens,
-                                  }
-                                : undefined,
-                    });
-
                     // Update ContextManager with actual token count
                     if (totalTokens > 0) {
                         this.contextManager.updateActualTokenCount(totalTokens);
@@ -198,6 +185,23 @@ export class OpenAIService implements ILLMService {
                             }
                         }
                     }
+
+                    // Add assistant message to history with hook-modified content
+                    await this.contextManager.addAssistantMessage(
+                        responsePayload.content,
+                        undefined,
+                        {
+                            tokenUsage:
+                                totalTokens > 0
+                                    ? {
+                                          totalTokens,
+                                          inputTokens,
+                                          outputTokens,
+                                          reasoningTokens,
+                                      }
+                                    : undefined,
+                        }
+                    );
 
                     // Always emit token usage
                     this.sessionEventBus.emit('llmservice:response', responsePayload);
@@ -317,18 +321,6 @@ export class OpenAIService implements ILLMService {
             logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
             const finalResponse =
                 fullResponse || 'Task completed but reached maximum tool call iterations.';
-            await this.contextManager.addAssistantMessage(finalResponse, undefined, {
-                tokenUsage:
-                    totalTokens > 0
-                        ? {
-                              totalTokens,
-                              inputTokens,
-                              outputTokens,
-                              reasoningTokens,
-                          }
-                        : undefined,
-            });
-
             // Update ContextManager with actual token count
             if (totalTokens > 0) {
                 this.contextManager.updateActualTokenCount(totalTokens);
@@ -383,6 +375,19 @@ export class OpenAIService implements ILLMService {
                     }
                 }
             }
+
+            // Add assistant message to history with hook-modified content
+            await this.contextManager.addAssistantMessage(responsePayload.content, undefined, {
+                tokenUsage:
+                    totalTokens > 0
+                        ? {
+                              totalTokens,
+                              inputTokens,
+                              outputTokens,
+                              reasoningTokens,
+                          }
+                        : undefined,
+            });
 
             // Always emit token usage
             this.sessionEventBus.emit('llmservice:response', responsePayload);

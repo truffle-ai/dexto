@@ -248,7 +248,8 @@ describe('ChatSession', () => {
                 mockServices.promptManager,
                 mockHistoryProvider,
                 chatSession.eventBus,
-                sessionId
+                sessionId,
+                undefined
             );
         });
 
@@ -272,7 +273,8 @@ describe('ChatSession', () => {
                 mockServices.promptManager,
                 mockHistoryProvider,
                 chatSession.eventBus,
-                sessionId
+                sessionId,
+                undefined
             );
         });
 
@@ -391,7 +393,8 @@ describe('ChatSession', () => {
                 mockServices.promptManager,
                 mockHistoryProvider,
                 chatSession.eventBus, // Session-specific event bus
-                sessionId
+                sessionId,
+                undefined
             );
 
             // Verify session-specific history provider creation

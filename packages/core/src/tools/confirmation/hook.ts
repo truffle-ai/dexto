@@ -1,5 +1,5 @@
 import type { HookManager } from '../../hooks/manager.js';
-import type { ToolConfirmationProvider } from './types.js';
+import type { ToolConfirmationProvider, ToolExecutionDetails } from './types.js';
 
 export function registerToolConfirmationHook(
     provider: ToolConfirmationProvider,
@@ -8,8 +8,11 @@ export function registerToolConfirmationHook(
     hookManager.use(
         'beforeToolCall',
         async ({ toolName, args, sessionId }) => {
-            const details: any = { toolName, args };
-            if (sessionId !== undefined) details.sessionId = sessionId;
+            const details: ToolExecutionDetails = {
+                toolName,
+                args,
+                ...(sessionId !== undefined && { sessionId }),
+            };
             const approved = await provider.requestConfirmation(details);
             if (!approved) {
                 return {

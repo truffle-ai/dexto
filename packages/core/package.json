@@ -43,10 +43,11 @@
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
-    "@types/json-schema": "^7.0.15"
+    "@types/json-schema": "^7.0.15",
+    "cross-env": "^7.0.3"
   },
   "scripts": {
-    "build": "tsup && node scripts/fix-dist-aliases.mjs",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 tsup && node scripts/fix-dist-aliases.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"
   },

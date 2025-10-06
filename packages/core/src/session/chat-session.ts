@@ -281,6 +281,16 @@ export class ChatSession {
 
             // Use modified input from hooks if any
             input = hookResult.payload.text;
+            if ('imageData' in hookResult.payload) {
+                imageDataInput = hookResult.payload.imageData as
+                    | { image: string; mimeType: string }
+                    | undefined;
+            }
+            if ('fileData' in hookResult.payload) {
+                fileDataInput = hookResult.payload.fileData as
+                    | { data: string; mimeType: string; filename?: string }
+                    | undefined;
+            }
         }
 
         // Create an AbortController for this run and expose for cancellation

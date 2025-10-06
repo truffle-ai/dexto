@@ -209,7 +209,6 @@ export class ToolManager {
         callId?: string
     ): Promise<unknown> {
         logger.debug(`🔧 Tool execution requested: '${toolName}'`);
-        logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
         // Run beforeToolCall hooks (centralized) to allow modification/cancellation
         {
@@ -369,7 +368,11 @@ export class ToolManager {
                         }
                     }
                 } catch (hookError) {
-                    logger.error(`Hook error during failure handling: ${hookError}`);
+                    const errorMessage =
+                        hookError instanceof Error
+                            ? `${hookError.message}${hookError.stack ? `\n${hookError.stack}` : ''}`
+                            : String(hookError);
+                    logger.error(`Hook error during failure handling: ${errorMessage}`);
                 }
             }
 

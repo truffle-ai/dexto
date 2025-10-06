@@ -13,7 +13,7 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import type { HookManager } from '../../hooks/index.js';
 import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
@@ -178,11 +178,6 @@ export class AnthropicService implements ILLMService {
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
-                } else {
-                    // Add regular assistant message
-                    await this.contextManager.addAssistantMessage(textContent, undefined, {
-                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                    });
                 }
 
                 // If no tools were used, we're done
@@ -249,6 +244,15 @@ export class AnthropicService implements ILLMService {
                             }
                         }
                     }
+
+                    // Add assistant message with hook-modified content
+                    await this.contextManager.addAssistantMessage(
+                        responsePayload.content,
+                        undefined,
+                        {
+                            tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+                        }
+                    );
 
                     this.sessionEventBus.emit('llmservice:response', responsePayload);
                     return responsePayload.content;
