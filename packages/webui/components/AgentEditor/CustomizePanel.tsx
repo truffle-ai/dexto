@@ -19,7 +19,8 @@
  * - Enum options from schema enums
  * - Field types from schema types
  * This would eliminate hardcoded UI metadata and reduce maintenance.
- * See packages/core/src/utils/schema-metadata.ts for runtime introspection approach.
+ * See packages/core/src/utils/schema-metadata.ts for the core utilities that enable this (needs runtime fixes).
+ * This TODO is linked with the corresponding TODO in schema-metadata.ts tracking the same goal.
  */
 'use client';
 
