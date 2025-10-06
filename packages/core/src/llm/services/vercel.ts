@@ -619,8 +619,6 @@ export class VercelLLMService implements ILLMService {
             response.reasoningText,
         ]);
 
-        response.totalUsage;
-
         // If streaming reported an error, return early since we already emitted llmservice:error event
         if (streamErr) {
             // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?

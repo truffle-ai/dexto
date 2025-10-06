@@ -73,12 +73,23 @@ export function registerResponseSanitizerBuiltin(
 
             // Truncate responses that exceed max length
             if (maxResponseLength > 0 && modified.length > maxResponseLength) {
-                modified = modified.slice(0, maxResponseLength) + '... [truncated]';
+                const originalLength = modified.length;
+                const suffix = '... [truncated]';
+
+                if (maxResponseLength <= suffix.length) {
+                    // If maxResponseLength is too small, use truncated suffix
+                    modified = suffix.slice(0, maxResponseLength);
+                } else {
+                    // Calculate adjusted length to account for suffix
+                    const adjustedLength = maxResponseLength - suffix.length;
+                    modified = modified.slice(0, adjustedLength) + suffix;
+                }
+
                 notices.push({
                     kind: 'warn',
                     code: 'response_sanitizer.truncated',
                     message: `Response truncated to ${maxResponseLength} characters.`,
-                    details: { originalLength: content.length },
+                    details: { originalLength },
                 });
             }
 

@@ -385,6 +385,11 @@ export class AnthropicService implements ILLMService {
                 }
             }
 
+            // Add assistant message to history with hook-modified content
+            await this.contextManager.addAssistantMessage(responsePayload.content, undefined, {
+                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+            });
+
             this.sessionEventBus.emit('llmservice:response', responsePayload);
             return responsePayload.content;
         } catch (error) {

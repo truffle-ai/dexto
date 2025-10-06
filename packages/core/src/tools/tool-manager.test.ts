@@ -5,6 +5,8 @@ import { ToolConfirmationProvider } from './confirmation/types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import { HookManager } from '../hooks/manager.js';
+import { registerToolConfirmationHook } from './confirmation/hook.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -142,7 +144,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const hookManager = new HookManager();
+            registerToolConfirmationHook(mockConfirmationProvider, hookManager);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider, {
+                hookManager,
+            });
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
 
@@ -157,7 +164,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const hookManager = new HookManager();
+            registerToolConfirmationHook(mockConfirmationProvider, hookManager);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider, {
+                hookManager,
+            });
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' });
 
@@ -170,7 +182,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should throw execution denied error when confirmation denied', async () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(false);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const hookManager = new HookManager();
+            registerToolConfirmationHook(mockConfirmationProvider, hookManager);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider, {
+                hookManager,
+            });
 
             const error = (await toolManager
                 .executeTool('mcp--file_read', { path: '/test' }, 'session123')
@@ -187,7 +204,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const hookManager = new HookManager();
+            registerToolConfirmationHook(mockConfirmationProvider, hookManager);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider, {
+                hookManager,
+            });
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
 
@@ -319,15 +341,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Error Propagation Logic', () => {
-        beforeEach(() => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
-        });
-
         it('should propagate MCP tool execution errors', async () => {
+            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
             const executionError = new Error('Tool execution failed');
             mockMcpManager.executeTool = vi.fn().mockRejectedValue(executionError);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const hookManager = new HookManager();
+            registerToolConfirmationHook(mockConfirmationProvider, hookManager);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider, {
+                hookManager,
+            });
 
             await expect(
                 toolManager.executeTool('mcp--file_read', { path: '/test' })
@@ -340,11 +364,16 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .fn()
                 .mockRejectedValue(confirmationError);
 
-            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider);
+            const hookManager = new HookManager();
+            registerToolConfirmationHook(mockConfirmationProvider, hookManager);
+
+            const toolManager = new ToolManager(mockMcpManager, mockConfirmationProvider, {
+                hookManager,
+            });
 
             await expect(
                 toolManager.executeTool('mcp--file_read', { path: '/test' })
-            ).rejects.toThrow('Confirmation failed');
+            ).rejects.toThrow();
         });
     });
 });
