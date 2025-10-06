@@ -15,8 +15,8 @@ export type { InternalMessage, TextPart, FilePart, ImageData, FileData } from '.
 
 // LLM types (used by client packages)
 export type { LLMProvider, LLMRouter } from './llm/types.js';
-export { LLM_PROVIDERS } from './llm/types.js'; // Used by CLI package
-// Note: LLM_ROUTERS, SUPPORTED_FILE_TYPES not exported - only used internally in core
+export { LLM_PROVIDERS, LLM_ROUTERS } from './llm/types.js'; // Used by CLI and webui packages
+// Note: SUPPORTED_FILE_TYPES not exported - only used internally in core
 
 // Session types (used by CLI package)
 export type { SessionMetadata } from './session/session-manager.js';
