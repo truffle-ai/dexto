@@ -21,10 +21,21 @@ function escapeRegExp(literal: string): string {
     return literal.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
+/**
+ * Parse resource references from a message.
+ *
+ * @ symbols are only treated as resource references if they:
+ * 1. Are at the start of the message, OR
+ * 2. Are preceded by whitespace
+ *
+ * This means email addresses like "user@example.com" are NOT treated as references.
+ */
 export function parseResourceReferences(message: string): ResourceReference[] {
     const references: ResourceReference[] = [];
+    // Require whitespace before @ or start of string (^)
+    // This prevents matching @ in email addresses like user@example.com
     const regex =
-        /(?<![a-zA-Z0-9])@(?:(<[^>]+>)|([a-zA-Z0-9_-]+):([a-zA-Z0-9._/-]+)|([a-zA-Z0-9._/-]+))(?![a-zA-Z0-9@.])/g;
+        /(?:^|(?<=\s))@(?:(<[^>]+>)|([a-zA-Z0-9_-]+):([a-zA-Z0-9._/-]+)|([a-zA-Z0-9._/-]+))(?![a-zA-Z0-9@.])/g;
     let match;
     while ((match = regex.exec(message)) !== null) {
         const [originalRef, uriWithBrackets, serverName, serverResource, simpleName] = match;
@@ -166,6 +177,7 @@ export async function expandMessageReferences(
     resourceReader: (uri: string) => Promise<ReadResourceResult>
 ): Promise<ResourceExpansionResult> {
     logger.debug(`Expanding resource references in message: ${message.substring(0, 100)}...`);
+
     const parsedRefs = parseResourceReferences(message);
     if (parsedRefs.length === 0) {
         return {

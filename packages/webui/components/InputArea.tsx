@@ -103,15 +103,22 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   );
 
   const findActiveAtIndex = (value: string, caret: number) => {
-    // Walk backwards from caret to find an '@' not preceded by an alphanumeric
+    // Walk backwards from caret to find an '@'
+    // @ is only valid if:
+    // 1. At the start of the message (i === 0), OR
+    // 2. Preceded by whitespace
     for (let i = caret - 1; i >= 0; i--) {
       const ch = value[i];
       if (ch === '@') {
-        const prev = i > 0 ? value[i - 1] : ' ';
-        if (!/[a-zA-Z0-9]/.test(prev)) {
-          return i;
+        // Check if @ is at start or preceded by whitespace
+        if (i === 0) {
+          return i; // @ at start is valid
         }
-        return -1; // looks like an email/user handle; ignore
+        const prev = value[i - 1];
+        if (/\s/.test(prev)) {
+          return i; // @ after whitespace is valid
+        }
+        return -1; // @ in middle of text (like email) - ignore
       }
       if (/\s/.test(ch)) break; // stop at whitespace
     }
@@ -748,7 +755,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @ to see available resources"
+                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -761,7 +768,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @ to see available resources"
+                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}

@@ -123,6 +123,7 @@ async function _initCli(agent: DextoAgent): Promise<void> {
     // Show welcome message with slash command instructions
     console.log(chalk.bold.cyan('\n🚀 Welcome to Dexto CLI!'));
     console.log(chalk.dim('• Type your message normally to chat with the AI'));
+    console.log(chalk.dim('• Reference files with @filename (@ must be at start or after space)'));
     console.log(chalk.dim('• Use /command for system commands (e.g., /help, /session, /model)'));
     console.log(chalk.dim('• Type /help to see all available commands'));
     const logPath = getDextoPath('logs', 'dexto.log');

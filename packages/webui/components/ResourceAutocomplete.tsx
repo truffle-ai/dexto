@@ -60,9 +60,15 @@ export default function ResourceAutocomplete({ resources, query, selectedIndex, 
   return loading ? (
     <div className="px-3 py-2 text-sm text-muted-foreground">Loading resources…</div>
   ) : filtered.length === 0 ? (
-    <div className="px-3 py-2 text-sm text-muted-foreground">No resources match "{query}"</div>
+    <div className="px-3 py-2 text-sm text-muted-foreground">
+      <div>No resources match "{query}"</div>
+      <div className="text-xs mt-1 text-muted-foreground/80">Tip: @ references only work at start or after spaces</div>
+    </div>
   ) : (
     <ul role="listbox" aria-label="Resource suggestions" className="py-1 text-sm max-h-64 overflow-y-auto">
+      <li className="px-3 py-1.5 text-xs text-muted-foreground/80 border-b border-border">
+        @ references files/resources • Works at start or after spaces
+      </li>
       {filtered.map((r, idx) => (
         <li
           key={r.uri}
