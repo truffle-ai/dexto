@@ -1,25 +1,25 @@
 /**
- * CustomizePanel
+ * CustomizePanel - Parent coordinator for agent configuration editing
  *
- * Full-featured agent configuration editor panel with YAML editing, validation,
- * and automatic agent restart. Provides:
- * - Live YAML editing with Monaco editor
- * - Real-time validation with error/warning display
- * - Unsaved changes detection and confirmation dialogs
- * - Automatic agent restart after configuration changes
- * - Keyboard shortcuts (Cmd+S to save, Escape to close)
- * - Documentation link to configuration guide
+ * Responsibilities:
+ * - Load/save configuration via API
+ * - Mode switching (Form ↔ YAML)
+ * - YAML ↔ Config object conversion
+ * - Unsaved changes detection
+ * - Validation orchestration
  *
- * Can be rendered as an overlay (slide-in panel) or inline component.
+ * The actual editing is delegated to:
+ * - YAMLEditorView - for YAML mode
+ * - FormEditorView - for Form mode
  */
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
-import { X, Save, RefreshCw, FileEditIcon, AlertTriangle, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, Save, RefreshCw, FileCode, FormInput, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import AgentConfigEditor from './AgentConfigEditor';
-import ConfigValidationStatus from './ConfigValidationStatus';
+import YAMLEditorView from './YAMLEditorView';
+import FormEditorView from './FormEditorView';
 import type { editor } from 'monaco-editor';
 import {
   Dialog,
@@ -30,6 +30,8 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import yaml from 'js-yaml';
+import type { AgentConfig } from '@dexto/core';
 
 interface CustomizePanelProps {
   isOpen: boolean;
@@ -76,11 +78,20 @@ interface SaveConfigResponse {
   message: string;
 }
 
+type EditorMode = 'form' | 'yaml';
+
 export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }: CustomizePanelProps) {
+  // Content state
   const [yamlContent, setYamlContent] = useState<string>('');
   const [originalYamlContent, setOriginalYamlContent] = useState<string>('');
-  const [agentPath, setAgentPath] = useState<string>('');
+  const [parsedConfig, setParsedConfig] = useState<AgentConfig | null>(null);
   const [relativePath, setRelativePath] = useState<string>('');
+
+  // Editor mode
+  const [editorMode, setEditorMode] = useState<EditorMode>('yaml');
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  // Loading/saving state
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -94,16 +105,15 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [warnings, setWarnings] = useState<ValidationWarning[]>([]);
 
-  // Unsaved changes tracking
+  // Unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
   // Debounce timer for validation
   const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
-  // Track the most recent validation request to avoid stale updates
   const latestValidationRequestRef = useRef(0);
 
-  // Load agent configuration
+  // Load agent configuration from API
   const loadAgentConfig = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
@@ -116,9 +126,14 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       const data: AgentConfigResponse = await response.json();
       setYamlContent(data.yaml);
       setOriginalYamlContent(data.yaml);
-      setAgentPath(data.path);
       setRelativePath(data.relativePath);
       setHasUnsavedChanges(false);
+
+      // Parse for form mode
+      const { config } = parseYamlToConfig(data.yaml);
+      if (config) {
+        setParsedConfig(config);
+      }
 
       // Initial validation
       await validateYaml(data.yaml);
@@ -131,7 +146,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     }
   }, []);
 
-  // Validate YAML content
+  // Validate YAML content via API
   const validateYaml = async (yaml: string) => {
     const requestId = latestValidationRequestRef.current + 1;
     latestValidationRequestRef.current = requestId;
@@ -162,12 +177,34 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     }
   };
 
-  // Handle editor changes with debounced validation
-  const handleEditorChange = (value: string) => {
+  // Parse YAML to config object
+  const parseYamlToConfig = (yamlString: string): { config: AgentConfig | null; error: string | null } => {
+    try {
+      const config = yaml.load(yamlString) as AgentConfig;
+      return { config, error: null };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to parse YAML';
+      return { config: null, error: message };
+    }
+  };
+
+  // Serialize config back to YAML
+  const serializeConfigToYaml = (config: AgentConfig): string => {
+    return yaml.dump(config, { indent: 2, lineWidth: -1 });
+  };
+
+  // Handle YAML editor changes
+  const handleYamlChange = (value: string) => {
     setYamlContent(value);
     setHasUnsavedChanges(value !== originalYamlContent);
     setSaveError(null);
     setSaveSuccess(false);
+
+    // Update parsed config for potential form mode switch
+    const { config } = parseYamlToConfig(value);
+    if (config) {
+      setParsedConfig(config);
+    }
 
     // Debounce validation
     if (validationTimerRef.current) {
@@ -178,9 +215,41 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     }, 500);
   };
 
-  // Handle Monaco editor validation (reserved for future use)
-  const handleMonacoValidate = (_markers: editor.IMarker[]) => {
-    // Future: Can process Monaco markers here if needed
+  // Handle form editor changes
+  const handleFormChange = (newConfig: AgentConfig) => {
+    setParsedConfig(newConfig);
+    const newYaml = serializeConfigToYaml(newConfig);
+    setYamlContent(newYaml);
+    setHasUnsavedChanges(newYaml !== originalYamlContent);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    // Debounce validation
+    if (validationTimerRef.current) {
+      clearTimeout(validationTimerRef.current);
+    }
+    validationTimerRef.current = setTimeout(() => {
+      validateYaml(newYaml);
+    }, 500);
+  };
+
+  // Handle mode switch
+  const handleModeSwitch = (newMode: EditorMode) => {
+    if (newMode === editorMode) return;
+
+    if (newMode === 'form') {
+      // Switching to form mode - ensure config is parsed
+      const { config, error } = parseYamlToConfig(yamlContent);
+      if (error) {
+        setParseError(error);
+        // Don't switch modes if parsing fails
+        return;
+      }
+      setParsedConfig(config);
+      setParseError(null);
+    }
+
+    setEditorMode(newMode);
   };
 
   // Save configuration
@@ -196,8 +265,6 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setSaveMessage('');
 
     try {
-      // Note: The backend waits for restart to complete before responding,
-      // so by the time we get the response, the restart is already done
       const response = await fetch(`${API_BASE_URL}/agent/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -215,7 +282,6 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
 
-      // By the time we receive the response, restart (if needed) is already complete
       if (data.restarted) {
         setSaveMessage(
           `Configuration applied successfully — ${data.changesApplied.join(', ')} updated`
@@ -301,7 +367,6 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
-          <FileEditIcon className="h-5 w-5 text-muted-foreground" />
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">Customize Agent</h2>
@@ -322,6 +387,36 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Mode Toggle */}
+          <div className="flex items-center gap-1 bg-muted/50 rounded-md p-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={editorMode === 'form' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleModeSwitch('form')}
+                  className="h-7 px-2"
+                >
+                  <FormInput className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Form Editor</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={editorMode === 'yaml' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleModeSwitch('yaml')}
+                  className="h-7 px-2"
+                >
+                  <FileCode className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>YAML Editor</TooltipContent>
+            </Tooltip>
+          </div>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -371,28 +466,34 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
               <p className="text-sm text-muted-foreground">Loading configuration...</p>
             </div>
           </div>
-        ) : (
-          <>
-            {/* Editor */}
-            <div className="flex-1 overflow-hidden">
-              <AgentConfigEditor
-                value={yamlContent}
-                onChange={handleEditorChange}
-                onValidate={handleMonacoValidate}
-                height="100%"
-              />
+        ) : parseError && editorMode === 'form' ? (
+          <div className="flex items-center justify-center h-full p-4">
+            <div className="text-center max-w-md">
+              <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Cannot parse YAML</h3>
+              <p className="text-sm text-muted-foreground mb-4">{parseError}</p>
+              <Button onClick={() => setEditorMode('yaml')} variant="outline">
+                Switch to YAML Editor
+              </Button>
             </div>
-
-            {/* Validation Status */}
-            <ConfigValidationStatus
-              isValidating={isValidating}
-              isValid={isValid}
-              errors={errors}
-              warnings={warnings}
-              hasUnsavedChanges={hasUnsavedChanges}
-            />
-          </>
-        )}
+          </div>
+        ) : editorMode === 'yaml' ? (
+          <YAMLEditorView
+            value={yamlContent}
+            onChange={handleYamlChange}
+            isValidating={isValidating}
+            isValid={isValid}
+            errors={errors}
+            warnings={warnings}
+            hasUnsavedChanges={hasUnsavedChanges}
+          />
+        ) : parsedConfig ? (
+          <FormEditorView
+            config={parsedConfig}
+            onChange={handleFormChange}
+            errors={{}}
+          />
+        ) : null}
       </div>
 
       {/* Footer */}
@@ -401,15 +502,12 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
           {/* Save status messages */}
           {(saveSuccess || saveError) && (
             <div className="px-4 py-3 bg-muted/50 border-b border-border">
-              {/* Success message */}
               {saveSuccess && (
                 <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
                   <CheckCircle className="h-4 w-4" />
                   <span>{saveMessage}</span>
                 </div>
               )}
-
-              {/* Error message */}
               {saveError && (
                 <div className="flex items-center gap-2 text-sm text-destructive">
                   <AlertTriangle className="h-4 w-4" />
