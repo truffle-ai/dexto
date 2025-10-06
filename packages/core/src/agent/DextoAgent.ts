@@ -1110,6 +1110,101 @@ export class DextoAgent {
         return await this.systemPromptManager.build(context);
     }
 
+    /**
+     * Lists all available prompts from all providers (MCP, internal, starter, custom).
+     * @returns Promise resolving to a PromptSet with all available prompts
+     */
+    public async listPrompts(): Promise<import('../prompts/index.js').PromptSet> {
+        this.ensureStarted();
+        return await this.promptsManager.list();
+    }
+
+    /**
+     * Gets the definition of a specific prompt by name.
+     * @param name The name of the prompt
+     * @returns Promise resolving to the prompt definition or null if not found
+     */
+    public async getPromptDefinition(
+        name: string
+    ): Promise<import('../prompts/index.js').PromptDefinition | null> {
+        this.ensureStarted();
+        return await this.promptsManager.getPromptDefinition(name);
+    }
+
+    /**
+     * Creates a new custom prompt.
+     * @param input The prompt creation input
+     * @returns Promise resolving to the created prompt info
+     */
+    public async createCustomPrompt(
+        input: import('../prompts/index.js').CreateCustomPromptInput
+    ): Promise<import('../prompts/index.js').PromptInfo> {
+        this.ensureStarted();
+        return await this.promptsManager.createCustomPrompt(input);
+    }
+
+    /**
+     * Deletes a custom prompt by name.
+     * @param name The name of the custom prompt to delete
+     */
+    public async deleteCustomPrompt(name: string): Promise<void> {
+        this.ensureStarted();
+        return await this.promptsManager.deleteCustomPrompt(name);
+    }
+
+    /**
+     * Resolves a prompt to its text content with all arguments applied.
+     * This is a high-level method that handles:
+     * - Prompt key resolution (resolving aliases)
+     * - Argument normalization (including special _context field)
+     * - Prompt execution and flattening
+     * - Context appending
+     *
+     * @param name The prompt name or alias
+     * @param options Optional configuration for prompt resolution
+     * @returns Promise resolving to the resolved text and resource URIs
+     */
+    public async resolvePrompt(
+        name: string,
+        options: {
+            q?: string;
+            context?: string;
+            args?: Record<string, unknown>;
+        } = {}
+    ): Promise<{ text: string; resources: string[] }> {
+        this.ensureStarted();
+
+        const { normalizePromptArgs, appendContext, flattenPromptResult } = await import(
+            '../prompts/index.js'
+        );
+        const { PromptError } = await import('../prompts/index.js');
+
+        // Build args from options
+        const args: Record<string, unknown> = { ...options.args };
+        if (options.q?.trim()) args._context = options.q.trim();
+        else if (options.context?.trim()) args._context = options.context.trim();
+
+        // Resolve provided name to a valid prompt key using promptsManager
+        const resolvedName = (await this.promptsManager.resolvePromptKey(name)) ?? name;
+
+        // Normalize args (converts to strings, extracts context)
+        const normalized = normalizePromptArgs(args);
+
+        // Get and flatten the prompt result
+        const promptResult = await this.promptsManager.getPrompt(resolvedName, normalized.args);
+        const flattened = flattenPromptResult(promptResult);
+
+        // Append context to the text
+        const finalText = appendContext(flattened.text, normalized.context);
+
+        // Validate result
+        if (!finalText && flattened.resourceUris.length === 0) {
+            throw PromptError.emptyResolvedContent(resolvedName);
+        }
+
+        return { text: finalText, resources: flattened.resourceUris };
+    }
+
     // ============= CONFIGURATION ACCESS =============
 
     /**

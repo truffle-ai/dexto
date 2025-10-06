@@ -90,3 +90,51 @@ export function flattenPromptResult(result: GetPromptResult): FlattenedPromptRes
         resourceUris: uniqueUris,
     };
 }
+
+/**
+ * Normalize prompt arguments by converting all values to strings and extracting context.
+ * Handles the special `_context` field used for natural language after slash commands.
+ */
+export function normalizePromptArgs(input: Record<string, unknown>): {
+    args: Record<string, string>;
+    context?: string | undefined;
+} {
+    const args: Record<string, string> = {};
+    let context: string | undefined;
+
+    for (const [key, value] of Object.entries(input)) {
+        if (key === '_context') {
+            if (typeof value === 'string' && value.trim().length > 0) {
+                const trimmed = value.trim();
+                context = trimmed;
+                args[key] = trimmed;
+            }
+            continue;
+        }
+
+        if (typeof value === 'string') {
+            args[key] = value;
+        } else if (value !== undefined && value !== null) {
+            try {
+                args[key] = JSON.stringify(value);
+            } catch {
+                args[key] = String(value);
+            }
+        }
+    }
+
+    return { args, context };
+}
+
+/**
+ * Append context to text, handling empty cases gracefully.
+ */
+export function appendContext(text: string, context?: string): string {
+    if (!context || context.trim().length === 0) {
+        return text ?? '';
+    }
+    if (!text || text.trim().length === 0) {
+        return context;
+    }
+    return `${text}\n\n${context}`;
+}

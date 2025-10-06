@@ -44,7 +44,7 @@ import {
     AgentError,
 } from '@dexto/core';
 import { ResourceError } from '@dexto/core';
-import { PromptError, flattenPromptResult } from '@dexto/core';
+import { PromptError } from '@dexto/core';
 
 /**
  * Helper function to send JSON response with optional pretty printing
@@ -333,47 +333,6 @@ export async function initializeApi(
         }
     }
 
-    function normalizePromptArgs(input: Record<string, unknown>): {
-        args: Record<string, string>;
-        context?: string | undefined;
-    } {
-        const args: Record<string, string> = {};
-        let context: string | undefined;
-
-        for (const [key, value] of Object.entries(input)) {
-            if (key === '_context') {
-                if (typeof value === 'string' && value.trim().length > 0) {
-                    const trimmed = value.trim();
-                    context = trimmed;
-                    args[key] = trimmed;
-                }
-                continue;
-            }
-
-            if (typeof value === 'string') {
-                args[key] = value;
-            } else if (value !== undefined && value !== null) {
-                try {
-                    args[key] = JSON.stringify(value);
-                } catch {
-                    args[key] = String(value);
-                }
-            }
-        }
-
-        return { args, context };
-    }
-
-    function appendContext(text: string, context?: string): string {
-        if (!context || context.trim().length === 0) {
-            return text ?? '';
-        }
-        if (!text || text.trim().length === 0) {
-            return context;
-        }
-        return `${text.trim()}\n\n${context}`;
-    }
-
     // Health check endpoint
     app.get('/health', (req, res) => {
         res.status(200).send('OK');
@@ -382,10 +341,7 @@ export async function initializeApi(
     // Prompts listing endpoint (for WebUI slash command autocomplete)
     app.get('/api/prompts', async (_req, res, next) => {
         try {
-            if (!activeAgent.promptsManager) {
-                return res.status(200).json({ prompts: [] });
-            }
-            const prompts = await activeAgent.promptsManager.list();
+            const prompts = await activeAgent.listPrompts();
             const list = Object.values(prompts);
             return res.status(200).json({ prompts: list });
         } catch (error) {
@@ -395,9 +351,6 @@ export async function initializeApi(
 
     app.post('/api/prompts/custom', express.json({ limit: '10mb' }), async (req, res, next) => {
         try {
-            if (!activeAgent.promptsManager) {
-                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
-            }
             const payload = parseBody(CustomPromptRequestSchema, req.body);
             const promptArguments = payload.arguments
                 ?.map((arg) => ({
@@ -427,7 +380,7 @@ export async function initializeApi(
                       }
                     : {}),
             };
-            const prompt = await activeAgent.promptsManager.createCustomPrompt(createPayload);
+            const prompt = await activeAgent.createCustomPrompt(createPayload);
             return res.status(201).json({ prompt });
         } catch (error) {
             return next(error);
@@ -436,12 +389,9 @@ export async function initializeApi(
 
     app.delete('/api/prompts/custom/:name', async (req, res, next) => {
         try {
-            if (!activeAgent.promptsManager) {
-                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
-            }
             const encodedName = req.params.name;
             const name = decodeURIComponent(encodedName);
-            await activeAgent.promptsManager.deleteCustomPrompt(name);
+            await activeAgent.deleteCustomPrompt(name);
             return res.status(204).send();
         } catch (error) {
             return next(error);
@@ -453,10 +403,7 @@ export async function initializeApi(
         try {
             const name = req.params.name;
             if (!name) throw PromptError.nameRequired();
-            if (!activeAgent.promptsManager) {
-                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
-            }
-            const definition = await activeAgent.promptsManager.getPromptDefinition(name);
+            const definition = await activeAgent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
             return sendJsonResponse(res, { definition }, 200);
         } catch (error) {
@@ -471,50 +418,39 @@ export async function initializeApi(
         try {
             const inputName = req.params.name;
             if (!inputName) throw PromptError.nameRequired();
-            if (!activeAgent.promptsManager) {
-                return sendJsonResponse(res, { error: 'Prompts system unavailable' }, 503);
-            }
 
             // Extract optional arguments from query string
-            // - `q` or `_context` → maps to special `_context` arg supported by providers
-            // - `args` (JSON string) → additional key/value args
             const query = req.query as Record<string, unknown>;
-            const args: Record<string, unknown> = {};
-
             const q = typeof query.q === 'string' ? query.q : undefined;
             const ctx = typeof query._context === 'string' ? query._context : undefined;
-            if (q && q.trim()) args._context = q.trim();
-            else if (ctx && ctx.trim()) args._context = ctx.trim();
 
             // Optional structured args in `args` query param as JSON
+            let parsedArgs: Record<string, unknown> | undefined;
             if (typeof query.args === 'string') {
                 try {
                     const parsed = JSON.parse(query.args);
                     if (parsed && typeof parsed === 'object') {
-                        Object.assign(args, parsed as Record<string, unknown>);
+                        parsedArgs = parsed as Record<string, unknown>;
                     }
                 } catch {
                     // Ignore malformed args JSON; continue with whatever we have
                 }
             }
 
-            // Resolve provided name to a valid prompt key using core manager
-            const resolvedName =
-                (await activeAgent.promptsManager.resolvePromptKey(inputName)) ?? inputName;
+            // Build options object with only defined values (exactOptionalPropertyTypes compatibility)
+            const options: {
+                q?: string;
+                context?: string;
+                args?: Record<string, unknown>;
+            } = {};
+            if (q !== undefined) options.q = q;
+            if (ctx !== undefined) options.context = ctx;
+            if (parsedArgs !== undefined) options.args = parsedArgs;
 
-            const normalized = normalizePromptArgs(args);
+            // Use DextoAgent's resolvePrompt method
+            const result = await activeAgent.resolvePrompt(inputName, options);
 
-            const pr = await activeAgent.promptsManager.getPrompt(resolvedName, normalized.args);
-            const flattened = flattenPromptResult(pr);
-            const finalText = appendContext(flattened.text, normalized.context);
-            if (!finalText && flattened.resourceUris.length === 0) {
-                throw PromptError.emptyResolvedContent(resolvedName);
-            }
-            return sendJsonResponse(
-                res,
-                { text: finalText, resources: flattened.resourceUris },
-                200
-            );
+            return sendJsonResponse(res, { text: result.text, resources: result.resources }, 200);
         } catch (error) {
             return next(error);
         }
