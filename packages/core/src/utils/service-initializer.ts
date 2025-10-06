@@ -120,7 +120,6 @@ export async function createAgentServices(
     // Register all built-in hooks in a single place
     registerBuiltInHooks({
         hookManager,
-        toolConfirmationProvider: confirmationProvider,
         config,
     });
 

@@ -1,4 +1,4 @@
-import type { LLMRouter } from '../llm/types.js';
+import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 
 export type HookName = 'beforeLLMRequest' | 'beforeToolCall' | 'afterToolResult' | 'beforeResponse';
@@ -28,6 +28,7 @@ export interface AfterToolResultPayload {
 export interface BeforeResponsePayload {
     content: string;
     reasoning?: string;
+    provider: LLMProvider;
     model?: string;
     router?: LLMRouter;
     tokenUsage?: {

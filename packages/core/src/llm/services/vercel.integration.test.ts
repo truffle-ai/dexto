@@ -123,25 +123,31 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         20000
     );
 
-    t('creating sessions works normally', async () => {
-        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
-        try {
-            const newSession = await env.agent.createSession('test-vercel-session');
-            const response = await env.agent.run(
-                'Hello in new session',
-                undefined,
-                undefined,
-                newSession.id
+    t(
+        'creating sessions works normally',
+        async () => {
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
             );
+            try {
+                const newSession = await env.agent.createSession('test-vercel-session');
+                const response = await env.agent.run(
+                    'Hello in new session',
+                    undefined,
+                    undefined,
+                    newSession.id
+                );
 
-            expect(newSession).toBeTruthy();
-            expect(newSession.id).toBe('test-vercel-session');
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+                expect(newSession).toBeTruthy();
+                expect(newSession.id).toBe('test-vercel-session');
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     // Multiple Provider Support through Vercel AI SDK
     (requiresApiKey('anthropic') ? test.concurrent : test.skip)(

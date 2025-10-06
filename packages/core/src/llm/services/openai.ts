@@ -15,7 +15,7 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager } from '../../hooks/index.js';
+import type { HookManager, BeforeResponsePayload, HookNotice } from '../../hooks/index.js';
 import { runBeforeResponse } from '../../hooks/index.js';
 
 /**
@@ -131,14 +131,15 @@ export class OpenAIService implements ILLMService {
                     }
 
                     // Build response payload
-                    let responsePayload: any = {
+                    let responsePayload: BeforeResponsePayload = {
                         content: finalContent,
                         provider: this.config.provider,
                         model: this.config.model,
-                        router: 'in-built' as const,
+                        router: 'in-built',
                         tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                         sessionId: this.sessionId,
                     };
+                    let notices: HookNotice[] | undefined;
 
                     // Run beforeResponse hooks
                     if (this.hookManager) {
@@ -148,6 +149,7 @@ export class OpenAIService implements ILLMService {
                         );
 
                         if (hookResult.notices && hookResult.notices.length > 0) {
+                            notices = hookResult.notices;
                             hookResult.notices.forEach((notice) => {
                                 const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
                                 if (notice.kind === 'block' || notice.kind === 'warn') {
@@ -173,16 +175,9 @@ export class OpenAIService implements ILLMService {
                             responsePayload = {
                                 ...responsePayload,
                                 content: overrideContent,
-                                ...(hookResult.notices && { notices: hookResult.notices }),
                             };
                         } else {
                             responsePayload = { ...responsePayload, ...hookResult.payload };
-                            if (hookResult.notices) {
-                                responsePayload = {
-                                    ...responsePayload,
-                                    notices: hookResult.notices,
-                                };
-                            }
                         }
                     }
 
@@ -204,7 +199,11 @@ export class OpenAIService implements ILLMService {
                     );
 
                     // Always emit token usage
-                    this.sessionEventBus.emit('llmservice:response', responsePayload);
+                    const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
+                        ...responsePayload,
+                        ...(notices ? { notices } : {}),
+                    };
+                    this.sessionEventBus.emit('llmservice:response', eventPayload);
                     return responsePayload.content;
                 }
 
@@ -327,20 +326,22 @@ export class OpenAIService implements ILLMService {
             }
 
             // Build response payload
-            let responsePayload: any = {
+            let responsePayload: BeforeResponsePayload = {
                 content: finalResponse,
                 provider: this.config.provider,
                 model: this.config.model,
-                router: 'in-built' as const,
+                router: 'in-built',
                 tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                 sessionId: this.sessionId,
             };
+            let notices: HookNotice[] | undefined;
 
             // Run beforeResponse hooks
             if (this.hookManager) {
                 const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
 
                 if (hookResult.notices && hookResult.notices.length > 0) {
+                    notices = hookResult.notices;
                     hookResult.notices.forEach((notice) => {
                         const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
                         if (notice.kind === 'block' || notice.kind === 'warn') {
@@ -366,13 +367,9 @@ export class OpenAIService implements ILLMService {
                     responsePayload = {
                         ...responsePayload,
                         content: overrideContent,
-                        ...(hookResult.notices && { notices: hookResult.notices }),
                     };
                 } else {
                     responsePayload = { ...responsePayload, ...hookResult.payload };
-                    if (hookResult.notices) {
-                        responsePayload = { ...responsePayload, notices: hookResult.notices };
-                    }
                 }
             }
 
@@ -390,7 +387,11 @@ export class OpenAIService implements ILLMService {
             });
 
             // Always emit token usage
-            this.sessionEventBus.emit('llmservice:response', responsePayload);
+            const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
+                ...responsePayload,
+                ...(notices ? { notices } : {}),
+            };
+            this.sessionEventBus.emit('llmservice:response', eventPayload);
             return responsePayload.content;
         } catch (error) {
             if (
