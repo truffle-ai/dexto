@@ -889,29 +889,6 @@ export async function initializeApi(
         return redactedServers;
     }
 
-    app.get('/api/config.yaml', async (req, res, next) => {
-        try {
-            const sessionId = req.query.sessionId as string | undefined;
-            const config = activeAgent.getEffectiveConfig(sessionId);
-
-            // Export config as YAML, masking sensitive data
-            const maskedConfig = {
-                ...config,
-                llm: {
-                    ...config.llm,
-                    apiKey: config.llm.apiKey ? '[REDACTED]' : undefined,
-                },
-                mcpServers: redactMcpServersConfig(config.mcpServers),
-            };
-
-            const yamlStr = yamlStringify(maskedConfig);
-            res.set('Content-Type', 'application/x-yaml');
-            res.send(yamlStr);
-        } catch (error) {
-            return next(error);
-        }
-    });
-
     // Get default greeting (for UI consumption)
     app.get('/api/greeting', async (req, res, next) => {
         try {
@@ -1127,6 +1104,32 @@ export async function initializeApi(
             return next(error);
         }
     });
+
+    // Export effective agent configuration (with masked secrets)
+    app.get('/api/agent/config/export', async (req, res, next) => {
+        try {
+            const sessionId = req.query.sessionId as string | undefined;
+            const config = activeAgent.getEffectiveConfig(sessionId);
+
+            // Export config as YAML, masking sensitive data
+            const maskedConfig = {
+                ...config,
+                llm: {
+                    ...config.llm,
+                    apiKey: config.llm.apiKey ? '[REDACTED]' : undefined,
+                },
+                mcpServers: redactMcpServersConfig(config.mcpServers),
+            };
+
+            const yamlStr = yamlStringify(maskedConfig);
+            res.set('Content-Type', 'application/x-yaml');
+            res.send(yamlStr);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // ============= LLM MANAGEMENT =============
 
     // Get current LLM configuration
     app.get('/api/llm/current', async (req, res, next) => {

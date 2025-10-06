@@ -190,12 +190,10 @@ main() {
   # Reset endpoint
   run_test "POST /api/reset valid" POST "/api/reset" 200 '{}' || failures=$((failures+1))
 
-  # Config endpoint
-  run_test "GET /api/config.yaml" GET "/api/config.yaml" 200 || failures=$((failures+1))
-
   # Agent configuration endpoints
   run_test "GET /api/agent/path" GET "/api/agent/path" 200 || failures=$((failures+1))
   run_test "GET /api/agent/config" GET "/api/agent/config" 200 || failures=$((failures+1))
+  run_test "GET /api/agent/config/export" GET "/api/agent/config/export" 200 || failures=$((failures+1))
 
   # Agent validation tests
   run_test "POST /api/agent/validate missing yaml" POST "/api/agent/validate" 400 '{}' || failures=$((failures+1))
