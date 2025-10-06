@@ -33,6 +33,9 @@ export function McpServersSection({
   sectionErrors = [],
 }: McpServersSectionProps) {
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
+  // Local state for text fields that need special parsing (args, env, headers)
+  // Key is "serverName:fieldName", value is the raw string being edited
+  const [editingFields, setEditingFields] = useState<Record<string, string>>({});
 
   const servers = Object.entries(value || {});
 
@@ -100,15 +103,54 @@ export function McpServersSection({
     }
   };
 
-  const updateArgs = (serverName: string, argsString: string) => {
+  // Get the current value for a field (either from editing state or from config)
+  const getFieldValue = (serverName: string, fieldName: string, fallback: string): string => {
+    const key = `${serverName}:${fieldName}`;
+    return editingFields[key] ?? fallback;
+  };
+
+  // Update local editing state while typing
+  const setFieldValue = (serverName: string, fieldName: string, value: string) => {
+    const key = `${serverName}:${fieldName}`;
+    setEditingFields((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Clear editing state for a field
+  const clearFieldValue = (serverName: string, fieldName: string) => {
+    const key = `${serverName}:${fieldName}`;
+    setEditingFields((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // Parse and commit args on blur
+  const commitArgs = (serverName: string, argsString: string) => {
+    clearFieldValue(serverName, 'args');
+
+    if (!argsString.trim()) {
+      updateServer(serverName, { args: undefined });
+      return;
+    }
+
     const args = argsString
       .split(',')
       .map((arg) => arg.trim())
       .filter(Boolean);
-    updateServer(serverName, { args });
+
+    updateServer(serverName, { args: args.length > 0 ? args : undefined });
   };
 
-  const updateEnv = (serverName: string, envString: string) => {
+  // Parse and commit env on blur
+  const commitEnv = (serverName: string, envString: string) => {
+    clearFieldValue(serverName, 'env');
+
+    if (!envString.trim()) {
+      updateServer(serverName, { env: undefined });
+      return;
+    }
+
     const env: Record<string, string> = {};
     envString
       .split('\n')
@@ -120,10 +162,18 @@ export function McpServersSection({
           env[key.trim()] = valueParts.join('=').trim();
         }
       });
-    updateServer(serverName, { env });
+    updateServer(serverName, { env: Object.keys(env).length > 0 ? env : undefined });
   };
 
-  const updateHeaders = (serverName: string, headersString: string) => {
+  // Parse and commit headers on blur
+  const commitHeaders = (serverName: string, headersString: string) => {
+    clearFieldValue(serverName, 'headers');
+
+    if (!headersString.trim()) {
+      updateServer(serverName, { headers: undefined });
+      return;
+    }
+
     const headers: Record<string, string> = {};
     headersString
       .split('\n')
@@ -135,7 +185,7 @@ export function McpServersSection({
           headers[key.trim()] = valueParts.join('=').trim();
         }
       });
-    updateServer(serverName, { headers });
+    updateServer(serverName, { headers: Object.keys(headers).length > 0 ? headers : undefined });
   };
 
   return (
@@ -261,8 +311,13 @@ export function McpServersSection({
                           </LabelWithTooltip>
                           <Input
                             id={`server-args-${name}`}
-                            value={('args' in server && server.args ? server.args : []).join(', ')}
-                            onChange={(e) => updateArgs(name, e.target.value)}
+                            value={getFieldValue(
+                              name,
+                              'args',
+                              ('args' in server && server.args ? server.args : []).join(', ')
+                            )}
+                            onChange={(e) => setFieldValue(name, 'args', e.target.value)}
+                            onBlur={(e) => commitArgs(name, e.target.value)}
                             placeholder="--port, 3000, --host, localhost"
                             className="font-mono"
                           />
@@ -275,11 +330,16 @@ export function McpServersSection({
                           </LabelWithTooltip>
                           <textarea
                             id={`server-env-${name}`}
-                            value={Object.entries(('env' in server && server.env) || {})
-                              .map(([k, v]) => `${k}=${v}`)
-                              .join('\n')}
-                            onChange={(e) => updateEnv(name, e.target.value)}
-                            placeholder="API_KEY=$MY_API_KEY&#10;PORT=3000"
+                            value={getFieldValue(
+                              name,
+                              'env',
+                              Object.entries(('env' in server && server.env) || {})
+                                .map(([k, v]) => `${k}=${v}`)
+                                .join('\n')
+                            )}
+                            onChange={(e) => setFieldValue(name, 'env', e.target.value)}
+                            onBlur={(e) => commitEnv(name, e.target.value)}
+                            placeholder={`API_KEY=$MY_API_KEY\nPORT=3000`}
                             rows={4}
                             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                           />
@@ -314,11 +374,16 @@ export function McpServersSection({
                           </LabelWithTooltip>
                           <textarea
                             id={`server-headers-${name}`}
-                            value={Object.entries(('headers' in server && server.headers) || {})
-                              .map(([k, v]) => `${k}=${v}`)
-                              .join('\n')}
-                            onChange={(e) => updateHeaders(name, e.target.value)}
-                            placeholder="Authorization=Bearer token&#10;Content-Type=application/json"
+                            value={getFieldValue(
+                              name,
+                              'headers',
+                              Object.entries(('headers' in server && server.headers) || {})
+                                .map(([k, v]) => `${k}=${v}`)
+                                .join('\n')
+                            )}
+                            onChange={(e) => setFieldValue(name, 'headers', e.target.value)}
+                            onBlur={(e) => commitHeaders(name, e.target.value)}
+                            placeholder={`Authorization=Bearer token\nContent-Type=application/json`}
                             rows={4}
                             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                           />

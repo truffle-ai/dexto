@@ -274,14 +274,76 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     }
   };
 
+  // Generic deep cleanup to remove null/undefined/empty values
+  const cleanupConfig = (config: AgentConfig): AgentConfig => {
+    const isEmptyValue = (value: unknown): boolean => {
+      // null and undefined are empty
+      if (value === null || value === undefined) return true;
+      // Empty string is empty
+      if (value === '' || value === '') return true;
+      // Empty arrays are empty
+      if (Array.isArray(value) && value.length === 0) return true;
+      // Empty objects are empty (but not Date, etc)
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        Object.prototype.toString.call(value) === '[object Object]' &&
+        Object.keys(value).length === 0
+      ) {
+        return true;
+      }
+      // Everything else (including false, 0, etc) is not empty
+      return false;
+    };
+
+    const deepCleanup = (obj: any): any => {
+      if (Array.isArray(obj)) {
+        // For arrays, recursively clean each element and filter out empty ones
+        return obj.map(deepCleanup).filter((item) => !isEmptyValue(item));
+      }
+
+      if (typeof obj === 'object' && obj !== null) {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          // Skip empty values
+          if (isEmptyValue(value)) {
+            continue;
+          }
+
+          // Recursively clean objects and arrays
+          if (typeof value === 'object' && value !== null) {
+            const cleanedValue = deepCleanup(value);
+            // Only add if the cleaned value is not empty
+            if (!isEmptyValue(cleanedValue)) {
+              cleaned[key] = cleanedValue;
+            }
+          } else {
+            // Keep non-object, non-empty values
+            cleaned[key] = value;
+          }
+        }
+        return cleaned;
+      }
+
+      // Return primitives as-is
+      return obj;
+    };
+
+    return deepCleanup(config) as AgentConfig;
+  };
+
   // Serialize config back to YAML while preserving comments
   const serializeConfigToYaml = (config: AgentConfig, document: yaml.Document): string => {
     console.log('[serializeConfigToYaml] Starting serialization');
     console.log('[serializeConfigToYaml] Document:', document);
     console.log('[serializeConfigToYaml] Config:', config);
 
+    // Clean up config to remove null/undefined optional fields
+    const cleanedConfig = cleanupConfig(config);
+    console.log('[serializeConfigToYaml] Cleaned config:', cleanedConfig);
+
     // Update document with new config and serialize with comments preserved
-    const updatedDoc = updateYamlDocumentFromConfig(document, config);
+    const updatedDoc = updateYamlDocumentFromConfig(document, cleanedConfig);
     const result = updatedDoc.toString();
     console.log('[serializeConfigToYaml] Serialized result length:', result.length);
     return result;
