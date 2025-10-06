@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { Collapsible } from '../ui/collapsible';
 import type { AgentConfig } from '@dexto/core';
 
@@ -42,7 +42,9 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Cache</h4>
           <div>
-            <Label htmlFor="cache-type">Cache Type</Label>
+            <LabelWithTooltip htmlFor="cache-type" tooltip="Storage backend for caching data (in-memory or Redis)">
+              Cache Type
+            </LabelWithTooltip>
             <select
               id="cache-type"
               value={value.cache.type}
@@ -59,7 +61,9 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
 
           {showCacheUrl && 'url' in value.cache && (
             <div>
-              <Label htmlFor="cache-url">Redis URL</Label>
+              <LabelWithTooltip htmlFor="cache-url" tooltip="Redis connection URL (e.g., redis://localhost:6379)">
+                Redis URL
+              </LabelWithTooltip>
               <Input
                 id="cache-url"
                 value={value.cache.url || ''}
@@ -77,7 +81,9 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Database</h4>
           <div>
-            <Label htmlFor="database-type">Database Type</Label>
+            <LabelWithTooltip htmlFor="database-type" tooltip="Storage backend for persistent data (in-memory, SQLite, or PostgreSQL)">
+              Database Type
+            </LabelWithTooltip>
             <select
               id="database-type"
               value={value.database.type}
@@ -94,9 +100,12 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
 
           {showDatabaseUrl && (
             <div>
-              <Label htmlFor="database-url">
+              <LabelWithTooltip
+                htmlFor="database-url"
+                tooltip={value.database.type === 'sqlite' ? 'File path for SQLite database' : 'PostgreSQL connection string'}
+              >
                 {value.database.type === 'sqlite' ? 'SQLite Path' : 'PostgreSQL URL'}
-              </Label>
+              </LabelWithTooltip>
               <Input
                 id="database-url"
                 value={('url' in value.database && value.database.url) || ('path' in value.database && value.database.path) || ''}

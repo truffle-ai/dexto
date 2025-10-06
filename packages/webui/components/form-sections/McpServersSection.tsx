@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { Button } from '../ui/button';
 import { Collapsible } from '../ui/collapsible';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -110,6 +110,21 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
     updateServer(serverName, { env });
   };
 
+  const updateHeaders = (serverName: string, headersString: string) => {
+    const headers: Record<string, string> = {};
+    headersString
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const [key, ...valueParts] = line.split('=');
+        if (key && valueParts.length > 0) {
+          headers[key.trim()] = valueParts.join('=').trim();
+        }
+      });
+    updateServer(serverName, { headers });
+  };
+
   return (
     <Collapsible title="MCP Servers" defaultOpen={false}>
       <div className="space-y-4">
@@ -153,7 +168,9 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
                   <div className="px-3 py-3 space-y-3">
                     {/* Server Name */}
                     <div>
-                      <Label htmlFor={`server-name-${name}`}>Server Name</Label>
+                      <LabelWithTooltip htmlFor={`server-name-${name}`} tooltip="Unique identifier for this MCP server">
+                        Server Name
+                      </LabelWithTooltip>
                       <Input
                         id={`server-name-${name}`}
                         value={name}
@@ -162,22 +179,130 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
                       />
                     </div>
 
-                    {/* Command - only for stdio type */}
-                    {'command' in server && (
-                      <div>
-                        <Label htmlFor={`server-command-${name}`}>Command *</Label>
-                        <Input
-                          id={`server-command-${name}`}
-                          value={server.command}
-                          onChange={(e) => updateServer(name, { command: e.target.value })}
-                          placeholder="e.g., npx, node, python"
-                        />
-                      </div>
+                    {/* Server Type */}
+                    <div>
+                      <LabelWithTooltip htmlFor={`server-type-${name}`} tooltip="MCP server connection type">
+                        Connection Type *
+                      </LabelWithTooltip>
+                      <select
+                        id={`server-type-${name}`}
+                        value={server.type || 'stdio'}
+                        onChange={(e) => {
+                          const type = e.target.value as 'stdio' | 'sse' | 'http';
+                          // Reset server config based on type
+                          if (type === 'stdio') {
+                            updateServer(name, {
+                              type: 'stdio',
+                              command: '',
+                              args: undefined,
+                              env: undefined,
+                            });
+                          } else {
+                            updateServer(name, {
+                              type,
+                              url: '',
+                              headers: undefined,
+                            });
+                          }
+                        }}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="stdio">Standard I/O (stdio)</option>
+                        <option value="sse">Server-Sent Events (SSE)</option>
+                        <option value="http">HTTP</option>
+                      </select>
+                    </div>
+
+                    {/* stdio-specific fields */}
+                    {server.type === 'stdio' && (
+                      <>
+                        {/* Command */}
+                        <div>
+                          <LabelWithTooltip htmlFor={`server-command-${name}`} tooltip="The command to execute (e.g., npx, node, python)">
+                            Command *
+                          </LabelWithTooltip>
+                          <Input
+                            id={`server-command-${name}`}
+                            value={'command' in server ? server.command : ''}
+                            onChange={(e) => updateServer(name, { command: e.target.value })}
+                            placeholder="e.g., npx, node, python"
+                          />
+                        </div>
+
+                        {/* Arguments */}
+                        <div>
+                          <LabelWithTooltip htmlFor={`server-args-${name}`} tooltip="Command arguments, one per line">
+                            Arguments
+                          </LabelWithTooltip>
+                          <textarea
+                            id={`server-args-${name}`}
+                            value={('args' in server && server.args ? server.args : []).join('\n')}
+                            onChange={(e) => updateArgs(name, e.target.value)}
+                            placeholder="--port 3000&#10;--host localhost"
+                            rows={4}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                          />
+                        </div>
+
+                        {/* Environment Variables */}
+                        <div>
+                          <LabelWithTooltip htmlFor={`server-env-${name}`} tooltip="Environment variables in KEY=value format, one per line">
+                            Environment Variables
+                          </LabelWithTooltip>
+                          <textarea
+                            id={`server-env-${name}`}
+                            value={Object.entries(('env' in server && server.env) || {})
+                              .map(([k, v]) => `${k}=${v}`)
+                              .join('\n')}
+                            onChange={(e) => updateEnv(name, e.target.value)}
+                            placeholder="API_KEY=$MY_API_KEY&#10;PORT=3000"
+                            rows={4}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* sse/http-specific fields */}
+                    {(server.type === 'sse' || server.type === 'http') && (
+                      <>
+                        {/* URL */}
+                        <div>
+                          <LabelWithTooltip htmlFor={`server-url-${name}`} tooltip="The URL endpoint for the MCP server">
+                            URL *
+                          </LabelWithTooltip>
+                          <Input
+                            id={`server-url-${name}`}
+                            value={'url' in server ? server.url : ''}
+                            onChange={(e) => updateServer(name, { url: e.target.value })}
+                            placeholder="https://example.com/mcp"
+                          />
+                        </div>
+
+                        {/* Headers */}
+                        <div>
+                          <LabelWithTooltip htmlFor={`server-headers-${name}`} tooltip="HTTP headers in KEY=value format, one per line">
+                            Headers
+                          </LabelWithTooltip>
+                          <textarea
+                            id={`server-headers-${name}`}
+                            value={Object.entries(('headers' in server && server.headers) || {})
+                              .map(([k, v]) => `${k}=${v}`)
+                              .join('\n')}
+                            onChange={(e) => updateHeaders(name, e.target.value)}
+                            placeholder="Authorization=Bearer token&#10;Content-Type=application/json"
+                            rows={4}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                          />
+                        </div>
+                      </>
                     )}
 
                     {/* Connection Mode */}
                     <div>
-                      <Label htmlFor={`server-mode-${name}`}>Connection Mode</Label>
+                      <LabelWithTooltip htmlFor={`server-mode-${name}`} tooltip="Strict mode fails on any error; lenient mode continues despite errors">
+                        Connection Mode
+                      </LabelWithTooltip>
                       <select
                         id={`server-mode-${name}`}
                         value={server.connectionMode || 'strict'}
@@ -190,40 +315,6 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
                         <option value="lenient">Lenient</option>
                       </select>
                     </div>
-
-                    {/* Arguments - only for stdio type */}
-                    {'args' in server && (
-                      <div>
-                        <Label htmlFor={`server-args-${name}`}>Arguments (one per line)</Label>
-                        <textarea
-                          id={`server-args-${name}`}
-                          value={(server.args || []).join('\n')}
-                          onChange={(e) => updateArgs(name, e.target.value)}
-                          placeholder="--port 3000\n--host localhost"
-                          rows={4}
-                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
-                        />
-                      </div>
-                    )}
-
-                    {/* Environment Variables - only for stdio type */}
-                    {'env' in server && (
-                      <div>
-                        <Label htmlFor={`server-env-${name}`}>
-                          Environment Variables (KEY=value, one per line)
-                        </Label>
-                        <textarea
-                          id={`server-env-${name}`}
-                          value={Object.entries(server.env || {})
-                            .map(([k, v]) => `${k}=${v}`)
-                            .join('\n')}
-                          onChange={(e) => updateEnv(name, e.target.value)}
-                          placeholder="API_KEY=$MY_API_KEY\nPORT=3000"
-                          rows={4}
-                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
               </div>

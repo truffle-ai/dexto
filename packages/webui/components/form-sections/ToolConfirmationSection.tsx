@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { Collapsible } from '../ui/collapsible';
 import type { AgentConfig } from '@dexto/core';
 
@@ -38,7 +38,9 @@ export function ToolConfirmationSection({
       <div className="space-y-4">
         {/* Confirmation Mode */}
         <div>
-          <Label htmlFor="confirmation-mode">Confirmation Mode</Label>
+          <LabelWithTooltip htmlFor="confirmation-mode" tooltip="How the agent handles tool execution requests">
+            Confirmation Mode
+          </LabelWithTooltip>
           <select
             id="confirmation-mode"
             value={value.mode || 'auto-approve'}
@@ -67,7 +69,9 @@ export function ToolConfirmationSection({
         {/* Timeout */}
         {value.mode === 'event-based' && (
           <div>
-            <Label htmlFor="confirmation-timeout">Timeout (seconds)</Label>
+            <LabelWithTooltip htmlFor="confirmation-timeout" tooltip="How long to wait for approval before timing out">
+              Timeout (seconds)
+            </LabelWithTooltip>
             <Input
               id="confirmation-timeout"
               type="number"
@@ -78,16 +82,15 @@ export function ToolConfirmationSection({
               min="1"
               placeholder="e.g., 60"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              How long to wait for approval before timing out
-            </p>
             {errors.timeout && <p className="text-xs text-destructive mt-1">{errors.timeout}</p>}
           </div>
         )}
 
         {/* Allowed Tools Storage */}
         <div>
-          <Label htmlFor="allowed-tools-storage">Allowed Tools Storage</Label>
+          <LabelWithTooltip htmlFor="allowed-tools-storage" tooltip="Where to store the list of pre-approved tools (memory or persistent storage)">
+            Allowed Tools Storage
+          </LabelWithTooltip>
           <select
             id="allowed-tools-storage"
             value={value.allowedToolsStorage || 'memory'}
@@ -100,9 +103,6 @@ export function ToolConfirmationSection({
               </option>
             ))}
           </select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Where to store the list of pre-approved tools
-          </p>
         </div>
       </div>
     </Collapsible>
