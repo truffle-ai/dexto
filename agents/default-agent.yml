@@ -13,12 +13,6 @@ mcpServers:
     args:
       - -y
       - "@playwright/mcp@latest"
-  # hf:
-  #   type: stdio
-  #   command: npx
-  #   args:
-  #     - -y
-  #     - "@llmindset/mcp-hfspace"
 
 # System prompt configuration - defines the agent's behavior and instructions
 systemPrompt:
@@ -40,38 +34,43 @@ systemPrompt:
 # Optional greeting shown at chat start (UI can consume this)
 greeting: "Hi! I’m Dexto — how can I help today?"
 
-# # describes the llm configuration
+# LLM configuration - describes the language model to use
 llm:
   provider: openai
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
 # Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
-# Memory cache with file-based database (good for development with persistence)
+# - cache: Fast in-memory storage for temporary data
+# - database: Persistent storage for chat history and sessions
+# Options: in-memory (ephemeral), sqlite (file-based), postgres (production), redis (distributed)
 storage:
   cache:
     type: in-memory
   database:
     type: sqlite
-    # path: ./data/dexto.db
+    # path: ./data/dexto.db  # Optional: customize database location
 
 toolConfirmation:
   mode: event-based
-  timeout: 120000
-  allowedToolsStorage: memory
+  timeout: 120000          # Time to wait for approval (ms)
+  allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'blobStorage' section below
 internalResources:
   enabled: true
   resources:
-    # - type: filesystem
-    #   paths: ["."]
-    #   maxFiles: 1000
-    #   maxDepth: 10
-    #   includeHidden: false
-    #   includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
-    - type: blob  # Enables blob resource provider (storage settings in blobStorage section)
+    # Filesystem resource - provides read access to local files for the agent
+    - type: filesystem
+      paths: ["."]                 # Directories to expose
+      maxFiles: 50               # Maximum number of files to index
+      maxDepth: 3                # Maximum directory depth to traverse
+      includeHidden: false         # Include hidden files/directories
+      includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
+
+    # Blob resource - enables large file upload/storage (settings in blobStorage section)
+    - type: blob
 
 # Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
 starterPrompts:
@@ -112,17 +111,11 @@ blobStorage:
   maxTotalSize: 1073741824  # 1GB total storage
   cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
   # storePath: ~/.dexto/blobs (defaults to context-aware path for local backend)
-  
-  # Future S3 configuration example:
-  # type: s3
-  # bucket: my-dexto-blobs
-  # region: us-west-2
-  # accessKeyId: ${AWS_ACCESS_KEY_ID}     # Optional, uses AWS SDK credential chain
-  # secretAccessKey: ${AWS_SECRET_ACCESS_KEY}
 
-## To use Google Gemini, replace the LLM section with Google Gemini configuration below
-## Similar for anthropic/groq/etc.
+# Alternative LLM providers (replace the above llm section with one of these):
+#
+# Google Gemini:
 # llm:
 #   provider: google
-#   model: gemini-2.0-flash
+#   model: gemini-2.5-pro
 #   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
