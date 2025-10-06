@@ -14,6 +14,7 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -37,7 +38,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
-import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
+import { parseDocument } from 'yaml';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -1089,26 +1090,34 @@ export class DextoAgent {
 
         // Read raw YAML from disk (without env var expansion)
         const rawYaml = await fs.readFile(path, 'utf-8');
-        const rawConfig = yamlParse(rawYaml);
 
-        // Merge updates with raw config (preserves $VAR placeholders)
-        const updatedRawConfig = {
-            ...rawConfig,
-            ...updates,
-        };
+        // Use YAML Document API to preserve comments/anchors/formatting
+        const doc = parseDocument(rawYaml);
+        const rawConfig = doc.toJSON() as Record<string, unknown>;
 
-        // Validate the merged config (this expands env vars for validation only)
-        // We validate to ensure correctness but don't use the validated output for writing
-        const validationResult = AgentConfigSchema.safeParse(updatedRawConfig);
-        if (!validationResult.success) {
-            throw new Error(`Configuration validation failed: ${validationResult.error.message}`);
+        // Shallow merge top-level updates
+        const updatedRawConfig = { ...rawConfig, ...updates };
+
+        // Validate merged config using Result helpers
+        const parsed = AgentConfigSchema.safeParse(updatedRawConfig);
+        if (!parsed.success) {
+            // Convert Zod errors to DextoValidationError using Result helpers
+            const result = fail(zodToIssues(parsed.error, 'error'));
+            throw new DextoValidationError(result.issues);
         }
 
-        // Convert raw config to YAML (preserves $VAR placeholders)
-        const yamlContent = yamlStringify(updatedRawConfig);
+        // Apply updates to the YAML document (preserves formatting/comments)
+        for (const [key, value] of Object.entries(updates)) {
+            doc.set(key, value);
+        }
 
-        // Write to file
-        await fs.writeFile(path, yamlContent, 'utf-8');
+        // Serialize the Document back to YAML
+        const yamlContent = String(doc);
+
+        // Atomic write: write to temp file then rename
+        const tmpPath = `${path}.tmp`;
+        await fs.writeFile(tmpPath, yamlContent, 'utf-8');
+        await fs.rename(tmpPath, path);
 
         // Reload config with env var expansion for runtime use (this applies hot reload)
         const reloadResult = await this.reloadConfig();
