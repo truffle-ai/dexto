@@ -343,7 +343,9 @@ export async function initializeApi(
         for (const [key, value] of Object.entries(input)) {
             if (key === '_context') {
                 if (typeof value === 'string' && value.trim().length > 0) {
-                    context = value.trim();
+                    const trimmed = value.trim();
+                    context = trimmed;
+                    args[key] = trimmed;
                 }
                 continue;
             }

@@ -103,8 +103,8 @@ export class ToolManager {
         });
 
         this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
-            logger.debug(`🔄 MCP server removed, updating tool cache: ${payload.serverName}`);
-            this.removeToolsFromServer(payload.serverName);
+            logger.debug(`🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`);
+            this.invalidateCache();
         });
 
         // For now, we don't have specific tool change notifications from MCP servers

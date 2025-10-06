@@ -79,6 +79,17 @@ export class CustomPromptProvider implements PromptProvider {
             throw PromptError.notFound(name);
         }
 
+        // Validate required arguments
+        if (record.arguments && record.arguments.length > 0) {
+            const requiredArgs = record.arguments.filter((arg) => arg.required);
+            const missingArgs = requiredArgs
+                .filter((arg) => !args || !(arg.name in args))
+                .map((arg) => arg.name);
+            if (missingArgs.length > 0) {
+                throw PromptError.missingRequiredArguments(missingArgs);
+            }
+        }
+
         const messages: GetPromptResult['messages'] = [];
         const textContent = this.applyArguments(record.content, args);
         messages.push({
