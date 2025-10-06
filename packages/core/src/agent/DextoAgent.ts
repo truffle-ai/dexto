@@ -197,6 +197,11 @@ export class DextoAgent {
             this._isStopped = false; // Reset stopped flag to allow restart
             logger.info('DextoAgent started successfully.');
 
+            // Subscribe all registered event subscribers to the new event bus
+            for (const subscriber of this.eventSubscribers) {
+                subscriber.subscribe(this.agentEventBus);
+            }
+
             // Show log location for SDK users
             const logPath = getDextoPath('logs', 'dexto.log');
             console.log(`📋 Logs available at: ${logPath}`);
