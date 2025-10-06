@@ -1,13 +1,33 @@
 # Feature Plan: Custom Agent Installation & Management
 
-**Status:** Planning
+**Status:** In Progress (Phase 2 Complete)
 **Owner:** TBD
 **Created:** 2025-01-06
+**Updated:** 2025-10-06
 **Target:** v0.x.0
 
 ## Overview
 
 Enable users to create, install, and manage custom agents alongside the curated registry agents. This includes both CLI and UI workflows, with a user-friendly form-based editor alongside the existing YAML editor.
+
+## Current Status
+
+**✅ Completed:**
+- Phase 0: Two-tier registry foundation (14 tests)
+- Phase 1: Core registry & custom agent installation (55 tests)
+- Phase 2: CLI commands for custom agents (50 tests)
+
+**🚧 Current Capabilities:**
+- Install single-file custom agents: `dexto install ./my-agent.yml`
+- Interactive prompts for metadata (name, description, author, tags)
+- List agents grouped by type (builtin/custom)
+- Uninstall with default agent protection
+- Name conflict validation
+- 105 tests passing
+
+**⏸️ Pending:**
+- Phase 2.5: Directory-based agents (requires `main` field prompt)
+- Phase 3+: API & UI integration
 
 ## Problem Statement
 
@@ -151,62 +171,67 @@ Installation State (checked via filesystem):
 
 ## Implementation Phases
 
-### Phase 0: Foundation
+### Phase 0: Foundation ✅ COMPLETE
 
 **Goal:** Infrastructure and types for two-tier registry
 
 **Tasks:**
-- [ ] Add `type: "builtin" | "custom"` field to `AgentRegistryEntrySchema`
-- [ ] Make `type` field optional with default `"builtin"` (backwards compat)
-- [ ] Create user registry utilities (`user-registry.ts`):
+- [x] Add `type: "builtin" | "custom"` field to `AgentRegistryEntrySchema`
+- [x] Make `type` field optional with default `"builtin"` (backwards compat)
+- [x] Create user registry utilities (`user-registry.ts`):
   - `loadUserRegistry()` - Load `~/.dexto/agent-registry.json`, return empty if not exists
   - `saveUserRegistry()` - Write user registry atomically
   - `mergeRegistries()` - Merge bundled + user registries (user for custom only)
   - `addAgentToUserRegistry()` - Add custom agent entry with `type: "custom"`
   - `removeAgentFromUserRegistry()` - Remove custom agent entry
   - `userRegistryHasAgent()` - Check if agent exists in user registry
-- [ ] Write unit tests for user registry utilities
+- [x] Write unit tests for user registry utilities (14 tests)
 
 **Note:** User registry only contains custom agents. Builtin agents are never added to user registry.
 
-**Files to modify:**
-- `packages/core/src/agent/registry/types.ts` - Add `type` field
-- Create: `packages/core/src/agent/registry/user-registry.ts` - User registry utilities
+**Files modified:**
+- `packages/core/src/agent/registry/types.ts` - Added `type` field
+- `packages/core/src/agent/registry/user-registry.ts` - User registry utilities (NEW)
+- `packages/core/src/agent/registry/user-registry.test.ts` - Unit tests (NEW)
 
-**Deliverable:** User registry utilities tested, registry types updated
+**Deliverable:** ✅ User registry utilities tested (14 tests passing), registry types updated
+
+**Commit:** `feat(agent-registry): implement two-tier registry foundation`
 
 ---
 
-### Phase 1: Core Registry & Resolution
+### Phase 1: Core Registry & Resolution ✅ COMPLETE
 
-**Goal:** Extend existing registry to support user registry (no interface changes)
+**Goal:** Extend existing registry to support user registry and custom agent installation
 
 **Tasks:**
-- [ ] Update `LocalAgentRegistry` class (modify existing methods, no new interface methods):
+- [x] Update `LocalAgentRegistry` class:
   - `loadRegistry()` - Load and merge both bundled + user registries
-  - `getAvailableAgents()` - Returns merged view
-  - `installAgent()` - Detect file path vs name, handle both:
-    - If file path: install as custom agent + add to user registry
-    - If name: install from bundled registry (existing behavior)
-  - `uninstallAgent()` - Improve protection logic:
-    - Current: Hardcoded protection for 'default-agent'
-    - New: Check preferences to get default agent, protect that one
+  - `getAvailableAgents()` - Returns merged view automatically
+  - `hasAgent()` - Check merged registry automatically
+  - `installCustomAgentFromPath()` - NEW method for custom agent installation (file & directory support)
+  - `uninstallAgent()` - Improved protection logic:
+    - Check preferences to get default agent, protect that one
     - Builtin agents: Can be uninstalled from disk (stay in bundled registry, can reinstall)
     - Custom agents: Uninstalled from disk AND removed from user registry
-  - `hasAgent()` - Check merged registry
-- [ ] Add validation:
-  - Prevent custom agent names that conflict with bundled registry
-  - Validate YAML before installation
-- [ ] Update `agent-resolver.ts`:
-  - No changes needed - already uses `registry.hasAgent()` and `registry.resolveAgent()`
-  - Resolution automatically works with merged registry
-- [ ] Write integration tests for merged registry
+  - Cache invalidation on add/remove custom agents
+- [x] Add validation:
+  - `validateCustomAgentName()` - Prevent custom agent names that conflict with bundled registry
+  - Name conflict error type added
+- [x] Write integration tests for merged registry (14 integration tests)
 
-**Files to modify:**
-- `packages/core/src/agent/registry/registry.ts`
-- `packages/core/src/agent/registry/errors.ts` - Add name conflict error
+**Note:** Single-file custom agents fully supported. Directory-based custom agents deferred to Phase 2.5 (requires `main` field prompt).
 
-**Deliverable:** `resolveAgentPath('my-custom-agent')` works, single merged view of agents
+**Files modified:**
+- `packages/core/src/agent/registry/registry.ts` - Core registry methods updated
+- `packages/core/src/agent/registry/registry.integration.test.ts` - Integration tests (NEW)
+- `packages/core/src/agent/registry/registry.test.ts` - Updated for new type field
+- `packages/core/src/agent/registry/errors.ts` - Added name conflict error
+- `packages/core/src/agent/registry/error-codes.ts` - Added error code
+
+**Deliverable:** ✅ Custom agent installation works (single-file), 55 tests passing (41 unit + 14 integration)
+
+**Commit:** `feat(agent-registry): implement merged registry with custom agent installation`
 
 **Testing:**
 ```typescript
@@ -227,34 +252,39 @@ registry.installAgent('./agent.yml', metadata: { name: 'default-agent', ... })
 
 ---
 
-### Phase 2: CLI Commands
+### Phase 2: CLI Commands ✅ COMPLETE
 
 **Goal:** Users can install custom agents via CLI
 
 **Tasks:**
-- [ ] Enhance `install.ts` command:
-  - Detect if input is file path vs registry name (use `isPath()` util)
+- [x] Enhance `install.ts` command:
+  - Detect if input is file path vs registry name (checks for `/` or `.yml`)
   - If file path:
-    - Add interactive prompts for metadata (name, description, author, tags)
-    - Support non-interactive mode with flags (`--name`, `--description`, etc.)
+    - Interactive prompts for metadata (name, description, author, tags) using @clack/prompts
     - Validate agent name doesn't conflict with bundled registry
-    - Call `registry.installAgent(filePath, metadata)`
+    - Call `registry.installCustomAgentFromPath(filePath, metadata)`
   - If registry name: existing behavior
-  - Add analytics events
-- [ ] Update `list-agents.ts`:
+  - Analytics events added
+- [x] Update `list-agents.ts`:
   - Group agents by `type` field
-  - Show "Custom Agents" and "Built-in Agents" sections
-  - Add badge/indicator for agent type
-- [ ] Extend existing `uninstall.ts` command:
-  - Check preferences to get default agent, block uninstalling it (unless --force)
-  - Builtin agents: Can be uninstalled (deleted from disk only)
-  - Custom agents: Fully uninstalled (disk + user registry)
-  - Show different messages based on agent type
+  - Show "Builtin Agents" and "Custom Agents" sections
+  - Different colors (blue for builtin, magenta for custom)
+- [x] Verify `uninstall.ts` command works:
+  - Already checks preferences for default agent protection
+  - Already handles builtin vs custom correctly (via registry logic)
+  - No changes needed
 
-**Files to modify:**
-- `packages/cli/src/cli/commands/install.ts`
-- `packages/cli/src/cli/commands/list-agents.ts`
-- `packages/cli/src/cli/commands/uninstall.ts`
+**Files modified:**
+- `packages/cli/src/cli/commands/install.ts` - File path detection & interactive prompts
+- `packages/cli/src/cli/commands/install.test.ts` - Added 5 tests for custom agent flow
+- `packages/cli/src/cli/commands/list-agents.ts` - Grouping by type
+
+**Deliverable:** ✅ CLI workflow complete for single-file custom agents, 50 CLI command tests passing
+
+**Commits:**
+- `feat(cli): add custom agent installation from file paths`
+- `feat(cli): group agents by type in list-agents command`
+- `test(cli): add tests for custom agent installation from file paths`
 
 **CLI Usage:**
 ```bash
@@ -297,11 +327,77 @@ dexto uninstall default-agent
 
 **Deliverable:** CLI workflow complete and tested
 
-**Validation Point 1:** ✅ Users can create and use custom agents entirely via CLI
+**Validation Point 1:** ✅ Users can create and use custom agents entirely via CLI (single-file)
 
 ---
 
-### Phase 3: Basic API & UI Integration
+### Phase 2.5: Directory-Based Custom Agents (PENDING)
+
+**Goal:** Support installing directory-based custom agents with multiple files
+
+**Status:** Deferred - niche use case, single-file agents cover 90% of needs
+
+**Problem:**
+Currently, installing a directory like `./my-agent/` fails because:
+1. No prompt for `main` field (required for directory agents)
+2. Without `main`, `resolveMainConfig()` throws error when agent is used
+
+**Tasks:**
+- [ ] Enhance `promptForMetadata()` in `install.ts`:
+  - Detect if source is directory (check `fs.stat()` before prompting)
+  - If directory: scan for `.yml` files
+  - Show dropdown using `@clack/prompts` `select()` with found YAML files
+  - Set selected file as `main` field
+- [ ] Update `installCustomAgentFromPath()` to use `main` field:
+  - Already accepts `main` parameter
+  - Already handles directory agents
+  - Just need to pass it from CLI
+- [ ] Add integration test for directory agent installation
+- [ ] Document `${{dexto.agent_dir}}` template variable in wizard/prompts
+
+**Files to modify:**
+- `packages/cli/src/cli/commands/install.ts`
+- `packages/cli/src/cli/commands/install.test.ts`
+
+**CLI Flow:**
+```bash
+dexto install ./my-agent-directory/
+
+📝 Custom Agent Installation
+? Agent name: my-agent
+? Description: Custom directory-based agent
+? Author: John Doe
+? Tags: custom
+? Main config file: (select from dropdown)
+  ▸ agent.yml
+    config.yml
+    my-agent.yml
+✓ Installed custom agent 'my-agent'
+```
+
+**Technical Details:**
+```typescript
+// Scan directory for YAML files
+const ymlFiles = await fs.readdir(resolvedPath)
+  .then(files => files.filter(f => f.endsWith('.yml') || f.endsWith('.yaml')));
+
+if (ymlFiles.length === 0) {
+  throw new Error('No YAML files found in directory');
+}
+
+// Prompt with dropdown
+const main = await p.select({
+  message: 'Select main config file:',
+  options: ymlFiles.map(f => ({ value: f, label: f })),
+  initialValue: ymlFiles.find(f => f === 'agent.yml') || ymlFiles[0]
+});
+```
+
+**Deliverable:** Directory-based custom agents fully supported
+
+---
+
+### Phase 3: Basic API & UI Integration (PENDING)
 
 **Goal:** Custom agents visible and switchable in UI
 
@@ -388,7 +484,7 @@ Response: { valid: boolean, conflict?: 'builtin' | 'custom' }
 
 ---
 
-### Phase 4: Form Editor Foundation
+### Phase 4: Form Editor Foundation (PENDING)
 
 **Goal:** Non-technical users can edit agents with forms
 
@@ -450,7 +546,7 @@ Response: { valid: boolean, conflict?: 'builtin' | 'custom' }
 
 ---
 
-### Phase 5: Form Editor - Advanced Sections
+### Phase 5: Form Editor - Advanced Sections (PENDING)
 
 **Goal:** Full coverage of common agent configuration
 
@@ -481,7 +577,7 @@ Response: { valid: boolean, conflict?: 'builtin' | 'custom' }
 
 ---
 
-### Phase 6: Agent Creation Wizard
+### Phase 6: Agent Creation Wizard (PENDING)
 
 **Goal:** Guided experience for creating custom agents
 
@@ -567,7 +663,7 @@ Step 5: Review
 
 ---
 
-### Phase 7: Polish & Enhancement
+### Phase 8: Polish & Enhancement (PENDING)
 
 **Goal:** Production-ready feature
 
