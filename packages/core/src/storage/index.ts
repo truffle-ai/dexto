@@ -44,6 +44,9 @@ export type {
 // Backend implementations - always available
 export { MemoryBackend } from './backend/memory-backend.js';
 
+// Schema constants for UI consumption
+export { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from './schemas.js';
+
 // Note: Backend configuration types (RedisBackendConfig, PostgresBackendConfig, etc.)
 // are exported from './config/schemas.js' to maintain single source of truth
 // Note: Actual backend classes are lazy-loaded by StorageManager to handle optional dependencies
