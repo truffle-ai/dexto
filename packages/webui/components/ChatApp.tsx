@@ -12,7 +12,7 @@ import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileCode } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -580,7 +580,7 @@ export default function ChatApp() {
                     )}
                     aria-label="Customize agent"
                   >
-                    <FileCode className="h-3.5 w-3.5" />
+                    <FileEditIcon className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Customize Agent (⌘E)</TooltipContent>

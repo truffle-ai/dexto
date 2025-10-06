@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
-import { X, Save, RefreshCw, FileCode, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Save, RefreshCw, FileEditIcon, AlertTriangle, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AgentConfigEditor from './AgentConfigEditor';
 import ConfigValidationStatus from './ConfigValidationStatus';
@@ -273,9 +273,21 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
-          <FileCode className="h-5 w-5 text-muted-foreground" />
+          <FileEditIcon className="h-5 w-5 text-muted-foreground" />
           <div>
-            <h2 className="text-lg font-semibold">Customize Agent</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Customize Agent</h2>
+              <a
+                href="https://docs.dexto.ai/docs/guides/configuring-dexto/overview"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                title="View configuration documentation"
+              >
+                View docs
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
             {relativePath && (
               <p className="text-xs text-muted-foreground">{relativePath}</p>
             )}
