@@ -17,10 +17,7 @@ export interface FileSystemResourceConfig {
 
 export interface BlobResourceConfig {
     type: 'blob';
-    maxBlobSize?: number;
-    maxTotalSize?: number;
-    cleanupAfterDays?: number;
-    storePath?: string | undefined;
+    // NOTE: Storage configuration (maxBlobSize, maxTotalSize, etc.) is in blobStorage section
 }
 
 export type InternalResourceConfig = FileSystemResourceConfig | BlobResourceConfig;
@@ -635,8 +632,8 @@ export class BlobResourceHandler implements InternalResourceHandler {
 
     async refresh(): Promise<void> {
         // BlobService doesn't need refresh as it's not file-system based scanning
-        // But we can perform cleanup of old blobs if needed
-        if (this.blobService && this.config?.cleanupAfterDays) {
+        // But we can perform cleanup of old blobs if configured in blobStorage
+        if (this.blobService) {
             try {
                 await this.blobService.cleanup();
                 logger.debug('Blob service cleanup completed');

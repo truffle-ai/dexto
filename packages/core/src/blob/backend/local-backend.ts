@@ -40,12 +40,15 @@ export class LocalBlobBackend implements BlobBackend {
     private connected = false;
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
+    private lastStatsRefresh: number = 0;
 
     private static readonly DEFAULT_CONFIG = {
         maxBlobSize: 50 * 1024 * 1024, // 50MB
         maxTotalSize: 1024 * 1024 * 1024, // 1GB
         cleanupAfterDays: 30,
     } as const;
+
+    private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
     constructor(config: LocalBlobBackendConfig) {
         const storePath = config.storePath || getDextoPath('data', 'blobs');
@@ -66,6 +69,7 @@ export class LocalBlobBackend implements BlobBackend {
         try {
             await fs.mkdir(this.storePath, { recursive: true });
             await this.refreshStatsCache();
+            this.lastStatsRefresh = Date.now();
             this.connected = true;
             logger.debug(`LocalBlobBackend connected at: ${this.storePath}`);
         } catch (error) {
@@ -122,7 +126,11 @@ export class LocalBlobBackend implements BlobBackend {
             const existingMeta = await fs.readFile(metaPath, 'utf-8');
             const parsed = JSON.parse(existingMeta) as any;
             const existingMetadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
-            logger.debug(`Blob ${id} already exists, returning existing reference`);
+            logger.debug(`Blob ${id} already exists, returning existing reference (deduplication)`);
+
+            // Note: We don't update statsCache here since no new blob was added.
+            // The cache remains accurate. If external modifications occur, the time-based
+            // reconciliation in ensureStatsCache() will detect and correct any drift.
 
             return {
                 id,
@@ -375,18 +383,22 @@ export class LocalBlobBackend implements BlobBackend {
     }
 
     private async ensureStatsCache(): Promise<{ count: number; totalSize: number }> {
-        if (this.statsCache) {
-            return this.statsCache;
-        }
+        const now = Date.now();
+        const cacheAge = now - this.lastStatsRefresh;
+        const isStale = cacheAge > LocalBlobBackend.STATS_REFRESH_INTERVAL_MS;
 
-        if (!this.statsCachePromise) {
-            this.statsCachePromise = this.refreshStatsCache();
-        }
+        // Refresh if cache is missing OR stale
+        if (!this.statsCache || isStale) {
+            if (!this.statsCachePromise) {
+                this.statsCachePromise = this.refreshStatsCache();
+            }
 
-        try {
-            await this.statsCachePromise;
-        } finally {
-            this.statsCachePromise = null;
+            try {
+                await this.statsCachePromise;
+                this.lastStatsRefresh = now;
+            } finally {
+                this.statsCachePromise = null;
+            }
         }
 
         return this.statsCache ?? { count: 0, totalSize: 0 };

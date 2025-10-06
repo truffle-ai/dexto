@@ -61,6 +61,7 @@ toolConfirmation:
   allowedToolsStorage: memory
 
 # Internal resources configuration - manages file system access and blob storage
+# NOTE: Blob storage capacity and backend settings are in the 'blobStorage' section below
 internalResources:
   enabled: true
   resources:
@@ -70,11 +71,7 @@ internalResources:
     #   maxDepth: 10
     #   includeHidden: false
     #   includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
-    - type: blob
-      maxBlobSize: 52428800    # 50MB per blob
-      maxTotalSize: 1073741824 # 1GB total storage
-      cleanupAfterDays: 30     # Auto-cleanup blobs older than 30 days
-      # storePath: ~/.dexto/blobs (defaults to context-aware path)
+    - type: blob  # Enables blob resource provider (storage settings in blobStorage section)
 
 # Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
 starterPrompts:
@@ -108,6 +105,7 @@ starterPrompts:
     priority: 3
 
 # Blob storage configuration - infrastructure-level storage for large files
+# This section controls the actual blob backend, size limits, and cleanup policies
 blobStorage:
   type: local  # 'local', 's3', 'gcs', 'azure' (s3, gcs, azure coming in Phase 3)
   maxBlobSize: 52428800     # 50MB per blob

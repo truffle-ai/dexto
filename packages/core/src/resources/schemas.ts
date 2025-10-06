@@ -72,34 +72,19 @@ const FileSystemResourceSchema = z
 
 /**
  * Schema for blob storage resource configuration
+ *
+ * NOTE: This only enables the blob resource provider.
+ * Actual blob storage settings (size limits, backend, cleanup) are configured
+ * in the 'blobStorage' section of the agent config.
  */
 const BlobResourceSchema = z
     .object({
-        type: z.literal('blob'),
-        maxBlobSize: z
-            .number()
-            .min(1024)
-            .max(100 * 1024 * 1024)
-            .default(50 * 1024 * 1024)
-            .describe('Maximum size per blob in bytes (default: 50MB)'),
-        maxTotalSize: z
-            .number()
-            .min(1024 * 1024)
-            .max(10 * 1024 * 1024 * 1024)
-            .default(1024 * 1024 * 1024)
-            .describe('Maximum total storage size in bytes (default: 1GB)'),
-        cleanupAfterDays: z
-            .number()
-            .min(1)
-            .max(365)
-            .default(30)
-            .describe('Automatically cleanup blobs older than N days (default: 30)'),
-        storePath: z
-            .string()
-            .optional()
-            .describe('Custom storage path (defaults to context-aware ~/.dexto/blobs)'),
+        type: z.literal('blob').describe('Enable blob storage resource provider'),
     })
-    .strict();
+    .strict()
+    .describe(
+        'Blob resource provider configuration - actual storage settings are in blobStorage section'
+    );
 
 /**
  * Union schema for all internal resource types

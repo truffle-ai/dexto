@@ -3,14 +3,42 @@
  * Organized into thematic sub-barrels for better tree-shaking and maintainability
  */
 
-// Re-export from thematic sub-barrels
-export * from './core.js';
-export * from './errors.js';
-export * from './internal.js';
-export * from './internal-provider.js';
-export * from './internal-registry.js';
-export * from './manager.js';
-export * from './reference.js';
-export * from './reference-parser.js';
-export * from './schemas.js';
-export * from './types.js';
+// Core resource types and manager
+export type {
+    ResourceSource,
+    ResourceMetadata,
+    ResourceProvider,
+    ResourceSet,
+    InternalResourcesConfig,
+    ValidatedInternalResourcesConfig,
+} from './core.js';
+export { ResourceManager, ResourceError, ResourceErrorCodes } from './core.js';
+
+// Internal resources provider and registry
+export type {
+    InternalResourceConfig,
+    InternalResourceHandler,
+    InternalResourceServices,
+    BlobResourceConfig,
+} from './internal.js';
+export {
+    InternalResourcesProvider,
+    createInternalResourceHandler,
+    getInternalResourceHandlerTypes,
+} from './internal.js';
+
+// Resource reference parsing and expansion
+export type { ResourceReference, ResourceExpansionResult } from './reference.js';
+export {
+    parseResourceReferences,
+    resolveResourceReferences,
+    expandMessageReferences,
+    formatResourceContent,
+} from './reference.js';
+
+// Schemas and validation
+export {
+    InternalResourceConfigSchema,
+    InternalResourcesSchema,
+    isInternalResourcesEnabled,
+} from './schemas.js';
