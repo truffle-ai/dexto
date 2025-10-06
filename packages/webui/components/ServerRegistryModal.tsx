@@ -347,19 +347,19 @@ export default function ServerRegistryModal({
                                 const hasLongDescription = entry.description && entry.description.length > 100;
                                 
                                 return viewMode === 'grid' ? (
-                                    <Card 
+                                    <Card
                                         key={entry.id}
                                         className={cn(
-                                            "group relative overflow-hidden transition-all duration-300 border-border/30 hover:border-primary/30 hover:shadow-lg bg-gradient-to-b from-card/90 to-card/50 backdrop-blur-sm",
+                                            "group relative overflow-hidden transition-all duration-300 border-border/30 hover:border-primary/30 hover:shadow-lg bg-gradient-to-b from-card/90 to-card/50 backdrop-blur-sm flex flex-col",
                                             isExpanded && "ring-2 ring-primary/20 border-primary/50 shadow-xl"
                                         )}
                                         style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
                                     >
-                                        <div 
-                                            className="cursor-pointer"
+                                        <div
+                                            className="cursor-pointer flex flex-col flex-1"
                                             onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
                                         >
-                                            <CardHeader className="pb-4">
+                                            <CardHeader className="pb-4 flex-shrink-0">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex items-center gap-4 flex-1">
                                                         <div className="text-3xl p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 group-hover:border-primary/30 transition-all">
@@ -395,13 +395,14 @@ export default function ServerRegistryModal({
                                                     </div>
                                                 </div>
                                             </CardHeader>
-                                            <CardContent className="pt-0">
-                                                <p className={cn(
-                                                    "text-sm text-muted-foreground leading-relaxed mb-4 transition-all duration-300",
-                                                    isExpanded ? "" : "line-clamp-2"
-                                                )}>
-                                                    {entry.description}
-                                                </p>
+                                            <CardContent className="pt-0 flex flex-col flex-1">
+                                                <div className="flex-1">
+                                                    <p className={cn(
+                                                        "text-sm text-muted-foreground leading-relaxed mb-4 transition-all duration-300",
+                                                        isExpanded ? "" : "line-clamp-2"
+                                                    )}>
+                                                        {entry.description}
+                                                    </p>
                                                 
                                                 {isExpanded && (
                                                     <div className="space-y-4 pt-4 border-t border-border/20 animate-in slide-in-from-top-1 duration-300">
@@ -457,8 +458,9 @@ export default function ServerRegistryModal({
                                                         )}
                                                     </div>
                                                 )}
-                                                
-                                                <div className="flex items-center justify-between pt-4">
+                                                </div>
+
+                                                <div className="flex items-center justify-between pt-4 flex-shrink-0">
                                                     {hasLongDescription && (
                                                         <Button
                                                             variant="ghost"
