@@ -182,6 +182,7 @@ export class DextoAgent {
             this.searchService = services.searchService;
 
             this._isStarted = true;
+            this._isStopped = false; // Reset stopped flag to allow restart
             logger.info('DextoAgent started successfully.');
 
             // Show log location for SDK users
@@ -1023,33 +1024,44 @@ export class DextoAgent {
 
     /**
      * Reloads the agent configuration from disk.
-     * This will re-read the config file and re-validate it.
-     * Note: This does NOT reinitialize services - it only updates the config.
+     * This will re-read the config file, validate it, and detect what changed.
+     * Most configuration changes require a full agent restart to take effect.
      *
-     * TODO: Add dynamic config application (applyConfigChanges method)
-     * Currently, changes to MCP servers, LLM settings, or other services require
-     * a full agent restart to take effect. For better UX, implement a method that:
-     * - Diffs the old and new config
-     * - Reconnects/disconnects MCP servers as needed
-     * - Switches LLM provider/model if changed
-     * - Updates other services incrementally
-     * This would allow config changes to apply without restart.
+     * To apply changes: stop the agent and start it again with the new config.
      *
+     * @returns Object containing list of changes that require restart
      * @throws Error if config file cannot be read or is invalid
      */
-    public async reloadConfig(): Promise<void> {
+    public async reloadConfig(): Promise<{
+        restartRequired: string[];
+    }> {
         if (!this.configPath) {
             throw AgentError.noConfigPath();
         }
 
         logger.info(`Reloading agent configuration from: ${this.configPath}`);
 
+        const oldConfig = this.config;
         const newConfig = await loadAgentConfig(this.configPath);
         const validated = AgentConfigSchema.parse(newConfig);
 
+        // Detect what changed
+        const restartRequired = this.detectRestartRequiredChanges(oldConfig, validated);
+
+        // Update the config reference (but services won't pick up changes until restart)
         this.config = validated;
 
-        logger.info('Agent configuration reloaded successfully');
+        if (restartRequired.length > 0) {
+            logger.warn(
+                `Configuration updated. Restart required to apply: ${restartRequired.join(', ')}`
+            );
+        } else {
+            logger.info('Agent configuration reloaded successfully (no changes detected)');
+        }
+
+        return {
+            restartRequired,
+        };
     }
 
     /**
@@ -1059,12 +1071,15 @@ export class DextoAgent {
      * to avoid leaking secrets into the config file.
      * @param updates Partial configuration updates to apply
      * @param targetPath Optional path to save to (defaults to current config path)
+     * @returns Object containing list of changes that require restart
      * @throws Error if validation fails or file cannot be written
      */
     public async updateAndSaveConfig(
         updates: Partial<AgentConfig>,
         targetPath?: string
-    ): Promise<void> {
+    ): Promise<{
+        restartRequired: string[];
+    }> {
         const path = targetPath || this.configPath;
 
         if (!path) {
@@ -1072,6 +1087,9 @@ export class DextoAgent {
         }
 
         logger.info(`Updating and saving agent configuration to: ${path}`);
+
+        // Store old config before changes
+        const oldConfig = this.config;
 
         // Read raw YAML from disk (without env var expansion)
         const rawYaml = await fs.readFile(path, 'utf-8');
@@ -1096,10 +1114,72 @@ export class DextoAgent {
         // Write to file
         await fs.writeFile(path, yamlContent, 'utf-8');
 
-        // Reload config with env var expansion for runtime use
-        await this.reloadConfig();
+        // Reload config with env var expansion for runtime use (this applies hot reload)
+        const reloadResult = await this.reloadConfig();
 
         logger.info(`Agent configuration saved to: ${path}`);
+
+        return reloadResult;
+    }
+
+    /**
+     * Detects configuration changes that require a full agent restart.
+     * Returns an array of change descriptions.
+     *
+     * @param oldConfig Previous validated configuration
+     * @param newConfig New validated configuration
+     * @returns Array of restart-required change descriptions
+     * @private
+     */
+    private detectRestartRequiredChanges(
+        oldConfig: ValidatedAgentConfig,
+        newConfig: ValidatedAgentConfig
+    ): string[] {
+        const changes: string[] = [];
+
+        // Storage backend changes require restart
+        if (JSON.stringify(oldConfig.storage) !== JSON.stringify(newConfig.storage)) {
+            changes.push('Storage backend');
+        }
+
+        // Session config changes require restart (maxSessions, sessionTTL are readonly)
+        if (JSON.stringify(oldConfig.sessions) !== JSON.stringify(newConfig.sessions)) {
+            changes.push('Session configuration');
+        }
+
+        // System prompt changes require restart (PromptManager caches contributors)
+        if (JSON.stringify(oldConfig.systemPrompt) !== JSON.stringify(newConfig.systemPrompt)) {
+            changes.push('System prompt');
+        }
+
+        // Tool confirmation changes require restart (ConfirmationProvider caches config)
+        if (
+            JSON.stringify(oldConfig.toolConfirmation) !==
+            JSON.stringify(newConfig.toolConfirmation)
+        ) {
+            changes.push('Tool confirmation');
+        }
+
+        // Internal tools changes require restart (InternalToolsProvider caches config)
+        if (JSON.stringify(oldConfig.internalTools) !== JSON.stringify(newConfig.internalTools)) {
+            changes.push('Internal tools');
+        }
+
+        // MCP server changes require restart
+        if (JSON.stringify(oldConfig.mcpServers) !== JSON.stringify(newConfig.mcpServers)) {
+            changes.push('MCP servers');
+        }
+
+        // LLM configuration changes require restart
+        if (
+            oldConfig.llm.provider !== newConfig.llm.provider ||
+            oldConfig.llm.model !== newConfig.llm.model ||
+            oldConfig.llm.apiKey !== newConfig.llm.apiKey
+        ) {
+            changes.push('LLM configuration');
+        }
+
+        return changes;
     }
 
     // ============= AGENT MANAGEMENT =============

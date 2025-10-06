@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
-import { X, Save, RefreshCw, FileCode, AlertTriangle, CheckCircle } from 'lucide-react';
+import { X, Save, RefreshCw, FileCode, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AgentConfigEditor from './AgentConfigEditor';
 import ConfigValidationStatus from './ConfigValidationStatus';
@@ -51,6 +51,15 @@ interface ValidationResponse {
   warnings: ValidationWarning[];
 }
 
+interface SaveConfigResponse {
+  ok: boolean;
+  path: string;
+  reloaded: boolean;
+  restarted: boolean;
+  changesApplied: string[];
+  message: string;
+}
+
 export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }: CustomizePanelProps) {
   const [yamlContent, setYamlContent] = useState<string>('');
   const [originalYamlContent, setOriginalYamlContent] = useState<string>('');
@@ -61,6 +70,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string>('');
 
   // Validation state
   const [isValidating, setIsValidating] = useState(false);
@@ -156,8 +166,11 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setIsSaving(true);
     setSaveError(null);
     setSaveSuccess(false);
+    setSaveMessage('');
 
     try {
+      // Note: The backend waits for restart to complete before responding,
+      // so by the time we get the response, the restart is already done
       const response = await fetch(`${API_BASE_URL}/agent/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,12 +182,26 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
         throw new Error(errorData.message || errorData.error || `Save failed: ${response.statusText}`);
       }
 
+      const data: SaveConfigResponse = await response.json();
+
       setOriginalYamlContent(yamlContent);
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
 
-      // Clear success message after 3 seconds
-      setTimeout(() => setSaveSuccess(false), 3000);
+      // By the time we receive the response, restart (if needed) is already complete
+      if (data.restarted) {
+        setSaveMessage(
+          `Configuration applied successfully — ${data.changesApplied.join(', ')} updated`
+        );
+      } else {
+        setSaveMessage('Configuration saved successfully (no changes detected)');
+      }
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setSaveMessage('');
+      }, 5000);
     } catch (err: any) {
       setSaveError(err.message);
       console.error('Error saving agent config:', err);
@@ -321,47 +348,58 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
       {/* Footer */}
       {!loadError && !isLoading && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-          <div className="flex items-center gap-2">
-            {saveSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-500">
-                <CheckCircle className="h-4 w-4" />
-                <span>Saved successfully</span>
-              </div>
-            )}
-            {saveError && (
-              <div className="flex items-center gap-2 text-sm text-destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{saveError}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClose}
-            >
-              Close
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleSave}
-              disabled={!hasUnsavedChanges || isSaving || !isValid || errors.length > 0}
-            >
-              {isSaving ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save
-                </>
+        <div className="flex flex-col border-t border-border">
+          {/* Save status messages */}
+          {(saveSuccess || saveError) && (
+            <div className="px-4 py-3 bg-muted/50 border-b border-border">
+              {/* Success message */}
+              {saveSuccess && (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
+                  <CheckCircle className="h-4 w-4" />
+                  <span>{saveMessage}</span>
+                </div>
               )}
-            </Button>
+
+              {/* Error message */}
+              {saveError && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <div />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClose}
+              >
+                Close
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSave}
+                disabled={!hasUnsavedChanges || isSaving || !isValid || errors.length > 0}
+              >
+                {isSaving ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}

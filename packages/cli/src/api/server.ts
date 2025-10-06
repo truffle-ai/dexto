@@ -604,6 +604,7 @@ export async function initializeApi(
                     // Check if agent is available before processing
                     try {
                         ensureAgentAvailable();
+                        logger.debug('Agent availability check passed');
                     } catch (error) {
                         logger.error(`Agent not available for WebSocket message: ${error}`);
                         sendWebSocketError(
@@ -615,7 +616,9 @@ export async function initializeApi(
                     }
 
                     // Comprehensive input validation
+                    logger.debug('Getting effective config for validation');
                     const currentConfig = activeAgent.getEffectiveConfig(sessionId);
+                    logger.debug('Validating input for LLM');
                     const validation = validateInputForLLM(
                         {
                             text: data.content,
@@ -656,6 +659,7 @@ export async function initializeApi(
                         return;
                     }
 
+                    logger.debug('Validation passed, calling activeAgent.run()');
                     await activeAgent.run(
                         data.content,
                         imageDataInput,
@@ -663,6 +667,7 @@ export async function initializeApi(
                         sessionId,
                         stream
                     );
+                    logger.debug('activeAgent.run() completed');
                 } else if (data.type === 'reset') {
                     const sessionId = data.sessionId as string | undefined;
                     logger.info(
@@ -1105,21 +1110,44 @@ export async function initializeApi(
                 // Write new config
                 await fs.writeFile(agentPath, yaml, 'utf-8');
 
-                // Reload agent configuration
-                await activeAgent.reloadConfig();
+                // Reload configuration to detect what changed
+                const reloadResult = await activeAgent.reloadConfig();
+
+                // If any changes require restart, automatically restart the agent
+                if (reloadResult.restartRequired.length > 0) {
+                    logger.info(
+                        `Auto-restarting agent to apply changes: ${reloadResult.restartRequired.join(', ')}`
+                    );
+
+                    await activeAgent.stop();
+                    logger.info('Agent stopped successfully');
+
+                    await activeAgent.start();
+                    logger.info('Agent restarted successfully');
+
+                    // Re-subscribe event subscribers to the new event bus
+                    logger.info('Re-subscribing event listeners to new event bus');
+                    webSubscriber.subscribe(activeAgent.agentEventBus);
+                    webhookSubscriber.subscribe(activeAgent.agentEventBus);
+                }
 
                 // Clean up backup file after successful save
                 await fs.unlink(backupPath).catch(() => {
                     // Ignore errors if backup file doesn't exist
                 });
 
-                logger.info(`Agent configuration saved: ${agentPath}`);
+                logger.info(`Agent configuration saved and applied: ${agentPath}`);
 
                 res.json({
                     ok: true,
                     path: agentPath,
                     reloaded: true,
-                    message: 'Agent configuration saved successfully',
+                    restarted: reloadResult.restartRequired.length > 0,
+                    changesApplied: reloadResult.restartRequired,
+                    message:
+                        reloadResult.restartRequired.length > 0
+                            ? 'Configuration saved and applied successfully (agent restarted)'
+                            : 'Configuration saved successfully (no changes detected)',
                 });
             } catch (writeError) {
                 // Restore backup on error
