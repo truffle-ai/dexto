@@ -23,7 +23,6 @@
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "js-yaml": "^4.1.0",
     "lucide-react": "^0.507.0",
     "next": "15.5.2",
     "react": "^19.0.0",
@@ -32,11 +31,11 @@
     "react-textarea-autosize": "^8.5.9",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.2.0",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@types/js-yaml": "^4.0.9",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^20",
     "@types/react": "^19",

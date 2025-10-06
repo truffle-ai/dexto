@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
-import yaml from 'js-yaml';
+import * as yaml from 'yaml';
 import type { AgentConfig } from '@dexto/core';
 
 interface CustomizePanelProps {
@@ -86,6 +86,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   const [originalYamlContent, setOriginalYamlContent] = useState<string>('');
   const [parsedConfig, setParsedConfig] = useState<AgentConfig | null>(null);
   const [originalParsedConfig, setOriginalParsedConfig] = useState<AgentConfig | null>(null);
+  const [yamlDocument, setYamlDocument] = useState<yaml.Document | null>(null);
   const [relativePath, setRelativePath] = useState<string>('');
 
   // Editor mode
@@ -131,10 +132,11 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       setHasUnsavedChanges(false);
 
       // Parse for form mode
-      const { config } = parseYamlToConfig(data.yaml);
-      if (config) {
+      const { config, document } = parseYamlToConfig(data.yaml);
+      if (config && document) {
         setParsedConfig(config);
         setOriginalParsedConfig(config);
+        setYamlDocument(document);
       }
 
       // Initial validation
@@ -179,20 +181,110 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     }
   };
 
-  // Parse YAML to config object
-  const parseYamlToConfig = (yamlString: string): { config: AgentConfig | null; error: string | null } => {
+  // Parse YAML to config object and document
+  const parseYamlToConfig = (yamlString: string): { config: AgentConfig | null; document: yaml.Document | null; error: string | null } => {
+    console.log('[parseYamlToConfig] Starting parse');
     try {
-      const config = yaml.load(yamlString) as AgentConfig;
-      return { config, error: null };
+      const document = yaml.parseDocument(yamlString);
+      console.log('[parseYamlToConfig] Document created:', document);
+
+      // Check for parse errors
+      if (document.errors && document.errors.length > 0) {
+        console.error('[parseYamlToConfig] Parse errors:', document.errors);
+        const message = document.errors.map(e => e.message).join('; ');
+        return { config: null, document: null, error: message };
+      }
+
+      const config = document.toJS() as AgentConfig;
+      console.log('[parseYamlToConfig] Config parsed successfully:', config);
+      return { config, document, error: null };
     } catch (err: unknown) {
+      console.error('[parseYamlToConfig] Exception:', err);
       const message = err instanceof Error ? err.message : 'Failed to parse YAML';
-      return { config: null, error: message };
+      return { config: null, document: null, error: message };
     }
   };
 
-  // Serialize config back to YAML
-  const serializeConfigToYaml = (config: AgentConfig): string => {
-    return yaml.dump(config, { indent: 2, lineWidth: -1 });
+  // Update YAML document from config object while preserving comments
+  const updateYamlDocumentFromConfig = (document: yaml.Document, config: AgentConfig): yaml.Document => {
+    console.log('[updateYamlDocumentFromConfig] Starting update');
+    console.log('[updateYamlDocumentFromConfig] Document:', document);
+    console.log('[updateYamlDocumentFromConfig] Config:', config);
+
+    const updateNode = (node: any, value: any): any => {
+      // Handle null/undefined
+      if (value === null || value === undefined) {
+        return document.createNode(value);
+      }
+
+      // Handle arrays - create new sequence
+      if (Array.isArray(value)) {
+        return document.createNode(value);
+      }
+
+      // Handle objects - update map recursively
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        if (!node || !node.items) {
+          // Create new map if node doesn't exist
+          return document.createNode(value);
+        }
+
+        // Update existing map
+        const existingKeys = new Set<string>();
+
+        // Update existing keys and track them
+        for (const pair of node.items) {
+          const key = pair.key.value;
+          existingKeys.add(key);
+
+          if (key in value) {
+            // Update the value while preserving the pair (and its comments)
+            pair.value = updateNode(pair.value, value[key]);
+          }
+        }
+
+        // Add new keys
+        for (const [key, val] of Object.entries(value)) {
+          if (!existingKeys.has(key)) {
+            node.items.push(document.createPair(key, val));
+          }
+        }
+
+        // Remove keys not in new config
+        node.items = node.items.filter((pair: any) => {
+          const key = pair.key.value;
+          return key in value;
+        });
+
+        return node;
+      }
+
+      // Handle primitives - create new scalar
+      return document.createNode(value);
+    };
+
+    try {
+      // Update the root contents
+      document.contents = updateNode(document.contents, config);
+      console.log('[updateYamlDocumentFromConfig] Update successful');
+      return document;
+    } catch (err) {
+      console.error('[updateYamlDocumentFromConfig] Update failed:', err);
+      throw err;
+    }
+  };
+
+  // Serialize config back to YAML while preserving comments
+  const serializeConfigToYaml = (config: AgentConfig, document: yaml.Document): string => {
+    console.log('[serializeConfigToYaml] Starting serialization');
+    console.log('[serializeConfigToYaml] Document:', document);
+    console.log('[serializeConfigToYaml] Config:', config);
+
+    // Update document with new config and serialize with comments preserved
+    const updatedDoc = updateYamlDocumentFromConfig(document, config);
+    const result = updatedDoc.toString();
+    console.log('[serializeConfigToYaml] Serialized result length:', result.length);
+    return result;
   };
 
   // Deep comparison helper for configs
@@ -209,10 +301,11 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setSaveError(null);
     setSaveSuccess(false);
 
-    // Update parsed config for potential form mode switch
-    const { config } = parseYamlToConfig(value);
-    if (config) {
+    // Update parsed config and document for potential form mode switch
+    const { config, document } = parseYamlToConfig(value);
+    if (config && document) {
       setParsedConfig(config);
+      setYamlDocument(document);
     }
 
     // Debounce validation
@@ -226,8 +319,17 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
   // Handle form editor changes
   const handleFormChange = (newConfig: AgentConfig) => {
+    console.log('[handleFormChange] Called with new config');
+    console.log('[handleFormChange] yamlDocument exists?', !!yamlDocument);
+
+    if (!yamlDocument) {
+      console.error('[handleFormChange] No document available - this should not happen!');
+      return;
+    }
+
     setParsedConfig(newConfig);
-    const newYaml = serializeConfigToYaml(newConfig);
+    // Use document to preserve comments
+    const newYaml = serializeConfigToYaml(newConfig, yamlDocument);
     setYamlContent(newYaml);
     // Use semantic comparison for form mode to handle YAML formatting differences
     setHasUnsavedChanges(!configsAreEqual(newConfig, originalParsedConfig));
@@ -245,20 +347,30 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
   // Handle mode switch
   const handleModeSwitch = (newMode: EditorMode) => {
-    if (newMode === editorMode) return;
+    console.log('[handleModeSwitch] Called with newMode:', newMode, 'current mode:', editorMode);
+    if (newMode === editorMode) {
+      console.log('[handleModeSwitch] Same mode, returning');
+      return;
+    }
 
     if (newMode === 'form') {
+      console.log('[handleModeSwitch] Switching to form mode, parsing YAML...');
       // Switching to form mode - ensure config is parsed
-      const { config, error } = parseYamlToConfig(yamlContent);
+      const { config, document, error } = parseYamlToConfig(yamlContent);
+      console.log('[handleModeSwitch] Parse result:', { config, document, error });
       if (error) {
+        console.error('[handleModeSwitch] Parse error, not switching:', error);
         setParseError(error);
         // Don't switch modes if parsing fails
         return;
       }
+      console.log('[handleModeSwitch] Parse successful, setting state');
       setParsedConfig(config);
+      setYamlDocument(document);
       setParseError(null);
     }
 
+    console.log('[handleModeSwitch] Setting editor mode to:', newMode);
     setEditorMode(newMode);
   };
 
