@@ -182,12 +182,12 @@ export async function initializeApi(
 
     const webSubscriber = new WebSocketEventSubscriber(wss);
     logger.info('Setting up API event subscriptions...');
-    webSubscriber.subscribe(activeAgent.agentEventBus);
+    activeAgent.registerSubscriber(webSubscriber);
 
     // Initialize webhook subscriber
     const webhookSubscriber = new WebhookEventSubscriber();
     logger.info('Setting up webhook event subscriptions...');
-    webhookSubscriber.subscribe(activeAgent.agentEventBus);
+    activeAgent.registerSubscriber(webhookSubscriber);
 
     // Tool confirmation responses are handled by the main WebSocket handler below
 
@@ -222,32 +222,13 @@ export async function initializeApi(
             // Use domain layer method to create new agent
             newAgent = await DextoAgent.createAgent(name);
 
+            // Register event subscribers with new agent before starting
+            logger.info('Registering event subscribers with new agent...');
+            newAgent.registerSubscriber(webSubscriber);
+            newAgent.registerSubscriber(webhookSubscriber);
+
             logger.info(`Starting new agent: ${name}`);
             await newAgent.start();
-
-            // Rewire event/webhook subscribers to new agent bus
-            logger.info('Rewiring event subscribers...');
-            try {
-                webSubscriber.unsubscribe();
-            } catch (_err) {
-                logger.debug(
-                    `Failed to unsubscribe webSubscriber: ${
-                        _err instanceof Error ? _err.message : String(_err)
-                    }`
-                );
-            }
-            webSubscriber.subscribe(newAgent.agentEventBus);
-
-            try {
-                webhookSubscriber.unsubscribe();
-            } catch (_err) {
-                logger.debug(
-                    `Failed to unsubscribe webhookSubscriber: ${
-                        _err instanceof Error ? _err.message : String(_err)
-                    }`
-                );
-            }
-            webhookSubscriber.subscribe(newAgent.agentEventBus);
 
             // Stop previous agent last (only after new one is fully operational)
             const previousAgent = activeAgent;
@@ -1113,16 +1094,10 @@ export async function initializeApi(
                         `Auto-restarting agent to apply changes: ${reloadResult.restartRequired.join(', ')}`
                     );
 
-                    await activeAgent.stop();
-                    logger.info('Agent stopped successfully');
-
-                    await activeAgent.start();
-                    logger.info('Agent restarted successfully');
-
-                    // Re-subscribe event subscribers to the new event bus
-                    logger.info('Re-subscribing event listeners to new event bus');
-                    webSubscriber.subscribe(activeAgent.agentEventBus);
-                    webhookSubscriber.subscribe(activeAgent.agentEventBus);
+                    await activeAgent.restart();
+                    logger.info(
+                        'Agent restarted successfully with all event subscribers reconnected'
+                    );
                 }
 
                 // Clean up backup file after successful save

@@ -61,7 +61,7 @@ export default function ServerRegistryModal({
     const [searchInput, setSearchInput] = useState('');
     
     // View state
-    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
     const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
     
     // Ref for debouncing
@@ -256,23 +256,6 @@ export default function ServerRegistryModal({
                     </div>
                     <div className="flex bg-muted/80 rounded-lg p-1 border border-border/40">
                         <Button
-                            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            onClick={() => {
-                                setViewMode('list');
-                                setExpandedEntry(null);
-                            }}
-                            className={cn(
-                                "h-8 px-3 rounded-md transition-all",
-                                viewMode === 'list' 
-                                    ? "bg-background shadow-sm" 
-                                    : "hover:bg-background/80"
-                            )}
-                        >
-                            <List className="h-4 w-4 mr-2" />
-                            List
-                        </Button>
-                        <Button
                             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                             size="sm"
                             onClick={() => {
@@ -281,13 +264,30 @@ export default function ServerRegistryModal({
                             }}
                             className={cn(
                                 "h-8 px-3 rounded-md transition-all",
-                                viewMode === 'grid' 
-                                    ? "bg-background shadow-sm" 
+                                viewMode === 'grid'
+                                    ? "bg-background shadow-sm"
                                     : "hover:bg-background/80"
                             )}
                         >
                             <Grid3X3 className="h-4 w-4 mr-2" />
                             Grid
+                        </Button>
+                        <Button
+                            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                            size="sm"
+                            onClick={() => {
+                                setViewMode('list');
+                                setExpandedEntry(null);
+                            }}
+                            className={cn(
+                                "h-8 px-3 rounded-md transition-all",
+                                viewMode === 'list'
+                                    ? "bg-background shadow-sm"
+                                    : "hover:bg-background/80"
+                            )}
+                        >
+                            <List className="h-4 w-4 mr-2" />
+                            List
                         </Button>
                     </div>
                 </div>

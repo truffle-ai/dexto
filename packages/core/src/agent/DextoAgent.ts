@@ -51,6 +51,14 @@ const requiredServices: (keyof AgentServices)[] = [
 ];
 
 /**
+ * Interface for objects that can subscribe to the agent's event bus.
+ * Typically used by API layer subscribers (WebSocket, Webhooks, etc.)
+ */
+export interface AgentEventSubscriber {
+    subscribe(eventBus: AgentEventBus): void;
+}
+
+/**
  * The main entry point into Dexto's core functionality.
  *
  * DextoAgent is a high-level abstraction layer that provides a clean, user-facing API
@@ -129,6 +137,9 @@ export class DextoAgent {
 
     // Store config for async initialization
     private config: ValidatedAgentConfig;
+
+    // Event subscribers (e.g., WebSocket, Webhook handlers)
+    private eventSubscribers: Set<AgentEventSubscriber> = new Set();
 
     constructor(
         config: AgentConfig,
@@ -263,6 +274,37 @@ export class DextoAgent {
         } catch (error) {
             logger.error('Failed to stop DextoAgent', error);
             throw error;
+        }
+    }
+
+    /**
+     * Register an event subscriber that will be automatically re-subscribed on agent restart.
+     * Subscribers are typically API layer components (WebSocket, Webhook handlers) that need
+     * to receive agent events. If the agent is already started, the subscriber is immediately subscribed.
+     *
+     * @param subscriber - Object implementing AgentEventSubscriber interface
+     */
+    public registerSubscriber(subscriber: AgentEventSubscriber): void {
+        this.eventSubscribers.add(subscriber);
+        if (this._isStarted) {
+            subscriber.subscribe(this.agentEventBus);
+        }
+    }
+
+    /**
+     * Restart the agent by stopping and starting it.
+     * Automatically re-subscribes all registered event subscribers to the new event bus.
+     * This is useful when configuration changes require a full agent restart.
+     *
+     * @throws Error if restart fails during stop or start phases
+     */
+    public async restart(): Promise<void> {
+        await this.stop();
+        await this.start();
+
+        // Auto-resubscribe all registered subscribers to the new event bus
+        for (const subscriber of this.eventSubscribers) {
+            subscriber.subscribe(this.agentEventBus);
         }
     }
 
@@ -1285,6 +1327,7 @@ export class DextoAgent {
      * await agent.installAgent('productivity');
      * console.log('Productivity agent installed successfully');
      * ```
+     * TODO: move out of DextoAgent
      */
     public async installAgent(agentName: string): Promise<void> {
         const agentRegistry = getAgentRegistry();
