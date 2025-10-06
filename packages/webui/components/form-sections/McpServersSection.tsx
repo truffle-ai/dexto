@@ -9,6 +9,7 @@ import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import type { AgentConfig } from '@dexto/core';
+import { MCP_SERVER_TYPES, MCP_CONNECTION_MODES, DEFAULT_MCP_CONNECTION_MODE } from '@dexto/core';
 
 type McpServersConfig = NonNullable<AgentConfig['mcpServers']>;
 
@@ -189,7 +190,6 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
                         value={server.type || 'stdio'}
                         onChange={(e) => {
                           const type = e.target.value as 'stdio' | 'sse' | 'http';
-                          // Reset server config based on type
                           if (type === 'stdio') {
                             updateServer(name, {
                               type: 'stdio',
@@ -207,9 +207,11 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
                         }}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <option value="stdio">Standard I/O (stdio)</option>
-                        <option value="sse">Server-Sent Events (SSE)</option>
-                        <option value="http">HTTP</option>
+                        {MCP_SERVER_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type === 'stdio' ? 'Standard I/O (stdio)' : type === 'sse' ? 'Server-Sent Events (SSE)' : 'HTTP'}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -304,14 +306,17 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
                       </LabelWithTooltip>
                       <select
                         id={`server-mode-${name}`}
-                        value={server.connectionMode || 'strict'}
+                        value={server.connectionMode || DEFAULT_MCP_CONNECTION_MODE}
                         onChange={(e) =>
                           updateServer(name, { connectionMode: e.target.value as 'strict' | 'lenient' })
                         }
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <option value="strict">Strict</option>
-                        <option value="lenient">Lenient</option>
+                        {MCP_CONNECTION_MODES.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

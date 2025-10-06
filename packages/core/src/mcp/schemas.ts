@@ -3,6 +3,14 @@ import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { EnvExpandedString, RequiredEnvURL } from '@core/utils/result.js';
 import { z } from 'zod';
 
+export const MCP_SERVER_TYPES = ['stdio', 'sse', 'http'] as const;
+export type McpServerType = (typeof MCP_SERVER_TYPES)[number];
+
+export const MCP_CONNECTION_MODES = ['strict', 'lenient'] as const;
+export type McpConnectionMode = (typeof MCP_CONNECTION_MODES)[number];
+
+export const DEFAULT_MCP_CONNECTION_MODE: McpConnectionMode = 'lenient';
+
 // ---- stdio ----
 
 export const StdioServerConfigSchema = z
@@ -32,7 +40,7 @@ export const StdioServerConfigSchema = z
             .default({})
             .describe('Optional environment variables for the server process'),
         timeout: z.coerce.number().int().positive().default(30000),
-        connectionMode: z.enum(['strict', 'lenient']).default('lenient'),
+        connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })
     .strict();
 
@@ -46,7 +54,7 @@ export const SseServerConfigSchema = z
         url: RequiredEnvURL(process.env).describe('URL for the SSE server endpoint'),
         headers: z.record(EnvExpandedString()).default({}),
         timeout: z.coerce.number().int().positive().default(30000),
-        connectionMode: z.enum(['strict', 'lenient']).default('lenient'),
+        connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })
     .strict();
 
@@ -60,7 +68,7 @@ export const HttpServerConfigSchema = z
         url: RequiredEnvURL(process.env).describe('URL for the HTTP server'),
         headers: z.record(EnvExpandedString()).default({}),
         timeout: z.coerce.number().int().positive().default(30000),
-        connectionMode: z.enum(['strict', 'lenient']).default('lenient'),
+        connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })
     .strict();
 

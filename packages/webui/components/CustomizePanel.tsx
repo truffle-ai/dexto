@@ -421,19 +421,6 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant={editorMode === 'form' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => handleModeSwitch('form')}
-                  className="h-7 px-2"
-                >
-                  <FormInput className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Form Editor</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
                   variant={editorMode === 'yaml' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => handleModeSwitch('yaml')}
@@ -443,6 +430,19 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
                 </Button>
               </TooltipTrigger>
               <TooltipContent>YAML Editor</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={editorMode === 'form' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleModeSwitch('form')}
+                  className="h-7 px-2"
+                >
+                  <FormInput className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Form Editor</TooltipContent>
             </Tooltip>
           </div>
 

@@ -15,8 +15,28 @@ export type { InternalMessage, TextPart, FilePart, ImageData, FileData } from '.
 
 // LLM types (used by client packages)
 export type { LLMProvider, LLMRouter } from './llm/types.js';
-export { LLM_PROVIDERS, LLM_ROUTERS } from './llm/types.js'; // Used by CLI and webui packages
-// Note: SUPPORTED_FILE_TYPES not exported - only used internally in core
+export { LLM_PROVIDERS, LLM_ROUTERS } from './llm/types.js';
+
+// MCP types and constants (used by webui)
+export type { McpServerType, McpConnectionMode } from './mcp/schemas.js';
+export {
+    MCP_SERVER_TYPES,
+    MCP_CONNECTION_MODES,
+    DEFAULT_MCP_CONNECTION_MODE,
+} from './mcp/schemas.js';
+
+// Storage types and constants (used by webui)
+export type { CacheBackendType, DatabaseBackendType } from './storage/schemas.js';
+export { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from './storage/schemas.js';
+
+// Tool confirmation types and constants (used by webui)
+export type { ToolConfirmationMode, AllowedToolsStorageType } from './tools/schemas.js';
+export {
+    TOOL_CONFIRMATION_MODES,
+    ALLOWED_TOOLS_STORAGE_TYPES,
+    DEFAULT_TOOL_CONFIRMATION_MODE,
+    DEFAULT_ALLOWED_TOOLS_STORAGE,
+} from './tools/schemas.js';
 
 // Session types (used by CLI package)
 export type { SessionMetadata } from './session/session-manager.js';

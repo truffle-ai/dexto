@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { Collapsible } from '../ui/collapsible';
 import type { AgentConfig } from '@dexto/core';
+import { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from '@dexto/core';
 
 type StorageConfig = NonNullable<AgentConfig['storage']>;
 
@@ -13,9 +14,6 @@ interface StorageSectionProps {
   onChange: (value: StorageConfig) => void;
   errors?: Record<string, string>;
 }
-
-const CACHE_TYPES = ['in-memory', 'redis'];
-const DATABASE_TYPES = ['in-memory', 'sqlite', 'postgres'];
 
 export function StorageSection({ value, onChange, errors = {} }: StorageSectionProps) {
   const updateCache = (updates: Partial<Record<string, unknown>>) => {
@@ -51,7 +49,7 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
               onChange={(e) => updateCache({ type: e.target.value as any })}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              {CACHE_TYPES.map((type) => (
+              {CACHE_BACKEND_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -90,7 +88,7 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
               onChange={(e) => updateDatabase({ type: e.target.value as any })}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              {DATABASE_TYPES.map((type) => (
+              {DATABASE_BACKEND_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>

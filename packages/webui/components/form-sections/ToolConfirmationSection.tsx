@@ -5,6 +5,12 @@ import { Input } from '../ui/input';
 import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { Collapsible } from '../ui/collapsible';
 import type { AgentConfig } from '@dexto/core';
+import {
+  TOOL_CONFIRMATION_MODES,
+  ALLOWED_TOOLS_STORAGE_TYPES,
+  DEFAULT_TOOL_CONFIRMATION_MODE,
+  DEFAULT_ALLOWED_TOOLS_STORAGE,
+} from '@dexto/core';
 
 type ToolConfirmationConfig = NonNullable<AgentConfig['toolConfirmation']>;
 
@@ -13,9 +19,6 @@ interface ToolConfirmationSectionProps {
   onChange: (value: ToolConfirmationConfig) => void;
   errors?: Record<string, string>;
 }
-
-const CONFIRMATION_MODES = ['auto-approve', 'event-based', 'auto-deny'];
-const STORAGE_TYPES = ['memory', 'storage'];
 
 export function ToolConfirmationSection({
   value,
@@ -43,11 +46,11 @@ export function ToolConfirmationSection({
           </LabelWithTooltip>
           <select
             id="confirmation-mode"
-            value={value.mode || 'auto-approve'}
+            value={value.mode || DEFAULT_TOOL_CONFIRMATION_MODE}
             onChange={(e) => handleChange({ mode: e.target.value as 'auto-approve' | 'event-based' | 'auto-deny' })}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            {CONFIRMATION_MODES.map((mode) => (
+            {TOOL_CONFIRMATION_MODES.map((mode) => (
               <option key={mode} value={mode}>
                 {mode === 'auto-approve'
                   ? 'Auto-approve'
@@ -93,11 +96,11 @@ export function ToolConfirmationSection({
           </LabelWithTooltip>
           <select
             id="allowed-tools-storage"
-            value={value.allowedToolsStorage || 'memory'}
+            value={value.allowedToolsStorage || DEFAULT_ALLOWED_TOOLS_STORAGE}
             onChange={(e) => updateAllowedToolsStorage(e.target.value as 'memory' | 'storage')}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            {STORAGE_TYPES.map((type) => (
+            {ALLOWED_TOOLS_STORAGE_TYPES.map((type) => (
               <option key={type} value={type}>
                 {type}
               </option>
