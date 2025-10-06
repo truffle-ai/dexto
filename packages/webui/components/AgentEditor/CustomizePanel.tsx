@@ -26,7 +26,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../ui/button';
-import { X, Save, RefreshCw, FileCode, FormInput, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
+import { X, Save, RefreshCw, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import YAMLEditorView from './YAMLEditorView';
 import FormEditorView from './FormEditorView';
@@ -608,12 +608,12 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
                   variant={editorMode === 'yaml' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => handleModeSwitch('yaml')}
-                  className="h-7 px-2"
+                  className="h-7 px-3"
                 >
-                  <FileCode className="h-3.5 w-3.5" />
+                  YAML Editor
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>YAML Editor</TooltipContent>
+              <TooltipContent>Edit configuration in raw YAML format with full control</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -621,12 +621,12 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
                   variant={editorMode === 'form' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => handleModeSwitch('form')}
-                  className="h-7 px-2"
+                  className="h-7 px-3"
                 >
-                  <FormInput className="h-3.5 w-3.5" />
+                  Form Editor
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Form Editor</TooltipContent>
+              <TooltipContent>Edit configuration using user-friendly forms</TooltipContent>
             </Tooltip>
           </div>
 
