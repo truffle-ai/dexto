@@ -89,8 +89,8 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
 
   const updateArgs = (serverName: string, argsString: string) => {
     const args = argsString
-      .split('\n')
-      .map((line) => line.trim())
+      .split(',')
+      .map((arg) => arg.trim())
       .filter(Boolean);
     updateServer(serverName, { args });
   };
@@ -231,16 +231,15 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
 
                         {/* Arguments */}
                         <div>
-                          <LabelWithTooltip htmlFor={`server-args-${name}`} tooltip="Command arguments, one per line">
+                          <LabelWithTooltip htmlFor={`server-args-${name}`} tooltip="Command arguments, comma-separated">
                             Arguments
                           </LabelWithTooltip>
-                          <textarea
+                          <Input
                             id={`server-args-${name}`}
-                            value={('args' in server && server.args ? server.args : []).join('\n')}
+                            value={('args' in server && server.args ? server.args : []).join(', ')}
                             onChange={(e) => updateArgs(name, e.target.value)}
-                            placeholder="--port 3000&#10;--host localhost"
-                            rows={4}
-                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                            placeholder="--port, 3000, --host, localhost"
+                            className="font-mono"
                           />
                         </div>
 

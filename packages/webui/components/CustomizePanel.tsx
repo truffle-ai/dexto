@@ -85,6 +85,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   const [yamlContent, setYamlContent] = useState<string>('');
   const [originalYamlContent, setOriginalYamlContent] = useState<string>('');
   const [parsedConfig, setParsedConfig] = useState<AgentConfig | null>(null);
+  const [originalParsedConfig, setOriginalParsedConfig] = useState<AgentConfig | null>(null);
   const [relativePath, setRelativePath] = useState<string>('');
 
   // Editor mode
@@ -133,6 +134,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       const { config } = parseYamlToConfig(data.yaml);
       if (config) {
         setParsedConfig(config);
+        setOriginalParsedConfig(config);
       }
 
       // Initial validation
@@ -193,6 +195,13 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     return yaml.dump(config, { indent: 2, lineWidth: -1 });
   };
 
+  // Deep comparison helper for configs
+  const configsAreEqual = (a: AgentConfig | null, b: AgentConfig | null): boolean => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return JSON.stringify(a) === JSON.stringify(b);
+  };
+
   // Handle YAML editor changes
   const handleYamlChange = (value: string) => {
     setYamlContent(value);
@@ -220,7 +229,8 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setParsedConfig(newConfig);
     const newYaml = serializeConfigToYaml(newConfig);
     setYamlContent(newYaml);
-    setHasUnsavedChanges(newYaml !== originalYamlContent);
+    // Use semantic comparison for form mode to handle YAML formatting differences
+    setHasUnsavedChanges(!configsAreEqual(newConfig, originalParsedConfig));
     setSaveError(null);
     setSaveSuccess(false);
 
