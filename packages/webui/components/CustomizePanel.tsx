@@ -1,3 +1,17 @@
+/**
+ * CustomizePanel
+ *
+ * Full-featured agent configuration editor panel with YAML editing, validation,
+ * and automatic agent restart. Provides:
+ * - Live YAML editing with Monaco editor
+ * - Real-time validation with error/warning display
+ * - Unsaved changes detection and confirmation dialogs
+ * - Automatic agent restart after configuration changes
+ * - Keyboard shortcuts (Cmd+S to save, Escape to close)
+ * - Documentation link to configuration guide
+ *
+ * Can be rendered as an overlay (slide-in panel) or inline component.
+ */
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -6,6 +20,7 @@ import { X, Save, RefreshCw, FileEditIcon, AlertTriangle, CheckCircle, AlertCirc
 import { cn } from '@/lib/utils';
 import AgentConfigEditor from './AgentConfigEditor';
 import ConfigValidationStatus from './ConfigValidationStatus';
+import type { editor } from 'monaco-editor';
 import {
   Dialog,
   DialogContent,
@@ -152,7 +167,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   };
 
   // Handle Monaco editor validation (reserved for future use)
-  const handleMonacoValidate = (_markers: any[]) => {
+  const handleMonacoValidate = (_markers: editor.IMarker[]) => {
     // Future: Can process Monaco markers here if needed
   };
 

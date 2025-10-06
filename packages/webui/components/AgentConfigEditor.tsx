@@ -1,12 +1,20 @@
+/**
+ * AgentConfigEditor
+ *
+ * Monaco-based YAML editor component for editing agent configuration files.
+ * Provides syntax highlighting, line numbers, and configurable editor options.
+ * Validation is handled externally via the onValidate callback.
+ */
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { type OnMount } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 
 interface AgentConfigEditorProps {
   value: string;
   onChange: (value: string) => void;
-  onValidate?: (markers: any[]) => void;
+  onValidate?: (markers: editor.IMarker[]) => void;
   readOnly?: boolean;
   height?: string;
 }
@@ -18,7 +26,7 @@ export default function AgentConfigEditor({
   readOnly = false,
   height = '100%',
 }: AgentConfigEditorProps) {
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
   useEffect(() => {
     // Set up validation when editor is mounted
@@ -31,8 +39,8 @@ export default function AgentConfigEditor({
     }
   }, [onValidate]);
 
-  const handleEditorDidMount = (editorInstance: any) => {
-    editorRef.current = editorInstance;
+  const handleEditorDidMount: OnMount = (editorInstance) => {
+    editorRef.current = editorInstance as editor.IStandaloneCodeEditor;
 
     // Configure editor options
     editorInstance.updateOptions({

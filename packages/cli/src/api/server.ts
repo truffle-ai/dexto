@@ -110,6 +110,17 @@ const WebhookRequestSchema = z.object({
     description: z.string().optional(),
 });
 
+// Agent configuration validation request schema
+const AgentConfigValidateSchema = z.object({
+    yaml: z.string().min(1, 'YAML content is required'),
+});
+
+// Agent configuration save request schema
+const AgentConfigSaveSchema = z.object({
+    yaml: z.string().min(1, 'YAML content is required'),
+    sessionId: z.string().optional(),
+});
+
 // Schema for search query parameters
 const SearchQuerySchema = z.object({
     q: z.string().min(1, 'Search query is required'),
@@ -938,15 +949,13 @@ export async function initializeApi(
     app.get('/api/agent/path', async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const sessionId = req.query.sessionId as string | undefined;
-            const agentPath = activeAgent.getAgentFilePath(sessionId);
+            const agentPath = activeAgent.getAgentFilePath();
 
             res.json({
                 path: agentPath,
                 relativePath: path.basename(agentPath),
                 name: path.basename(agentPath, '.yml'),
                 isDefault: agentPath.includes('default-agent.yml'),
-                isSession: !!sessionId,
             });
         } catch (error) {
             return next(error);
@@ -957,10 +966,9 @@ export async function initializeApi(
     app.get('/api/agent/config', async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const sessionId = req.query.sessionId as string | undefined;
 
             // Get the agent file path being used
-            const agentPath = activeAgent.getAgentFilePath(sessionId);
+            const agentPath = activeAgent.getAgentFilePath();
 
             // Read raw YAML from file (not expanded env vars)
             const yamlContent = await fs.readFile(agentPath, 'utf-8');
@@ -983,27 +991,11 @@ export async function initializeApi(
         }
     });
 
-    // Helper: Validate YAML field exists and return error if not
-    const validateYamlField = (yaml: any): void => {
-        if (!yaml || typeof yaml !== 'string') {
-            throw new DextoValidationError([
-                {
-                    code: AgentErrorCode.INVALID_INPUT,
-                    message: 'yaml field is required',
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
-                    severity: 'error',
-                },
-            ]);
-        }
-    };
-
     // Validate agent configuration without saving
     app.post('/api/agent/validate', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { yaml } = req.body;
-            validateYamlField(yaml);
+            const { yaml } = parseBody(AgentConfigValidateSchema, req.body);
 
             // Parse YAML
             let parsed;
@@ -1065,8 +1057,7 @@ export async function initializeApi(
     app.post('/api/agent/config', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const { yaml, sessionId } = req.body;
-            validateYamlField(yaml);
+            const { yaml, sessionId } = parseBody(AgentConfigSaveSchema, req.body);
 
             // Validate YAML syntax first
             let parsed;
@@ -1100,7 +1091,7 @@ export async function initializeApi(
             }
 
             // Get target file path
-            const agentPath = activeAgent.getAgentFilePath(sessionId);
+            const agentPath = activeAgent.getAgentFilePath();
 
             // Create backup
             const backupPath = `${agentPath}.backup`;

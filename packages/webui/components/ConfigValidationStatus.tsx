@@ -1,3 +1,11 @@
+/**
+ * ConfigValidationStatus
+ *
+ * Displays real-time validation status for agent configuration editing.
+ * Shows validation state (validating/valid/invalid), error count, warnings,
+ * and detailed error/warning messages with line numbers. Provides visual
+ * feedback during configuration editing to help users fix issues before saving.
+ */
 'use client';
 
 import React from 'react';

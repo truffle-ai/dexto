@@ -1011,11 +1011,10 @@ export class DextoAgent {
     /**
      * Gets the file path of the agent configuration currently in use.
      * This returns the source agent file path, not session-specific overrides.
-     * @param _sessionId Optional session ID (unused - sessions don't have separate files)
      * @returns The path to the agent configuration file
      * @throws AgentError if no config path is available
      */
-    public getAgentFilePath(_sessionId?: string): string {
+    public getAgentFilePath(): string {
         if (!this.configPath) {
             throw AgentError.noConfigPath();
         }
