@@ -520,7 +520,12 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
           <FormEditorView
             config={parsedConfig}
             onChange={handleFormChange}
-            errors={{}}
+            errors={errors.reduce((acc, err) => {
+              if (err.path) {
+                acc[err.path] = err.message;
+              }
+              return acc;
+            }, {} as Record<string, string>)}
           />
         ) : null}
       </div>

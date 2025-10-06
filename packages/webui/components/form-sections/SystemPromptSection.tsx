@@ -9,11 +9,29 @@ interface SystemPromptSectionProps {
   value: string;
   onChange: (value: string) => void;
   errors?: Record<string, string>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  errorCount?: number;
+  sectionErrors?: string[];
 }
 
-export function SystemPromptSection({ value, onChange, errors = {} }: SystemPromptSectionProps) {
+export function SystemPromptSection({
+  value,
+  onChange,
+  errors = {},
+  open,
+  onOpenChange,
+  errorCount = 0,
+  sectionErrors = [],
+}: SystemPromptSectionProps) {
   return (
-    <Collapsible title="System Prompt" defaultOpen={true}>
+    <Collapsible
+      title="System Prompt"
+      defaultOpen={true}
+      open={open}
+      onOpenChange={onOpenChange}
+      errorCount={errorCount}
+    >
       <div className="space-y-2">
         <LabelWithTooltip htmlFor="systemPrompt" tooltip="Define how the agent should behave, what it can do, and any specific instructions">
           Instructions *
@@ -25,6 +43,7 @@ export function SystemPromptSection({ value, onChange, errors = {} }: SystemProm
           placeholder="Enter the system prompt that defines the agent's behavior and capabilities..."
           rows={12}
           className="font-mono text-sm"
+          aria-invalid={!!errors.systemPrompt}
         />
         {errors.systemPrompt && (
           <p className="text-xs text-destructive mt-1">{errors.systemPrompt}</p>

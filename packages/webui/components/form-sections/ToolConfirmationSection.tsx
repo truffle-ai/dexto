@@ -18,12 +18,20 @@ interface ToolConfirmationSectionProps {
   value: ToolConfirmationConfig;
   onChange: (value: ToolConfirmationConfig) => void;
   errors?: Record<string, string>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  errorCount?: number;
+  sectionErrors?: string[];
 }
 
 export function ToolConfirmationSection({
   value,
   onChange,
   errors = {},
+  open,
+  onOpenChange,
+  errorCount = 0,
+  sectionErrors = [],
 }: ToolConfirmationSectionProps) {
   const handleChange = (updates: Partial<ToolConfirmationConfig>) => {
     onChange({ ...value, ...updates });
@@ -37,7 +45,13 @@ export function ToolConfirmationSection({
   };
 
   return (
-    <Collapsible title="Tool Confirmation" defaultOpen={false}>
+    <Collapsible
+      title="Tool Confirmation"
+      defaultOpen={false}
+      open={open}
+      onOpenChange={onOpenChange}
+      errorCount={errorCount}
+    >
       <div className="space-y-4">
         {/* Confirmation Mode */}
         <div>
@@ -84,8 +98,9 @@ export function ToolConfirmationSection({
               }
               min="1"
               placeholder="e.g., 60"
+              aria-invalid={!!errors['toolConfirmation.timeout']}
             />
-            {errors.timeout && <p className="text-xs text-destructive mt-1">{errors.timeout}</p>}
+            {errors['toolConfirmation.timeout'] && <p className="text-xs text-destructive mt-1">{errors['toolConfirmation.timeout']}</p>}
           </div>
         )}
 

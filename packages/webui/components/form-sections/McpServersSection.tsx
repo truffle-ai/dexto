@@ -17,9 +17,21 @@ interface McpServersSectionProps {
   value: McpServersConfig;
   onChange: (value: McpServersConfig) => void;
   errors?: Record<string, string>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  errorCount?: number;
+  sectionErrors?: string[];
 }
 
-export function McpServersSection({ value, onChange, errors = {} }: McpServersSectionProps) {
+export function McpServersSection({
+  value,
+  onChange,
+  errors = {},
+  open,
+  onOpenChange,
+  errorCount = 0,
+  sectionErrors = [],
+}: McpServersSectionProps) {
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
 
   const servers = Object.entries(value || {});
@@ -127,7 +139,13 @@ export function McpServersSection({ value, onChange, errors = {} }: McpServersSe
   };
 
   return (
-    <Collapsible title="MCP Servers" defaultOpen={false}>
+    <Collapsible
+      title="MCP Servers"
+      defaultOpen={false}
+      open={open}
+      onOpenChange={onOpenChange}
+      errorCount={errorCount}
+    >
       <div className="space-y-4">
         {servers.length === 0 ? (
           <p className="text-sm text-muted-foreground">No MCP servers configured</p>

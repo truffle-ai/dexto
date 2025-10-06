@@ -13,9 +13,21 @@ interface StorageSectionProps {
   value: StorageConfig;
   onChange: (value: StorageConfig) => void;
   errors?: Record<string, string>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  errorCount?: number;
+  sectionErrors?: string[];
 }
 
-export function StorageSection({ value, onChange, errors = {} }: StorageSectionProps) {
+export function StorageSection({
+  value,
+  onChange,
+  errors = {},
+  open,
+  onOpenChange,
+  errorCount = 0,
+  sectionErrors = [],
+}: StorageSectionProps) {
   const updateCache = (updates: Partial<Record<string, unknown>>) => {
     onChange({
       ...value,
@@ -34,7 +46,13 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
   const showDatabaseUrl = value.database.type === 'sqlite' || value.database.type === 'postgres';
 
   return (
-    <Collapsible title="Storage Configuration" defaultOpen={false}>
+    <Collapsible
+      title="Storage Configuration"
+      defaultOpen={false}
+      open={open}
+      onOpenChange={onOpenChange}
+      errorCount={errorCount}
+    >
       <div className="space-y-6">
         {/* Cache Configuration */}
         <div className="space-y-3">
@@ -67,9 +85,10 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
                 value={value.cache.url || ''}
                 onChange={(e) => updateCache({ url: e.target.value || undefined })}
                 placeholder="redis://localhost:6379"
+                aria-invalid={!!errors['storage.cache.url']}
               />
-              {errors['cache.url'] && (
-                <p className="text-xs text-destructive mt-1">{errors['cache.url']}</p>
+              {errors['storage.cache.url'] && (
+                <p className="text-xs text-destructive mt-1">{errors['storage.cache.url']}</p>
               )}
             </div>
           )}
@@ -119,9 +138,10 @@ export function StorageSection({ value, onChange, errors = {} }: StorageSectionP
                     ? './dexto.db'
                     : 'postgresql://user:pass@localhost:5432/dexto'
                 }
+                aria-invalid={!!(errors['storage.database.url'] || errors['storage.database.path'])}
               />
-              {errors['database.url'] && (
-                <p className="text-xs text-destructive mt-1">{errors['database.url']}</p>
+              {(errors['storage.database.url'] || errors['storage.database.path']) && (
+                <p className="text-xs text-destructive mt-1">{errors['storage.database.url'] || errors['storage.database.path']}</p>
               )}
             </div>
           )}

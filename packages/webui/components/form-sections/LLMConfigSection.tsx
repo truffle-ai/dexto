@@ -12,15 +12,33 @@ interface LLMConfigSectionProps {
   value: LLMConfig;
   onChange: (value: LLMConfig) => void;
   errors?: Record<string, string>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  errorCount?: number;
+  sectionErrors?: string[];
 }
 
-export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSectionProps) {
+export function LLMConfigSection({
+  value,
+  onChange,
+  errors = {},
+  open,
+  onOpenChange,
+  errorCount = 0,
+  sectionErrors = [],
+}: LLMConfigSectionProps) {
   const handleChange = (field: keyof LLMConfig, newValue: string | number | undefined) => {
     onChange({ ...value, [field]: newValue } as LLMConfig);
   };
 
   return (
-    <Collapsible title="LLM Configuration" defaultOpen={true}>
+    <Collapsible
+      title="LLM Configuration"
+      defaultOpen={true}
+      open={open}
+      onOpenChange={onOpenChange}
+      errorCount={errorCount}
+    >
       <div className="space-y-4">
         {/* Provider */}
         <div>
@@ -31,7 +49,8 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             id="provider"
             value={value.provider}
             onChange={(e) => handleChange('provider', e.target.value)}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-invalid={!!errors['llm.provider']}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
           >
             <option value="">Select provider...</option>
             {LLM_PROVIDERS.map((p) => (
@@ -40,7 +59,7 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
               </option>
             ))}
           </select>
-          {errors.provider && <p className="text-xs text-destructive mt-1">{errors.provider}</p>}
+          {errors['llm.provider'] && <p className="text-xs text-destructive mt-1">{errors['llm.provider']}</p>}
         </div>
 
         {/* Model */}
@@ -53,8 +72,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             value={value.model}
             onChange={(e) => handleChange('model', e.target.value)}
             placeholder="e.g., gpt-4, claude-3-opus-20240229"
+            aria-invalid={!!errors['llm.model']}
           />
-          {errors.model && <p className="text-xs text-destructive mt-1">{errors.model}</p>}
+          {errors['llm.model'] && <p className="text-xs text-destructive mt-1">{errors['llm.model']}</p>}
         </div>
 
         {/* API Key */}
@@ -68,8 +88,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             value={value.apiKey}
             onChange={(e) => handleChange('apiKey', e.target.value)}
             placeholder="$OPENAI_API_KEY or direct value"
+            aria-invalid={!!errors['llm.apiKey']}
           />
-          {errors.apiKey && <p className="text-xs text-destructive mt-1">{errors.apiKey}</p>}
+          {errors['llm.apiKey'] && <p className="text-xs text-destructive mt-1">{errors['llm.apiKey']}</p>}
         </div>
 
         {/* Router */}
@@ -81,7 +102,8 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             id="router"
             value={value.router || 'vercel'}
             onChange={(e) => handleChange('router', e.target.value)}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-invalid={!!errors['llm.router']}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
           >
             {LLM_ROUTERS.map((r) => (
               <option key={r} value={r}>
@@ -89,6 +111,7 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
               </option>
             ))}
           </select>
+          {errors['llm.router'] && <p className="text-xs text-destructive mt-1">{errors['llm.router']}</p>}
         </div>
 
         {/* Max Iterations */}
@@ -99,10 +122,23 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
           <Input
             id="maxIterations"
             type="number"
-            value={value.maxIterations || 50}
-            onChange={(e) => handleChange('maxIterations', parseInt(e.target.value, 10))}
+            value={value.maxIterations !== undefined ? value.maxIterations : 50}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') {
+                handleChange('maxIterations', undefined);
+              } else {
+                const num = parseInt(val, 10);
+                if (!isNaN(num)) {
+                  handleChange('maxIterations', num);
+                }
+              }
+            }}
             min="1"
+            placeholder="50"
+            aria-invalid={!!errors['llm.maxIterations']}
           />
+          {errors['llm.maxIterations'] && <p className="text-xs text-destructive mt-1">{errors['llm.maxIterations']}</p>}
         </div>
 
         {/* Base URL */}
@@ -115,7 +151,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             value={value.baseURL || ''}
             onChange={(e) => handleChange('baseURL', e.target.value || undefined)}
             placeholder="https://api.openai.com/v1"
+            aria-invalid={!!errors['llm.baseURL']}
           />
+          {errors['llm.baseURL'] && <p className="text-xs text-destructive mt-1">{errors['llm.baseURL']}</p>}
         </div>
 
         {/* Temperature */}
@@ -134,7 +172,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
             max="1"
             step="0.1"
             placeholder="0.0 - 1.0"
+            aria-invalid={!!errors['llm.temperature']}
           />
+          {errors['llm.temperature'] && <p className="text-xs text-destructive mt-1">{errors['llm.temperature']}</p>}
         </div>
 
         {/* Max Input/Output Tokens */}
@@ -152,7 +192,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
               }
               min="1"
               placeholder="Optional"
+              aria-invalid={!!errors['llm.maxInputTokens']}
             />
+            {errors['llm.maxInputTokens'] && <p className="text-xs text-destructive mt-1">{errors['llm.maxInputTokens']}</p>}
           </div>
           <div>
             <LabelWithTooltip htmlFor="maxOutputTokens" tooltip="Maximum output tokens the model can generate">
@@ -167,7 +209,9 @@ export function LLMConfigSection({ value, onChange, errors = {} }: LLMConfigSect
               }
               min="1"
               placeholder="Optional"
+              aria-invalid={!!errors['llm.maxOutputTokens']}
             />
+            {errors['llm.maxOutputTokens'] && <p className="text-xs text-destructive mt-1">{errors['llm.maxOutputTokens']}</p>}
           </div>
         </div>
       </div>

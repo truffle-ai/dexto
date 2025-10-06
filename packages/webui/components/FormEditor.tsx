@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LLMConfigSection } from './form-sections/LLMConfigSection';
 import { SystemPromptSection } from './form-sections/SystemPromptSection';
 import { McpServersSection } from './form-sections/McpServersSection';
@@ -18,9 +18,48 @@ interface FormEditorProps {
   errors?: Record<string, string>;
 }
 
+type SectionKey = 'basic' | 'llm' | 'systemPrompt' | 'mcpServers' | 'storage' | 'toolConfirmation';
+
 export default function FormEditor({ config, onChange, errors = {} }: FormEditorProps) {
   // Extract system prompt string (form editor only supports string format)
   const systemPromptValue = typeof config.systemPrompt === 'string' ? config.systemPrompt : '';
+
+  // Track which sections are open
+  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
+    basic: true,
+    llm: false,
+    systemPrompt: false,
+    mcpServers: false,
+    storage: false,
+    toolConfirmation: false,
+  });
+
+  // Map errors to sections
+  const sectionErrors = mapErrorsToSections(errors);
+
+  // Auto-expand sections with errors
+  useEffect(() => {
+    const sectionsWithErrors = Object.keys(sectionErrors).filter(
+      (section) => sectionErrors[section as SectionKey].length > 0
+    ) as SectionKey[];
+
+    if (sectionsWithErrors.length > 0) {
+      setOpenSections((prev) => {
+        const updated = { ...prev };
+        sectionsWithErrors.forEach((section) => {
+          updated[section] = true;
+        });
+        return updated;
+      });
+    }
+  }, [errors]);
+
+  const toggleSection = (section: SectionKey) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
 
   // Handle section updates
   const updateLLM = (llm: AgentConfig['llm']) => {
@@ -83,7 +122,12 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
       {/* Form Sections */}
       <div className="flex-1 p-4 space-y-4">
         {/* Basic Info Section */}
-        <Collapsible title="Basic Information" defaultOpen={true}>
+        <Collapsible
+          title="Basic Information"
+          open={openSections.basic}
+          onOpenChange={() => toggleSection('basic')}
+          errorCount={sectionErrors.basic.length}
+        >
           <div className="space-y-4">
             <div>
               <LabelWithTooltip htmlFor="agent-name" tooltip="The unique identifier for this agent">
@@ -94,7 +138,11 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
                 value={config.agentCard?.name || ''}
                 onChange={(e) => updateBasicInfo('name', e.target.value)}
                 placeholder="my-custom-agent"
+                aria-invalid={!!errors['agentCard.name']}
               />
+              {errors['agentCard.name'] && (
+                <p className="text-xs text-destructive mt-1">{errors['agentCard.name']}</p>
+              )}
             </div>
 
             <div>
@@ -106,7 +154,11 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
                 value={config.agentCard?.description || ''}
                 onChange={(e) => updateBasicInfo('description', e.target.value)}
                 placeholder="A brief description of what this agent does"
+                aria-invalid={!!errors['agentCard.description']}
               />
+              {errors['agentCard.description'] && (
+                <p className="text-xs text-destructive mt-1">{errors['agentCard.description']}</p>
+              )}
             </div>
 
             <div>
@@ -118,22 +170,46 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
                 value={config.greeting || ''}
                 onChange={(e) => updateBasicInfo('greeting', e.target.value)}
                 placeholder="Hello! How can I help you today?"
+                aria-invalid={!!errors.greeting}
               />
+              {errors.greeting && (
+                <p className="text-xs text-destructive mt-1">{errors.greeting}</p>
+              )}
             </div>
           </div>
         </Collapsible>
 
         {/* LLM Configuration */}
-        <LLMConfigSection value={config.llm} onChange={updateLLM} errors={errors} />
+        <LLMConfigSection
+          value={config.llm}
+          onChange={updateLLM}
+          errors={errors}
+          open={openSections.llm}
+          onOpenChange={() => toggleSection('llm')}
+          errorCount={sectionErrors.llm.length}
+          sectionErrors={sectionErrors.llm}
+        />
 
         {/* System Prompt */}
-        <SystemPromptSection value={systemPromptValue} onChange={updateSystemPrompt} errors={errors} />
+        <SystemPromptSection
+          value={systemPromptValue}
+          onChange={updateSystemPrompt}
+          errors={errors}
+          open={openSections.systemPrompt}
+          onOpenChange={() => toggleSection('systemPrompt')}
+          errorCount={sectionErrors.systemPrompt.length}
+          sectionErrors={sectionErrors.systemPrompt}
+        />
 
         {/* MCP Servers */}
         <McpServersSection
           value={config.mcpServers || {}}
           onChange={updateMcpServers}
           errors={errors}
+          open={openSections.mcpServers}
+          onOpenChange={() => toggleSection('mcpServers')}
+          errorCount={sectionErrors.mcpServers.length}
+          sectionErrors={sectionErrors.mcpServers}
         />
 
         {/* Storage Configuration */}
@@ -141,6 +217,10 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
           value={config.storage || { cache: { type: 'in-memory' }, database: { type: 'in-memory' } }}
           onChange={updateStorage}
           errors={errors}
+          open={openSections.storage}
+          onOpenChange={() => toggleSection('storage')}
+          errorCount={sectionErrors.storage.length}
+          sectionErrors={sectionErrors.storage}
         />
 
         {/* Tool Confirmation */}
@@ -148,6 +228,10 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
           value={config.toolConfirmation || {}}
           onChange={updateToolConfirmation}
           errors={errors}
+          open={openSections.toolConfirmation}
+          onOpenChange={() => toggleSection('toolConfirmation')}
+          errorCount={sectionErrors.toolConfirmation.length}
+          sectionErrors={sectionErrors.toolConfirmation}
         />
       </div>
     </div>
@@ -178,4 +262,36 @@ function checkForAdvancedFeatures(config: AgentConfig): boolean {
   }
 
   return false;
+}
+
+/**
+ * Map error paths to form sections
+ */
+function mapErrorsToSections(errors: Record<string, string>): Record<SectionKey, string[]> {
+  const sectionErrors: Record<SectionKey, string[]> = {
+    basic: [],
+    llm: [],
+    systemPrompt: [],
+    mcpServers: [],
+    storage: [],
+    toolConfirmation: [],
+  };
+
+  Object.entries(errors).forEach(([path, message]) => {
+    if (path.startsWith('agentCard.') || path === 'greeting') {
+      sectionErrors.basic.push(message);
+    } else if (path.startsWith('llm.')) {
+      sectionErrors.llm.push(message);
+    } else if (path.startsWith('systemPrompt')) {
+      sectionErrors.systemPrompt.push(message);
+    } else if (path.startsWith('mcpServers')) {
+      sectionErrors.mcpServers.push(message);
+    } else if (path.startsWith('storage.')) {
+      sectionErrors.storage.push(message);
+    } else if (path.startsWith('toolConfirmation.')) {
+      sectionErrors.toolConfirmation.push(message);
+    }
+  });
+
+  return sectionErrors;
 }
