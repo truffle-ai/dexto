@@ -6,6 +6,7 @@ export enum RegistryErrorCode {
     // Agent lookup errors
     AGENT_NOT_FOUND = 'registry_agent_not_found',
     AGENT_INVALID_ENTRY = 'registry_agent_invalid_entry',
+    AGENT_ALREADY_EXISTS = 'registry_agent_already_exists',
 
     // Installation errors
     INSTALLATION_FAILED = 'registry_installation_failed',

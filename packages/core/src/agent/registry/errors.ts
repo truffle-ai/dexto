@@ -30,6 +30,17 @@ export class RegistryError {
         );
     }
 
+    static agentAlreadyExists(agentName: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_ALREADY_EXISTS,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Agent '${agentName}' already exists in user registry`,
+            { agentName },
+            'Choose a different name or uninstall the existing agent first'
+        );
+    }
+
     // Installation errors
     static installationFailed(agentName: string, cause: string) {
         return new DextoRuntimeError(
