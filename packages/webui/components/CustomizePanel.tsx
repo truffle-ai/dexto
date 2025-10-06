@@ -122,9 +122,10 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
 
       // Initial validation
       await validateYaml(data.yaml);
-    } catch (err: any) {
-      setLoadError(err.message);
-      console.error('Error loading agent config:', err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setLoadError(message);
+      console.error(`Error loading agent config: ${message}`);
     } finally {
       setIsLoading(false);
     }
@@ -228,9 +229,10 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
         setSaveSuccess(false);
         setSaveMessage('');
       }, 5000);
-    } catch (err: any) {
-      setSaveError(err.message);
-      console.error('Error saving agent config:', err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSaveError(message);
+      console.error(`Error saving agent config: ${message}`);
     } finally {
       setIsSaving(false);
     }
