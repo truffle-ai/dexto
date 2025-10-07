@@ -2,4 +2,4 @@
 '@dexto/webui': patch
 ---
 
-Added support for video rendering in webui & updated thhinking label
+Added support for video rendering in webui & updated thinking label
