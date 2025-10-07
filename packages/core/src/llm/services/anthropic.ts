@@ -90,6 +90,7 @@ export class AnthropicService implements ILLMService {
         let iterationCount = 0;
         let fullResponse = '';
         let totalTokens = 0;
+        let persistedTextDuringTools = false;
 
         try {
             while (iterationCount < this.config.maxIterations) {
@@ -175,9 +176,18 @@ export class AnthropicService implements ILLMService {
                     }));
 
                     // Add assistant message with all tool calls
+                    // NOTE: This content is stored UNPROCESSED by hooks because:
+                    // 1. Hooks run on the complete accumulated response, not per-iteration
+                    // 2. We must persist tool calls immediately for the next iteration
+                    // TODO: Consider per-iteration hook processing or retroactive updates after final hooks run
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
+
+                    // Track that we've persisted text during tool iterations
+                    if (textContent) {
+                        persistedTextDuringTools = true;
+                    }
                 }
 
                 // If no tools were used, we're done
@@ -199,23 +209,26 @@ export class AnthropicService implements ILLMService {
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     };
 
-                    // Execute hooks and get modified payload
+                    // Execute hooks to get redacted/modified version
                     const { modifiedPayload, notices } = await executeResponseHooks(
                         this.hookManager,
-                        responsePayload,
-                        this.sessionId
+                        responsePayload
                     );
 
-                    // Add assistant message with hook-modified content
-                    await this.contextManager.addAssistantMessage(
-                        modifiedPayload.content,
-                        undefined,
-                        {
-                            tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                        }
-                    );
+                    // Persist PROCESSED response to storage (after hooks redaction)
+                    // This ensures we don't store sensitive data the LLM might generate
+                    if (!persistedTextDuringTools) {
+                        // First iteration - no previous tool usage, persist the hook-processed response
+                        await this.contextManager.addAssistantMessage(
+                            modifiedPayload.content,
+                            undefined,
+                            { tokenUsage: totalTokens > 0 ? { totalTokens } : undefined }
+                        );
+                    }
+                    // If persistedTextDuringTools is true, content was already added during tool iterations
+                    // Don't persist again to avoid duplication
 
-                    // Emit event with modified payload
+                    // Emit hook-modified content
                     const eventPayload = notices
                         ? { ...modifiedPayload, notices }
                         : modifiedPayload;
@@ -310,19 +323,16 @@ export class AnthropicService implements ILLMService {
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             };
 
-            // Execute hooks and get modified payload
+            // Execute hooks to get redacted/modified version
             const { modifiedPayload, notices } = await executeResponseHooks(
                 this.hookManager,
-                responsePayload,
-                this.sessionId
+                responsePayload
             );
 
-            // Add assistant message to history with hook-modified content
-            await this.contextManager.addAssistantMessage(modifiedPayload.content, undefined, {
-                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-            });
+            // Original content was already persisted during tool iterations
+            // Don't add to history again to avoid duplication
 
-            // Emit event with modified payload
+            // Emit hook-modified content
             const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
             this.sessionEventBus.emit('llmservice:response', eventPayload);
             return modifiedPayload.content;

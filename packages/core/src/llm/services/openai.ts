@@ -330,6 +330,7 @@ export class OpenAIService implements ILLMService {
         outputTokens: number,
         reasoningTokens: number
     ): Promise<{ content: string }> {
+        // Build payload and execute hooks to get redacted/modified version
         const responsePayload: BeforeResponsePayload = {
             content,
             provider: this.config.provider,
@@ -339,17 +340,13 @@ export class OpenAIService implements ILLMService {
             sessionId: this.sessionId,
         };
 
-        // Execute hooks and get modified payload
         const { modifiedPayload, notices } = await executeResponseHooks(
             this.hookManager,
-            responsePayload,
-            this.sessionId
+            responsePayload
         );
 
-        if (totalTokens > 0) {
-            this.contextManager.updateActualTokenCount(totalTokens);
-        }
-
+        // Persist PROCESSED response to storage (after hooks redaction)
+        // This ensures we don't store sensitive data the LLM might generate
         await this.contextManager.addAssistantMessage(modifiedPayload.content, undefined, {
             tokenUsage:
                 totalTokens > 0
@@ -361,6 +358,10 @@ export class OpenAIService implements ILLMService {
                       }
                     : undefined,
         });
+
+        if (totalTokens > 0) {
+            this.contextManager.updateActualTokenCount(totalTokens);
+        }
 
         // Emit event with modified payload
         const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;

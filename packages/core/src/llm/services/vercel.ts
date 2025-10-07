@@ -382,18 +382,14 @@ export class VercelLLMService implements ILLMService {
                 sessionId: this.sessionId,
             };
 
-            // Execute hooks and get modified payload
+            // Execute hooks to get redacted/modified version
             const { modifiedPayload, notices } = await executeResponseHooks(
                 this.hookManager,
-                responsePayload,
-                this.sessionId
+                responsePayload
             );
 
-            // Emit event with modified payload
-            const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
-            this.sessionEventBus.emit('llmservice:response', eventPayload);
-
-            // Persist hook-modified response to history and update token count
+            // Persist PROCESSED response to storage (after hooks redaction)
+            // This ensures we don't store sensitive data the LLM might generate
             const sanitizedResponse = {
                 ...response,
                 text: modifiedPayload.content,
@@ -402,6 +398,10 @@ export class VercelLLMService implements ILLMService {
                 }),
             };
             await this.contextManager.processLLMResponse(sanitizedResponse);
+
+            // Emit hook-modified content
+            const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
+            this.sessionEventBus.emit('llmservice:response', eventPayload);
             if (typeof response.totalUsage.totalTokens === 'number') {
                 this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
             }
@@ -622,23 +622,19 @@ export class VercelLLMService implements ILLMService {
             sessionId: this.sessionId,
         };
 
-        // Execute hooks and get modified payload
-        const { modifiedPayload, notices } = await executeResponseHooks(
-            this.hookManager,
-            responsePayload,
-            this.sessionId
-        );
-
-        // Emit event with modified payload
-        const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
-        this.sessionEventBus.emit('llmservice:response', eventPayload);
-
         // Update ContextManager with actual token count
         if (typeof usage.totalTokens === 'number') {
             this.contextManager.updateActualTokenCount(usage.totalTokens);
         }
 
-        // Persist response to history via formatter
+        // Execute hooks to get redacted/modified version
+        const { modifiedPayload, notices } = await executeResponseHooks(
+            this.hookManager,
+            responsePayload
+        );
+
+        // Persist PROCESSED response to storage (after hooks redaction)
+        // This ensures we don't store sensitive data the LLM might generate
         const sanitizedStreamResponse = {
             ...response,
             text: Promise.resolve(modifiedPayload.content),
@@ -647,6 +643,10 @@ export class VercelLLMService implements ILLMService {
             }),
         };
         await this.contextManager.processLLMStreamResponse(sanitizedStreamResponse);
+
+        // Emit hook-modified content
+        const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
+        this.sessionEventBus.emit('llmservice:response', eventPayload);
 
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 

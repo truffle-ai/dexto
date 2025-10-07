@@ -2,6 +2,32 @@ import { logger } from '../../logger/index.js';
 import type { HookManager } from '../manager.js';
 import type { BeforeResponsePayload, HookRunResult, HookNotice } from '../types.js';
 
+/**
+ * Response Hook Architecture Design Notes:
+ *
+ * Current Flow:
+ * 1. LLM generates response (original content)
+ * 2. Hooks run (e.g., PII redaction, content filtering)
+ * 3. Processed/redacted content is stored in history
+ * 4. Processed content is emitted to user
+ *
+ * Design Rationale:
+ * - Storage receives PROCESSED responses to avoid persisting sensitive data (PII, credentials, etc.)
+ * - User input is stored ORIGINAL for audit trails (to know what user actually said)
+ * - This protects against LLMs accidentally generating sensitive information
+ *
+ * Known Limitations:
+ * - Multi-iteration tool calling: Content during tool iterations is stored unprocessed
+ *   because hooks run on the complete accumulated response, not per-iteration
+ * - Streaming: Chunks are emitted before hooks run (see streaming bypass comments in service files)
+ *
+ * TODO: Design audit trail strategy
+ * - Consider whether original LLM responses should be logged separately for debugging
+ * - Evaluate if hooks should have different behavior for storage vs. display
+ * - Determine scope of audit data: full history, metadata only, or configurable levels
+ * - Consider compliance requirements for different deployment scenarios
+ */
+
 export async function runBeforeResponse(
     hookManager: HookManager | undefined,
     payload: BeforeResponsePayload
@@ -22,14 +48,12 @@ export interface ProcessedHookResult {
  *
  * @param hookManager - The hook manager instance (optional)
  * @param payload - The response payload to process
- * @param sessionId - The session ID for logging context
  * @param defaultOverrideMessage - Message to use if hook cancels response without providing override
  * @returns Modified payload and any notices from hooks
  */
 export async function executeResponseHooks(
     hookManager: HookManager | undefined,
     payload: BeforeResponsePayload,
-    sessionId: string,
     defaultOverrideMessage = 'Response was blocked by a policy. Please try again.'
 ): Promise<ProcessedHookResult> {
     if (!hookManager) {
@@ -44,13 +68,13 @@ export async function executeResponseHooks(
             const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
             if (notice.kind === 'block' || notice.kind === 'warn') {
                 logger.warn(message, {
-                    sessionId,
+                    sessionId: payload.sessionId,
                     ...(notice.code && { code: notice.code }),
                     ...(notice.details && { details: notice.details }),
                 });
             } else {
                 logger.info(message, {
-                    sessionId,
+                    sessionId: payload.sessionId,
                     ...(notice.code && { code: notice.code }),
                     ...(notice.details && { details: notice.details }),
                 });
