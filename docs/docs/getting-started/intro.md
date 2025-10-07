@@ -4,75 +4,70 @@ sidebar_position: 1
 
 # Introduction
 
-Dexto is an **AI Agent Runtime** that orchestrates intelligent, stateful agents capable of reasoning, executing tools, and completing complex tasks. Instead of building agents from scratch—setting up LLM clients, managing state, implementing tool calling, handling sessions—you simply configure them declaratively and let Dexto handle the orchestration.
+Dexto is an agent orchestration engine that connects your existing systems to language models, creating AI assistants that can actually use your tools, databases, and APIs.
 
-## Why Dexto?
+Instead of building AI applications from scratch, you connect what you already have—databases, APIs, development tools, business systems—and Dexto handles the orchestration. Users interact with everything through natural language, while Dexto manages the complexity of state, tool calling, and conversation context.
 
-Traditional AI applications are stateless and limited to single interactions. Your agent forgets context, loses track of ongoing tasks, and can't coordinate multiple tools effectively.
+This means you can turn any system into an intelligent assistant without writing custom integration code or managing LLM interactions yourself.
 
-**Dexto changes this** by providing a runtime that maintains persistent agent state, handles complex reasoning loops, and manages tool execution—giving you agents that can:
+## The Problem
 
-- 🧠 **Remember everything** across conversations and sessions  
-- 🔄 **Work on long-running tasks** without losing progress
-- 🛠️ **Orchestrate multiple tools** to complete complex objectives
-- ⚡ **Scale intelligently** with persistent state management
+Your systems require technical knowledge to use:
+- Databases need SQL queries
+- APIs need code integration  
+- Tools need manual operation
+- Services don't communicate with each other
 
-Think of it as the difference between a stateless chatbot vs. a **persistent AI assistant** that grows smarter with each interaction.
+Building AI assistants that can actually use these systems requires managing state, tool calling, service coordination, and conversation context.
 
-```mermaid
-flowchart TD
-    subgraph Config ["Configuration Layer"]
-        A[LLM Config<br/><i>Provider, Model, Prompts</i>]
-        B[MCP Servers<br/><i>Tool Connections</i>]
-        C[Storage<br/><i>Cache & Database</i>]
-        D[Sessions<br/><i>Limits & TTL</i>]
-    end
-    
-    subgraph Runtime ["Runtime Layer"]
-        E[<i>Orchestrates Services<br/>for<br/>Stateful Agent Behavior</i>]
-    end
-    
-    subgraph Interactive ["Interactive Layer"]
-        F[CLI]
-        G[Web UI]
-        H[API Server]
-        I[SDK/Library]
-    end
-    
-    Config --> Runtime
-    Runtime --> Interactive
+## The Solution
 
-    classDef configNode fill:#1a202c,stroke:#4fd1c7,stroke-width:2px,color:#f7fafc
-    classDef runtimeNode fill:#2d3748,stroke:#68d391,stroke-width:2px,color:#f7fafc
-    classDef interactiveNode fill:#2c5282,stroke:#63b3ed,stroke-width:2px,color:#f7fafc
-    
-    class A,B,C,D configNode
-    class E runtimeNode
-    class F,G,H,I interactiveNode
-```
+Dexto handles the orchestration:
 
-## What You Get
+1. **Connect your systems** via Model Context Protocol (MCP)
+2. **Define agent behavior** in a YAML configuration
+3. **Users interact** through natural language
 
-Dexto provides everything you need to build sophisticated AI agents:
+Dexto manages:
+- Converting natural language to system actions
+- Coordinating multiple tools and services
+- Maintaining conversation state and context
+- Error handling and retries
 
-- **Persistent Conversations** - Maintain context across sessions with configurable storage backends (Redis, PostgreSQL, SQLite, in-memory)
-- **Multi-Session Support** - Run concurrent conversations with isolation, limits, and automatic cleanup
-- **Model Flexibility** - Use any LLM provider (OpenAI, Anthropic, Google, local) and switch models dynamically
-- **Tool Integration** - Connect to external APIs through Model Context Protocol (MCP) without writing integration code
-- **Multi-Agent Systems** - Run specialized agents that communicate, delegate tasks, and coordinate through emerging protocols like MCP, A2A, etc.
-- **Clean Deployment** - Single-command Docker deployment with built-in health checks and production-ready configuration
-- **Event System** - Real-time events for agent state, tool executions, and LLM interactions
-- **Multiple Interfaces** - Access via CLI, Web UI, REST API, or embed using the SDK/library
+## What You Can Build
 
-## How It Works
+Connect any system to create AI assistants:
+- **Databases** → Query with natural language
+- **APIs** → Control through conversation
+- **Development tools** → AI coding assistants
+- **Business systems** → Automated workflows
+- **Web services** → Browser automation
+- **File systems** → Document management
 
-:::tip Quick Start
-1. **📝 Configure Your Agent**: Create an `agent.yml` file defining your agent's purpose and capabilities
-2. **🚀 Start the Runtime**: Launch Dexto to orchestrate your agent with persistent state and tool access  
-3. **💬 Interact**: Use CLI, Web UI, API, or embed directly using the SDK
-:::
+import ExpandableImage from '@site/src/components/ExpandableImage';
 
-## Ready to Build Your First Agent?
+<ExpandableImage 
+  src="/assets/intro_diagram.png" 
+  alt="Dexto Architecture" 
+  title="Dexto Architecture Overview"
+/>
+
+## How to Use Dexto
+
+1. **Install**: `npm install -g dexto`
+2. **Configure**: Create an `agent.yml` file with your systems and LLM
+3. **Run**: `dexto --agent agent.yml`
+
+## Key Features
+
+- **20+ LLM providers** - OpenAI, Anthropic, Google, Groq, local models
+- **MCP integration** - Connect to 100+ tools and services
+- **Multiple interfaces** - CLI, Web UI, REST API, SDK
+- **Persistent sessions** - Maintain context across conversations
+- **Local-first** - Run on your infrastructure
+- **Production storage** - Redis, PostgreSQL, SQLite
+
+## Ready to Get Started?
 
 **[Install Dexto →](./installation.md)**
 
