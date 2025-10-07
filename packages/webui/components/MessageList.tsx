@@ -15,7 +15,30 @@ import {
     ToolResult
 } from './hooks/useChat';
 import ErrorBanner from './ErrorBanner';
-import { User, Bot, ChevronsRight, ChevronUp, Loader2, CheckCircle, ChevronRight, Wrench, AlertTriangle, Image as ImageIcon, Info, File, FileAudio, Copy, ChevronDown, Brain, Check as CheckIcon, X, ZoomIn, Volume2 } from 'lucide-react';
+import {
+    User,
+    Bot,
+    ChevronsRight,
+    ChevronUp,
+    Loader2,
+    CheckCircle,
+    ChevronRight,
+    Wrench,
+    AlertTriangle,
+    Image as ImageIcon,
+    Info,
+    File,
+    FileAudio,
+    Copy,
+    ChevronDown,
+    Brain,
+    Check as CheckIcon,
+    X,
+    ZoomIn,
+    Volume2,
+    Video as VideoIcon,
+    FileVideo,
+} from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
 import { TooltipIconButton } from './ui/tooltip-icon-button';
@@ -40,9 +63,10 @@ const formatTimestamp = (timestamp: number) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-// Helper to validate data URI for images to prevent XSS
-function isValidDataUri(src: string): boolean {
-  const dataUriRegex = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/i;
+// Helper to validate data URIs to prevent XSS
+function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  const typePattern = expectedType ? `${expectedType}/` : '[a-z0-9.+-]+/';
+  const dataUriRegex = new RegExp(`^data:${typePattern}[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$`, 'i');
   return dataUriRegex.test(src);
 }
 
@@ -50,39 +74,151 @@ function isValidDataUri(src: string): boolean {
 function isSafeHttpUrl(src: string): boolean {
   try {
     const url = new URL(src);
-    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'localhost';
+    const hostname = url.hostname.toLowerCase();
+    
+    // Check protocol
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return false;
+    }
+    
+    // Block localhost and common local names
+    if (hostname === 'localhost' || hostname === '::1') {
+      return false;
+    }
+    
+    // Check for IPv4 addresses
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipv4Match = hostname.match(ipv4Regex);
+    if (ipv4Match) {
+      const [, a, b, c, d] = ipv4Match.map(Number);
+      
+      // Validate IP range (0-255)
+      if (a > 255 || b > 255 || c > 255 || d > 255) {
+        return false;
+      }
+      
+      // Block loopback (127.0.0.0/8)
+      if (a === 127) {
+        return false;
+      }
+      
+      // Block private networks (RFC 1918)
+      // 10.0.0.0/8
+      if (a === 10) {
+        return false;
+      }
+      
+      // 172.16.0.0/12
+      if (a === 172 && b >= 16 && b <= 31) {
+        return false;
+      }
+      
+      // 192.168.0.0/16
+      if (a === 192 && b === 168) {
+        return false;
+      }
+      
+      // Block link-local (169.254.0.0/16)
+      if (a === 169 && b === 254) {
+        return false;
+      }
+      
+      // Block 0.0.0.0
+      if (a === 0 && b === 0 && c === 0 && d === 0) {
+        return false;
+      }
+    }
+    
+    // Check for IPv6 addresses
+    if (hostname.includes(':')) {
+      // Block IPv6 loopback
+      if (hostname === '::1' || hostname === '0:0:0:0:0:0:0:1') {
+        return false;
+      }
+      
+      // Block IPv6 unique-local (fc00::/7)
+      if (hostname.startsWith('fc') || hostname.startsWith('fd')) {
+        return false;
+      }
+      
+      // Block IPv6 link-local (fe80::/10)
+      if (hostname.startsWith('fe8') || hostname.startsWith('fe9') || 
+          hostname.startsWith('fea') || hostname.startsWith('feb')) {
+        return false;
+      }
+    }
+    
+    return true;
   } catch {
     return false;
   }
 }
 
 // Helper to check if a URL is safe for media rendering
-function isSafeMediaUrl(src: string): boolean {
-  return (src.startsWith('data:') && isValidDataUri(src)) || 
-         src.startsWith('blob:') || 
-         isSafeHttpUrl(src);
-}
-
-// Helper to check if a URL is safe for audio rendering  
-function isSafeAudioUrl(src: string): boolean {
-  return src.startsWith('data:audio/') || 
-         src.startsWith('blob:') || 
-         isSafeHttpUrl(src);
+function isSafeMediaUrl(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  if (src.startsWith('blob:') || isSafeHttpUrl(src)) return true;
+  if (src.startsWith('data:')) {
+    return expectedType ? isValidDataUri(src, expectedType) : isValidDataUri(src);
+  }
+  return false;
 }
 
 // Helper to resolve media source from different formats
 function resolveMediaSrc(part: any): string {
-  // Check for base64 data first
+  // Check for base64 data with mimeType
   if (part.base64 && part.mimeType) {
     return `data:${part.mimeType};base64,${part.base64}`;
   }
-  if (typeof part.base64 === 'string') {
-    return part.base64;
+  if (part.data && part.mimeType) {
+    return `data:${part.mimeType};base64,${part.data}`;
   }
   
   // Check for URL-based sources
-  const urlSrc = part.url ?? part.image ?? part.audio;
+  const urlSrc = part.url ?? part.image ?? part.audio ?? part.video ?? part.uri;
   return typeof urlSrc === 'string' ? urlSrc : '';
+}
+
+interface VideoInfo {
+  src: string;
+  filename?: string;
+  mimeType?: string;
+}
+
+function getVideoInfo(part: unknown): VideoInfo | null {
+  if (!part || typeof part !== 'object') return null;
+  
+  const anyPart = part as Record<string, any>;
+  const mimeType = anyPart.mimeType || anyPart.mediaType;
+  const filename = anyPart.filename || anyPart.name;
+  
+  const isVideo = mimeType?.startsWith('video/') || 
+                  anyPart.type === 'video' ||
+                  filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
+  
+  if (!isVideo) return null;
+  
+  const src = resolveMediaSrc(anyPart);
+  return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
+}
+
+
+function ThinkingIndicator() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground" role="status" aria-live="polite">
+      <span className="flex items-center gap-1 uppercase tracking-wide text-muted-foreground/80">
+        <span>Thinking</span>
+        <span className="flex items-center gap-0.5">
+          {[0, 1, 2].map((dot) => (
+            <span
+              key={dot}
+              className="inline-flex h-1.5 w-1.5 rounded-full bg-primary/60 animate-[pulse_1.2s_ease-in-out_infinite]"
+              style={{ animationDelay: `${dot * 0.18}s` }}
+            />
+          ))}
+        </span>
+      </span>
+    </div>
+  );
 }
 
 export default function MessageList({ messages, activeError, onDismissError, outerRef }: MessageListProps) {
@@ -169,6 +305,8 @@ export default function MessageList({ messages, activeError, onDismissError, out
         const isUser = msg.role === 'user';
         const isAi = msg.role === 'assistant';
         const isSystem = msg.role === 'system';
+        const isThinkingMessage =
+          isSystem && typeof msg.content === 'string' && msg.content.trim().toLowerCase().startsWith('dexto is thinking');
 
         const isLastMessage = idx === messages.length - 1;
         const isToolCall = !!(msg.toolName && msg.toolArgs);
@@ -177,15 +315,16 @@ export default function MessageList({ messages, activeError, onDismissError, out
 
         const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
 
-        // Extract image and audio parts from tool results for separate rendering
+        // Extract media parts from tool results for separate rendering
         const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
         const toolResultAudios: Array<{ src: string; filename?: string; index: number }> = [];
+        const toolResultVideos: Array<{ src: string; filename?: string; mimeType?: string; index: number }> = [];
         if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
           msg.toolResult.content.forEach((part, index) => {
             if (isImagePart(part)) {
               const src = resolveMediaSrc(part);
               
-              if (src && isSafeMediaUrl(src)) {
+              if (src && isSafeMediaUrl(src, 'image')) {
                 toolResultImages.push({
                   src,
                   alt: `Tool result image ${index + 1}`,
@@ -195,10 +334,18 @@ export default function MessageList({ messages, activeError, onDismissError, out
             } else if (isAudioPart(part)) {
               const src = resolveMediaSrc(part);
               
-              if (src && isSafeAudioUrl(src)) {
+              if (src && isSafeMediaUrl(src, 'audio')) {
                 toolResultAudios.push({
                   src,
                   filename: part.filename,
+                  index
+                });
+              }
+            } else {
+              const videoInfo = getVideoInfo(part);
+              if (videoInfo) {
+                toolResultVideos.push({
+                  ...videoInfo,
                   index
                 });
               }
@@ -232,7 +379,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
             : isAi
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
-            ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
+            ? isThinkingMessage
+              ? "p-1.5 shadow-none w-full bg-transparent text-xs text-muted-foreground text-center border-none"
+              : "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
         );
 
@@ -273,12 +422,15 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           type="button"
                           className="flex items-center gap-2 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-800 dark:hover:text-orange-200 transition-colors group"
                           onClick={() =>
-                            setReasoningExpanded((prev) => ({ ...prev, [msg.id!]: !prev[msg.id!] }))
+                            setReasoningExpanded((prev) => ({
+                              ...prev,
+                              [msgKey]: !(prev[msgKey] ?? true),
+                            }))
                           }
                         >
                           <Brain className="h-3.5 w-3.5" />
                           <span>AI Reasoning</span>
-                          {(reasoningExpanded[msg.id!] ?? true) ? (
+                          {(reasoningExpanded[msgKey] ?? true) ? (
                             <ChevronUp className="h-3 w-3 group-hover:scale-110 transition-transform" />
                           ) : (
                             <ChevronDown className="h-3 w-3 group-hover:scale-110 transition-transform" />
@@ -299,7 +451,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           />
                         </div>
                       </div>
-                      {(reasoningExpanded[msg.id!] ?? true) && (
+                      {(reasoningExpanded[msgKey] ?? true) && (
                         <div className="px-3 py-2">
                           <pre className="whitespace-pre-wrap break-words text-xs text-orange-800/80 dark:text-orange-200/70 leading-relaxed font-mono">
                             {msg.reasoning}
@@ -365,8 +517,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                 </pre>
                               ) : isToolResultContent(msg.toolResult) ? (
                                 msg.toolResult.content.map((part, index) => {
-                                  // Skip image and audio parts as they will be rendered separately
-                                  if (isImagePart(part) || isAudioPart(part)) {
+                                  const videoInfo = getVideoInfo(part);
+                                  // Skip media parts (image/audio/video) as they render separately
+                                  if (isImagePart(part) || isAudioPart(part) || videoInfo) {
                                     return null;
                                   }
                                   if (isTextPart(part)) {
@@ -377,9 +530,17 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                     );
                                   }
                                   if (isFilePart(part)) {
+                                    const isAudioFile = part.mimeType?.startsWith('audio/');
+                                    const isVideoFile = part.mimeType?.startsWith('video/');
                                     return (
                                       <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
-                                        <FileAudio className="h-4 w-4 text-muted-foreground" />
+                                        {isAudioFile ? (
+                                          <FileAudio className="h-4 w-4 text-muted-foreground" />
+                                        ) : isVideoFile ? (
+                                          <FileVideo className="h-4 w-4 text-muted-foreground" />
+                                        ) : (
+                                          <File className="h-4 w-4 text-muted-foreground" />
+                                        )}
                                         <span className="text-xs text-muted-foreground">
                                           {part.filename || 'File attachment'} ({part.mimeType})
                                         </span>
@@ -395,7 +556,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                               ) : (
                                 <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
                                   {typeof msg.toolResult === 'string' && msg.toolResult.startsWith('data:image') 
-                                    ? (isValidDataUri(msg.toolResult) ? <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" /> : 'Invalid image data')
+                                    ? (isValidDataUri(msg.toolResult, 'image') ? <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" /> : 'Invalid image data')
                                     : typeof msg.toolResult === 'object' ? JSON.stringify(msg.toolResult, null, 2) : String(msg.toolResult)}
                                 </pre>
                               )}
@@ -408,7 +569,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
                         <div className="relative">
-                          {isUser ? (
+                          {isThinkingMessage ? (
+                            <ThinkingIndicator />
+                          ) : isUser ? (
                             <p className="text-base whitespace-pre-line break-normal">
                               {msg.content}
                             </p>
@@ -435,6 +598,38 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                 </p>
                               ) : (
                                 <MarkdownText>{(part as TextPart).text}</MarkdownText>
+                              )}
+                            </div>
+                          );
+                        }
+                        const videoInfo = getVideoInfo(part);
+                        if (videoInfo) {
+                          const { src, filename, mimeType } = videoInfo;
+                          return (
+                            <div key={partKey} className="my-2 flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <FileVideo className={cn("h-4 w-4", isUser ? undefined : "text-muted-foreground")} />
+                                <span>Video attachment</span>
+                              </div>
+                              <div className="w-full max-w-md">
+                                <video
+                                  controls
+                                  src={src}
+                                  className="w-full max-h-[360px] rounded-lg bg-black"
+                                  preload="metadata"
+                                />
+                              </div>
+                              {(filename || mimeType) && (
+                                <div className="flex flex-col text-xs">
+                                  {filename && (
+                                    <span className={cn("truncate", isUser ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                                      {filename}
+                                    </span>
+                                  )}
+                                  {mimeType && (
+                                    <span className={cn(isUser ? "text-primary-foreground/70" : "text-muted-foreground/80")}>{mimeType}</span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
@@ -484,7 +679,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   {msg.imageData && !Array.isArray(msg.content) && (
                     (() => {
                       const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.base64}`;
-                      if (!isValidDataUri(src)) {
+                      if (!isValidDataUri(src, 'image')) {
                         return null;
                       }
                       return (
@@ -499,28 +694,57 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   {/* Display fileData attachments if not already in content array */}
                   {msg.fileData && !Array.isArray(msg.content) && (
                     <div className="mt-2">
-                      {msg.fileData.mimeType.startsWith('audio/') ? (
-                         <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
-                           <FileAudio className="h-4 w-4" />
-                           <audio 
-                             controls 
-                             src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`} 
-                             className="h-8"
-                           />
-                         </div>
-                       ) : (
-                         <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                           <File className="h-5 w-5" />
-                           <span className="text-sm font-medium">
-                             {msg.fileData.filename || `${msg.fileData.mimeType} file`}
-                           </span>
-                           <span className="text-xs text-primary-foreground/70">
-                             {msg.fileData.mimeType}
-                           </span>
-                         </div>
-                       )}
-                     </div>
-                   )}
+                      {msg.fileData.mimeType.startsWith('video/') ? (
+                        <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50 max-w-md">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <FileVideo className="h-4 w-4" />
+                            <span>Video attachment</span>
+                          </div>
+                          {(() => {
+                            const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
+                            return isValidDataUri(videoSrc, 'video') ? (
+                              <video
+                                controls
+                                src={videoSrc}
+                                className="w-full max-h-[360px] rounded-lg bg-black"
+                                preload="metadata"
+                              />
+                            ) : (
+                              <div className="text-xs text-red-500">Invalid video data</div>
+                            );
+                          })()}
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
+                            <span className="font-medium truncate">
+                              {msg.fileData.filename || `${msg.fileData.mimeType} file`}
+                            </span>
+                            <span className="opacity-70">{msg.fileData.mimeType}</span>
+                          </div>
+                        </div>
+                      ) : msg.fileData.mimeType.startsWith('audio/') ? (
+                        <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                          <FileAudio className="h-4 w-4" />
+                          {(() => {
+                            const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
+                            return isValidDataUri(audioSrc, 'audio') ? (
+                              <audio controls src={audioSrc} className="h-8" />
+                            ) : (
+                              <span className="text-xs text-red-500">Invalid audio data</span>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                          <File className="h-5 w-5" />
+                          <span className="text-sm font-medium">
+                            {msg.fileData.filename || `${msg.fileData.mimeType} file`}
+                          </span>
+                          <span className="text-xs text-primary-foreground/70">
+                            {msg.fileData.mimeType}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               {!isSystem && !isToolRelated && (
@@ -634,6 +858,42 @@ export default function MessageList({ messages, activeError, onDismissError, out
               </div>
             ))}
             
+            {/* Render tool result videos as separate message bubbles */}
+            {toolResultVideos.map((video, videoIndex) => (
+              <div key={`${msgKey}-video-${videoIndex}`} className="w-full mt-2">
+                <div className="flex items-end w-full justify-start">
+                  <VideoIcon className="h-7 w-7 mr-2 mb-1 text-muted-foreground self-start flex-shrink-0" />
+                  <div className="flex flex-col items-start">
+                    <div className="p-3 rounded-xl shadow-sm max-w-[75%] bg-card text-card-foreground border border-border rounded-bl-none text-sm overflow-hidden">
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <VideoIcon className="h-3 w-3" />
+                          <span>Tool Result Video</span>
+                        </div>
+                        <div className="flex flex-col gap-2 p-2 rounded border border-border bg-muted/30 min-w-0">
+                          <video
+                            controls
+                            src={video.src}
+                            className="w-full max-h-[360px] rounded-lg bg-black"
+                            preload="metadata"
+                          />
+                          {(video.filename || video.mimeType) && (
+                            <div className="flex flex-col text-xs text-muted-foreground">
+                              {video.filename && <span className="truncate">{video.filename}</span>}
+                              {video.mimeType && <span className="opacity-70">{video.mimeType}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 px-1">
+                      <span>{timestampStr}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
             {/* Render tool result audio as separate message bubbles */}
             {toolResultAudios.map((audio, audioIndex) => (
               <div key={`${msgKey}-audio-${audioIndex}`} className="w-full mt-2">

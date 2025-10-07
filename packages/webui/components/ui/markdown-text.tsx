@@ -7,6 +7,108 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 
+// Helper functions for media validation (copied from MessageList to avoid circular imports)
+function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  const typePattern = expectedType ? `${expectedType}/` : '[a-z0-9.+-]+/';
+  const dataUriRegex = new RegExp(`^data:${typePattern}[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$`, 'i');
+  return dataUriRegex.test(src);
+}
+
+function isSafeHttpUrl(src: string): boolean {
+  try {
+    const url = new URL(src);
+    const hostname = url.hostname.toLowerCase();
+    
+    // Check protocol
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return false;
+    }
+    
+    // Block localhost and common local names
+    if (hostname === 'localhost' || hostname === '::1') {
+      return false;
+    }
+    
+    // Check for IPv4 addresses
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipv4Match = hostname.match(ipv4Regex);
+    if (ipv4Match) {
+      const [, a, b, c, d] = ipv4Match.map(Number);
+      
+      // Validate IP range (0-255)
+      if (a > 255 || b > 255 || c > 255 || d > 255) {
+        return false;
+      }
+      
+      // Block loopback (127.0.0.0/8)
+      if (a === 127) {
+        return false;
+      }
+      
+      // Block private networks (RFC 1918)
+      // 10.0.0.0/8
+      if (a === 10) {
+        return false;
+      }
+      
+      // 172.16.0.0/12
+      if (a === 172 && b >= 16 && b <= 31) {
+        return false;
+      }
+      
+      // 192.168.0.0/16
+      if (a === 192 && b === 168) {
+        return false;
+      }
+      
+      // Block link-local (169.254.0.0/16)
+      if (a === 169 && b === 254) {
+        return false;
+      }
+      
+      // Block 0.0.0.0
+      if (a === 0 && b === 0 && c === 0 && d === 0) {
+        return false;
+      }
+    }
+    
+    // Check for IPv6 addresses
+    if (hostname.includes(':')) {
+      // Block IPv6 loopback
+      if (hostname === '::1' || hostname === '0:0:0:0:0:0:0:1') {
+        return false;
+      }
+      
+      // Block IPv6 unique-local (fc00::/7)
+      if (hostname.startsWith('fc') || hostname.startsWith('fd')) {
+        return false;
+      }
+      
+      // Block IPv6 link-local (fe80::/10)
+      if (hostname.startsWith('fe8') || hostname.startsWith('fe9') || 
+          hostname.startsWith('fea') || hostname.startsWith('feb')) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isSafeMediaUrl(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  if (src.startsWith('blob:') || isSafeHttpUrl(src)) return true;
+  if (src.startsWith('data:')) {
+    return expectedType ? isValidDataUri(src, expectedType) : isValidDataUri(src);
+  }
+  return false;
+}
+
+function isVideoUrl(url: string): boolean {
+  return url.match(/\.(mp4|webm|mov|m4v|avi|mkv)(\?.*)?$/i) !== null;
+}
+
 // Enhanced markdown component with proper emoji support and spacing
 const MarkdownTextImpl = ({ children }: { children: string }) => {
   return (
@@ -17,6 +119,46 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
         remarkPlugins={[remarkGfm]}
         skipHtml={true}
         components={{
+          a: ({ href, children, ...props }) => {
+            const url = href as string | undefined;
+            
+            // Check if this is a video URL that should be rendered as a video
+            if (url && isVideoUrl(url) && isSafeMediaUrl(url, 'video')) {
+              return (
+                <div className="my-4">
+                  <video
+                    controls
+                    src={url}
+                    className="w-full max-h-[360px] rounded-lg bg-black"
+                    preload="metadata"
+                  >
+                    Your browser does not support the video tag.
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline-offset-2 hover:underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium break-words"
+                    >
+                      {children || 'Open video'}
+                    </a>
+                  </video>
+                </div>
+              );
+            }
+            
+            // Regular link rendering
+            return (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline-offset-2 hover:underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium break-words"
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
           table: ({ className, children, ...props }) => (
             <div className="my-4 overflow-x-auto -mx-1 px-1">
               <table
