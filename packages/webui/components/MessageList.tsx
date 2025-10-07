@@ -700,12 +700,19 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             <FileVideo className="h-4 w-4" />
                             <span>Video attachment</span>
                           </div>
-                          <video
-                            controls
-                            src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`}
-                            className="w-full max-h-[360px] rounded-lg bg-black"
-                            preload="metadata"
-                          />
+                          {(() => {
+                            const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
+                            return isValidDataUri(videoSrc, 'video') ? (
+                              <video
+                                controls
+                                src={videoSrc}
+                                className="w-full max-h-[360px] rounded-lg bg-black"
+                                preload="metadata"
+                              />
+                            ) : (
+                              <div className="text-xs text-red-500">Invalid video data</div>
+                            );
+                          })()}
                           <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
                             <span className="font-medium truncate">
                               {msg.fileData.filename || `${msg.fileData.mimeType} file`}
@@ -716,11 +723,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
                       ) : msg.fileData.mimeType.startsWith('audio/') ? (
                         <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
                           <FileAudio className="h-4 w-4" />
-                          <audio
-                            controls
-                            src={`data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`}
-                            className="h-8"
-                          />
+                          {(() => {
+                            const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
+                            return isValidDataUri(audioSrc, 'audio') ? (
+                              <audio controls src={audioSrc} className="h-8" />
+                            ) : (
+                              <span className="text-xs text-red-500">Invalid audio data</span>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
