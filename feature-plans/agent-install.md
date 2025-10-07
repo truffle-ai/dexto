@@ -644,6 +644,67 @@ Step 5: Review
 
 ---
 
+### Phase 6.5: Refactor Agent Installation Architecture (PENDING)
+
+**Goal:** Decouple agent installation from DextoAgent class
+
+**Problem:**
+Currently, agent installation methods (`installAgent()`, `installCustomAgent()`, `uninstallAgent()`, `listAgents()`) are instance methods on `DextoAgent`. This creates a conceptual mismatch:
+- Agent installation is about managing the agent **registry**, not about a specific agent's behavior
+- The current agent instance doesn't need to be running to install/uninstall other agents
+- Creates unnecessary coupling between agent runtime and registry management
+
+**Proposed Solution:**
+Introduce an `AgentRegistry` service class or standalone functions that handle all registry operations independently of any agent instance.
+
+**Tasks:**
+- [ ] Design new API structure:
+  - Option A: `AgentRegistry` class with static/instance methods
+  - Option B: Standalone functions in `agent-registry.ts`
+  - Option C: Hybrid - core functions + optional registry manager class
+- [ ] Refactor installation logic:
+  - Move `installAgent()` out of DextoAgent
+  - Move `installCustomAgent()` out of DextoAgent
+  - Move `uninstallAgent()` out of DextoAgent
+  - Move `listAgents()` out of DextoAgent
+- [ ] Update API endpoints in `server.ts`:
+  - Replace `activeAgent.installAgent()` calls
+  - Replace `activeAgent.listAgents()` calls
+  - Remove `ensureAgentAvailable()` checks where not needed
+- [ ] Update CLI commands:
+  - Update `install.ts` to use new registry API
+  - Update `uninstall.ts` to use new registry API
+  - Update `list-agents.ts` to use new registry API
+- [ ] Update tests to reflect new architecture
+
+**Example API (to be designed):**
+```typescript
+// Option A: Static methods
+class AgentRegistry {
+  static async listAgents(): Promise<AgentList>;
+  static async installAgent(name: string): Promise<void>;
+  static async installCustomAgent(name: string, path: string, metadata: Metadata): Promise<void>;
+  static async uninstallAgent(name: string, force?: boolean): Promise<void>;
+}
+
+// Option B: Standalone functions
+export async function listAgents(): Promise<AgentList>;
+export async function installAgent(name: string): Promise<void>;
+export async function installCustomAgent(name: string, path: string, metadata: Metadata): Promise<void>;
+export async function uninstallAgent(name: string, force?: boolean): Promise<void>;
+```
+
+**Benefits:**
+- Clearer separation of concerns
+- Can install agents without active agent instance
+- Removes unnecessary `ensureAgentAvailable()` checks
+- More testable (no need to mock entire DextoAgent)
+- Better conceptual model for users
+
+**Deliverable:** Agent installation fully decoupled from agent runtime
+
+---
+
 ### Phase 7: Directory-Based Custom Agents (PENDING)
 
 **Goal:** Support installing directory-based custom agents with multiple files
