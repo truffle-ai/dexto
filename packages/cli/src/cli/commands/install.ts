@@ -1,6 +1,6 @@
 // packages/cli/src/cli/commands/install.ts
 
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import * as p from '@clack/prompts';
@@ -218,10 +218,64 @@ export async function handleInstallCommand(
                 console.log(`\n📦 Installing custom agent from ${agentInput}...`);
 
                 const resolvedPath = path.resolve(agentInput);
-                const suggestedName = extractAgentNameFromPath(resolvedPath);
+
+                // Detect if source is directory or file
+                const stats = statSync(resolvedPath);
+                const isDirectory = stats.isDirectory();
+
+                // Extract suggested name based on whether it's a directory or file
+                const suggestedName = isDirectory
+                    ? path.basename(resolvedPath)
+                    : extractAgentNameFromPath(resolvedPath);
 
                 // Prompt for metadata
                 const metadata = await promptForMetadata(suggestedName);
+
+                // Prompt for main field if installing from directory
+                let main: string | undefined;
+                if (isDirectory) {
+                    const mainInput = await p.text({
+                        message: 'Main config file:',
+                        placeholder: 'agent.yml',
+                        defaultValue: 'agent.yml',
+                    });
+
+                    if (p.isCancel(mainInput)) {
+                        p.cancel('Installation cancelled');
+                        process.exit(0);
+                    }
+
+                    main = mainInput as string;
+
+                    // Validate that main file exists in source directory
+                    const mainPath = path.join(resolvedPath, main);
+                    if (!existsSync(mainPath)) {
+                        console.error(`❌ Main file not found: ${main}`);
+                        failed.push(metadata.agentName);
+                        capture('dexto_install_agent', {
+                            agent: metadata.agentName,
+                            status: 'failed',
+                            reason: 'main_file_not_found',
+                            force: validated.force,
+                            injectPreferences: validated.injectPreferences,
+                        });
+                        continue;
+                    }
+
+                    // Validate it's a YAML file
+                    if (!main.endsWith('.yml') && !main.endsWith('.yaml')) {
+                        console.error(`❌ Main file must be a .yml or .yaml file: ${main}`);
+                        failed.push(metadata.agentName);
+                        capture('dexto_install_agent', {
+                            agent: metadata.agentName,
+                            status: 'failed',
+                            reason: 'invalid_main_file',
+                            force: validated.force,
+                            injectPreferences: validated.injectPreferences,
+                        });
+                        continue;
+                    }
+                }
 
                 // Check if already installed (unless --force)
                 const globalAgentsDir = getDextoGlobalPath('agents');
@@ -249,6 +303,7 @@ export async function handleInstallCommand(
                         description: metadata.description,
                         author: metadata.author,
                         tags: metadata.tags,
+                        ...(main ? { main } : {}),
                     },
                     validated.injectPreferences
                 );

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 
 // Mock @dexto/core partially: preserve real exports and override specific functions
 vi.mock('@dexto/core', async (importOriginal) => {
@@ -14,6 +14,7 @@ vi.mock('@dexto/core', async (importOriginal) => {
 // Mock fs
 vi.mock('fs', () => ({
     existsSync: vi.fn(),
+    statSync: vi.fn(),
 }));
 
 // Mock @clack/prompts
@@ -55,6 +56,11 @@ describe('Install Command', () => {
 
         // Mock existsSync to return false by default (agent not installed)
         vi.mocked(existsSync).mockReturnValue(false);
+
+        // Mock statSync to return file stats (default: file, not directory)
+        vi.mocked(statSync).mockReturnValue({
+            isDirectory: () => false,
+        } as any);
 
         // Mock console
         consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});

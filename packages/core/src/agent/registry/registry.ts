@@ -339,6 +339,17 @@ export class LocalAgentRegistry implements AgentRegistry {
         // For single-file agents, use agent name for filename
         const configFileName = isDirectory ? undefined : `${agentName}.yml`;
 
+        // Validate metadata
+        if (!metadata.description) {
+            throw RegistryError.installationFailed(agentName, 'description is required');
+        }
+        if (isDirectory && !metadata.main) {
+            throw RegistryError.installationFailed(
+                agentName,
+                'main field is required for directory-based agents'
+            );
+        }
+
         // Build registry entry
         const registryEntry: Omit<AgentRegistryEntry, 'type'> = {
             description: metadata.description,
@@ -362,10 +373,10 @@ export class LocalAgentRegistry implements AgentRegistry {
             }
 
             // Validate installation - check main config exists
-            const tempMainConfigPath =
-                isDirectory && metadata.main
-                    ? path.join(tempDir, metadata.main)
-                    : path.join(tempDir, configFileName!);
+            // After validation above, we know metadata.main exists for directories
+            const tempMainConfigPath = isDirectory
+                ? path.join(tempDir, metadata.main!)
+                : path.join(tempDir, configFileName!);
 
             if (!existsSync(tempMainConfigPath)) {
                 throw RegistryError.installationValidationFailed(agentName, tempMainConfigPath);

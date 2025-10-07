@@ -208,6 +208,26 @@ describe('LocalAgentRegistry - Integration Tests', () => {
             expect(fs.existsSync(path.join(installedDir, 'prompts.md'))).toBe(true);
         });
 
+        it('should throw error if directory agent missing main field', async () => {
+            const customAgentDir = path.join(tempDir, 'missing-main-agent');
+            fs.mkdirSync(customAgentDir, { recursive: true });
+            fs.writeFileSync(
+                path.join(customAgentDir, 'agent.yml'),
+                'name: missing-main-agent\nversion: 1.0.0'
+            );
+
+            await expect(
+                registry.installCustomAgentFromPath('missing-main-agent', customAgentDir, {
+                    description: 'Directory agent without main field',
+                    author: 'Test',
+                    tags: ['test'],
+                    // main field intentionally omitted
+                })
+            ).rejects.toThrow(
+                "Failed to install agent 'missing-main-agent': main field is required for directory-based agents"
+            );
+        });
+
         it('should throw error if custom agent name conflicts with builtin', async () => {
             const customAgentPath = path.join(tempDir, 'default-agent.yml');
             fs.writeFileSync(customAgentPath, 'name: default-agent\nversion: 1.0.0');
