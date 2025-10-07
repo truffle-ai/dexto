@@ -74,7 +74,81 @@ function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio')
 function isSafeHttpUrl(src: string): boolean {
   try {
     const url = new URL(src);
-    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'localhost';
+    const hostname = url.hostname.toLowerCase();
+    
+    // Check protocol
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return false;
+    }
+    
+    // Block localhost and common local names
+    if (hostname === 'localhost' || hostname === '::1') {
+      return false;
+    }
+    
+    // Check for IPv4 addresses
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipv4Match = hostname.match(ipv4Regex);
+    if (ipv4Match) {
+      const [, a, b, c, d] = ipv4Match.map(Number);
+      
+      // Validate IP range (0-255)
+      if (a > 255 || b > 255 || c > 255 || d > 255) {
+        return false;
+      }
+      
+      // Block loopback (127.0.0.0/8)
+      if (a === 127) {
+        return false;
+      }
+      
+      // Block private networks (RFC 1918)
+      // 10.0.0.0/8
+      if (a === 10) {
+        return false;
+      }
+      
+      // 172.16.0.0/12
+      if (a === 172 && b >= 16 && b <= 31) {
+        return false;
+      }
+      
+      // 192.168.0.0/16
+      if (a === 192 && b === 168) {
+        return false;
+      }
+      
+      // Block link-local (169.254.0.0/16)
+      if (a === 169 && b === 254) {
+        return false;
+      }
+      
+      // Block 0.0.0.0
+      if (a === 0 && b === 0 && c === 0 && d === 0) {
+        return false;
+      }
+    }
+    
+    // Check for IPv6 addresses
+    if (hostname.includes(':')) {
+      // Block IPv6 loopback
+      if (hostname === '::1' || hostname === '0:0:0:0:0:0:0:1') {
+        return false;
+      }
+      
+      // Block IPv6 unique-local (fc00::/7)
+      if (hostname.startsWith('fc') || hostname.startsWith('fd')) {
+        return false;
+      }
+      
+      // Block IPv6 link-local (fe80::/10)
+      if (hostname.startsWith('fe8') || hostname.startsWith('fe9') || 
+          hostname.startsWith('fea') || hostname.startsWith('feb')) {
+        return false;
+      }
+    }
+    
+    return true;
   } catch {
     return false;
   }
@@ -348,12 +422,15 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           type="button"
                           className="flex items-center gap-2 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-800 dark:hover:text-orange-200 transition-colors group"
                           onClick={() =>
-                            setReasoningExpanded((prev) => ({ ...prev, [msg.id!]: !prev[msg.id!] }))
+                            setReasoningExpanded((prev) => ({
+                              ...prev,
+                              [msgKey]: !(prev[msgKey] ?? true),
+                            }))
                           }
                         >
                           <Brain className="h-3.5 w-3.5" />
                           <span>AI Reasoning</span>
-                          {(reasoningExpanded[msg.id!] ?? true) ? (
+                          {(reasoningExpanded[msgKey] ?? true) ? (
                             <ChevronUp className="h-3 w-3 group-hover:scale-110 transition-transform" />
                           ) : (
                             <ChevronDown className="h-3 w-3 group-hover:scale-110 transition-transform" />
@@ -374,7 +451,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           />
                         </div>
                       </div>
-                      {(reasoningExpanded[msg.id!] ?? true) && (
+                      {(reasoningExpanded[msgKey] ?? true) && (
                         <div className="px-3 py-2">
                           <pre className="whitespace-pre-wrap break-words text-xs text-orange-800/80 dark:text-orange-200/70 leading-relaxed font-mono">
                             {msg.reasoning}
