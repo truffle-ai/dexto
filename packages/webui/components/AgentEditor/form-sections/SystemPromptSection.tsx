@@ -347,7 +347,7 @@ export function SystemPromptSection({
                               </LabelWithTooltip>
                               <Input
                                 id={`contributor-separator-${contributor.id}`}
-                                value={contributor.options?.separator || '\n\n---\n\n'}
+                                value={contributor.options?.separator ?? '\n\n---\n\n'}
                                 onChange={(e) => updateContributor(contributor.id, {
                                   options: { ...contributor.options, separator: e.target.value }
                                 })}
