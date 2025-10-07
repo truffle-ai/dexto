@@ -6,7 +6,7 @@ import { Registry, RegistrySchema, AgentRegistryEntry } from './types.js';
 import { RegistryError } from './errors.js';
 import { logger } from '@core/logger/index.js';
 
-const USER_REGISTRY_FILENAME = 'agent-registry.json';
+const USER_REGISTRY_FILENAME = 'user-agent-registry.json';
 
 /**
  * Get path to user registry file
@@ -16,7 +16,7 @@ export function getUserRegistryPath(): string {
 }
 
 /**
- * Load user registry from ~/.dexto/agent-registry.json
+ * Load user registry from ~/.dexto/user-agent-registry.json
  * Returns empty registry if file doesn't exist
  */
 export function loadUserRegistry(): Registry {

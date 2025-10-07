@@ -50,7 +50,7 @@ describe('user-registry', () => {
     describe('getUserRegistryPath', () => {
         it('should return correct path', () => {
             const registryPath = getUserRegistryPath();
-            expect(registryPath).toBe(path.join(tempDir, 'agent-registry.json'));
+            expect(registryPath).toBe(path.join(tempDir, 'user-agent-registry.json'));
         });
     });
 
