@@ -64,13 +64,9 @@ const formatTimestamp = (timestamp: number) => {
 };
 
 // Helper to validate data URIs to prevent XSS
-function isValidImageDataUri(src: string): boolean {
-  const dataUriRegex = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/i;
-  return dataUriRegex.test(src);
-}
-
-function isValidVideoDataUri(src: string): boolean {
-  const dataUriRegex = /^data:video\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/i;
+function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  const typePattern = expectedType ? `${expectedType}/` : '[a-z0-9.+-]+/';
+  const dataUriRegex = new RegExp(`^data:${typePattern}[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$`, 'i');
   return dataUriRegex.test(src);
 }
 
@@ -84,51 +80,23 @@ function isSafeHttpUrl(src: string): boolean {
   }
 }
 
-function isSafeImageUrl(src: string): boolean {
-  return (src.startsWith('data:') && isValidImageDataUri(src)) ||
-         src.startsWith('blob:') ||
-         isSafeHttpUrl(src);
-}
-
-function isSafeVideoUrl(src: string): boolean {
-  return (src.startsWith('data:') && isValidVideoDataUri(src)) ||
-         src.startsWith('blob:') ||
-         isSafeHttpUrl(src);
-}
-
-// Helper to check if a URL is safe for audio rendering  
-function isSafeAudioUrl(src: string): boolean {
-  return (src.startsWith('data:audio/') && src.includes(';base64,')) ||
-         src.startsWith('blob:') || 
-         isSafeHttpUrl(src);
+// Helper to check if a URL is safe for media rendering
+function isSafeMediaUrl(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  if (src.startsWith('blob:') || isSafeHttpUrl(src)) return true;
+  if (src.startsWith('data:')) {
+    return expectedType ? isValidDataUri(src, expectedType) : isValidDataUri(src);
+  }
+  return false;
 }
 
 // Helper to resolve media source from different formats
 function resolveMediaSrc(part: any): string {
-  // Check for base64 data first
+  // Check for base64 data with mimeType
   if (part.base64 && part.mimeType) {
     return `data:${part.mimeType};base64,${part.base64}`;
   }
   if (part.data && part.mimeType) {
     return `data:${part.mimeType};base64,${part.data}`;
-  }
-  if (part.resource && typeof part.resource === 'object' && part.resource !== null) {
-    const resource = part.resource as Record<string, unknown>;
-    if (typeof resource.base64 === 'string' && typeof resource.mimeType === 'string') {
-      return `data:${resource.mimeType};base64,${resource.base64}`;
-    }
-    if (typeof resource.data === 'string' && typeof resource.mimeType === 'string') {
-      return `data:${resource.mimeType};base64,${resource.data}`;
-    }
-    if (typeof resource.uri === 'string') {
-      return resource.uri;
-    }
-    if (typeof resource.url === 'string') {
-      return resource.url;
-    }
-  }
-  if (typeof part.base64 === 'string') {
-    return part.base64;
   }
   
   // Check for URL-based sources
@@ -143,37 +111,20 @@ interface VideoInfo {
 }
 
 function getVideoInfo(part: unknown): VideoInfo | null {
-  if (!part || typeof part !== 'object') {
-    return null;
-  }
+  if (!part || typeof part !== 'object') return null;
+  
   const anyPart = part as Record<string, any>;
-  const resource = typeof anyPart.resource === 'object' && anyPart.resource !== null ? (anyPart.resource as Record<string, any>) : undefined;
-  const mimeTypeCandidate = [anyPart.mimeType, anyPart.mediaType, resource?.mimeType, resource?.mediaType].find(
-    (value): value is string => typeof value === 'string'
-  );
-  const mimeType = mimeTypeCandidate;
-  const type = anyPart.type;
-
-  const filenameCandidate = [anyPart.filename, anyPart.name, anyPart.title, resource?.filename, resource?.name, resource?.title].find(
-    (value): value is string => typeof value === 'string'
-  );
-  const filename = filenameCandidate;
-
-  const looksLikeVideo =
-    (typeof type === 'string' && type.toLowerCase() === 'video') ||
-    (typeof mimeType === 'string' && mimeType.startsWith('video/')) ||
-    (typeof filename === 'string' && filename.toLowerCase().match(/\.(mp4|webm|mov|m4v|avi|mkv)$/));
-
-  if (!looksLikeVideo) {
-    return null;
-  }
-
+  const mimeType = anyPart.mimeType || anyPart.mediaType;
+  const filename = anyPart.filename || anyPart.name;
+  
+  const isVideo = mimeType?.startsWith('video/') || 
+                  anyPart.type === 'video' ||
+                  filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
+  
+  if (!isVideo) return null;
+  
   const src = resolveMediaSrc(anyPart);
-  if (!src || !isSafeVideoUrl(src)) {
-    return null;
-  }
-
-  return { src, filename, mimeType };
+  return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 
 
@@ -299,7 +250,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
             if (isImagePart(part)) {
               const src = resolveMediaSrc(part);
               
-              if (src && isSafeImageUrl(src)) {
+              if (src && isSafeMediaUrl(src, 'image')) {
                 toolResultImages.push({
                   src,
                   alt: `Tool result image ${index + 1}`,
@@ -309,7 +260,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
             } else if (isAudioPart(part)) {
               const src = resolveMediaSrc(part);
               
-              if (src && isSafeAudioUrl(src)) {
+              if (src && isSafeMediaUrl(src, 'audio')) {
                 toolResultAudios.push({
                   src,
                   filename: part.filename,
@@ -528,7 +479,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                               ) : (
                                 <pre className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground">
                                   {typeof msg.toolResult === 'string' && msg.toolResult.startsWith('data:image') 
-                                    ? (isValidImageDataUri(msg.toolResult) ? <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" /> : 'Invalid image data')
+                                    ? (isValidDataUri(msg.toolResult, 'image') ? <img src={msg.toolResult} alt="Tool result image" className="my-1 max-h-48 w-auto rounded border border-border" /> : 'Invalid image data')
                                     : typeof msg.toolResult === 'object' ? JSON.stringify(msg.toolResult, null, 2) : String(msg.toolResult)}
                                 </pre>
                               )}
@@ -651,7 +602,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   {msg.imageData && !Array.isArray(msg.content) && (
                     (() => {
                       const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.base64}`;
-                      if (!isValidImageDataUri(src)) {
+                      if (!isValidDataUri(src, 'image')) {
                         return null;
                       }
                       return (

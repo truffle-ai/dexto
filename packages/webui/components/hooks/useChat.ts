@@ -22,13 +22,6 @@ export interface AudioPart {
     filename?: string;
 }
 
-export interface VideoPart {
-    type: 'video';
-    base64: string;
-    mimeType: string;
-    filename?: string;
-}
-
 export interface FileData {
     base64: string;
     mimeType: string;
@@ -41,7 +34,7 @@ export interface ToolResultError {
 }
 
 export interface ToolResultContent {
-    content: Array<TextPart | ImagePart | AudioPart | VideoPart | FilePart>;
+    content: Array<TextPart | ImagePart | AudioPart | FilePart>;
 }
 
 export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
@@ -88,15 +81,6 @@ export function isAudioPart(part: unknown): part is AudioPart {
     );
 }
 
-export function isVideoPart(part: unknown): part is VideoPart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'video'
-    );
-}
-
 export function isFilePart(part: unknown): part is FilePart {
     return (
         typeof part === 'object' &&
@@ -110,7 +94,7 @@ export function isFilePart(part: unknown): part is FilePart {
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart | VideoPart | FilePart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
     imageData?: { base64: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
@@ -447,30 +431,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     };
                                 } else if (audioPart.audio || audioPart.url) {
                                     return part; // Keep original format for URL-based audio
-                                }
-                            } else if (
-                                typeof part === 'object' &&
-                                part !== null &&
-                                (part as { type?: unknown }).type === 'video'
-                            ) {
-                                const videoPart = part as any;
-                                // Ensure consistent format for video parts
-                                if (videoPart.data && videoPart.mimeType) {
-                                    return {
-                                        type: 'video',
-                                        base64: videoPart.data,
-                                        mimeType: videoPart.mimeType,
-                                        filename: videoPart.filename,
-                                    };
-                                } else if (videoPart.base64 && videoPart.mimeType) {
-                                    return {
-                                        type: 'video',
-                                        base64: videoPart.base64,
-                                        mimeType: videoPart.mimeType,
-                                        filename: videoPart.filename,
-                                    };
-                                } else if (videoPart.video || videoPart.url) {
-                                    return part; // Keep original format for URL-based video
                                 }
                             }
                             return part;

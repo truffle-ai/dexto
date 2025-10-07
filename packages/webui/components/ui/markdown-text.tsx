@@ -7,6 +7,34 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 
+// Helper functions for media validation (copied from MessageList to avoid circular imports)
+function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  const typePattern = expectedType ? `${expectedType}/` : '[a-z0-9.+-]+/';
+  const dataUriRegex = new RegExp(`^data:${typePattern}[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$`, 'i');
+  return dataUriRegex.test(src);
+}
+
+function isSafeHttpUrl(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'localhost';
+  } catch {
+    return false;
+  }
+}
+
+function isSafeMediaUrl(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
+  if (src.startsWith('blob:') || isSafeHttpUrl(src)) return true;
+  if (src.startsWith('data:')) {
+    return expectedType ? isValidDataUri(src, expectedType) : isValidDataUri(src);
+  }
+  return false;
+}
+
+function isVideoUrl(url: string): boolean {
+  return url.match(/\.(mp4|webm|mov|m4v|avi|mkv)(\?.*)?$/i) !== null;
+}
+
 // Enhanced markdown component with proper emoji support and spacing
 const MarkdownTextImpl = ({ children }: { children: string }) => {
   return (
@@ -17,17 +45,46 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
         remarkPlugins={[remarkGfm]}
         skipHtml={true}
         components={{
-          a: ({ href, children, ...props }) => (
-            <a
-              href={href as string | undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline-offset-2 hover:underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium break-words"
-              {...props}
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children, ...props }) => {
+            const url = href as string | undefined;
+            
+            // Check if this is a video URL that should be rendered as a video
+            if (url && isVideoUrl(url) && isSafeMediaUrl(url, 'video')) {
+              return (
+                <div className="my-4">
+                  <video
+                    controls
+                    src={url}
+                    className="w-full max-h-[360px] rounded-lg bg-black"
+                    preload="metadata"
+                  >
+                    Your browser does not support the video tag.
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline-offset-2 hover:underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium break-words"
+                    >
+                      {children || 'Open video'}
+                    </a>
+                  </video>
+                </div>
+              );
+            }
+            
+            // Regular link rendering
+            return (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline-offset-2 hover:underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium break-words"
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
           table: ({ className, children, ...props }) => (
             <div className="my-4 overflow-x-auto -mx-1 px-1">
               <table
