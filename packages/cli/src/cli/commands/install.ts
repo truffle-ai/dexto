@@ -238,6 +238,24 @@ export async function handleInstallCommand(
                         message: 'Main config file:',
                         placeholder: 'agent.yml',
                         defaultValue: 'agent.yml',
+                        validate: (value) => {
+                            if (!value || value.trim().length === 0) {
+                                return 'Main config file is required';
+                            }
+
+                            // Validate it's a YAML file
+                            if (!value.endsWith('.yml') && !value.endsWith('.yaml')) {
+                                return 'Main file must be a .yml or .yaml file';
+                            }
+
+                            // Validate that main file exists in source directory
+                            const mainPath = path.join(resolvedPath, value);
+                            if (!existsSync(mainPath)) {
+                                return `File not found: ${value}`;
+                            }
+
+                            return undefined;
+                        },
                     });
 
                     if (p.isCancel(mainInput)) {
@@ -246,35 +264,6 @@ export async function handleInstallCommand(
                     }
 
                     main = mainInput as string;
-
-                    // Validate that main file exists in source directory
-                    const mainPath = path.join(resolvedPath, main);
-                    if (!existsSync(mainPath)) {
-                        console.error(`❌ Main file not found: ${main}`);
-                        failed.push(metadata.agentName);
-                        capture('dexto_install_agent', {
-                            agent: metadata.agentName,
-                            status: 'failed',
-                            reason: 'main_file_not_found',
-                            force: validated.force,
-                            injectPreferences: validated.injectPreferences,
-                        });
-                        continue;
-                    }
-
-                    // Validate it's a YAML file
-                    if (!main.endsWith('.yml') && !main.endsWith('.yaml')) {
-                        console.error(`❌ Main file must be a .yml or .yaml file: ${main}`);
-                        failed.push(metadata.agentName);
-                        capture('dexto_install_agent', {
-                            agent: metadata.agentName,
-                            status: 'failed',
-                            reason: 'invalid_main_file',
-                            force: validated.force,
-                            injectPreferences: validated.injectPreferences,
-                        });
-                        continue;
-                    }
                 }
 
                 // Check if already installed (unless --force)
