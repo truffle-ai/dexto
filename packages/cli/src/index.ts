@@ -221,7 +221,7 @@ program
 // 5) `install` SUB-COMMAND
 program
     .command('install [agents...]')
-    .description('Install agents from the registry')
+    .description('Install agents from registry or custom YAML files/directories')
     .option('--all', 'Install all available agents from registry')
     .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
     .option('--force', 'Force reinstall even if agent is already installed')
