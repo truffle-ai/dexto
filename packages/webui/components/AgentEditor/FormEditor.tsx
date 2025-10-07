@@ -82,20 +82,6 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
     onChange({ ...config, toolConfirmation });
   };
 
-  const updateBasicInfo = (field: 'name' | 'description' | 'greeting', value: string) => {
-    if (field === 'greeting') {
-      onChange({ ...config, greeting: value });
-    } else {
-      onChange({
-        ...config,
-        agentCard: {
-          ...config.agentCard,
-          [field]: value,
-        } as AgentConfig['agentCard'],
-      });
-    }
-  };
-
   // Check if config has advanced features that aren't supported in form mode
   const hasAdvancedFeatures = checkForAdvancedFeatures(config);
 
@@ -129,54 +115,20 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
           errorCount={sectionErrors.basic.length}
           sectionErrors={sectionErrors.basic}
         >
-          <div className="space-y-4">
-            <div>
-              <LabelWithTooltip htmlFor="agent-name" tooltip="The unique identifier for this agent">
-                Agent Name
-              </LabelWithTooltip>
-              <Input
-                id="agent-name"
-                value={config.agentCard?.name || ''}
-                onChange={(e) => updateBasicInfo('name', e.target.value)}
-                placeholder="my-custom-agent"
-                aria-invalid={!!errors['agentCard.name']}
-              />
-              {errors['agentCard.name'] && (
-                <p className="text-xs text-destructive mt-1">{errors['agentCard.name']}</p>
-              )}
-            </div>
-
-            <div>
-              <LabelWithTooltip htmlFor="agent-description" tooltip="A brief description of what this agent does">
-                Description
-              </LabelWithTooltip>
-              <Input
-                id="agent-description"
-                value={config.agentCard?.description || ''}
-                onChange={(e) => updateBasicInfo('description', e.target.value)}
-                placeholder="A brief description of what this agent does"
-                aria-invalid={!!errors['agentCard.description']}
-              />
-              {errors['agentCard.description'] && (
-                <p className="text-xs text-destructive mt-1">{errors['agentCard.description']}</p>
-              )}
-            </div>
-
-            <div>
-              <LabelWithTooltip htmlFor="agent-greeting" tooltip="The initial message shown to users when they start a conversation">
-                Greeting Message
-              </LabelWithTooltip>
-              <Input
-                id="agent-greeting"
-                value={config.greeting || ''}
-                onChange={(e) => updateBasicInfo('greeting', e.target.value)}
-                placeholder="Hello! How can I help you today?"
-                aria-invalid={!!errors.greeting}
-              />
-              {errors.greeting && (
-                <p className="text-xs text-destructive mt-1">{errors.greeting}</p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <LabelWithTooltip htmlFor="agent-greeting" tooltip="The initial message shown to users when they start a conversation">
+              Greeting Message
+            </LabelWithTooltip>
+            <Input
+              id="agent-greeting"
+              value={config.greeting || ''}
+              onChange={(e) => onChange({ ...config, greeting: e.target.value })}
+              placeholder="Hello! How can I help you today?"
+              aria-invalid={!!errors.greeting}
+            />
+            {errors.greeting && (
+              <p className="text-xs text-destructive mt-1">{errors.greeting}</p>
+            )}
           </div>
         </Collapsible>
 
@@ -279,7 +231,7 @@ function mapErrorsToSections(errors: Record<string, string>): Record<SectionKey,
   };
 
   Object.entries(errors).forEach(([path, message]) => {
-    if (path.startsWith('agentCard.') || path === 'greeting') {
+    if (path === 'greeting') {
       sectionErrors.basic.push(message);
     } else if (path.startsWith('llm.')) {
       sectionErrors.llm.push(message);
