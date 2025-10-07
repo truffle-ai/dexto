@@ -10,7 +10,7 @@ import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
-import CustomizePanel from './CustomizePanel';
+import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
 import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon } from "lucide-react";
 import { cn } from '@/lib/utils';
@@ -31,7 +31,7 @@ import {
 import { ThemeSwitch } from './ThemeSwitch';
 import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
-import AgentSelector from './AgentSelector';
+import AgentSelector from './AgentSelector/AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';

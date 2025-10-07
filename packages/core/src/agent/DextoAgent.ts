@@ -35,7 +35,6 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
-import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
 import { parseDocument } from 'yaml';
@@ -197,6 +196,11 @@ export class DextoAgent {
             this._isStopped = false; // Reset stopped flag to allow restart
             logger.info('DextoAgent started successfully.');
 
+            // Subscribe all registered event subscribers to the new event bus
+            for (const subscriber of this.eventSubscribers) {
+                subscriber.subscribe(this.agentEventBus);
+            }
+
             // Show log location for SDK users
             const logPath = getDextoPath('logs', 'dexto.log');
             console.log(`📋 Logs available at: ${logPath}`);
@@ -301,11 +305,7 @@ export class DextoAgent {
     public async restart(): Promise<void> {
         await this.stop();
         await this.start();
-
-        // Auto-resubscribe all registered subscribers to the new event bus
-        for (const subscriber of this.eventSubscribers) {
-            subscriber.subscribe(this.agentEventBus);
-        }
+        // Note: start() handles re-subscribing all registered subscribers
     }
 
     /**
@@ -1232,168 +1232,19 @@ export class DextoAgent {
     }
 
     // ============= AGENT MANAGEMENT =============
-
-    /**
-     * Lists available and installed agents from the registry.
-     * Returns a structured object containing both installed and available agents,
-     * along with metadata like descriptions, authors, and tags.
-     *
-     * @returns Promise resolving to object with installed and available agent lists
-     *
-     * @example
-     * ```typescript
-     * const agents = await agent.listAgents();
-     * console.log(agents.installed); // ['default', 'my-custom-agent']
-     * console.log(agents.available); // [{ name: 'productivity', description: '...', ... }]
-     * console.log(agents.current?.name); // 'default'
-     * ```
-     */
-    public async listAgents(): Promise<{
-        installed: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        available: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        current?: { name?: string | null };
-    }> {
-        const agentRegistry = getAgentRegistry();
-        const availableMap = agentRegistry.getAvailableAgents();
-        const installedNames = await agentRegistry.getInstalledAgents();
-
-        // Build installed agents list with metadata
-        const installed = await Promise.all(
-            installedNames.map(async (name) => {
-                const registryEntry = availableMap[name];
-                if (registryEntry) {
-                    return {
-                        name,
-                        description: registryEntry.description,
-                        author: registryEntry.author,
-                        tags: registryEntry.tags,
-                    };
-                } else {
-                    // Handle locally installed agents not in registry
-                    try {
-                        const config = await loadAgentConfig(name);
-                        const author = config.agentCard?.provider?.organization;
-                        const result: {
-                            name: string;
-                            description: string;
-                            author?: string;
-                            tags?: string[];
-                        } = {
-                            name,
-                            description: config.agentCard?.description || 'Local agent',
-                            tags: [],
-                        };
-                        if (author) {
-                            result.author = author;
-                        }
-                        return result;
-                    } catch {
-                        return {
-                            name,
-                            description: 'Local agent (config unavailable)',
-                            tags: [],
-                        };
-                    }
-                }
-            })
-        );
-
-        // Build available agents list (excluding already installed)
-        const available = Object.entries(availableMap)
-            .filter(([name]) => !installedNames.includes(name))
-            .map(([name, entry]) => ({
-                name,
-                description: entry.description,
-                author: entry.author,
-                tags: entry.tags,
-            }));
-
-        return {
-            installed,
-            available,
-            current: { name: null }, // TODO: Track current agent name
-        };
-    }
-
-    /**
-     * Installs an agent from the registry.
-     * Downloads and sets up the specified agent, making it available for use.
-     *
-     * @param agentName The name of the agent to install from the registry
-     * @returns Promise that resolves when installation is complete
-     *
-     * @throws {AgentError} When agent is not found in registry or installation fails
-     *
-     * @example
-     * ```typescript
-     * await agent.installAgent('productivity');
-     * console.log('Productivity agent installed successfully');
-     * ```
-     * TODO: move out of DextoAgent
-     */
-    public async installAgent(agentName: string): Promise<void> {
-        const agentRegistry = getAgentRegistry();
-
-        if (!agentRegistry.hasAgent(agentName)) {
-            throw AgentError.apiValidationError(`Agent '${agentName}' not found in registry`);
-        }
-
-        try {
-            await agentRegistry.installAgent(agentName, true);
-            logger.info(`Successfully installed agent: ${agentName}`);
-        } catch (error) {
-            logger.error(`Failed to install agent ${agentName}:`, error);
-            throw AgentError.apiValidationError(
-                `Installation failed for agent '${agentName}'`,
-                error
-            );
-        }
-    }
-
-    /**
-     * Creates a new agent instance for the specified agent name.
-     * This method resolves the agent (installing if needed), loads its configuration,
-     * and returns a new DextoAgent instance ready to be started.
-     *
-     * This is a factory method that doesn't affect the current agent instance.
-     * The caller is responsible for managing the lifecycle of the returned agent.
-     *
-     * @param agentName The name of the agent to create
-     * @returns Promise resolving to a new DextoAgent instance (not started)
-     *
-     * @throws {AgentError} When agent is not found or creation fails
-     *
-     * @example
-     * ```typescript
-     * const newAgent = await DextoAgent.createAgent('productivity');
-     * await newAgent.start();
-     * ```
-     */
-    public static async createAgent(agentName: string): Promise<DextoAgent> {
-        const agentRegistry = getAgentRegistry();
-
-        try {
-            // Resolve agent (will install if needed)
-            const agentPath = await agentRegistry.resolveAgent(agentName, true, true);
-
-            // Load agent configuration
-            const config = await loadAgentConfig(agentPath);
-
-            // Create new agent (not started)
-            logger.info(`Creating agent: ${agentName}`);
-            const newAgent = new DextoAgent(config, agentPath);
-
-            logger.info(`Successfully created agent: ${agentName}`);
-            return newAgent;
-        } catch (error) {
-            logger.error(
-                `Failed to create agent '${agentName}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-            throw AgentError.apiValidationError(`Failed to create agent '${agentName}'`, error);
-        }
-    }
+    // Note: Agent management methods have been moved to the Dexto orchestrator class.
+    // See: /packages/core/src/Dexto.ts
+    //
+    // For agent lifecycle operations (list, install, uninstall, create), use:
+    // ```typescript
+    // await Dexto.listAgents();                 // Static
+    // await Dexto.installAgent(name);           // Static
+    // await Dexto.installCustomAgent(name, path, metadata); // Static
+    // await Dexto.uninstallAgent(name);         // Static
+    //
+    // const dexto = new Dexto();
+    // await dexto.createAgent(name);            // Instance method
+    // ```
 
     // Future methods could encapsulate more complex agent behaviors:
     // - Multi-step task execution with progress tracking

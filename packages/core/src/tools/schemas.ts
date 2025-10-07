@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { INTERNAL_TOOL_NAMES } from './internal-tools/registry.js';
 
+export const TOOL_CONFIRMATION_MODES = ['event-based', 'auto-approve', 'auto-deny'] as const;
+export type ToolConfirmationMode = (typeof TOOL_CONFIRMATION_MODES)[number];
+
+export const ALLOWED_TOOLS_STORAGE_TYPES = ['memory', 'storage'] as const;
+export type AllowedToolsStorageType = (typeof ALLOWED_TOOLS_STORAGE_TYPES)[number];
+
+export const DEFAULT_TOOL_CONFIRMATION_MODE: ToolConfirmationMode = 'event-based';
+export const DEFAULT_ALLOWED_TOOLS_STORAGE: AllowedToolsStorageType = 'storage';
+
 // Internal tools schema - separate for type derivation
 
 export const InternalToolsSchema = z
@@ -15,8 +24,8 @@ export type InternalToolsConfig = z.output<typeof InternalToolsSchema>;
 export const ToolConfirmationConfigSchema = z
     .object({
         mode: z
-            .enum(['event-based', 'auto-approve', 'auto-deny'])
-            .default('event-based')
+            .enum(TOOL_CONFIRMATION_MODES)
+            .default(DEFAULT_TOOL_CONFIRMATION_MODE)
             .describe(
                 'Tool confirmation mode: event-based (interactive), auto-approve (all tools), auto-deny (no tools)'
             ),
@@ -29,8 +38,8 @@ export const ToolConfirmationConfigSchema = z
                 'Timeout for tool confirmation requests in milliseconds, defaults to 120000ms (2 mins)'
             ),
         allowedToolsStorage: z
-            .enum(['memory', 'storage'])
-            .default('storage')
+            .enum(ALLOWED_TOOLS_STORAGE_TYPES)
+            .default(DEFAULT_ALLOWED_TOOLS_STORAGE)
             .describe(
                 'Storage type for remembered tool approvals: memory (session-only) or storage (persistent)'
             ),

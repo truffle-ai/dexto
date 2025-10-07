@@ -25,7 +25,10 @@ export default [
       '@typescript-eslint': await import('@typescript-eslint/eslint-plugin').then(m => m.default || m),
     },
     rules: {
-      // Forbid imports that can pull Node-only code
+      // Block specific problematic imports only
+      // The browser bundle (index.browser.ts) and conditional exports already
+      // ensure only browser-safe exports are available. This rule just catches
+      // accidental deep imports that bypass the bundle.
       'no-restricted-imports': [
         'error',
         {
@@ -36,29 +39,13 @@ export default [
                 'Web UI must not import the Node logger. Use the API for runtime or rely on browser console logging.',
             },
           ],
-        },
-      ],
-      // Disallow value imports from '@dexto/core' except `toError`.
-      // Keep browser bundles safe while long-term logger split is pending.
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector:
-            "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportDefaultSpecifier",
-          message:
-            "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-        },
-        {
-          selector:
-            "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportNamespaceSpecifier",
-          message:
-            "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
-        },
-        {
-          selector:
-            "ImportDeclaration[source.value='@dexto/core'][importKind!='type'] > ImportSpecifier:not([imported.name='toError'])",
-          message:
-            "Web UI can only import types or `toError` from '@dexto/core'. Use the API for runtime behavior.",
+          patterns: [
+            {
+              group: ['@dexto/core/*'],
+              message:
+                'Do not use deep imports from @dexto/core. Import from @dexto/core directly - the browser bundle ensures only safe exports are available.',
+            },
+          ],
         },
       ],
     },

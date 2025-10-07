@@ -31,7 +31,8 @@
     "react-textarea-autosize": "^8.5.9",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.2.0",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

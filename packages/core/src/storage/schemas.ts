@@ -3,8 +3,12 @@ import { StorageErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { EnvExpandedString } from '@core/utils/result.js';
 
-// ==== STORAGE CONFIGURATION ====
-// Base schema for common connection pool options
+export const CACHE_BACKEND_TYPES = ['in-memory', 'redis'] as const;
+export type CacheBackendType = (typeof CACHE_BACKEND_TYPES)[number];
+
+export const DATABASE_BACKEND_TYPES = ['in-memory', 'sqlite', 'postgres'] as const;
+export type DatabaseBackendType = (typeof DATABASE_BACKEND_TYPES)[number];
+
 const BaseBackendSchema = z.object({
     maxConnections: z.number().int().positive().optional().describe('Maximum connections'),
     idleTimeoutMillis: z
@@ -65,7 +69,7 @@ const PostgresBackendSchema = BaseBackendSchema.extend({
 
 export type PostgresBackendConfig = z.output<typeof PostgresBackendSchema>;
 // Backend configuration using discriminated union
-const BackendConfigSchema = z
+export const BackendConfigSchema = z
     .discriminatedUnion(
         'type',
         [InMemoryBackendSchema, RedisBackendSchema, SqliteBackendSchema, PostgresBackendSchema],

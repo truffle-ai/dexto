@@ -30,6 +30,28 @@ export class RegistryError {
         );
     }
 
+    static agentAlreadyExists(agentName: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_ALREADY_EXISTS,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Agent '${agentName}' already exists in user registry`,
+            { agentName },
+            'Choose a different name or uninstall the existing agent first'
+        );
+    }
+
+    static customAgentNameConflict(agentName: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.AGENT_ALREADY_EXISTS,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.USER,
+            `Cannot create custom agent '${agentName}': name conflicts with builtin agent`,
+            { agentName, conflictType: 'builtin' },
+            'Choose a different name for your custom agent'
+        );
+    }
+
     // Installation errors
     static installationFailed(agentName: string, cause: string) {
         return new DextoRuntimeError(
@@ -130,6 +152,17 @@ export class RegistryError {
             `Failed to parse agent registry from ${registryPath}: ${cause}`,
             { registryPath, cause },
             'This indicates a corrupted registry file - please reinstall Dexto'
+        );
+    }
+
+    static registryWriteError(registryPath: string, cause: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.REGISTRY_WRITE_ERROR,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.SYSTEM,
+            `Failed to save agent registry to ${registryPath}: ${cause}`,
+            { registryPath, cause },
+            'Check file permissions and available disk space'
         );
     }
 

@@ -14,7 +14,7 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, DextoAgent } from '@dexto/core';
+import { createAgentCard, Dexto, DextoAgent, getDexto } from '@dexto/core';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -172,6 +172,15 @@ export async function initializeApi(
 
     logger.info(`Initializing API server with agent: ${activeAgentName}`);
 
+    // Initialize event subscribers
+    const webSubscriber = new WebSocketEventSubscriber(wss);
+    const webhookSubscriber = new WebhookEventSubscriber();
+
+    // Register subscribers before starting agent
+    logger.info('Registering event subscribers with agent...');
+    activeAgent.registerSubscriber(webSubscriber);
+    activeAgent.registerSubscriber(webhookSubscriber);
+
     // Ensure the initial agent is started
     if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
         logger.info('Starting initial agent...');
@@ -179,15 +188,6 @@ export async function initializeApi(
     } else if (activeAgent.isStopped()) {
         logger.warn('Initial agent is stopped, this may cause issues');
     }
-
-    const webSubscriber = new WebSocketEventSubscriber(wss);
-    logger.info('Setting up API event subscriptions...');
-    activeAgent.registerSubscriber(webSubscriber);
-
-    // Initialize webhook subscriber
-    const webhookSubscriber = new WebhookEventSubscriber();
-    logger.info('Setting up webhook event subscriptions...');
-    activeAgent.registerSubscriber(webhookSubscriber);
 
     // Tool confirmation responses are handled by the main WebSocket handler below
 
@@ -219,8 +219,8 @@ export async function initializeApi(
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Use domain layer method to create new agent
-            newAgent = await DextoAgent.createAgent(name);
+            // Use orchestrator to create new agent
+            newAgent = await getDexto().createAgent(name);
 
             // Register event subscribers with new agent before starting
             logger.info('Registering event subscribers with new agent...');
@@ -792,8 +792,7 @@ export async function initializeApi(
     // ===== Agents API =====
     app.get('/api/agents', async (_req, res, next) => {
         try {
-            ensureAgentAvailable();
-            const agents = await activeAgent.listAgents();
+            const agents = await Dexto.listAgents();
             return sendJsonResponse(res, {
                 installed: agents.installed,
                 available: agents.available,
@@ -815,12 +814,51 @@ export async function initializeApi(
 
     const AgentNameSchema = z.object({ name: z.string().min(1) }).strict();
 
+    // Schema for custom agent installation
+    const CustomAgentInstallSchema = z
+        .object({
+            name: z.string().min(1),
+            sourcePath: z.string().min(1),
+            metadata: z.object({
+                description: z.string().min(1),
+                author: z.string().min(1),
+                tags: z.array(z.string()),
+                main: z.string().optional(),
+            }),
+            injectPreferences: z.boolean().default(true),
+        })
+        .strict();
+
     app.post('/api/agents/install', express.json(), async (req, res, next) => {
         try {
-            ensureAgentAvailable();
-            const { name } = AgentNameSchema.parse(req.body);
-            await activeAgent.installAgent(name);
-            return sendJsonResponse(res, { installed: true, name }, 201);
+            // Check if this is a custom agent installation (has sourcePath and metadata)
+            if (req.body.sourcePath && req.body.metadata) {
+                const { name, sourcePath, metadata, injectPreferences } =
+                    CustomAgentInstallSchema.parse(req.body);
+
+                // Clean metadata to match exact optional property types
+                const cleanMetadata: {
+                    description: string;
+                    author: string;
+                    tags: string[];
+                    main?: string;
+                } = {
+                    description: metadata.description,
+                    author: metadata.author,
+                    tags: metadata.tags,
+                };
+                if (metadata.main !== undefined) {
+                    cleanMetadata.main = metadata.main;
+                }
+
+                await Dexto.installCustomAgent(name, sourcePath, cleanMetadata, injectPreferences);
+                return sendJsonResponse(res, { installed: true, name, type: 'custom' }, 201);
+            } else {
+                // Registry agent installation
+                const { name } = AgentNameSchema.parse(req.body);
+                await Dexto.installAgent(name);
+                return sendJsonResponse(res, { installed: true, name, type: 'builtin' }, 201);
+            }
         } catch (error) {
             return next(error);
         }
@@ -839,6 +877,161 @@ export async function initializeApi(
             ) {
                 return res.status(409).json({ error: error.message });
             }
+            return next(error);
+        }
+    });
+
+    app.post('/api/agents/validate-name', express.json(), async (req, res, next) => {
+        try {
+            const { name } = AgentNameSchema.parse(req.body);
+            const agents = await Dexto.listAgents();
+
+            // Check if name exists in installed agents
+            const installedAgent = agents.installed.find((a) => a.name === name);
+            if (installedAgent) {
+                return sendJsonResponse(res, {
+                    valid: false,
+                    conflict: installedAgent.type,
+                    message: `Agent name '${name}' already exists (${installedAgent.type})`,
+                });
+            }
+
+            // Check if name exists in available agents (registry)
+            const availableAgent = agents.available.find((a) => a.name === name);
+            if (availableAgent) {
+                return sendJsonResponse(res, {
+                    valid: false,
+                    conflict: availableAgent.type,
+                    message: `Agent name '${name}' conflicts with ${availableAgent.type} agent`,
+                });
+            }
+
+            return sendJsonResponse(res, { valid: true });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    const UninstallAgentSchema = z
+        .object({
+            name: z.string().min(1),
+            force: z.boolean().default(false),
+        })
+        .strict();
+
+    app.post('/api/agents/uninstall', express.json(), async (req, res, next) => {
+        try {
+            const { name, force } = UninstallAgentSchema.parse(req.body);
+            await Dexto.uninstallAgent(name, force);
+            return sendJsonResponse(res, { uninstalled: true, name });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Schema for creating custom agents via UI
+    const CustomAgentCreateSchema = z
+        .object({
+            // Registry metadata
+            name: z
+                .string()
+                .min(1, 'Agent name is required')
+                .regex(
+                    /^[a-z0-9-]+$/,
+                    'Agent name must contain only lowercase letters, numbers, and hyphens'
+                )
+                .describe('Unique agent slug'),
+            description: z
+                .string()
+                .min(1, 'Description is required')
+                .describe('One-line description of the agent'),
+            author: z.string().optional().describe('Author or organization'),
+            tags: z.array(z.string()).default([]).describe('Tags for discovery'),
+            // Agent configuration
+            llm: z
+                .object({
+                    provider: z.string().min(1, 'Provider is required').describe('LLM provider id'),
+                    model: z.string().min(1, 'Model is required').describe('Model name'),
+                    apiKey: z
+                        .string()
+                        .optional()
+                        .describe(
+                            'API key or environment variable reference (e.g., $OPENAI_API_KEY)'
+                        ),
+                })
+                .strict()
+                .describe('LLM configuration'),
+            systemPrompt: z
+                .string()
+                .min(1, 'System prompt is required')
+                .describe('System prompt for the agent'),
+        })
+        .strict();
+
+    // Create a new custom agent from UI
+    app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
+        try {
+            const { name, description, author, tags, llm, systemPrompt } =
+                CustomAgentCreateSchema.parse(req.body);
+
+            // Handle API key: if it's a raw key, store securely and use env var reference
+            let apiKeyRef: string | undefined;
+            if (llm.apiKey && !llm.apiKey.startsWith('$')) {
+                // Raw API key provided - store securely and get env var reference
+                const meta = await saveProviderApiKey(
+                    llm.provider as LLMProvider,
+                    llm.apiKey,
+                    process.cwd()
+                );
+                apiKeyRef = `$${meta.envVar}`;
+                logger.info(
+                    `Stored API key securely for ${llm.provider}, using env var: ${meta.envVar}`
+                );
+            } else if (llm.apiKey) {
+                // Already an env var reference
+                apiKeyRef = llm.apiKey;
+            }
+
+            // Create agent YAML content (with env var reference instead of raw key)
+            const agentConfig = {
+                llm: {
+                    provider: llm.provider,
+                    model: llm.model,
+                    ...(apiKeyRef && { apiKey: apiKeyRef }),
+                },
+                systemPrompt,
+            };
+
+            const yamlContent = yamlStringify(agentConfig);
+
+            // Create temporary file
+            const tmpDir = os.tmpdir();
+            const tmpFile = path.join(tmpDir, `${name}-${Date.now()}.yml`);
+            await fs.writeFile(tmpFile, yamlContent, 'utf-8');
+
+            try {
+                // Install the custom agent
+                await Dexto.installCustomAgent(
+                    name,
+                    tmpFile,
+                    {
+                        description,
+                        author: author || 'Custom',
+                        tags: tags || [],
+                    },
+                    false // Don't inject preferences
+                );
+
+                // Clean up temp file
+                await fs.unlink(tmpFile).catch(() => {});
+
+                return sendJsonResponse(res, { created: true, name }, 201);
+            } catch (installError) {
+                // Clean up temp file on error
+                await fs.unlink(tmpFile).catch(() => {});
+                throw installError;
+            }
+        } catch (error) {
             return next(error);
         }
     });

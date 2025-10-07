@@ -56,7 +56,7 @@ describe('LocalAgentRegistry', () => {
         mockWritePreferencesToAgent = vi.mocked(writerUtils.writePreferencesToAgent);
 
         // Setup registry file
-        const registryPath = path.join(tempDir, 'agent-registry.json');
+        const registryPath = path.join(tempDir, 'user-agent-registry.json');
         createRegistryFile(registryPath, {
             'test-agent': {
                 description: 'Test agent',
@@ -81,9 +81,15 @@ describe('LocalAgentRegistry', () => {
 
         // Mock path functions
         mockResolveBundledScript.mockReturnValue(registryPath);
-        mockGetDextoGlobalPath.mockImplementation((subpath: string) =>
-            path.join(tempDir, 'global', subpath)
-        );
+        mockGetDextoGlobalPath.mockImplementation((type: string, filename?: string) => {
+            if (filename) {
+                return path.join(tempDir, filename);
+            }
+            if (type === 'agents') {
+                return path.join(tempDir, 'global', type);
+            }
+            return path.join(tempDir, 'global');
+        });
 
         // Mock preferences
         mockLoadGlobalPreferences.mockResolvedValue({
@@ -123,6 +129,7 @@ describe('LocalAgentRegistry', () => {
                     author: 'Test',
                     tags: ['test'],
                     source: 'test-agent.yml',
+                    type: 'builtin',
                 },
                 'dir-agent': {
                     description: 'Directory agent',
@@ -130,12 +137,14 @@ describe('LocalAgentRegistry', () => {
                     tags: ['test'],
                     source: 'dir-agent/',
                     main: 'main.yml',
+                    type: 'builtin',
                 },
                 'auto-test-agent': {
                     description: 'Auto-install test agent',
                     author: 'Test',
                     tags: ['test'],
                     source: 'auto-test-agent.yml',
+                    type: 'builtin',
                 },
             });
 
@@ -156,6 +165,7 @@ describe('LocalAgentRegistry', () => {
                         author: 'Test',
                         tags: ['test'],
                         source: 'test-agent.yml',
+                        type: 'builtin',
                     },
                     'dir-agent': {
                         description: 'Directory agent',
@@ -163,12 +173,14 @@ describe('LocalAgentRegistry', () => {
                         tags: ['test'],
                         source: 'dir-agent/',
                         main: 'main.yml',
+                        type: 'builtin',
                     },
                     'auto-test-agent': {
                         description: 'Auto-install test agent',
                         author: 'Test',
                         tags: ['test'],
                         source: 'auto-test-agent.yml',
+                        type: 'builtin',
                     },
                 },
             });
@@ -211,7 +223,7 @@ describe('LocalAgentRegistry', () => {
                     return path.join(bundledAgentsPath, 'test-agent.yml');
                 }
                 // Return original registry path
-                return path.join(tempDir, 'agent-registry.json');
+                return path.join(tempDir, 'user-agent-registry.json');
             });
 
             // Create a fresh registry instance to pick up the new mock
@@ -250,7 +262,7 @@ describe('LocalAgentRegistry', () => {
                 if (relativePath === 'agents/test-agent.yml') {
                     return path.join(bundledAgentsPath, 'test-agent.yml');
                 }
-                return path.join(tempDir, 'agent-registry.json');
+                return path.join(tempDir, 'user-agent-registry.json');
             });
 
             // Create fresh registry
@@ -301,7 +313,7 @@ describe('LocalAgentRegistry', () => {
                 if (relativePath === 'agents/dir-agent/') {
                     return dirAgentPath;
                 }
-                return path.join(tempDir, 'agent-registry.json');
+                return path.join(tempDir, 'user-agent-registry.json');
             });
 
             // Create fresh registry
@@ -383,7 +395,7 @@ describe('LocalAgentRegistry', () => {
                 // Set up mocks for this specific test
                 const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
                 mockResolveBundledScript
-                    .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                    .mockReturnValueOnce(path.join(tempDir, 'user-agent-registry.json'))
                     .mockReturnValueOnce(bundledPath);
 
                 const result = await registry.resolveAgent('auto-test-agent');
@@ -406,7 +418,7 @@ describe('LocalAgentRegistry', () => {
                 // Set up mocks for this specific test
                 const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
                 mockResolveBundledScript
-                    .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                    .mockReturnValueOnce(path.join(tempDir, 'user-agent-registry.json'))
                     .mockReturnValueOnce(bundledPath);
 
                 const result = await registry.resolveAgent('auto-test-agent', true, true);
@@ -449,7 +461,7 @@ describe('LocalAgentRegistry', () => {
                 // Set up mocks for this specific test
                 const bundledPath = path.join(tempDir, 'bundled', 'agents', 'auto-test-agent.yml');
                 mockResolveBundledScript
-                    .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                    .mockReturnValueOnce(path.join(tempDir, 'user-agent-registry.json'))
                     .mockReturnValueOnce(bundledPath);
 
                 // Auto-install with injectPreferences=false
@@ -637,7 +649,7 @@ describe('LocalAgentRegistry', () => {
             fs.writeFileSync(bundledPath, 'name: test-agent\ndescription: Test');
 
             mockResolveBundledScript
-                .mockReturnValueOnce(path.join(tempDir, 'agent-registry.json'))
+                .mockReturnValueOnce(path.join(tempDir, 'user-agent-registry.json'))
                 .mockReturnValueOnce(bundledPath);
 
             // Install agent
