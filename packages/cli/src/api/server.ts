@@ -792,7 +792,6 @@ export async function initializeApi(
     // ===== Agents API =====
     app.get('/api/agents', async (_req, res, next) => {
         try {
-            ensureAgentAvailable();
             const agents = await getDexto().listAgents();
             return sendJsonResponse(res, {
                 installed: agents.installed,
@@ -832,8 +831,6 @@ export async function initializeApi(
 
     app.post('/api/agents/install', express.json(), async (req, res, next) => {
         try {
-            ensureAgentAvailable();
-
             // Check if this is a custom agent installation (has sourcePath and metadata)
             if (req.body.sourcePath && req.body.metadata) {
                 const { name, sourcePath, metadata, injectPreferences } =
@@ -891,7 +888,6 @@ export async function initializeApi(
 
     app.post('/api/agents/validate-name', express.json(), async (req, res, next) => {
         try {
-            ensureAgentAvailable();
             const { name } = AgentNameSchema.parse(req.body);
             const agents = await getDexto().listAgents();
 
@@ -930,7 +926,6 @@ export async function initializeApi(
 
     app.post('/api/agents/uninstall', express.json(), async (req, res, next) => {
         try {
-            ensureAgentAvailable();
             const { name, force } = UninstallAgentSchema.parse(req.body);
             await getDexto().uninstallAgent(name, force);
             return sendJsonResponse(res, { uninstalled: true, name });
@@ -966,7 +961,6 @@ export async function initializeApi(
     // Create a new custom agent from UI
     app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
         try {
-            ensureAgentAvailable();
             const { name, description, author, tags, llm, systemPrompt } =
                 CustomAgentCreateSchema.parse(req.body);
 
