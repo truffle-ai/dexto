@@ -944,17 +944,32 @@ export async function initializeApi(
                 .regex(
                     /^[a-z0-9-]+$/,
                     'Agent name must contain only lowercase letters, numbers, and hyphens'
-                ),
-            description: z.string().min(1, 'Description is required'),
-            author: z.string().optional(),
-            tags: z.array(z.string()).optional(),
+                )
+                .describe('Unique agent slug'),
+            description: z
+                .string()
+                .min(1, 'Description is required')
+                .describe('One-line description of the agent'),
+            author: z.string().optional().describe('Author or organization'),
+            tags: z.array(z.string()).default([]).describe('Tags for discovery'),
             // Agent configuration
-            llm: z.object({
-                provider: z.string().min(1, 'Provider is required'),
-                model: z.string().min(1, 'Model is required'),
-                apiKey: z.string().optional(),
-            }),
-            systemPrompt: z.string().min(1, 'System prompt is required'),
+            llm: z
+                .object({
+                    provider: z.string().min(1, 'Provider is required').describe('LLM provider id'),
+                    model: z.string().min(1, 'Model is required').describe('Model name'),
+                    apiKey: z
+                        .string()
+                        .optional()
+                        .describe(
+                            'API key or environment variable reference (e.g., $OPENAI_API_KEY)'
+                        ),
+                })
+                .strict()
+                .describe('LLM configuration'),
+            systemPrompt: z
+                .string()
+                .min(1, 'System prompt is required')
+                .describe('System prompt for the agent'),
         })
         .strict();
 
@@ -964,12 +979,30 @@ export async function initializeApi(
             const { name, description, author, tags, llm, systemPrompt } =
                 CustomAgentCreateSchema.parse(req.body);
 
-            // Create agent YAML content
+            // Handle API key: if it's a raw key, store securely and use env var reference
+            let apiKeyRef: string | undefined;
+            if (llm.apiKey && !llm.apiKey.startsWith('$')) {
+                // Raw API key provided - store securely and get env var reference
+                const meta = await saveProviderApiKey(
+                    llm.provider as LLMProvider,
+                    llm.apiKey,
+                    process.cwd()
+                );
+                apiKeyRef = `$${meta.envVar}`;
+                logger.info(
+                    `Stored API key securely for ${llm.provider}, using env var: ${meta.envVar}`
+                );
+            } else if (llm.apiKey) {
+                // Already an env var reference
+                apiKeyRef = llm.apiKey;
+            }
+
+            // Create agent YAML content (with env var reference instead of raw key)
             const agentConfig = {
                 llm: {
                     provider: llm.provider,
                     model: llm.model,
-                    ...(llm.apiKey && { apiKey: llm.apiKey }),
+                    ...(apiKeyRef && { apiKey: apiKeyRef }),
                 },
                 systemPrompt,
             };

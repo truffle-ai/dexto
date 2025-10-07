@@ -281,7 +281,9 @@ export class LocalAgentRegistry implements AgentRegistry {
                 }
             } catch (cleanupError) {
                 logger.error(
-                    `Failed to clean up temp directory: ${cleanupError}. Skipping cleanup...`
+                    `Failed to clean up temp directory: ${
+                        cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+                    }. Skipping cleanup...`
                 );
             }
 
@@ -393,12 +395,32 @@ export class LocalAgentRegistry implements AgentRegistry {
                     ? path.join(targetDir, metadata.main)
                     : path.join(targetDir, configFileName!);
 
-            // Add to user registry
-            await addAgentToUserRegistry(agentName, registryEntry);
-            logger.info(`✓ Added '${agentName}' to user registry`);
+            // Add to user registry (with rollback on failure)
+            try {
+                await addAgentToUserRegistry(agentName, registryEntry);
+                logger.info(`✓ Added '${agentName}' to user registry`);
 
-            // Clear cached registry to force reload
-            this._registry = null;
+                // Clear cached registry to force reload
+                this._registry = null;
+            } catch (registryError) {
+                // Rollback: remove installed directory
+                try {
+                    if (existsSync(targetDir)) {
+                        await fs.rm(targetDir, { recursive: true, force: true });
+                        logger.info(`Rolled back installation: removed ${targetDir}`);
+                    }
+                } catch (rollbackError) {
+                    logger.error(
+                        `Rollback failed for '${agentName}': ${
+                            rollbackError instanceof Error
+                                ? rollbackError.message
+                                : String(rollbackError)
+                        }`
+                    );
+                }
+                // Re-throw original registry error
+                throw registryError;
+            }
 
             // Inject global preferences if requested
             if (injectPreferences) {
@@ -425,7 +447,9 @@ export class LocalAgentRegistry implements AgentRegistry {
                 }
             } catch (cleanupError) {
                 logger.error(
-                    `Failed to clean up temp directory: ${cleanupError}. Skipping cleanup...`
+                    `Failed to clean up temp directory: ${
+                        cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+                    }. Skipping cleanup...`
                 );
             }
 
