@@ -32,19 +32,32 @@ function isFilePath(input: string): boolean {
 }
 
 /**
- * Extract agent name from file path
- * Examples: './my-agent.yml' -> 'my-agent', './agents/foo/agent.yml' -> 'agent', './my-agent-dir' -> 'my-agent-dir'
+ * Extract agent name from file path and sanitize for validity
+ * Agent names must be lowercase alphanumeric with hyphens only.
+ * Examples:
+ *   './my-agent.yml' -> 'my-agent'
+ *   './my_agent.yml' -> 'my-agent' (underscore converted)
+ *   './agents/foo/agent.yml' -> 'agent'
+ *   './MyAgent.yml' -> 'myagent'
  */
 function extractAgentNameFromPath(filePath: string): string {
     const basename = path.basename(filePath);
 
     // If it's a file, remove the extension
+    let name = basename;
     if (basename.endsWith('.yml') || basename.endsWith('.yaml')) {
-        return basename.replace(/\.(yml|yaml)$/, '');
+        name = basename.replace(/\.(yml|yaml)$/, '');
     }
 
-    // If it's a directory, use the directory name
-    return basename;
+    // Sanitize: lowercase, replace underscores and invalid chars with hyphens
+    name = name
+        .toLowerCase()
+        .replace(/[_\s]+/g, '-') // Replace underscores and spaces with hyphens
+        .replace(/[^a-z0-9-]/g, '') // Remove any other invalid characters
+        .replace(/-+/g, '-') // Collapse multiple hyphens
+        .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+
+    return name;
 }
 
 /**
