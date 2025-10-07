@@ -10,7 +10,7 @@ import { Collapsible } from '../ui/collapsible';
 import { Input } from '../ui/input';
 import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { AlertCircle } from 'lucide-react';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig, ContributorConfig } from '@dexto/core';
 
 interface FormEditorProps {
   config: AgentConfig;
@@ -88,7 +88,7 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
     onChange({ ...config, llm });
   };
 
-  const updateSystemPrompt = (value: { contributors: any[] }) => {
+  const updateSystemPrompt = (value: { contributors: ContributorConfig[] }) => {
     onChange({ ...config, systemPrompt: value });
   };
 

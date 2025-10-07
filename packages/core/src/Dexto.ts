@@ -297,7 +297,8 @@ export class Dexto {
             await agentRegistry.uninstallAgent(agentName, force);
             logger.info(`Successfully uninstalled agent: ${agentName}`);
         } catch (error) {
-            logger.error(`Failed to uninstall agent ${agentName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to uninstall agent ${agentName}: ${errorMessage}`);
             throw AgentError.apiValidationError(
                 `Uninstallation failed for agent '${agentName}'`,
                 error
