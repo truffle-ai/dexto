@@ -51,7 +51,7 @@ export function LLMConfigSection({
           </LabelWithTooltip>
           <select
             id="provider"
-            value={value.provider}
+            value={value.provider || ''}
             onChange={(e) => handleChange('provider', e.target.value)}
             aria-invalid={!!errors['llm.provider']}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
@@ -73,7 +73,7 @@ export function LLMConfigSection({
           </LabelWithTooltip>
           <Input
             id="model"
-            value={value.model}
+            value={value.model || ''}
             onChange={(e) => handleChange('model', e.target.value)}
             placeholder="e.g., gpt-4, claude-3-opus-20240229"
             aria-invalid={!!errors['llm.model']}
@@ -90,7 +90,7 @@ export function LLMConfigSection({
             <Input
               id="apiKey"
               type={showApiKey ? 'text' : 'password'}
-              value={value.apiKey}
+              value={value.apiKey ?? ''}
               onChange={(e) => handleChange('apiKey', e.target.value)}
               placeholder="$OPENAI_API_KEY or direct value"
               aria-invalid={!!errors['llm.apiKey']}

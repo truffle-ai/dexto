@@ -237,7 +237,11 @@ export function SystemPromptSection({
                           id={`contributor-priority-${contributor.id}`}
                           type="number"
                           value={contributor.priority}
-                          onChange={(e) => updateContributor(contributor.id, { priority: parseInt(e.target.value, 10) })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const num = Number.parseInt(val, 10);
+                            updateContributor(contributor.id, { priority: Number.isNaN(num) ? 0 : num });
+                          }}
                           placeholder="0"
                           min="0"
                         />
@@ -376,9 +380,13 @@ export function SystemPromptSection({
                                 id={`contributor-max-file-size-${contributor.id}`}
                                 type="number"
                                 value={contributor.options?.maxFileSize || 100000}
-                                onChange={(e) => updateContributor(contributor.id, {
-                                  options: { ...contributor.options, maxFileSize: parseInt(e.target.value, 10) }
-                                })}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const num = Number.parseInt(val, 10);
+                                  updateContributor(contributor.id, {
+                                    options: { ...contributor.options, maxFileSize: Number.isNaN(num) ? undefined : num }
+                                  });
+                                }}
                                 placeholder="100000"
                                 min="1"
                               />

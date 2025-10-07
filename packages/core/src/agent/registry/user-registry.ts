@@ -52,7 +52,10 @@ export async function saveUserRegistry(registry: Registry): Promise<void> {
         await fs.mkdir(dextoDir, { recursive: true });
 
         // Write to temp file
-        await fs.writeFile(tempPath, JSON.stringify(registry, null, 2), 'utf-8');
+        await fs.writeFile(tempPath, JSON.stringify(registry, null, 2), {
+            encoding: 'utf-8',
+            mode: 0o600,
+        });
 
         // Atomic rename
         await fs.rename(tempPath, registryPath);
