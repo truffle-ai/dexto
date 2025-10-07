@@ -71,9 +71,9 @@ export async function saveUserRegistry(registry: Registry): Promise<void> {
             // Ignore cleanup errors
         }
 
-        throw RegistryError.registryParseError(
+        throw RegistryError.registryWriteError(
             registryPath,
-            `Failed to save: ${error instanceof Error ? error.message : String(error)}`
+            error instanceof Error ? error.message : String(error)
         );
     }
 }

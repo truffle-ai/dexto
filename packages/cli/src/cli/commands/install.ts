@@ -33,7 +33,7 @@ function isFilePath(input: string): boolean {
 
 /**
  * Extract agent name from file path
- * Examples: './my-agent.yml' -> 'my-agent', './agents/foo/agent.yml' -> 'foo'
+ * Examples: './my-agent.yml' -> 'my-agent', './agents/foo/agent.yml' -> 'agent', './my-agent-dir' -> 'my-agent-dir'
  */
 function extractAgentNameFromPath(filePath: string): string {
     const basename = path.basename(filePath);
@@ -348,8 +348,10 @@ export async function handleInstallCommand(
             failed.push(agentInput);
             console.error(`❌ ${errorMsg}`);
 
+            // Sanitize agent identifier for analytics (avoid sending full local paths)
+            const safeAgentId = isFilePath(agentInput) ? path.basename(agentInput) : agentInput;
             capture('dexto_install_agent', {
-                agent: agentInput,
+                agent: safeAgentId,
                 status: 'failed',
                 error_message: error instanceof Error ? error.message : String(error),
                 force: validated.force,

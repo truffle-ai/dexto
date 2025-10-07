@@ -155,6 +155,17 @@ export class RegistryError {
         );
     }
 
+    static registryWriteError(registryPath: string, cause: string) {
+        return new DextoRuntimeError(
+            RegistryErrorCode.REGISTRY_WRITE_ERROR,
+            ErrorScope.AGENT_REGISTRY,
+            ErrorType.SYSTEM,
+            `Failed to save agent registry to ${registryPath}: ${cause}`,
+            { registryPath, cause },
+            'Check file permissions and available disk space'
+        );
+    }
+
     // Auto-install control errors
     static agentNotInstalledAutoInstallDisabled(agentName: string, availableAgents: string[]) {
         return new DextoRuntimeError(

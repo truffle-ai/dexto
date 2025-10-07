@@ -86,8 +86,8 @@ export function McpServersSection({
     if (newName && typeof newName === 'string' && newName !== oldName) {
       // Guard against collision: prevent overwriting an existing server
       if (value[newName]) {
-        // Silently ignore the rename to avoid overwriting
-        return;
+        // TODO: Surface a user-facing error via onChange/errors map or toast notification
+        return; // No-op to avoid overwriting an existing server
       }
       const newValue = { ...value };
       delete newValue[oldName];

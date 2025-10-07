@@ -15,6 +15,7 @@ export enum RegistryErrorCode {
     // Registry file errors
     REGISTRY_NOT_FOUND = 'registry_file_not_found',
     REGISTRY_PARSE_ERROR = 'registry_parse_error',
+    REGISTRY_WRITE_ERROR = 'registry_write_error',
 
     // Config file errors
     CONFIG_NOT_FOUND = 'registry_config_not_found',

@@ -54,7 +54,7 @@ export function SystemPromptSection({
   };
 
   const addContributor = () => {
-    const newId = `contributor-${contributors.length + 1}`;
+    const newId = `contributor-${Date.now()}`;
     const newContributor: ContributorConfig = {
       id: newId,
       type: 'static',

@@ -210,7 +210,8 @@ export class Dexto {
             await agentRegistry.installAgent(agentName, true);
             logger.info(`Successfully installed agent: ${agentName}`);
         } catch (error) {
-            logger.error(`Failed to install agent ${agentName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to install agent ${agentName}: ${errorMessage}`);
             throw AgentError.apiValidationError(
                 `Installation failed for agent '${agentName}'`,
                 error
@@ -264,7 +265,8 @@ export class Dexto {
             logger.info(`Successfully installed custom agent: ${agentName}`);
             return mainConfigPath;
         } catch (error) {
-            logger.error(`Failed to install custom agent ${agentName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to install custom agent ${agentName}: ${errorMessage}`);
             throw AgentError.apiValidationError(
                 `Installation failed for custom agent '${agentName}'`,
                 error
