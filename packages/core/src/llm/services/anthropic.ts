@@ -227,16 +227,17 @@ export class AnthropicService implements ILLMService {
                             });
                         }
 
+                        const mergedPayload = {
+                            ...responsePayload,
+                            ...(hookResult.payload ?? {}),
+                        };
                         if (hookResult.canceled) {
                             const overrideContent =
                                 hookResult.responseOverride ||
                                 'Response was blocked by a policy. Please try again.';
-                            responsePayload = {
-                                ...responsePayload,
-                                content: overrideContent,
-                            };
+                            responsePayload = { ...mergedPayload, content: overrideContent };
                         } else {
-                            responsePayload = { ...responsePayload, ...hookResult.payload };
+                            responsePayload = mergedPayload;
                         }
                     }
 
@@ -370,16 +371,17 @@ export class AnthropicService implements ILLMService {
                     });
                 }
 
+                const mergedPayload = {
+                    ...responsePayload,
+                    ...(hookResult.payload ?? {}),
+                };
                 if (hookResult.canceled) {
                     const overrideContent =
                         hookResult.responseOverride ||
                         'Response was blocked by a policy. Please try again.';
-                    responsePayload = {
-                        ...responsePayload,
-                        content: overrideContent,
-                    };
+                    responsePayload = { ...mergedPayload, content: overrideContent };
                 } else {
-                    responsePayload = { ...responsePayload, ...hookResult.payload };
+                    responsePayload = mergedPayload;
                 }
             }
 

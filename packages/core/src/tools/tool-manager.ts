@@ -209,7 +209,7 @@ export class ToolManager {
         callId?: string
     ): Promise<unknown> {
         logger.debug(`🔧 Tool execution requested: '${toolName}'`);
-        logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
+        // Avoid logging raw args to prevent leaking sensitive data; hooks will emit notices if they modify payloads.
 
         // Allow hooks to modify/cancel before confirmation
         const beforeHookResult = await runBeforeToolCall(this.hookManager, {

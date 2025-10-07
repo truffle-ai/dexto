@@ -182,7 +182,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
      */
     parseResponse(response: GenerateTextResult<VercelToolSet, unknown>): InternalMessage[] {
         const internal: InternalMessage[] = [];
-        if (!response.response.messages) return internal;
+        if (!response.response?.messages) return internal;
         for (const msg of response.response.messages) {
             const role = msg.role as InternalMessage['role'];
             switch (role) {

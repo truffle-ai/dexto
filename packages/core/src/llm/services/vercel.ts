@@ -407,18 +407,19 @@ export class VercelLLMService implements ILLMService {
                     });
                 }
 
+                const mergedPayload = {
+                    ...responsePayload,
+                    ...(hookResult.payload ?? {}),
+                };
                 if (hookResult.canceled) {
                     // Hook canceled the response - use override or default message
                     const overrideContent =
                         hookResult.responseOverride ||
                         'Response was blocked by a policy. Please try again.';
-                    responsePayload = {
-                        ...responsePayload,
-                        content: overrideContent,
-                    };
+                    responsePayload = { ...mergedPayload, content: overrideContent };
                 } else {
                     // Apply modifications from hooks
-                    responsePayload = { ...responsePayload, ...hookResult.payload };
+                    responsePayload = mergedPayload;
                 }
             }
 
@@ -429,8 +430,15 @@ export class VercelLLMService implements ILLMService {
             };
             this.sessionEventBus.emit('llmservice:response', eventPayload);
 
-            // Persist response to history and update token count
-            await this.contextManager.processLLMResponse(response);
+            // Persist hook-modified response to history and update token count
+            const sanitizedResponse = {
+                ...response,
+                text: responsePayload.content,
+                ...(Object.prototype.hasOwnProperty.call(responsePayload, 'reasoning') && {
+                    reasoningText: responsePayload.reasoning,
+                }),
+            };
+            await this.contextManager.processLLMResponse(sanitizedResponse);
             if (typeof response.totalUsage.totalTokens === 'number') {
                 this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
             }
@@ -675,18 +683,20 @@ export class VercelLLMService implements ILLMService {
                 });
             }
 
+            const mergedPayload = {
+                ...responsePayload,
+                ...(hookResult.payload ?? {}),
+            };
+
             if (hookResult.canceled) {
                 // Hook canceled the response - use override or default message
                 const overrideContent =
                     hookResult.responseOverride ||
                     'Response was blocked by a policy. Please try again.';
-                responsePayload = {
-                    ...responsePayload,
-                    content: overrideContent,
-                };
+                responsePayload = { ...mergedPayload, content: overrideContent };
             } else {
                 // Apply modifications from hooks
-                responsePayload = { ...responsePayload, ...hookResult.payload };
+                responsePayload = mergedPayload;
             }
         }
 
@@ -703,7 +713,14 @@ export class VercelLLMService implements ILLMService {
         }
 
         // Persist response to history via formatter
-        await this.contextManager.processLLMStreamResponse(response);
+        const sanitizedStreamResponse = {
+            ...response,
+            text: Promise.resolve(responsePayload.content),
+            ...(Object.prototype.hasOwnProperty.call(responsePayload, 'reasoning') && {
+                reasoningText: Promise.resolve(responsePayload.reasoning),
+            }),
+        };
+        await this.contextManager.processLLMStreamResponse(sanitizedStreamResponse);
 
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 
