@@ -551,6 +551,7 @@ export class AnthropicService implements ILLMService {
                 if (chunk.delta.type === 'text_delta') {
                     textAccumulator += chunk.delta.text;
                     // Emit chunk event for real-time streaming
+                    // TODO: Ensure streaming chunks also respect hook sanitization before emission
                     this.sessionEventBus.emit('llmservice:chunk', {
                         type: 'text',
                         content: chunk.delta.text,

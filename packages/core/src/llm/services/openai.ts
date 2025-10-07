@@ -561,6 +561,7 @@ export class OpenAIService implements ILLMService {
                     if (delta?.content) {
                         content += delta.content;
                         // Emit chunk event for real-time streaming
+                        // TODO: Ensure streaming chunks also respect hook sanitization before emission
                         this.sessionEventBus.emit('llmservice:chunk', {
                             type: 'text',
                             content: delta.content,

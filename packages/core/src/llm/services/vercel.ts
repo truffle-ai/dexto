@@ -546,6 +546,7 @@ export class VercelLLMService implements ILLMService {
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
+                    // TODO: Ensure streaming chunks also respect hook sanitization before emission
                     this.sessionEventBus.emit('llmservice:chunk', {
                         type: 'text',
                         content: chunk.chunk.text,

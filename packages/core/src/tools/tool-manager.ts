@@ -330,10 +330,8 @@ export class ToolManager {
             return result;
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error(
-                `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
-            );
-
+            const rawMessage = error instanceof Error ? error.message : String(error);
+            let finalReason = rawMessage;
             let thrownError: unknown = error;
             try {
                 const failurePayload: AfterToolResultPayload = {
@@ -351,6 +349,7 @@ export class ToolManager {
                 this.logHookNotices('afterToolResult:failure', hookRes.notices);
 
                 if (hookRes.responseOverride) {
+                    finalReason = hookRes.responseOverride;
                     thrownError = ToolError.executionFailed(
                         toolName,
                         hookRes.responseOverride,
@@ -369,6 +368,7 @@ export class ToolManager {
                     ) {
                         const sanitizedMessage = (hookRes.payload.result as any).error;
                         if (typeof sanitizedMessage === 'string' && sanitizedMessage.length > 0) {
+                            finalReason = sanitizedMessage;
                             thrownError = ToolError.executionFailed(
                                 toolName,
                                 sanitizedMessage,
@@ -384,6 +384,17 @@ export class ToolManager {
                         ? `${hookError.message}${hookError.stack ? `\n${hookError.stack}` : ''}`
                         : String(hookError);
                 logger.error(`Hook error during failure handling: ${errorMessage}`);
+            }
+
+            logger.error(
+                `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${finalReason}`
+            );
+            if (finalReason !== rawMessage) {
+                logger.debug(`Original tool error prior to hook sanitization: ${rawMessage}`, {
+                    toolName,
+                    sessionId: sessionId ?? 'global',
+                    ...(callId ? { callId } : {}),
+                });
             }
 
             throw thrownError;
