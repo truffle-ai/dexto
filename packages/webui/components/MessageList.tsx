@@ -176,28 +176,26 @@ function getVideoInfo(part: unknown): VideoInfo | null {
   return { src, filename, mimeType };
 }
 
-const NOTICE_STYLES: Record<HookNotice['kind'], { container: string; icon: string }> = {
-  block: {
-    container:
-      'border border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-200',
-    icon: 'text-red-500 dark:text-red-300',
-  },
-  warn: {
-    container:
-      'border border-amber-200/80 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200',
-    icon: 'text-amber-500 dark:text-amber-300',
-  },
-  allow: {
-    container:
-      'border border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200',
-    icon: 'text-emerald-500 dark:text-emerald-300',
-  },
-  info: {
-    container:
-      'border border-blue-200/80 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-200',
-    icon: 'text-blue-500 dark:text-blue-300',
-  },
-};
+
+function ThinkingIndicator() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground" role="status" aria-live="polite">
+      <span className="flex items-center gap-1 uppercase tracking-wide text-muted-foreground/80">
+        <span>Thinking</span>
+        <span className="flex items-center gap-0.5">
+          {[0, 1, 2].map((dot) => (
+            <span
+              key={dot}
+              className="inline-flex h-1.5 w-1.5 rounded-full bg-primary/60 animate-[pulse_1.2s_ease-in-out_infinite]"
+              style={{ animationDelay: `${dot * 0.18}s` }}
+            />
+          ))}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 export default function MessageList({ messages, activeError, onDismissError, outerRef }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
@@ -282,6 +280,8 @@ export default function MessageList({ messages, activeError, onDismissError, out
         const isUser = msg.role === 'user';
         const isAi = msg.role === 'assistant';
         const isSystem = msg.role === 'system';
+        const isThinkingMessage =
+          isSystem && typeof msg.content === 'string' && msg.content.trim().toLowerCase().startsWith('dexto is thinking');
 
         const isLastMessage = idx === messages.length - 1;
         const isToolCall = !!(msg.toolName && msg.toolArgs);
@@ -354,7 +354,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
             : isAi
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
-            ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
+            ? isThinkingMessage
+              ? "p-1.5 shadow-none w-full bg-transparent text-xs text-muted-foreground text-center border-none"
+              : "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
         );
 
@@ -539,7 +541,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
                         <div className="relative">
-                          {isUser ? (
+                          {isThinkingMessage ? (
+                            <ThinkingIndicator />
+                          ) : isUser ? (
                             <p className="text-base whitespace-pre-line break-normal">
                               {msg.content}
                             </p>
@@ -701,45 +705,6 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           </span>
                         </div>
                       )}
-                    </div>
-                  )}
-                  {Array.isArray(msg.notices) && msg.notices.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {msg.notices.map((notice, noticeIndex) => {
-                        const style = NOTICE_STYLES[notice.kind] ?? NOTICE_STYLES.info;
-                        const Icon =
-                          notice.kind === 'block'
-                              ? AlertTriangle
-                              : notice.kind === 'warn'
-                              ? AlertTriangle
-                              : notice.kind === 'allow'
-                              ? CheckCircle
-                              : Info;
-                        return (
-                          <div
-                            key={`${msgKey}-notice-${noticeIndex}`}
-                            className={cn(
-                              'flex items-start gap-2 rounded-lg px-3 py-2 text-sm',
-                              style.container
-                            )}
-                          >
-                            <Icon className={cn('h-4 w-4 mt-0.5', style.icon)} />
-                            <div className="flex-1 space-y-1">
-                              <p className="font-medium leading-snug">{notice.message}</p>
-                              {notice.details && (
-                                <pre className="whitespace-pre-wrap break-words text-xs opacity-80">
-                                  {JSON.stringify(notice.details, null, 2)}
-                                </pre>
-                              )}
-                              {notice.code && (
-                                <span className="text-xs uppercase tracking-wide opacity-60">
-                                  Code: {notice.code}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
                   )}
                 </div>

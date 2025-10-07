@@ -17,6 +17,17 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
         remarkPlugins={[remarkGfm]}
         skipHtml={true}
         components={{
+          a: ({ href, children, ...props }) => (
+            <a
+              href={href as string | undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline-offset-2 hover:underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium break-words"
+              {...props}
+            >
+              {children}
+            </a>
+          ),
           table: ({ className, children, ...props }) => (
             <div className="my-4 overflow-x-auto -mx-1 px-1">
               <table
