@@ -15,8 +15,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager, BeforeResponsePayload, HookNotice } from '../../hooks/index.js';
-import { runBeforeResponse } from '../../hooks/index.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { executeResponseHooks } from '../../hooks/index.js';
 
 /**
  * OpenAI implementation of LLMService
@@ -30,8 +30,6 @@ export class OpenAIService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private hookManager?: HookManager;
-    private static readonly DEFAULT_POLICY_OVERRIDE_MESSAGE =
-        'Response was blocked by a policy. Please try again.';
 
     constructor(
         toolManager: ToolManager,
@@ -331,8 +329,8 @@ export class OpenAIService implements ILLMService {
         inputTokens: number,
         outputTokens: number,
         reasoningTokens: number
-    ): Promise<{ content: string; notices?: HookNotice[] }> {
-        let responsePayload: BeforeResponsePayload = {
+    ): Promise<{ content: string }> {
+        const responsePayload: BeforeResponsePayload = {
             content,
             provider: this.config.provider,
             model: this.config.model,
@@ -340,50 +338,19 @@ export class OpenAIService implements ILLMService {
             tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
             sessionId: this.sessionId,
         };
-        let notices: HookNotice[] | undefined;
 
-        if (this.hookManager) {
-            const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
-
-            if (hookResult.notices && hookResult.notices.length > 0) {
-                notices = hookResult.notices;
-                hookResult.notices.forEach((notice) => {
-                    const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
-                    if (notice.kind === 'block' || notice.kind === 'warn') {
-                        logger.warn(message, {
-                            sessionId: this.sessionId,
-                            ...(notice.code && { code: notice.code }),
-                            ...(notice.details && { details: notice.details }),
-                        });
-                    } else {
-                        logger.info(message, {
-                            sessionId: this.sessionId,
-                            ...(notice.code && { code: notice.code }),
-                            ...(notice.details && { details: notice.details }),
-                        });
-                    }
-                });
-            }
-
-            const mergedPayload = {
-                ...responsePayload,
-                ...(hookResult.payload ?? {}),
-            };
-
-            if (hookResult.canceled) {
-                const overrideContent =
-                    hookResult.responseOverride || OpenAIService.DEFAULT_POLICY_OVERRIDE_MESSAGE;
-                responsePayload = { ...mergedPayload, content: overrideContent };
-            } else {
-                responsePayload = mergedPayload;
-            }
-        }
+        // Execute hooks and get modified payload
+        const { modifiedPayload, notices } = await executeResponseHooks(
+            this.hookManager,
+            responsePayload,
+            this.sessionId
+        );
 
         if (totalTokens > 0) {
             this.contextManager.updateActualTokenCount(totalTokens);
         }
 
-        await this.contextManager.addAssistantMessage(responsePayload.content, undefined, {
+        await this.contextManager.addAssistantMessage(modifiedPayload.content, undefined, {
             tokenUsage:
                 totalTokens > 0
                     ? {
@@ -395,17 +362,11 @@ export class OpenAIService implements ILLMService {
                     : undefined,
         });
 
-        const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
-            ...responsePayload,
-            ...(notices ? { notices } : {}),
-        };
+        // Emit event with modified payload
+        const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
         this.sessionEventBus.emit('llmservice:response', eventPayload);
 
-        if (notices) {
-            return { content: responsePayload.content, notices };
-        }
-
-        return { content: responsePayload.content };
+        return { content: modifiedPayload.content };
     }
 
     // Helper methods

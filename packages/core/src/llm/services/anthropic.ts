@@ -13,8 +13,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager, BeforeResponsePayload, HookNotice } from '../../hooks/index.js';
-import { runBeforeResponse } from '../../hooks/index.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { executeResponseHooks } from '../../hooks/index.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -190,7 +190,7 @@ export class AnthropicService implements ILLMService {
                     }
 
                     // Build response payload
-                    let responsePayload: BeforeResponsePayload = {
+                    const responsePayload: BeforeResponsePayload = {
                         content: fullResponse,
                         provider: this.config.provider,
                         model: this.config.model,
@@ -198,65 +198,29 @@ export class AnthropicService implements ILLMService {
                         sessionId: this.sessionId,
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     };
-                    let notices: HookNotice[] | undefined;
 
-                    // Run beforeResponse hooks
-                    if (this.hookManager) {
-                        const hookResult = await runBeforeResponse(
-                            this.hookManager,
-                            responsePayload
-                        );
-
-                        if (hookResult.notices && hookResult.notices.length > 0) {
-                            notices = hookResult.notices;
-                            hookResult.notices.forEach((notice) => {
-                                const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
-                                if (notice.kind === 'block' || notice.kind === 'warn') {
-                                    logger.warn(message, {
-                                        sessionId: this.sessionId,
-                                        ...(notice.code && { code: notice.code }),
-                                        ...(notice.details && { details: notice.details }),
-                                    });
-                                } else {
-                                    logger.info(message, {
-                                        sessionId: this.sessionId,
-                                        ...(notice.code && { code: notice.code }),
-                                        ...(notice.details && { details: notice.details }),
-                                    });
-                                }
-                            });
-                        }
-
-                        const mergedPayload = {
-                            ...responsePayload,
-                            ...(hookResult.payload ?? {}),
-                        };
-                        if (hookResult.canceled) {
-                            const overrideContent =
-                                hookResult.responseOverride ||
-                                'Response was blocked by a policy. Please try again.';
-                            responsePayload = { ...mergedPayload, content: overrideContent };
-                        } else {
-                            responsePayload = mergedPayload;
-                        }
-                    }
+                    // Execute hooks and get modified payload
+                    const { modifiedPayload, notices } = await executeResponseHooks(
+                        this.hookManager,
+                        responsePayload,
+                        this.sessionId
+                    );
 
                     // Add assistant message with hook-modified content
                     await this.contextManager.addAssistantMessage(
-                        responsePayload.content,
+                        modifiedPayload.content,
                         undefined,
                         {
                             tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                         }
                     );
 
-                    const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
-                        ...responsePayload,
-                        ...(notices ? { notices } : {}),
-                    };
-
+                    // Emit event with modified payload
+                    const eventPayload = notices
+                        ? { ...modifiedPayload, notices }
+                        : modifiedPayload;
                     this.sessionEventBus.emit('llmservice:response', eventPayload);
-                    return responsePayload.content;
+                    return modifiedPayload.content;
                 }
 
                 // If text content exists, append it to the full response
@@ -337,7 +301,7 @@ export class AnthropicService implements ILLMService {
                 'Reached maximum number of tool call iterations without a final response.';
 
             // Build response payload
-            let responsePayload: BeforeResponsePayload = {
+            const responsePayload: BeforeResponsePayload = {
                 content: finalContent,
                 provider: this.config.provider,
                 model: this.config.model,
@@ -345,58 +309,23 @@ export class AnthropicService implements ILLMService {
                 sessionId: this.sessionId,
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             };
-            let notices: HookNotice[] | undefined;
 
-            // Run beforeResponse hooks
-            if (this.hookManager) {
-                const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
-
-                if (hookResult.notices && hookResult.notices.length > 0) {
-                    notices = hookResult.notices;
-                    hookResult.notices.forEach((notice) => {
-                        const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
-                        if (notice.kind === 'block' || notice.kind === 'warn') {
-                            logger.warn(message, {
-                                sessionId: this.sessionId,
-                                ...(notice.code && { code: notice.code }),
-                                ...(notice.details && { details: notice.details }),
-                            });
-                        } else {
-                            logger.info(message, {
-                                sessionId: this.sessionId,
-                                ...(notice.code && { code: notice.code }),
-                                ...(notice.details && { details: notice.details }),
-                            });
-                        }
-                    });
-                }
-
-                const mergedPayload = {
-                    ...responsePayload,
-                    ...(hookResult.payload ?? {}),
-                };
-                if (hookResult.canceled) {
-                    const overrideContent =
-                        hookResult.responseOverride ||
-                        'Response was blocked by a policy. Please try again.';
-                    responsePayload = { ...mergedPayload, content: overrideContent };
-                } else {
-                    responsePayload = mergedPayload;
-                }
-            }
+            // Execute hooks and get modified payload
+            const { modifiedPayload, notices } = await executeResponseHooks(
+                this.hookManager,
+                responsePayload,
+                this.sessionId
+            );
 
             // Add assistant message to history with hook-modified content
-            await this.contextManager.addAssistantMessage(responsePayload.content, undefined, {
+            await this.contextManager.addAssistantMessage(modifiedPayload.content, undefined, {
                 tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
             });
 
-            const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
-                ...responsePayload,
-                ...(notices ? { notices } : {}),
-            };
-
+            // Emit event with modified payload
+            const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
             this.sessionEventBus.emit('llmservice:response', eventPayload);
-            return responsePayload.content;
+            return modifiedPayload.content;
         } catch (error) {
             if (
                 error instanceof Error &&

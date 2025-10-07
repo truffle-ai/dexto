@@ -26,8 +26,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { HookManager, BeforeResponsePayload, HookNotice } from '../../hooks/index.js';
-import { runBeforeResponse } from '../../hooks/index.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { executeResponseHooks } from '../../hooks/index.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -359,7 +359,7 @@ export class VercelLLMService implements ILLMService {
             });
 
             // Build response payload
-            let responsePayload: BeforeResponsePayload = {
+            const responsePayload: BeforeResponsePayload = {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
                 provider: this.config.provider,
@@ -381,61 +381,24 @@ export class VercelLLMService implements ILLMService {
                 },
                 sessionId: this.sessionId,
             };
-            let notices: HookNotice[] | undefined;
 
-            // Run beforeResponse hooks
-            if (this.hookManager) {
-                const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
+            // Execute hooks and get modified payload
+            const { modifiedPayload, notices } = await executeResponseHooks(
+                this.hookManager,
+                responsePayload,
+                this.sessionId
+            );
 
-                if (hookResult.notices && hookResult.notices.length > 0) {
-                    notices = hookResult.notices;
-                    hookResult.notices.forEach((notice) => {
-                        const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
-                        if (notice.kind === 'block' || notice.kind === 'warn') {
-                            logger.warn(message, {
-                                sessionId: this.sessionId,
-                                ...(notice.code && { code: notice.code }),
-                                ...(notice.details && { details: notice.details }),
-                            });
-                        } else {
-                            logger.info(message, {
-                                sessionId: this.sessionId,
-                                ...(notice.code && { code: notice.code }),
-                                ...(notice.details && { details: notice.details }),
-                            });
-                        }
-                    });
-                }
-
-                const mergedPayload = {
-                    ...responsePayload,
-                    ...(hookResult.payload ?? {}),
-                };
-                if (hookResult.canceled) {
-                    // Hook canceled the response - use override or default message
-                    const overrideContent =
-                        hookResult.responseOverride ||
-                        'Response was blocked by a policy. Please try again.';
-                    responsePayload = { ...mergedPayload, content: overrideContent };
-                } else {
-                    // Apply modifications from hooks
-                    responsePayload = mergedPayload;
-                }
-            }
-
-            // Emit final response with reasoning and token usage (authoritative)
-            const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
-                ...responsePayload,
-                ...(notices ? { notices } : {}),
-            };
+            // Emit event with modified payload
+            const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
             this.sessionEventBus.emit('llmservice:response', eventPayload);
 
             // Persist hook-modified response to history and update token count
             const sanitizedResponse = {
                 ...response,
-                text: responsePayload.content,
-                ...(Object.prototype.hasOwnProperty.call(responsePayload, 'reasoning') && {
-                    reasoningText: responsePayload.reasoning,
+                text: modifiedPayload.content,
+                ...(Object.prototype.hasOwnProperty.call(modifiedPayload, 'reasoning') && {
+                    reasoningText: modifiedPayload.reasoning,
                 }),
             };
             await this.contextManager.processLLMResponse(sanitizedResponse);
@@ -444,7 +407,7 @@ export class VercelLLMService implements ILLMService {
             }
 
             // Return the response content (potentially modified by hooks)
-            return responsePayload.content;
+            return modifiedPayload.content;
         } catch (err: unknown) {
             this.mapProviderError(err, 'generate');
         }
@@ -642,7 +605,7 @@ export class VercelLLMService implements ILLMService {
         }
 
         // Build response payload
-        let responsePayload: BeforeResponsePayload = {
+        const responsePayload: BeforeResponsePayload = {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
             provider: this.config.provider,
@@ -658,54 +621,16 @@ export class VercelLLMService implements ILLMService {
             },
             sessionId: this.sessionId,
         };
-        let notices: HookNotice[] | undefined;
 
-        // Run beforeResponse hooks
-        if (this.hookManager) {
-            const hookResult = await runBeforeResponse(this.hookManager, responsePayload);
+        // Execute hooks and get modified payload
+        const { modifiedPayload, notices } = await executeResponseHooks(
+            this.hookManager,
+            responsePayload,
+            this.sessionId
+        );
 
-            if (hookResult.notices && hookResult.notices.length > 0) {
-                notices = hookResult.notices;
-                hookResult.notices.forEach((notice) => {
-                    const message = `Response hook notice (${notice.kind}) - ${notice.message}`;
-                    if (notice.kind === 'block' || notice.kind === 'warn') {
-                        logger.warn(message, {
-                            sessionId: this.sessionId,
-                            ...(notice.code && { code: notice.code }),
-                            ...(notice.details && { details: notice.details }),
-                        });
-                    } else {
-                        logger.info(message, {
-                            sessionId: this.sessionId,
-                            ...(notice.code && { code: notice.code }),
-                            ...(notice.details && { details: notice.details }),
-                        });
-                    }
-                });
-            }
-
-            const mergedPayload = {
-                ...responsePayload,
-                ...(hookResult.payload ?? {}),
-            };
-
-            if (hookResult.canceled) {
-                // Hook canceled the response - use override or default message
-                const overrideContent =
-                    hookResult.responseOverride ||
-                    'Response was blocked by a policy. Please try again.';
-                responsePayload = { ...mergedPayload, content: overrideContent };
-            } else {
-                // Apply modifications from hooks
-                responsePayload = mergedPayload;
-            }
-        }
-
-        // Emit final response with reasoning and full token usage (authoritative)
-        const eventPayload: BeforeResponsePayload & { notices?: HookNotice[] } = {
-            ...responsePayload,
-            ...(notices ? { notices } : {}),
-        };
+        // Emit event with modified payload
+        const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
         this.sessionEventBus.emit('llmservice:response', eventPayload);
 
         // Update ContextManager with actual token count
@@ -716,9 +641,9 @@ export class VercelLLMService implements ILLMService {
         // Persist response to history via formatter
         const sanitizedStreamResponse = {
             ...response,
-            text: Promise.resolve(responsePayload.content),
-            ...(Object.prototype.hasOwnProperty.call(responsePayload, 'reasoning') && {
-                reasoningText: Promise.resolve(responsePayload.reasoning),
+            text: Promise.resolve(modifiedPayload.content),
+            ...(Object.prototype.hasOwnProperty.call(modifiedPayload, 'reasoning') && {
+                reasoningText: Promise.resolve(modifiedPayload.reasoning),
             }),
         };
         await this.contextManager.processLLMStreamResponse(sanitizedStreamResponse);
@@ -726,7 +651,7 @@ export class VercelLLMService implements ILLMService {
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 
         // Return the response content (potentially modified by hooks)
-        return responsePayload.content;
+        return modifiedPayload.content;
     }
 
     /**
