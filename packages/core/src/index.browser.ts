@@ -41,6 +41,13 @@ export {
 // Session types (used by CLI package)
 export type { SessionMetadata } from './session/session-manager.js';
 
+// Agent types (used by webui for form configuration)
+export type { AgentConfig, ValidatedAgentConfig } from './agent/schemas.js';
+
+// System prompt types and constants (used by webui)
+export { PROMPT_GENERATOR_SOURCES } from './systemPrompt/registry.js';
+export type { ContributorConfig, SystemPromptConfig } from './systemPrompt/schemas.js';
+
 // Search types (used by client-sdk package)
 export type {
     SearchOptions,

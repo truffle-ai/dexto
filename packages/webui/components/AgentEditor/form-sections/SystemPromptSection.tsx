@@ -8,48 +8,17 @@ import { Button } from '../../ui/button';
 import { Collapsible } from '../../ui/collapsible';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { PROMPT_GENERATOR_SOURCES } from '@dexto/core';
+import type { ContributorConfig } from '@dexto/core';
 
-// Types matching the core schema
-type StaticContributor = {
-  id: string;
-  type: 'static';
-  priority: number;
-  enabled?: boolean;
-  content: string;
-};
 
-type DynamicContributor = {
-  id: string;
-  type: 'dynamic';
-  priority: number;
-  enabled?: boolean;
-  source: 'dateTime' | 'memorySummary' | 'resources';
-};
-
-type FileContributor = {
-  id: string;
-  type: 'file';
-  priority: number;
-  enabled?: boolean;
-  files: string[];
-  options?: {
-    includeFilenames?: boolean;
-    separator?: string;
-    errorHandling?: 'skip' | 'error';
-    maxFileSize?: number;
-    includeMetadata?: boolean;
-  };
-};
-
-type Contributor = StaticContributor | DynamicContributor | FileContributor;
-
-type SystemPromptConfig = {
-  contributors: Contributor[];
+// Component works with the object form of SystemPromptConfig (not the string form)
+type SystemPromptConfigObject = {
+  contributors: ContributorConfig[];
 };
 
 interface SystemPromptSectionProps {
-  value: SystemPromptConfig;
-  onChange: (value: SystemPromptConfig) => void;
+  value: SystemPromptConfigObject;
+  onChange: (value: SystemPromptConfigObject) => void;
   errors?: Record<string, string>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -86,7 +55,7 @@ export function SystemPromptSection({
 
   const addContributor = () => {
     const newId = `contributor-${contributors.length + 1}`;
-    const newContributor: StaticContributor = {
+    const newContributor: ContributorConfig = {
       id: newId,
       type: 'static',
       priority: contributors.length * 10,
@@ -110,7 +79,7 @@ export function SystemPromptSection({
     });
   };
 
-  const updateContributor = (id: string, updates: Partial<Contributor>) => {
+  const updateContributor = (id: string, updates: Partial<ContributorConfig>) => {
     onChange({
       contributors: contributors.map((c) => {
         if (c.id === id) {
@@ -136,15 +105,15 @@ export function SystemPromptSection({
             };
 
             if (updates.type === 'static') {
-              return { ...baseFields, type: 'static', content: '' } as StaticContributor;
+              return { ...baseFields, type: 'static', content: '' } as ContributorConfig;
             } else if (updates.type === 'dynamic') {
-              return { ...baseFields, type: 'dynamic', source: 'dateTime' } as DynamicContributor;
+              return { ...baseFields, type: 'dynamic', source: 'dateTime' } as ContributorConfig;
             } else if (updates.type === 'file') {
-              return { ...baseFields, type: 'file', files: [] } as FileContributor;
+              return { ...baseFields, type: 'file', files: [] } as ContributorConfig;
             }
           }
 
-          return { ...c, ...updates } as Contributor;
+          return { ...c, ...updates } as ContributorConfig;
         }
         return c;
       }),
@@ -312,7 +281,7 @@ export function SystemPromptSection({
                         <select
                           id={`contributor-source-${contributor.id}`}
                           value={contributor.source}
-                          onChange={(e) => updateContributor(contributor.id, { source: e.target.value as DynamicContributor['source'] })}
+                          onChange={(e) => updateContributor(contributor.id, { source: e.target.value as Extract<ContributorConfig, { type: 'dynamic' }>['source'] })}
                           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           {PROMPT_GENERATOR_SOURCES.map((source) => (

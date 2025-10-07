@@ -14,7 +14,7 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, DextoAgent } from '@dexto/core';
+import { createAgentCard, DextoAgent, getDexto } from '@dexto/core';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -219,8 +219,8 @@ export async function initializeApi(
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Use domain layer method to create new agent
-            newAgent = await DextoAgent.createAgent(name);
+            // Use orchestrator to create new agent
+            newAgent = await getDexto().createAgent(name);
 
             // Register event subscribers with new agent before starting
             logger.info('Registering event subscribers with new agent...');
@@ -793,7 +793,7 @@ export async function initializeApi(
     app.get('/api/agents', async (_req, res, next) => {
         try {
             ensureAgentAvailable();
-            const agents = await activeAgent.listAgents();
+            const agents = await getDexto().listAgents();
             return sendJsonResponse(res, {
                 installed: agents.installed,
                 available: agents.available,
@@ -854,7 +854,7 @@ export async function initializeApi(
                     cleanMetadata.main = metadata.main;
                 }
 
-                await activeAgent.installCustomAgent(
+                await getDexto().installCustomAgent(
                     name,
                     sourcePath,
                     cleanMetadata,
@@ -864,7 +864,7 @@ export async function initializeApi(
             } else {
                 // Registry agent installation
                 const { name } = AgentNameSchema.parse(req.body);
-                await activeAgent.installAgent(name);
+                await getDexto().installAgent(name);
                 return sendJsonResponse(res, { installed: true, name, type: 'builtin' }, 201);
             }
         } catch (error) {
@@ -893,7 +893,7 @@ export async function initializeApi(
         try {
             ensureAgentAvailable();
             const { name } = AgentNameSchema.parse(req.body);
-            const agents = await activeAgent.listAgents();
+            const agents = await getDexto().listAgents();
 
             // Check if name exists in installed agents
             const installedAgent = agents.installed.find((a) => a.name === name);
@@ -932,7 +932,7 @@ export async function initializeApi(
         try {
             ensureAgentAvailable();
             const { name, force } = UninstallAgentSchema.parse(req.body);
-            await activeAgent.uninstallAgent(name, force);
+            await getDexto().uninstallAgent(name, force);
             return sendJsonResponse(res, { uninstalled: true, name });
         } catch (error) {
             return next(error);
@@ -989,7 +989,7 @@ export async function initializeApi(
 
             try {
                 // Install the custom agent
-                await activeAgent.installCustomAgent(
+                await getDexto().installCustomAgent(
                     name,
                     tmpFile,
                     {

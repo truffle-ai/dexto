@@ -40,8 +40,10 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
         ],
       };
     }
-    // Already in object format with contributors
-    return config.systemPrompt;
+    // Already in object format with contributors - ensure contributors array exists
+    return {
+      contributors: config.systemPrompt.contributors || [],
+    };
   })();
 
   // Track which sections are open

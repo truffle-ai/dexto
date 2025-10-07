@@ -105,14 +105,17 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
 
     // System Prompt validation - check if at least one contributor has content
     const systemPrompt = config.systemPrompt;
-    if (typeof systemPrompt === 'object' && 'contributors' in systemPrompt) {
-      const hasContent = systemPrompt.contributors.some((c: any) => {
-        if (c.type === 'static' && c.content?.trim()) return true;
-        if (c.type === 'dynamic' || c.type === 'file') return true;
-        return false;
-      });
-      if (!hasContent) {
-        newErrors.systemPrompt = 'At least one contributor with content is required';
+    if (systemPrompt && typeof systemPrompt === 'object' && 'contributors' in systemPrompt) {
+      const contributors = systemPrompt.contributors;
+      if (Array.isArray(contributors)) {
+        const hasContent = contributors.some((c: Record<string, unknown>) => {
+          if (c.type === 'static' && typeof c.content === 'string' && c.content.trim()) return true;
+          if (c.type === 'dynamic' || c.type === 'file') return true;
+          return false;
+        });
+        if (!hasContent) {
+          newErrors.systemPrompt = 'At least one contributor with content is required';
+        }
       }
     } else if (typeof systemPrompt === 'string' && !systemPrompt.trim()) {
       newErrors.systemPrompt = 'System prompt is required';
@@ -287,7 +290,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
           {/* System Prompt - Reuse existing section component */}
           <SystemPromptSection
             value={typeof config.systemPrompt === 'object' && 'contributors' in config.systemPrompt
-              ? config.systemPrompt
+              ? { contributors: config.systemPrompt.contributors || [] }
               : { contributors: [] }}
             onChange={(systemPrompt) => setConfig(prev => ({ ...prev, systemPrompt }))}
             errors={errors}
