@@ -225,6 +225,16 @@ program
     .option('--all', 'Install all available agents from registry')
     .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
     .option('--force', 'Force reinstall even if agent is already installed')
+    .addHelpText(
+        'after',
+        `
+Examples:
+  $ dexto install default-agent              Install agent from registry
+  $ dexto install agent1 agent2              Install multiple registry agents
+  $ dexto install --all                      Install all available registry agents
+  $ dexto install ./my-agent.yml             Install custom agent from YAML file
+  $ dexto install ./my-agent-dir/            Install custom agent from directory (interactive)`
+    )
     .action(
         withAnalytics(
             'install',
