@@ -21,8 +21,28 @@ interface FormEditorProps {
 type SectionKey = 'basic' | 'llm' | 'systemPrompt' | 'mcpServers' | 'storage' | 'toolConfirmation';
 
 export default function FormEditor({ config, onChange, errors = {} }: FormEditorProps) {
-  // Extract system prompt string (form editor only supports string format)
-  const systemPromptValue = typeof config.systemPrompt === 'string' ? config.systemPrompt : '';
+  // Convert systemPrompt to contributors format for the UI
+  const systemPromptValue = (() => {
+    if (!config.systemPrompt) {
+      return { contributors: [] };
+    }
+    if (typeof config.systemPrompt === 'string') {
+      // Convert string to contributors array
+      return {
+        contributors: [
+          {
+            id: 'primary',
+            type: 'static' as const,
+            priority: 0,
+            enabled: true,
+            content: config.systemPrompt,
+          },
+        ],
+      };
+    }
+    // Already in object format with contributors
+    return config.systemPrompt;
+  })();
 
   // Track which sections are open
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
@@ -66,7 +86,7 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
     onChange({ ...config, llm });
   };
 
-  const updateSystemPrompt = (value: string) => {
+  const updateSystemPrompt = (value: { contributors: any[] }) => {
     onChange({ ...config, systemPrompt: value });
   };
 
@@ -195,14 +215,7 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
  * Check if config has advanced features that aren't well-supported in form mode
  */
 function checkForAdvancedFeatures(config: AgentConfig): boolean {
-  // Check for complex system prompt config (not just a string)
-  if (typeof config.systemPrompt === 'object' && config.systemPrompt !== null) {
-    const keys = Object.keys(config.systemPrompt);
-    // If it has keys other than 'instructions', it's advanced
-    if (keys.length > 1 || (keys.length === 1 && keys[0] !== 'instructions')) {
-      return true;
-    }
-  }
+  // System prompt is now fully supported in form mode via contributors
 
   // Check for session config customization
   if (config.sessions && Object.keys(config.sessions).length > 0) {

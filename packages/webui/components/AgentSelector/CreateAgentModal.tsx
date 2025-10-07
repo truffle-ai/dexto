@@ -37,7 +37,17 @@ const initialAgentConfig: Partial<AgentConfig> = {
     model: 'gpt-5',
     apiKey: '',
   },
-  systemPrompt: '',
+  systemPrompt: {
+    contributors: [
+      {
+        id: 'primary',
+        type: 'static',
+        priority: 0,
+        enabled: true,
+        content: '',
+      },
+    ],
+  },
 };
 
 export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }: CreateAgentModalProps) {
@@ -93,9 +103,18 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
       newErrors['llm.model'] = 'Model is required';
     }
 
-    // System Prompt validation
-    const systemPrompt = typeof config.systemPrompt === 'string' ? config.systemPrompt : '';
-    if (!systemPrompt.trim()) {
+    // System Prompt validation - check if at least one contributor has content
+    const systemPrompt = config.systemPrompt;
+    if (typeof systemPrompt === 'object' && 'contributors' in systemPrompt) {
+      const hasContent = systemPrompt.contributors.some((c: any) => {
+        if (c.type === 'static' && c.content?.trim()) return true;
+        if (c.type === 'dynamic' || c.type === 'file') return true;
+        return false;
+      });
+      if (!hasContent) {
+        newErrors.systemPrompt = 'At least one contributor with content is required';
+      }
+    } else if (typeof systemPrompt === 'string' && !systemPrompt.trim()) {
       newErrors.systemPrompt = 'System prompt is required';
     }
 
@@ -128,7 +147,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
             model: config.llm?.model?.trim(),
             ...(config.llm?.apiKey?.trim() && { apiKey: config.llm.apiKey.trim() }),
           },
-          systemPrompt: typeof config.systemPrompt === 'string' ? config.systemPrompt.trim() : '',
+          systemPrompt: config.systemPrompt,
         }),
       });
 
@@ -267,7 +286,9 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
 
           {/* System Prompt - Reuse existing section component */}
           <SystemPromptSection
-            value={typeof config.systemPrompt === 'string' ? config.systemPrompt : ''}
+            value={typeof config.systemPrompt === 'object' && 'contributors' in config.systemPrompt
+              ? config.systemPrompt
+              : { contributors: [] }}
             onChange={(systemPrompt) => setConfig(prev => ({ ...prev, systemPrompt }))}
             errors={errors}
             open={openSections.systemPrompt}
