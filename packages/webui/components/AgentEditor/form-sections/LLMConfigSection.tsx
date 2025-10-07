@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
+import { Eye, EyeOff } from 'lucide-react';
 import { LLM_PROVIDERS, LLM_ROUTERS, type AgentConfig } from '@dexto/core';
 
 type LLMConfig = AgentConfig['llm'];
@@ -27,6 +28,8 @@ export function LLMConfigSection({
   errorCount = 0,
   sectionErrors = [],
 }: LLMConfigSectionProps) {
+  const [showApiKey, setShowApiKey] = useState(false);
+
   const handleChange = (field: keyof LLMConfig, newValue: string | number | undefined) => {
     onChange({ ...value, [field]: newValue } as LLMConfig);
   };
@@ -83,14 +86,29 @@ export function LLMConfigSection({
           <LabelWithTooltip htmlFor="apiKey" tooltip="Use $ENV_VAR for environment variables or enter the API key directly">
             API Key *
           </LabelWithTooltip>
-          <Input
-            id="apiKey"
-            type="password"
-            value={value.apiKey}
-            onChange={(e) => handleChange('apiKey', e.target.value)}
-            placeholder="$OPENAI_API_KEY or direct value"
-            aria-invalid={!!errors['llm.apiKey']}
-          />
+          <div className="relative">
+            <Input
+              id="apiKey"
+              type={showApiKey ? 'text' : 'password'}
+              value={value.apiKey}
+              onChange={(e) => handleChange('apiKey', e.target.value)}
+              placeholder="$OPENAI_API_KEY or direct value"
+              aria-invalid={!!errors['llm.apiKey']}
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey(!showApiKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded transition-colors"
+              aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+            >
+              {showApiKey ? (
+                <EyeOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+          </div>
           {errors['llm.apiKey'] && <p className="text-xs text-destructive mt-1">{errors['llm.apiKey']}</p>}
         </div>
 

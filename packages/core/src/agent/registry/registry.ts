@@ -292,12 +292,15 @@ export class LocalAgentRegistry implements AgentRegistry {
         const stats = await fs.stat(sourcePath);
         const isDirectory = stats.isDirectory();
 
+        // For single-file agents, use agent name for filename
+        const configFileName = isDirectory ? undefined : `${agentName}.yml`;
+
         // Build registry entry
         const registryEntry: Omit<AgentRegistryEntry, 'type'> = {
             description: metadata.description,
             author: metadata.author,
             tags: metadata.tags,
-            source: isDirectory ? `${agentName}/` : path.basename(sourcePath),
+            source: isDirectory ? `${agentName}/` : configFileName!,
             main: metadata.main,
         };
 
@@ -310,7 +313,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                 await copyDirectory(sourcePath, tempDir);
             } else {
                 await fs.mkdir(tempDir, { recursive: true });
-                const targetFile = path.join(tempDir, path.basename(sourcePath));
+                const targetFile = path.join(tempDir, configFileName!);
                 await fs.copyFile(sourcePath, targetFile);
             }
 
@@ -318,7 +321,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             const tempMainConfigPath =
                 isDirectory && metadata.main
                     ? path.join(tempDir, metadata.main)
-                    : path.join(tempDir, path.basename(sourcePath));
+                    : path.join(tempDir, configFileName!);
 
             if (!existsSync(tempMainConfigPath)) {
                 throw RegistryError.installationValidationFailed(agentName, tempMainConfigPath);
@@ -333,7 +336,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             const mainConfigPath =
                 isDirectory && metadata.main
                     ? path.join(targetDir, metadata.main)
-                    : path.join(targetDir, path.basename(sourcePath));
+                    : path.join(targetDir, configFileName!);
 
             // Add to user registry
             await addAgentToUserRegistry(agentName, registryEntry);

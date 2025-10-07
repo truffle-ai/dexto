@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from './ui/button';
+import { Button } from '../ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck } from 'lucide-react';
-import { useChatContext } from './hooks/ChatContext';
+} from '../ui/dropdown-menu';
+import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck, Plus } from 'lucide-react';
+import { useChatContext } from '../hooks/ChatContext';
+import CreateAgentModal from './CreateAgentModal';
 
 type AgentItem = {
   name: string;
@@ -40,6 +41,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -71,16 +73,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Install failed: ${res.status}`);
       }
-      await loadAgents();
-      setOpen(false); // Close dropdown after successful install
+      // After successful install, switch to the agent
+      await handleSwitch(name);
     } catch (err) {
       console.error('Install agent failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
       alert(`Failed to install agent: ${errorMessage}`);
-    } finally {
       setSwitching(false);
     }
-  }, [loadAgents]);
+  }, [handleSwitch]);
 
   const handleSwitch = useCallback(async (name: string) => {
     try {
@@ -139,6 +140,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }
   }, [loadAgents, current]);
 
+  const handleAgentCreated = useCallback(async (agentName: string) => {
+    // Reload agents list
+    await loadAgents();
+    // Switch to the newly created agent
+    await handleSwitch(agentName);
+  }, [loadAgents, handleSwitch]);
+
   const currentLabel = useMemo(() => current || 'Choose Agent', [current]);
 
   const getButtonClassName = (mode: string) => {
@@ -155,6 +163,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   };
 
   return (
+    <>
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
@@ -176,6 +185,21 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         )}
         {!loading && (
           <>
+            {/* Create New Agent Button */}
+            <DropdownMenuItem
+              onClick={() => {
+                setCreateModalOpen(true);
+                setOpen(false);
+              }}
+              disabled={switching}
+              className="cursor-pointer py-3 bg-gradient-to-r from-purple-500/10 to-purple-500/5 hover:from-purple-500/20 hover:to-purple-500/10 border-b border-purple-500/20"
+            >
+              <div className="flex items-center gap-2 w-full">
+                <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="font-semibold text-purple-600 dark:text-purple-400">New Agent</span>
+              </div>
+            </DropdownMenuItem>
+
             {/* Installed Custom Agents */}
             {installed.filter((a) => a.type === 'custom').length > 0 && (
               <>
@@ -305,5 +329,12 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <CreateAgentModal
+      open={createModalOpen}
+      onOpenChange={setCreateModalOpen}
+      onAgentCreated={handleAgentCreated}
+    />
+    </>
   );
 }

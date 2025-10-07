@@ -939,6 +939,81 @@ export async function initializeApi(
         }
     });
 
+    // Schema for creating custom agents via UI
+    const CustomAgentCreateSchema = z
+        .object({
+            // Registry metadata
+            name: z
+                .string()
+                .min(1, 'Agent name is required')
+                .regex(
+                    /^[a-z0-9-]+$/,
+                    'Agent name must contain only lowercase letters, numbers, and hyphens'
+                ),
+            description: z.string().min(1, 'Description is required'),
+            author: z.string().optional(),
+            tags: z.array(z.string()).optional(),
+            // Agent configuration
+            llm: z.object({
+                provider: z.string().min(1, 'Provider is required'),
+                model: z.string().min(1, 'Model is required'),
+                apiKey: z.string().optional(),
+            }),
+            systemPrompt: z.string().min(1, 'System prompt is required'),
+        })
+        .strict();
+
+    // Create a new custom agent from UI
+    app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { name, description, author, tags, llm, systemPrompt } =
+                CustomAgentCreateSchema.parse(req.body);
+
+            // Create agent YAML content
+            const agentConfig = {
+                llm: {
+                    provider: llm.provider,
+                    model: llm.model,
+                    ...(llm.apiKey && { apiKey: llm.apiKey }),
+                },
+                systemPrompt,
+            };
+
+            const yamlContent = yamlStringify(agentConfig);
+
+            // Create temporary file
+            const tmpDir = os.tmpdir();
+            const tmpFile = path.join(tmpDir, `${name}-${Date.now()}.yml`);
+            await fs.writeFile(tmpFile, yamlContent, 'utf-8');
+
+            try {
+                // Install the custom agent
+                await activeAgent.installCustomAgent(
+                    name,
+                    tmpFile,
+                    {
+                        description,
+                        author: author || 'Custom',
+                        tags: tags || [],
+                    },
+                    false // Don't inject preferences
+                );
+
+                // Clean up temp file
+                await fs.unlink(tmpFile).catch(() => {});
+
+                return sendJsonResponse(res, { created: true, name }, 201);
+            } catch (installError) {
+                // Clean up temp file on error
+                await fs.unlink(tmpFile).catch(() => {});
+                throw installError;
+            }
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     // Configuration export endpoint
     /**
      * Helper function to redact sensitive environment variables
