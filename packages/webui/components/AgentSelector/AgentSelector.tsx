@@ -61,28 +61,6 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     loadAgents().finally(() => setLoading(false));
   }, [loadAgents]);
 
-  const handleInstall = useCallback(async (name: string) => {
-    try {
-      setSwitching(true);
-      const res = await fetch('/api/agents/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Install failed: ${res.status}`);
-      }
-      // After successful install, switch to the agent
-      await handleSwitch(name);
-    } catch (err) {
-      console.error('Install agent failed:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
-      alert(`Failed to install agent: ${errorMessage}`);
-      setSwitching(false);
-    }
-  }, [handleSwitch]);
-
   const handleSwitch = useCallback(async (name: string) => {
     try {
       setSwitching(true);
@@ -109,6 +87,30 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       setSwitching(false);
     }
   }, [returnToWelcome]);
+
+  const handleInstall = useCallback(async (name: string) => {
+    try {
+      setSwitching(true);
+      const res = await fetch('/api/agents/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Install failed: ${res.status}`);
+      }
+      // Reload agents list to reflect the newly installed agent
+      await loadAgents();
+      // After successful install, switch to the agent
+      await handleSwitch(name);
+    } catch (err) {
+      console.error('Install agent failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
+      alert(`Failed to install agent: ${errorMessage}`);
+      setSwitching(false);
+    }
+  }, [handleSwitch, loadAgents]);
 
   const handleDelete = useCallback(async (name: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete
