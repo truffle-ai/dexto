@@ -1,9 +1,14 @@
 import { z } from 'zod';
 import { StorageErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { EnvExpandedString } from '@core/utils/result.js';
 
-// ==== STORAGE CONFIGURATION ====
-// Base schema for common connection pool options
+export const CACHE_BACKEND_TYPES = ['in-memory', 'redis'] as const;
+export type CacheBackendType = (typeof CACHE_BACKEND_TYPES)[number];
+
+export const DATABASE_BACKEND_TYPES = ['in-memory', 'sqlite', 'postgres'] as const;
+export type DatabaseBackendType = (typeof DATABASE_BACKEND_TYPES)[number];
+
 const BaseBackendSchema = z.object({
     maxConnections: z.number().int().positive().optional().describe('Maximum connections'),
     idleTimeoutMillis: z
@@ -30,7 +35,7 @@ export type InMemoryBackendConfig = z.output<typeof InMemoryBackendSchema>;
 // Redis backend configuration
 const RedisBackendSchema = BaseBackendSchema.extend({
     type: z.literal('redis'),
-    url: z.string().optional().describe('Redis connection URL (redis://...)'),
+    url: EnvExpandedString().optional().describe('Redis connection URL (redis://...)'),
     host: z.string().optional().describe('Redis host'),
     port: z.number().int().positive().optional().describe('Redis port'),
     password: z.string().optional().describe('Redis password'),
@@ -54,8 +59,8 @@ export type SqliteBackendConfig = z.output<typeof SqliteBackendSchema>;
 // PostgreSQL backend configuration
 const PostgresBackendSchema = BaseBackendSchema.extend({
     type: z.literal('postgres'),
-    url: z.string().optional().describe('PostgreSQL connection URL (postgresql://...)'),
-    connectionString: z.string().optional().describe('PostgreSQL connection string'),
+    url: EnvExpandedString().optional().describe('PostgreSQL connection URL (postgresql://...)'),
+    connectionString: EnvExpandedString().optional().describe('PostgreSQL connection string'),
     host: z.string().optional().describe('PostgreSQL host'),
     port: z.number().int().positive().optional().describe('PostgreSQL port'),
     database: z.string().optional().describe('PostgreSQL database name'),
@@ -64,7 +69,7 @@ const PostgresBackendSchema = BaseBackendSchema.extend({
 
 export type PostgresBackendConfig = z.output<typeof PostgresBackendSchema>;
 // Backend configuration using discriminated union
-const BackendConfigSchema = z
+export const BackendConfigSchema = z
     .discriminatedUnion(
         'type',
         [InMemoryBackendSchema, RedisBackendSchema, SqliteBackendSchema, PostgresBackendSchema],

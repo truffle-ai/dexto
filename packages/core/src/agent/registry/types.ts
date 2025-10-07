@@ -10,6 +10,7 @@ export const AgentRegistryEntrySchema = z
         tags: z.array(z.string()),
         source: z.string(),
         main: z.string().optional(),
+        type: z.enum(['builtin', 'custom']).default('builtin').describe('Agent type'),
     })
     .strict();
 

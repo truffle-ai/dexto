@@ -14,6 +14,7 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -34,8 +35,9 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
-import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
+import { promises as fs } from 'fs';
+import { parseDocument } from 'yaml';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -46,6 +48,14 @@ const requiredServices: (keyof AgentServices)[] = [
     'sessionManager',
     'searchService',
 ];
+
+/**
+ * Interface for objects that can subscribe to the agent's event bus.
+ * Typically used by API layer subscribers (WebSocket, Webhooks, etc.)
+ */
+export interface AgentEventSubscriber {
+    subscribe(eventBus: AgentEventBus): void;
+}
 
 /**
  * The main entry point into Dexto's core functionality.
@@ -127,6 +137,9 @@ export class DextoAgent {
     // Store config for async initialization
     private config: ValidatedAgentConfig;
 
+    // Event subscribers (e.g., WebSocket, Webhook handlers)
+    private eventSubscribers: Set<AgentEventSubscriber> = new Set();
+
     constructor(
         config: AgentConfig,
         private configPath?: string
@@ -180,7 +193,13 @@ export class DextoAgent {
             this.searchService = services.searchService;
 
             this._isStarted = true;
+            this._isStopped = false; // Reset stopped flag to allow restart
             logger.info('DextoAgent started successfully.');
+
+            // Subscribe all registered event subscribers to the new event bus
+            for (const subscriber of this.eventSubscribers) {
+                subscriber.subscribe(this.agentEventBus);
+            }
 
             // Show log location for SDK users
             const logPath = getDextoPath('logs', 'dexto.log');
@@ -260,6 +279,33 @@ export class DextoAgent {
             logger.error('Failed to stop DextoAgent', error);
             throw error;
         }
+    }
+
+    /**
+     * Register an event subscriber that will be automatically re-subscribed on agent restart.
+     * Subscribers are typically API layer components (WebSocket, Webhook handlers) that need
+     * to receive agent events. If the agent is already started, the subscriber is immediately subscribed.
+     *
+     * @param subscriber - Object implementing AgentEventSubscriber interface
+     */
+    public registerSubscriber(subscriber: AgentEventSubscriber): void {
+        this.eventSubscribers.add(subscriber);
+        if (this._isStarted) {
+            subscriber.subscribe(this.agentEventBus);
+        }
+    }
+
+    /**
+     * Restart the agent by stopping and starting it.
+     * Automatically re-subscribes all registered event subscribers to the new event bus.
+     * This is useful when configuration changes require a full agent restart.
+     *
+     * @throws Error if restart fails during stop or start phases
+     */
+    public async restart(): Promise<void> {
+        await this.stop();
+        await this.start();
+        // Note: start() handles re-subscribing all registered subscribers
     }
 
     /**
@@ -1005,168 +1051,200 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig();
     }
 
-    // ============= AGENT MANAGEMENT =============
+    /**
+     * Gets the file path of the agent configuration currently in use.
+     * This returns the source agent file path, not session-specific overrides.
+     * @returns The path to the agent configuration file
+     * @throws AgentError if no config path is available
+     */
+    public getAgentFilePath(): string {
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
+        return this.configPath;
+    }
 
     /**
-     * Lists available and installed agents from the registry.
-     * Returns a structured object containing both installed and available agents,
-     * along with metadata like descriptions, authors, and tags.
+     * Reloads the agent configuration from disk.
+     * This will re-read the config file, validate it, and detect what changed.
+     * Most configuration changes require a full agent restart to take effect.
      *
-     * @returns Promise resolving to object with installed and available agent lists
+     * To apply changes: stop the agent and start it again with the new config.
      *
-     * @example
-     * ```typescript
-     * const agents = await agent.listAgents();
-     * console.log(agents.installed); // ['default', 'my-custom-agent']
-     * console.log(agents.available); // [{ name: 'productivity', description: '...', ... }]
-     * console.log(agents.current?.name); // 'default'
-     * ```
+     * @returns Object containing list of changes that require restart
+     * @throws Error if config file cannot be read or is invalid
+     *
+     * TODO: improve hot reload capabilites so that we don't always require a restart
      */
-    public async listAgents(): Promise<{
-        installed: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        available: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        current?: { name?: string | null };
+    public async reloadConfig(): Promise<{
+        restartRequired: string[];
     }> {
-        const agentRegistry = getAgentRegistry();
-        const availableMap = agentRegistry.getAvailableAgents();
-        const installedNames = await agentRegistry.getInstalledAgents();
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
 
-        // Build installed agents list with metadata
-        const installed = await Promise.all(
-            installedNames.map(async (name) => {
-                const registryEntry = availableMap[name];
-                if (registryEntry) {
-                    return {
-                        name,
-                        description: registryEntry.description,
-                        author: registryEntry.author,
-                        tags: registryEntry.tags,
-                    };
-                } else {
-                    // Handle locally installed agents not in registry
-                    try {
-                        const config = await loadAgentConfig(name);
-                        const author = config.agentCard?.provider?.organization;
-                        const result: {
-                            name: string;
-                            description: string;
-                            author?: string;
-                            tags?: string[];
-                        } = {
-                            name,
-                            description: config.agentCard?.description || 'Local agent',
-                            tags: [],
-                        };
-                        if (author) {
-                            result.author = author;
-                        }
-                        return result;
-                    } catch {
-                        return {
-                            name,
-                            description: 'Local agent (config unavailable)',
-                            tags: [],
-                        };
-                    }
-                }
-            })
-        );
+        logger.info(`Reloading agent configuration from: ${this.configPath}`);
 
-        // Build available agents list (excluding already installed)
-        const available = Object.entries(availableMap)
-            .filter(([name]) => !installedNames.includes(name))
-            .map(([name, entry]) => ({
-                name,
-                description: entry.description,
-                author: entry.author,
-                tags: entry.tags,
-            }));
+        const oldConfig = this.config;
+        const newConfig = await loadAgentConfig(this.configPath);
+        const validated = AgentConfigSchema.parse(newConfig);
+
+        // Detect what changed
+        const restartRequired = this.detectRestartRequiredChanges(oldConfig, validated);
+
+        // Update the config reference (but services won't pick up changes until restart)
+        this.config = validated;
+
+        if (restartRequired.length > 0) {
+            logger.warn(
+                `Configuration updated. Restart required to apply: ${restartRequired.join(', ')}`
+            );
+        } else {
+            logger.info('Agent configuration reloaded successfully (no changes detected)');
+        }
 
         return {
-            installed,
-            available,
-            current: { name: null }, // TODO: Track current agent name
+            restartRequired,
         };
     }
 
     /**
-     * Installs an agent from the registry.
-     * Downloads and sets up the specified agent, making it available for use.
-     *
-     * @param agentName The name of the agent to install from the registry
-     * @returns Promise that resolves when installation is complete
-     *
-     * @throws {AgentError} When agent is not found in registry or installation fails
-     *
-     * @example
-     * ```typescript
-     * await agent.installAgent('productivity');
-     * console.log('Productivity agent installed successfully');
-     * ```
+     * Updates and saves the agent configuration to disk.
+     * This merges the updates with the raw config from disk, validates, and writes to file.
+     * IMPORTANT: This preserves environment variable placeholders (e.g., $OPENAI_API_KEY)
+     * to avoid leaking secrets into the config file.
+     * @param updates Partial configuration updates to apply
+     * @param targetPath Optional path to save to (defaults to current config path)
+     * @returns Object containing list of changes that require restart
+     * @throws Error if validation fails or file cannot be written
      */
-    public async installAgent(agentName: string): Promise<void> {
-        const agentRegistry = getAgentRegistry();
+    public async updateAndSaveConfig(
+        updates: Partial<AgentConfig>,
+        targetPath?: string
+    ): Promise<{
+        restartRequired: string[];
+    }> {
+        const path = targetPath || this.configPath;
 
-        if (!agentRegistry.hasAgent(agentName)) {
-            throw AgentError.apiValidationError(`Agent '${agentName}' not found in registry`);
+        if (!path) {
+            throw AgentError.noConfigPath();
         }
 
-        try {
-            await agentRegistry.installAgent(agentName, true);
-            logger.info(`Successfully installed agent: ${agentName}`);
-        } catch (error) {
-            logger.error(`Failed to install agent ${agentName}:`, error);
-            throw AgentError.apiValidationError(
-                `Installation failed for agent '${agentName}'`,
-                error
-            );
+        logger.info(`Updating and saving agent configuration to: ${path}`);
+
+        // Read raw YAML from disk (without env var expansion)
+        const rawYaml = await fs.readFile(path, 'utf-8');
+
+        // Use YAML Document API to preserve comments/anchors/formatting
+        const doc = parseDocument(rawYaml);
+        const rawConfig = doc.toJSON() as Record<string, unknown>;
+
+        // Shallow merge top-level updates
+        const updatedRawConfig = { ...rawConfig, ...updates };
+
+        // Validate merged config using Result helpers
+        const parsed = AgentConfigSchema.safeParse(updatedRawConfig);
+        if (!parsed.success) {
+            // Convert Zod errors to DextoValidationError using Result helpers
+            const result = fail(zodToIssues(parsed.error, 'error'));
+            throw new DextoValidationError(result.issues);
         }
+
+        // Apply updates to the YAML document (preserves formatting/comments)
+        for (const [key, value] of Object.entries(updates)) {
+            doc.set(key, value);
+        }
+
+        // Serialize the Document back to YAML
+        const yamlContent = String(doc);
+
+        // Atomic write: write to temp file then rename
+        const tmpPath = `${path}.tmp`;
+        await fs.writeFile(tmpPath, yamlContent, 'utf-8');
+        await fs.rename(tmpPath, path);
+
+        // Reload config with env var expansion for runtime use (this applies hot reload)
+        const reloadResult = await this.reloadConfig();
+
+        logger.info(`Agent configuration saved to: ${path}`);
+
+        return reloadResult;
     }
 
     /**
-     * Creates a new agent instance for the specified agent name.
-     * This method resolves the agent (installing if needed), loads its configuration,
-     * and returns a new DextoAgent instance ready to be started.
+     * Detects configuration changes that require a full agent restart.
+     * Returns an array of change descriptions.
      *
-     * This is a factory method that doesn't affect the current agent instance.
-     * The caller is responsible for managing the lifecycle of the returned agent.
-     *
-     * @param agentName The name of the agent to create
-     * @returns Promise resolving to a new DextoAgent instance (not started)
-     *
-     * @throws {AgentError} When agent is not found or creation fails
-     *
-     * @example
-     * ```typescript
-     * const newAgent = await DextoAgent.createAgent('productivity');
-     * await newAgent.start();
-     * ```
+     * @param oldConfig Previous validated configuration
+     * @param newConfig New validated configuration
+     * @returns Array of restart-required change descriptions
+     * @private
      */
-    public static async createAgent(agentName: string): Promise<DextoAgent> {
-        const agentRegistry = getAgentRegistry();
+    private detectRestartRequiredChanges(
+        oldConfig: ValidatedAgentConfig,
+        newConfig: ValidatedAgentConfig
+    ): string[] {
+        const changes: string[] = [];
 
-        try {
-            // Resolve agent (will install if needed)
-            const agentPath = await agentRegistry.resolveAgent(agentName, true, true);
-
-            // Load agent configuration
-            const config = await loadAgentConfig(agentPath);
-
-            // Create new agent (not started)
-            logger.info(`Creating agent: ${agentName}`);
-            const newAgent = new DextoAgent(config, agentPath);
-
-            logger.info(`Successfully created agent: ${agentName}`);
-            return newAgent;
-        } catch (error) {
-            logger.error(
-                `Failed to create agent '${agentName}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-            throw AgentError.apiValidationError(`Failed to create agent '${agentName}'`, error);
+        // Storage backend changes require restart
+        if (JSON.stringify(oldConfig.storage) !== JSON.stringify(newConfig.storage)) {
+            changes.push('Storage backend');
         }
+
+        // Session config changes require restart (maxSessions, sessionTTL are readonly)
+        if (JSON.stringify(oldConfig.sessions) !== JSON.stringify(newConfig.sessions)) {
+            changes.push('Session configuration');
+        }
+
+        // System prompt changes require restart (PromptManager caches contributors)
+        if (JSON.stringify(oldConfig.systemPrompt) !== JSON.stringify(newConfig.systemPrompt)) {
+            changes.push('System prompt');
+        }
+
+        // Tool confirmation changes require restart (ConfirmationProvider caches config)
+        if (
+            JSON.stringify(oldConfig.toolConfirmation) !==
+            JSON.stringify(newConfig.toolConfirmation)
+        ) {
+            changes.push('Tool confirmation');
+        }
+
+        // Internal tools changes require restart (InternalToolsProvider caches config)
+        if (JSON.stringify(oldConfig.internalTools) !== JSON.stringify(newConfig.internalTools)) {
+            changes.push('Internal tools');
+        }
+
+        // MCP server changes require restart
+        if (JSON.stringify(oldConfig.mcpServers) !== JSON.stringify(newConfig.mcpServers)) {
+            changes.push('MCP servers');
+        }
+
+        // LLM configuration changes require restart
+        if (
+            oldConfig.llm.provider !== newConfig.llm.provider ||
+            oldConfig.llm.model !== newConfig.llm.model ||
+            oldConfig.llm.apiKey !== newConfig.llm.apiKey
+        ) {
+            changes.push('LLM configuration');
+        }
+
+        return changes;
     }
+
+    // ============= AGENT MANAGEMENT =============
+    // Note: Agent management methods have been moved to the Dexto orchestrator class.
+    // See: /packages/core/src/Dexto.ts
+    //
+    // For agent lifecycle operations (list, install, uninstall, create), use:
+    // ```typescript
+    // await Dexto.listAgents();                 // Static
+    // await Dexto.installAgent(name);           // Static
+    // await Dexto.installCustomAgent(name, path, metadata); // Static
+    // await Dexto.uninstallAgent(name);         // Static
+    //
+    // const dexto = new Dexto();
+    // await dexto.createAgent(name);            // Instance method
+    // ```
 
     // Future methods could encapsulate more complex agent behaviors:
     // - Multi-step task execution with progress tracking

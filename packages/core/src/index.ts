@@ -9,6 +9,9 @@
  * - Node: Routes to this file (full exports)
  */
 
+// Core Orchestrator
+export { Dexto, getDexto } from './Dexto.js';
+
 // Core Agent
 export * from './agent/index.js';
 
@@ -41,6 +44,9 @@ export * from './session/index.js';
 
 // Storage
 export * from './storage/index.js';
+
+// System Prompt
+export * from './systemPrompt/index.js';
 
 // Tools
 export * from './tools/index.js';

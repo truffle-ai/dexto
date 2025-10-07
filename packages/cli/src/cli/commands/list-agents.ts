@@ -44,6 +44,7 @@ interface AvailableAgentInfo {
     description: string;
     author: string;
     tags: string[];
+    type: 'builtin' | 'custom';
 }
 
 /**
@@ -138,6 +139,7 @@ function getAvailableAgents(): AvailableAgentInfo[] {
             description: data.description,
             author: data.author,
             tags: data.tags,
+            type: data.type,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -213,10 +215,30 @@ export async function handleListAgentsCommand(
             (available) => !installedAgents.some((installed) => installed.name === available.name)
         );
 
-        if (availableNotInstalled.length > 0) {
-            console.log(chalk.blue('📋 Available to Install:'));
+        const builtinAgents = availableNotInstalled.filter((a) => a.type === 'builtin');
+        const customAgents = availableNotInstalled.filter((a) => a.type === 'custom');
 
-            for (const agent of availableNotInstalled) {
+        if (builtinAgents.length > 0) {
+            console.log(chalk.blue('📋 Builtin Agents Available to Install:'));
+
+            for (const agent of builtinAgents) {
+                if (validated.verbose) {
+                    console.log(`  ${chalk.bold(agent.name)}`);
+                    console.log(`    ${chalk.gray(agent.description)}`);
+                    console.log(`    ${chalk.gray('Author:')} ${agent.author}`);
+                    console.log(`    ${chalk.gray('Tags:')} ${agent.tags.join(', ')}`);
+                    console.log();
+                } else {
+                    console.log(`  • ${chalk.bold(agent.name)} - ${agent.description}`);
+                }
+            }
+            console.log();
+        }
+
+        if (customAgents.length > 0) {
+            console.log(chalk.magenta('🔧 Custom Agents Available:'));
+
+            for (const agent of customAgents) {
                 if (validated.verbose) {
                     console.log(`  ${chalk.bold(agent.name)}`);
                     console.log(`    ${chalk.gray(agent.description)}`);
