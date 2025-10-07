@@ -1237,12 +1237,13 @@ export class DextoAgent {
     //
     // For agent lifecycle operations (list, install, uninstall, create), use:
     // ```typescript
+    // await Dexto.listAgents();                 // Static
+    // await Dexto.installAgent(name);           // Static
+    // await Dexto.installCustomAgent(name, path, metadata); // Static
+    // await Dexto.uninstallAgent(name);         // Static
+    //
     // const dexto = new Dexto();
-    // await dexto.listAgents();
-    // await dexto.installAgent(name);
-    // await dexto.installCustomAgent(name, path, metadata);
-    // await dexto.uninstallAgent(name);
-    // await dexto.createAgent(name);
+    // await dexto.createAgent(name);            // Instance method
     // ```
 
     // Future methods could encapsulate more complex agent behaviors:

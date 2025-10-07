@@ -55,20 +55,20 @@ let cachedDexto: Dexto | null = null;
  *
  * @example
  * ```typescript
- * // Create orchestrator
- * const dexto = new Dexto();
- *
- * // List available agents
- * const agents = await dexto.listAgents();
+ * // List available agents (static)
+ * const agents = await Dexto.listAgents();
  * console.log(agents.installed, agents.available);
  *
- * // Install and create agent
- * await dexto.installAgent('productivity');
+ * // Install agent (static)
+ * await Dexto.installAgent('productivity');
+ *
+ * // Create orchestrator for agent operations
+ * const dexto = new Dexto();
  * const agent = await dexto.createAgent('productivity');
  * await agent.start();
  *
- * // Install custom agent
- * await dexto.installCustomAgent('my-agent', '/path/to/config.yml', {
+ * // Install custom agent (static)
+ * await Dexto.installCustomAgent('my-agent', '/path/to/config.yml', {
  *   description: 'My custom agent',
  *   author: 'John Doe',
  *   tags: ['custom', 'specialized']
@@ -85,14 +85,13 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const dexto = new Dexto();
-     * const agents = await dexto.listAgents();
+     * const agents = await Dexto.listAgents();
      * console.log(agents.installed); // ['default', 'my-custom-agent']
      * console.log(agents.available); // [{ name: 'productivity', description: '...', ... }]
      * console.log(agents.current?.name); // 'default'
      * ```
      */
-    public async listAgents(): Promise<{
+    public static async listAgents(): Promise<{
         installed: Array<{
             name: string;
             description: string;
@@ -194,12 +193,11 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const dexto = new Dexto();
-     * await dexto.installAgent('productivity');
+     * await Dexto.installAgent('productivity');
      * console.log('Productivity agent installed successfully');
      * ```
      */
-    public async installAgent(agentName: string): Promise<void> {
+    public static async installAgent(agentName: string): Promise<void> {
         const agentRegistry = getAgentRegistry();
 
         if (!agentRegistry.hasAgent(agentName)) {
@@ -233,8 +231,7 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const dexto = new Dexto();
-     * await dexto.installCustomAgent('my-coding-agent', '/path/to/agent.yml', {
+     * await Dexto.installCustomAgent('my-coding-agent', '/path/to/agent.yml', {
      *   description: 'Custom coding assistant',
      *   author: 'John Doe',
      *   tags: ['coding', 'custom']
@@ -242,7 +239,7 @@ export class Dexto {
      * console.log('Custom agent installed successfully');
      * ```
      */
-    public async installCustomAgent(
+    public static async installCustomAgent(
         agentName: string,
         sourcePath: string,
         metadata: {
@@ -287,12 +284,11 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const dexto = new Dexto();
-     * await dexto.uninstallAgent('my-custom-agent');
+     * await Dexto.uninstallAgent('my-custom-agent');
      * console.log('Agent uninstalled successfully');
      * ```
      */
-    public async uninstallAgent(agentName: string, force: boolean = false): Promise<void> {
+    public static async uninstallAgent(agentName: string, force: boolean = false): Promise<void> {
         const agentRegistry = getAgentRegistry();
 
         try {
@@ -362,11 +358,14 @@ export class Dexto {
  *
  * @example
  * ```typescript
- * import { getDexto } from '@dexto/core';
+ * import { getDexto, Dexto } from '@dexto/core';
  *
+ * // Use static methods for registry operations
+ * const agents = await Dexto.listAgents();
+ * await Dexto.installAgent('productivity');
+ *
+ * // Use instance for agent creation
  * const dexto = getDexto();
- * const agents = await dexto.listAgents();
- * await dexto.installAgent('productivity');
  * const agent = await dexto.createAgent('productivity');
  * ```
  */

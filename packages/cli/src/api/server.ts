@@ -14,7 +14,7 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, DextoAgent, getDexto } from '@dexto/core';
+import { createAgentCard, Dexto, DextoAgent, getDexto } from '@dexto/core';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -792,7 +792,7 @@ export async function initializeApi(
     // ===== Agents API =====
     app.get('/api/agents', async (_req, res, next) => {
         try {
-            const agents = await getDexto().listAgents();
+            const agents = await Dexto.listAgents();
             return sendJsonResponse(res, {
                 installed: agents.installed,
                 available: agents.available,
@@ -851,17 +851,12 @@ export async function initializeApi(
                     cleanMetadata.main = metadata.main;
                 }
 
-                await getDexto().installCustomAgent(
-                    name,
-                    sourcePath,
-                    cleanMetadata,
-                    injectPreferences
-                );
+                await Dexto.installCustomAgent(name, sourcePath, cleanMetadata, injectPreferences);
                 return sendJsonResponse(res, { installed: true, name, type: 'custom' }, 201);
             } else {
                 // Registry agent installation
                 const { name } = AgentNameSchema.parse(req.body);
-                await getDexto().installAgent(name);
+                await Dexto.installAgent(name);
                 return sendJsonResponse(res, { installed: true, name, type: 'builtin' }, 201);
             }
         } catch (error) {
@@ -889,7 +884,7 @@ export async function initializeApi(
     app.post('/api/agents/validate-name', express.json(), async (req, res, next) => {
         try {
             const { name } = AgentNameSchema.parse(req.body);
-            const agents = await getDexto().listAgents();
+            const agents = await Dexto.listAgents();
 
             // Check if name exists in installed agents
             const installedAgent = agents.installed.find((a) => a.name === name);
@@ -927,7 +922,7 @@ export async function initializeApi(
     app.post('/api/agents/uninstall', express.json(), async (req, res, next) => {
         try {
             const { name, force } = UninstallAgentSchema.parse(req.body);
-            await getDexto().uninstallAgent(name, force);
+            await Dexto.uninstallAgent(name, force);
             return sendJsonResponse(res, { uninstalled: true, name });
         } catch (error) {
             return next(error);
@@ -1016,7 +1011,7 @@ export async function initializeApi(
 
             try {
                 // Install the custom agent
-                await getDexto().installCustomAgent(
+                await Dexto.installCustomAgent(
                     name,
                     tmpFile,
                     {
