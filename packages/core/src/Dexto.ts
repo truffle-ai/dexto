@@ -243,6 +243,7 @@ export class Dexto {
         agentName: string,
         sourcePath: string,
         metadata: {
+            name?: string;
             description: string;
             author: string;
             tags: string[];

@@ -65,6 +65,8 @@ describe('user-registry', () => {
                 version: '1.0.0',
                 agents: {
                     'custom-agent': {
+                        id: 'custom-agent',
+                        name: 'Custom Agent',
                         description: 'Custom agent',
                         author: 'User',
                         tags: ['custom'],
@@ -93,6 +95,8 @@ describe('user-registry', () => {
                 version: '1.0.0',
                 agents: {
                     'test-agent': {
+                        id: 'test-agent',
+                        name: 'Test Agent',
                         description: 'Test',
                         author: 'User',
                         tags: [],
@@ -128,6 +132,8 @@ describe('user-registry', () => {
                 version: '1.0.0',
                 agents: {
                     'builtin-agent': {
+                        id: 'builtin-agent',
+                        name: 'Builtin Agent',
                         description: 'Builtin',
                         author: 'Dexto',
                         tags: [],
@@ -141,6 +147,8 @@ describe('user-registry', () => {
                 version: '1.0.0',
                 agents: {
                     'custom-agent': {
+                        id: 'custom-agent',
+                        name: 'Custom Agent',
                         description: 'Custom',
                         author: 'User',
                         tags: [],
@@ -173,6 +181,8 @@ describe('user-registry', () => {
 
         it('should return true if agent exists in user registry', async () => {
             const entry: AgentRegistryEntry = {
+                id: 'my-agent',
+                name: 'My Agent',
                 description: 'Test',
                 author: 'User',
                 tags: [],
@@ -189,6 +199,8 @@ describe('user-registry', () => {
     describe('addAgentToUserRegistry', () => {
         it('should add custom agent to user registry', async () => {
             const entry: Omit<AgentRegistryEntry, 'type'> = {
+                id: 'my-agent',
+                name: 'My Agent',
                 description: 'My custom agent',
                 author: 'John Doe',
                 tags: ['custom', 'coding'],
@@ -222,6 +234,8 @@ describe('user-registry', () => {
     describe('removeAgentFromUserRegistry', () => {
         it('should remove agent from user registry', async () => {
             const entry: Omit<AgentRegistryEntry, 'type'> = {
+                id: 'test-agent',
+                name: 'Test Agent',
                 description: 'Test',
                 author: 'User',
                 tags: [],

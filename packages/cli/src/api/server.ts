@@ -1216,14 +1216,18 @@ export async function initializeApi(
     const CustomAgentCreateSchema = z
         .object({
             // Registry metadata
+            id: z
+                .string()
+                .min(1, 'Agent ID is required')
+                .regex(
+                    /^[a-z0-9-]+$/,
+                    'Agent ID must contain only lowercase letters, numbers, and hyphens'
+                )
+                .describe('Unique agent identifier'),
             name: z
                 .string()
                 .min(1, 'Agent name is required')
-                .regex(
-                    /^[a-z0-9-]+$/,
-                    'Agent name must contain only lowercase letters, numbers, and hyphens'
-                )
-                .describe('Unique agent slug'),
+                .describe('Display name for the agent'),
             description: z
                 .string()
                 .min(1, 'Description is required')
@@ -1254,7 +1258,7 @@ export async function initializeApi(
     // Create a new custom agent from UI
     app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
         try {
-            const { name, description, author, tags, llm, systemPrompt } = parseBody(
+            const { id, name, description, author, tags, llm, systemPrompt } = parseBody(
                 CustomAgentCreateSchema,
                 req.body
             );
@@ -1286,19 +1290,20 @@ export async function initializeApi(
             };
 
             const yamlContent = yamlStringify(agentConfig);
-            logger.info(`Creating agent config for ${name}:`, { agentConfig, yamlContent });
+            logger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
 
             // Create temporary file
             const tmpDir = os.tmpdir();
-            const tmpFile = path.join(tmpDir, `${name}-${Date.now()}.yml`);
+            const tmpFile = path.join(tmpDir, `${id}-${Date.now()}.yml`);
             await fs.writeFile(tmpFile, yamlContent, 'utf-8');
 
             try {
                 // Install the custom agent
                 await Dexto.installCustomAgent(
-                    name,
+                    id,
                     tmpFile,
                     {
+                        name,
                         description,
                         author: author || 'Custom',
                         tags: tags || [],
@@ -1309,7 +1314,7 @@ export async function initializeApi(
                 // Clean up temp file
                 await fs.unlink(tmpFile).catch(() => {});
 
-                return sendJsonResponse(res, { created: true, name }, 201);
+                return sendJsonResponse(res, { created: true, id, name }, 201);
             } catch (installError) {
                 // Clean up temp file on error
                 await fs.unlink(tmpFile).catch(() => {});

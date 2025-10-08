@@ -298,7 +298,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * Install a custom agent from a local file path
      * @param agentName Unique name for the custom agent
      * @param sourcePath Absolute path to agent YAML file or directory
-     * @param metadata Agent metadata (description, author, tags, main)
+     * @param metadata Agent metadata (name, description, author, tags, main)
      * @param injectPreferences Whether to inject global preferences (default: true)
      * @returns Path to the installed agent's main config file
      */
@@ -306,6 +306,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         agentName: string,
         sourcePath: string,
         metadata: {
+            name?: string;
             description: string;
             author: string;
             tags: string[];
@@ -353,7 +354,17 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
 
         // Build registry entry
+        // Auto-generate display name from ID if not provided
+        const displayName =
+            metadata.name ||
+            agentName
+                .split('-')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+
         const registryEntry: Omit<AgentRegistryEntry, 'type'> = {
+            id: agentName,
+            name: displayName,
             description: metadata.description,
             author: metadata.author,
             tags: metadata.tags,

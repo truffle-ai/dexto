@@ -5,6 +5,8 @@ import { z } from 'zod';
  */
 export const AgentRegistryEntrySchema = z
     .object({
+        id: z.string().describe('Unique identifier for the agent'),
+        name: z.string().describe('Display name for the agent'),
         description: z.string(),
         author: z.string(),
         tags: z.array(z.string()),
