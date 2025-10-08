@@ -67,6 +67,13 @@ export default [
             '@typescript-eslint/no-explicit-any': 'off',
             '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
             'no-dupe-class-members': 'off', // Allow TypeScript method overloading
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector: 'MemberExpression[object.name="z"][property.name="infer"]',
+                    message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                },
+            ],
         },
     },
 
