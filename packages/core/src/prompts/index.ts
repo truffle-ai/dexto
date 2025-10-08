@@ -5,6 +5,8 @@ export { StarterPromptProvider } from './providers/starter-prompt-provider.js';
 export { CustomPromptProvider } from './providers/custom-prompt-provider.js';
 export type { CreateCustomPromptInput } from './providers/custom-prompt-provider.js';
 export { PromptError } from './errors.js';
+export { StarterPromptsSchema } from './schemas.js';
+export type { ValidatedStarterPromptsConfig } from './schemas.js';
 export type {
     PromptInfo,
     PromptSet,
