@@ -22,6 +22,7 @@ import {
     ResourceUpdatedNotificationSchema,
     ResourceUpdatedNotification,
     PromptListChangedNotificationSchema,
+    ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
@@ -529,8 +530,16 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         } catch (error) {
             logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
         }
+        try {
+            // Tools list changed
+            this.client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+                this.handleToolsListChanged();
+            });
+        } catch (error) {
+            logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
+        }
 
-        logger.debug('MCP notification handlers registered (resources, prompts)');
+        logger.debug('MCP notification handlers registered (resources, prompts, tools)');
     }
 
     /**
@@ -547,5 +556,13 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private handlePromptsListChanged(): void {
         logger.debug('Prompts list changed');
         this.emit('promptsListChanged');
+    }
+
+    /**
+     * Handle tools list changed notification
+     */
+    private handleToolsListChanged(): void {
+        logger.debug('Tools list changed');
+        this.emit('toolsListChanged');
     }
 }
