@@ -1111,8 +1111,6 @@ export class DextoAgent {
      * Lists all available resources with their info.
      * This includes resources from MCP servers and any custom resource providers.
      */
-    // TODO: (355) Nit: verify that usages of resource/prompt methods in CLI are using dextoagent resource/prompt methods rather than directly accessing promptmanager/resource manager through the agent
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412953886
     public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
         this.ensureStarted();
         return await this.resourceManager.list();
