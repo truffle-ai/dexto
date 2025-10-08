@@ -1,55 +1,69 @@
 import type { Cache } from './cache/types.js';
 import type { Database } from './database/types.js';
 import type { BlobStore } from './blob/types.js';
-import type {
-    PostgresDatabaseConfig,
-    RedisCacheConfig,
-    SqliteDatabaseConfig,
-    LocalBlobStoreConfig,
-    ValidatedStorageConfig,
-} from './schemas.js';
-import { MemoryCacheStore } from './cache/memory-cache-store.js';
-import { MemoryDatabaseStore } from './database/memory-database-store.js';
-import { LocalBlobStore } from './blob/local-blob-store.js';
+import type { ValidatedStorageConfig } from './schemas.js';
+import { createCache } from './cache/factory.js';
+import { createDatabase } from './database/factory.js';
+import { createBlobStore } from './blob/factory.js';
 import { logger } from '../logger/index.js';
-
-// Lazy imports for optional dependencies
-let SQLiteStore: any;
-let RedisStore: any;
-let PostgresStore: any;
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
 
 /**
  * Storage manager that initializes and manages storage backends.
  * Handles cache, database, and blob backends with automatic fallbacks.
+ *
+ * Lifecycle:
+ * 1. new StorageManager(config) - Creates manager with config
+ * 2. await manager.initialize() - Creates store instances (without connecting)
+ * 3. await manager.connect() - Establishes connections to all stores
+ * 4. await manager.disconnect() - Closes all connections
  */
 export class StorageManager {
     private config: ValidatedStorageConfig;
     private cache!: Cache;
     private database!: Database;
     private blobStore!: BlobStore;
+    private initialized = false;
     private connected = false;
 
     constructor(config: ValidatedStorageConfig) {
         this.config = config;
     }
 
+    /**
+     * Initialize storage instances without connecting.
+     * This allows configuration and inspection before establishing connections.
+     */
+    async initialize(): Promise<void> {
+        if (this.initialized) {
+            return;
+        }
+
+        // Create store instances
+        this.cache = await createCache(this.config.cache);
+        this.database = await createDatabase(this.config.database);
+        this.blobStore = createBlobStore(this.config.blob);
+
+        this.initialized = true;
+    }
+
+    /**
+     * Connect all storage backends.
+     * Must call initialize() first, or use createStorageManager() helper.
+     */
     async connect(): Promise<void> {
+        if (!this.initialized) {
+            throw new Error('StorageManager is not initialized. Call initialize() first.');
+        }
+
         if (this.connected) {
             return;
         }
 
-        // Initialize cache
-        this.cache = await this.createCache();
+        // Establish connections
         await this.cache.connect();
-
-        // Initialize database
-        this.database = await this.createDatabase();
         await this.database.connect();
-
-        // Initialize blob store
-        this.blobStore = this.createBlobStore();
         await this.blobStore.connect();
 
         this.connected = true;
@@ -105,106 +119,6 @@ export class StorageManager {
             throw new Error('StorageManager is not connected. Call connect() first.');
         }
         return this.blobStore;
-    }
-
-    private async createCache(): Promise<Cache> {
-        const cacheConfig = this.config.cache;
-
-        switch (cacheConfig.type) {
-            case 'redis':
-                return this.createRedisStore(cacheConfig);
-
-            case 'in-memory':
-            default:
-                logger.info('Using in-memory cache store');
-                return new MemoryCacheStore();
-        }
-    }
-
-    private async createDatabase(): Promise<Database> {
-        const dbConfig = this.config.database;
-
-        switch (dbConfig.type) {
-            case 'postgres':
-                return this.createPostgresStore(dbConfig);
-
-            case 'sqlite':
-                return this.createSQLiteStore(dbConfig);
-
-            case 'in-memory':
-            default:
-                logger.info('Using in-memory database store');
-                return new MemoryDatabaseStore();
-        }
-    }
-
-    private createBlobStore(): BlobStore {
-        const blobConfig = this.config.blob;
-
-        switch (blobConfig.type) {
-            case 'local':
-                logger.info('Using local blob store');
-                return new LocalBlobStore(blobConfig);
-
-            case 'in-memory':
-            default: {
-                logger.info('Using in-memory blob store (falling back to local)');
-                // For now we don't have MemoryBlobStore, use LocalBlobStore with in-memory config converted to local
-                const localConfig: LocalBlobStoreConfig = {
-                    type: 'local',
-                    maxBlobSize: blobConfig.maxBlobSize,
-                    maxTotalSize: blobConfig.maxTotalSize,
-                    cleanupAfterDays: 30, // Default for fallback
-                };
-                return new LocalBlobStore(localConfig);
-            }
-        }
-    }
-
-    private async createRedisStore(config: RedisCacheConfig): Promise<Cache> {
-        try {
-            if (!RedisStore) {
-                const module = await import('./cache/redis-store.js');
-                RedisStore = module.RedisStore;
-            }
-            logger.info(`Connecting to Redis at ${config.host}:${config.port}`);
-            return new RedisStore(config);
-        } catch (error) {
-            logger.warn(`Redis not available, falling back to in-memory cache: ${error}`);
-            return new MemoryCacheStore();
-        }
-    }
-
-    private async createPostgresStore(config: PostgresDatabaseConfig): Promise<Database> {
-        try {
-            if (!PostgresStore) {
-                const module = await import('./database/postgres-store.js');
-                PostgresStore = module.PostgresStore;
-            }
-            logger.info('Connecting to PostgreSQL database');
-            return new PostgresStore(config);
-        } catch (error) {
-            logger.warn(`PostgreSQL not available, falling back to in-memory database: ${error}`);
-            return new MemoryDatabaseStore();
-        }
-    }
-
-    private async createSQLiteStore(config: SqliteDatabaseConfig): Promise<Database> {
-        try {
-            if (!SQLiteStore) {
-                const module = await import('./database/sqlite-store.js');
-                SQLiteStore = module.SQLiteStore;
-            }
-            logger.info(`Using SQLite database at ${config.path}`);
-            return new SQLiteStore(config);
-        } catch (error) {
-            logger.error(
-                `SQLite store failed to load: ${error instanceof Error ? error.message : String(error)}`
-            );
-            logger.error(`Full error details: ${JSON.stringify(error)}`);
-            logger.warn('Falling back to in-memory database store');
-            return new MemoryDatabaseStore();
-        }
     }
 
     // Utility methods
@@ -292,12 +206,14 @@ export class StorageManager {
 
 /**
  * Create and initialize a storage manager.
+ * This is a convenience helper that combines initialization and connection.
  * This allows multiple agent instances to have independent storage.
  */
 export async function createStorageManager(
     config: ValidatedStorageConfig
 ): Promise<StorageManager> {
     const manager = new StorageManager(config);
+    await manager.initialize();
     await manager.connect();
     return manager;
 }
