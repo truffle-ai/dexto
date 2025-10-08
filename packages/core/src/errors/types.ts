@@ -10,7 +10,7 @@ import type { ToolErrorCode } from '@core/tools/error-codes.js';
 import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
-import type { BlobErrorCode } from '@core/blob/error-codes.js';
+import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -29,9 +29,7 @@ export enum ErrorScope {
     PREFERENCE = 'preference', // Global preferences file operations and validation
     AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
-    // TODO: (355) Delete this once blob is moved into storage layer, same as below
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413026177
-    BLOB = 'blob', // Blob storage operations and backend management
+    PROMPT = 'prompt', // Prompt management, resolution, and providers
 }
 
 /**
@@ -66,7 +64,7 @@ export type DextoErrorCode =
     | PreferenceErrorCode
     | RegistryErrorCode
     | ResourceErrorCode
-    | BlobErrorCode;
+    | PromptErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
 import { logger } from '../../logger/index.js';
 import { getDextoPath } from '../../utils/path.js';
-import { BlobError } from '../../blob/errors.js';
+import { StorageError } from '../errors.js';
 import type {
     BlobInput,
     BlobMetadata,
@@ -12,8 +12,8 @@ import type {
     BlobData,
     BlobStats,
     StoredBlobMetadata,
-} from '../../blob/types.js';
-import type { ValidatedBlobServiceConfig } from '../../blob/schemas.js';
+} from './types.js';
+import type { ValidatedBlobServiceConfig } from './schemas.js';
 import type { BlobStore } from './blob-store.js';
 
 /**
@@ -48,7 +48,7 @@ export class LocalBlobStore implements BlobStore {
             this.connected = true;
             logger.debug(`LocalBlobStore connected at: ${this.storePath}`);
         } catch (error) {
-            throw BlobError.operationFailed('connect', 'local', error);
+            throw StorageError.blobOperationFailed('connect', 'local', error);
         }
     }
 
@@ -78,7 +78,7 @@ export class LocalBlobStore implements BlobStore {
 
     async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         // Convert input to buffer for processing
@@ -86,7 +86,7 @@ export class LocalBlobStore implements BlobStore {
 
         // Check size limits
         if (buffer.length > this.config.maxBlobSize) {
-            throw BlobError.sizeExceeded(buffer.length, this.config.maxBlobSize);
+            throw StorageError.blobSizeExceeded(buffer.length, this.config.maxBlobSize);
         }
 
         // Generate content-based hash for deduplication
@@ -117,7 +117,10 @@ export class LocalBlobStore implements BlobStore {
         if (maxTotalSize) {
             const stats = await this.ensureStatsCache();
             if (stats.totalSize + buffer.length > maxTotalSize) {
-                throw BlobError.totalSizeExceeded(stats.totalSize + buffer.length, maxTotalSize);
+                throw StorageError.blobTotalSizeExceeded(
+                    stats.totalSize + buffer.length,
+                    maxTotalSize
+                );
             }
         }
 
@@ -154,7 +157,7 @@ export class LocalBlobStore implements BlobStore {
                 fs.unlink(blobPath).catch(() => {}),
                 fs.unlink(metaPath).catch(() => {}),
             ]);
-            throw BlobError.operationFailed('store', 'local', error);
+            throw StorageError.blobOperationFailed('store', 'local', error);
         }
     }
 
@@ -163,7 +166,7 @@ export class LocalBlobStore implements BlobStore {
         format: 'base64' | 'buffer' | 'path' | 'stream' | 'url' = 'buffer'
     ): Promise<BlobData> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const id = this.parseReference(reference);
@@ -205,19 +208,19 @@ export class LocalBlobStore implements BlobStore {
                     };
                 }
                 default:
-                    throw BlobError.invalidInput(format, `Unsupported format: ${format}`);
+                    throw StorageError.blobInvalidInput(format, `Unsupported format: ${format}`);
             }
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                throw BlobError.notFound(reference);
+                throw StorageError.blobNotFound(reference);
             }
-            throw BlobError.operationFailed('retrieve', 'local', error);
+            throw StorageError.blobOperationFailed('retrieve', 'local', error);
         }
     }
 
     async exists(reference: string): Promise<boolean> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const id = this.parseReference(reference);
@@ -234,7 +237,7 @@ export class LocalBlobStore implements BlobStore {
 
     async delete(reference: string): Promise<void> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const id = this.parseReference(reference);
@@ -250,15 +253,15 @@ export class LocalBlobStore implements BlobStore {
             this.updateStatsCacheAfterDelete(metadata.size);
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                throw BlobError.notFound(reference);
+                throw StorageError.blobNotFound(reference);
             }
-            throw BlobError.operationFailed('delete', 'local', error);
+            throw StorageError.blobOperationFailed('delete', 'local', error);
         }
     }
 
     async cleanup(olderThan?: Date): Promise<number> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const cleanupDays = this.config.cleanupAfterDays;
@@ -299,13 +302,13 @@ export class LocalBlobStore implements BlobStore {
 
             return deletedCount;
         } catch (error) {
-            throw BlobError.cleanupFailed('local', error);
+            throw StorageError.blobCleanupFailed('local', error);
         }
     }
 
     async getStats(): Promise<BlobStats> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const stats = await this.ensureStatsCache();
@@ -324,7 +327,7 @@ export class LocalBlobStore implements BlobStore {
 
     async listBlobs(): Promise<BlobReference[]> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         try {
@@ -445,7 +448,10 @@ export class LocalBlobStore implements BlobStore {
                     const base64Data = input.substring(commaIndex + 1);
                     return Buffer.from(base64Data, 'base64');
                 }
-                throw BlobError.encodingError('inputToBuffer', 'Unsupported data URI format');
+                throw StorageError.blobEncodingError(
+                    'inputToBuffer',
+                    'Unsupported data URI format'
+                );
             }
 
             // Handle file path - only if it looks like an actual file path
@@ -462,11 +468,11 @@ export class LocalBlobStore implements BlobStore {
             try {
                 return Buffer.from(input, 'base64');
             } catch {
-                throw BlobError.encodingError('inputToBuffer', 'Invalid base64 string');
+                throw StorageError.blobEncodingError('inputToBuffer', 'Invalid base64 string');
             }
         }
 
-        throw BlobError.invalidInput(input, `Unsupported input type: ${typeof input}`);
+        throw StorageError.blobInvalidInput(input, `Unsupported input type: ${typeof input}`);
     }
 
     /**
@@ -474,13 +480,13 @@ export class LocalBlobStore implements BlobStore {
      */
     private parseReference(reference: string): string {
         if (!reference) {
-            throw BlobError.invalidReference(reference, 'Empty reference');
+            throw StorageError.blobInvalidReference(reference, 'Empty reference');
         }
 
         if (reference.startsWith('blob:')) {
             const id = reference.substring(5);
             if (!id) {
-                throw BlobError.invalidReference(reference, 'Empty blob ID after prefix');
+                throw StorageError.blobInvalidReference(reference, 'Empty blob ID after prefix');
             }
             return id;
         }

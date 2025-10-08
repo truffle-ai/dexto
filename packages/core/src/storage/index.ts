@@ -51,6 +51,21 @@ export { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from './schemas.js';
 export type { CacheBackendType, DatabaseBackendType } from './schemas.js';
 export { BackendConfigSchema, StorageSchema } from './schemas.js';
 
+// Blob storage interface and types
+export type { BlobStore } from './blob/blob-store.js';
+export type {
+    BlobInput,
+    BlobMetadata,
+    StoredBlobMetadata,
+    BlobReference,
+    BlobData,
+    BlobStats,
+} from './blob/types.js';
+
+// Blob storage schemas and config
+export { BlobServiceConfigSchema } from './blob/schemas.js';
+export type { ValidatedBlobServiceConfig } from './blob/schemas.js';
+
 // Note: Backend configuration types (RedisBackendConfig, PostgresBackendConfig, etc.)
 // are exported from './config/schemas.js' to maintain single source of truth
 // Note: Actual backend classes are lazy-loaded by StorageManager to handle optional dependencies
