@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'events';
 import { MCPManager } from './manager.js';
 import { IMCPClient, MCPResourceSummary } from './types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
@@ -8,14 +9,13 @@ import { eventBus } from '../events/index.js';
 import type { JSONSchema7 } from 'json-schema';
 
 // Mock client for testing
-class MockMCPClient implements IMCPClient {
+class MockMCPClient extends EventEmitter implements IMCPClient {
     private tools: Record<
         string,
         { name?: string; description?: string; parameters: JSONSchema7 }
     > = {};
     private prompts: string[] = [];
     private resources: MCPResourceSummary[] = [];
-    private eventHandlers: Map<string, Array<(...args: any[]) => void>> = new Map();
 
     constructor(
         tools: Record<
@@ -25,6 +25,7 @@ class MockMCPClient implements IMCPClient {
         prompts: string[] = [],
         resources: MCPResourceSummary[] = []
     ) {
+        super();
         this.tools = tools;
         this.prompts = prompts;
         this.resources = resources;
@@ -77,12 +78,6 @@ class MockMCPClient implements IMCPClient {
         return {
             contents: [{ uri, mimeType: 'text/plain', text: `Resource content for ${uri}` }],
         };
-    }
-
-    on(event: string, handler: (...args: any[]) => void): void {
-        const handlers = this.eventHandlers.get(event) || [];
-        handlers.push(handler);
-        this.eventHandlers.set(event, handlers);
     }
 }
 
@@ -475,7 +470,10 @@ describe('MCPManager Tool Conflict Resolution', () => {
     describe('Edge Cases and Error Handling', () => {
         it('should handle tools with @@ in their names', async () => {
             const clientWithWeirdTool = new MockMCPClient({
-                'tool@@with@@delimiters': { description: 'Tool with @@ in name' },
+                'tool@@with@@delimiters': {
+                    description: 'Tool with @@ in name',
+                    parameters: { type: 'object', properties: {} },
+                },
             });
 
             manager.registerClient('normalserver', clientWithWeirdTool);
@@ -749,7 +747,7 @@ describe('Tool notification handling', () => {
     let client2: MockMCPClient;
 
     beforeEach(() => {
-        manager = new MCPManager({});
+        manager = new MCPManager();
         client1 = new MockMCPClient(
             {
                 tool1: { name: 'tool1', description: 'Tool 1', parameters: {} },

@@ -231,6 +231,20 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         );
 
         eventBus.on(
+            'dexto:mcpToolsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpToolsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        tools: payload.tools,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
             'dexto:resourceCacheInvalidated',
             (payload) => {
                 this.broadcast({
