@@ -7,6 +7,7 @@ describe('parseResourceReferences', () => {
     it('should parse reference at start of message', () => {
         const refs = parseResourceReferences('@myfile.txt is important');
         expect(refs).toHaveLength(1);
+        expect(refs[0]).toBeDefined();
         expect(refs[0]).toMatchObject({
             originalRef: '@myfile.txt',
             type: 'name',
@@ -17,6 +18,7 @@ describe('parseResourceReferences', () => {
     it('should parse reference with leading whitespace', () => {
         const refs = parseResourceReferences('Check @myfile.txt');
         expect(refs).toHaveLength(1);
+        expect(refs[0]).toBeDefined();
         expect(refs[0]).toMatchObject({
             originalRef: '@myfile.txt',
             type: 'name',
@@ -27,6 +29,7 @@ describe('parseResourceReferences', () => {
     it('should parse URI reference with brackets', () => {
         const refs = parseResourceReferences('Check @<file:///path/to/file.txt>');
         expect(refs).toHaveLength(1);
+        expect(refs[0]).toBeDefined();
         expect(refs[0]).toMatchObject({
             originalRef: '@<file:///path/to/file.txt>',
             type: 'uri',
@@ -37,6 +40,7 @@ describe('parseResourceReferences', () => {
     it('should parse server-scoped reference', () => {
         const refs = parseResourceReferences('Check @filesystem:myfile.txt');
         expect(refs).toHaveLength(1);
+        expect(refs[0]).toBeDefined();
         expect(refs[0]).toMatchObject({
             originalRef: '@filesystem:myfile.txt',
             type: 'server-scoped',
@@ -53,7 +57,8 @@ describe('parseResourceReferences', () => {
     it('should parse real references but skip email addresses', () => {
         const refs = parseResourceReferences('Check @myfile but email user@example.com');
         expect(refs).toHaveLength(1);
-        expect(refs[0].identifier).toBe('myfile');
+        expect(refs[0]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('myfile');
     });
 
     it('should handle multiple email addresses and references', () => {
@@ -61,39 +66,47 @@ describe('parseResourceReferences', () => {
             'Contact user@example.com or admin@example.com for @support.txt'
         );
         expect(refs).toHaveLength(1);
-        expect(refs[0].identifier).toBe('support.txt');
+        expect(refs[0]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('support.txt');
     });
 
     it('should NOT match @ without leading whitespace', () => {
         const refs = parseResourceReferences('user@example.com has @file.txt');
         expect(refs).toHaveLength(1);
-        expect(refs[0].identifier).toBe('file.txt');
+        expect(refs[0]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('file.txt');
     });
 
     it('should parse multiple references with whitespace', () => {
         const refs = parseResourceReferences('Check @file1.txt and @file2.txt');
         expect(refs).toHaveLength(2);
-        expect(refs[0].identifier).toBe('file1.txt');
-        expect(refs[1].identifier).toBe('file2.txt');
+        expect(refs[0]).toBeDefined();
+        expect(refs[1]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('file1.txt');
+        expect(refs[1]!.identifier).toBe('file2.txt');
     });
 
     it('should parse reference after newline', () => {
         const refs = parseResourceReferences('First line\n@myfile.txt');
         expect(refs).toHaveLength(1);
-        expect(refs[0].identifier).toBe('myfile.txt');
+        expect(refs[0]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('myfile.txt');
     });
 
     it('should NOT parse @ in middle of word', () => {
         const refs = parseResourceReferences('test@something word @file.txt');
         expect(refs).toHaveLength(1);
-        expect(refs[0].identifier).toBe('file.txt');
+        expect(refs[0]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('file.txt');
     });
 
     it('should handle @ at start with no space before', () => {
         const refs = parseResourceReferences('@start then more@text and @end');
         expect(refs).toHaveLength(2);
-        expect(refs[0].identifier).toBe('start');
-        expect(refs[1].identifier).toBe('end');
+        expect(refs[0]).toBeDefined();
+        expect(refs[1]).toBeDefined();
+        expect(refs[0]!.identifier).toBe('start');
+        expect(refs[1]!.identifier).toBe('end');
     });
 });
 

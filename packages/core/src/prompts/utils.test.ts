@@ -20,7 +20,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should flatten multiple text parts with newline separation', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -30,7 +30,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -39,7 +39,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should extract resource URIs and text from resource content', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -55,7 +55,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -66,7 +66,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should deduplicate resource URIs', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -88,7 +88,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -98,14 +98,14 @@ describe('flattenPromptResult', () => {
     });
 
     test('should handle string content directly', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
                     content: 'Simple string content',
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -114,7 +114,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should handle array of mixed content types', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -131,7 +131,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -142,7 +142,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should handle resources without text', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -157,7 +157,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -166,17 +166,17 @@ describe('flattenPromptResult', () => {
     });
 
     test('should ignore non-text content types (image, etc.)', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
                     content: [
                         { type: 'text', text: 'Text content' },
-                        { type: 'image', data: 'base64data' } as any,
+                        { type: 'image', data: 'base64data' },
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -215,7 +215,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should filter out empty text parts', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -226,7 +226,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
@@ -234,7 +234,7 @@ describe('flattenPromptResult', () => {
     });
 
     test('should ignore resources with empty URIs', () => {
-        const result: GetPromptResult = {
+        const result = {
             messages: [
                 {
                     role: 'user',
@@ -256,7 +256,7 @@ describe('flattenPromptResult', () => {
                     ],
                 },
             ],
-        };
+        } as unknown as GetPromptResult;
 
         const flattened = flattenPromptResult(result);
 
