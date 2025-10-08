@@ -36,23 +36,28 @@
 export { StorageManager, createStorageManager } from './storage-manager.js';
 
 // Storage interfaces
-export type { Cache } from './cache/cache.js';
-export type { Database } from './database/database.js';
+export type { Cache } from './cache/types.js';
+export type { Database } from './database/types.js';
 
 // Schema types
-export type { BackendConfig, StorageConfig, ValidatedStorageConfig } from './schemas.js';
+export type { StorageConfig, ValidatedStorageConfig } from './schemas.js';
 
 // Store implementations - always available
 export { MemoryCacheStore } from './cache/memory-cache-store.js';
 export { MemoryDatabaseStore } from './database/memory-database-store.js';
 
 // Schema constants, types, and schemas for UI consumption
-export { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from './schemas.js';
-export type { CacheBackendType, DatabaseBackendType } from './schemas.js';
-export { BackendConfigSchema, StorageSchema } from './schemas.js';
+export { CACHE_TYPES, DATABASE_TYPES, BLOB_STORE_TYPES } from './schemas.js';
+export type { CacheType, DatabaseType, BlobStoreType } from './schemas.js';
+export {
+    CacheConfigSchema,
+    DatabaseConfigSchema,
+    BlobStoreConfigSchema,
+    StorageSchema,
+} from './schemas.js';
 
 // Blob storage interface and types
-export type { BlobStore } from './blob/blob-store.js';
+export type { BlobStore } from './blob/types.js';
 export type {
     BlobInput,
     BlobMetadata,
@@ -62,10 +67,18 @@ export type {
     BlobStats,
 } from './blob/types.js';
 
-// Blob storage schemas and config
-export { BlobServiceConfigSchema } from './blob/schemas.js';
-export type { ValidatedBlobServiceConfig } from './blob/schemas.js';
+// Blob storage config types
+export type { BlobStoreConfig, InMemoryBlobStoreConfig, LocalBlobStoreConfig } from './schemas.js';
 
-// Note: Backend configuration types (RedisBackendConfig, PostgresBackendConfig, etc.)
-// are exported from './config/schemas.js' to maintain single source of truth
+// Cache config types
+export type { CacheConfig, InMemoryCacheConfig, RedisCacheConfig } from './schemas.js';
+
+// Database config types
+export type {
+    DatabaseConfig,
+    InMemoryDatabaseConfig,
+    SqliteDatabaseConfig,
+    PostgresDatabaseConfig,
+} from './schemas.js';
+
 // Note: Actual backend classes are lazy-loaded by StorageManager to handle optional dependencies

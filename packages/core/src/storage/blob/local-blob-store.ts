@@ -6,6 +6,7 @@ import { logger } from '../../logger/index.js';
 import { getDextoPath } from '../../utils/path.js';
 import { StorageError } from '../errors.js';
 import type {
+    BlobStore,
     BlobInput,
     BlobMetadata,
     BlobReference,
@@ -13,8 +14,7 @@ import type {
     BlobStats,
     StoredBlobMetadata,
 } from './types.js';
-import type { ValidatedBlobServiceConfig } from './schemas.js';
-import type { BlobStore } from './blob-store.js';
+import type { LocalBlobStoreConfig } from './schemas.js';
 
 /**
  * Local filesystem blob store implementation.
@@ -24,7 +24,7 @@ import type { BlobStore } from './blob-store.js';
  * and single-machine deployments.
  */
 export class LocalBlobStore implements BlobStore {
-    private config: ValidatedBlobServiceConfig;
+    private config: LocalBlobStoreConfig;
     private storePath: string;
     private connected = false;
     private statsCache: { count: number; totalSize: number } | null = null;
@@ -33,7 +33,7 @@ export class LocalBlobStore implements BlobStore {
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: ValidatedBlobServiceConfig) {
+    constructor(config: LocalBlobStoreConfig) {
         this.config = config;
         this.storePath = config.storePath || getDextoPath('data', 'blobs');
     }

@@ -13,7 +13,7 @@ import {
 import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 import type { ResourceManager } from '../resources/manager.js';
-import type { Database } from '../storage/database/database.js';
+import type { Database } from '../storage/database/types.js';
 
 interface PromptCacheEntry {
     providerName: string;

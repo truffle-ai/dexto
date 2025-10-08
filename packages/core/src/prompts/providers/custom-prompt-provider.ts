@@ -6,7 +6,7 @@ import type {
     PromptArgument,
 } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { Database } from '../../storage/database/database.js';
+import type { Database } from '../../storage/database/types.js';
 import type { ResourceManager } from '../../resources/manager.js';
 import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';

@@ -1,6 +1,6 @@
 /**
  * Re-export simplified storage types
  */
-export type { Cache } from './cache/cache.js';
-export type { Database } from './database/database.js';
-export type { BackendConfig, StorageConfig } from './schemas.js';
+export type { Cache } from './cache/types.js';
+export type { Database } from './database/types.js';
+export type { StorageConfig } from './schemas.js';

@@ -1,11 +1,11 @@
-import type { Cache } from './cache/cache.js';
-import type { Database } from './database/database.js';
-import type { BlobStore } from './blob/blob-store.js';
+import type { Cache } from './cache/types.js';
+import type { Database } from './database/types.js';
+import type { BlobStore } from './blob/types.js';
 import type {
-    PostgresBackendConfig,
-    RedisBackendConfig,
-    SqliteBackendConfig,
-    LocalBlobBackendConfig,
+    PostgresDatabaseConfig,
+    RedisCacheConfig,
+    SqliteDatabaseConfig,
+    LocalBlobStoreConfig,
     ValidatedStorageConfig,
 } from './schemas.js';
 import { MemoryCacheStore } from './cache/memory-cache-store.js';
@@ -49,7 +49,7 @@ export class StorageManager {
         await this.database.connect();
 
         // Initialize blob store
-        this.blobStore = this.createBlob();
+        this.blobStore = this.createBlobStore();
         await this.blobStore.connect();
 
         this.connected = true;
@@ -138,7 +138,7 @@ export class StorageManager {
         }
     }
 
-    private createBlob(): BlobStore {
+    private createBlobStore(): BlobStore {
         const blobConfig = this.config.blob;
 
         switch (blobConfig.type) {
@@ -150,7 +150,7 @@ export class StorageManager {
             default: {
                 logger.info('Using in-memory blob store (falling back to local)');
                 // For now we don't have MemoryBlobStore, use LocalBlobStore with in-memory config converted to local
-                const localConfig: LocalBlobBackendConfig = {
+                const localConfig: LocalBlobStoreConfig = {
                     type: 'local',
                     maxBlobSize: blobConfig.maxBlobSize,
                     maxTotalSize: blobConfig.maxTotalSize,
@@ -161,7 +161,7 @@ export class StorageManager {
         }
     }
 
-    private async createRedisStore(config: RedisBackendConfig): Promise<Cache> {
+    private async createRedisStore(config: RedisCacheConfig): Promise<Cache> {
         try {
             if (!RedisStore) {
                 const module = await import('./cache/redis-store.js');
@@ -175,7 +175,7 @@ export class StorageManager {
         }
     }
 
-    private async createPostgresStore(config: PostgresBackendConfig): Promise<Database> {
+    private async createPostgresStore(config: PostgresDatabaseConfig): Promise<Database> {
         try {
             if (!PostgresStore) {
                 const module = await import('./database/postgres-store.js');
@@ -189,7 +189,7 @@ export class StorageManager {
         }
     }
 
-    private async createSQLiteStore(config: SqliteBackendConfig): Promise<Database> {
+    private async createSQLiteStore(config: SqliteDatabaseConfig): Promise<Database> {
         try {
             if (!SQLiteStore) {
                 const module = await import('./database/sqlite-store.js');

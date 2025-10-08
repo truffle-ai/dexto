@@ -1,8 +1,8 @@
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
-import type { Database } from './database.js';
+import type { Database } from './types.js';
 import { logger } from '../../logger/index.js';
-import type { SqliteBackendConfig } from '../schemas.js';
+import type { SqliteDatabaseConfig } from './schemas.js';
 import { getDextoPath } from '../../utils/path.js';
 import * as path from 'path';
 import { StorageError } from '../errors.js';
@@ -17,9 +17,9 @@ let BetterSqlite3Database: any;
 export class SQLiteStore implements Database {
     private db: any; // Database.Database
     private dbPath: string;
-    private config: SqliteBackendConfig;
+    private config: SqliteDatabaseConfig;
 
-    constructor(config: SqliteBackendConfig) {
+    constructor(config: SqliteDatabaseConfig) {
         this.config = config;
         // Path will be resolved in connect() method
         this.dbPath = '';

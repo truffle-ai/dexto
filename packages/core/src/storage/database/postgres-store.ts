@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
-import type { Database } from './database.js';
-import type { PostgresBackendConfig } from '../schemas.js';
+import type { Database } from './types.js';
+import type { PostgresDatabaseConfig } from './schemas.js';
 import { StorageError } from '../errors.js';
 
 /**
@@ -12,7 +12,7 @@ export class PostgresStore implements Database {
     private pool: Pool | null = null;
     private connected = false;
 
-    constructor(private config: PostgresBackendConfig) {}
+    constructor(private config: PostgresDatabaseConfig) {}
 
     async connect(): Promise<void> {
         if (this.connected) return;

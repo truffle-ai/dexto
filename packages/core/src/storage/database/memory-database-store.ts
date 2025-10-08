@@ -1,4 +1,4 @@
-import type { Database } from './database.js';
+import type { Database } from './types.js';
 import { StorageError } from '../errors.js';
 
 /**

@@ -2,7 +2,7 @@ import { logger } from '../../logger/index.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { BlobStore } from '../../storage/blob/blob-store.js';
+import type { BlobStore } from '../../storage/blob/types.js';
 import type { ValidatedBlobResourceConfig } from '../schemas.js';
 import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 

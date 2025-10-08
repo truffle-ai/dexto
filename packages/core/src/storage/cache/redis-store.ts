@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis';
-import type { Cache } from './cache.js';
-import type { RedisBackendConfig } from '../schemas.js';
+import type { Cache } from './types.js';
+import type { RedisCacheConfig } from './schemas.js';
 import { StorageError } from '../errors.js';
 
 /**
@@ -12,7 +12,7 @@ export class RedisStore implements Cache {
     private redis: Redis | null = null;
     private connected = false;
 
-    constructor(private config: RedisBackendConfig) {}
+    constructor(private config: RedisCacheConfig) {}
 
     async connect(): Promise<void> {
         if (this.connected) return;

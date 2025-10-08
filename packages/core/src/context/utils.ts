@@ -628,7 +628,7 @@ function sanitizeDeepObject(obj: unknown): unknown {
  */
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
-    blobStore?: import('../storage/blob/blob-store.js').BlobStore,
+    blobStore?: import('../storage/blob/types.js').BlobStore,
     namingOptions?: ToolBlobNamingOptions
 ): Promise<InternalMessage['content']> {
     try {

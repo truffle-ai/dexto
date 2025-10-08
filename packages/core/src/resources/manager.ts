@@ -7,7 +7,7 @@ import type { InternalResourceServices } from './handlers/types.js';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
 import { eventBus } from '../events/index.js';
-import type { BlobStore } from '../storage/blob/blob-store.js';
+import type { BlobStore } from '../storage/blob/types.js';
 
 export interface ResourceManagerOptions {
     internalResourcesConfig: ValidatedInternalResourcesConfig;

@@ -1,4 +1,4 @@
-import type { Cache } from './cache.js';
+import type { Cache } from './types.js';
 import { StorageError } from '../errors.js';
 
 /**
