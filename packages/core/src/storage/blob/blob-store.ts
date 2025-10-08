@@ -1,10 +1,4 @@
-import type {
-    BlobInput,
-    BlobMetadata,
-    BlobReference,
-    BlobData,
-    BlobStats,
-} from '../../blob/types.js';
+import type { BlobInput, BlobMetadata, BlobReference, BlobData, BlobStats } from './types.js';
 
 /**
  * BlobStore interface for storing and retrieving large, unstructured data.

@@ -13,7 +13,6 @@ import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
-import { BlobServiceConfigSchema } from '@core/blob/schemas.js';
 import { StarterPromptsSchema } from '@core/prompts/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
@@ -110,7 +109,8 @@ export const AgentConfigSchema = z
         storage: StorageSchema.default({
             cache: { type: 'in-memory' },
             database: { type: 'in-memory' },
-        }).describe('Storage configuration for the agent using cache and database backends'),
+            blob: { type: 'local' },
+        }).describe('Storage configuration for cache, database, and blob storage'),
 
         sessions: SessionConfigSchema.default({}).describe('Session management configuration'),
 
@@ -125,16 +125,6 @@ export const AgentConfigSchema = z
 
         // Agent-specific starter prompts configuration (used by WebUI and PromptManager)
         starterPrompts: StarterPromptsSchema,
-
-        // Blob storage configuration (infrastructure-level blob storage)
-        // TODO: (355) Move into storage schema as a sub-schema along with all blob store code being moved into storage folder, also add .strict()
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412958781
-        blobStorage: BlobServiceConfigSchema.default({
-            type: 'local',
-            maxBlobSize: 50 * 1024 * 1024, // 50MB
-            maxTotalSize: 1024 * 1024 * 1024, // 1GB
-            cleanupAfterDays: 30,
-        }).describe('Blob storage backend configuration for large file handling'),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')

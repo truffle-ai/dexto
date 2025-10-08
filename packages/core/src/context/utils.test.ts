@@ -8,8 +8,8 @@ import {
     expandBlobReferences,
 } from './utils.js';
 import { InternalMessage } from './types.js';
-import { LLMContext } from '@core/llm/types.js';
-import * as registry from '@core/llm/registry.js';
+import { LLMContext } from '../llm/types.js';
+import * as registry from '../llm/registry.js';
 import type { ResourceManager } from '../resources/manager.js';
 
 // Mock the registry module
