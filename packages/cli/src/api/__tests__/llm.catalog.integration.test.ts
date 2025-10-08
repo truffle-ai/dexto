@@ -173,6 +173,8 @@ describe('GET /api/llm/catalog', () => {
             'COHERE_API_KEY',
             'XAI_API_KEY',
             'X_AI_API_KEY',
+            // Include OpenRouter to ensure a clean environment when filtering by hasKey
+            'OPENROUTER_API_KEY',
         ] as const;
         const clearProviderEnv = () => {
             for (const k of PROVIDER_ENV_KEYS)

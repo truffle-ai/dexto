@@ -18,7 +18,7 @@ export interface ModelInfo {
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
     displayName?: string;
-    openRouterId?: string;
+    openRouterId: string;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: {
         inputPerM: number;
@@ -242,6 +242,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'o3-mini',
                 displayName: 'O3 Mini',
+                openRouterId: 'openai/o3-mini',
                 maxInputTokens: 200000,
                 supportedFileTypes: [],
                 pricing: {
@@ -255,6 +256,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'o1',
                 displayName: 'O1',
+                openRouterId: 'openai/o1',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -478,6 +480,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemma-2-9b-it',
                 displayName: 'Gemma 2 9B Instruct',
+                openRouterId: 'google/gemma-2-9b-it',
                 maxInputTokens: 8192,
                 supportedFileTypes: [],
                 pricing: {
@@ -490,6 +493,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'openai/gpt-oss-20b',
                 displayName: 'GPT OSS 20B 128k',
+                openRouterId: 'openai/gpt-oss-20b',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -502,6 +506,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'openai/gpt-oss-120b',
                 displayName: 'GPT OSS 120B 128k',
+                openRouterId: 'openai/gpt-oss-120b',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -514,6 +519,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'moonshotai/kimi-k2-instruct',
                 displayName: 'Kimi K2 1T 128k',
+                openRouterId: 'moonshotai/kimi-k2',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -526,6 +532,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'meta-llama/llama-4-scout-17b-16e-instruct',
                 displayName: 'Llama 4 Scout (17Bx16E) 128k',
+                openRouterId: 'meta-llama/llama-4-scout',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -538,6 +545,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'meta-llama/llama-4-maverick-17b-128e-instruct',
                 displayName: 'Llama 4 Maverick (17Bx128E) 128k',
+                openRouterId: 'meta-llama/llama-4-maverick',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -550,6 +558,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'deepseek-r1-distill-llama-70b',
                 displayName: 'DeepSeek R1 Distill Llama 70B 128k',
+                openRouterId: 'deepseek/deepseek-r1-distill-llama-70b',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -562,6 +571,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'qwen/qwen3-32b',
                 displayName: 'Qwen3 32B 131k',
+                openRouterId: 'qwen/qwen3-32b',
                 maxInputTokens: 131000,
                 supportedFileTypes: [],
                 pricing: {
@@ -574,6 +584,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'llama-3.3-70b-versatile',
                 displayName: 'Llama 3.3 70B Versatile',
+                openRouterId: 'meta-llama/llama-3.3-70b-instruct',
                 maxInputTokens: 128000,
                 default: true,
                 supportedFileTypes: [],
@@ -596,6 +607,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-4',
                 displayName: 'Grok 4',
+                openRouterId: 'x-ai/grok-4',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: ['image'],
@@ -610,6 +622,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-3',
                 displayName: 'Grok 3',
+                openRouterId: 'x-ai/grok-3',
                 maxInputTokens: 131072,
                 supportedFileTypes: ['image'],
                 pricing: {
@@ -623,6 +636,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-3-mini',
                 displayName: 'Grok 3 Mini',
+                openRouterId: 'x-ai/grok-3-mini',
                 maxInputTokens: 131072,
                 supportedFileTypes: ['image'],
                 pricing: {
@@ -636,6 +650,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-code-fast-1',
                 displayName: 'Grok Code Fast',
+                openRouterId: 'x-ai/grok-code-fast-1',
                 maxInputTokens: 131072,
                 supportedFileTypes: [],
                 pricing: {
@@ -657,6 +672,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-a-03-2025',
                 displayName: 'Command A (03-2025)',
+                openRouterId: 'cohere/command-a',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: [],
@@ -670,6 +686,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r-plus',
                 displayName: 'Command R+',
+                openRouterId: 'cohere/command-r-plus-08-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -682,6 +699,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r',
                 displayName: 'Command R',
+                openRouterId: 'cohere/command-r-08-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -694,6 +712,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r7b',
                 displayName: 'Command R7B',
+                openRouterId: 'cohere/command-r7b-12-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {

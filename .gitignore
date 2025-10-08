@@ -66,4 +66,5 @@ test-temp/
 
 # Temporarily ignore module READMEs in core package
 packages/core/src/*/README.md
-api/
+# Ignore only the top-level generated API docs directory, not nested src/api code paths
+/api/
