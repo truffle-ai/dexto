@@ -107,7 +107,8 @@ export function normalizePromptArgs(input: Record<string, unknown>): {
             if (typeof value === 'string' && value.trim().length > 0) {
                 const trimmed = value.trim();
                 context = trimmed;
-                args[key] = trimmed;
+                // Don't add _context to args - it's handled separately
+                // ToDo: handle arg parsing for prompts
             }
             continue;
         }

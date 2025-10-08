@@ -624,6 +624,23 @@ export default function MessageList({ messages, activeError, onDismissError, out
                             />
                           );
                         }
+                        // Handle image parts
+                        if (isImagePart(part)) {
+                          const src = resolveMediaSrc(part);
+                          if (src && isSafeMediaUrl(src, 'image')) {
+                            return (
+                              <img
+                                key={partKey}
+                                src={src}
+                                alt="Message attachment"
+                                className="mt-2 max-h-60 w-full rounded-lg border border-border object-contain cursor-pointer"
+                                onClick={() => openImageModal(src, "Message attachment")}
+                              />
+                            );
+                          }
+                          return null;
+                        }
+
                         const videoInfo = getVideoInfo(part);
                         if (videoInfo) {
                           const { src, filename, mimeType } = videoInfo;

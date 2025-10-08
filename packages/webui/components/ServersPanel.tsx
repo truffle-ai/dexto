@@ -8,6 +8,7 @@ import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
 
 interface ServersPanelProps {
@@ -174,7 +175,9 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       }
 
       await fetchServers(); // Refresh server list
-      
+      // Clear prompt cache since removed server's prompts are no longer available
+      clearPromptCache();
+
       // Sync registry with updated server status
       try {
         await serverRegistry.syncWithServerStatus();

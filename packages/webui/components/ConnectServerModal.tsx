@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
+import { clearPromptCache } from '../lib/promptCache';
 import { Checkbox } from './ui/checkbox';
 
 interface ConnectServerModalProps {
@@ -239,7 +240,9 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 }
                 console.debug(`[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`);
             }
-            // Cache invalidation now handled automatically via WebSocket events
+            // Clear prompt cache on server connect (slash dropdown may be closed when WebSocket event fires)
+            // Resources are handled automatically via useResources hook which is always listening
+            clearPromptCache();
             // Notify parent component that server was connected successfully
             if (onServerConnected) {
                 onServerConnected();
