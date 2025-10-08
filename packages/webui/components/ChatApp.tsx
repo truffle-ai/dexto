@@ -37,6 +37,7 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
 import { loadPrompts } from '../lib/promptCache';
+import type { ServerRegistryEntry } from '@/types';
 
 export default function ChatApp() {
 
@@ -316,113 +317,129 @@ export default function ChatApp() {
     setSessionsPanelOpen(false);
   }, [switchSession]);
 
-  const handleInstallServer = useCallback(async (entry: any): Promise<'connected' | 'requires-input'> => {
-    // Build type-specific config
-    const buildConfig = (): McpServerConfig => {
-      const baseTimeout = entry.config.timeout || 30000;
+  type InstallableRegistryEntry = ServerRegistryEntry & {
+    onCloseRegistryModal?: () => void;
+  };
 
-      if (entry.config.type === 'stdio') {
-        return {
-          type: 'stdio',
-          command: entry.config.command || '',
-          args: entry.config.args || [],
-          env: entry.config.env || {},
-          timeout: baseTimeout,
-          connectionMode: 'lenient' as const,
-        };
-      } else if (entry.config.type === 'sse') {
-        return {
-          type: 'sse',
-          url: entry.config.url || '',
-          headers: entry.config.headers || {},
-          timeout: baseTimeout,
-          connectionMode: 'lenient' as const,
-        };
-      } else {
-        return {
-          type: 'http',
-          url: entry.config.url || '',
-          headers: entry.config.headers || {},
-          timeout: baseTimeout,
-          connectionMode: 'lenient' as const,
-        };
-      }
-    };
+  const handleInstallServer = useCallback(
+    async (entry: InstallableRegistryEntry): Promise<'connected' | 'requires-input'> => {
+      // Build type-specific config
+      const buildConfig = (): McpServerConfig => {
+        const baseTimeout = entry.config.timeout || 30000;
 
-    const config = buildConfig();
-
-    // Check if additional input is needed
-    const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
-      return Object.values(obj).some(val => {
-        if (!val || val.trim() === '') return true;
-        const placeholder = val.toLowerCase();
-        return placeholder.includes('your-') || placeholder.includes('placeholder') ||
-               placeholder.includes('enter-') || placeholder.includes('xxx') ||
-               placeholder.includes('...') || placeholder.includes('api_key') ||
-               placeholder.includes('api-key') || placeholder.includes('secret') ||
-               placeholder.includes('token') || placeholder.includes('password');
-      });
-    };
-
-    const needsEnvInput = config.type === 'stdio' &&
-                          Object.keys(config.env || {}).length > 0 &&
-                          hasEmptyOrPlaceholderValue(config.env || {});
-    const needsHeaderInput = (config.type === 'sse' || config.type === 'http') &&
-                             'headers' in config &&
-                             Object.keys(config.headers || {}).length > 0 &&
-                             hasEmptyOrPlaceholderValue(config.headers || {});
-
-    // If inputs needed, open modal but keep registry open
-    if (needsEnvInput || needsHeaderInput) {
-      setConnectPrefill({
-        name: entry.name,
-        config,
-        lockName: true,
-        registryEntryId: entry.id,
-        onCloseRegistryModal: entry.onCloseRegistryModal || (() => setServerRegistryOpen(false)),
-      });
-      setModalOpen(true);
-      return 'requires-input';
-    }
-
-    try {
-      setIsRegistryBusy(true);
-      const res = await fetch('/api/connect-server', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        throw new Error(result.error || `Server returned status ${res.status}`);
-      }
-
-      if (entry.id) {
-        try {
-          await serverRegistry.setInstalled(entry.id, true);
-        } catch (e) {
-          console.warn('Failed to mark registry entry installed:', e);
+        if (entry.config.type === 'stdio') {
+          return {
+            type: 'stdio',
+            command: entry.config.command || '',
+            args: entry.config.args || [],
+            env: entry.config.env || {},
+            timeout: baseTimeout,
+            connectionMode: 'lenient' as const,
+          };
+        } else if (entry.config.type === 'sse') {
+          return {
+            type: 'sse',
+            url: entry.config.url || '',
+            headers: entry.config.headers || {},
+            timeout: baseTimeout,
+            connectionMode: 'lenient' as const,
+          };
+        } else if (entry.config.type === 'http') {
+          return {
+            type: 'http',
+            url: entry.config.url || '',
+            headers: entry.config.headers || {},
+            timeout: baseTimeout,
+            connectionMode: 'lenient' as const,
+          };
         }
+
+        const _exhaustive: never = entry.config.type;
+        throw new Error(`Unhandled config type: ${entry.config.type}`);
+      };
+
+      const config = buildConfig();
+
+      // Check if additional input is needed
+      const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
+        return Object.values(obj).some(val => {
+          if (!val || val.trim() === '') return true;
+          const placeholder = val.toLowerCase();
+          return (
+            placeholder === 'placeholder' ||
+            placeholder === 'your-api-key' ||
+            placeholder === 'your_api_key' ||
+            placeholder === 'enter-your-token' ||
+            placeholder === 'xxx' ||
+            placeholder === '...' ||
+            placeholder === 'todo' ||
+            /^your[_-]/.test(placeholder) ||
+            /^enter[_-]/.test(placeholder)
+          );
+        });
+      };
+
+      const needsEnvInput =
+        config.type === 'stdio' &&
+        Object.keys(config.env || {}).length > 0 &&
+        hasEmptyOrPlaceholderValue(config.env || {});
+      const needsHeaderInput =
+        (config.type === 'sse' || config.type === 'http') &&
+        'headers' in config &&
+        Object.keys(config.headers || {}).length > 0 &&
+        hasEmptyOrPlaceholderValue(config.headers || {});
+
+      // If inputs needed, open modal but keep registry open
+      if (needsEnvInput || needsHeaderInput) {
+        setConnectPrefill({
+          name: entry.name,
+          config,
+          lockName: true,
+          registryEntryId: entry.id,
+          onCloseRegistryModal: entry.onCloseRegistryModal ?? (() => setServerRegistryOpen(false)),
+        });
+        setModalOpen(true);
+        return 'requires-input';
       }
 
-      setServersRefreshTrigger(prev => prev + 1);
-      setSuccessMessage(`Added ${entry.name}`);
-      setTimeout(() => setSuccessMessage(null), 4000);
-      setServerRegistryOpen(false);
-      return 'connected';
-    } catch (err: any) {
-      throw new Error(err?.message || 'Failed to install server');
-    } finally {
-      setIsRegistryBusy(false);
-    }
-  }, [
-    setServerRegistryOpen,
-    setModalOpen,
-    setConnectPrefill,
-    setServersRefreshTrigger,
-    setSuccessMessage,
-    setIsRegistryBusy,
-  ]);
+      try {
+        setIsRegistryBusy(true);
+        const res = await fetch('/api/connect-server', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.error || `Server returned status ${res.status}`);
+        }
+
+        if (entry.id) {
+          try {
+            await serverRegistry.setInstalled(entry.id, true);
+          } catch (e) {
+            console.warn('Failed to mark registry entry installed:', e);
+          }
+        }
+
+        setServersRefreshTrigger(prev => prev + 1);
+        setSuccessMessage(`Added ${entry.name}`);
+        setTimeout(() => setSuccessMessage(null), 4000);
+        setServerRegistryOpen(false);
+        return 'connected';
+      } catch (err: any) {
+        throw new Error(err?.message || 'Failed to install server');
+      } finally {
+        setIsRegistryBusy(false);
+      }
+    }, [
+      setServerRegistryOpen,
+      setModalOpen,
+      setConnectPrefill,
+      setServersRefreshTrigger,
+      setSuccessMessage,
+      setIsRegistryBusy,
+    ]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
