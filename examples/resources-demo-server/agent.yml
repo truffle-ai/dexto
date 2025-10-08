@@ -7,18 +7,14 @@ mcpServers:
     type: stdio
     command: node
     args:
-      # TODO: (355) Use @dexto.agent_dir path, not relative path to avoid this breaking based on run location
-      # https://github.com/truffle-ai/dexto/pull/355#discussion_r2412887539
-      - "./examples/resources-demo-server/server.js"
+      - "${{dexto.agent_dir}}/server.js"
     timeout: 30000
     connectionMode: lenient
 
 # LLM configuration
 llm:
   provider: openai
-  # TODO: (355) Use gpt-5-mini
-  # https://github.com/truffle-ai/dexto/pull/355#discussion_r2412888025
-  model: gpt-4o-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
 # System prompt configuration
