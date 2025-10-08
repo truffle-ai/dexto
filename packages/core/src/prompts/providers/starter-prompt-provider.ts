@@ -70,7 +70,6 @@ export class StarterPromptProvider implements PromptProvider {
                 metadata: {
                     prompt: starterPrompt.prompt,
                     category: starterPrompt.category,
-                    icon: starterPrompt.icon,
                     priority: starterPrompt.priority,
                     originalId: starterPrompt.id,
                 },

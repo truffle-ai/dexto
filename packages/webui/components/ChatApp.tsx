@@ -420,33 +420,26 @@ export default function ChatApp() {
   // Merge dynamic quick actions from starter prompts
   const dynamicQuickActions = React.useMemo(() => {
     // If starter prompts are present, hide the built-in defaults to avoid duplication
-    const actions: Array<{ title: string; description: string; action: () => void; icon: string }> =
-      starterPrompts.length > 0 ? [] : [...quickActions];
+    const actions: Array<{ description: string; action: () => void }> =
+      starterPrompts.length > 0 ? [] : quickActions.map(a => ({ description: `${a.icon} ${a.title}`, action: a.action }));
     starterPrompts.forEach((prompt) => {
-      const iconFromConfig =
-        typeof prompt?.metadata === 'object' && prompt.metadata !== null &&
-        typeof (prompt.metadata as { icon?: unknown }).icon === 'string'
-          ? ((prompt.metadata as { icon?: unknown }).icon as string)
-          : undefined;
+      const description = prompt.description || 'Starter prompt';
+
       if (prompt?.name === 'starter:connect-tools') {
         actions.push({
-          title: prompt.title || prompt.name,
-          description: prompt.description || 'Starter prompt',
+          description,
           action: () => setServersPanelOpen(true),
-          icon: iconFromConfig || '🔧',
         });
       } else {
         const slash = `/${prompt.name}`;
         actions.push({
-          title: prompt.title || prompt.name,
-          description: prompt.description || 'Starter prompt',
+          description,
           action: () => handleSend(slash),
-          icon: iconFromConfig || '⭐',
         });
       }
     });
     return actions;
-  }, [starterPrompts, handleSend, setServersPanelOpen]);
+  }, [starterPrompts, quickActions, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -777,21 +770,15 @@ export default function ChatApp() {
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
                     {dynamicQuickActions.map((action, index) => {
-                      const title = action.title || '';
-                      const icon = action.icon || '';
-                      const showIcon = Boolean(icon) && !title.includes(icon);
                       return (
                         <button
                           key={index}
                           onClick={action.action}
                           className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
                         >
-                          <div className="flex items-center space-x-1.5">
-                            {showIcon && <span className="text-sm">{icon}</span>}
-                            <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
-                              {title}
-                            </span>
-                          </div>
+                          <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
+                            {action.description}
+                          </span>
                         </button>
                       );
                     })}

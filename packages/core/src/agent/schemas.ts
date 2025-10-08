@@ -147,17 +147,13 @@ export const AgentConfigSchema = z
                         prompt: z
                             .string()
                             .describe('The actual prompt text that gets resolved and sent'),
-                        // TODO: (355) Nit: might be better to not use a strict enum here and be more open-ended to allow any type of tags
-                        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412961820
                         category: z
-                            .enum(['general', 'coding', 'analysis', 'tools', 'learning'])
-                            .optional()
-                            .default('general')
-                            .describe('Category for organizing starter prompts'),
-                        icon: z
                             .string()
                             .optional()
-                            .describe('Emoji or icon to display (defaults to empty string)'),
+                            .default('general')
+                            .describe(
+                                'Category for organizing starter prompts (e.g., general, coding, analysis, tools, learning)'
+                            ),
                         priority: z
                             .number()
                             .optional()
