@@ -81,6 +81,9 @@ describe('DextoAgent Lifecycle Management', () => {
             searchService: {} as any,
             storageManager: {
                 disconnect: vi.fn(),
+                getDatabase: vi.fn().mockReturnValue({}),
+                getCache: vi.fn().mockReturnValue({}),
+                getBlobStore: vi.fn().mockReturnValue({}),
             } as any,
             resourceManager: {} as any,
         };

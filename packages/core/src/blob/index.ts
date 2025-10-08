@@ -1,18 +1,19 @@
 /**
- * Blob Service - Infrastructure-level blob storage
+ * Blob Infrastructure - Types, schemas, and utilities
  *
- * Provides blob storage capabilities using the local filesystem backend.
+ * This module provides core blob infrastructure used by the storage module.
+ * For blob storage operations, use StorageManager.getBlobStore() instead.
+ *
+ * Note: BlobService has been replaced by BlobStore which is integrated
+ * into the storage module. This module now only exports shared types,
+ * schemas, and error handling utilities.
  */
 
-// Core service
-export { BlobService, createBlobService } from './blob-service.js';
-
-// Backends
+// Backends (used internally by storage module)
 export { LocalBlobBackend } from './backend/local-backend.js';
 
 // Types
 export type {
-    BlobService as IBlobService,
     BlobBackend,
     BlobInput,
     BlobMetadata,
@@ -24,6 +25,7 @@ export type {
 
 // Schema types
 export type { ValidatedBlobServiceConfig } from './schemas.js';
+export { BlobServiceConfigSchema } from './schemas.js';
 
 // Error handling
 export { BlobError } from './errors.js';

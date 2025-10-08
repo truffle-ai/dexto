@@ -89,33 +89,54 @@ describe('ChatSession', () => {
         mockTokenizer = { encode: vi.fn(), decode: vi.fn() };
         mockFormatter = { format: vi.fn() };
 
-        // Mock storage manager - should match StorageBackends interface
+        // Mock storage manager with proper getter structure
+        const mockCache = {
+            get: vi.fn().mockResolvedValue(null),
+            set: vi.fn().mockResolvedValue(undefined),
+            delete: vi.fn().mockResolvedValue(true),
+            list: vi.fn().mockResolvedValue([]),
+            clear: vi.fn().mockResolvedValue(undefined),
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            isConnected: vi.fn().mockReturnValue(true),
+            getBackendType: vi.fn().mockReturnValue('memory'),
+        };
+
+        const mockDatabase = {
+            get: vi.fn().mockResolvedValue(null),
+            set: vi.fn().mockResolvedValue(undefined),
+            delete: vi.fn().mockResolvedValue(true),
+            list: vi.fn().mockResolvedValue([]),
+            clear: vi.fn().mockResolvedValue(undefined),
+            append: vi.fn().mockResolvedValue(undefined),
+            getRange: vi.fn().mockResolvedValue([]),
+            getLength: vi.fn().mockResolvedValue(0),
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            isConnected: vi.fn().mockReturnValue(true),
+            getBackendType: vi.fn().mockReturnValue('memory'),
+        };
+
+        const mockBlobStore = {
+            store: vi.fn().mockResolvedValue({ id: 'test', uri: 'blob:test' }),
+            retrieve: vi.fn().mockResolvedValue({ data: '', metadata: {} }),
+            exists: vi.fn().mockResolvedValue(false),
+            delete: vi.fn().mockResolvedValue(undefined),
+            cleanup: vi.fn().mockResolvedValue(0),
+            getStats: vi.fn().mockResolvedValue({ count: 0, totalSize: 0, backendType: 'local' }),
+            listBlobs: vi.fn().mockResolvedValue([]),
+            getStoragePath: vi.fn().mockReturnValue(undefined),
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            isConnected: vi.fn().mockReturnValue(true),
+            getStoreType: vi.fn().mockReturnValue('local'),
+        };
+
         const mockStorageManager = {
-            cache: {
-                get: vi.fn().mockResolvedValue(null),
-                set: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(true),
-                list: vi.fn().mockResolvedValue([]),
-                clear: vi.fn().mockResolvedValue(undefined),
-                connect: vi.fn().mockResolvedValue(undefined),
-                disconnect: vi.fn().mockResolvedValue(undefined),
-                isConnected: vi.fn().mockReturnValue(true),
-                getBackendType: vi.fn().mockReturnValue('memory'),
-            },
-            database: {
-                get: vi.fn().mockResolvedValue(null),
-                set: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(true),
-                list: vi.fn().mockResolvedValue([]),
-                clear: vi.fn().mockResolvedValue(undefined),
-                append: vi.fn().mockResolvedValue(undefined),
-                getRange: vi.fn().mockResolvedValue([]),
-                getLength: vi.fn().mockResolvedValue(0),
-                connect: vi.fn().mockResolvedValue(undefined),
-                disconnect: vi.fn().mockResolvedValue(undefined),
-                isConnected: vi.fn().mockReturnValue(true),
-                getBackendType: vi.fn().mockReturnValue('memory'),
-            },
+            getCache: vi.fn().mockReturnValue(mockCache),
+            getDatabase: vi.fn().mockReturnValue(mockDatabase),
+            getBlobStore: vi.fn().mockReturnValue(mockBlobStore),
+            disconnect: vi.fn().mockResolvedValue(undefined),
         };
 
         // Mock services
@@ -135,7 +156,7 @@ describe('ChatSession', () => {
                 on: vi.fn(),
                 off: vi.fn(),
             },
-            storage: mockStorageManager,
+            storageManager: mockStorageManager,
             resourceManager: {
                 getBlobStore: vi.fn(),
                 readResource: vi.fn(),

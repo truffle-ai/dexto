@@ -362,7 +362,9 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse(devConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data).toEqual(devConfig);
+                // Blob config is added with default value
+                expect(result.data).toMatchObject(devConfig);
+                expect(result.data.blob).toEqual({ type: 'local' });
             }
         });
 
@@ -385,7 +387,9 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse(prodConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data).toEqual(prodConfig);
+                // Blob config is added with default value
+                expect(result.data).toMatchObject(prodConfig);
+                expect(result.data.blob).toEqual({ type: 'local' });
             }
         });
 
@@ -411,7 +415,9 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse(haConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data).toEqual(haConfig);
+                // Blob config is added with default value
+                expect(result.data).toMatchObject(haConfig);
+                expect(result.data.blob).toEqual({ type: 'local' });
             }
         });
     });
