@@ -16,9 +16,6 @@ import type { ResourceManager } from '../resources/manager.js';
 import type { DatabaseBackend } from '../storage/backend/database-backend.js';
 
 interface PromptCacheEntry {
-    // TODO: (355) Likely duplicate key. We also might be doing double caching in both prompt manager and the providers which is unnecessary
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413113270
-    key: string;
     providerName: string;
     providerPromptName: string;
     originalName: string;
@@ -316,7 +313,6 @@ export class PromptsManager {
             const existingKey = `${existing.providerName}:${existing.originalName}`;
             const updatedExisting: PromptCacheEntry = {
                 ...existing,
-                key: existingKey,
                 info:
                     existing.info.name === existingKey
                         ? existing.info
@@ -330,7 +326,6 @@ export class PromptsManager {
         const entryInfo =
             prepared.name === key ? prepared : ({ ...prepared, name: key } as PromptInfo);
         const entry: PromptCacheEntry = {
-            key,
             providerName,
             providerPromptName,
             originalName,

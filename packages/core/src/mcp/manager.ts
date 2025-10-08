@@ -39,9 +39,6 @@ import { eventBus } from '../events/index.js';
  * ```
  */
 type ResourceCacheEntry = {
-    // TODO: (355) This key is likely duplicate of the key in the map
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413067958
-    key: string;
     serverName: string;
     client: IMCPClient;
     summary: MCPResourceSummary;
@@ -260,7 +257,6 @@ export class MCPManager {
             resources.forEach((summary) => {
                 const key = this.buildQualifiedResourceKey(clientName, summary.uri);
                 this.resourceCache.set(key, {
-                    key,
                     serverName: clientName,
                     client,
                     summary,
@@ -461,7 +457,7 @@ export class MCPManager {
     // TODO: (355) Might need to check if cache is up to date and update if necessary, similar for other methods
     // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413049689
     async listAllResources(): Promise<MCPResolvedResource[]> {
-        return Array.from(this.resourceCache.values()).map(({ key, serverName, summary }) => ({
+        return Array.from(this.resourceCache.entries()).map(([key, { serverName, summary }]) => ({
             key,
             serverName,
             summary,
@@ -482,7 +478,7 @@ export class MCPManager {
         const entry = this.getResourceCacheEntry(resourceKey);
         if (!entry) return undefined;
         return {
-            key: entry.key,
+            key: resourceKey,
             serverName: entry.serverName,
             summary: entry.summary,
         };
@@ -707,7 +703,6 @@ export class MCPManager {
                     if (updatedResource) {
                         // Update cache with new resource info
                         this.resourceCache.set(key, {
-                            key,
                             serverName,
                             client,
                             summary: updatedResource,

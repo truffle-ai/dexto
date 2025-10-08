@@ -18,9 +18,9 @@ export class InternalResourcesProvider implements ResourceProvider {
     constructor(config: ValidatedInternalResourcesConfig, services: InternalResourceServices = {}) {
         this.config = config;
         this.services = services;
-        // TODO: (355) Nit: incorrect use of logger args. See if we can make a linter rule for this.
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413189928
-        logger.debug('InternalResourcesProvider initialized with config:', config);
+        logger.debug(
+            `InternalResourcesProvider initialized with config: ${JSON.stringify(config)}`
+        );
     }
 
     async initialize(): Promise<void> {
