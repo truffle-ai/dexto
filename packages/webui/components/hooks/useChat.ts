@@ -520,6 +520,24 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     }
                     break;
                 }
+                case 'mcpPromptsListChanged': {
+                    // Handle prompt list change events
+                    console.log('✨ Prompts list changed via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpPromptsListChanged', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    prompts: payload.prompts,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
                 default:
                     break;
             }

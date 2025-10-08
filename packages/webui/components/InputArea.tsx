@@ -159,6 +159,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   const handlePromptCreated = React.useCallback(
     (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
+      // Manual cache clear needed for custom prompt creation (not triggered by WebSocket events)
       clearPromptCache();
       setShowCreatePromptModal(false);
       setSlashRefreshKey((prev) => prev + 1);
