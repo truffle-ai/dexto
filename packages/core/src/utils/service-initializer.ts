@@ -69,7 +69,7 @@ export async function createAgentServices(
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Initialize storage backends (instance-specific, not singleton)
+    // 2. Initialize storage backends
     logger.debug('Initializing storage backends');
     const storageResult = await createStorageBackends(config.storage);
     const storage = storageResult.backends;
@@ -80,14 +80,21 @@ export async function createAgentServices(
         database: config.storage.database.type,
     });
 
-    // 3. Initialize client manager with configurable tool confirmation
-    // Create allowed tools provider based on configuration
+    // 3. Initialize MCP manager
+    const mcpManager = new MCPManager();
+    await mcpManager.initializeFromConfig(config.mcpServers);
+
+    // 4. Initialize search service
+    const searchService = new SearchService(storage.database);
+
+    // 5. Initialize tool manager with internal tools options
+    // 5.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
         type: config.toolConfirmation.allowedToolsStorage,
         storage,
     });
 
-    // Create tool confirmation provider with configured mode and timeout
+    // 5.2 - Create tool confirmation provider with configured mode and timeout
     const confirmationProvider = createToolConfirmationProvider(
         config.toolConfirmation.mode === 'event-based'
             ? {
@@ -101,20 +108,11 @@ export async function createAgentServices(
                   allowedToolsProvider,
               }
     );
-
-    const mcpManager = new MCPManager();
-    await mcpManager.initializeFromConfig(config.mcpServers);
-
-    // 4. Initialize search service
-    const searchService = new SearchService(storage.database);
-
-    // 5. Initialize unified tool manager with internal tools options
+    // 5.3 - Initialize tool manager with internal tools options
     const toolManager = new ToolManager(mcpManager, confirmationProvider, agentEventBus, {
         internalToolsServices: { searchService },
         internalToolsConfig: config.internalTools,
     });
-
-    // Initialize the tool manager
     await toolManager.initialize();
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
