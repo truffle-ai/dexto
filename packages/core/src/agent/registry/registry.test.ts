@@ -220,7 +220,7 @@ describe('LocalAgentRegistry', () => {
                 scope: ErrorScope.AGENT_REGISTRY,
                 type: ErrorType.USER,
                 context: {
-                    agentName: 'unknown-agent',
+                    agentId: 'unknown-agent',
                     availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
                 },
             });
@@ -369,7 +369,7 @@ describe('LocalAgentRegistry', () => {
                 scope: ErrorScope.AGENT_REGISTRY,
                 type: ErrorType.USER,
                 context: {
-                    agentName: 'unknown-agent',
+                    agentId: 'unknown-agent',
                     availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
                 },
                 recovery: expect.stringContaining('Available agents:'),
@@ -460,7 +460,7 @@ describe('LocalAgentRegistry', () => {
                     scope: ErrorScope.AGENT_REGISTRY,
                     type: ErrorType.USER,
                     context: {
-                        agentName: 'auto-test-agent',
+                        agentId: 'auto-test-agent',
                         availableAgents: expect.arrayContaining([
                             'test-agent',
                             'dir-agent',
@@ -546,7 +546,7 @@ describe('LocalAgentRegistry', () => {
                     scope: ErrorScope.AGENT_REGISTRY,
                     type: ErrorType.SYSTEM,
                     context: {
-                        agentName: 'bad-dir-agent',
+                        agentId: 'bad-dir-agent',
                         reason: 'directory entry missing main field',
                     },
                 })

@@ -96,9 +96,9 @@ export function mergeRegistries(bundled: Registry, user: Registry): Registry {
 /**
  * Check if agent exists in user registry
  */
-export function userRegistryHasAgent(agentName: string): boolean {
+export function userRegistryHasAgent(agentId: string): boolean {
     const userRegistry = loadUserRegistry();
-    return agentName in userRegistry.agents;
+    return agentId in userRegistry.agents;
 }
 
 /**
@@ -106,38 +106,38 @@ export function userRegistryHasAgent(agentName: string): boolean {
  * Validates that name doesn't conflict with bundled registry
  */
 export async function addAgentToUserRegistry(
-    agentName: string,
+    agentId: string,
     entry: Omit<AgentRegistryEntry, 'type'>
 ): Promise<void> {
     const userRegistry = loadUserRegistry();
 
     // Check if already exists in user registry
-    if (agentName in userRegistry.agents) {
-        throw RegistryError.agentAlreadyExists(agentName);
+    if (agentId in userRegistry.agents) {
+        throw RegistryError.agentAlreadyExists(agentId);
     }
 
     // Add with type: 'custom'
-    userRegistry.agents[agentName] = {
+    userRegistry.agents[agentId] = {
         ...entry,
         type: 'custom',
     };
 
     await saveUserRegistry(userRegistry);
-    logger.info(`Added custom agent '${agentName}' to user registry`);
+    logger.info(`Added custom agent '${agentId}' to user registry`);
 }
 
 /**
  * Remove custom agent from user registry
  */
-export async function removeAgentFromUserRegistry(agentName: string): Promise<void> {
+export async function removeAgentFromUserRegistry(agentId: string): Promise<void> {
     const userRegistry = loadUserRegistry();
 
-    if (!(agentName in userRegistry.agents)) {
-        throw RegistryError.agentNotFound(agentName, Object.keys(userRegistry.agents));
+    if (!(agentId in userRegistry.agents)) {
+        throw RegistryError.agentNotFound(agentId, Object.keys(userRegistry.agents));
     }
 
-    delete userRegistry.agents[agentName];
+    delete userRegistry.agents[agentId];
 
     await saveUserRegistry(userRegistry);
-    logger.info(`Removed custom agent '${agentName}' from user registry`);
+    logger.info(`Removed custom agent '${agentId}' from user registry`);
 }

@@ -44,9 +44,8 @@ type RawRegistry = {
 };
 
 /**
- * Normalize legacy registry JSON data to the latest schema before parsing.
- * Ensures required fields like `id` and `name` are populated even if
- * they were omitted by older versions of the CLI/WebUI.
+ * Normalize registry JSON data to ensure consistency.
+ * Validates that id field matches the registry key and derives display names if missing.
  */
 export function normalizeRegistryJson(raw: unknown): RawRegistry {
     if (!raw || typeof raw !== 'object') {
@@ -61,21 +60,22 @@ export function normalizeRegistryJson(raw: unknown): RawRegistry {
             ? (input.agents as Record<string, unknown>)
             : {};
 
-    for (const [slug, value] of Object.entries(agents)) {
+    for (const [agentId, value] of Object.entries(agents)) {
         if (!value || typeof value !== 'object') continue;
 
         const entry = { ...(value as Record<string, unknown>) };
 
-        const id = typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id : slug;
-        entry.id = id;
+        // Ensure id field exists and matches the key
+        if (!entry.id || typeof entry.id !== 'string' || entry.id.trim() !== agentId) {
+            entry.id = agentId;
+        }
 
-        const name =
-            typeof entry.name === 'string' && entry.name.trim().length > 0
-                ? entry.name
-                : deriveDisplayName(id);
-        entry.name = name;
+        // Derive display name if missing
+        if (!entry.name || typeof entry.name !== 'string' || !entry.name.trim()) {
+            entry.name = deriveDisplayName(agentId);
+        }
 
-        normalizedAgents[slug] = entry;
+        normalizedAgents[agentId] = entry;
     }
 
     return {
@@ -92,30 +92,39 @@ export function normalizeRegistryJson(raw: unknown): RawRegistry {
  */
 export interface AgentRegistry {
     /**
-     * Returns true if the registry contains an agent with the provided name
+     * Returns true if the registry contains an agent with the provided ID
      */
-    hasAgent(name: string): boolean;
+    hasAgent(agentId: string): boolean;
     /**
-     * Returns a map of available agent names to their registry entries
+     * Returns a map of available agent IDs to their registry entries
      */
     getAvailableAgents(): Record<string, AgentRegistryEntry>;
     /**
-     * Installs an agent from the registry
+     * Installs an agent from the registry by ID
+     * @param agentId - Unique agent identifier
+     * @param injectPreferences - Whether to inject global preferences (default: true)
+     * @returns Path to the installed agent config
      */
-    installAgent(agentName: string, injectPreferences?: boolean): Promise<string>;
+    installAgent(agentId: string, injectPreferences?: boolean): Promise<string>;
     /**
-     * Uninstalls an agent
+     * Uninstalls an agent by ID
+     * @param agentId - Unique agent identifier
+     * @param force - Whether to force uninstall protected agents (default: false)
      */
-    uninstallAgent(agentName: string, force?: boolean): Promise<void>;
+    uninstallAgent(agentId: string, force?: boolean): Promise<void>;
     /**
-     * Returns list of currently installed agents
+     * Returns list of currently installed agent IDs
      */
     getInstalledAgents(): Promise<string[]>;
     /**
-     * Resolves and installs/copies the agent; returns the installed path (or main file)
+     * Resolves an agent ID or path and optionally auto-installs if needed
+     * @param idOrPath - Agent ID from registry or filesystem path
+     * @param autoInstall - Whether to auto-install from registry (default: true)
+     * @param injectPreferences - Whether to inject preferences during install (default: true)
+     * @returns Path to the agent config file
      */
     resolveAgent(
-        nameOrPath: string,
+        idOrPath: string,
         autoInstall?: boolean,
         injectPreferences?: boolean
     ): Promise<string>;
