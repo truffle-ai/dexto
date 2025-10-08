@@ -64,6 +64,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const handleSwitch = useCallback(async (name: string) => {
     try {
       setSwitching(true);
+      // Check if the agent exists in the installed list
+      const agentExists = installed.some(agent => agent.name === name);
+      if (!agentExists) {
+        console.error('Agent not found in installed list:', name);
+        throw new Error(`Agent '${name}' not found. Please refresh the agents list.`);
+      }
+      
       const res = await fetch('/api/agents/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +78,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Switch failed: ${res.status}`);
+        console.error('Agent switch failed:', errorData);
+        throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
       }
       setCurrent(name);
       setOpen(false); // Close dropdown after successful switch
@@ -86,7 +94,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome]);
+  }, [returnToWelcome, installed]);
 
   const handleInstall = useCallback(async (name: string) => {
     try {
@@ -143,11 +151,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   }, [loadAgents, current]);
 
   const handleAgentCreated = useCallback(async (agentName: string) => {
-    // Reload agents list
+    // Add a small delay to ensure the agent is fully installed
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Reload agents list to show the newly created agent
     await loadAgents();
-    // Switch to the newly created agent
-    await handleSwitch(agentName);
-  }, [loadAgents, handleSwitch]);
+    // Note: We don't automatically switch to the newly created agent to avoid race conditions
+    // The user can manually switch to it from the dropdown
+  }, [loadAgents]);
 
   const currentLabel = useMemo(() => current || 'Choose Agent', [current]);
 

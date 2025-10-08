@@ -103,18 +103,18 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
       newErrors['llm.model'] = 'Model is required';
     }
 
-    // System Prompt validation - check if at least one contributor has content
+    // System Prompt validation - check if at least one static contributor has content
+    // Note: This modal only supports static contributors; dynamic/file contributors are not handled
     const systemPrompt = config.systemPrompt;
     if (systemPrompt && typeof systemPrompt === 'object' && 'contributors' in systemPrompt) {
       const contributors = systemPrompt.contributors;
       if (Array.isArray(contributors)) {
         const hasContent = contributors.some((c: Record<string, unknown>) => {
           if (c.type === 'static' && typeof c.content === 'string' && c.content.trim()) return true;
-          if (c.type === 'dynamic' || c.type === 'file') return true;
           return false;
         });
         if (!hasContent) {
-          newErrors.systemPrompt = 'At least one contributor with content is required';
+          newErrors.systemPrompt = 'At least one static contributor with content is required';
         }
       }
     } else if (typeof systemPrompt === 'string' && !systemPrompt.trim()) {
@@ -134,6 +134,26 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
     setCreateError(null);
 
     try {
+      // Extract system prompt content from contributors
+      let systemPromptContent = '';
+      if (config.systemPrompt && typeof config.systemPrompt === 'object' && 'contributors' in config.systemPrompt) {
+        const contributors = config.systemPrompt.contributors;
+        if (Array.isArray(contributors)) {
+          // Find the first static contributor with content
+          const staticContributor = contributors.find((c: Record<string, unknown>) => c.type === 'static' && c.content);
+          if (staticContributor && 'content' in staticContributor && typeof staticContributor.content === 'string') {
+            systemPromptContent = staticContributor.content.trim();
+          }
+        }
+      } else if (typeof config.systemPrompt === 'string') {
+        systemPromptContent = config.systemPrompt.trim();
+      }
+      
+      // Ensure we have a valid system prompt
+      if (!systemPromptContent) {
+        systemPromptContent = 'You are a helpful AI assistant.';
+      }
+
       const response = await fetch('/api/agents/custom/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,7 +170,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
             model: config.llm?.model?.trim(),
             ...(config.llm?.apiKey?.trim() && { apiKey: config.llm.apiKey.trim() }),
           },
-          systemPrompt: config.systemPrompt,
+          systemPrompt: systemPromptContent,
         }),
       });
 
