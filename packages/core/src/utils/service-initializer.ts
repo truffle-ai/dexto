@@ -35,7 +35,6 @@ import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
-import { BlobService, createBlobService } from '../blob/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -50,7 +49,6 @@ export type AgentServices = {
     searchService: SearchService;
     storageManager: StorageManager;
     resourceManager: ResourceManager;
-    blobService: BlobService;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -136,18 +134,14 @@ export async function createAgentServices(
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
-    // 8. Initialize blob service (infrastructure-level blob storage)
-    const blobService = await createBlobService(config.blobStorage);
-    logger.debug(`BlobService initialized with ${config.blobStorage.type} backend`);
-
-    // 9. Initialize resource manager (MCP + internal resources)
+    // 8. Initialize resource manager (MCP + internal resources)
     const resourceManager = new ResourceManager(mcpManager, {
         internalResourcesConfig: config.internalResources,
-        blobService,
+        blobStore: storageManager.getBlobStore(),
     });
     await resourceManager.initialize();
 
-    // 10. Initialize session manager
+    // 9. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,
@@ -168,7 +162,7 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 11. Return the core services
+    // 10. Return the core services
     return {
         mcpManager,
         toolManager,
@@ -179,6 +173,5 @@ export async function createAgentServices(
         searchService,
         storageManager,
         resourceManager,
-        blobService,
     };
 }

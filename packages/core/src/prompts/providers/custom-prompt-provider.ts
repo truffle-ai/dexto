@@ -102,7 +102,7 @@ export class CustomPromptProvider implements PromptProvider {
 
         if (record.resourceUri) {
             try {
-                const blobService = this.resourceManager.getBlobService();
+                const blobService = this.resourceManager.getBlobStore();
                 const blobData = await blobService.retrieve(record.resourceUri, 'base64');
                 if (blobData.format === 'base64') {
                     messages.push({
@@ -170,7 +170,7 @@ export class CustomPromptProvider implements PromptProvider {
 
         if (input.resource) {
             try {
-                const blobService = this.resourceManager.getBlobService();
+                const blobService = this.resourceManager.getBlobStore();
                 const { base64, mimeType, filename } = input.resource;
                 const blobRef = await blobService.store(base64, {
                     mimeType,
@@ -229,7 +229,7 @@ export class CustomPromptProvider implements PromptProvider {
         await this.database.delete(this.toKey(name));
         if (record.resourceUri) {
             try {
-                const blobService = this.resourceManager.getBlobService();
+                const blobService = this.resourceManager.getBlobStore();
                 await blobService.delete(record.resourceUri);
             } catch (error) {
                 logger.warn(`Failed to delete blob for custom prompt ${name}: ${String(error)}`);

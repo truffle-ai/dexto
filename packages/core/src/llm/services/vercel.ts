@@ -122,7 +122,7 @@ export class VercelLLMService implements ILLMService {
                             // then summarize to concise text suitable for Vercel tool output.
                             // Use blob-aware sanitization with blob store
                             const resourceManager = this.contextManager.getResourceManager();
-                            const blobService = resourceManager.getBlobService();
+                            const blobService = resourceManager.getBlobStore();
 
                             const safeContent = await sanitizeToolResultToContentWithBlobs(
                                 rawResult,

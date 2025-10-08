@@ -9,6 +9,9 @@ export type CacheBackendType = (typeof CACHE_BACKEND_TYPES)[number];
 export const DATABASE_BACKEND_TYPES = ['in-memory', 'sqlite', 'postgres'] as const;
 export type DatabaseBackendType = (typeof DATABASE_BACKEND_TYPES)[number];
 
+export const BLOB_BACKEND_TYPES = ['in-memory', 'local'] as const;
+export type BlobBackendType = (typeof BLOB_BACKEND_TYPES)[number];
+
 const BaseBackendSchema = z.object({
     maxConnections: z.number().int().positive().optional().describe('Maximum connections'),
     idleTimeoutMillis: z
@@ -68,6 +71,79 @@ const PostgresBackendSchema = BaseBackendSchema.extend({
 }).strict();
 
 export type PostgresBackendConfig = z.output<typeof PostgresBackendSchema>;
+
+// Blob backend schemas
+const InMemoryBlobBackendSchema = z
+    .object({
+        type: z.literal('in-memory'),
+        maxBlobSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(10 * 1024 * 1024) // 10MB
+            .describe('Maximum size per blob in bytes'),
+        maxTotalSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(100 * 1024 * 1024) // 100MB
+            .describe('Maximum total storage size in bytes'),
+    })
+    .strict();
+
+export type InMemoryBlobBackendConfig = z.output<typeof InMemoryBlobBackendSchema>;
+
+const LocalBlobBackendSchema = z
+    .object({
+        type: z.literal('local'),
+        storePath: z
+            .string()
+            .optional()
+            .describe('Custom storage path (defaults to context-aware path)'),
+        maxBlobSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(50 * 1024 * 1024) // 50MB
+            .describe('Maximum size per blob in bytes'),
+        maxTotalSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(1024 * 1024 * 1024) // 1GB
+            .describe('Maximum total storage size in bytes'),
+        cleanupAfterDays: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(30)
+            .describe('Auto-cleanup blobs older than N days'),
+    })
+    .strict();
+
+export type LocalBlobBackendConfig = z.output<typeof LocalBlobBackendSchema>;
+
+// Blob backend configuration using discriminated union
+export const BlobBackendConfigSchema = z
+    .discriminatedUnion('type', [InMemoryBlobBackendSchema, LocalBlobBackendSchema], {
+        errorMap: (issue, ctx) => {
+            if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
+                return {
+                    message: `Invalid blob backend type. Expected 'in-memory' or 'local'.`,
+                };
+            }
+            return { message: ctx.defaultError };
+        },
+    })
+    .describe('Blob storage backend configuration');
+
+export type BlobBackendConfig = z.output<typeof BlobBackendConfigSchema>;
+
 // Backend configuration using discriminated union
 export const BackendConfigSchema = z
     .discriminatedUnion(
@@ -129,9 +205,12 @@ export const StorageSchema = z
         database: BackendConfigSchema.describe(
             'Database backend configuration (persistent, reliable)'
         ),
+        blob: BlobBackendConfigSchema.optional()
+            .default({ type: 'local' })
+            .describe('Blob storage backend configuration (for large, unstructured data)'),
     })
     .strict()
-    .describe('Storage configuration with cache and database backends')
+    .describe('Storage configuration with cache, database, and blob backends')
     .brand<'ValidatedStorageConfig'>();
 
 export type StorageConfig = z.input<typeof StorageSchema>;

@@ -282,7 +282,7 @@ export class InternalPromptProvider implements PromptProvider {
         content: string,
         fileName: string
     ): Promise<{ resourceUri?: string; inlineContent?: string }> {
-        const blobService = this.resourceManager.getBlobService();
+        const blobService = this.resourceManager.getBlobStore();
         if (!blobService) {
             logger.warn('BlobService not available; storing prompt content in memory');
             return { inlineContent: content };

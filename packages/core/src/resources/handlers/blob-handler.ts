@@ -2,17 +2,17 @@ import { logger } from '../../logger/index.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { BlobService } from '../../blob/index.js';
+import type { BlobStore } from '../../storage/blob/blob-store.js';
 import type { ValidatedBlobResourceConfig } from '../schemas.js';
 import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 
 export class BlobResourceHandler implements InternalResourceHandler {
     private config: ValidatedBlobResourceConfig;
-    private blobService: BlobService;
+    private blobStore: BlobStore;
 
-    constructor(config: ValidatedBlobResourceConfig, blobService: BlobService) {
+    constructor(config: ValidatedBlobResourceConfig, blobStore: BlobStore) {
         this.config = config;
-        this.blobService = blobService;
+        this.blobStore = blobStore;
     }
 
     getType(): string {
@@ -20,28 +20,21 @@ export class BlobResourceHandler implements InternalResourceHandler {
     }
 
     async initialize(_services: InternalResourceServices): Promise<void> {
-        // Config and blobService are set in constructor
-        logger.debug('BlobResourceHandler initialized with BlobService');
+        // Config and blobStore are set in constructor
+        logger.debug('BlobResourceHandler initialized with BlobStore');
     }
 
     async listResources(): Promise<ResourceMetadata[]> {
         logger.debug('🔍 BlobResourceHandler.listResources() called');
 
-        if (!this.blobService) {
-            logger.warn('❌ BlobResourceHandler: blobService is undefined');
-            return [];
-        }
-
         try {
-            const stats = await this.blobService.getStats();
-            logger.debug(
-                `📊 BlobService stats: ${stats.count} blobs, backend: ${stats.backendType}`
-            );
+            const stats = await this.blobStore.getStats();
+            logger.debug(`📊 BlobStore stats: ${stats.count} blobs, backend: ${stats.backendType}`);
             const resources: ResourceMetadata[] = [];
 
-            // Try to list individual blobs if the backend supports it
+            // List individual blobs from the store
             try {
-                const blobs = await this.blobService.listBlobs();
+                const blobs = await this.blobStore.listBlobs();
                 logger.debug(`📄 Found ${blobs.length} individual blobs`);
 
                 for (const blob of blobs) {
@@ -87,17 +80,13 @@ export class BlobResourceHandler implements InternalResourceHandler {
             throw ResourceError.noSuitableProvider(uri);
         }
 
-        if (!this.blobService) {
-            throw ResourceError.providerNotInitialized('Blob', uri);
-        }
-
         try {
             // Extract blob ID from URI (remove 'blob:' prefix)
             const blobId = uri.substring(5);
 
             // Special case: blob store info
             if (blobId === 'store') {
-                const stats = await this.blobService.getStats();
+                const stats = await this.blobStore.getStats();
                 return {
                     contents: [
                         {
@@ -110,7 +99,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
             }
 
             // Retrieve actual blob data
-            const result = await this.blobService.retrieve(uri, 'base64');
+            const result = await this.blobStore.retrieve(uri, 'base64');
 
             return {
                 contents: [
@@ -136,20 +125,18 @@ export class BlobResourceHandler implements InternalResourceHandler {
     }
 
     async refresh(): Promise<void> {
-        // BlobService doesn't need refresh as it's not file-system based scanning
-        // But we can perform cleanup of old blobs if configured in blobStorage
-        if (this.blobService) {
-            try {
-                await this.blobService.cleanup();
-                logger.debug('Blob service cleanup completed');
-            } catch (error) {
-                logger.warn(`Blob service cleanup failed: ${String(error)}`);
-            }
+        // BlobStore doesn't need refresh as it's not file-system based scanning
+        // But we can perform cleanup of old blobs if configured
+        try {
+            await this.blobStore.cleanup();
+            logger.debug('Blob store cleanup completed');
+        } catch (error) {
+            logger.warn(`Blob store cleanup failed: ${String(error)}`);
         }
     }
 
-    getBlobService(): BlobService | undefined {
-        return this.blobService;
+    getBlobStore(): BlobStore {
+        return this.blobStore;
     }
 
     /**

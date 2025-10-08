@@ -7,23 +7,24 @@ import type { InternalResourceServices } from './handlers/types.js';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
 import { eventBus } from '../events/index.js';
+import type { BlobStore } from '../storage/blob/blob-store.js';
 
 export interface ResourceManagerOptions {
     internalResourcesConfig: ValidatedInternalResourcesConfig;
-    blobService: import('../blob/index.js').BlobService;
+    blobStore: BlobStore;
 }
 
 export class ResourceManager {
     private readonly mcpManager: MCPManager;
     private internalResourcesProvider?: InternalResourcesProvider;
-    private readonly blobService: import('../blob/index.js').BlobService;
+    private readonly blobStore: BlobStore;
 
     constructor(mcpManager: MCPManager, options: ResourceManagerOptions) {
         this.mcpManager = mcpManager;
-        this.blobService = options.blobService;
+        this.blobStore = options.blobStore;
 
         const services: InternalResourceServices = {
-            blobService: this.blobService,
+            blobStore: this.blobStore,
         };
 
         const config = options.internalResourcesConfig;
@@ -50,8 +51,8 @@ export class ResourceManager {
         logger.debug('ResourceManager initialization complete');
     }
 
-    getBlobService(): import('../blob/index.js').BlobService {
-        return this.blobService;
+    getBlobStore(): BlobStore {
+        return this.blobStore;
     }
 
     private deriveName(uri: string): string {
@@ -125,10 +126,10 @@ export class ResourceManager {
         if (uri.startsWith('mcp:')) {
             return this.mcpManager.hasResource(uri);
         }
-        // Always short-circuit blob: URIs to use blobService directly
+        // Always short-circuit blob: URIs to use blobStore directly
         if (uri.startsWith('blob:')) {
             try {
-                return await this.blobService.exists(uri);
+                return await this.blobStore.exists(uri);
             } catch (error) {
                 logger.warn(
                     `BlobService exists check failed for ${uri}: ${error instanceof Error ? error.message : String(error)}`
@@ -151,9 +152,9 @@ export class ResourceManager {
                 return result;
             }
 
-            // Always short-circuit blob: URIs to use blobService directly
+            // Always short-circuit blob: URIs to use blobStore directly
             if (uri.startsWith('blob:')) {
-                const blob = await this.blobService.retrieve(uri, 'base64');
+                const blob = await this.blobStore.retrieve(uri, 'base64');
                 return {
                     contents: [
                         {

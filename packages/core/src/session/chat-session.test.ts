@@ -137,7 +137,7 @@ describe('ChatSession', () => {
             },
             storage: mockStorageManager,
             resourceManager: {
-                getBlobService: vi.fn(),
+                getBlobStore: vi.fn(),
                 readResource: vi.fn(),
                 listResources: vi.fn(),
             },

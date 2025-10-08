@@ -15,7 +15,7 @@ export class InternalResourcesProvider implements ResourceProvider {
     private handlers: Map<string, InternalResourceHandler> = new Map();
     private services: InternalResourceServices;
 
-    constructor(config: ValidatedInternalResourcesConfig, services: InternalResourceServices = {}) {
+    constructor(config: ValidatedInternalResourcesConfig, services: InternalResourceServices) {
         this.config = config;
         this.services = services;
         logger.debug(

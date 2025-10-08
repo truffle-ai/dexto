@@ -14,18 +14,11 @@ export function createInternalResourceHandler(
     const type = config.type;
     if (type === 'filesystem') {
         // Pass blob storage path to filesystem handler to avoid scanning blob directories
-        const blobStoragePath = services.blobService?.getBackend().getStoragePath();
+        const blobStoragePath = services.blobStore.getStoragePath();
         return new FileSystemResourceHandler(config, blobStoragePath);
     }
     if (type === 'blob') {
-        if (!services.blobService) {
-            throw ResourceError.providerError(
-                'Internal',
-                'createInternalResourceHandler',
-                'BlobService is required for blob resource handler'
-            );
-        }
-        return new BlobResourceHandler(config, services.blobService);
+        return new BlobResourceHandler(config, services.blobStore);
     }
     throw ResourceError.providerError(
         'Internal',

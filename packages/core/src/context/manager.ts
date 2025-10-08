@@ -115,7 +115,7 @@ export class ContextManager<TMessage = unknown> {
             source?: 'user' | 'system';
         }
     ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
-        const blobService = this.resourceManager.getBlobService();
+        const blobService = this.resourceManager.getBlobStore();
 
         // Estimate data size to decide if we should store as blob
         let shouldStoreAsBlob = false;
@@ -566,7 +566,7 @@ export class ContextManager<TMessage = unknown> {
         // Sanitize tool result to avoid adding non-text data as raw text
         // and to convert media/data-uris/base64 to structured parts.
         // Automatically store large media as blobs using the blob service.
-        const blobService = this.resourceManager.getBlobService();
+        const blobService = this.resourceManager.getBlobStore();
         const content = await sanitizeToolResultToContentWithBlobs(result, blobService, {
             toolName: name,
             toolCallId,
