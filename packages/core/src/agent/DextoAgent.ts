@@ -204,7 +204,7 @@ export class DextoAgent {
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
-                services.storage.database,
+                services.storageManager.getDatabase(),
                 'prompts'
             );
             await promptManager.initialize();

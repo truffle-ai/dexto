@@ -1,6 +1,5 @@
 import type { Cache } from './cache/cache.js';
 import type { Database } from './database/database.js';
-import type { StorageBackends } from './backend/types.js';
 import type {
     PostgresBackendConfig,
     RedisBackendConfig,
@@ -32,12 +31,9 @@ export class StorageManager {
         this.config = config;
     }
 
-    async connect(): Promise<StorageBackends> {
+    async connect(): Promise<void> {
         if (this.connected) {
-            return {
-                cache: this.cache!,
-                database: this.database!,
-            };
+            return;
         }
 
         // Initialize cache
@@ -49,11 +45,6 @@ export class StorageManager {
         await this.database.connect();
 
         this.connected = true;
-
-        return {
-            cache: this.cache,
-            database: this.database,
-        };
     }
 
     async disconnect(): Promise<void> {
@@ -78,13 +69,26 @@ export class StorageManager {
         );
     }
 
-    getBackends(): StorageBackends | null {
-        if (!this.connected) return null;
+    /**
+     * Get the cache store instance.
+     * @throws Error if not connected
+     */
+    getCache(): Cache {
+        if (!this.connected || !this.cache) {
+            throw new Error('StorageManager is not connected. Call connect() first.');
+        }
+        return this.cache;
+    }
 
-        return {
-            cache: this.cache!,
-            database: this.database!,
-        };
+    /**
+     * Get the database store instance.
+     * @throws Error if not connected
+     */
+    getDatabase(): Database {
+        if (!this.connected || !this.database) {
+            throw new Error('StorageManager is not connected. Call connect() first.');
+        }
+        return this.database;
     }
 
     private async createCache(): Promise<Cache> {
@@ -223,14 +227,13 @@ export class StorageManager {
 }
 
 /**
- * Create storage backends without using singleton pattern
- * This allows multiple agent instances to have independent storage
+ * Create and initialize a storage manager.
+ * This allows multiple agent instances to have independent storage.
  */
-export async function createStorageBackends(config: ValidatedStorageConfig): Promise<{
-    manager: StorageManager;
-    backends: StorageBackends;
-}> {
+export async function createStorageManager(
+    config: ValidatedStorageConfig
+): Promise<StorageManager> {
     const manager = new StorageManager(config);
-    const backends = await manager.connect();
-    return { manager, backends };
+    await manager.connect();
+    return manager;
 }

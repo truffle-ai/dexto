@@ -8,20 +8,24 @@
  * Usage:
  *
  * ```typescript
- * // Create storage backends for an agent instance
- * const { manager, backends } = await createStorageBackends({
+ * // Create and initialize a storage manager
+ * const manager = await createStorageManager({
  *   cache: { type: 'in-memory' },
  *   database: { type: 'in-memory' }
  * });
  *
+ * // Access cache and database via getters
+ * const cache = manager.getCache();
+ * const database = manager.getDatabase();
+ *
  * // Use cache for temporary data
- * await backends.cache.set('session:123', sessionData, 3600); // 1 hour TTL
- * const sessionData = await backends.cache.get('session:123');
+ * await cache.set('session:123', sessionData, 3600); // 1 hour TTL
+ * const sessionData = await cache.get('session:123');
  *
  * // Use database for persistent data
- * await backends.database.set('user:456', userData);
- * await backends.database.append('messages:789', message);
- * const messages = await backends.database.getRange('messages:789', 0, 50);
+ * await database.set('user:456', userData);
+ * await database.append('messages:789', message);
+ * const messages = await database.getRange('messages:789', 0, 50);
  *
  * // Cleanup when done
  * await manager.disconnect();
@@ -29,17 +33,14 @@
  */
 
 // Main storage manager and utilities
-export { StorageManager, createStorageBackends } from './storage-manager.js';
+export { StorageManager, createStorageManager } from './storage-manager.js';
 
 // Storage interfaces
-export type {
-    Cache,
-    Database,
-    StorageBackends,
-    BackendConfig,
-    StorageConfig,
-    ValidatedStorageConfig,
-} from './backend/types.js';
+export type { Cache } from './cache/cache.js';
+export type { Database } from './database/database.js';
+
+// Schema types
+export type { BackendConfig, StorageConfig, ValidatedStorageConfig } from './schemas.js';
 
 // Store implementations - always available
 export { MemoryCacheStore } from './cache/memory-cache-store.js';

@@ -7,7 +7,7 @@ import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { StorageBackends } from '../storage/backend/types.js';
+import type { StorageManager } from '../storage/index.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -117,7 +117,7 @@ export class ChatSession {
             systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
-            storage: StorageBackends;
+            storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
         },
         public readonly id: string
@@ -182,7 +182,7 @@ export class ChatSession {
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
         this.historyProvider = createDatabaseHistoryProvider(
-            this.services.storage.database,
+            this.services.storageManager.getDatabase(),
             this.id
         );
 

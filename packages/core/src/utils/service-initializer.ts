@@ -29,7 +29,7 @@ import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
-import { createStorageBackends, type StorageBackends, StorageManager } from '../storage/index.js';
+import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
@@ -48,8 +48,7 @@ export type AgentServices = {
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
     searchService: SearchService;
-    storage: StorageBackends;
-    storageManager?: StorageManager;
+    storageManager: StorageManager;
     resourceManager: ResourceManager;
     blobService: BlobService;
 };
@@ -69,13 +68,11 @@ export async function createAgentServices(
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Initialize storage backends
-    logger.debug('Initializing storage backends');
-    const storageResult = await createStorageBackends(config.storage);
-    const storage = storageResult.backends;
-    const storageManager = storageResult.manager;
+    // 2. Initialize storage manager
+    logger.debug('Initializing storage manager');
+    const storageManager = await createStorageManager(config.storage);
 
-    logger.debug('Storage backends initialized', {
+    logger.debug('Storage manager initialized', {
         cache: config.storage.cache.type,
         database: config.storage.database.type,
     });
@@ -85,13 +82,13 @@ export async function createAgentServices(
     await mcpManager.initializeFromConfig(config.mcpServers);
 
     // 4. Initialize search service
-    const searchService = new SearchService(storage.database);
+    const searchService = new SearchService(storageManager.getDatabase());
 
     // 5. Initialize tool manager with internal tools options
     // 5.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
         type: config.toolConfirmation.allowedToolsStorage,
-        storage,
+        storageManager,
     });
 
     // 5.2 - Create tool confirmation provider with configured mode and timeout
@@ -157,7 +154,7 @@ export async function createAgentServices(
             systemPromptManager,
             toolManager,
             agentEventBus,
-            storage, // Add storage backends to session services
+            storageManager, // Add storage manager to session services
             resourceManager, // Add resource manager for blob storage
         },
         {
@@ -180,7 +177,6 @@ export async function createAgentServices(
         stateManager,
         sessionManager,
         searchService,
-        storage,
         storageManager,
         resourceManager,
         blobService,
