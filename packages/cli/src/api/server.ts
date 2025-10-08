@@ -1119,45 +1119,22 @@ export async function initializeApi(
 
     const AgentIdentifierSchema = z
         .object({
-            id: z.string().optional(),
-            name: z.string().optional(),
+            id: z.string().min(1, 'Agent id is required'),
         })
-        .transform((value, ctx) => {
-            const candidate = (value.id ?? value.name ?? '').trim();
-            if (!candidate) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'Agent id is required',
-                    path: ['id'],
-                });
-            }
-            return { id: candidate };
-        });
+        .strict();
 
     const UninstallAgentSchema = z
         .object({
-            id: z.string().optional(),
-            name: z.string().optional(),
+            id: z.string().min(1, 'Agent id is required'),
             force: z.boolean().default(false),
         })
-        .transform((value, ctx) => {
-            const candidate = (value.id ?? value.name ?? '').trim();
-            if (!candidate) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'Agent id is required',
-                    path: ['id'],
-                });
-            }
-            return { id: candidate, force: value.force ?? false };
-        });
+        .strict();
 
     // Schema for custom agent installation (CLI/automation entrypoint)
     const CustomAgentInstallSchema = z
         .object({
-            id: z.string().min(1).optional(),
-            name: z.string().min(1).optional(),
-            displayName: z.string().optional(),
+            id: z.string().min(1, 'Agent id is required'),
+            name: z.string().optional().describe('Display name (defaults to derived from id)'),
             sourcePath: z.string().min(1),
             metadata: z
                 .object({
@@ -1169,21 +1146,11 @@ export async function initializeApi(
                 .strict(),
             injectPreferences: z.boolean().default(true),
         })
-        .superRefine((value, ctx) => {
-            const candidate = (value.id ?? value.name ?? '').trim();
-            if (!candidate) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    path: ['id'],
-                    message: 'Agent id is required',
-                });
-            }
-        })
+        .strict()
         .transform((value) => {
-            const id = (value.id ?? value.name ?? '').trim();
-            const displayName = value.displayName?.trim() || deriveDisplayName(id);
+            const displayName = value.name?.trim() || deriveDisplayName(value.id);
             return {
-                id,
+                id: value.id,
                 displayName,
                 sourcePath: value.sourcePath,
                 metadata: value.metadata,
