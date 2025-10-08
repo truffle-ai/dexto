@@ -46,7 +46,7 @@ import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
 import { useResourceContent, type ResourceState, type NormalizedResourceItem } from './hooks/useResourceContent';
 import { useResources } from './hooks/useResources';
-import type { ResourceMetadata } from './types/resources';
+import type { ResourceMetadata } from '@dexto/core';
 
 interface MessageListProps {
   messages: Message[];

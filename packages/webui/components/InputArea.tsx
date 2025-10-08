@@ -22,7 +22,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/t
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
 import ResourceAutocomplete from './ResourceAutocomplete';
-import type { ResourceMetadata as UIResourceMetadata } from './types/resources';
+import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
