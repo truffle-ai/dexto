@@ -365,11 +365,15 @@ export class ToolManager {
 
     /**
      * Refresh tool discovery (call when MCP servers change)
+     * Refreshes both MCPManager's cache (server capabilities) and ToolManager's cache (combined tools)
      */
     async refresh(): Promise<void> {
-        // Invalidate cache since MCP servers may have changed
+        // First: Refresh MCPManager's cache to get fresh data from MCP servers
+        await this.mcpManager.refresh();
+
+        // Then: Invalidate our cache so next getAllTools() rebuilds from fresh MCP data
         this.invalidateCache();
 
-        logger.debug('ToolManager refreshed');
+        logger.debug('ToolManager refreshed (including MCP server capabilities)');
     }
 }

@@ -719,6 +719,23 @@ export class MCPManager {
     }
 
     /**
+     * Refresh all client caches by re-fetching capabilities from servers
+     * Useful when you want to force a full refresh of tools, prompts, and resources
+     * In normal operation, caches are automatically kept fresh via server notifications
+     */
+    async refresh(): Promise<void> {
+        logger.debug('Refreshing all MCPManager caches...');
+        const refreshPromises: Promise<void>[] = [];
+
+        for (const [clientName, client] of this.clients.entries()) {
+            refreshPromises.push(this.updateClientCache(clientName, client));
+        }
+
+        await Promise.all(refreshPromises);
+        logger.debug(`✅ MCPManager cache refresh complete for ${this.clients.size} client(s)`);
+    }
+
+    /**
      * Disconnect and remove a specific client by name.
      * @param name The name of the client to remove.
      */

@@ -421,13 +421,15 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.getAllTools();
             expect(mockClient.getTools).toHaveBeenCalledTimes(0);
 
-            // ToolManager.refresh() only invalidates ToolManager's cache, not MCPManager's
-            // MCPManager cache is automatically managed via server notifications
+            // ToolManager.refresh() now cascades to MCPManager.refresh()
+            // This refreshes server capabilities by calling client.getTools() again
             await toolManager.refresh();
-            await toolManager.getAllTools();
-            await toolManager.getAllTools();
+            expect(mockClient.getTools).toHaveBeenCalledTimes(1);
+            vi.mocked(mockClient.getTools).mockClear();
 
-            // Still using MCPManager's cache, no additional client calls
+            // Multiple calls after refresh still use cache
+            await toolManager.getAllTools();
+            await toolManager.getAllTools();
             expect(mockClient.getTools).toHaveBeenCalledTimes(0);
         });
     });
