@@ -36,22 +36,27 @@ import {
     Plus,
     ArrowUpRight,
     Tag,
-    PlusCircle
+    PlusCircle,
+    X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ServerRegistryModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onInstallServer: (entry: ServerRegistryEntry) => Promise<void>;
+    onInstallServer: (entry: ServerRegistryEntry) => Promise<'connected' | 'requires-input'>;
     onOpenConnectModal?: () => void;
+    refreshTrigger?: number;
+    disableClose?: boolean;
 }
 
-export default function ServerRegistryModal({ 
-    isOpen, 
-    onClose, 
+export default function ServerRegistryModal({
+    isOpen,
+    onClose,
     onInstallServer,
-    onOpenConnectModal
+    onOpenConnectModal,
+    refreshTrigger,
+    disableClose = false,
 }: ServerRegistryModalProps) {
     const [entries, setEntries] = useState<ServerRegistryEntry[]>([]);
     const [filteredEntries, setFilteredEntries] = useState<ServerRegistryEntry[]>([]);
@@ -145,7 +150,7 @@ export default function ServerRegistryModal({
         };
 
         loadEntries();
-    }, [isOpen]);
+    }, [isOpen, refreshTrigger]);
 
     // Debounced filter function
     const debouncedApplyFilters = useCallback(async (currentFilter: ServerRegistryFilter, currentSearchInput: string) => {
@@ -186,21 +191,31 @@ export default function ServerRegistryModal({
         };
     }, [filter, searchInput, entries, debouncedApplyFilters]);
 
+    // TODO: consolidate registry connection flows so modal + panels share a single state machine.
     const handleInstall = async (entry: ServerRegistryEntry) => {
         if (!isMountedRef.current) return;
         
         setInstalling(entry.id);
         try {
-            await onInstallServer(entry);
-            await serverRegistry.setInstalled(entry.id, true);
-            
-            // Update local state only if component is still mounted
-            if (isMountedRef.current) {
-                setEntries(prev => prev.map(e => 
-                    e.id === entry.id ? { ...e, isInstalled: true } : e
+            const result = await onInstallServer(entry);
+
+            if (result === 'connected') {
+                await serverRegistry.setInstalled(entry.id, true);
+
+                if (isMountedRef.current) {
+                    setEntries(prev => prev.map(e =>
+                        e.id === entry.id ? { ...e, isInstalled: true } : e
+                    ));
+                    setFilteredEntries(prev => prev.map(e =>
+                        e.id === entry.id ? { ...e, isInstalled: true } : e
+                    ));
+                }
+            } else if (isMountedRef.current) {
+                setEntries(prev => prev.map(e =>
+                    e.id === entry.id ? { ...e, isInstalled: false } : e
                 ));
                 setFilteredEntries(prev => prev.map(e =>
-                    e.id === entry.id ? { ...e, isInstalled: true } : e
+                    e.id === entry.id ? { ...e, isInstalled: false } : e
                 ));
             }
         } catch (err: unknown) {
@@ -229,21 +244,68 @@ export default function ServerRegistryModal({
     };
 
 
+    const isCloseBlocked = disableClose || Boolean(installing);
+
+    const handleDialogOpenChange = useCallback((open: boolean) => {
+        if (!open && !isCloseBlocked) {
+            onClose();
+        }
+    }, [isCloseBlocked, onClose]);
+
+    const preventCloseInteraction = isCloseBlocked
+        ? (event: Event) => {
+            event.preventDefault();
+        }
+        : undefined;
+
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="!max-w-none w-[90vw] max-h-[85vh] overflow-hidden flex flex-col !sm:max-w-none p-0">
+        <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+            <DialogContent
+                className="!max-w-none w-[90vw] max-h-[85vh] overflow-hidden flex flex-col !sm:max-w-none p-0"
+                hideCloseButton
+                onEscapeKeyDown={isCloseBlocked ? (event) => event.preventDefault() : undefined}
+                onInteractOutside={preventCloseInteraction}
+            >
                 <DialogHeader className="pb-6 border-b px-6 pt-6">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 flex-shrink-0">
-                            <Server className="h-5 w-5 text-primary" />
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 flex-shrink-0">
+                                <Server className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <DialogTitle className="text-xl font-semibold leading-tight mb-1.5">
+                                    MCP Server Registry
+                                </DialogTitle>
+                                <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+                                    Discover and add powerful integrations to your AI assistant
+                                </DialogDescription>
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <DialogTitle className="text-xl font-semibold leading-tight mb-1.5">
-                                MCP Server Registry
-                            </DialogTitle>
-                            <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-                                Discover and add powerful integrations to your AI assistant
-                            </DialogDescription>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                onClick={() => {
+                                    if (!isCloseBlocked) {
+                                        onClose();
+                                    }
+                                    onOpenConnectModal?.();
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="h-9 px-3 text-sm font-medium border-2 hover:bg-primary/10 hover:text-primary hover:border-primary/30 whitespace-nowrap"
+                            >
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Connect Custom
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9"
+                                onClick={() => onClose()}
+                                disabled={isCloseBlocked}
+                            >
+                                <X className="h-4 w-4" />
+                                <span className="sr-only">Close</span>
+                            </Button>
                         </div>
                     </div>
                 </DialogHeader>
@@ -259,18 +321,6 @@ export default function ServerRegistryModal({
                             className="pl-10 h-10 border-border/40 focus:border-primary/50 bg-background shadow-sm"
                         />
                     </div>
-                    <Button
-                        onClick={() => {
-                            onClose(); // Close registry modal first
-                            onOpenConnectModal?.(); // Then open connect modal
-                        }}
-                        size="sm"
-                        variant="outline"
-                        className="h-10 text-sm font-medium border-2 hover:bg-primary/10 hover:text-primary hover:border-primary/30 whitespace-nowrap"
-                    >
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Connect Custom
-                    </Button>
                     <div className="flex bg-muted/80 rounded-lg p-1 border border-border/40">
                         <Button
                             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}

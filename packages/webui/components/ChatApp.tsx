@@ -113,7 +113,9 @@ export default function ChatApp() {
     config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
     lockName?: boolean;
     registryEntryId?: string;
+    onCloseRegistryModal?: () => void;
   } | null>(null);
+  const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
@@ -314,7 +316,7 @@ export default function ChatApp() {
     setSessionsPanelOpen(false);
   }, [switchSession]);
 
-  const handleInstallServer = useCallback(async (entry: any) => {
+  const handleInstallServer = useCallback(async (entry: any): Promise<'connected' | 'requires-input'> => {
     // Build type-specific config
     const buildConfig = (): McpServerConfig => {
       const baseTimeout = entry.config.timeout || 30000;
@@ -350,11 +352,9 @@ export default function ChatApp() {
     const config = buildConfig();
 
     // Check if additional input is needed
-    // Only show modal if env vars or headers exist AND have empty/placeholder values
     const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
       return Object.values(obj).some(val => {
         if (!val || val.trim() === '') return true;
-        // Check for common placeholder patterns
         const placeholder = val.toLowerCase();
         return placeholder.includes('your-') || placeholder.includes('placeholder') ||
                placeholder.includes('enter-') || placeholder.includes('xxx') ||
@@ -372,45 +372,57 @@ export default function ChatApp() {
                              Object.keys(config.headers || {}).length > 0 &&
                              hasEmptyOrPlaceholderValue(config.headers || {});
 
-    // If no additional input needed, connect directly
-    if (!needsEnvInput && !needsHeaderInput) {
-      setServerRegistryOpen(false);
-      try {
-        const res = await fetch('/api/connect-server', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          throw new Error(result.error || `Server returned status ${res.status}`);
-        }
-
-        // Mark registry entry as installed
-        if (entry.id) {
-          try {
-            await serverRegistry.setInstalled(entry.id, true);
-          } catch (e) {
-            console.warn('Failed to mark registry entry installed:', e);
-          }
-        }
-
-        // Trigger refresh and show success
-        setServersRefreshTrigger(prev => prev + 1);
-        setSuccessMessage(`Added ${entry.name}`);
-        setTimeout(() => setSuccessMessage(null), 4000);
-      } catch (error) {
-        console.error('Failed to connect server:', error);
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to connect server');
-        setTimeout(() => setErrorMessage(null), 5000);
-      }
-    } else {
-      // Show modal for additional input
-      setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
-      setServerRegistryOpen(false);
+    // If inputs needed, open modal but keep registry open
+    if (needsEnvInput || needsHeaderInput) {
+      setConnectPrefill({
+        name: entry.name,
+        config,
+        lockName: true,
+        registryEntryId: entry.id,
+        onCloseRegistryModal: entry.onCloseRegistryModal || (() => setServerRegistryOpen(false)),
+      });
       setModalOpen(true);
+      return 'requires-input';
     }
-  }, []);
+
+    try {
+      setIsRegistryBusy(true);
+      const res = await fetch('/api/connect-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || `Server returned status ${res.status}`);
+      }
+
+      if (entry.id) {
+        try {
+          await serverRegistry.setInstalled(entry.id, true);
+        } catch (e) {
+          console.warn('Failed to mark registry entry installed:', e);
+        }
+      }
+
+      setServersRefreshTrigger(prev => prev + 1);
+      setSuccessMessage(`Added ${entry.name}`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+      setServerRegistryOpen(false);
+      return 'connected';
+    } catch (err: any) {
+      throw new Error(err?.message || 'Failed to install server');
+    } finally {
+      setIsRegistryBusy(false);
+    }
+  }, [
+    setServerRegistryOpen,
+    setModalOpen,
+    setConnectPrefill,
+    setServersRefreshTrigger,
+    setSuccessMessage,
+    setIsRegistryBusy,
+  ]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
@@ -953,17 +965,22 @@ export default function ChatApp() {
             isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
-              <ServersPanel
-                isOpen={isServersPanelOpen}
-                onClose={() => setServersPanelOpen(false)}
-                onOpenConnectModal={() => setModalOpen(true)}
-                onOpenConnectWithPrefill={(opts) => {
-                  setConnectPrefill(opts);
-                  setModalOpen(true);
-                }}
-                variant="inline"
-                refreshTrigger={serversRefreshTrigger}
-              />
+          <ServersPanel
+            isOpen={isServersPanelOpen}
+            onClose={() => setServersPanelOpen(false)}
+            onOpenConnectModal={() => setModalOpen(true)}
+            onOpenConnectWithPrefill={(opts) => {
+              setConnectPrefill(opts);
+              setModalOpen(true);
+            }}
+            onServerConnected={(name) => {
+              setServersRefreshTrigger(prev => prev + 1);
+              setSuccessMessage(`Added ${name}`);
+              setTimeout(() => setSuccessMessage(null), 4000);
+            }}
+            variant="inline"
+            refreshTrigger={serversRefreshTrigger}
+          />
             )}
           </div>
         </div>
@@ -976,28 +993,29 @@ export default function ChatApp() {
         />
         
         {/* Connect Server Modal */}
-        <ConnectServerModal 
-          isOpen={isModalOpen} 
+        <ConnectServerModal
+          isOpen={isModalOpen}
           onClose={() => {
             setModalOpen(false);
+            setIsRegistryBusy(false);
             setConnectPrefill(null);
-          }} 
+          }}
           onServerConnected={async () => {
-            // Mark the associated registry entry as installed, if applicable
             if (connectPrefill?.registryEntryId) {
               try {
                 await serverRegistry.setInstalled(connectPrefill.registryEntryId, true);
               } catch (e) {
-                // non-fatal; continue
                 console.warn('Failed to mark registry entry installed:', e);
               }
             }
-            // Trigger a refresh of the servers panel
             setServersRefreshTrigger(prev => prev + 1);
-            // Show success toast
             const name = connectPrefill?.name || 'Server';
             setSuccessMessage(`Added ${name}`);
             setTimeout(() => setSuccessMessage(null), 4000);
+            connectPrefill?.onCloseRegistryModal?.();
+            setServerRegistryOpen(false);
+            setIsRegistryBusy(false);
+            setConnectPrefill(null);
           }}
           initialName={connectPrefill?.name}
           initialConfig={connectPrefill?.config}
@@ -1010,6 +1028,8 @@ export default function ChatApp() {
           onClose={() => setServerRegistryOpen(false)}
           onInstallServer={handleInstallServer}
           onOpenConnectModal={() => setModalOpen(true)}
+          refreshTrigger={serversRefreshTrigger}
+          disableClose={isRegistryBusy}
         />
 
         {/* Export Configuration Modal */}

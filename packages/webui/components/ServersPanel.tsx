@@ -19,7 +19,9 @@ interface ServersPanelProps {
     config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
     lockName?: boolean;
     registryEntryId?: string;
+    onCloseRegistryModal?: () => void;
   }) => void;
+  onServerConnected?: (serverName: string) => void;
   variant?: 'overlay' | 'inline';
   refreshTrigger?: number; // Add a trigger to force refresh
 }
@@ -57,7 +59,7 @@ function buildConfigFromRegistryEntry(entry: ServerRegistryEntry): McpServerConf
   }
 }
 
-export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
+export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -68,6 +70,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
   const [isToolsExpanded, setIsToolsExpanded] = useState(false); // State for tools section collapse
   const [isDeletingServer, setIsDeletingServer] = useState<string | null>(null); // Tracks which server is being deleted
   const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
+  const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
   const handleError = (message: string, area: 'servers' | 'tools' | 'delete') => {
     console.error(`ServersPanel Error (${area}):`, message);
@@ -114,10 +117,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     }
   }, []);
 
-  const handleInstallServer = async (entry: ServerRegistryEntry) => {
-    // Close the registry modal first
-    setIsRegistryModalOpen(false);
-
+  const handleInstallServer = async (entry: ServerRegistryEntry): Promise<'connected' | 'requires-input'> => {
     const config = buildConfigFromRegistryEntry(entry);
 
     // Check if additional input is needed
@@ -145,13 +145,20 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     // If additional input is needed, show the modal
     if (needsEnvInput || needsHeaderInput) {
       if (typeof onOpenConnectWithPrefill === 'function') {
-        onOpenConnectWithPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
+        onOpenConnectWithPrefill({
+          name: entry.name,
+          config,
+          lockName: true,
+          registryEntryId: entry.id,
+          onCloseRegistryModal: () => setIsRegistryModalOpen(false),
+        });
       }
-      return;
+      return 'requires-input';
     }
 
     // Otherwise, connect directly
     try {
+      setIsRegistryBusy(true);
       const res = await fetch('/api/connect-server', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,8 +176,14 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       } catch (e) {
         console.warn('Failed to sync registry after server install:', e);
       }
+
+      setIsRegistryModalOpen(false);
+      onServerConnected?.(entry.name);
+      return 'connected';
     } catch (error: any) {
       throw new Error(error.message || 'Failed to install server');
+    } finally {
+      setIsRegistryBusy(false);
     }
   };
 
@@ -587,6 +600,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
         onClose={() => setIsRegistryModalOpen(false)}
         onInstallServer={handleInstallServer}
         onOpenConnectModal={onOpenConnectModal}
+        disableClose={isRegistryBusy}
       />
     </aside>
   );

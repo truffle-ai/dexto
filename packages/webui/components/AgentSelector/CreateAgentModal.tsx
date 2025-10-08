@@ -103,18 +103,18 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
       newErrors['llm.model'] = 'Model is required';
     }
 
-    // System Prompt validation - check if at least one contributor has content
+    // System Prompt validation - check if at least one static contributor has content
+    // Note: This modal only supports static contributors; dynamic/file contributors are not handled
     const systemPrompt = config.systemPrompt;
     if (systemPrompt && typeof systemPrompt === 'object' && 'contributors' in systemPrompt) {
       const contributors = systemPrompt.contributors;
       if (Array.isArray(contributors)) {
         const hasContent = contributors.some((c: Record<string, unknown>) => {
           if (c.type === 'static' && typeof c.content === 'string' && c.content.trim()) return true;
-          if (c.type === 'dynamic' || c.type === 'file') return true;
           return false;
         });
         if (!hasContent) {
-          newErrors.systemPrompt = 'At least one contributor with content is required';
+          newErrors.systemPrompt = 'At least one static contributor with content is required';
         }
       }
     } else if (typeof systemPrompt === 'string' && !systemPrompt.trim()) {
@@ -140,7 +140,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
         const contributors = config.systemPrompt.contributors;
         if (Array.isArray(contributors)) {
           // Find the first static contributor with content
-          const staticContributor = contributors.find((c: any) => c.type === 'static' && c.content);
+          const staticContributor = contributors.find((c: Record<string, unknown>) => c.type === 'static' && c.content);
           if (staticContributor && 'content' in staticContributor && typeof staticContributor.content === 'string') {
             systemPromptContent = staticContributor.content.trim();
           }
