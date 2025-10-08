@@ -5,7 +5,13 @@ import { logger } from '@core/logger/index.js';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
 import { loadGlobalPreferences } from '@core/preferences/loader.js';
 import { writePreferencesToAgent } from '@core/config/writer.js';
-import { Registry, RegistrySchema, AgentRegistry, AgentRegistryEntry } from './types.js';
+import {
+    Registry,
+    RegistrySchema,
+    AgentRegistry,
+    AgentRegistryEntry,
+    normalizeRegistryJson,
+} from './types.js';
 import { RegistryError } from './errors.js';
 import {
     loadUserRegistry,
@@ -104,7 +110,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         try {
             const jsonData = readFileSync(jsonPath, 'utf-8');
             const rawRegistry = JSON.parse(jsonData);
-            bundledRegistry = RegistrySchema.parse(rawRegistry);
+            bundledRegistry = RegistrySchema.parse(normalizeRegistryJson(rawRegistry));
         } catch (error) {
             throw RegistryError.registryParseError(
                 jsonPath,
@@ -147,7 +153,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         // Load bundled registry directly to check conflicts
         const jsonPath = resolveBundledScript('agents/agent-registry.json');
         const jsonData = readFileSync(jsonPath, 'utf-8');
-        const bundledRegistry = RegistrySchema.parse(JSON.parse(jsonData));
+        const bundledRegistry = RegistrySchema.parse(normalizeRegistryJson(JSON.parse(jsonData)));
 
         if (agentName in bundledRegistry.agents) {
             throw RegistryError.customAgentNameConflict(agentName);

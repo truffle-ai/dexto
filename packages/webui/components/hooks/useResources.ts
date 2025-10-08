@@ -106,18 +106,27 @@ export function useResources() {
             refresh();
         };
 
+        const handleAgentSwitched = (event: any) => {
+            const detail = event?.detail || {};
+            console.log('🔁 Agent switched, refreshing resources:', detail);
+            clearResourcesCache();
+            refresh();
+        };
+
         // Listen for our custom WebSocket event that gets dispatched when resources change
         if (typeof window !== 'undefined') {
             window.addEventListener(
                 'dexto:resourceCacheInvalidated',
                 handleResourceCacheInvalidated
             );
+            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
             return () => {
                 window.removeEventListener(
                     'dexto:resourceCacheInvalidated',
                     handleResourceCacheInvalidated
                 );
+                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
     }, [refresh]);

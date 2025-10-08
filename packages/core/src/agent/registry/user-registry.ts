@@ -2,7 +2,7 @@ import { promises as fs, readFileSync } from 'fs';
 import { existsSync } from 'fs';
 import path from 'path';
 import { getDextoGlobalPath } from '@core/utils/path.js';
-import { Registry, RegistrySchema, AgentRegistryEntry } from './types.js';
+import { Registry, RegistrySchema, AgentRegistryEntry, normalizeRegistryJson } from './types.js';
 import { RegistryError } from './errors.js';
 import { logger } from '@core/logger/index.js';
 
@@ -30,7 +30,7 @@ export function loadUserRegistry(): Registry {
     try {
         const content = readFileSync(registryPath, 'utf-8');
         const data = JSON.parse(content);
-        return RegistrySchema.parse(data);
+        return RegistrySchema.parse(normalizeRegistryJson(data));
     } catch (error) {
         throw RegistryError.registryParseError(
             registryPath,

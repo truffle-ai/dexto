@@ -49,7 +49,11 @@ function makeMockAgent(): DextoAgent {
         isStopped: () => false,
         start: async () => {},
         // Agent management methods required by server
-        listAgents: async () => ({ installed: [], available: [], current: { name: null } }),
+        listAgents: async () => ({
+            installed: [],
+            available: [],
+            current: { id: null, name: null },
+        }),
         installAgent: async () => {},
         // Methods below are not exercised by these tests but are required by the server
         run: async () => ({}),
