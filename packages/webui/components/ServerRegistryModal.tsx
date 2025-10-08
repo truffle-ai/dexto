@@ -35,7 +35,8 @@ import {
     Users,
     Plus,
     ArrowUpRight,
-    Tag
+    Tag,
+    PlusCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -43,12 +44,14 @@ interface ServerRegistryModalProps {
     isOpen: boolean;
     onClose: () => void;
     onInstallServer: (entry: ServerRegistryEntry) => Promise<void>;
+    onOpenConnectModal?: () => void;
 }
 
 export default function ServerRegistryModal({ 
     isOpen, 
     onClose, 
-    onInstallServer 
+    onInstallServer,
+    onOpenConnectModal
 }: ServerRegistryModalProps) {
     const [entries, setEntries] = useState<ServerRegistryEntry[]>([]);
     const [filteredEntries, setFilteredEntries] = useState<ServerRegistryEntry[]>([]);
@@ -228,23 +231,25 @@ export default function ServerRegistryModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="!max-w-none w-[90vw] max-h-[85vh] overflow-hidden flex flex-col !sm:max-w-none">
-                <DialogHeader className="pb-6 border-b">
-                    <DialogTitle className="flex items-center gap-3 text-xl font-semibold">
-                        <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+            <DialogContent className="!max-w-none w-[90vw] max-h-[85vh] overflow-hidden flex flex-col !sm:max-w-none p-0">
+                <DialogHeader className="pb-6 border-b px-6 pt-6">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 flex-shrink-0">
                             <Server className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                            <div className="text-xl">MCP Server Registry</div>
-                            <div className="text-sm font-normal text-muted-foreground mt-1">
+                        <div className="flex-1 min-w-0">
+                            <DialogTitle className="text-xl font-semibold leading-tight mb-1.5">
+                                MCP Server Registry
+                            </DialogTitle>
+                            <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
                                 Discover and add powerful integrations to your AI assistant
-                            </div>
+                            </DialogDescription>
                         </div>
-                    </DialogTitle>
+                    </div>
                 </DialogHeader>
 
                 {/* Search and View Controls */}
-                <div className="flex gap-4 mb-6">
+                <div className="flex gap-3 mb-6 px-6 pt-6">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
                         <Input
@@ -254,6 +259,18 @@ export default function ServerRegistryModal({
                             className="pl-10 h-10 border-border/40 focus:border-primary/50 bg-background shadow-sm"
                         />
                     </div>
+                    <Button
+                        onClick={() => {
+                            onClose(); // Close registry modal first
+                            onOpenConnectModal?.(); // Then open connect modal
+                        }}
+                        size="sm"
+                        variant="outline"
+                        className="h-10 text-sm font-medium border-2 hover:bg-primary/10 hover:text-primary hover:border-primary/30 whitespace-nowrap"
+                    >
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Connect Custom
+                    </Button>
                     <div className="flex bg-muted/80 rounded-lg p-1 border border-border/40">
                         <Button
                             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
@@ -293,7 +310,7 @@ export default function ServerRegistryModal({
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto -mx-2 px-2">
+                <div className="flex-1 overflow-y-auto px-6">
                     {error && (
                         <Alert variant="destructive" className="mb-6 border-red-200/50 bg-red-50/50">
                             <AlertDescription className="text-red-800">{error}</AlertDescription>

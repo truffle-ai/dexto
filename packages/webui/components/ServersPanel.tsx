@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
-import { X, PlusCircle, Server, ListChecks, ChevronRight, RefreshCw, AlertTriangle, ChevronDown, Terminal, Trash2, Package } from 'lucide-react';
+import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
@@ -342,21 +341,12 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       {/* Add Server Actions */}
       <div className="px-4 py-3 space-y-2 border-b border-border/30">
         <Button 
-          onClick={onOpenConnectModal} 
-          className="w-full h-9 text-sm font-medium"
-          size="sm"
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Connect Server
-        </Button>
-        <Button 
           onClick={() => setIsRegistryModalOpen(true)} 
-          variant="outline" 
           className="w-full h-9 text-sm font-medium"
           size="sm"
         >
           <Package className="mr-2 h-4 w-4" />
-          Browse Registry
+          Connect MCPs
         </Button>
       </div>
 
@@ -552,6 +542,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
         isOpen={isRegistryModalOpen}
         onClose={() => setIsRegistryModalOpen(false)}
         onInstallServer={handleInstallServer}
+        onOpenConnectModal={onOpenConnectModal}
       />
     </aside>
   );

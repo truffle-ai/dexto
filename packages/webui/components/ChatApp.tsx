@@ -710,7 +710,7 @@ export default function ChatApp() {
                                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
                       <Server className="h-4 w-4 mr-2" />
-                      Browse MCP Registry
+                      Connect MCPs
                     </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="h-4 w-4 mr-2" />
@@ -927,6 +927,7 @@ export default function ChatApp() {
           isOpen={isServerRegistryOpen}
           onClose={() => setServerRegistryOpen(false)}
           onInstallServer={handleInstallServer}
+          onOpenConnectModal={() => setModalOpen(true)}
         />
 
         {/* Export Configuration Modal */}
