@@ -147,7 +147,7 @@ export class StorageManager {
                 return new LocalBlobStore(blobConfig);
 
             case 'in-memory':
-            default:
+            default: {
                 logger.info('Using in-memory blob store (falling back to local)');
                 // For now we don't have MemoryBlobStore, use LocalBlobStore with in-memory config converted to local
                 const localConfig: LocalBlobBackendConfig = {
@@ -157,6 +157,7 @@ export class StorageManager {
                     cleanupAfterDays: 30, // Default for fallback
                 };
                 return new LocalBlobStore(localConfig);
+            }
         }
     }
 

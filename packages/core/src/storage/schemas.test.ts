@@ -364,7 +364,12 @@ describe('StorageSchema', () => {
             if (result.success) {
                 // Blob config is added with default value
                 expect(result.data).toMatchObject(devConfig);
-                expect(result.data.blob).toEqual({ type: 'local' });
+                expect(result.data.blob).toEqual({
+                    type: 'local',
+                    maxBlobSize: 50 * 1024 * 1024,
+                    maxTotalSize: 1024 * 1024 * 1024,
+                    cleanupAfterDays: 30,
+                });
             }
         });
 
@@ -389,7 +394,12 @@ describe('StorageSchema', () => {
             if (result.success) {
                 // Blob config is added with default value
                 expect(result.data).toMatchObject(prodConfig);
-                expect(result.data.blob).toEqual({ type: 'local' });
+                expect(result.data.blob).toEqual({
+                    type: 'local',
+                    maxBlobSize: 50 * 1024 * 1024,
+                    maxTotalSize: 1024 * 1024 * 1024,
+                    cleanupAfterDays: 30,
+                });
             }
         });
 
@@ -417,7 +427,12 @@ describe('StorageSchema', () => {
             if (result.success) {
                 // Blob config is added with default value
                 expect(result.data).toMatchObject(haConfig);
-                expect(result.data.blob).toEqual({ type: 'local' });
+                expect(result.data.blob).toEqual({
+                    type: 'local',
+                    maxBlobSize: 50 * 1024 * 1024,
+                    maxTotalSize: 1024 * 1024 * 1024,
+                    cleanupAfterDays: 30,
+                });
             }
         });
     });

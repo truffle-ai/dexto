@@ -297,8 +297,9 @@ describe('HttpClient', () => {
             });
 
             const promise = client.get('/test');
+            const rejection = expect(promise).rejects.toThrow();
             await vi.advanceTimersByTimeAsync(5000);
-            await expect(promise).rejects.toThrow();
+            await rejection;
             // Should be called initial attempt + 2 retries = 3 times
             expect(mockFetch).toHaveBeenCalledTimes(3);
         });
@@ -318,8 +319,9 @@ describe('HttpClient', () => {
             mockFetch.mockRejectedValue(networkError);
 
             const promise = client.get('/test');
+            const rejection = expect(promise).rejects.toThrow();
             await vi.advanceTimersByTimeAsync(5000);
-            await expect(promise).rejects.toThrow();
+            await rejection;
         });
 
         it('should handle JSON parse errors', async () => {

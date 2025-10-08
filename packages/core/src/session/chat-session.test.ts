@@ -52,6 +52,9 @@ describe('ChatSession', () => {
     let mockLLMService: any;
     let mockTokenizer: any;
     let mockFormatter: any;
+    let mockCache: any;
+    let mockDatabase: any;
+    let mockBlobStore: any;
 
     const sessionId = 'test-session-123';
     const mockLLMConfig = LLMConfigSchema.parse({
@@ -90,7 +93,7 @@ describe('ChatSession', () => {
         mockFormatter = { format: vi.fn() };
 
         // Mock storage manager with proper getter structure
-        const mockCache = {
+        mockCache = {
             get: vi.fn().mockResolvedValue(null),
             set: vi.fn().mockResolvedValue(undefined),
             delete: vi.fn().mockResolvedValue(true),
@@ -102,7 +105,7 @@ describe('ChatSession', () => {
             getBackendType: vi.fn().mockReturnValue('memory'),
         };
 
-        const mockDatabase = {
+        mockDatabase = {
             get: vi.fn().mockResolvedValue(null),
             set: vi.fn().mockResolvedValue(undefined),
             delete: vi.fn().mockResolvedValue(true),
@@ -117,7 +120,7 @@ describe('ChatSession', () => {
             getBackendType: vi.fn().mockReturnValue('memory'),
         };
 
-        const mockBlobStore = {
+        mockBlobStore = {
             store: vi.fn().mockResolvedValue({ id: 'test', uri: 'blob:test' }),
             retrieve: vi.fn().mockResolvedValue({ data: '', metadata: {} }),
             exists: vi.fn().mockResolvedValue(false),
@@ -195,10 +198,7 @@ describe('ChatSession', () => {
             await chatSession.init();
 
             // Verify createDatabaseHistoryProvider is called with the database backend and sessionId
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
-                mockServices.storage.database,
-                sessionId
-            );
+            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(mockDatabase, sessionId);
         });
 
         test('should properly dispose resources to prevent memory leaks', () => {
@@ -427,10 +427,7 @@ describe('ChatSession', () => {
             );
 
             // Verify session-specific history provider creation
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
-                mockServices.storage.database,
-                sessionId
-            );
+            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(mockDatabase, sessionId);
         });
     });
 });
