@@ -1,7 +1,7 @@
 import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
+import { PromptErrorCode } from './error-codes.js';
 
 /**
  * Prompt error factory with typed methods for creating prompt-specific errors
@@ -13,8 +13,8 @@ export class PromptError {
      */
     static notFound(name: string) {
         return new DextoRuntimeError(
-            SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
-            ErrorScope.SYSTEM_PROMPT,
+            PromptErrorCode.PROMPT_NOT_FOUND,
+            ErrorScope.PROMPT,
             ErrorType.NOT_FOUND,
             `Prompt not found: ${name}`,
             { name }
@@ -27,9 +27,9 @@ export class PromptError {
     static missingText() {
         return new DextoValidationError([
             {
-                code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+                code: PromptErrorCode.PROMPT_MISSING_TEXT,
                 message: 'Prompt missing text content',
-                scope: ErrorScope.SYSTEM_PROMPT,
+                scope: ErrorScope.PROMPT,
                 type: ErrorType.USER,
                 severity: 'error',
                 context: {},
@@ -43,9 +43,9 @@ export class PromptError {
     static missingRequiredArguments(missingNames: string[]) {
         return new DextoValidationError([
             {
-                code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+                code: PromptErrorCode.PROMPT_MISSING_REQUIRED_ARGUMENTS,
                 message: `Missing required arguments: ${missingNames.join(', ')}`,
-                scope: ErrorScope.SYSTEM_PROMPT,
+                scope: ErrorScope.PROMPT,
                 type: ErrorType.USER,
                 severity: 'error',
                 context: { missingNames },
@@ -58,8 +58,8 @@ export class PromptError {
      */
     static providerNotFound(source: string) {
         return new DextoRuntimeError(
-            SystemPromptErrorCode.CONTRIBUTOR_SOURCE_UNKNOWN,
-            ErrorScope.SYSTEM_PROMPT,
+            PromptErrorCode.PROMPT_PROVIDER_NOT_FOUND,
+            ErrorScope.PROMPT,
             ErrorType.NOT_FOUND,
             `No provider found for prompt source: ${source}`,
             { source }
@@ -72,9 +72,9 @@ export class PromptError {
     static nameRequired() {
         return new DextoValidationError([
             {
-                code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+                code: PromptErrorCode.PROMPT_NAME_REQUIRED,
                 message: 'Prompt name is required',
-                scope: ErrorScope.SYSTEM_PROMPT,
+                scope: ErrorScope.PROMPT,
                 type: ErrorType.USER,
                 severity: 'error',
                 context: {},
@@ -86,9 +86,9 @@ export class PromptError {
     static alreadyExists(name: string) {
         return new DextoValidationError([
             {
-                code: SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
+                code: PromptErrorCode.PROMPT_ALREADY_EXISTS,
                 message: `Prompt already exists: ${name}`,
-                scope: ErrorScope.SYSTEM_PROMPT,
+                scope: ErrorScope.PROMPT,
                 type: ErrorType.USER,
                 severity: 'error',
                 context: { name },
@@ -101,8 +101,8 @@ export class PromptError {
      */
     static emptyResolvedContent(name: string) {
         return new DextoRuntimeError(
-            SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
-            ErrorScope.SYSTEM_PROMPT,
+            PromptErrorCode.PROMPT_EMPTY_CONTENT,
+            ErrorScope.PROMPT,
             ErrorType.NOT_FOUND,
             `Prompt resolved to empty content: ${name}`,
             { name }
