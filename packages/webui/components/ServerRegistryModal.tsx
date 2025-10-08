@@ -61,7 +61,7 @@ export default function ServerRegistryModal({
     const [searchInput, setSearchInput] = useState('');
     
     // View state
-    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
     const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
     
     // Ref for debouncing
@@ -256,23 +256,6 @@ export default function ServerRegistryModal({
                     </div>
                     <div className="flex bg-muted/80 rounded-lg p-1 border border-border/40">
                         <Button
-                            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            onClick={() => {
-                                setViewMode('list');
-                                setExpandedEntry(null);
-                            }}
-                            className={cn(
-                                "h-8 px-3 rounded-md transition-all",
-                                viewMode === 'list' 
-                                    ? "bg-background shadow-sm" 
-                                    : "hover:bg-background/80"
-                            )}
-                        >
-                            <List className="h-4 w-4 mr-2" />
-                            List
-                        </Button>
-                        <Button
                             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                             size="sm"
                             onClick={() => {
@@ -281,13 +264,30 @@ export default function ServerRegistryModal({
                             }}
                             className={cn(
                                 "h-8 px-3 rounded-md transition-all",
-                                viewMode === 'grid' 
-                                    ? "bg-background shadow-sm" 
+                                viewMode === 'grid'
+                                    ? "bg-background shadow-sm"
                                     : "hover:bg-background/80"
                             )}
                         >
                             <Grid3X3 className="h-4 w-4 mr-2" />
                             Grid
+                        </Button>
+                        <Button
+                            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                            size="sm"
+                            onClick={() => {
+                                setViewMode('list');
+                                setExpandedEntry(null);
+                            }}
+                            className={cn(
+                                "h-8 px-3 rounded-md transition-all",
+                                viewMode === 'list'
+                                    ? "bg-background shadow-sm"
+                                    : "hover:bg-background/80"
+                            )}
+                        >
+                            <List className="h-4 w-4 mr-2" />
+                            List
                         </Button>
                     </div>
                 </div>
@@ -347,19 +347,19 @@ export default function ServerRegistryModal({
                                 const hasLongDescription = entry.description && entry.description.length > 100;
                                 
                                 return viewMode === 'grid' ? (
-                                    <Card 
+                                    <Card
                                         key={entry.id}
                                         className={cn(
-                                            "group relative overflow-hidden transition-all duration-300 border-border/30 hover:border-primary/30 hover:shadow-lg bg-gradient-to-b from-card/90 to-card/50 backdrop-blur-sm",
+                                            "group relative overflow-hidden transition-all duration-300 border-border/30 hover:border-primary/30 hover:shadow-lg bg-gradient-to-b from-card/90 to-card/50 backdrop-blur-sm flex flex-col",
                                             isExpanded && "ring-2 ring-primary/20 border-primary/50 shadow-xl"
                                         )}
                                         style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
                                     >
-                                        <div 
-                                            className="cursor-pointer"
+                                        <div
+                                            className="cursor-pointer flex flex-col flex-1"
                                             onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
                                         >
-                                            <CardHeader className="pb-4">
+                                            <CardHeader className="pb-4 flex-shrink-0">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex items-center gap-4 flex-1">
                                                         <div className="text-3xl p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 group-hover:border-primary/30 transition-all">
@@ -395,13 +395,14 @@ export default function ServerRegistryModal({
                                                     </div>
                                                 </div>
                                             </CardHeader>
-                                            <CardContent className="pt-0">
-                                                <p className={cn(
-                                                    "text-sm text-muted-foreground leading-relaxed mb-4 transition-all duration-300",
-                                                    isExpanded ? "" : "line-clamp-2"
-                                                )}>
-                                                    {entry.description}
-                                                </p>
+                                            <CardContent className="pt-0 flex flex-col flex-1">
+                                                <div className="flex-1">
+                                                    <p className={cn(
+                                                        "text-sm text-muted-foreground leading-relaxed mb-4 transition-all duration-300",
+                                                        isExpanded ? "" : "line-clamp-2"
+                                                    )}>
+                                                        {entry.description}
+                                                    </p>
                                                 
                                                 {isExpanded && (
                                                     <div className="space-y-4 pt-4 border-t border-border/20 animate-in slide-in-from-top-1 duration-300">
@@ -457,8 +458,9 @@ export default function ServerRegistryModal({
                                                         )}
                                                     </div>
                                                 )}
-                                                
-                                                <div className="flex items-center justify-between pt-4">
+                                                </div>
+
+                                                <div className="flex items-center justify-between pt-4 flex-shrink-0">
                                                     {hasLongDescription && (
                                                         <Button
                                                             variant="ghost"

@@ -48,6 +48,8 @@ describe('GET /api/llm/current', () => {
             switchLLM: async () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
             searchMessages: async () => ({ results: [] }),
             searchSessions: async () => ({ results: [] }),
+            registerSubscriber: () => {},
+            restart: async () => {},
         } as unknown as DextoAgent;
         return mockAgent;
     }

@@ -190,8 +190,21 @@ main() {
   # Reset endpoint
   run_test "POST /api/reset valid" POST "/api/reset" 200 '{}' || failures=$((failures+1))
 
-  # Config endpoint
-  run_test "GET /api/config.yaml" GET "/api/config.yaml" 200 || failures=$((failures+1))
+  # Agent configuration endpoints
+  run_test "GET /api/agent/path" GET "/api/agent/path" 200 || failures=$((failures+1))
+  run_test "GET /api/agent/config" GET "/api/agent/config" 200 || failures=$((failures+1))
+  run_test "GET /api/agent/config/export" GET "/api/agent/config/export" 200 || failures=$((failures+1))
+
+  # Agent validation tests
+  run_test "POST /api/agent/validate missing yaml" POST "/api/agent/validate" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/agent/validate invalid YAML syntax" POST "/api/agent/validate" 200 '{"yaml":"invalid: yaml: content: ["}' || failures=$((failures+1))
+  run_test "POST /api/agent/validate invalid schema" POST "/api/agent/validate" 200 '{"yaml":"greeting: hello\nllm:\n  provider: invalid_provider"}' || failures=$((failures+1))
+  run_test "POST /api/agent/validate valid YAML" POST "/api/agent/validate" 200 '{"yaml":"greeting: \"Test Agent\"\nllm:\n  provider: openai\n  model: gpt-4o\n  apiKey: $OPENAI_API_KEY"}' || failures=$((failures+1))
+
+  # Agent config save tests (validation only - avoid mutating actual config)
+  run_test "POST /api/agent/config missing yaml" POST "/api/agent/config" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/agent/config invalid YAML syntax" POST "/api/agent/config" 400 '{"yaml":"invalid: yaml: ["}' || failures=$((failures+1))
+  run_test "POST /api/agent/config invalid schema" POST "/api/agent/config" 400 '{"yaml":"llm:\n  provider: invalid_provider"}' || failures=$((failures+1))
 
   # Session endpoints
   run_test "GET /api/sessions" GET "/api/sessions" 200 || failures=$((failures+1))

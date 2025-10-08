@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
 import { clearPromptCache } from '../lib/promptCache';
 import { clearResourcesCache } from './hooks/useResources';
+import { Checkbox } from './ui/checkbox';
 
 interface ConnectServerModalProps {
     isOpen: boolean;
@@ -40,6 +41,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     const [envPairs, setEnvPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [persistToAgent, setPersistToAgent] = useState(true);
 
     // Helper function to convert header pairs to record
     const headersToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {
@@ -219,7 +221,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             const res = await fetch('/api/connect-server', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: serverName.trim(), config }),
+                body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),
                 signal: controller.signal,
             });
             const result = await res.json();
@@ -428,6 +430,22 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                             </div>
                         </>
                     )}
+
+                    {/* Persist to Agent Checkbox */}
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox
+                            id="persistToAgent"
+                            checked={persistToAgent}
+                            onCheckedChange={(checked) => setPersistToAgent(checked === true)}
+                            disabled={isSubmitting}
+                        />
+                        <Label
+                            htmlFor="persistToAgent"
+                            className="text-sm font-normal cursor-pointer"
+                        >
+                            Save to agent configuration file
+                        </Label>
+                    </div>
                 </form>
                 <DialogFooter>
                     <DialogClose asChild>
