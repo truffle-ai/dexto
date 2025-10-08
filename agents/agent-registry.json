@@ -84,7 +84,7 @@
     },
     "default-agent": {
       "id": "default-agent",
-      "name": "Default Agent",
+      "name": "Default",
       "description": "Default Dexto agent with filesystem and playwright tools",
       "author": "Truffle AI",
       "tags": ["default", "filesystem", "playwright"],

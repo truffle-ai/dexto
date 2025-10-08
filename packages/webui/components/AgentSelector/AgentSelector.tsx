@@ -26,7 +26,7 @@ type AgentItem = {
 type AgentsResponse = {
   installed: AgentItem[];
   available: AgentItem[];
-  current?: { id?: string | null; name?: string | null };
+  current: { id: string | null; name: string | null };
 };
 
 type AgentSelectorProps = {
@@ -51,7 +51,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       const data: AgentsResponse = await res.json();
       setInstalled(data.installed || []);
       setAvailable(data.available || []);
-      setCurrentId(data.current?.id ?? data.current?.name ?? null);
+      setCurrentId(data.current.id);
     } catch (err) {
       console.error('AgentSelector load error:', err);
     }

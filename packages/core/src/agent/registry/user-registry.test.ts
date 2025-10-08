@@ -219,6 +219,8 @@ describe('user-registry', () => {
 
         it('should throw error if agent already exists', async () => {
             const entry: Omit<AgentRegistryEntry, 'type'> = {
+                id: 'test-agent',
+                name: 'Test Agent',
                 description: 'Test',
                 author: 'User',
                 tags: [],

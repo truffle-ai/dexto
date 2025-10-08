@@ -49,7 +49,7 @@ type RawRegistry = {
  */
 export function normalizeRegistryJson(raw: unknown): RawRegistry {
     if (!raw || typeof raw !== 'object') {
-        return { agents: {} };
+        return { version: '1.0.0', agents: {} };
     }
 
     const input = raw as RawRegistry;

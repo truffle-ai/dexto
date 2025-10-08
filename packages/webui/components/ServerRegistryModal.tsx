@@ -323,7 +323,9 @@ export default function ServerRegistryModal({
                     </div>
                     <Button
                         onClick={() => {
-                            onClose(); // Close registry modal first
+                            if (!isCloseBlocked) {
+                                onClose(); // Close registry modal first
+                            }
                             onOpenConnectModal?.(); // Then open connect modal
                         }}
                         size="sm"

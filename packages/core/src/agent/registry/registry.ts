@@ -150,13 +150,34 @@ export class LocalAgentRegistry implements AgentRegistry {
      * @throws RegistryError if ID conflicts with builtin agent
      */
     private validateCustomAgentId(agentId: string): void {
-        // Load bundled registry directly to check conflicts
-        const jsonPath = resolveBundledScript('agents/agent-registry.json');
-        const jsonData = readFileSync(jsonPath, 'utf-8');
-        const bundledRegistry = RegistrySchema.parse(normalizeRegistryJson(JSON.parse(jsonData)));
+        let jsonPath: string;
+        try {
+            jsonPath = resolveBundledScript('agents/agent-registry.json');
+        } catch (error) {
+            throw RegistryError.registryNotFound(
+                'agents/agent-registry.json',
+                error instanceof Error ? error.message : String(error)
+            );
+        }
 
-        if (agentId in bundledRegistry.agents) {
-            throw RegistryError.customAgentNameConflict(agentId);
+        try {
+            const jsonData = readFileSync(jsonPath, 'utf-8');
+            const bundledRegistry = RegistrySchema.parse(
+                normalizeRegistryJson(JSON.parse(jsonData))
+            );
+
+            if (agentId in bundledRegistry.agents) {
+                throw RegistryError.customAgentNameConflict(agentId);
+            }
+        } catch (error) {
+            // Preserve original customAgentNameConflict throws
+            if (error instanceof Error && /name conflicts with builtin agent/.test(error.message)) {
+                throw error;
+            }
+            throw RegistryError.registryParseError(
+                jsonPath,
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 
@@ -217,7 +238,14 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
 
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const targetDir = path.join(globalAgentsDir, agentId);
+        const targetDir = path.resolve(globalAgentsDir, agentId);
+        const relTarget = path.relative(globalAgentsDir, targetDir);
+        if (relTarget.startsWith('..') || path.isAbsolute(relTarget)) {
+            throw RegistryError.installationFailed(
+                agentId,
+                'invalid agentId: path traversal detected'
+            );
+        }
 
         // Check if already installed
         if (existsSync(targetDir)) {
@@ -331,7 +359,14 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
 
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const targetDir = path.join(globalAgentsDir, agentId);
+        const targetDir = path.resolve(globalAgentsDir, agentId);
+        const relTarget = path.relative(globalAgentsDir, targetDir);
+        if (relTarget.startsWith('..') || path.isAbsolute(relTarget)) {
+            throw RegistryError.installationFailed(
+                agentId,
+                'invalid agentId: path traversal detected'
+            );
+        }
 
         // Check if already installed
         if (existsSync(targetDir)) {
@@ -494,7 +529,11 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         // 1. Check if installed
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const installedPath = path.join(globalAgentsDir, agentId);
+        const installedPath = path.resolve(globalAgentsDir, agentId);
+        const relInstalled = path.relative(globalAgentsDir, installedPath);
+        if (relInstalled.startsWith('..') || path.isAbsolute(relInstalled)) {
+            throw RegistryError.agentNotFound(agentId, Object.keys(this.getRegistry().agents));
+        }
 
         if (existsSync(installedPath)) {
             const mainConfig = this.resolveMainConfig(installedPath, agentId);
@@ -572,7 +611,14 @@ export class LocalAgentRegistry implements AgentRegistry {
      */
     async uninstallAgent(agentId: string, force: boolean = false): Promise<void> {
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const agentDir = path.join(globalAgentsDir, agentId);
+        const agentDir = path.resolve(globalAgentsDir, agentId);
+        const relAgent = path.relative(globalAgentsDir, agentDir);
+        if (relAgent.startsWith('..') || path.isAbsolute(relAgent)) {
+            throw RegistryError.uninstallationFailed(
+                agentId,
+                'invalid agentId: path traversal detected'
+            );
+        }
         logger.info(`Uninstalling agent: ${agentId} from ${agentDir}`);
 
         if (!existsSync(agentDir)) {

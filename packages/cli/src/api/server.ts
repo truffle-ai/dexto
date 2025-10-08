@@ -79,7 +79,7 @@ export async function initializeApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number,
-    agentName?: string
+    agentId?: string
 ): Promise<{
     app: Express;
     server: http.Server;
@@ -90,7 +90,7 @@ export async function initializeApi(
     const app = express();
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
-    let activeAgentName: string | undefined = agentName || 'default';
+    let activeAgentId: string | undefined = agentId || 'default-agent';
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
     // this will apply middleware to all /api/llm/* routes
@@ -100,7 +100,7 @@ export async function initializeApi(
     const server = http.createServer(app);
     const wss = new WebSocketServer({ server });
 
-    logger.info(`Initializing API server with agent: ${activeAgentName}`);
+    logger.info(`Initializing API server with agent: ${activeAgentId}`);
 
     // Initialize event subscribers
     const webSubscriber = new WebSocketEventSubscriber(wss);
@@ -163,7 +163,7 @@ export async function initializeApi(
             // Stop previous agent last (only after new one is fully operational)
             const previousAgent = activeAgent;
             activeAgent = newAgent;
-            activeAgentName = agentId;
+            activeAgentId = agentId;
 
             logger.info(`Successfully switched to agent: ${agentId}`);
 
@@ -1094,7 +1094,7 @@ export async function initializeApi(
     app.get('/api/agents', async (_req, res, next) => {
         try {
             const agents = await Dexto.listAgents();
-            const currentId = activeAgentName ?? null;
+            const currentId = activeAgentId ?? null;
             return sendJsonResponse(res, {
                 installed: agents.installed,
                 available: agents.available,
@@ -1107,7 +1107,7 @@ export async function initializeApi(
 
     app.get('/api/agents/current', async (_req, res, next) => {
         try {
-            const currentId = activeAgentName ?? null;
+            const currentId = activeAgentId ?? null;
             if (!currentId) {
                 return sendJsonResponse(res, { id: null, name: null });
             }
@@ -2204,13 +2204,13 @@ export async function startApiServer(
     agent: DextoAgent,
     port = 3000,
     agentCardOverride?: Partial<AgentCard>,
-    agentName?: string
+    agentId?: string
 ) {
     const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
         agentCardOverride,
         port,
-        agentName
+        agentId
     );
 
     // API server for REST endpoints and WebSocket connections
