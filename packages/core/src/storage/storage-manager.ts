@@ -1,17 +1,20 @@
-import type { CacheBackend, DatabaseBackend, StorageBackends } from './backend/types.js';
+import type { Cache } from './cache/cache.js';
+import type { Database } from './database/database.js';
+import type { StorageBackends } from './backend/types.js';
 import type {
     PostgresBackendConfig,
     RedisBackendConfig,
     SqliteBackendConfig,
     ValidatedStorageConfig,
 } from './schemas.js';
-import { MemoryBackend } from './backend/memory-backend.js';
+import { MemoryCacheStore } from './cache/memory-cache-store.js';
+import { MemoryDatabaseStore } from './database/memory-database-store.js';
 import { logger } from '../logger/index.js';
 
 // Lazy imports for optional dependencies
-let SQLiteBackend: any;
-let RedisBackend: any;
-let PostgresBackend: any;
+let SQLiteStore: any;
+let RedisStore: any;
+let PostgresStore: any;
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
 
@@ -21,8 +24,8 @@ const HEALTH_CHECK_KEY = 'storage_manager_health_check';
  */
 export class StorageManager {
     private config: ValidatedStorageConfig;
-    private cache?: CacheBackend;
-    private database?: DatabaseBackend;
+    private cache?: Cache;
+    private database?: Database;
     private connected = false;
 
     constructor(config: ValidatedStorageConfig) {
@@ -37,12 +40,12 @@ export class StorageManager {
             };
         }
 
-        // Initialize cache backend
-        this.cache = await this.createCacheBackend();
+        // Initialize cache
+        this.cache = await this.createCache();
         await this.cache.connect();
 
-        // Initialize database backend
-        this.database = await this.createDatabaseBackend();
+        // Initialize database
+        this.database = await this.createDatabase();
         await this.database.connect();
 
         this.connected = true;
@@ -84,80 +87,80 @@ export class StorageManager {
         };
     }
 
-    private async createCacheBackend(): Promise<CacheBackend> {
+    private async createCache(): Promise<Cache> {
         const cacheConfig = this.config.cache;
 
         switch (cacheConfig.type) {
             case 'redis':
-                return this.createRedisBackend(cacheConfig);
+                return this.createRedisStore(cacheConfig);
 
             case 'in-memory':
             default:
-                logger.info('Using in-memory cache backend');
-                return new MemoryBackend();
+                logger.info('Using in-memory cache store');
+                return new MemoryCacheStore();
         }
     }
 
-    private async createDatabaseBackend(): Promise<DatabaseBackend> {
+    private async createDatabase(): Promise<Database> {
         const dbConfig = this.config.database;
 
         switch (dbConfig.type) {
             case 'postgres':
-                return this.createPostgresBackend(dbConfig);
+                return this.createPostgresStore(dbConfig);
 
             case 'sqlite':
-                return this.createSQLiteBackend(dbConfig);
+                return this.createSQLiteStore(dbConfig);
 
             case 'in-memory':
             default:
-                logger.info('Using in-memory database backend');
-                return new MemoryBackend();
+                logger.info('Using in-memory database store');
+                return new MemoryDatabaseStore();
         }
     }
 
-    private async createRedisBackend(config: RedisBackendConfig): Promise<CacheBackend> {
+    private async createRedisStore(config: RedisBackendConfig): Promise<Cache> {
         try {
-            if (!RedisBackend) {
-                const module = await import('./backend/redis-backend.js');
-                RedisBackend = module.RedisBackend;
+            if (!RedisStore) {
+                const module = await import('./cache/redis-store.js');
+                RedisStore = module.RedisStore;
             }
             logger.info(`Connecting to Redis at ${config.host}:${config.port}`);
-            return new RedisBackend(config);
+            return new RedisStore(config);
         } catch (error) {
             logger.warn(`Redis not available, falling back to in-memory cache: ${error}`);
-            return new MemoryBackend();
+            return new MemoryCacheStore();
         }
     }
 
-    private async createPostgresBackend(config: PostgresBackendConfig): Promise<DatabaseBackend> {
+    private async createPostgresStore(config: PostgresBackendConfig): Promise<Database> {
         try {
-            if (!PostgresBackend) {
-                const module = await import('./backend/postgres-backend.js');
-                PostgresBackend = module.PostgresBackend;
+            if (!PostgresStore) {
+                const module = await import('./database/postgres-store.js');
+                PostgresStore = module.PostgresStore;
             }
             logger.info('Connecting to PostgreSQL database');
-            return new PostgresBackend(config);
+            return new PostgresStore(config);
         } catch (error) {
             logger.warn(`PostgreSQL not available, falling back to in-memory database: ${error}`);
-            return new MemoryBackend();
+            return new MemoryDatabaseStore();
         }
     }
 
-    private async createSQLiteBackend(config: SqliteBackendConfig): Promise<DatabaseBackend> {
+    private async createSQLiteStore(config: SqliteBackendConfig): Promise<Database> {
         try {
-            if (!SQLiteBackend) {
-                const module = await import('./backend/sqlite-backend.js');
-                SQLiteBackend = module.SQLiteBackend;
+            if (!SQLiteStore) {
+                const module = await import('./database/sqlite-store.js');
+                SQLiteStore = module.SQLiteStore;
             }
             logger.info(`Using SQLite database at ${config.path}`);
-            return new SQLiteBackend(config);
+            return new SQLiteStore(config);
         } catch (error) {
             logger.error(
-                `SQLite backend failed to load: ${error instanceof Error ? error.message : String(error)}`
+                `SQLite store failed to load: ${error instanceof Error ? error.message : String(error)}`
             );
             logger.error(`Full error details: ${JSON.stringify(error)}`);
-            logger.warn('Falling back to in-memory database backend');
-            return new MemoryBackend();
+            logger.warn('Falling back to in-memory database store');
+            return new MemoryDatabaseStore();
         }
     }
 
@@ -169,11 +172,11 @@ export class StorageManager {
     }> {
         return {
             cache: {
-                type: this.cache?.getBackendType() || 'none',
+                type: this.cache?.getStoreType() || 'none',
                 connected: this.cache?.isConnected() || false,
             },
             database: {
-                type: this.database?.getBackendType() || 'none',
+                type: this.database?.getStoreType() || 'none',
                 connected: this.database?.isConnected() || false,
             },
             connected: this.connected,
