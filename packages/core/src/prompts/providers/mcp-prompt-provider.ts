@@ -12,7 +12,7 @@ import { logger } from '../../logger/index.js';
 /**
  * MCP Prompt Provider - Provides prompts from connected MCP servers
  *
- * This provider acts as a bridge between the PromptsManager and MCPManager,
+ * This provider acts as a bridge between the PromptManager and MCPManager,
  * exposing prompts from all connected MCP servers through a unified interface.
  * It implements the MCP specification for prompt discovery and retrieval.
  */

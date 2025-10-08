@@ -22,9 +22,7 @@ interface PromptCacheEntry {
     info: PromptInfo;
 }
 
-// TODO: (355) Nit: rename to PromptManager for consistency with other services + add docstring
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413083171
-export class PromptsManager {
+export class PromptManager {
     private providers: Map<string, PromptProvider> = new Map();
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
@@ -45,11 +43,11 @@ export class PromptsManager {
         this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
 
         logger.debug(
-            `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
+            `PromptManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
 
         const refresh = async (reason: string) => {
-            logger.debug(`PromptsManager refreshing due to: ${reason}`);
+            logger.debug(`PromptManager refreshing due to: ${reason}`);
             await this.refresh();
         };
 
@@ -76,7 +74,7 @@ export class PromptsManager {
 
     async initialize(): Promise<void> {
         await this.ensureCache();
-        logger.debug('PromptsManager initialization complete');
+        logger.debug('PromptManager initialization complete');
     }
 
     async list(): Promise<PromptSet> {
@@ -159,7 +157,7 @@ export class PromptsManager {
             provider.invalidateCache();
         }
         await this.ensureCache();
-        logger.info('PromptsManager refreshed');
+        logger.info('PromptManager refreshed');
     }
 
     /**

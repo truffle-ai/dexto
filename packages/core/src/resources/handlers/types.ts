@@ -1,6 +1,7 @@
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 
+// TODO: (355) Should be derived from schemas file in this folder. Similar for other types in this file below.
 export interface FileSystemResourceConfig {
     type: 'filesystem';
     paths: string[];

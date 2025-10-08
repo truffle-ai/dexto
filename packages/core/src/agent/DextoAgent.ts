@@ -4,7 +4,7 @@ import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
-import { PromptsManager } from '../prompts/index.js';
+import { PromptManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -119,7 +119,7 @@ export class DextoAgent {
     public readonly mcpManager!: MCPManager;
     public readonly systemPromptManager!: SystemPromptManager;
     public readonly agentEventBus!: AgentEventBus;
-    public readonly promptsManager!: PromptsManager;
+    public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
@@ -199,7 +199,7 @@ export class DextoAgent {
             this.searchService = services.searchService;
 
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
-            const promptsManager = new PromptsManager(
+            const promptManager = new PromptManager(
                 this.mcpManager,
                 this.resourceManager,
                 this.config,
@@ -207,8 +207,8 @@ export class DextoAgent {
                 services.storage.database,
                 'prompts'
             );
-            await promptsManager.initialize();
-            Object.assign(this, { promptsManager });
+            await promptManager.initialize();
+            Object.assign(this, { promptManager });
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -1200,7 +1200,7 @@ export class DextoAgent {
      */
     public async listPrompts(): Promise<import('../prompts/index.js').PromptSet> {
         this.ensureStarted();
-        return await this.promptsManager.list();
+        return await this.promptManager.list();
     }
 
     /**
@@ -1212,7 +1212,7 @@ export class DextoAgent {
         name: string
     ): Promise<import('../prompts/index.js').PromptDefinition | null> {
         this.ensureStarted();
-        return await this.promptsManager.getPromptDefinition(name);
+        return await this.promptManager.getPromptDefinition(name);
     }
 
     /**
@@ -1224,7 +1224,7 @@ export class DextoAgent {
         input: import('../prompts/index.js').CreateCustomPromptInput
     ): Promise<import('../prompts/index.js').PromptInfo> {
         this.ensureStarted();
-        return await this.promptsManager.createCustomPrompt(input);
+        return await this.promptManager.createCustomPrompt(input);
     }
 
     /**
@@ -1233,7 +1233,7 @@ export class DextoAgent {
      */
     public async deleteCustomPrompt(name: string): Promise<void> {
         this.ensureStarted();
-        return await this.promptsManager.deleteCustomPrompt(name);
+        return await this.promptManager.deleteCustomPrompt(name);
     }
 
     /**
@@ -1268,14 +1268,14 @@ export class DextoAgent {
         if (options.q?.trim()) args._context = options.q.trim();
         else if (options.context?.trim()) args._context = options.context.trim();
 
-        // Resolve provided name to a valid prompt key using promptsManager
-        const resolvedName = (await this.promptsManager.resolvePromptKey(name)) ?? name;
+        // Resolve provided name to a valid prompt key using promptManager
+        const resolvedName = (await this.promptManager.resolvePromptKey(name)) ?? name;
 
         // Normalize args (converts to strings, extracts context)
         const normalized = normalizePromptArgs(args);
 
         // Get and flatten the prompt result
-        const promptResult = await this.promptsManager.getPrompt(resolvedName, normalized.args);
+        const promptResult = await this.promptManager.getPrompt(resolvedName, normalized.args);
         const flattened = flattenPromptResult(promptResult);
 
         // Append context to the text
