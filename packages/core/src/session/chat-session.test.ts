@@ -136,6 +136,14 @@ describe('ChatSession', () => {
                 off: vi.fn(),
             },
             storage: mockStorageManager,
+            resourceManager: {
+                getBlobService: vi.fn(),
+                readResource: vi.fn(),
+                listResources: vi.fn(),
+            },
+            toolManager: {
+                getAllTools: vi.fn().mockReturnValue([]),
+            },
         };
 
         // Set up factory mocks
@@ -248,7 +256,8 @@ describe('ChatSession', () => {
                 mockServices.systemPromptManager,
                 mockHistoryProvider,
                 chatSession.eventBus,
-                sessionId
+                sessionId,
+                mockServices.resourceManager
             );
         });
 
@@ -272,7 +281,8 @@ describe('ChatSession', () => {
                 mockServices.systemPromptManager,
                 mockHistoryProvider,
                 chatSession.eventBus,
-                sessionId
+                sessionId,
+                mockServices.resourceManager
             );
         });
 

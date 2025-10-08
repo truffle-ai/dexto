@@ -30,7 +30,7 @@ export type InternalResourceServices = {
 
 export interface InternalResourceHandler {
     getType(): string;
-    initialize(config: InternalResourceConfig, services: InternalResourceServices): Promise<void>;
+    initialize(services: InternalResourceServices): Promise<void>;
     listResources(): Promise<ResourceMetadata[]>;
     readResource(uri: string): Promise<ReadResourceResult>;
     canHandle(uri: string): boolean;
@@ -82,11 +82,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         return 'filesystem';
     }
 
-    async initialize(
-        _config: InternalResourceConfig,
-        _services: InternalResourceServices
-    ): Promise<void> {
-        // Config is now set in constructor, just do async initialization
+    async initialize(_services: InternalResourceServices): Promise<void> {
+        // Config is set in constructor, just do async initialization
         this.canonicalRoots = [];
         for (const configPath of this.config.paths) {
             try {
@@ -500,11 +497,8 @@ export class BlobResourceHandler implements InternalResourceHandler {
         return 'blob';
     }
 
-    async initialize(
-        _config: InternalResourceConfig,
-        _services: InternalResourceServices
-    ): Promise<void> {
-        // Config and blobService are now set in constructor
+    async initialize(_services: InternalResourceServices): Promise<void> {
+        // Config and blobService are set in constructor
         logger.debug('BlobResourceHandler initialized with BlobService');
     }
 

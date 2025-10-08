@@ -33,7 +33,7 @@ export class InternalResourcesProvider implements ResourceProvider {
             try {
                 const parsedConfig = InternalResourceConfigSchema.parse(resourceConfig);
                 const handler = createInternalResourceHandler(parsedConfig, this.services);
-                await handler.initialize(parsedConfig, this.services);
+                await handler.initialize(this.services);
                 this.handlers.set(resourceConfig.type, handler);
                 logger.debug(`Initialized ${resourceConfig.type} resource handler`);
             } catch (error) {
@@ -112,7 +112,7 @@ export class InternalResourcesProvider implements ResourceProvider {
         try {
             const parsedConfig = InternalResourceConfigSchema.parse(config);
             const handler = createInternalResourceHandler(parsedConfig, this.services);
-            await handler.initialize(parsedConfig, this.services);
+            await handler.initialize(this.services);
             this.handlers.set(config.type, handler);
             this.config.resources.push(parsedConfig);
             logger.info(`Added new ${config.type} resource handler`);
