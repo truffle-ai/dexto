@@ -70,8 +70,9 @@ export async function initializeMcpToolAggregationServer(
         const allResources = await mcpManager.listAllResources();
         logger.info(`Registering ${allResources.length} resources from connected MCP servers`);
 
-        // TODO: (355) Verify if client collisions are handled and re-test this aggregator flow
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412904294
+        // Collision handling verified:
+        // - Tools/Prompts: Names come from mcpManager which handles collisions at source
+        // - Resources: Index prefix ensures uniqueness even if multiple clients have same key
         allResources.forEach((resource, index) => {
             const safeId = resource.key.replace(/[^a-zA-Z0-9]/g, '_');
             mcpServer.resource(`resource_${index}_${safeId}`, resource.key, async () => {

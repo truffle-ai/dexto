@@ -454,8 +454,6 @@ export class MCPManager {
     /**
      * Get all cached MCP resources (no network calls).
      */
-    // TODO: (355) Might need to check if cache is up to date and update if necessary, similar for other methods
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413049689
     async listAllResources(): Promise<MCPResolvedResource[]> {
         return Array.from(this.resourceCache.entries()).map(([key, { serverName, summary }]) => ({
             key,

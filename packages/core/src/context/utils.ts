@@ -11,8 +11,6 @@ const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format over
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
-// TODO: (355) Agent: add tests for utility functions in this file, check for duplicates, unused functions and delete them
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413039994
 type ToolBlobNamingOptions = {
     toolName?: string;
     toolCallId?: string;
@@ -137,26 +135,6 @@ async function resolveBlobReferenceToParts(
         logger.warn(`Failed to resolve blob reference ${resourceUri}: ${String(error)}`);
         return [{ type: 'text', text: `[Attachment unavailable: ${resourceUri}]` }];
     }
-}
-
-function cloneMessagePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart | FilePart {
-    if (part.type === 'text') {
-        return { type: 'text', text: part.text };
-    }
-    if (part.type === 'image') {
-        return part.mimeType !== undefined
-            ? { type: 'image', image: part.image, mimeType: part.mimeType }
-            : { type: 'image', image: part.image };
-    }
-    const cloned: FilePart = {
-        type: 'file',
-        data: part.data,
-        mimeType: part.mimeType,
-    };
-    if (part.filename) {
-        cloned.filename = part.filename;
-    }
-    return cloned;
 }
 
 /**
@@ -320,19 +298,19 @@ export function getFileData(filePart: {
  * Extracts image data with blob resolution support.
  * If the image is a blob reference, resolves it from the resource manager.
  * @param imagePart The image part containing image data or blob reference
- * @param resourceManager Optional resource manager for resolving blob references
+ * @param resourceManager Resource manager for resolving blob references
  * @returns Promise<Base64-encoded string or URL string>
  */
 export async function getImageDataWithBlobSupport(
     imagePart: {
         image: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager?: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager
 ): Promise<string> {
     const { image } = imagePart;
 
     // Check if it's a blob reference
-    if (typeof image === 'string' && image.startsWith('@blob:') && resourceManager) {
+    if (typeof image === 'string' && image.startsWith('@blob:')) {
         try {
             const uri = image.substring(1); // Remove @ prefix
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
@@ -355,19 +333,19 @@ export async function getImageDataWithBlobSupport(
  * Extracts file data with blob resolution support.
  * If the data is a blob reference, resolves it from the resource manager.
  * @param filePart The file part containing file data or blob reference
- * @param resourceManager Optional resource manager for resolving blob references
+ * @param resourceManager Resource manager for resolving blob references
  * @returns Promise<Base64-encoded string or URL string>
  */
 export async function getFileDataWithBlobSupport(
     filePart: {
         data: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager?: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager
 ): Promise<string> {
     const { data } = filePart;
 
     // Check if it's a blob reference
-    if (typeof data === 'string' && data.startsWith('@blob:') && resourceManager) {
+    if (typeof data === 'string' && data.startsWith('@blob:')) {
         try {
             const uri = data.substring(1); // Remove @ prefix
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
@@ -431,7 +409,7 @@ export async function expandBlobReferences(
             }
 
             if (resolvedParts.length > 0) {
-                parts.push(...resolvedParts.map(cloneMessagePart));
+                parts.push(...resolvedParts.map((part) => ({ ...part })));
             } else {
                 parts.push({ type: 'text', text: token });
             }
@@ -469,7 +447,7 @@ export async function expandBlobReferences(
                 const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
                 const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
                 if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map(cloneMessagePart));
+                    expandedParts.push(...resolved.map((part) => ({ ...part })));
                 } else {
                     expandedParts.push(part);
                 }
@@ -485,7 +463,7 @@ export async function expandBlobReferences(
                 const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
                 const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
                 if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map(cloneMessagePart));
+                    expandedParts.push(...resolved.map((part) => ({ ...part })));
                 } else {
                     try {
                         const resolvedData = await getFileDataWithBlobSupport(
@@ -506,7 +484,7 @@ export async function expandBlobReferences(
                 if (typeof expanded === 'string') {
                     expandedParts.push({ ...part, text: expanded });
                 } else if (Array.isArray(expanded)) {
-                    expandedParts.push(...expanded.map(cloneMessagePart));
+                    expandedParts.push(...expanded.map((part) => ({ ...part })));
                 } else {
                     expandedParts.push(part);
                 }

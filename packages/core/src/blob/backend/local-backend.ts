@@ -35,8 +35,6 @@ interface ResolvedLocalBlobConfig {
  * and metadata tracking. This is the default backend for development
  * and single-machine deployments.
  */
-// TODO: (355) For agent: review this implementation for local filesystem
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412986667
 export class LocalBlobBackend implements BlobBackend {
     private config: ResolvedLocalBlobConfig;
     private storePath: string;
@@ -340,6 +338,10 @@ export class LocalBlobBackend implements BlobBackend {
             backendType: 'local',
             storePath: this.storePath,
         };
+    }
+
+    getStoragePath(): string | undefined {
+        return this.storePath;
     }
 
     async listBlobs(): Promise<import('../types.js').BlobReference[]> {

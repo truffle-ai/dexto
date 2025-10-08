@@ -13,9 +13,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     private visitedPaths: Set<string> = new Set();
     private fileCount: number = 0;
     private canonicalRoots: string[] = [];
+    private blobStoragePath: string | undefined;
 
-    constructor(config: ValidatedFileSystemResourceConfig) {
+    constructor(config: ValidatedFileSystemResourceConfig, blobStoragePath?: string) {
         this.config = config;
+        this.blobStoragePath = blobStoragePath;
     }
 
     getType(): string {
@@ -63,15 +65,17 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
      * from filesystem resource scanning to avoid conflicts with BlobResourceHandler
      */
     private isBlobStorageDirectory(canonicalPath: string): boolean {
-        const normalizedPath = path.normalize(canonicalPath).replace(/\\/g, '/');
+        if (!this.blobStoragePath) {
+            return false;
+        }
 
-        // Common blob storage directory patterns
-        // TODO: (355) This blobPatterns paradigm is very fragile and will need to be improved. Will check later
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413247321
-        const blobPatterns = ['/.dexto/blobs', '/.dexto/data/blobs', '/blobs', '/data/blobs'];
+        // Check if this path is under the actual blob storage directory
+        const normalizedPath = path.normalize(canonicalPath);
+        const normalizedBlobPath = path.normalize(this.blobStoragePath);
 
-        return blobPatterns.some(
-            (pattern) => normalizedPath.endsWith(pattern) || normalizedPath.includes(pattern + '/')
+        return (
+            normalizedPath === normalizedBlobPath ||
+            normalizedPath.startsWith(normalizedBlobPath + path.sep)
         );
     }
 

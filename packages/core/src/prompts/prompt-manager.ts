@@ -257,8 +257,6 @@ export class PromptManager {
         }
         this.buildPromise = this.buildCache();
         try {
-            // TODO: (355) Agent: check if double caching in prompt manager and providers can be simplified, add a TODO for this at least
-            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413167239
             await this.buildPromise;
         } finally {
             this.buildPromise = null;

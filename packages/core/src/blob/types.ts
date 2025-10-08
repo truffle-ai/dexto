@@ -111,6 +111,13 @@ export interface BlobBackend {
     listBlobs?(): Promise<BlobReference[]>;
 
     /**
+     * Get the local filesystem storage path for this backend, if applicable
+     * Used to prevent conflicts with filesystem resource scanning
+     * Returns undefined for remote backends (S3, Azure, etc.) that don't use local storage
+     */
+    getStoragePath(): string | undefined;
+
+    /**
      * Backend lifecycle management
      */
     connect(): Promise<void>;

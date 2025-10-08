@@ -13,7 +13,9 @@ export function createInternalResourceHandler(
 ): InternalResourceHandler {
     const type = config.type;
     if (type === 'filesystem') {
-        return new FileSystemResourceHandler(config);
+        // Pass blob storage path to filesystem handler to avoid scanning blob directories
+        const blobStoragePath = services.blobService?.getBackend().getStoragePath();
+        return new FileSystemResourceHandler(config, blobStoragePath);
     }
     if (type === 'blob') {
         if (!services.blobService) {
