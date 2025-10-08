@@ -9,6 +9,7 @@ import {
 } from './internal-registry.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
 import { InternalResourceConfigSchema } from './schemas.js';
+import { ResourceError } from './errors.js';
 
 export class InternalResourcesProvider implements ResourceProvider {
     private config: ValidatedInternalResourcesConfig;
@@ -87,9 +88,7 @@ export class InternalResourcesProvider implements ResourceProvider {
                 }
             }
         }
-        // TODO: (355) Throw a typed error instead
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413187597
-        throw new Error(`No handler found for resource: ${uri}`);
+        throw ResourceError.noSuitableProvider(uri);
     }
 
     async refresh(): Promise<void> {
@@ -127,17 +126,6 @@ export class InternalResourcesProvider implements ResourceProvider {
 
     async removeResourceHandler(type: string): Promise<void> {
         if (this.handlers.has(type)) {
-            const handler = this.handlers.get(type);
-            // TODO: (355) None of the handlers' support this and it's not mentioned in the interface either. Can delete this try catch block entirely
-            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413253688
-            try {
-                // Optional cleanup if supported by handler
-                if (handler && typeof (handler as any).dispose === 'function') {
-                    await (handler as any).dispose();
-                }
-            } catch (error) {
-                logger.error(`Cleanup failed for ${type} resource handler`, error);
-            }
             this.handlers.delete(type);
             this.config.resources = this.config.resources.filter((r) => r.type !== type);
             logger.info(`Removed ${type} resource handler`);

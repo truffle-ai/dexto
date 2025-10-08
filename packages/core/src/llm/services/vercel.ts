@@ -13,7 +13,6 @@ import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
 import {
-    sanitizeToolResultToContent,
     sanitizeToolResultToContentWithBlobs,
     summarizeToolContentForText,
 } from '../../context/utils.js';

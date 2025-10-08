@@ -663,7 +663,7 @@ export class MCPManager {
     private setupClientNotifications(clientName: string, client: IMCPClient): void {
         try {
             // Listen for resource updates
-            client.on('resourceUpdated', async (params: { uri: string; title?: string }) => {
+            client.on('resourceUpdated', async (params: { uri: string }) => {
                 logger.debug(
                     `Received resource update notification from ${clientName}: ${params.uri}`
                 );
@@ -687,7 +687,7 @@ export class MCPManager {
      */
     private async handleResourceUpdated(
         serverName: string,
-        params: { uri: string; title?: string }
+        params: { uri: string }
     ): Promise<void> {
         try {
             // Update the resource cache for this specific resource
@@ -715,14 +715,10 @@ export class MCPManager {
             }
 
             // Emit event to notify other parts of the system
-            const eventData: { serverName: string; resourceUri: string; title?: string } = {
+            eventBus.emit('dexto:mcpResourceUpdated', {
                 serverName,
                 resourceUri: params.uri,
-            };
-            if (params.title) {
-                eventData.title = params.title;
-            }
-            eventBus.emit('dexto:mcpResourceUpdated', eventData);
+            });
         } catch (error) {
             logger.error(`Error handling resource update: ${error}`);
         }

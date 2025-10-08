@@ -210,7 +210,6 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                     data: {
                         serverName: payload.serverName,
                         resourceUri: payload.resourceUri,
-                        title: payload.title,
                     },
                 });
             },

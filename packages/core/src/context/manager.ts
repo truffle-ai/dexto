@@ -9,7 +9,6 @@ import { logger } from '../logger/index.js';
 import { eventBus } from '../events/index.js';
 import {
     countMessagesTokens,
-    sanitizeToolResultToContent,
     sanitizeToolResultToContentWithBlobs,
     expandBlobReferences,
 } from './utils.js';

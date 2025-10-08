@@ -220,7 +220,6 @@ export interface AgentEventMap {
     'dexto:mcpResourceUpdated': {
         serverName: string;
         resourceUri: string;
-        title?: string;
     };
 
     /** Fired when MCP server prompts list changes */
