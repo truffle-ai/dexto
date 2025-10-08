@@ -40,7 +40,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     const [envPairs, setEnvPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [persistToAgent, setPersistToAgent] = useState(true);
+    const [persistToAgent, setPersistToAgent] = useState(false);
 
     // Helper function to convert header pairs to record
     const headersToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {

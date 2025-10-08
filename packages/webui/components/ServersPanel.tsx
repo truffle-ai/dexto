@@ -26,16 +26,35 @@ interface ServersPanelProps {
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
 
-function buildConfigFromRegistryEntry(entry: ServerRegistryEntry) {
-  return {
-    type: entry.config.type,
-    command: entry.config.command,
-    args: entry.config.args || [],
-    url: entry.config.url,
-    env: entry.config.env || {},
-    headers: entry.config.headers || {},
-    timeout: entry.config.timeout || 30000,
-  };
+function buildConfigFromRegistryEntry(entry: ServerRegistryEntry): McpServerConfig {
+  const baseTimeout = entry.config.timeout || 30000;
+
+  if (entry.config.type === 'stdio') {
+    return {
+      type: 'stdio',
+      command: entry.config.command || '',
+      args: entry.config.args || [],
+      env: entry.config.env || {},
+      timeout: baseTimeout,
+      connectionMode: 'lenient' as const,
+    };
+  } else if (entry.config.type === 'sse') {
+    return {
+      type: 'sse',
+      url: entry.config.url || '',
+      headers: entry.config.headers || {},
+      timeout: baseTimeout,
+      connectionMode: 'lenient' as const,
+    };
+  } else {
+    return {
+      type: 'http',
+      url: entry.config.url || '',
+      headers: entry.config.headers || {},
+      timeout: baseTimeout,
+      connectionMode: 'lenient' as const,
+    };
+  }
 }
 
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
@@ -99,26 +118,51 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     // Close the registry modal first
     setIsRegistryModalOpen(false);
 
-    // If parent supports prefilled connect modal, use it instead of immediate connect
-    if (typeof onOpenConnectWithPrefill === 'function') {
-      const config = buildConfigFromRegistryEntry(entry);
-      onOpenConnectWithPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
+    const config = buildConfigFromRegistryEntry(entry);
+
+    // Check if additional input is needed
+    // Only show modal if env vars or headers exist AND have empty/placeholder values
+    const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
+      return Object.values(obj).some(val => {
+        if (!val || val.trim() === '') return true;
+        // Check for common placeholder patterns
+        const placeholder = val.toLowerCase();
+        return placeholder.includes('your-') || placeholder.includes('placeholder') ||
+               placeholder.includes('enter-') || placeholder.includes('xxx') ||
+               placeholder.includes('...') || placeholder.includes('api_key') ||
+               placeholder.includes('api-key') || placeholder.includes('secret') ||
+               placeholder.includes('token') || placeholder.includes('password');
+      });
+    };
+
+    const needsEnvInput = config.type === 'stdio' &&
+                          Object.keys(config.env || {}).length > 0 &&
+                          hasEmptyOrPlaceholderValue(config.env || {});
+    const needsHeaderInput = (config.type === 'sse' || config.type === 'http') &&
+                             Object.keys(config.headers || {}).length > 0 &&
+                             hasEmptyOrPlaceholderValue(config.headers || {});
+
+    // If additional input is needed, show the modal
+    if (needsEnvInput || needsHeaderInput) {
+      if (typeof onOpenConnectWithPrefill === 'function') {
+        onOpenConnectWithPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
+      }
       return;
     }
 
-    // Fallback: connect immediately via API
+    // Otherwise, connect directly
     try {
       const res = await fetch('/api/connect-server', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: entry.name, config: buildConfigFromRegistryEntry(entry) }),
+        body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
       });
       const result = await res.json();
       if (!res.ok) {
         throw new Error(result.error || `Server returned status ${res.status}`);
       }
       await fetchServers();
-      
+
       // Sync registry after installation
       try {
         await serverRegistry.syncWithServerStatus();

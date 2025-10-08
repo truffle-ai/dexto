@@ -315,19 +315,101 @@ export default function ChatApp() {
   }, [switchSession]);
 
   const handleInstallServer = useCallback(async (entry: any) => {
-    // Open Connect modal with prefilled config
-    const config = {
-      type: entry.config.type,
-      command: entry.config.command,
-      args: entry.config.args || [],
-      url: entry.config.url,
-      env: entry.config.env || {},
-      headers: entry.config.headers || {},
-      timeout: entry.config.timeout || 30000,
+    // Build type-specific config
+    const buildConfig = (): McpServerConfig => {
+      const baseTimeout = entry.config.timeout || 30000;
+
+      if (entry.config.type === 'stdio') {
+        return {
+          type: 'stdio',
+          command: entry.config.command || '',
+          args: entry.config.args || [],
+          env: entry.config.env || {},
+          timeout: baseTimeout,
+          connectionMode: 'lenient' as const,
+        };
+      } else if (entry.config.type === 'sse') {
+        return {
+          type: 'sse',
+          url: entry.config.url || '',
+          headers: entry.config.headers || {},
+          timeout: baseTimeout,
+          connectionMode: 'lenient' as const,
+        };
+      } else {
+        return {
+          type: 'http',
+          url: entry.config.url || '',
+          headers: entry.config.headers || {},
+          timeout: baseTimeout,
+          connectionMode: 'lenient' as const,
+        };
+      }
     };
-    setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
-    setServerRegistryOpen(false);
-    setModalOpen(true);
+
+    const config = buildConfig();
+
+    // Check if additional input is needed
+    // Only show modal if env vars or headers exist AND have empty/placeholder values
+    const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
+      return Object.values(obj).some(val => {
+        if (!val || val.trim() === '') return true;
+        // Check for common placeholder patterns
+        const placeholder = val.toLowerCase();
+        return placeholder.includes('your-') || placeholder.includes('placeholder') ||
+               placeholder.includes('enter-') || placeholder.includes('xxx') ||
+               placeholder.includes('...') || placeholder.includes('api_key') ||
+               placeholder.includes('api-key') || placeholder.includes('secret') ||
+               placeholder.includes('token') || placeholder.includes('password');
+      });
+    };
+
+    const needsEnvInput = config.type === 'stdio' &&
+                          Object.keys(config.env || {}).length > 0 &&
+                          hasEmptyOrPlaceholderValue(config.env || {});
+    const needsHeaderInput = (config.type === 'sse' || config.type === 'http') &&
+                             'headers' in config &&
+                             Object.keys(config.headers || {}).length > 0 &&
+                             hasEmptyOrPlaceholderValue(config.headers || {});
+
+    // If no additional input needed, connect directly
+    if (!needsEnvInput && !needsHeaderInput) {
+      setServerRegistryOpen(false);
+      try {
+        const res = await fetch('/api/connect-server', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.error || `Server returned status ${res.status}`);
+        }
+
+        // Mark registry entry as installed
+        if (entry.id) {
+          try {
+            await serverRegistry.setInstalled(entry.id, true);
+          } catch (e) {
+            console.warn('Failed to mark registry entry installed:', e);
+          }
+        }
+
+        // Trigger refresh and show success
+        setServersRefreshTrigger(prev => prev + 1);
+        setSuccessMessage(`Added ${entry.name}`);
+        setTimeout(() => setSuccessMessage(null), 4000);
+      } catch (error) {
+        console.error('Failed to connect server:', error);
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to connect server');
+        setTimeout(() => setErrorMessage(null), 5000);
+      }
+    } else {
+      // Show modal for additional input
+      setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
+      setServerRegistryOpen(false);
+      setModalOpen(true);
+    }
   }, []);
 
   const handleDeleteConversation = useCallback(async () => {
