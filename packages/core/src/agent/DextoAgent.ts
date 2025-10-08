@@ -1216,6 +1216,30 @@ export class DextoAgent {
     }
 
     /**
+     * Checks if a prompt exists.
+     * @param name The name of the prompt to check
+     * @returns Promise resolving to true if the prompt exists, false otherwise
+     */
+    public async hasPrompt(name: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.promptManager.has(name);
+    }
+
+    /**
+     * Gets a prompt with its messages.
+     * @param name The name of the prompt
+     * @param args Optional arguments to pass to the prompt
+     * @returns Promise resolving to the prompt result with messages
+     */
+    public async getPrompt(
+        name: string,
+        args?: Record<string, unknown>
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').GetPromptResult> {
+        this.ensureStarted();
+        return await this.promptManager.getPrompt(name, args);
+    }
+
+    /**
      * Creates a new custom prompt.
      * @param input The prompt creation input
      * @returns Promise resolving to the created prompt info

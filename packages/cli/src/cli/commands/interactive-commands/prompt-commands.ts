@@ -49,7 +49,7 @@ export const promptCommands: CommandDefinition[] = [
         category: 'Prompt Management',
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
-                const prompts = await agent.promptManager.list();
+                const prompts = await agent.listPrompts();
                 const promptNames = Object.keys(prompts || {});
 
                 if (promptNames.length === 0) {
@@ -179,7 +179,7 @@ export const promptCommands: CommandDefinition[] = [
                 const promptArgs = args.slice(1);
 
                 // Check if prompt exists
-                if (!promptName || !(await agent.promptManager.has(promptName))) {
+                if (!promptName || !(await agent.hasPrompt(promptName))) {
                     console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
                     console.log(chalk.dim('Use /prompts to see available prompts'));
                     return true;
@@ -195,7 +195,7 @@ export const promptCommands: CommandDefinition[] = [
                     console.log(chalk.dim(`Context: ${context}`));
                 }
 
-                const result = await agent.promptManager.getPrompt(promptName!, argMap);
+                const result = await agent.getPrompt(promptName!, argMap);
 
                 const flattened = flattenPromptResult(result);
                 if (flattened.resourceUris.length > 0) {
@@ -264,7 +264,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     );
                 }
 
-                const result = await agent.promptManager.getPrompt(promptInfo.name, argMap);
+                const result = await agent.getPrompt(promptInfo.name, argMap);
 
                 const flattened = flattenPromptResult(result);
                 if (flattened.resourceUris.length > 0) {
@@ -306,7 +306,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
-        const prompts = await agent.promptManager.list();
+        const prompts = await agent.listPrompts();
         return Object.values(prompts).map(createPromptCommand);
     } catch (error) {
         logger.error(
