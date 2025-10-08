@@ -27,6 +27,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             getAllTools: vi.fn(),
             executeTool: vi.fn(),
             getToolClient: vi.fn(),
+            refresh: vi.fn().mockResolvedValue(undefined),
         } as any;
 
         mockConfirmationProvider = {
