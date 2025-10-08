@@ -1,11 +1,5 @@
 import type { MCPManager } from '../../mcp/manager.js';
-import type {
-    PromptProvider,
-    PromptInfo,
-    PromptDefinition,
-    PromptListResult,
-    PromptArgument,
-} from '../types.js';
+import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 

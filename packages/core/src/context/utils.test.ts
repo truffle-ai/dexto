@@ -437,11 +437,7 @@ describe('getImageDataWithBlobSupport', () => {
     test('should fallback to getImageData when blob resolution fails', async () => {
         vi.mocked(mockResourceManager.read).mockRejectedValue(new Error('Not found'));
 
-        const base64Image = 'data:image/png;base64,iVBORw0KGgoAAAA';
-        const result = await getImageDataWithBlobSupport(
-            { image: '@blob:notfound' },
-            mockResourceManager
-        );
+        await getImageDataWithBlobSupport({ image: '@blob:notfound' }, mockResourceManager);
 
         // Should fall back and attempt to process as regular image data
         // This will fail gracefully in getImageData, but the test verifies fallback occurs
@@ -453,10 +449,7 @@ describe('getImageDataWithBlobSupport', () => {
             contents: [{ text: 'not a blob' }],
         } as any);
 
-        const result = await getImageDataWithBlobSupport(
-            { image: '@blob:abc123' },
-            mockResourceManager
-        );
+        await getImageDataWithBlobSupport({ image: '@blob:abc123' }, mockResourceManager);
 
         // Falls back to getImageData
         expect(mockResourceManager.read).toHaveBeenCalled();
@@ -467,10 +460,7 @@ describe('getImageDataWithBlobSupport', () => {
             contents: [{ blob: 12345 }],
         } as any);
 
-        const result = await getImageDataWithBlobSupport(
-            { image: '@blob:abc123' },
-            mockResourceManager
-        );
+        await getImageDataWithBlobSupport({ image: '@blob:abc123' }, mockResourceManager);
 
         expect(mockResourceManager.read).toHaveBeenCalled();
     });
@@ -551,10 +541,7 @@ describe('getFileDataWithBlobSupport', () => {
     test('should fallback when blob resolution fails', async () => {
         vi.mocked(mockResourceManager.read).mockRejectedValue(new Error('Blob not found'));
 
-        const result = await getFileDataWithBlobSupport(
-            { data: '@blob:missing' },
-            mockResourceManager
-        );
+        await getFileDataWithBlobSupport({ data: '@blob:missing' }, mockResourceManager);
 
         expect(mockResourceManager.read).toHaveBeenCalled();
     });
@@ -564,10 +551,7 @@ describe('getFileDataWithBlobSupport', () => {
             contents: [{}],
         } as any);
 
-        const result = await getFileDataWithBlobSupport(
-            { data: '@blob:abc123' },
-            mockResourceManager
-        );
+        await getFileDataWithBlobSupport({ data: '@blob:abc123' }, mockResourceManager);
 
         expect(mockResourceManager.read).toHaveBeenCalled();
     });
@@ -708,7 +692,7 @@ describe('expandBlobReferences', () => {
             contents: [{ blob: 'cachedData', mimeType: 'image/png' }],
         } as any);
 
-        const result = await expandBlobReferences('@blob:abcdef @blob:abcdef', mockResourceManager);
+        await expandBlobReferences('@blob:abcdef @blob:abcdef', mockResourceManager);
 
         // Should only call read once due to caching
         expect(mockResourceManager.read).toHaveBeenCalledTimes(1);

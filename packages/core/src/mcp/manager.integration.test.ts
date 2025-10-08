@@ -331,7 +331,6 @@ describe('MCPManager Integration Tests', () => {
             await manager['updateClientCache']('resources-demo', resourcesClient);
             await manager['updateClientCache']('memory', memoryClient);
 
-            const resourcesBefore = (await manager.listAllResources()).length;
             const toolsBefore = Object.keys(await manager.getAllTools()).length;
 
             // Remove resources-demo

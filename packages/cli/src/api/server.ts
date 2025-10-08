@@ -216,7 +216,7 @@ export async function initializeApi(
     function decodeUriComponent(encoded: string): string {
         try {
             return decodeURIComponent(encoded);
-        } catch (error) {
+        } catch (_error) {
             throw ResourceError.invalidUriFormat(encoded, 'valid URI-encoded resource identifier');
         }
     }
