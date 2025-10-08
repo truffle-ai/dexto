@@ -5,8 +5,8 @@
  * the local filesystem backend.
  */
 
-// TODO: (355) Agent: check this file for dup types that can be derived from schema
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412998359
+import type { ValidatedBlobServiceConfig } from './schemas.js';
+
 /**
  * Input data for blob storage - supports various formats
  */
@@ -70,26 +70,12 @@ export interface BlobStats {
 }
 
 /**
- * Configuration for blob storage backends
+ * Blob service configuration (derived from schema with validation and defaults)
+ *
+ * This type is derived from BlobServiceConfigSchema and represents the validated
+ * configuration after defaults have been applied during agent initialization.
  */
-export interface BlobBackendConfig {
-    maxBlobSize?: number | undefined; // Max size per blob in bytes
-    maxTotalSize?: number | undefined; // Max total storage size in bytes
-    cleanupAfterDays?: number | undefined; // Auto-cleanup blobs older than N days
-}
-
-/**
- * Local filesystem backend configuration
- */
-export interface LocalBlobBackendConfig extends BlobBackendConfig {
-    type: 'local';
-    storePath?: string | undefined; // Custom storage path
-}
-
-/**
- * Blob service configuration (currently only supports local filesystem)
- */
-export type BlobServiceConfig = LocalBlobBackendConfig;
+export type BlobServiceConfig = ValidatedBlobServiceConfig;
 
 /**
  * Backend interface that all blob storage implementations must follow

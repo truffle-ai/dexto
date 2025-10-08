@@ -13,22 +13,21 @@ import type {
     BlobData,
     BlobStats,
     StoredBlobMetadata,
-    LocalBlobBackendConfig,
+    BlobServiceConfig,
 } from '../types.js';
 
 /**
  * Internal configuration with all required properties
+ * (BlobServiceConfig plus resolved storePath)
  */
 interface ResolvedLocalBlobConfig {
     type: 'local';
     maxBlobSize: number;
     maxTotalSize: number;
     cleanupAfterDays: number;
-    storePath: string;
+    storePath: string; // Always resolved (no longer optional)
 }
 
-// TODO: (355) Dup: derive from zod schema
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412964564
 /**
  * Local filesystem blob backend implementation
  *
@@ -46,24 +45,14 @@ export class LocalBlobBackend implements BlobBackend {
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
 
-    // TODO: (355) Avoid defaults here and fallback defaults in constructor, zod would have them so the config already has everything it needs by this point
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412984478
-    private static readonly DEFAULT_CONFIG = {
-        maxBlobSize: 50 * 1024 * 1024, // 50MB
-        maxTotalSize: 1024 * 1024 * 1024, // 1GB
-        cleanupAfterDays: 30,
-    } as const;
-
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobBackendConfig) {
+    constructor(config: BlobServiceConfig) {
+        // Config is already validated with defaults applied via BlobServiceConfigSchema
+        // Only storePath needs fallback since it has no schema default
         const storePath = config.storePath || getDextoPath('data', 'blobs');
         this.config = {
-            type: 'local',
-            maxBlobSize: config.maxBlobSize ?? LocalBlobBackend.DEFAULT_CONFIG.maxBlobSize,
-            maxTotalSize: config.maxTotalSize ?? LocalBlobBackend.DEFAULT_CONFIG.maxTotalSize,
-            cleanupAfterDays:
-                config.cleanupAfterDays ?? LocalBlobBackend.DEFAULT_CONFIG.cleanupAfterDays,
+            ...config,
             storePath,
         };
         this.storePath = storePath;

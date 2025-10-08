@@ -20,10 +20,11 @@ export type {
     BlobReference,
     BlobData,
     BlobStats,
-    BlobBackendConfig,
     BlobServiceConfig,
-    LocalBlobBackendConfig,
 } from './types.js';
+
+// Schema types
+export type { ValidatedBlobServiceConfig } from './schemas.js';
 
 // Error handling
 export { BlobError } from './errors.js';

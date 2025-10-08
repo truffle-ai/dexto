@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-// TODO: (355) Agent: check this file for unused schemas and delete them
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412990031
 /**
  * Base blob backend configuration schema
  */
@@ -42,64 +40,5 @@ export const BlobServiceConfigSchema = BlobBackendConfigSchema.extend({
     .strict()
     .describe('Blob storage backend configuration');
 
-/**
- * Blob metadata schema for validation
- */
-export const BlobMetadataSchema = z
-    .object({
-        mimeType: z.string().optional().describe('MIME type of the blob content'),
-        originalName: z.string().optional().describe('Original filename if available'),
-        createdAt: z.date().optional().describe('Creation timestamp'),
-        source: z.enum(['tool', 'user', 'system']).optional().describe('Source of the blob'),
-        size: z.number().int().nonnegative().optional().describe('Size in bytes'),
-    })
-    .strict()
-    .describe('Metadata associated with a blob');
-
-/**
- * Stored blob metadata schema (complete metadata after storage)
- */
-export const StoredBlobMetadataSchema = z
-    .object({
-        id: z.string().min(1).describe('Unique blob identifier'),
-        mimeType: z.string().describe('Detected or provided MIME type'),
-        originalName: z.string().optional().describe('Original filename if available'),
-        createdAt: z.date().describe('Creation timestamp'),
-        size: z.number().int().nonnegative().describe('Size in bytes'),
-        hash: z.string().describe('Content hash for deduplication'),
-        source: z.enum(['tool', 'user', 'system']).optional().describe('Source of the blob'),
-    })
-    .strict()
-    .describe('Complete metadata for a stored blob');
-
-/**
- * Blob reference schema
- */
-export const BlobReferenceSchema = z
-    .object({
-        id: z.string().min(1).describe('Unique blob identifier'),
-        uri: z.string().describe('Blob URI in blob:id format'),
-        metadata: StoredBlobMetadataSchema.describe('Complete blob metadata'),
-    })
-    .strict()
-    .describe('Reference to a stored blob');
-
-/**
- * Blob statistics schema
- */
-export const BlobStatsSchema = z
-    .object({
-        count: z.number().int().nonnegative().describe('Number of blobs stored'),
-        totalSize: z.number().int().nonnegative().describe('Total size of all blobs in bytes'),
-        backendType: z.string().describe('Type of storage backend'),
-        storePath: z.string().describe('Storage path for local backend'),
-    })
-    .strict()
-    .describe('Storage statistics');
-
 // Type exports for convenience
 export type ValidatedBlobServiceConfig = z.output<typeof BlobServiceConfigSchema>;
-export type ValidatedBlobMetadata = z.output<typeof BlobMetadataSchema>;
-export type ValidatedStoredBlobMetadata = z.output<typeof StoredBlobMetadataSchema>;
-export type ValidatedBlobReference = z.output<typeof BlobReferenceSchema>;
-export type ValidatedBlobStats = z.output<typeof BlobStatsSchema>;
