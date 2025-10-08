@@ -34,7 +34,7 @@ import {
     isRouterSupportedForModel,
 } from '@dexto/core';
 import type { ProviderInfo, LLMProvider } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
+import { getProviderKeyStatus, saveProviderApiKey, getPrimaryApiKeyEnvVar } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
@@ -1300,12 +1300,13 @@ export async function initializeApi(
                 llm: {
                     provider: llm.provider,
                     model: llm.model,
-                    ...(apiKeyRef && { apiKey: apiKeyRef }),
+                    apiKey: apiKeyRef || `$${getPrimaryApiKeyEnvVar(llm.provider as LLMProvider)}`,
                 },
                 systemPrompt,
             };
 
             const yamlContent = yamlStringify(agentConfig);
+            logger.info(`Creating agent config for ${name}:`, { agentConfig, yamlContent });
 
             // Create temporary file
             const tmpDir = os.tmpdir();

@@ -134,6 +134,26 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
     setCreateError(null);
 
     try {
+      // Extract system prompt content from contributors
+      let systemPromptContent = '';
+      if (config.systemPrompt && typeof config.systemPrompt === 'object' && 'contributors' in config.systemPrompt) {
+        const contributors = config.systemPrompt.contributors;
+        if (Array.isArray(contributors)) {
+          // Find the first static contributor with content
+          const staticContributor = contributors.find((c: any) => c.type === 'static' && c.content);
+          if (staticContributor && 'content' in staticContributor && typeof staticContributor.content === 'string') {
+            systemPromptContent = staticContributor.content.trim();
+          }
+        }
+      } else if (typeof config.systemPrompt === 'string') {
+        systemPromptContent = config.systemPrompt.trim();
+      }
+      
+      // Ensure we have a valid system prompt
+      if (!systemPromptContent) {
+        systemPromptContent = 'You are a helpful AI assistant.';
+      }
+
       const response = await fetch('/api/agents/custom/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,7 +170,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
             model: config.llm?.model?.trim(),
             ...(config.llm?.apiKey?.trim() && { apiKey: config.llm.apiKey.trim() }),
           },
-          systemPrompt: config.systemPrompt,
+          systemPrompt: systemPromptContent,
         }),
       });
 
