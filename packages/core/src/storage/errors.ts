@@ -35,6 +35,32 @@ export class StorageError {
     }
 
     /**
+     * Storage manager not initialized
+     */
+    static managerNotInitialized(method: string) {
+        return new DextoRuntimeError(
+            StorageErrorCode.MANAGER_NOT_INITIALIZED,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `StorageManager is not initialized. Call initialize() before ${method}()`,
+            { method, hint: 'Call await manager.initialize() first' }
+        );
+    }
+
+    /**
+     * Storage manager not connected
+     */
+    static managerNotConnected(method: string) {
+        return new DextoRuntimeError(
+            StorageErrorCode.MANAGER_NOT_CONNECTED,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `StorageManager is not connected. Call connect() before ${method}()`,
+            { method, hint: 'Call await manager.connect() after initialize()' }
+        );
+    }
+
+    /**
      * Read operation failed
      */
     static readFailed(operation: string, reason: string, details?: Record<string, unknown>) {

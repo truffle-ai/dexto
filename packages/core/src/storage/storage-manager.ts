@@ -5,6 +5,7 @@ import type { ValidatedStorageConfig } from './schemas.js';
 import { createCache } from './cache/factory.js';
 import { createDatabase } from './database/factory.js';
 import { createBlobStore } from './blob/factory.js';
+import { StorageError } from './errors.js';
 import { logger } from '../logger/index.js';
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
@@ -54,7 +55,7 @@ export class StorageManager {
      */
     async connect(): Promise<void> {
         if (!this.initialized) {
-            throw new Error('StorageManager is not initialized. Call initialize() first.');
+            throw StorageError.managerNotInitialized('connect');
         }
 
         if (this.connected) {
@@ -90,33 +91,33 @@ export class StorageManager {
 
     /**
      * Get the cache store instance.
-     * @throws Error if not connected
+     * @throws {DextoRuntimeError} if not connected
      */
     getCache(): Cache {
         if (!this.connected) {
-            throw new Error('StorageManager is not connected. Call connect() first.');
+            throw StorageError.managerNotConnected('getCache');
         }
         return this.cache;
     }
 
     /**
      * Get the database store instance.
-     * @throws Error if not connected
+     * @throws {DextoRuntimeError} if not connected
      */
     getDatabase(): Database {
         if (!this.connected) {
-            throw new Error('StorageManager is not connected. Call connect() first.');
+            throw StorageError.managerNotConnected('getDatabase');
         }
         return this.database;
     }
 
     /**
      * Get the blob store instance.
-     * @throws Error if not connected
+     * @throws {DextoRuntimeError} if not connected
      */
     getBlobStore(): BlobStore {
         if (!this.connected) {
-            throw new Error('StorageManager is not connected. Call connect() first.');
+            throw StorageError.managerNotConnected('getBlobStore');
         }
         return this.blobStore;
     }
@@ -129,7 +130,7 @@ export class StorageManager {
         connected: boolean;
     }> {
         if (!this.connected) {
-            throw new Error('StorageManager is not connected. Call connect() first.');
+            throw StorageError.managerNotConnected('getInfo');
         }
 
         return {
@@ -157,7 +158,7 @@ export class StorageManager {
         overall: boolean;
     }> {
         if (!this.connected) {
-            throw new Error('StorageManager is not connected. Call connect() first.');
+            throw StorageError.managerNotConnected('healthCheck');
         }
 
         let cacheHealthy = false;
