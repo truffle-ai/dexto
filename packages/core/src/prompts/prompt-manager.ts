@@ -13,7 +13,7 @@ import {
 import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 import type { ResourceManager } from '../resources/manager.js';
-import type { DatabaseBackend } from '../storage/backend/database-backend.js';
+import type { Database } from '../storage/database/database.js';
 
 interface PromptCacheEntry {
     providerName: string;
@@ -33,7 +33,7 @@ export class PromptManager {
         resourceManager: ResourceManager,
         agentConfig: ValidatedAgentConfig,
         private readonly eventBus: AgentEventBus,
-        private readonly database: DatabaseBackend,
+        private readonly database: Database,
         promptsDir?: string
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));

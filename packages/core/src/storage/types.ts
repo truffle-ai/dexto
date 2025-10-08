@@ -2,8 +2,8 @@
  * Re-export simplified storage types
  */
 export type {
-    CacheBackend,
-    DatabaseBackend,
+    Cache,
+    Database,
     StorageBackends,
     BackendConfig,
     StorageConfig,

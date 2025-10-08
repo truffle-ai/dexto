@@ -1,9 +1,9 @@
 /**
  * Dexto Storage Layer
  *
- * A storage system with two backend types:
- * - CacheBackend: Fast, ephemeral storage (Redis, Memory) with TTL support
- * - DatabaseBackend: Persistent, reliable storage (PostgreSQL, SQLite, Memory) with list operations
+ * A storage system with two storage types:
+ * - Cache: Fast, ephemeral storage (Redis, Memory) with TTL support
+ * - Database: Persistent, reliable storage (PostgreSQL, SQLite, Memory) with list operations
  *
  * Usage:
  *
@@ -31,18 +31,19 @@
 // Main storage manager and utilities
 export { StorageManager, createStorageBackends } from './storage-manager.js';
 
-// Backend interfaces
+// Storage interfaces
 export type {
-    CacheBackend,
-    DatabaseBackend,
+    Cache,
+    Database,
     StorageBackends,
     BackendConfig,
     StorageConfig,
     ValidatedStorageConfig,
 } from './backend/types.js';
 
-// Backend implementations - always available
-export { MemoryBackend } from './backend/memory-backend.js';
+// Store implementations - always available
+export { MemoryCacheStore } from './cache/memory-cache-store.js';
+export { MemoryDatabaseStore } from './database/memory-database-store.js';
 
 // Schema constants, types, and schemas for UI consumption
 export { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from './schemas.js';

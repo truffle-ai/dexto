@@ -1,5 +1,5 @@
 import { logger } from '../logger/index.js';
-import type { DatabaseBackend } from '@core/storage/types.js';
+import type { Database } from '@core/storage/types.js';
 import type { InternalMessage } from '../context/types.js';
 import type {
     SearchOptions,
@@ -14,7 +14,7 @@ import type {
  * TODO: remove duplicate stuff related to session manager instead of directly using DB
  */
 export class SearchService {
-    constructor(private database: DatabaseBackend) {}
+    constructor(private database: Database) {}
 
     /**
      * Search for messages across all sessions or within a specific session
@@ -283,7 +283,7 @@ export class SearchService {
      */
     private async getSessionIds(): Promise<string[]> {
         const sessionKeys = await this.database.list('session:');
-        return sessionKeys.map((key) => key.replace('session:', ''));
+        return sessionKeys.map((key: string) => key.replace('session:', ''));
     }
 
     /**

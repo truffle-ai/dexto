@@ -6,7 +6,7 @@ import type {
     PromptArgument,
 } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { DatabaseBackend } from '../../storage/backend/database-backend.js';
+import type { Database } from '../../storage/database/database.js';
 import type { ResourceManager } from '../../resources/manager.js';
 import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';
@@ -48,7 +48,7 @@ export class CustomPromptProvider implements PromptProvider {
     private promptRecords: Map<string, StoredCustomPrompt> = new Map();
 
     constructor(
-        private database: DatabaseBackend,
+        private database: Database,
         private resourceManager: ResourceManager
     ) {}
 
