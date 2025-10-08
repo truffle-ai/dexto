@@ -36,7 +36,7 @@ import {
 import type { ProviderInfo, LLMProvider } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
-import { McpServerConfigSchema } from '@dexto/core';
+import { McpServerConfigSchema, type McpServerConfig } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
 import {
     DextoValidationError,
@@ -221,6 +221,53 @@ export async function initializeApi(
         }
     }
 
+    /**
+     * Helper function to redact sensitive environment variables
+     */
+    function redactEnvValue(value: unknown): string {
+        if (value && typeof value === 'string' && value.length > 0) {
+            return '[REDACTED]';
+        }
+        return String(value ?? '');
+    }
+
+    /**
+     * Helper function to redact environment variables in a server config
+     */
+    function redactServerEnvVars(serverConfig: McpServerConfig): McpServerConfig {
+        if (serverConfig.type !== 'stdio' || !serverConfig.env) {
+            return serverConfig;
+        }
+
+        const redactedEnv: Record<string, string> = {};
+        for (const [key, value] of Object.entries(serverConfig.env)) {
+            redactedEnv[key] = redactEnvValue(value);
+        }
+
+        return {
+            ...serverConfig,
+            env: redactedEnv,
+        };
+    }
+
+    /**
+     * Helper function to redact all MCP servers configuration
+     */
+    function redactMcpServersConfig(
+        mcpServers: Record<string, McpServerConfig> | undefined
+    ): Record<string, McpServerConfig> {
+        if (!mcpServers) {
+            return {};
+        }
+
+        const redactedServers: Record<string, McpServerConfig> = {};
+        for (const [name, serverConfig] of Object.entries(mcpServers)) {
+            redactedServers[name] = redactServerEnvVars(serverConfig);
+        }
+
+        return redactedServers;
+    }
+
     // Health check endpoint
     app.get('/health', (_req, res) => {
         res.status(200).send('OK');
@@ -229,6 +276,7 @@ export async function initializeApi(
     // Prompts listing endpoint (for WebUI slash command autocomplete)
     app.get('/api/prompts', async (_req, res, next) => {
         try {
+            ensureAgentAvailable();
             const prompts = await activeAgent.listPrompts();
             const list = Object.values(prompts);
             return res.status(200).json({ prompts: list });
@@ -266,6 +314,7 @@ export async function initializeApi(
         .strict();
     app.post('/api/prompts/custom', express.json({ limit: '10mb' }), async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const payload = parseBody(CustomPromptRequestSchema, req.body);
             const promptArguments = payload.arguments
                 ?.map((arg) => ({
@@ -310,6 +359,7 @@ export async function initializeApi(
     });
     app.delete('/api/prompts/custom/:name', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { name } = parseQuery(DeleteCustomPromptParamsSchema, req.params);
             await activeAgent.deleteCustomPrompt(name);
             return res.status(204).send();
@@ -324,6 +374,7 @@ export async function initializeApi(
     });
     app.get('/api/prompts/:name', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { name } = parseQuery(GetPromptDefinitionParamsSchema, req.params);
             const definition = await activeAgent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
@@ -335,23 +386,19 @@ export async function initializeApi(
 
     // Resolve a prompt to text content (without sending to the agent)
     // Supports optional args via query string. For natural language after the
-    // slash command, pass as `q` or `_context` (both map to `_context`).
+    // slash command, pass as `context`.
     const ResolvePromptParamsSchema = z.object({
         name: z.string().min(1, 'Prompt name is required'),
     });
     const ResolvePromptQuerySchema = z.object({
-        q: z.string().optional(),
-        _context: z.string().optional(),
+        context: z.string().optional(),
         args: z.string().optional(),
     });
     app.get('/api/prompts/:name/resolve', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { name: inputName } = parseQuery(ResolvePromptParamsSchema, req.params);
-            const {
-                q,
-                _context: ctx,
-                args: argsString,
-            } = parseQuery(ResolvePromptQuerySchema, req.query);
+            const { context, args: argsString } = parseQuery(ResolvePromptQuerySchema, req.query);
 
             // Optional structured args in `args` query param as JSON
             let parsedArgs: Record<string, unknown> | undefined;
@@ -368,12 +415,10 @@ export async function initializeApi(
 
             // Build options object with only defined values (exactOptionalPropertyTypes compatibility)
             const options: {
-                q?: string;
                 context?: string;
                 args?: Record<string, unknown>;
             } = {};
-            if (q !== undefined) options.q = q;
-            if (ctx !== undefined) options.context = ctx;
+            if (context !== undefined) options.context = context;
             if (parsedArgs !== undefined) options.args = parsedArgs;
 
             // Use DextoAgent's resolvePrompt method
@@ -388,6 +433,7 @@ export async function initializeApi(
     // Note: We intentionally omit an "execute" endpoint; clients resolve prompts
     // and then call the regular message endpoint, keeping server surface minimal.
 
+    // Message request schema (shared by /api/message and /api/message-sync)
     const MessageRequestSchema = z
         .object({
             message: z.string().optional(),
@@ -415,6 +461,7 @@ export async function initializeApi(
             },
             { message: 'Must provide either message text, image data, or file data' }
         );
+
     // JSON body size limit for message endpoints supporting base64 image/file payloads
     // Both /api/message and /api/message-sync accept base64 attachments; increased limit to avoid 413s.
     app.post(
@@ -466,6 +513,7 @@ export async function initializeApi(
     });
     app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { sessionId } = parseQuery(CancelRequestSchema, req.params);
             const cancelled = await activeAgent.cancel(sessionId);
             if (!cancelled) {
@@ -632,6 +680,7 @@ export async function initializeApi(
     });
     app.delete('/api/mcp/servers/:serverId', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { serverId } = parseQuery(DeleteMcpServerParamsSchema, req.params);
             logger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
 
@@ -684,6 +733,7 @@ export async function initializeApi(
     // Get all available resources
     app.get('/api/resources', async (_req, res, next) => {
         try {
+            ensureAgentAvailable();
             const resources = await activeAgent.listResources();
             return res.status(200).json({ ok: true, resources: Object.values(resources) });
         } catch (error) {
@@ -700,6 +750,7 @@ export async function initializeApi(
     });
     app.get('/api/resources/:resourceId/content', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { resourceId } = parseQuery(ReadResourceContentParamsSchema, req.params);
             const content = await activeAgent.readResource(resourceId);
             return res.status(200).json({ ok: true, content });
@@ -731,6 +782,7 @@ export async function initializeApi(
     });
     app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { serverId } = parseQuery(ListServerResourcesParamsSchema, req.params);
             const resources = await activeAgent.listResourcesForServer(serverId);
             return sendJsonResponse(res, { success: true, resources }, 200);
@@ -1040,6 +1092,7 @@ export async function initializeApi(
         }
     });
 
+    // Agent name schema (shared by /api/agents/install, /api/agents/switch, /api/agents/validate-name)
     const AgentNameSchema = z.object({ name: z.string().min(1) }).strict();
 
     // Schema for custom agent installation
@@ -1061,8 +1114,10 @@ export async function initializeApi(
         try {
             // Check if this is a custom agent installation (has sourcePath and metadata)
             if (req.body.sourcePath && req.body.metadata) {
-                const { name, sourcePath, metadata, injectPreferences } =
-                    CustomAgentInstallSchema.parse(req.body);
+                const { name, sourcePath, metadata, injectPreferences } = parseBody(
+                    CustomAgentInstallSchema,
+                    req.body
+                );
 
                 // Clean metadata to match exact optional property types
                 const cleanMetadata: {
@@ -1083,7 +1138,7 @@ export async function initializeApi(
                 return sendJsonResponse(res, { installed: true, name, type: 'custom' }, 201);
             } else {
                 // Registry agent installation
-                const { name } = AgentNameSchema.parse(req.body);
+                const { name } = parseBody(AgentNameSchema, req.body);
                 await Dexto.installAgent(name);
                 return sendJsonResponse(res, { installed: true, name, type: 'builtin' }, 201);
             }
@@ -1094,7 +1149,7 @@ export async function initializeApi(
 
     app.post('/api/agents/switch', express.json(), async (req, res, next) => {
         try {
-            const { name } = AgentNameSchema.parse(req.body);
+            const { name } = parseBody(AgentNameSchema, req.body);
             const result = await switchAgentByName(name);
             return sendJsonResponse(res, { switched: true, ...result });
         } catch (error) {
@@ -1111,7 +1166,7 @@ export async function initializeApi(
 
     app.post('/api/agents/validate-name', express.json(), async (req, res, next) => {
         try {
-            const { name } = AgentNameSchema.parse(req.body);
+            const { name } = parseBody(AgentNameSchema, req.body);
             const agents = await Dexto.listAgents();
 
             // Check if name exists in installed agents
@@ -1149,7 +1204,7 @@ export async function initializeApi(
 
     app.post('/api/agents/uninstall', express.json(), async (req, res, next) => {
         try {
-            const { name, force } = UninstallAgentSchema.parse(req.body);
+            const { name, force } = parseBody(UninstallAgentSchema, req.body);
             await Dexto.uninstallAgent(name, force);
             return sendJsonResponse(res, { uninstalled: true, name });
         } catch (error) {
@@ -1199,8 +1254,10 @@ export async function initializeApi(
     // Create a new custom agent from UI
     app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
         try {
-            const { name, description, author, tags, llm, systemPrompt } =
-                CustomAgentCreateSchema.parse(req.body);
+            const { name, description, author, tags, llm, systemPrompt } = parseBody(
+                CustomAgentCreateSchema,
+                req.body
+            );
 
             // Handle API key: if it's a raw key, store securely and use env var reference
             let apiKeyRef: string | undefined;
@@ -1265,57 +1322,13 @@ export async function initializeApi(
     });
 
     // Configuration export endpoint
-    /**
-     * Helper function to redact sensitive environment variables
-     */
-    function redactEnvValue(value: any): any {
-        if (value && typeof value === 'string' && value.length > 0) {
-            return '[REDACTED]';
-        }
-        return value;
-    }
-
-    /**
-     * Helper function to redact environment variables in a server config
-     */
-    function redactServerEnvVars(serverConfig: any): any {
-        if (!serverConfig.env) {
-            return serverConfig;
-        }
-
-        const redactedEnv: Record<string, any> = {};
-        for (const [key, value] of Object.entries(serverConfig.env)) {
-            redactedEnv[key] = redactEnvValue(value);
-        }
-
-        return {
-            ...serverConfig,
-            env: redactedEnv,
-        };
-    }
-
-    /**
-     * Helper function to redact all MCP servers configuration
-     */
-    function redactMcpServersConfig(mcpServers: any): Record<string, any> {
-        if (!mcpServers) {
-            return {};
-        }
-
-        const redactedServers: Record<string, any> = {};
-        for (const [name, serverConfig] of Object.entries(mcpServers)) {
-            redactedServers[name] = redactServerEnvVars(serverConfig);
-        }
-
-        return redactedServers;
-    }
-
     // Get default greeting (for UI consumption)
     const GetGreetingQuerySchema = z.object({
         sessionId: z.string().optional(),
     });
     app.get('/api/greeting', async (req, res, next) => {
         try {
+            ensureAgentAvailable();
             const { sessionId } = parseQuery(GetGreetingQuerySchema, req.query);
             const config = activeAgent.getEffectiveConfig(sessionId);
             res.json({ greeting: config.greeting });
@@ -1536,9 +1549,13 @@ export async function initializeApi(
     });
 
     // Export effective agent configuration (with masked secrets)
+    const ExportConfigQuerySchema = z.object({
+        sessionId: z.string().optional(),
+    });
     app.get('/api/agent/config/export', async (req, res, next) => {
         try {
-            const sessionId = req.query.sessionId as string | undefined;
+            ensureAgentAvailable();
+            const { sessionId } = parseQuery(ExportConfigQuerySchema, req.query);
             const config = activeAgent.getEffectiveConfig(sessionId);
 
             // Export config as YAML, masking sensitive data
@@ -2032,7 +2049,7 @@ export async function initializeApi(
     });
 
     // List all registered webhooks
-    app.get('/api/webhooks', async (req, res, next) => {
+    app.get('/api/webhooks', async (_req, res, next) => {
         try {
             const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
                 id: webhook.id,

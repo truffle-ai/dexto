@@ -1273,7 +1273,6 @@ export class DextoAgent {
     public async resolvePrompt(
         name: string,
         options: {
-            q?: string;
             context?: string;
             args?: Record<string, unknown>;
         } = {}
@@ -1287,8 +1286,7 @@ export class DextoAgent {
 
         // Build args from options
         const args: Record<string, unknown> = { ...options.args };
-        if (options.q?.trim()) args._context = options.q.trim();
-        else if (options.context?.trim()) args._context = options.context.trim();
+        if (options.context?.trim()) args._context = options.context.trim();
 
         // Resolve provided name to a valid prompt key using promptManager
         const resolvedName = (await this.promptManager.resolvePromptKey(name)) ?? name;

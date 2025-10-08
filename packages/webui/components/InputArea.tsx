@@ -255,7 +255,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       if (name) {
         try {
           const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
-          if (originalArgsText) url.searchParams.set('_context', originalArgsText);
+          if (originalArgsText) url.searchParams.set('context', originalArgsText);
 
           // Add timeout to prevent hanging on slow responses
           const controller = new AbortController();
