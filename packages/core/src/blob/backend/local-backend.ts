@@ -13,12 +13,12 @@ import type {
     BlobData,
     BlobStats,
     StoredBlobMetadata,
-    BlobServiceConfig,
 } from '../types.js';
+import type { ValidatedBlobServiceConfig } from '../schemas.js';
 
 /**
  * Internal configuration with all required properties
- * (BlobServiceConfig plus resolved storePath)
+ * (ValidatedBlobServiceConfig plus resolved storePath)
  */
 interface ResolvedLocalBlobConfig {
     type: 'local';
@@ -47,7 +47,7 @@ export class LocalBlobBackend implements BlobBackend {
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: BlobServiceConfig) {
+    constructor(config: ValidatedBlobServiceConfig) {
         // Config is already validated with defaults applied via BlobServiceConfigSchema
         // Only storePath needs fallback since it has no schema default
         const storePath = config.storePath || getDextoPath('data', 'blobs');

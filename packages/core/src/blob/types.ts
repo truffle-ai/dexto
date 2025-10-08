@@ -69,18 +69,6 @@ export interface BlobStats {
     storePath: string;
 }
 
-// TODO: (355) Remove BlobServiceConfig alias - use ValidatedBlobServiceConfig directly everywhere
-// Update imports in blob-service.ts, local-backend.ts, and index.ts to import ValidatedBlobServiceConfig from schemas.ts
-// Then delete this alias completely
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412998359
-/**
- * Blob service configuration (derived from schema with validation and defaults)
- *
- * This type is derived from BlobServiceConfigSchema and represents the validated
- * configuration after defaults have been applied during agent initialization.
- */
-export type BlobServiceConfig = ValidatedBlobServiceConfig;
-
 /**
  * Backend interface that all blob storage implementations must follow
  */

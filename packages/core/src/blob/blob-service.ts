@@ -4,13 +4,13 @@ import { LocalBlobBackend } from './backend/local-backend.js';
 import type {
     BlobService as IBlobService,
     BlobBackend,
-    BlobServiceConfig,
     BlobInput,
     BlobMetadata,
     BlobReference,
     BlobData,
     BlobStats,
 } from './types.js';
+import type { ValidatedBlobServiceConfig } from './schemas.js';
 
 /**
  * Main blob service implementation for local filesystem storage
@@ -26,10 +26,10 @@ import type {
 // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412970941
 export class BlobService implements IBlobService {
     private backend: BlobBackend;
-    private config: BlobServiceConfig;
+    private config: ValidatedBlobServiceConfig;
     private connected = false;
 
-    constructor(config: BlobServiceConfig) {
+    constructor(config: ValidatedBlobServiceConfig) {
         this.config = config;
         this.backend = new LocalBlobBackend(config);
     }
@@ -146,7 +146,7 @@ export class BlobService implements IBlobService {
     /**
      * Get current configuration
      */
-    getConfig(): BlobServiceConfig {
+    getConfig(): ValidatedBlobServiceConfig {
         return { ...this.config };
     }
 
@@ -201,7 +201,7 @@ export class BlobService implements IBlobService {
 /**
  * Factory function to create and initialize a BlobService
  */
-export async function createBlobService(config: BlobServiceConfig): Promise<BlobService> {
+export async function createBlobService(config: ValidatedBlobServiceConfig): Promise<BlobService> {
     const service = new BlobService(config);
     await service.connect();
     return service;

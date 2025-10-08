@@ -20,7 +20,6 @@ export type {
     BlobReference,
     BlobData,
     BlobStats,
-    BlobServiceConfig,
 } from './types.js';
 
 // Schema types
