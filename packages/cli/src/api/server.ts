@@ -522,14 +522,14 @@ export async function initializeApi(
         }
     );
 
+    const ResetRequestSchema = z.object({
+        sessionId: z.string().optional(),
+    });
     app.post('/api/reset', express.json(), async (req, res, next) => {
         logger.info('Received request via POST /api/reset');
         try {
             ensureAgentAvailable();
-            const { sessionId } = parseBody(
-                z.object({ sessionId: z.string().optional() }),
-                req.body
-            );
+            const { sessionId } = parseBody(ResetRequestSchema, req.body);
             await activeAgent.resetConversation(sessionId);
             return res.status(200).send({ status: 'reset initiated', sessionId });
         } catch (error) {
