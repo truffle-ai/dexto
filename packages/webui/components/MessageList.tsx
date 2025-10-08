@@ -2,18 +2,19 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from "@/lib/utils";
-import { 
-    Message, 
-    TextPart, 
-    isToolResultError, 
-    isToolResultContent, 
-    isTextPart, 
-    isImagePart, 
+import {
+    Message,
+    TextPart,
+    isToolResultError,
+    isToolResultContent,
+    isTextPart,
+    isImagePart,
     isAudioPart,
-    isFilePart, 
+    isFilePart,
     ErrorMessage,
-    ToolResult
+    ToolResult,
 } from './hooks/useChat';
+import type { HookNotice } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
     User,
@@ -201,7 +202,6 @@ function getVideoInfo(part: unknown): VideoInfo | null {
   return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 
-
 function ThinkingIndicator() {
   return (
     <div className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground" role="status" aria-live="polite">
@@ -220,6 +220,29 @@ function ThinkingIndicator() {
     </div>
   );
 }
+
+const NOTICE_STYLES: Record<HookNotice['kind'], { container: string; icon: string }> = {
+  block: {
+    container:
+      'border border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-200',
+    icon: 'text-red-500 dark:text-red-300',
+  },
+  warn: {
+    container:
+      'border border-amber-200/80 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200',
+    icon: 'text-amber-500 dark:text-amber-300',
+  },
+  allow: {
+    container:
+      'border border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200',
+    icon: 'text-emerald-500 dark:text-emerald-300',
+  },
+  info: {
+    container:
+      'border border-blue-200/80 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-200',
+    icon: 'text-blue-500 dark:text-blue-300',
+  },
+};
 
 export default function MessageList({ messages, activeError, onDismissError, outerRef }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -743,6 +766,45 @@ export default function MessageList({ messages, activeError, onDismissError, out
                           </span>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {Array.isArray(msg.notices) && msg.notices.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {msg.notices.map((notice, noticeIndex) => {
+                        const style = NOTICE_STYLES[notice.kind] ?? NOTICE_STYLES.info;
+                        const Icon =
+                          notice.kind === 'block'
+                              ? AlertTriangle
+                              : notice.kind === 'warn'
+                              ? AlertTriangle
+                              : notice.kind === 'allow'
+                              ? CheckCircle
+                              : Info;
+                        return (
+                          <div
+                            key={`${msgKey}-notice-${noticeIndex}`}
+                            className={cn(
+                              'flex items-start gap-2 rounded-lg px-3 py-2 text-sm',
+                              style.container
+                            )}
+                          >
+                            <Icon className={cn('h-4 w-4 mt-0.5', style.icon)} />
+                            <div className="flex-1 space-y-1">
+                              <p className="font-medium leading-snug">{notice.message}</p>
+                              {notice.details && (
+                                <pre className="whitespace-pre-wrap break-words text-xs opacity-80">
+                                  {JSON.stringify(notice.details, null, 2)}
+                                </pre>
+                              )}
+                              {notice.code && (
+                                <span className="text-xs uppercase tracking-wide opacity-60">
+                                  Code: {notice.code}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

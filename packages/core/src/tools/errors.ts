@@ -1,6 +1,7 @@
 import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { ToolErrorCode } from './error-codes.js';
+import type { HookNotice } from '../hooks/types.js';
 
 /**
  * Tool error factory with typed methods for creating tool-specific errors
@@ -23,26 +24,45 @@ export class ToolError {
     /**
      * Tool execution failed
      */
-    static executionFailed(toolName: string, reason: string, sessionId?: string) {
+    static executionFailed(
+        toolName: string,
+        reason: string,
+        sessionId?: string,
+        notices?: HookNotice[]
+    ) {
         return new DextoRuntimeError(
             ToolErrorCode.EXECUTION_FAILED,
             ErrorScope.TOOLS,
             ErrorType.SYSTEM,
             `Tool '${toolName}' execution failed: ${reason}`,
-            { toolName, reason, sessionId }
+            {
+                toolName,
+                reason,
+                sessionId,
+                ...(notices && notices.length > 0 ? { notices } : {}),
+            }
         );
     }
 
     /**
      * Tool execution denied by user/policy
      */
-    static executionDenied(toolName: string, sessionId?: string) {
+    static executionDenied(
+        toolName: string,
+        sessionId?: string,
+        reason?: string,
+        notices?: HookNotice[]
+    ) {
         return new DextoRuntimeError(
             ToolErrorCode.EXECUTION_DENIED,
             ErrorScope.TOOLS,
             ErrorType.FORBIDDEN,
-            `Tool '${toolName}' execution was denied by the user`,
-            { toolName, sessionId }
+            reason ?? `Tool '${toolName}' execution was denied by the user`,
+            {
+                toolName,
+                sessionId,
+                ...(notices && notices.length > 0 ? { notices } : {}),
+            }
         );
     }
 

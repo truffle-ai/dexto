@@ -8,6 +8,8 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageBackends } from '../storage/backend/types.js';
+import type { HookManager, BeforeLLMRequestPayload } from '../hooks/index.js';
+import { runBeforeLLMRequest } from '../hooks/index.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -118,6 +120,7 @@ export class ChatSession {
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
+            hookManager?: HookManager;
         },
         public readonly id: string
     ) {
@@ -194,7 +197,8 @@ export class ChatSession {
             this.services.promptManager,
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
-            this.id
+            this.id,
+            this.services.hookManager
         );
 
         logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -234,6 +238,61 @@ export class ChatSession {
         );
 
         // Input validation is now handled at DextoAgent.run() level
+
+        // Run beforeLLMRequest hooks for filtering and policy enforcement
+        if (this.services.hookManager) {
+            const hookPayload: BeforeLLMRequestPayload = {
+                text: input,
+                sessionId: this.id,
+                ...(imageDataInput && { imageData: imageDataInput }),
+                ...(fileDataInput && { fileData: fileDataInput }),
+            };
+
+            const hookResult = await runBeforeLLMRequest(this.services.hookManager, hookPayload);
+
+            if (hookResult.notices && hookResult.notices.length > 0) {
+                hookResult.notices.forEach((notice) => {
+                    const metadata = {
+                        sessionId: this.id,
+                        ...(notice.code && { code: notice.code }),
+                        ...(notice.details && { details: notice.details }),
+                    };
+                    const message = `LLM request hook notice (${notice.kind}) - ${notice.message}`;
+                    if (notice.kind === 'block' || notice.kind === 'warn') {
+                        logger.warn(message, metadata);
+                    } else {
+                        logger.info(message, metadata);
+                    }
+                });
+            }
+
+            if (hookResult.canceled) {
+                const message =
+                    hookResult.responseOverride ||
+                    hookResult.notices?.[0]?.message ||
+                    'Your input was blocked by a policy. Please revise and try again.';
+                logger.info(`Input blocked by hook for session ${this.id}: ${message}`);
+                this.eventBus.emit('llmservice:response', {
+                    content: message,
+                    ...(hookResult.notices && { notices: hookResult.notices }),
+                });
+                return message;
+            }
+
+            // Use modified input from hooks if any
+            input = hookResult.payload.text;
+            if ('imageData' in hookResult.payload) {
+                imageDataInput = hookResult.payload.imageData as
+                    | { image: string; mimeType: string }
+                    | undefined;
+            }
+            if ('fileData' in hookResult.payload) {
+                fileDataInput = hookResult.payload.fileData as
+                    | { data: string; mimeType: string; filename?: string }
+                    | undefined;
+            }
+        }
+
         // Create an AbortController for this run and expose for cancellation
         this.currentRunController = new AbortController();
         const signal = this.currentRunController.signal;
@@ -377,7 +436,8 @@ export class ChatSession {
                 this.services.promptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus, // Use session event bus
-                this.id
+                this.id,
+                this.services.hookManager
             );
 
             // Replace the LLM service

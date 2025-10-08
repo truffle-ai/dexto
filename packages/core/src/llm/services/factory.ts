@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { HookManager } from '../../hooks/index.js';
 
 /**
  * Create an instance of one of our in-built LLM services
@@ -27,6 +28,7 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
  * @param historyProvider History provider for conversation persistence
  * @param sessionEventBus Session-level event bus for emitting LLM events
  * @param sessionId Session ID
+ * @param hookManager Optional hook manager for response hooks
  * @returns ILLMService instance
  */
 function _createInBuiltLLMService(
@@ -35,7 +37,8 @@ function _createInBuiltLLMService(
     promptManager: PromptManager,
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    sessionId: string
+    sessionId: string,
+    hookManager?: HookManager
 ): ILLMService {
     const apiKey = config.apiKey;
 
@@ -50,7 +53,8 @@ function _createInBuiltLLMService(
                 historyProvider,
                 sessionEventBus,
                 config,
-                sessionId
+                sessionId,
+                hookManager
             );
         }
         case 'openai-compatible': {
@@ -64,7 +68,8 @@ function _createInBuiltLLMService(
                 historyProvider,
                 sessionEventBus,
                 config,
-                sessionId
+                sessionId,
+                hookManager
             );
         }
         case 'anthropic': {
@@ -76,7 +81,8 @@ function _createInBuiltLLMService(
                 historyProvider,
                 sessionEventBus,
                 config,
-                sessionId
+                sessionId,
+                hookManager
             );
         }
         default:
@@ -141,7 +147,8 @@ function _createVercelLLMService(
     promptManager: PromptManager,
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    sessionId: string
+    sessionId: string,
+    hookManager?: HookManager
 ): VercelLLMService {
     const model = _createVercelModel(config);
 
@@ -152,7 +159,8 @@ function _createVercelLLMService(
         historyProvider,
         sessionEventBus,
         config,
-        sessionId
+        sessionId,
+        hookManager
     );
 }
 
@@ -166,7 +174,8 @@ export function createLLMService(
     promptManager: PromptManager,
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
-    sessionId: string
+    sessionId: string,
+    hookManager?: HookManager
 ): ILLMService {
     if (router === 'vercel') {
         return _createVercelLLMService(
@@ -175,7 +184,8 @@ export function createLLMService(
             promptManager,
             historyProvider,
             sessionEventBus,
-            sessionId
+            sessionId,
+            hookManager
         );
     } else {
         return _createInBuiltLLMService(
@@ -184,7 +194,8 @@ export function createLLMService(
             promptManager,
             historyProvider,
             sessionEventBus,
-            sessionId
+            sessionId,
+            hookManager
         );
     }
 }

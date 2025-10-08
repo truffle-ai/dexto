@@ -26,6 +26,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { executeResponseHooks } from '../../hooks/index.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -38,6 +40,7 @@ export class VercelLLMService implements ILLMService {
     private contextManager: ContextManager<ModelMessage>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private hookManager?: HookManager;
     private toolSupportCache: Map<string, boolean> = new Map();
     // Map of toolCallId -> queue of raw results to emit with that callId
     private rawResultsByCallId: Map<string, unknown[]> = new Map();
@@ -56,13 +59,17 @@ export class VercelLLMService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        hookManager?: HookManager
     ) {
         this.model = model;
         this.config = config;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
+        if (hookManager) {
+            this.hookManager = hookManager;
+        }
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter();
@@ -100,7 +107,8 @@ export class VercelLLMService implements ILLMService {
                             const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
-                                this.sessionId
+                                this.sessionId,
+                                options.toolCallId
                             );
 
                             // Queue raw, unfiltered result under the specific toolCallId
@@ -349,8 +357,9 @@ export class VercelLLMService implements ILLMService {
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
                 ...(temperature !== undefined && { temperature }),
             });
-            // Emit final response with reasoning and token usage (authoritative)
-            this.sessionEventBus.emit('llmservice:response', {
+
+            // Build response payload
+            const responsePayload: BeforeResponsePayload = {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
                 provider: this.config.provider,
@@ -370,16 +379,35 @@ export class VercelLLMService implements ILLMService {
                         totalTokens: response.totalUsage.totalTokens,
                     }),
                 },
-            });
+                sessionId: this.sessionId,
+            };
 
-            // Persist and update token count
-            await this.contextManager.processLLMResponse(response);
+            // Execute hooks to get redacted/modified version
+            const { modifiedPayload, notices } = await executeResponseHooks(
+                this.hookManager,
+                responsePayload
+            );
+
+            // Persist PROCESSED response to storage (after hooks redaction)
+            // This ensures we don't store sensitive data the LLM might generate
+            const sanitizedResponse = {
+                ...response,
+                text: modifiedPayload.content,
+                ...(Object.prototype.hasOwnProperty.call(modifiedPayload, 'reasoning') && {
+                    reasoningText: modifiedPayload.reasoning,
+                }),
+            };
+            await this.contextManager.processLLMResponse(sanitizedResponse);
+
+            // Emit hook-modified content
+            const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
+            this.sessionEventBus.emit('llmservice:response', eventPayload);
             if (typeof response.totalUsage.totalTokens === 'number') {
                 this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
             }
 
-            // Return the plain text of the response
-            return response.text;
+            // Return the response content (potentially modified by hooks)
+            return modifiedPayload.content;
         } catch (err: unknown) {
             this.mapProviderError(err, 'generate');
         }
@@ -481,6 +509,7 @@ export class VercelLLMService implements ILLMService {
             onChunk: (chunk) => {
                 logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
+                    // TODO: Ensure streaming chunks also respect hook sanitization before emission
                     this.sessionEventBus.emit('llmservice:chunk', {
                         type: 'text',
                         content: chunk.chunk.text,
@@ -563,8 +592,6 @@ export class VercelLLMService implements ILLMService {
             response.reasoningText,
         ]);
 
-        response.totalUsage;
-
         // If streaming reported an error, return early since we already emitted llmservice:error event
         if (streamErr) {
             // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
@@ -576,8 +603,9 @@ export class VercelLLMService implements ILLMService {
             // Don't re-throw to prevent duplicate error messages in WebSocket
             return '';
         }
-        // Emit final response with reasoning and full token usage (authoritative)
-        this.sessionEventBus.emit('llmservice:response', {
+
+        // Build response payload
+        const responsePayload: BeforeResponsePayload = {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
             provider: this.config.provider,
@@ -591,20 +619,39 @@ export class VercelLLMService implements ILLMService {
                 }),
                 ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
             },
-        });
+            sessionId: this.sessionId,
+        };
 
         // Update ContextManager with actual token count
         if (typeof usage.totalTokens === 'number') {
             this.contextManager.updateActualTokenCount(usage.totalTokens);
         }
 
-        // Persist the messages via formatter
-        await this.contextManager.processLLMStreamResponse(response);
+        // Execute hooks to get redacted/modified version
+        const { modifiedPayload, notices } = await executeResponseHooks(
+            this.hookManager,
+            responsePayload
+        );
+
+        // Persist PROCESSED response to storage (after hooks redaction)
+        // This ensures we don't store sensitive data the LLM might generate
+        const sanitizedStreamResponse = {
+            ...response,
+            text: Promise.resolve(modifiedPayload.content),
+            ...(Object.prototype.hasOwnProperty.call(modifiedPayload, 'reasoning') && {
+                reasoningText: Promise.resolve(modifiedPayload.reasoning),
+            }),
+        };
+        await this.contextManager.processLLMStreamResponse(sanitizedStreamResponse);
+
+        // Emit hook-modified content
+        const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
+        this.sessionEventBus.emit('llmservice:response', eventPayload);
 
         logger.silly(`streamText response object: ${JSON.stringify(response, null, 2)}`);
 
-        // Return the final text string
-        return finalText;
+        // Return the response content (potentially modified by hooks)
+        return modifiedPayload.content;
     }
 
     /**

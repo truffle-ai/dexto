@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
+import type { HookNotice } from '../hooks/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 
 /**
@@ -102,6 +103,7 @@ export interface AgentEventMap {
             reasoningTokens?: number;
             totalTokens?: number;
         };
+        notices?: HookNotice[];
         sessionId: string;
     };
 
@@ -242,6 +244,7 @@ export interface SessionEventMap {
             reasoningTokens?: number;
             totalTokens?: number;
         };
+        notices?: HookNotice[];
     };
 
     /** LLM service requested a tool call */

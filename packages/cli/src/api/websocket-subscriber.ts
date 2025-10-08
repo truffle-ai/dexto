@@ -125,6 +125,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                         model: payload.model,
                         router: payload.router,
                         sessionId: payload.sessionId,
+                        notices: payload.notices,
                     },
                 });
             },

@@ -63,3 +63,6 @@ export type { AgentEventMap, SessionEventMap } from './events/index.js';
 // LLM registry types (used by client-sdk package)
 export type { ModelInfo, ProviderInfo } from './llm/registry.js';
 export type { SupportedFileType } from './llm/types.js';
+
+// Hook types (used by webui)
+export type { HookNotice } from './hooks/types.js';

@@ -1,7 +1,13 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { TextPart as CoreTextPart, InternalMessage, FilePart, Issue } from '@dexto/core';
+import type {
+    TextPart as CoreTextPart,
+    InternalMessage,
+    FilePart,
+    Issue,
+    HookNotice,
+} from '@dexto/core';
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 
@@ -111,6 +117,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     provider?: LLMProvider;
     router?: LLMRouter;
     sessionId?: string;
+    notices?: HookNotice[];
 }
 
 // Separate error state interface
@@ -291,6 +298,9 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     const router = typeof payload.router === 'string' ? payload.router : undefined;
                     const sessionId =
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
+                    const notices = Array.isArray(payload.notices)
+                        ? (payload.notices as HookNotice[])
+                        : undefined;
 
                     setMessages((ms) => {
                         // Remove 'thinking' placeholders
@@ -314,6 +324,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 router,
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
+                                notices,
                             };
                             return [...cleaned.slice(0, -1), updatedMsg];
                         }
@@ -330,6 +341,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             provider,
                             router,
                             sessionId,
+                            notices,
                         };
                         return [...cleaned, newMsg];
                     });
@@ -344,6 +356,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     reasoning,
                                     tokenUsage,
                                     model,
+                                    notices,
                                     timestamp: Date.now(),
                                 },
                             })

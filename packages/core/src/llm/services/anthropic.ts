@@ -13,6 +13,8 @@ import type { PromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { HookManager, BeforeResponsePayload } from '../../hooks/index.js';
+import { executeResponseHooks } from '../../hooks/index.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -25,6 +27,7 @@ export class AnthropicService implements ILLMService {
     private contextManager: ContextManager<MessageParam>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private hookManager?: HookManager;
 
     constructor(
         toolManager: ToolManager,
@@ -33,13 +36,17 @@ export class AnthropicService implements ILLMService {
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        hookManager?: HookManager
     ) {
         this.config = config;
         this.anthropic = anthropic;
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
+        if (hookManager) {
+            this.hookManager = hookManager;
+        }
 
         // Create properly-typed ContextManager for Anthropic
         const formatter = new AnthropicMessageFormatter();
@@ -83,6 +90,7 @@ export class AnthropicService implements ILLMService {
         let iterationCount = 0;
         let fullResponse = '';
         let totalTokens = 0;
+        let persistedTextDuringTools = false;
 
         try {
             while (iterationCount < this.config.maxIterations) {
@@ -168,14 +176,18 @@ export class AnthropicService implements ILLMService {
                     }));
 
                     // Add assistant message with all tool calls
+                    // NOTE: This content is stored UNPROCESSED by hooks because:
+                    // 1. Hooks run on the complete accumulated response, not per-iteration
+                    // 2. We must persist tool calls immediately for the next iteration
+                    // TODO: Consider per-iteration hook processing or retroactive updates after final hooks run
                     await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
                         tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                     });
-                } else {
-                    // Add regular assistant message
-                    await this.contextManager.addAssistantMessage(textContent, undefined, {
-                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                    });
+
+                    // Track that we've persisted text during tool iterations
+                    if (textContent) {
+                        persistedTextDuringTools = true;
+                    }
                 }
 
                 // If no tools were used, we're done
@@ -187,14 +199,41 @@ export class AnthropicService implements ILLMService {
                         this.contextManager.updateActualTokenCount(totalTokens);
                     }
 
-                    this.sessionEventBus.emit('llmservice:response', {
+                    // Build response payload
+                    const responsePayload: BeforeResponsePayload = {
                         content: fullResponse,
                         provider: this.config.provider,
                         model: this.config.model,
                         router: 'in-built',
+                        sessionId: this.sessionId,
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
-                    });
-                    return fullResponse;
+                    };
+
+                    // Execute hooks to get redacted/modified version
+                    const { modifiedPayload, notices } = await executeResponseHooks(
+                        this.hookManager,
+                        responsePayload
+                    );
+
+                    // Persist PROCESSED response to storage (after hooks redaction)
+                    // This ensures we don't store sensitive data the LLM might generate
+                    if (!persistedTextDuringTools) {
+                        // First iteration - no previous tool usage, persist the hook-processed response
+                        await this.contextManager.addAssistantMessage(
+                            modifiedPayload.content,
+                            undefined,
+                            { tokenUsage: totalTokens > 0 ? { totalTokens } : undefined }
+                        );
+                    }
+                    // If persistedTextDuringTools is true, content was already added during tool iterations
+                    // Don't persist again to avoid duplication
+
+                    // Emit hook-modified content
+                    const eventPayload = notices
+                        ? { ...modifiedPayload, notices }
+                        : modifiedPayload;
+                    this.sessionEventBus.emit('llmservice:response', eventPayload);
+                    return modifiedPayload.content;
                 }
 
                 // If text content exists, append it to the full response
@@ -226,7 +265,8 @@ export class AnthropicService implements ILLMService {
                         const result = await this.toolManager.executeTool(
                             toolName,
                             args,
-                            this.sessionId
+                            this.sessionId,
+                            toolUseId
                         );
 
                         // Add tool result to message manager
@@ -269,17 +309,33 @@ export class AnthropicService implements ILLMService {
                 this.contextManager.updateActualTokenCount(totalTokens);
             }
 
-            this.sessionEventBus.emit('llmservice:response', {
-                content: fullResponse,
+            const finalContent =
+                fullResponse ||
+                'Reached maximum number of tool call iterations without a final response.';
+
+            // Build response payload
+            const responsePayload: BeforeResponsePayload = {
+                content: finalContent,
                 provider: this.config.provider,
                 model: this.config.model,
                 router: 'in-built',
+                sessionId: this.sessionId,
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
-            });
-            return (
-                fullResponse ||
-                'Reached maximum number of tool call iterations without a final response.'
+            };
+
+            // Execute hooks to get redacted/modified version
+            const { modifiedPayload, notices } = await executeResponseHooks(
+                this.hookManager,
+                responsePayload
             );
+
+            // Original content was already persisted during tool iterations
+            // Don't add to history again to avoid duplication
+
+            // Emit hook-modified content
+            const eventPayload = notices ? { ...modifiedPayload, notices } : modifiedPayload;
+            this.sessionEventBus.emit('llmservice:response', eventPayload);
+            return modifiedPayload.content;
         } catch (error) {
             if (
                 error instanceof Error &&
@@ -434,6 +490,7 @@ export class AnthropicService implements ILLMService {
                 if (chunk.delta.type === 'text_delta') {
                     textAccumulator += chunk.delta.text;
                     // Emit chunk event for real-time streaming
+                    // TODO: Ensure streaming chunks also respect hook sanitization before emission
                     this.sessionEventBus.emit('llmservice:chunk', {
                         type: 'text',
                         content: chunk.delta.text,

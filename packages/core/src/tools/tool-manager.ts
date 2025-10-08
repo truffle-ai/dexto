@@ -6,6 +6,8 @@ import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
+import type { HookManager, HookNotice, AfterToolResultPayload } from '../hooks/index.js';
+import { runBeforeToolCall, runAfterToolResult } from '../hooks/index.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -13,6 +15,7 @@ import { logger } from '../logger/index.js';
 export interface InternalToolsOptions {
     internalToolsServices?: InternalToolsServices;
     internalToolsConfig?: InternalToolsConfig;
+    hookManager?: HookManager;
 }
 
 /**
@@ -36,6 +39,7 @@ export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
     private confirmationProvider: ToolConfirmationProvider;
+    private hookManager?: HookManager;
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -52,6 +56,9 @@ export class ToolManager {
     ) {
         this.mcpManager = mcpManager;
         this.confirmationProvider = confirmationProvider;
+        if (options?.hookManager) {
+            this.hookManager = options.hookManager;
+        }
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
@@ -63,6 +70,27 @@ export class ToolManager {
         }
 
         logger.debug('ToolManager initialized');
+    }
+
+    private logHookNotices(context: string, notices?: HookNotice[]) {
+        if (!notices || notices.length === 0) {
+            return;
+        }
+
+        notices.forEach((notice) => {
+            const metadata = {
+                context,
+                ...(notice.code && { code: notice.code }),
+                ...(notice.details && { details: notice.details }),
+            };
+
+            const message = `Hook notice (${notice.kind}) - ${notice.message}`;
+            if (notice.kind === 'block' || notice.kind === 'warn') {
+                logger.warn(message, metadata);
+            } else {
+                logger.info(message, metadata);
+            }
+        });
     }
 
     /**
@@ -177,15 +205,41 @@ export class ToolManager {
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
-        sessionId?: string
+        sessionId?: string,
+        callId?: string
     ): Promise<unknown> {
         logger.debug(`🔧 Tool execution requested: '${toolName}'`);
-        logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
+        // Avoid logging raw args to prevent leaking sensitive data; hooks will emit notices if they modify payloads.
+
+        // Allow hooks to modify/cancel before confirmation
+        const beforeHookResult = await runBeforeToolCall(this.hookManager, {
+            toolName,
+            args,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            ...(callId !== undefined ? { callId } : {}),
+        });
+
+        this.logHookNotices('beforeToolCall', beforeHookResult.notices);
+
+        if (beforeHookResult.canceled) {
+            logger.debug(`🚫 Tool execution blocked by hooks: ${toolName}`);
+            throw ToolError.executionDenied(
+                toolName,
+                sessionId,
+                beforeHookResult.responseOverride ?? beforeHookResult.notices?.[0]?.message,
+                beforeHookResult.notices
+            );
+        }
+
+        let processedArgs = beforeHookResult.payload.args;
+        if (processedArgs !== args) {
+            logger.debug(`Hook modified args: ${JSON.stringify(processedArgs, null, 2)}`);
+        }
 
         // Centralized confirmation for ALL tools
         const approved = await this.confirmationProvider.requestConfirmation({
             toolName,
-            args,
+            args: processedArgs,
             ...(sessionId && { sessionId }),
         });
 
@@ -204,6 +258,9 @@ export class ToolManager {
         try {
             let result: unknown;
 
+            // Use potentially modified arguments from hooks
+            const executionArgs = processedArgs;
+
             // Route to MCP tools
             if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
                 logger.debug(`🔧 Detected MCP tool: '${toolName}'`);
@@ -212,7 +269,11 @@ export class ToolManager {
                     throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
                 }
                 logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
-                result = await this.mcpManager.executeTool(actualToolName, args, sessionId);
+                result = await this.mcpManager.executeTool(
+                    actualToolName,
+                    executionArgs,
+                    sessionId
+                );
             }
             // Route to internal tools
             else if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
@@ -227,7 +288,7 @@ export class ToolManager {
                 logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
                 result = await this.internalToolsProvider.executeTool(
                     actualToolName,
-                    args,
+                    executionArgs,
                     sessionId
                 );
             }
@@ -248,13 +309,95 @@ export class ToolManager {
             logger.info(
                 `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
+
+            // Run afterToolResult hooks to allow result sanitization/transformation
+            const hookRes = await runAfterToolResult(this.hookManager, {
+                toolName,
+                result,
+                success: true,
+                ...(sessionId !== undefined ? { sessionId } : {}),
+                ...(callId !== undefined ? { callId } : {}),
+            });
+
+            this.logHookNotices('afterToolResult:success', hookRes.notices);
+
+            // Use modified result from hooks if any
+            if (hookRes.payload.result !== result) {
+                result = hookRes.payload.result;
+                logger.debug(`Hook modified result`);
+            }
+
             return result;
         } catch (error) {
             const duration = Date.now() - startTime;
+            const rawMessage = error instanceof Error ? error.message : String(error);
+            let finalReason = rawMessage;
+            let thrownError: unknown = error;
+            try {
+                const failurePayload: AfterToolResultPayload = {
+                    toolName,
+                    result:
+                        error instanceof Error
+                            ? { error: error.message }
+                            : { error: String(error) },
+                    success: false,
+                    ...(sessionId !== undefined ? { sessionId } : {}),
+                    ...(callId !== undefined ? { callId } : {}),
+                };
+
+                const hookRes = await runAfterToolResult(this.hookManager, failurePayload);
+                this.logHookNotices('afterToolResult:failure', hookRes.notices);
+
+                if (hookRes.responseOverride) {
+                    finalReason = hookRes.responseOverride;
+                    thrownError = ToolError.executionFailed(
+                        toolName,
+                        hookRes.responseOverride,
+                        sessionId,
+                        hookRes.notices
+                    );
+                }
+
+                if (hookRes.payload.result !== failurePayload.result) {
+                    logger.debug(`Hook modified failure result payload`);
+                    if (
+                        thrownError === error &&
+                        hookRes.payload.result &&
+                        typeof hookRes.payload.result === 'object' &&
+                        'error' in hookRes.payload.result
+                    ) {
+                        const sanitizedMessage = (hookRes.payload.result as any).error;
+                        if (typeof sanitizedMessage === 'string' && sanitizedMessage.length > 0) {
+                            finalReason = sanitizedMessage;
+                            thrownError = ToolError.executionFailed(
+                                toolName,
+                                sanitizedMessage,
+                                sessionId,
+                                hookRes.notices
+                            );
+                        }
+                    }
+                }
+            } catch (hookError) {
+                const errorMessage =
+                    hookError instanceof Error
+                        ? `${hookError.message}${hookError.stack ? `\n${hookError.stack}` : ''}`
+                        : String(hookError);
+                logger.error(`Hook error during failure handling: ${errorMessage}`);
+            }
+
             logger.error(
-                `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
+                `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${finalReason}`
             );
-            throw error;
+            if (finalReason !== rawMessage) {
+                logger.debug(`Original tool error prior to hook sanitization: ${rawMessage}`, {
+                    toolName,
+                    sessionId: sessionId ?? 'global',
+                    ...(callId ? { callId } : {}),
+                });
+            }
+
+            throw thrownError;
         }
     }
 

@@ -1,4 +1,4 @@
-import { logger } from '@dexto/core';
+import { logger, type HookNotice } from '@dexto/core';
 import boxen from 'boxen';
 import chalk from 'chalk';
 import { EventSubscriber } from '../api/types.js';
@@ -34,7 +34,9 @@ export class CLISubscriber implements EventSubscriber {
         eventBus.on('llmservice:toolResult', (payload) =>
             this.onToolResult(payload.toolName, payload.result)
         );
-        eventBus.on('llmservice:response', (payload) => this.onResponse(payload.content));
+        eventBus.on('llmservice:response', (payload) =>
+            this.onResponse(payload.content, payload.notices)
+        );
         eventBus.on('llmservice:error', (payload) => this.onError(payload.error));
         eventBus.on('dexto:conversationReset', this.onConversationReset.bind(this));
     }
@@ -101,13 +103,36 @@ export class CLISubscriber implements EventSubscriber {
         logger.toolResult(result);
     }
 
-    onResponse(text: string): void {
+    onResponse(text: string, notices?: HookNotice[]): void {
         // Clear the accumulated state since we got the final response
         this.accumulatedResponse = '';
         this.currentLines = 0;
 
         // Use the logger's displayAIResponse for consistent formatting
         logger.displayAIResponse({ content: text });
+
+        if (notices && notices.length > 0) {
+            notices.forEach((notice) => {
+                const prefix =
+                    notice.kind === 'block'
+                        ? '🚫'
+                        : notice.kind === 'warn'
+                          ? '⚠️ '
+                          : notice.kind === 'allow'
+                            ? '✅'
+                            : 'ℹ️';
+                const details = notice.details ? ` (${JSON.stringify(notice.details)})` : '';
+                const color =
+                    notice.kind === 'block'
+                        ? 'red'
+                        : notice.kind === 'warn'
+                          ? 'yellow'
+                          : notice.kind === 'allow'
+                            ? 'green'
+                            : 'blue';
+                logger.info(`${prefix} ${notice.message}${details}`, null, color);
+            });
+        }
     }
 
     onError(error: Error): void {

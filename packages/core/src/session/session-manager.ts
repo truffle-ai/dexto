@@ -7,6 +7,7 @@ import { logger } from '../logger/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageBackends } from '../storage/index.js';
+import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 
 export interface SessionMetadata {
@@ -57,6 +58,7 @@ export class SessionManager {
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             storage: StorageBackends;
+            hookManager?: HookManager;
         },
         config: SessionManagerConfig = {}
     ) {
