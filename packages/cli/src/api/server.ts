@@ -64,104 +64,6 @@ function sendJsonResponse<T>(res: Response, data: T, statusCode = 200) {
     }
 }
 
-// Note: Request body may include a sessionId alongside LLM updates.
-// We parse sessionId separately and validate the rest against LLMUpdatesSchema
-
-/**
- * API request validation schemas based on actual usage
- */
-const MessageRequestSchema = z
-    .object({
-        message: z.string().optional(),
-        sessionId: z.string().optional(),
-        stream: z.boolean().optional(),
-        imageData: z
-            .object({
-                base64: z.string(),
-                mimeType: z.string(),
-            })
-            .optional(),
-        fileData: z
-            .object({
-                base64: z.string(),
-                mimeType: z.string(),
-                filename: z.string().optional(),
-            })
-            .optional(),
-    })
-    .refine(
-        (data) => {
-            const msg = (data.message ?? '').trim();
-            // Must have either message text, image data, or file data
-            return msg.length > 0 || !!data.imageData || !!data.fileData;
-        },
-        { message: 'Must provide either message text, image data, or file data' }
-    );
-
-// Reuse existing MCP server config schema
-const McpServerRequestSchema = z.object({
-    name: z.string().min(1, 'Server name is required'),
-    config: McpServerConfigSchema,
-    persistToAgent: z.boolean().optional(),
-});
-
-// Based on existing WebhookRegistrationRequest interface
-const WebhookRequestSchema = z.object({
-    url: z.string().url('Invalid URL format'),
-    secret: z.string().optional(),
-    description: z.string().optional(),
-});
-
-// Agent configuration validation request schema
-const AgentConfigValidateSchema = z.object({
-    yaml: z.string().min(1, 'YAML content is required'),
-});
-
-// Agent configuration save request schema
-const AgentConfigSaveSchema = z.object({
-    yaml: z.string().min(1, 'YAML content is required'),
-});
-
-// Schema for search query parameters
-const SearchQuerySchema = z.object({
-    q: z.string().min(1, 'Search query is required'),
-    limit: z.coerce.number().min(1).max(100).optional(),
-    offset: z.coerce.number().min(0).optional(),
-    sessionId: z.string().optional(),
-    role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
-});
-
-// Schema for cancel request parameters
-const CancelRequestSchema = z.object({
-    sessionId: z.string().min(1, 'Session ID is required'),
-});
-
-const PromptArgumentSchema = z
-    .object({
-        name: z.string().min(1, 'Argument name is required'),
-        description: z.string().optional(),
-        required: z.boolean().optional(),
-    })
-    .strict();
-
-const CustomPromptRequestSchema = z
-    .object({
-        name: z.string().min(1, 'Prompt name is required'),
-        title: z.string().optional(),
-        description: z.string().optional(),
-        content: z.string().min(1, 'Prompt content is required'),
-        arguments: z.array(PromptArgumentSchema).optional(),
-        resource: z
-            .object({
-                base64: z.string().min(1, 'Resource data is required'),
-                mimeType: z.string().min(1, 'Resource MIME type is required'),
-                filename: z.string().optional(),
-            })
-            .strict()
-            .optional(),
-    })
-    .strict();
-
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
     return schema.parse(body); // ZodError handled by error middleware
@@ -301,39 +203,26 @@ export async function initializeApi(
     // HTTP endpoints
 
     // ---- Helpers (local) ----
-    // TODO: (355) This function is not necessary, middleware handles this (verify this)
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412906143
-    function handleZodError(error: z.ZodError, context: string): DextoValidationError {
-        const errorMessage = error.issues.map((i) => i.message).join(', ');
-        logger.error(`${context}: ${errorMessage}`);
-        return new DextoValidationError([
-            {
-                code: AgentErrorCode.API_VALIDATION_ERROR,
-                message: errorMessage,
-                scope: ErrorScope.AGENT,
-                type: ErrorType.USER,
-                severity: 'error' as const,
-            },
-        ]);
-    }
 
-    // TODO: (355) Refactor: this is a function that has one line and calls another function. Not needed, move logic into decodeURIComponent if necessary and remove this function
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412910346
-    function decodeResourceId(resourceIdParam: string): string {
+    /**
+     * Helper to decode URI components with consistent error handling.
+     *
+     * Wraps native decodeURIComponent() to provide domain-specific error handling.
+     * While normally 1-line wrappers are discouraged, this is justified because:
+     * 1. Native TS function with no control over error type
+     * 2. Ensures consistent ResourceError across all URI decoding
+     * 3. Reused in 5+ Zod transform schemas
+     */
+    function decodeUriComponent(encoded: string): string {
         try {
-            return decodeURIComponent(resourceIdParam);
+            return decodeURIComponent(encoded);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
-            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
-            throw ResourceError.invalidUriFormat(
-                resourceIdParam,
-                'valid URI-encoded resource identifier'
-            );
+            throw ResourceError.invalidUriFormat(encoded, 'valid URI-encoded resource identifier');
         }
     }
 
     // Health check endpoint
-    app.get('/health', (req, res) => {
+    app.get('/health', (_req, res) => {
         res.status(200).send('OK');
     });
 
@@ -348,6 +237,33 @@ export async function initializeApi(
         }
     });
 
+    const CustomPromptRequestSchema = z
+        .object({
+            name: z.string().min(1, 'Prompt name is required'),
+            title: z.string().optional(),
+            description: z.string().optional(),
+            content: z.string().min(1, 'Prompt content is required'),
+            arguments: z
+                .array(
+                    z
+                        .object({
+                            name: z.string().min(1, 'Argument name is required'),
+                            description: z.string().optional(),
+                            required: z.boolean().optional(),
+                        })
+                        .strict()
+                )
+                .optional(),
+            resource: z
+                .object({
+                    base64: z.string().min(1, 'Resource data is required'),
+                    mimeType: z.string().min(1, 'Resource MIME type is required'),
+                    filename: z.string().optional(),
+                })
+                .strict()
+                .optional(),
+        })
+        .strict();
     app.post('/api/prompts/custom', express.json({ limit: '10mb' }), async (req, res, next) => {
         try {
             const payload = parseBody(CustomPromptRequestSchema, req.body);
@@ -386,10 +302,15 @@ export async function initializeApi(
         }
     });
 
+    const DeleteCustomPromptParamsSchema = z.object({
+        name: z
+            .string()
+            .min(1, 'Prompt name is required')
+            .transform((encoded) => decodeUriComponent(encoded)),
+    });
     app.delete('/api/prompts/custom/:name', async (req, res, next) => {
         try {
-            const encodedName = req.params.name;
-            const name = decodeURIComponent(encodedName);
+            const { name } = parseQuery(DeleteCustomPromptParamsSchema, req.params);
             await activeAgent.deleteCustomPrompt(name);
             return res.status(204).send();
         } catch (error) {
@@ -398,12 +319,12 @@ export async function initializeApi(
     });
 
     // Get a specific prompt definition
+    const GetPromptDefinitionParamsSchema = z.object({
+        name: z.string().min(1, 'Prompt name is required'),
+    });
     app.get('/api/prompts/:name', async (req, res, next) => {
         try {
-            // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
-            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412920162
-            const name = req.params.name;
-            if (!name) throw PromptError.nameRequired();
+            const { name } = parseQuery(GetPromptDefinitionParamsSchema, req.params);
             const definition = await activeAgent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
             return sendJsonResponse(res, { definition }, 200);
@@ -415,23 +336,28 @@ export async function initializeApi(
     // Resolve a prompt to text content (without sending to the agent)
     // Supports optional args via query string. For natural language after the
     // slash command, pass as `q` or `_context` (both map to `_context`).
+    const ResolvePromptParamsSchema = z.object({
+        name: z.string().min(1, 'Prompt name is required'),
+    });
+    const ResolvePromptQuerySchema = z.object({
+        q: z.string().optional(),
+        _context: z.string().optional(),
+        args: z.string().optional(),
+    });
     app.get('/api/prompts/:name/resolve', async (req, res, next) => {
         try {
-            // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
-            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412924016
-            const inputName = req.params.name;
-            if (!inputName) throw PromptError.nameRequired();
-
-            // Extract optional arguments from query string
-            const query = req.query as Record<string, unknown>;
-            const q = typeof query.q === 'string' ? query.q : undefined;
-            const ctx = typeof query._context === 'string' ? query._context : undefined;
+            const { name: inputName } = parseQuery(ResolvePromptParamsSchema, req.params);
+            const {
+                q,
+                _context: ctx,
+                args: argsString,
+            } = parseQuery(ResolvePromptQuerySchema, req.query);
 
             // Optional structured args in `args` query param as JSON
             let parsedArgs: Record<string, unknown> | undefined;
-            if (typeof query.args === 'string') {
+            if (argsString) {
                 try {
-                    const parsed = JSON.parse(query.args);
+                    const parsed = JSON.parse(argsString);
                     if (parsed && typeof parsed === 'object') {
                         parsedArgs = parsed as Record<string, unknown>;
                     }
@@ -462,6 +388,33 @@ export async function initializeApi(
     // Note: We intentionally omit an "execute" endpoint; clients resolve prompts
     // and then call the regular message endpoint, keeping server surface minimal.
 
+    const MessageRequestSchema = z
+        .object({
+            message: z.string().optional(),
+            sessionId: z.string().optional(),
+            stream: z.boolean().optional(),
+            imageData: z
+                .object({
+                    base64: z.string(),
+                    mimeType: z.string(),
+                })
+                .optional(),
+            fileData: z
+                .object({
+                    base64: z.string(),
+                    mimeType: z.string(),
+                    filename: z.string().optional(),
+                })
+                .optional(),
+        })
+        .refine(
+            (data) => {
+                const msg = (data.message ?? '').trim();
+                // Must have either message text, image data, or file data
+                return msg.length > 0 || !!data.imageData || !!data.fileData;
+            },
+            { message: 'Must provide either message text, image data, or file data' }
+        );
     // JSON body size limit for message endpoints supporting base64 image/file payloads
     // Both /api/message and /api/message-sync accept base64 attachments; increased limit to avoid 413s.
     app.post(
@@ -508,6 +461,9 @@ export async function initializeApi(
     );
 
     // Cancel an in-flight run for a session
+    const CancelRequestSchema = z.object({
+        sessionId: z.string().min(1, 'Session ID is required'),
+    });
     app.post('/api/sessions/:sessionId/cancel', async (req, res, next) => {
         try {
             const { sessionId } = parseQuery(CancelRequestSchema, req.params);
@@ -582,7 +538,14 @@ export async function initializeApi(
     });
 
     // Dynamic MCP server connection endpoint (legacy)
-    app.post('/api/connect-server', express.json(), async (req, res, next) => {
+    const McpServerRequestSchema = z.object({
+        name: z.string().min(1, 'Server name is required'),
+        config: McpServerConfigSchema,
+        persistToAgent: z.boolean().optional(),
+    });
+
+    // Add a new MCP server
+    app.post('/api/mcp/servers', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
             const { name, config, persistToAgent } = parseBody(McpServerRequestSchema, req.body);
@@ -619,18 +582,6 @@ export async function initializeApi(
         }
     });
 
-    // Add a new MCP server
-    app.post('/api/mcp/servers', express.json(), async (req, res, next) => {
-        try {
-            ensureAgentAvailable();
-            const { name, config } = parseBody(McpServerRequestSchema, req.body);
-            await activeAgent.connectMcpServer(name, config);
-            return res.status(201).json({ status: 'connected', name });
-        } catch (error) {
-            return next(error);
-        }
-    });
-
     // Add MCP servers listing endpoint
     app.get('/api/mcp/servers', async (req, res, next) => {
         try {
@@ -651,10 +602,13 @@ export async function initializeApi(
     });
 
     // Add MCP server tools listing endpoint
+    const ListServerToolsParamsSchema = z.object({
+        serverId: z.string().min(1, 'Server ID is required'),
+    });
     app.get('/api/mcp/servers/:serverId/tools', async (req, res, next) => {
         try {
             ensureAgentAvailable();
-            const serverId = req.params.serverId;
+            const { serverId } = parseQuery(ListServerToolsParamsSchema, req.params);
             const client = activeAgent.getMcpClients().get(serverId);
             if (!client) {
                 return res.status(404).json({ error: `Server '${serverId}' not found` });
@@ -673,11 +627,14 @@ export async function initializeApi(
     });
 
     // Endpoint to remove/disconnect an MCP server
+    const DeleteMcpServerParamsSchema = z.object({
+        serverId: z.string().min(1, 'Server ID is required'),
+    });
     app.delete('/api/mcp/servers/:serverId', async (req, res, next) => {
-        const { serverId } = req.params;
-        logger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
-
         try {
+            const { serverId } = parseQuery(DeleteMcpServerParamsSchema, req.params);
+            logger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
+
             // Check if server exists before attempting to disconnect
             const clientExists =
                 activeAgent.getMcpClients().has(serverId) ||
@@ -695,19 +652,23 @@ export async function initializeApi(
     });
 
     // Execute an MCP tool via REST wrapper
+    const ExecuteMcpToolParamsSchema = z.object({
+        serverId: z.string().min(1, 'Server ID is required'),
+        toolName: z.string().min(1, 'Tool name is required'),
+    });
     app.post(
         '/api/mcp/servers/:serverId/tools/:toolName/execute',
         express.json(),
         async (req, res, next) => {
-            const { serverId, toolName } = req.params;
-            // Verify server exists
-            const client = activeAgent.getMcpClients().get(serverId);
-            if (!client) {
-                return res
-                    .status(404)
-                    .json({ success: false, error: `Server '${serverId}' not found` });
-            }
             try {
+                const { serverId, toolName } = parseQuery(ExecuteMcpToolParamsSchema, req.params);
+                // Verify server exists
+                const client = activeAgent.getMcpClients().get(serverId);
+                if (!client) {
+                    return res
+                        .status(404)
+                        .json({ success: false, error: `Server '${serverId}' not found` });
+                }
                 // Execute tool through the agent's unified wrapper method
                 const rawResult = await activeAgent.executeTool(toolName, req.body);
                 // Return standardized result shape
@@ -731,122 +692,71 @@ export async function initializeApi(
     });
 
     // Read resource content
+    const ReadResourceContentParamsSchema = z.object({
+        resourceId: z
+            .string()
+            .min(1, 'Resource ID is required')
+            .transform((encoded) => decodeUriComponent(encoded)),
+    });
     app.get('/api/resources/:resourceId/content', async (req, res, next) => {
-        // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
-        // Could potentially use zod schema transforms for this resource id decoding which is happening very frequently
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412929417
-        const resourceIdParam = req.params.resourceId;
-        let decodedResourceId: string;
         try {
-            decodedResourceId = decodeResourceId(resourceIdParam);
-        } catch (error) {
-            return next(error);
-        }
-
-        // Validate resourceId
-        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
-        try {
-            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
-            const content = await activeAgent.readResource(validatedResourceId);
+            const { resourceId } = parseQuery(ReadResourceContentParamsSchema, req.params);
+            const content = await activeAgent.readResource(resourceId);
             return res.status(200).json({ ok: true, content });
         } catch (error) {
-            if (error instanceof z.ZodError)
-                return next(handleZodError(error, 'Invalid resourceId validation'));
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(
-                `Error reading resource content for '${decodedResourceId}': ${errorMessage}`
-            );
             return next(error);
         }
     });
 
     // Check if resource exists
+    const CheckResourceExistsParamsSchema = z.object({
+        resourceId: z
+            .string()
+            .min(1, 'Resource ID is required')
+            .transform((encoded) => decodeUriComponent(encoded)),
+    });
     app.head('/api/resources/:resourceId', async (req, res, next) => {
-        // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412926008
-        const resourceIdParam = req.params.resourceId;
-        let decodedResourceId: string;
         try {
-            decodedResourceId = decodeResourceId(resourceIdParam);
-        } catch (error) {
-            return next(error);
-        }
-
-        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
-        try {
-            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
-            const exists = await activeAgent.hasResource(validatedResourceId);
+            const { resourceId } = parseQuery(CheckResourceExistsParamsSchema, req.params);
+            const exists = await activeAgent.hasResource(resourceId);
             return res.status(exists ? 200 : 404).end();
         } catch (error) {
-            if (error instanceof z.ZodError)
-                return next(handleZodError(error, 'Invalid resourceId validation'));
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(
-                `Error checking resource existence for '${decodedResourceId}': ${errorMessage}`
-            );
             return next(error);
         }
     });
 
     // List resources for a specific MCP server
+    const ListServerResourcesParamsSchema = z.object({
+        serverId: z.string().min(1, 'Server ID is required'),
+    });
     app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
         try {
-            const { serverId } = z.object({ serverId: z.string().min(1) }).parse(req.params);
+            const { serverId } = parseQuery(ListServerResourcesParamsSchema, req.params);
             const resources = await activeAgent.listResourcesForServer(serverId);
             return sendJsonResponse(res, { success: true, resources }, 200);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const serverId = req.params.serverId;
-            logger.error(`Error fetching resources for server '${serverId}': ${errorMessage}`);
             return next(error);
         }
     });
 
     // Read resource content from specific MCP server
+    const ReadServerResourceContentParamsSchema = z.object({
+        serverId: z.string().min(1, 'Server ID is required'),
+        resourceId: z
+            .string()
+            .min(1, 'Resource ID is required')
+            .transform((encoded) => decodeUriComponent(encoded)),
+    });
     app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res, next) => {
-        // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412928497
-        const serverId = req.params.serverId;
-        const resourceIdParam = req.params.resourceId;
-        if (!serverId || !resourceIdParam) {
-            return next(
-                new DextoValidationError([
-                    {
-                        code: AgentErrorCode.API_VALIDATION_ERROR,
-                        message: 'Missing serverId or resourceId parameters',
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
-                        severity: 'error' as const,
-                    },
-                ])
-            );
-        }
-        let decodedResourceId: string;
         try {
-            decodedResourceId = decodeResourceId(resourceIdParam);
-        } catch (_error) {
-            return next(
-                new DextoValidationError([
-                    {
-                        code: AgentErrorCode.API_VALIDATION_ERROR,
-                        message: 'Invalid resourceId parameter - failed to decode URI component',
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
-                        severity: 'error' as const,
-                        context: { resourceIdParam },
-                    },
-                ])
+            const { serverId, resourceId } = parseQuery(
+                ReadServerResourceContentParamsSchema,
+                req.params
             );
-        }
-        try {
-            const qualifiedUri = `mcp:${serverId}:${decodedResourceId}`;
+            const qualifiedUri = `mcp:${serverId}:${resourceId}`;
             const content = await activeAgent.readResource(qualifiedUri);
             return sendJsonResponse(res, { success: true, data: { content } }, 200);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(
-                `Error reading resource '${decodedResourceId}' from server '${serverId}': ${errorMessage}`
-            );
             return next(error);
         }
     });
@@ -1401,9 +1311,12 @@ export async function initializeApi(
     }
 
     // Get default greeting (for UI consumption)
+    const GetGreetingQuerySchema = z.object({
+        sessionId: z.string().optional(),
+    });
     app.get('/api/greeting', async (req, res, next) => {
         try {
-            const sessionId = req.query.sessionId as string | undefined;
+            const { sessionId } = parseQuery(GetGreetingQuerySchema, req.query);
             const config = activeAgent.getEffectiveConfig(sessionId);
             res.json({ greeting: config.greeting });
         } catch (error) {
@@ -1464,6 +1377,9 @@ export async function initializeApi(
     });
 
     // Validate agent configuration without saving
+    const AgentConfigValidateSchema = z.object({
+        yaml: z.string().min(1, 'YAML content is required'),
+    });
     app.post('/api/agent/validate', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
@@ -1526,6 +1442,9 @@ export async function initializeApi(
     });
 
     // Save agent configuration
+    const AgentConfigSaveSchema = z.object({
+        yaml: z.string().min(1, 'YAML content is required'),
+    });
     app.post('/api/agent/config', express.json(), async (req, res, next) => {
         try {
             ensureAgentAvailable();
@@ -1643,13 +1562,16 @@ export async function initializeApi(
     // ============= LLM MANAGEMENT =============
 
     // Get current LLM configuration
+    const GetCurrentLLMQuerySchema = z.object({
+        sessionId: z.string().optional(),
+    });
     app.get('/api/llm/current', async (req, res, next) => {
         try {
-            const { sessionId } = req.query;
+            const { sessionId } = parseQuery(GetCurrentLLMQuerySchema, req.query);
 
             // Use session-specific config if sessionId is provided, otherwise use default
             const currentConfig = sessionId
-                ? activeAgent.getEffectiveConfig(sessionId as string).llm
+                ? activeAgent.getEffectiveConfig(sessionId).llm
                 : activeAgent.getCurrentLLMConfig();
 
             // Attach displayName for the current model if available in registry
@@ -1669,9 +1591,38 @@ export async function initializeApi(
         }
     });
 
-    // (Deprecated) /api/llm/providers has been replaced by /api/llm/catalog
-
     // LLM Catalog: providers, models, and API key presence (with filters)
+    const LLMCatalogQuerySchema = z.object({
+        provider: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .transform((value): string[] | undefined =>
+                Array.isArray(value) ? value : value ? value.split(',') : undefined
+            ),
+        hasKey: z
+            .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+            .optional()
+            .transform((raw): boolean | undefined =>
+                raw === 'true' || raw === '1'
+                    ? true
+                    : raw === 'false' || raw === '0'
+                      ? false
+                      : undefined
+            ),
+        router: z.enum(LLM_ROUTERS).optional(),
+        fileType: z.enum(SUPPORTED_FILE_TYPES).optional(),
+        defaultOnly: z
+            .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+            .optional()
+            .transform((raw): boolean | undefined =>
+                raw === 'true' || raw === '1'
+                    ? true
+                    : raw === 'false' || raw === '0'
+                      ? false
+                      : undefined
+            ),
+        mode: z.enum(['grouped', 'flat']).default('grouped'),
+    });
     app.get('/api/llm/catalog', async (req, res, next) => {
         try {
             type ProviderCatalog = Pick<
@@ -1686,40 +1637,9 @@ export async function initializeApi(
 
             type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
 
-            // Parse query parameters with Zod
-            const QuerySchema = z.object({
-                provider: z
-                    .union([z.string(), z.array(z.string())])
-                    .optional()
-                    .transform((value): string[] | undefined =>
-                        Array.isArray(value) ? value : value ? value.split(',') : undefined
-                    ),
-                hasKey: z
-                    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
-                    .optional()
-                    .transform((raw): boolean | undefined =>
-                        raw === 'true' || raw === '1'
-                            ? true
-                            : raw === 'false' || raw === '0'
-                              ? false
-                              : undefined
-                    ),
-                router: z.enum(LLM_ROUTERS).optional(),
-                fileType: z.enum(SUPPORTED_FILE_TYPES).optional(),
-                defaultOnly: z
-                    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
-                    .optional()
-                    .transform((raw): boolean | undefined =>
-                        raw === 'true' || raw === '1'
-                            ? true
-                            : raw === 'false' || raw === '0'
-                              ? false
-                              : undefined
-                    ),
-                mode: z.enum(['grouped', 'flat']).optional().default('grouped'),
-            });
-
-            const queryParams: z.output<typeof QuerySchema> = QuerySchema.parse(req.query);
+            const queryParams: z.output<typeof LLMCatalogQuerySchema> = LLMCatalogQuerySchema.parse(
+                req.query
+            );
 
             const providers: Record<string, ProviderCatalog> = {};
             for (const provider of LLM_PROVIDERS) {
@@ -1834,13 +1754,13 @@ export async function initializeApi(
     });
 
     // Save provider API key (never echoes the key back)
+    const SaveProviderApiKeyBodySchema = z.object({
+        provider: z.enum(LLM_PROVIDERS),
+        apiKey: z.string().min(1, 'API key is required'),
+    });
     app.post('/api/llm/key', express.json({ limit: '4kb' }), async (req, res, next) => {
         try {
-            const schema = z.object({
-                provider: z.enum(LLM_PROVIDERS),
-                apiKey: z.string().min(1, 'API key is required'),
-            });
-            const body = schema.parse(req.body);
+            const body = parseBody(SaveProviderApiKeyBodySchema, req.body);
 
             const meta = await saveProviderApiKey(body.provider, body.apiKey, process.cwd());
             return sendJsonResponse(
@@ -1854,12 +1774,15 @@ export async function initializeApi(
     });
 
     // Switch LLM configuration
+    const SwitchLLMBodySchema = z
+        .object({
+            sessionId: z.string().optional(),
+        })
+        .passthrough(); // Allow additional LLM config fields
     app.post('/api/llm/switch', express.json(), async (req, res, next) => {
         try {
-            const body = (req.body ?? {}) as Record<string, unknown>;
-            const sessionId =
-                typeof body.sessionId === 'string' ? (body.sessionId as string) : undefined;
-            const { sessionId: _omit, ...llmCandidate } = body;
+            const parsed = parseBody(SwitchLLMBodySchema, req.body);
+            const { sessionId, ...llmCandidate } = parsed;
             const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
             const config = await activeAgent.switchLLM(llmConfig, sessionId);
             return res.status(200).json({ config, sessionId });
@@ -1871,7 +1794,7 @@ export async function initializeApi(
     // Session Management APIs
 
     // List all active sessions
-    app.get('/api/sessions', async (req, res, next) => {
+    app.get('/api/sessions', async (_req, res, next) => {
         try {
             const sessionIds = await activeAgent.listSessions();
             const sessions = await Promise.all(
@@ -1902,9 +1825,12 @@ export async function initializeApi(
     });
 
     // Create a new session
+    const CreateSessionBodySchema = z.object({
+        sessionId: z.string().optional(),
+    });
     app.post('/api/sessions', express.json(), async (req, res, next) => {
         try {
-            const { sessionId } = req.body;
+            const { sessionId } = parseBody(CreateSessionBodySchema, req.body);
             const session = await activeAgent.createSession(sessionId);
             const metadata = await activeAgent.getSessionMetadata(session.id);
             return res.status(201).json({
@@ -1921,7 +1847,7 @@ export async function initializeApi(
     });
 
     // Get current working session (must come before parameterized route)
-    app.get('/api/sessions/current', async (req, res, next) => {
+    app.get('/api/sessions/current', async (_req, res, next) => {
         try {
             const currentSessionId = activeAgent.getCurrentSessionId();
             return res.json({ currentSessionId });
@@ -1931,9 +1857,12 @@ export async function initializeApi(
     });
 
     // Get session details
+    const GetSessionDetailsParamsSchema = z.object({
+        sessionId: z.string().min(1, 'Session ID is required'),
+    });
     app.get('/api/sessions/:sessionId', async (req, res, next) => {
         try {
-            const { sessionId } = req.params;
+            const { sessionId } = parseQuery(GetSessionDetailsParamsSchema, req.params);
             const metadata = await activeAgent.getSessionMetadata(sessionId);
             const history = await activeAgent.getSessionHistory(sessionId);
 
@@ -1952,9 +1881,12 @@ export async function initializeApi(
     });
 
     // Get session conversation history
+    const GetSessionHistoryParamsSchema = z.object({
+        sessionId: z.string().min(1, 'Session ID is required'),
+    });
     app.get('/api/sessions/:sessionId/history', async (req, res, next) => {
         try {
-            const { sessionId } = req.params;
+            const { sessionId } = parseQuery(GetSessionHistoryParamsSchema, req.params);
             // getSessionHistory already checks existence via getSession
             const history = await activeAgent.getSessionHistory(sessionId);
             return res.json({ history });
@@ -1964,6 +1896,13 @@ export async function initializeApi(
     });
 
     // Search messages across all sessions or within a specific session
+    const SearchQuerySchema = z.object({
+        q: z.string().min(1, 'Search query is required'),
+        limit: z.coerce.number().min(1).max(100).optional(),
+        offset: z.coerce.number().min(0).optional(),
+        sessionId: z.string().optional(),
+        role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
+    });
     app.get('/api/search/messages', async (req, res, next) => {
         try {
             const {
@@ -1989,12 +1928,12 @@ export async function initializeApi(
     });
 
     // Search sessions that contain the query
+    const SearchSessionsQuerySchema = z.object({
+        q: z.string().min(1, 'Search query is required'),
+    });
     app.get('/api/search/sessions', async (req, res, next) => {
         try {
-            const { q: query } = parseQuery(
-                z.object({ q: z.string().min(1, 'Search query is required') }),
-                req.query
-            );
+            const { q: query } = parseQuery(SearchSessionsQuerySchema, req.query);
             const searchResults = await activeAgent.searchSessions(query);
             return sendJsonResponse(res, searchResults);
         } catch (error) {
@@ -2003,9 +1942,12 @@ export async function initializeApi(
     });
 
     // Delete a session
+    const DeleteSessionParamsSchema = z.object({
+        sessionId: z.string().min(1, 'Session ID is required'),
+    });
     app.delete('/api/sessions/:sessionId', async (req, res, next) => {
         try {
-            const { sessionId } = req.params;
+            const { sessionId } = parseQuery(DeleteSessionParamsSchema, req.params);
             // deleteSession already checks existence internally
             await activeAgent.deleteSession(sessionId);
             return res.json({ status: 'deleted', sessionId });
@@ -2015,9 +1957,12 @@ export async function initializeApi(
     });
 
     // Load session as current working session and set as default
+    const LoadSessionParamsSchema = z.object({
+        sessionId: z.string().min(1, 'Session ID is required'),
+    });
     app.post('/api/sessions/:sessionId/load', async (req, res, next) => {
         try {
-            const { sessionId } = req.params;
+            const { sessionId } = parseQuery(LoadSessionParamsSchema, req.params);
 
             // Handle null/reset case
             if (sessionId === 'null' || sessionId === 'undefined') {
@@ -2045,6 +1990,11 @@ export async function initializeApi(
     // Webhook Management APIs
 
     // Register a new webhook endpoint
+    const WebhookRequestSchema = z.object({
+        url: z.string().url('Invalid URL format'),
+        secret: z.string().optional(),
+        description: z.string().optional(),
+    });
     app.post('/api/webhooks', express.json(), async (req, res, next) => {
         try {
             const { url, secret, description } = parseBody(WebhookRequestSchema, req.body);
@@ -2098,9 +2048,12 @@ export async function initializeApi(
     });
 
     // Get a specific webhook
+    const GetWebhookParamsSchema = z.object({
+        webhookId: z.string().min(1, 'Webhook ID is required'),
+    });
     app.get('/api/webhooks/:webhookId', async (req, res, next) => {
         try {
-            const { webhookId } = req.params;
+            const { webhookId } = parseQuery(GetWebhookParamsSchema, req.params);
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
@@ -2121,9 +2074,12 @@ export async function initializeApi(
     });
 
     // Remove a webhook endpoint
+    const DeleteWebhookParamsSchema = z.object({
+        webhookId: z.string().min(1, 'Webhook ID is required'),
+    });
     app.delete('/api/webhooks/:webhookId', async (req, res, next) => {
         try {
-            const { webhookId } = req.params;
+            const { webhookId } = parseQuery(DeleteWebhookParamsSchema, req.params);
             const removed = webhookSubscriber.removeWebhook(webhookId);
 
             if (!removed) {
@@ -2138,9 +2094,12 @@ export async function initializeApi(
     });
 
     // Test a webhook endpoint
+    const TestWebhookParamsSchema = z.object({
+        webhookId: z.string().min(1, 'Webhook ID is required'),
+    });
     app.post('/api/webhooks/:webhookId/test', async (req, res, next) => {
         try {
-            const { webhookId } = req.params;
+            const { webhookId } = parseQuery(TestWebhookParamsSchema, req.params);
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
