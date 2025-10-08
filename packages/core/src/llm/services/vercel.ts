@@ -61,9 +61,7 @@ export class VercelLLMService implements ILLMService {
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
-        // TODO: (355) Mandatory
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413031752
-        resourceManager?: import('../../resources/index.js').ResourceManager
+        resourceManager: import('../../resources/index.js').ResourceManager
     ) {
         this.model = model;
         this.config = config;
@@ -86,8 +84,8 @@ export class VercelLLMService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            undefined, // Use default compression strategies
             resourceManager
+            // compressionStrategies uses default
         );
 
         logger.debug(
@@ -123,20 +121,18 @@ export class VercelLLMService implements ILLMService {
                             // Sanitize tool result to prevent large/base64 media from exploding context
                             // Convert arbitrary result -> InternalMessage content (media as structured parts)
                             // then summarize to concise text suitable for Vercel tool output.
-                            // Use blob-aware sanitization if blob store is available
+                            // Use blob-aware sanitization with blob store
                             const resourceManager = this.contextManager.getResourceManager();
-                            const blobService = resourceManager?.getBlobService();
+                            const blobService = resourceManager.getBlobService();
 
-                            const safeContent = blobService
-                                ? await sanitizeToolResultToContentWithBlobs(
-                                      rawResult,
-                                      blobService,
-                                      {
-                                          toolName,
-                                          toolCallId: options.toolCallId,
-                                      }
-                                  )
-                                : sanitizeToolResultToContent(rawResult);
+                            const safeContent = await sanitizeToolResultToContentWithBlobs(
+                                rawResult,
+                                blobService,
+                                {
+                                    toolName,
+                                    toolCallId: options.toolCallId,
+                                }
+                            );
                             const summaryText = summarizeToolContentForText(safeContent);
                             return summaryText;
                         } catch (err: unknown) {

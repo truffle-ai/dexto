@@ -91,18 +91,16 @@ export class ContextManager<TMessage = unknown> {
     private readonly sessionId: string;
 
     /**
-     * Optional ResourceManager for resolving blob references in message content.
-     * When provided, blob references like @blob:abc123 will be resolved to actual data
+     * ResourceManager for resolving blob references in message content.
+     * Blob references like @blob:abc123 are resolved to actual data
      * before passing messages to the LLM formatter.
      */
-    // TODO: (355) Agent: check if this should be optional or mandatory (I guess mandatory)
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413009241
-    private resourceManager?: import('../resources/index.js').ResourceManager | undefined;
+    private resourceManager: import('../resources/index.js').ResourceManager;
 
     /**
-     * Get the ResourceManager instance (if available)
+     * Get the ResourceManager instance
      */
-    public getResourceManager(): import('../resources/index.js').ResourceManager | undefined {
+    public getResourceManager(): import('../resources/index.js').ResourceManager {
         return this.resourceManager;
     }
 
@@ -118,11 +116,7 @@ export class ContextManager<TMessage = unknown> {
             source?: 'user' | 'system';
         }
     ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
-        // Only process if we have a blob service available
-        const blobService = this.resourceManager?.getBlobService();
-        if (!blobService) {
-            return data;
-        }
+        const blobService = this.resourceManager.getBlobService();
 
         // Estimate data size to decide if we should store as blob
         let shouldStoreAsBlob = false;
@@ -210,13 +204,11 @@ export class ContextManager<TMessage = unknown> {
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
+        resourceManager: import('../resources/index.js').ResourceManager,
         compressionStrategies: ICompressionStrategy[] = [
             new MiddleRemovalStrategy(),
             new OldestRemovalStrategy(),
-        ],
-        // TODO: (355) Agent: check if this should be mandatory
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413010450
-        resourceManager?: import('../resources/index.js').ResourceManager
+        ]
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -574,16 +566,12 @@ export class ContextManager<TMessage = unknown> {
         }
         // Sanitize tool result to avoid adding non-text data as raw text
         // and to convert media/data-uris/base64 to structured parts.
-        // If a resource manager is available, automatically store large media as blobs.
-        // TODO: (355) Make blobService also mandatory and avoid optional checks, fallbacks
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413042444
-        const blobService = this.resourceManager?.getBlobService();
-        const content = blobService
-            ? await sanitizeToolResultToContentWithBlobs(result, blobService, {
-                  toolName: name,
-                  toolCallId,
-              })
-            : sanitizeToolResultToContent(result);
+        // Automatically store large media as blobs using the blob service.
+        const blobService = this.resourceManager.getBlobService();
+        const content = await sanitizeToolResultToContentWithBlobs(result, blobService, {
+            toolName: name,
+            toolCallId,
+        });
 
         // Log what we are storing (brief)
         if (typeof content === 'string') {

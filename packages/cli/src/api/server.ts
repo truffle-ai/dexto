@@ -301,6 +301,8 @@ export async function initializeApi(
     // HTTP endpoints
 
     // ---- Helpers (local) ----
+    // TODO: (355) This function is not necessary, middleware handles this (verify this)
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412906143
     function handleZodError(error: z.ZodError, context: string): DextoValidationError {
         const errorMessage = error.issues.map((i) => i.message).join(', ');
         logger.error(`${context}: ${errorMessage}`);
@@ -315,8 +317,6 @@ export async function initializeApi(
         ]);
     }
 
-    // TODO: (355) This function is not necessary, middleware handles this (verify this)
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412906143
     // TODO: (355) Refactor: this is a function that has one line and calls another function. Not needed, move logic into decodeURIComponent if necessary and remove this function
     // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412910346
     function decodeResourceId(resourceIdParam: string): string {

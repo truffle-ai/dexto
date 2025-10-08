@@ -379,7 +379,8 @@ export class ChatSession {
                 this.services.systemPromptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus, // Use session event bus
-                this.id
+                this.id,
+                this.services.resourceManager
             );
 
             // Replace the LLM service
