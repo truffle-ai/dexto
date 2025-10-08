@@ -464,6 +464,14 @@ export class DextoAgent {
                 }
             }
 
+            // Validate that we have either text or media content after expansion
+            if (!finalText.trim() && !finalImageData && !fileDataInput) {
+                logger.warn(
+                    'Resource expansion resulted in empty content. Using original message.'
+                );
+                finalText = textInput;
+            }
+
             const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
@@ -596,7 +604,14 @@ export class DextoAgent {
         return await Promise.all(
             history.map(async (message) => ({
                 ...message,
-                content: await expandBlobReferences(message.content, this.resourceManager),
+                content: await expandBlobReferences(message.content, this.resourceManager).catch(
+                    (error) => {
+                        logger.warn(
+                            `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                        return message.content; // Return original content on error
+                    }
+                ),
             }))
         );
     }
