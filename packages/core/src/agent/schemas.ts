@@ -123,6 +123,8 @@ export const AgentConfigSchema = z
         ).default([]),
 
         // Agent-specific starter prompts configuration (used by WebUI and PromptsManager)
+        // TODO: (355) Move this schema to prompts folder for better organization
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412960566
         starterPrompts: z
             .array(
                 z
