@@ -3,7 +3,7 @@ import type { ResourceSet, ResourceMetadata } from './types.js';
 import { InternalResourcesProvider } from './internal-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
-import type { InternalResourceServices } from './internal-registry.js';
+import type { InternalResourceServices } from './handlers/types.js';
 import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
 import { eventBus } from '../events/index.js';

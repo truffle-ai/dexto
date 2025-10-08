@@ -1,23 +1,16 @@
-import { ResourceError } from './errors.js';
-import { FileSystemResourceHandler } from './handlers/filesystem-handler.js';
-import { BlobResourceHandler } from './handlers/blob-handler.js';
+import { ResourceError } from '../errors.js';
+import { FileSystemResourceHandler } from './filesystem-handler.js';
+import { BlobResourceHandler } from './blob-handler.js';
+import type { InternalResourceServices, InternalResourceHandler } from './types.js';
+import type { ValidatedInternalResourceConfig } from '../schemas.js';
 
-// Re-export types and handlers
-export type {
-    FileSystemResourceConfig,
-    BlobResourceConfig,
-    InternalResourceConfig,
-    InternalResourceServices,
-    InternalResourceHandler,
-} from './handlers/types.js';
-export { FileSystemResourceHandler } from './handlers/filesystem-handler.js';
-export { BlobResourceHandler } from './handlers/blob-handler.js';
-
-// Factory function for creating handlers
+/**
+ * Factory function for creating internal resource handlers
+ */
 export function createInternalResourceHandler(
-    config: import('./handlers/types.js').InternalResourceConfig,
-    services: import('./handlers/types.js').InternalResourceServices
-): import('./handlers/types.js').InternalResourceHandler {
+    config: ValidatedInternalResourceConfig,
+    services: InternalResourceServices
+): InternalResourceHandler {
     const type = config.type;
     if (type === 'filesystem') {
         return new FileSystemResourceHandler(config);
@@ -39,6 +32,9 @@ export function createInternalResourceHandler(
     );
 }
 
+/**
+ * Get all supported internal resource handler types
+ */
 export function getInternalResourceHandlerTypes(): string[] {
     return ['filesystem', 'blob'];
 }

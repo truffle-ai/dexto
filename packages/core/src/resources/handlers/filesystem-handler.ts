@@ -4,52 +4,19 @@ import { logger } from '../../logger/index.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type {
-    FileSystemResourceConfig,
-    InternalResourceHandler,
-    InternalResourceServices,
-} from './types.js';
+import type { ValidatedFileSystemResourceConfig } from '../schemas.js';
+import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 
 export class FileSystemResourceHandler implements InternalResourceHandler {
-    private config: FileSystemResourceConfig;
+    private config: ValidatedFileSystemResourceConfig;
     private resourcesCache: Map<string, ResourceMetadata> = new Map();
     private visitedPaths: Set<string> = new Set();
     private fileCount: number = 0;
     private canonicalRoots: string[] = [];
 
-    constructor(config: FileSystemResourceConfig) {
+    constructor(config: ValidatedFileSystemResourceConfig) {
         this.config = config;
     }
-
-    private static readonly DEFAULT_MAX_DEPTH = 3;
-    private static readonly DEFAULT_MAX_FILES = 1000;
-    private static readonly DEFAULT_INCLUDE_EXTENSIONS = [
-        '.txt',
-        '.md',
-        '.js',
-        '.ts',
-        '.json',
-        '.html',
-        '.css',
-        '.py',
-        '.yaml',
-        '.yml',
-        '.xml',
-        '.jsx',
-        '.tsx',
-        '.vue',
-        '.php',
-        '.rb',
-        '.go',
-        '.rs',
-        '.java',
-        '.kt',
-        '.swift',
-        '.sql',
-        '.sh',
-        '.bash',
-        '.zsh',
-    ];
 
     getType(): string {
         return 'filesystem';
@@ -271,13 +238,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             return;
         }
 
-        // TODO: (355) Avoid default overrides, config should already have defaults since it's been through zod
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413248615
-        const maxDepth = this.config?.maxDepth ?? FileSystemResourceHandler.DEFAULT_MAX_DEPTH;
-        const maxFiles = this.config?.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
-        const includeHidden = this.config?.includeHidden ?? false;
-        const includeExtensions =
-            this.config?.includeExtensions ?? FileSystemResourceHandler.DEFAULT_INCLUDE_EXTENSIONS;
+        // Config has defaults already applied by schema validation
+        const { maxDepth, maxFiles, includeHidden, includeExtensions } = this.config;
 
         if (this.fileCount >= maxFiles) return;
         if (currentDepth > maxDepth) {

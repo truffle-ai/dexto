@@ -1,23 +1,6 @@
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 
-// TODO: (355) Should be derived from schemas file in this folder. Similar for other types in this file below.
-export interface FileSystemResourceConfig {
-    type: 'filesystem';
-    paths: string[];
-    maxDepth?: number;
-    maxFiles?: number;
-    includeHidden?: boolean;
-    includeExtensions?: string[];
-}
-
-export interface BlobResourceConfig {
-    type: 'blob';
-    // NOTE: Storage configuration (maxBlobSize, maxTotalSize, etc.) is in blobStorage section
-}
-
-export type InternalResourceConfig = FileSystemResourceConfig | BlobResourceConfig;
-
 export type InternalResourceServices = {
     blobService?: import('../../blob/index.js').BlobService;
 };

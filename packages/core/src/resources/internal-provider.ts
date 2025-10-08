@@ -1,13 +1,12 @@
 import { ResourceProvider, ResourceMetadata, ResourceSource } from './types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../logger/index.js';
-import {
-    InternalResourceConfig,
-    InternalResourceHandler,
-    InternalResourceServices,
-    createInternalResourceHandler,
-} from './internal-registry.js';
-import type { ValidatedInternalResourcesConfig } from './schemas.js';
+import { createInternalResourceHandler } from './handlers/factory.js';
+import type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
+import type {
+    ValidatedInternalResourcesConfig,
+    ValidatedInternalResourceConfig,
+} from './schemas.js';
 import { InternalResourceConfigSchema } from './schemas.js';
 import { ResourceError } from './errors.js';
 
@@ -107,7 +106,7 @@ export class InternalResourcesProvider implements ResourceProvider {
         }
     }
 
-    async addResourceConfig(config: InternalResourceConfig): Promise<void> {
+    async addResourceConfig(config: ValidatedInternalResourceConfig): Promise<void> {
         try {
             const parsedConfig = InternalResourceConfigSchema.parse(config);
             const handler = createInternalResourceHandler(parsedConfig, this.services);

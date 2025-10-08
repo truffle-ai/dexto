@@ -6,24 +6,25 @@
 // Core resource types and manager
 export type { ResourceSource, ResourceMetadata, ResourceProvider, ResourceSet } from './types.js';
 
-export type { InternalResourcesConfig, ValidatedInternalResourcesConfig } from './schemas.js';
+export type {
+    InternalResourcesConfig,
+    ValidatedInternalResourcesConfig,
+    ValidatedInternalResourceConfig,
+    ValidatedFileSystemResourceConfig,
+    ValidatedBlobResourceConfig,
+} from './schemas.js';
 
 export { ResourceManager } from './manager.js';
 export { ResourceError } from './errors.js';
 export { ResourceErrorCodes } from './error-codes.js';
 
-// Internal resources provider and registry
-export type {
-    InternalResourceConfig,
-    InternalResourceHandler,
-    InternalResourceServices,
-    BlobResourceConfig,
-} from './internal-registry.js';
+// Internal resources provider and handlers
+export type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
 export { InternalResourcesProvider } from './internal-provider.js';
 export {
     createInternalResourceHandler,
     getInternalResourceHandlerTypes,
-} from './internal-registry.js';
+} from './handlers/factory.js';
 
 // Resource reference parsing and expansion
 /**
