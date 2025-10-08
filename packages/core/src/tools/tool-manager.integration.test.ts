@@ -387,8 +387,9 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.getAllTools();
             await toolManager.getAllTools();
 
-            // MCP client's getTools gets called once for getAllTools (1)
-            expect(mockClient.getTools).toHaveBeenCalledTimes(1);
+            // With new architecture: MCPManager caches tools during updateClientCache
+            // So mockClient.getTools is NOT called again by toolManager.getAllTools()
+            expect(mockClient.getTools).toHaveBeenCalledTimes(0);
         });
 
         it('should refresh cache when requested', async () => {
@@ -416,16 +417,18 @@ describe('ToolManager Integration Tests', () => {
                 mockAgentEventBus
             );
 
-            // Initial call, should call getTools
+            // First call uses MCPManager's cache (no client call)
             await toolManager.getAllTools();
-            expect(mockClient.getTools).toHaveBeenCalledTimes(1);
-            vi.mocked(mockClient.getTools).mockClear();
+            expect(mockClient.getTools).toHaveBeenCalledTimes(0);
 
-            // Refresh and call twice, should call getTools again
+            // ToolManager.refresh() only invalidates ToolManager's cache, not MCPManager's
+            // MCPManager cache is automatically managed via server notifications
             await toolManager.refresh();
             await toolManager.getAllTools();
             await toolManager.getAllTools();
-            expect(mockClient.getTools).toHaveBeenCalledTimes(1);
+
+            // Still using MCPManager's cache, no additional client calls
+            expect(mockClient.getTools).toHaveBeenCalledTimes(0);
         });
     });
 
