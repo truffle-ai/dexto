@@ -202,10 +202,10 @@ export class DextoAgent {
             const promptsManager = new PromptsManager(
                 this.mcpManager,
                 this.resourceManager,
-                'prompts',
                 this.config,
                 this.agentEventBus,
-                services.storage.database
+                services.storage.database,
+                'prompts'
             );
             await promptsManager.initialize();
             Object.assign(this, { promptsManager });

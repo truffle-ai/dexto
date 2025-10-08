@@ -54,7 +54,10 @@ describe('DextoAgent Lifecycle Management', () => {
             } as any,
             toolManager: {} as any,
             systemPromptManager: {} as any,
-            agentEventBus: {} as any,
+            agentEventBus: {
+                on: vi.fn(),
+                emit: vi.fn(),
+            } as any,
             stateManager: {
                 getRuntimeConfig: vi.fn().mockReturnValue({
                     llm: mockValidatedConfig.llm,

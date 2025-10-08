@@ -33,54 +33,48 @@ export class PromptsManager {
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
 
-    // TODO: (355) Unnecessary optional args
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413106494
     constructor(
         mcpManager: MCPManager,
         resourceManager: ResourceManager,
-        promptsDir?: string,
-        agentConfig?: ValidatedAgentConfig,
-        private readonly eventBus?: AgentEventBus,
-        private readonly database?: DatabaseBackend
+        agentConfig: ValidatedAgentConfig,
+        private readonly eventBus: AgentEventBus,
+        private readonly database: DatabaseBackend,
+        promptsDir?: string
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
         const internalOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
         this.providers.set('internal', new InternalPromptProvider(internalOptions));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
-        if (this.database) {
-            this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
-        }
+        this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
 
         logger.debug(
             `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
 
-        if (this.eventBus && typeof (this.eventBus as any).on === 'function') {
-            const refresh = async (reason: string) => {
-                logger.debug(`PromptsManager refreshing due to: ${reason}`);
-                await this.refresh();
-            };
+        const refresh = async (reason: string) => {
+            logger.debug(`PromptsManager refreshing due to: ${reason}`);
+            await this.refresh();
+        };
 
-            this.eventBus.on('dexto:mcpServerConnected', async (p) => {
-                if (p.success) {
-                    await refresh(`mcpServerConnected:${p.name}`);
-                }
-            });
-            this.eventBus.on('dexto:mcpServerRemoved', async (p) => {
-                await refresh(`mcpServerRemoved:${p.serverName}`);
-            });
-            this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
-                await refresh(`mcpServerUpdated:${p.serverName}`);
-            });
+        this.eventBus.on('dexto:mcpServerConnected', async (p) => {
+            if (p.success) {
+                await refresh(`mcpServerConnected:${p.name}`);
+            }
+        });
+        this.eventBus.on('dexto:mcpServerRemoved', async (p) => {
+            await refresh(`mcpServerRemoved:${p.serverName}`);
+        });
+        this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
+            await refresh(`mcpServerUpdated:${p.serverName}`);
+        });
 
-            // Listen for MCP notifications for surgical updates
-            this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
-                await this.updatePromptsForServer(p.serverName, p.prompts);
-                logger.debug(
-                    `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`
-                );
-            });
-        }
+        // Listen for MCP notifications for surgical updates
+        this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
+            await this.updatePromptsForServer(p.serverName, p.prompts);
+            logger.debug(
+                `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`
+            );
+        });
     }
 
     async initialize(): Promise<void> {

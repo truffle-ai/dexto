@@ -47,11 +47,9 @@ export class CustomPromptProvider implements PromptProvider {
     private promptsCache: PromptInfo[] = [];
     private promptRecords: Map<string, StoredCustomPrompt> = new Map();
 
-    // TODO: (355) Unnecessary optional
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413111123
     constructor(
         private database: DatabaseBackend,
-        private resourceManager?: ResourceManager
+        private resourceManager: ResourceManager
     ) {}
 
     getSource(): string {
@@ -102,27 +100,25 @@ export class CustomPromptProvider implements PromptProvider {
             },
         });
 
-        if (record.resourceUri && this.resourceManager) {
+        if (record.resourceUri) {
             try {
                 const blobService = this.resourceManager.getBlobService();
-                if (blobService) {
-                    const blobData = await blobService.retrieve(record.resourceUri, 'base64');
-                    if (blobData.format === 'base64') {
-                        messages.push({
-                            role: 'user',
-                            content: {
-                                type: 'resource',
-                                resource: {
-                                    uri: record.resourceUri,
-                                    blob: blobData.data,
-                                    mimeType:
-                                        record.resourceMetadata?.mimeType ||
-                                        blobData.metadata?.mimeType ||
-                                        'application/octet-stream',
-                                },
+                const blobData = await blobService.retrieve(record.resourceUri, 'base64');
+                if (blobData.format === 'base64') {
+                    messages.push({
+                        role: 'user',
+                        content: {
+                            type: 'resource',
+                            resource: {
+                                uri: record.resourceUri,
+                                blob: blobData.data,
+                                mimeType:
+                                    record.resourceMetadata?.mimeType ||
+                                    blobData.metadata?.mimeType ||
+                                    'application/octet-stream',
                             },
-                        });
-                    }
+                        },
+                    });
                 }
             } catch (error) {
                 logger.warn(
@@ -172,29 +168,27 @@ export class CustomPromptProvider implements PromptProvider {
         let resourceUri: string | undefined;
         let resourceMetadata: StoredCustomPrompt['resourceMetadata'] | undefined;
 
-        if (input.resource && this.resourceManager) {
-            const blobService = this.resourceManager.getBlobService();
-            if (blobService) {
-                try {
-                    const { base64, mimeType, filename } = input.resource;
-                    const blobRef = await blobService.store(base64, {
-                        mimeType,
-                        originalName: filename,
-                        source: 'system',
-                    });
-                    resourceUri = blobRef.uri;
-                    const meta: { originalName?: string; mimeType?: string } = {};
-                    const originalName = blobRef.metadata.originalName ?? filename;
-                    if (originalName) {
-                        meta.originalName = originalName;
-                    }
-                    if (blobRef.metadata.mimeType) {
-                        meta.mimeType = blobRef.metadata.mimeType;
-                    }
-                    resourceMetadata = Object.keys(meta).length > 0 ? meta : undefined;
-                } catch (error) {
-                    logger.warn(`Failed to store custom prompt resource: ${String(error)}`);
+        if (input.resource) {
+            try {
+                const blobService = this.resourceManager.getBlobService();
+                const { base64, mimeType, filename } = input.resource;
+                const blobRef = await blobService.store(base64, {
+                    mimeType,
+                    originalName: filename,
+                    source: 'system',
+                });
+                resourceUri = blobRef.uri;
+                const meta: { originalName?: string; mimeType?: string } = {};
+                const originalName = blobRef.metadata.originalName ?? filename;
+                if (originalName) {
+                    meta.originalName = originalName;
                 }
+                if (blobRef.metadata.mimeType) {
+                    meta.mimeType = blobRef.metadata.mimeType;
+                }
+                resourceMetadata = Object.keys(meta).length > 0 ? meta : undefined;
+            } catch (error) {
+                logger.warn(`Failed to store custom prompt resource: ${String(error)}`);
             }
         }
 
@@ -233,9 +227,10 @@ export class CustomPromptProvider implements PromptProvider {
         }
 
         await this.database.delete(this.toKey(name));
-        if (record.resourceUri && this.resourceManager?.getBlobService()) {
+        if (record.resourceUri) {
             try {
-                await this.resourceManager.getBlobService()!.delete(record.resourceUri);
+                const blobService = this.resourceManager.getBlobService();
+                await blobService.delete(record.resourceUri);
             } catch (error) {
                 logger.warn(`Failed to delete blob for custom prompt ${name}: ${String(error)}`);
             }

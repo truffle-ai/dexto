@@ -8,31 +8,31 @@ import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
 import { eventBus } from '../events/index.js';
 
-// TODO: (355) Unnecessary optional config
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413204846
 export interface ResourceManagerOptions {
-    internalResourcesConfig?: ValidatedInternalResourcesConfig;
-    blobService?: import('../blob/index.js').BlobService;
+    internalResourcesConfig: ValidatedInternalResourcesConfig;
+    blobService: import('../blob/index.js').BlobService;
 }
 
 export class ResourceManager {
     private readonly mcpManager: MCPManager;
     private internalResourcesProvider?: InternalResourcesProvider;
-    private readonly blobService: import('../blob/index.js').BlobService | undefined;
+    private readonly blobService: import('../blob/index.js').BlobService;
 
-    constructor(mcpManager: MCPManager, options?: ResourceManagerOptions) {
+    constructor(mcpManager: MCPManager, options: ResourceManagerOptions) {
         this.mcpManager = mcpManager;
-        this.blobService = options?.blobService;
+        this.blobService = options.blobService;
 
-        const services: InternalResourceServices = {};
-        if (this.blobService) {
-            services.blobService = this.blobService;
-        }
+        const services: InternalResourceServices = {
+            blobService: this.blobService,
+        };
 
-        const config = options?.internalResourcesConfig;
-        if (config?.enabled || this.blobService) {
+        const config = options.internalResourcesConfig;
+        if (config.enabled || config.resources.length > 0) {
+            this.internalResourcesProvider = new InternalResourcesProvider(config, services);
+        } else {
+            // Always create provider to enable blob resources even if no other internal resources configured
             this.internalResourcesProvider = new InternalResourcesProvider(
-                config ?? { enabled: true, resources: [] },
+                { enabled: true, resources: [] },
                 services
             );
         }
@@ -50,7 +50,7 @@ export class ResourceManager {
         logger.debug('ResourceManager initialization complete');
     }
 
-    getBlobService(): import('../blob/index.js').BlobService | undefined {
+    getBlobService(): import('../blob/index.js').BlobService {
         return this.blobService;
     }
 
@@ -126,7 +126,7 @@ export class ResourceManager {
             return this.mcpManager.hasResource(uri);
         }
         // Always short-circuit blob: URIs to use blobService directly
-        if (uri.startsWith('blob:') && this.blobService) {
+        if (uri.startsWith('blob:')) {
             try {
                 return await this.blobService.exists(uri);
             } catch (error) {
@@ -152,7 +152,7 @@ export class ResourceManager {
             }
 
             // Always short-circuit blob: URIs to use blobService directly
-            if (uri.startsWith('blob:') && this.blobService) {
+            if (uri.startsWith('blob:')) {
                 const blob = await this.blobService.retrieve(uri, 'base64');
                 return {
                     contents: [
