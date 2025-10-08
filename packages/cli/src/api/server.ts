@@ -178,15 +178,7 @@ export async function initializeApi(
                 // Don't throw here as the switch was successful
             }
 
-            const agents = await Dexto.listAgents();
-            const switchedAgent =
-                agents.installed.find((agent) => agent.id === agentId) ??
-                agents.available.find((agent) => agent.id === agentId);
-
-            return {
-                id: agentId,
-                name: switchedAgent?.name ?? deriveDisplayName(agentId),
-            };
+            return await resolveAgentInfo(agentId);
         } catch (error) {
             logger.error(
                 `Failed to switch to agent '${agentId}': ${
@@ -1080,24 +1072,33 @@ export async function initializeApi(
     }
 
     // ===== Agents API =====
+
+    // TODO: Consider moving to AgentRegistry.getAgentInfo() if this pattern is needed
+    // outside of API response formatting (e.g., in CLI commands, WebUI hooks, client SDK)
+    /**
+     * Helper to resolve agent ID to { id, name } by looking up in registry
+     * @param agentId - The agent ID to resolve
+     * @returns Object with id and name (uses deriveDisplayName as fallback)
+     */
+    async function resolveAgentInfo(agentId: string): Promise<{ id: string; name: string }> {
+        const agents = await Dexto.listAgents();
+        const agent =
+            agents.installed.find((a) => a.id === agentId) ??
+            agents.available.find((a) => a.id === agentId);
+        return {
+            id: agentId,
+            name: agent?.name ?? deriveDisplayName(agentId),
+        };
+    }
+
     app.get('/api/agents', async (_req, res, next) => {
         try {
             const agents = await Dexto.listAgents();
             const currentId = activeAgentName ?? null;
-            const currentAgent =
-                currentId !== null
-                    ? (agents.installed.find((agent) => agent.id === currentId) ??
-                      agents.available.find((agent) => agent.id === currentId))
-                    : undefined;
             return sendJsonResponse(res, {
                 installed: agents.installed,
                 available: agents.available,
-                current: currentId
-                    ? {
-                          id: currentId,
-                          name: currentAgent?.name ?? deriveDisplayName(currentId),
-                      }
-                    : { id: null, name: null },
+                current: currentId ? await resolveAgentInfo(currentId) : { id: null, name: null },
             });
         } catch (error) {
             return next(error);
@@ -1110,16 +1111,7 @@ export async function initializeApi(
             if (!currentId) {
                 return sendJsonResponse(res, { id: null, name: null });
             }
-
-            const agents = await Dexto.listAgents();
-            const currentAgent =
-                agents.installed.find((agent) => agent.id === currentId) ??
-                agents.available.find((agent) => agent.id === currentId);
-
-            return sendJsonResponse(res, {
-                id: currentId,
-                name: currentAgent?.name ?? deriveDisplayName(currentId),
-            });
+            return sendJsonResponse(res, await resolveAgentInfo(currentId));
         } catch (error) {
             return next(error);
         }
@@ -1230,14 +1222,12 @@ export async function initializeApi(
                 // Registry agent installation
                 const { id } = parseBody(AgentIdentifierSchema, req.body);
                 await Dexto.installAgent(id);
-                const agents = await Dexto.listAgents();
-                const installedAgent = agents.installed.find((agent) => agent.id === id);
+                const agentInfo = await resolveAgentInfo(id);
                 return sendJsonResponse(
                     res,
                     {
                         installed: true,
-                        id,
-                        name: installedAgent?.name ?? deriveDisplayName(id),
+                        ...agentInfo,
                         type: 'builtin',
                     },
                     201

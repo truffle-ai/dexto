@@ -12,6 +12,7 @@ import {
 import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck, Plus } from 'lucide-react';
 import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
+import { deriveDisplayName } from '@dexto/core';
 
 type AgentItem = {
   id: string;
@@ -163,19 +164,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     // The user can manually switch to it from the dropdown
   }, [loadAgents]);
 
-  const fallbackAgentName = useCallback((id: string) => (
-    id
-      .split('-')
-      .filter(Boolean)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ')
-  ), []);
-
   const currentLabel = useMemo(() => {
     if (!currentId) return 'Choose Agent';
     const match = installed.find(agent => agent.id === currentId) || available.find(agent => agent.id === currentId);
-    return match?.name ?? fallbackAgentName(currentId);
-  }, [available, currentId, fallbackAgentName, installed]);
+    return match?.name ?? deriveDisplayName(currentId);
+  }, [available, currentId, installed]);
 
   const getButtonClassName = (mode: string) => {
     const baseClasses = 'transition-all duration-200 shadow-lg hover:shadow-xl font-semibold rounded-full';

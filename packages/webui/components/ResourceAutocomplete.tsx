@@ -5,6 +5,7 @@ import { Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { ResourceMetadata } from '@dexto/core';
 import { useResourceContent } from './hooks/useResourceContent';
 import type { NormalizedResourceItem, ResourceState } from './hooks/useResourceContent';
+import { filterAndSortResources } from '../lib/utils.js';
 
 interface ResourceAutocompleteProps {
   resources: ResourceMetadata[];
@@ -16,26 +17,7 @@ interface ResourceAutocompleteProps {
 }
 
 export default function ResourceAutocomplete({ resources, query, selectedIndex, onSelect, onHoverIndex, loading }: ResourceAutocompleteProps) {
-  const filtered = React.useMemo(() => {
-    const q = query.toLowerCase();
-    const parseDate = (val?: string | Date): number => {
-      if (!val) return 0;
-      const time = new Date(val).getTime();
-      return isNaN(time) ? 0 : time;
-    };
-    const sorted = [...resources].sort((a, b) => {
-      const aTime = parseDate(a.lastModified);
-      const bTime = parseDate(b.lastModified);
-      return bTime - aTime;
-    });
-    return sorted
-      .filter((r) =>
-        (r.name || '').toLowerCase().includes(q) ||
-        r.uri.toLowerCase().includes(q) ||
-        (r.serverName || '').toLowerCase().includes(q)
-      )
-      .slice(0, 25);
-  }, [resources, query]);
+  const filtered = React.useMemo(() => filterAndSortResources(resources, query), [resources, query]);
 
   const imageResourceUris = React.useMemo(
     () =>
