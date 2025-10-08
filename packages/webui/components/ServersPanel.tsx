@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
 
@@ -27,37 +28,6 @@ interface ServersPanelProps {
 }
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
-
-function buildConfigFromRegistryEntry(entry: ServerRegistryEntry): McpServerConfig {
-  const baseTimeout = entry.config.timeout || 30000;
-
-  if (entry.config.type === 'stdio') {
-    return {
-      type: 'stdio',
-      command: entry.config.command || '',
-      args: entry.config.args || [],
-      env: entry.config.env || {},
-      timeout: baseTimeout,
-      connectionMode: 'lenient' as const,
-    };
-  } else if (entry.config.type === 'sse') {
-    return {
-      type: 'sse',
-      url: entry.config.url || '',
-      headers: entry.config.headers || {},
-      timeout: baseTimeout,
-      connectionMode: 'lenient' as const,
-    };
-  } else {
-    return {
-      type: 'http',
-      url: entry.config.url || '',
-      headers: entry.config.headers || {},
-      timeout: baseTimeout,
-      connectionMode: 'lenient' as const,
-    };
-  }
-}
 
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
   const [servers, setServers] = useState<McpServer[]>([]);
@@ -122,18 +92,6 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
 
     // Check if additional input is needed
     // Only show modal if env vars or headers exist AND have empty/placeholder values
-    const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
-      return Object.values(obj).some(val => {
-        if (!val || val.trim() === '') return true;
-        // Check for common placeholder patterns
-        const placeholder = val.toLowerCase();
-        return placeholder.includes('your-') || placeholder.includes('placeholder') ||
-               placeholder.includes('enter-') || placeholder.includes('xxx') ||
-               placeholder.includes('...') || placeholder.includes('api_key') ||
-               placeholder.includes('api-key') || placeholder.includes('secret') ||
-               placeholder.includes('token') || placeholder.includes('password');
-      });
-    };
 
     const needsEnvInput = config.type === 'stdio' &&
                           Object.keys(config.env || {}).length > 0 &&

@@ -34,6 +34,7 @@ import SettingsModal from './SettingsModal';
 import AgentSelector from './AgentSelector/AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
 import { loadPrompts } from '../lib/promptCache';
@@ -323,61 +324,7 @@ export default function ChatApp() {
 
   const handleInstallServer = useCallback(
     async (entry: InstallableRegistryEntry): Promise<'connected' | 'requires-input'> => {
-      // Build type-specific config
-      const buildConfig = (): McpServerConfig => {
-        const baseTimeout = entry.config.timeout || 30000;
-
-        if (entry.config.type === 'stdio') {
-          return {
-            type: 'stdio',
-            command: entry.config.command || '',
-            args: entry.config.args || [],
-            env: entry.config.env || {},
-            timeout: baseTimeout,
-            connectionMode: 'lenient' as const,
-          };
-        } else if (entry.config.type === 'sse') {
-          return {
-            type: 'sse',
-            url: entry.config.url || '',
-            headers: entry.config.headers || {},
-            timeout: baseTimeout,
-            connectionMode: 'lenient' as const,
-          };
-        } else if (entry.config.type === 'http') {
-          return {
-            type: 'http',
-            url: entry.config.url || '',
-            headers: entry.config.headers || {},
-            timeout: baseTimeout,
-            connectionMode: 'lenient' as const,
-          };
-        }
-
-        const _exhaustive: never = entry.config.type;
-        throw new Error(`Unhandled config type: ${entry.config.type}`);
-      };
-
-      const config = buildConfig();
-
-      // Check if additional input is needed
-      const hasEmptyOrPlaceholderValue = (obj: Record<string, string>) => {
-        return Object.values(obj).some(val => {
-          if (!val || val.trim() === '') return true;
-          const placeholder = val.toLowerCase();
-          return (
-            placeholder === 'placeholder' ||
-            placeholder === 'your-api-key' ||
-            placeholder === 'your_api_key' ||
-            placeholder === 'enter-your-token' ||
-            placeholder === 'xxx' ||
-            placeholder === '...' ||
-            placeholder === 'todo' ||
-            /^your[_-]/.test(placeholder) ||
-            /^enter[_-]/.test(placeholder)
-          );
-        });
-      };
+      const config = buildConfigFromRegistryEntry(entry);
 
       const needsEnvInput =
         config.type === 'stdio' &&
