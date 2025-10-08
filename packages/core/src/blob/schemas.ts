@@ -98,10 +98,8 @@ export const BlobStatsSchema = z
     .describe('Storage statistics');
 
 // Type exports for convenience
-// TODO: (355) Nit: use z.output, delete unused schemas
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412967958
-export type ValidatedBlobServiceConfig = z.infer<typeof BlobServiceConfigSchema>;
-export type ValidatedBlobMetadata = z.infer<typeof BlobMetadataSchema>;
-export type ValidatedStoredBlobMetadata = z.infer<typeof StoredBlobMetadataSchema>;
-export type ValidatedBlobReference = z.infer<typeof BlobReferenceSchema>;
-export type ValidatedBlobStats = z.infer<typeof BlobStatsSchema>;
+export type ValidatedBlobServiceConfig = z.output<typeof BlobServiceConfigSchema>;
+export type ValidatedBlobMetadata = z.output<typeof BlobMetadataSchema>;
+export type ValidatedStoredBlobMetadata = z.output<typeof StoredBlobMetadataSchema>;
+export type ValidatedBlobReference = z.output<typeof BlobReferenceSchema>;
+export type ValidatedBlobStats = z.output<typeof BlobStatsSchema>;

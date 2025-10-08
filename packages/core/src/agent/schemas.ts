@@ -154,13 +154,10 @@ export const AgentConfigSchema = z
                             .optional()
                             .default('general')
                             .describe('Category for organizing starter prompts'),
-                        // TODO: (355) Nit: remove this default and keep it in description
-                        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412960566
                         icon: z
                             .string()
                             .optional()
-                            .default('')
-                            .describe('Emoji or icon to display'),
+                            .describe('Emoji or icon to display (defaults to empty string)'),
                         priority: z
                             .number()
                             .optional()

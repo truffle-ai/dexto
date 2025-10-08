@@ -1504,7 +1504,3 @@ export class DextoAgent {
     // - Tool chaining and workflow automation
     // - Agent collaboration and delegation
 }
-
-// TODO: (355) Nit: remove stray comment
-// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412957055
-// (resource methods are defined on the class above; no interface augmentation required)

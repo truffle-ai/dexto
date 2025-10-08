@@ -41,18 +41,9 @@ export async function initializeMcpToolAggregationServer(
         const jsonSchema = toolDef.parameters ?? { type: 'object', properties: {} };
         const paramsShape = jsonSchemaToZodShape(jsonSchema);
         const _paramsSchema = z.object(paramsShape);
-        // TODO: (355) Use z.output instead of z.infer, add linter rule for enforcing this
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412898960
-        type ToolArgs = z.infer<typeof _paramsSchema>;
+        type ToolArgs = z.output<typeof _paramsSchema>;
 
-        // TODO: (355) This if condition is not necessary, logger.debug already handles this and only shows if log level matches
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412900959
-        const level = typeof logger.getLevel === 'function' ? logger.getLevel() : 'info';
-        if (level === 'debug' || level === 'verbose' || level === 'silly') {
-            logger.debug(
-                `Registering tool '${toolName}' with schema: ${JSON.stringify(jsonSchema)}`
-            );
-        }
+        logger.debug(`Registering tool '${toolName}' with schema: ${JSON.stringify(jsonSchema)}`);
 
         mcpServer.tool(
             toolName,
