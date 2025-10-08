@@ -35,6 +35,8 @@ import AgentSelector from './AgentSelector/AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { McpServerConfig } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
+import { loadPrompts } from '../lib/promptCache';
 
 export default function ChatApp() {
 
@@ -66,6 +68,31 @@ export default function ChatApp() {
 
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
+
+  // Starter prompts state (from agent config via /api/prompts)
+  const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
+
+  // Fetch starter prompts when in welcome state
+  useEffect(() => {
+    if (!isWelcomeState) return;
+
+    let cancelled = false;
+    loadPrompts()
+      .then((prompts) => {
+        if (!cancelled) {
+          setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStarterPrompts([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isWelcomeState]);
 
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -389,6 +416,37 @@ export default function ChatApp() {
       icon: "⚡"
     }
   ];
+
+  // Merge dynamic quick actions from starter prompts
+  const dynamicQuickActions = React.useMemo(() => {
+    // If starter prompts are present, hide the built-in defaults to avoid duplication
+    const actions: Array<{ title: string; description: string; action: () => void; icon: string }> =
+      starterPrompts.length > 0 ? [] : [...quickActions];
+    starterPrompts.forEach((prompt) => {
+      const iconFromConfig =
+        typeof prompt?.metadata === 'object' && prompt.metadata !== null &&
+        typeof (prompt.metadata as { icon?: unknown }).icon === 'string'
+          ? ((prompt.metadata as { icon?: unknown }).icon as string)
+          : undefined;
+      if (prompt?.name === 'starter:connect-tools') {
+        actions.push({
+          title: prompt.title || prompt.name,
+          description: prompt.description || 'Starter prompt',
+          action: () => setServersPanelOpen(true),
+          icon: iconFromConfig || '🔧',
+        });
+      } else {
+        const slash = `/${prompt.name}`;
+        actions.push({
+          title: prompt.title || prompt.name,
+          description: prompt.description || 'Starter prompt',
+          action: () => handleSend(slash),
+          icon: iconFromConfig || '⭐',
+        });
+      }
+    });
+    return actions;
+  }, [starterPrompts, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -718,20 +776,25 @@ export default function ChatApp() {
 
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
-                    {quickActions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={action.action}
-                        className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-1.5">
-                          <span className="text-sm">{action.icon}</span>
-                          <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
-                            {action.title}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                    {dynamicQuickActions.map((action, index) => {
+                      const title = action.title || '';
+                      const icon = action.icon || '';
+                      const showIcon = Boolean(icon) && !title.includes(icon);
+                      return (
+                        <button
+                          key={index}
+                          onClick={action.action}
+                          className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
+                        >
+                          <div className="flex items-center space-x-1.5">
+                            {showIcon && <span className="text-sm">{icon}</span>}
+                            <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
+                              {title}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Central Search Bar with Full Features */}

@@ -11,7 +11,7 @@ Dexto's architecture is built around core services that handle different aspects
 | **ToolManager** | Tool execution | Executes tools, handles confirmations, manages internal tools |
 | **SessionManager** | Conversation state | Manages chat sessions, conversation history |
 | **StorageManager** | Data persistence | Handles cache and database storage |
-| **PromptManager** | System prompts | Manages system prompt assembly and dynamic content |
+| **SystemPromptManager** | System prompts | Manages system prompt assembly and dynamic content |
 | **AgentEventBus** | Event coordination | Handles inter-service communication |
 
 ## Service Relationships
@@ -21,14 +21,14 @@ graph TB
     DA[DextoAgent] --> SM[SessionManager]
     DA --> MM[MCPManager]
     DA --> TM[ToolManager]
-    DA --> PM[PromptManager]
+    DA --> SPM[SystemPromptManager]
     DA --> STM[StorageManager]
     DA --> AEB[AgentEventBus]
     
     MM --> TM
     TM --> STM
     SM --> STM
-    PM --> STM
+    SPM --> STM
     
     AEB -.-> SM
     AEB -.-> MM
@@ -175,7 +175,7 @@ storage:
     connectionString: $POSTGRES_CONNECTION_STRING
 ```
 
-## PromptManager
+## SystemPromptManager
 
 **System prompt** assembly from multiple contributors.
 

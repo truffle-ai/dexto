@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
@@ -46,11 +46,13 @@ import {
     AgentError,
     AgentConfigSchema,
 } from '@dexto/core';
+import { ResourceError } from '@dexto/core';
+import { PromptError } from '@dexto/core';
 
 /**
  * Helper function to send JSON response with optional pretty printing
  */
-function sendJsonResponse(res: any, data: any, statusCode = 200) {
+function sendJsonResponse<T>(res: Response, data: T, statusCode = 200) {
     const pretty = res.req.query.pretty === 'true' || res.req.query.pretty === '1';
     res.status(statusCode);
 
@@ -133,6 +135,32 @@ const SearchQuerySchema = z.object({
 const CancelRequestSchema = z.object({
     sessionId: z.string().min(1, 'Session ID is required'),
 });
+
+const PromptArgumentSchema = z
+    .object({
+        name: z.string().min(1, 'Argument name is required'),
+        description: z.string().optional(),
+        required: z.boolean().optional(),
+    })
+    .strict();
+
+const CustomPromptRequestSchema = z
+    .object({
+        name: z.string().min(1, 'Prompt name is required'),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        content: z.string().min(1, 'Prompt content is required'),
+        arguments: z.array(PromptArgumentSchema).optional(),
+        resource: z
+            .object({
+                base64: z.string().min(1, 'Resource data is required'),
+                mimeType: z.string().min(1, 'Resource MIME type is required'),
+                filename: z.string().optional(),
+            })
+            .strict()
+            .optional(),
+    })
+    .strict();
 
 // Helper to parse and validate request body
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
@@ -272,10 +300,159 @@ export async function initializeApi(
 
     // HTTP endpoints
 
+    // ---- Helpers (local) ----
+    function handleZodError(error: z.ZodError, context: string): DextoValidationError {
+        const errorMessage = error.issues.map((i) => i.message).join(', ');
+        logger.error(`${context}: ${errorMessage}`);
+        return new DextoValidationError([
+            {
+                code: AgentErrorCode.API_VALIDATION_ERROR,
+                message: errorMessage,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+                severity: 'error' as const,
+            },
+        ]);
+    }
+
+    function decodeResourceId(resourceIdParam: string): string {
+        try {
+            return decodeURIComponent(resourceIdParam);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'URI decode error';
+            logger.error(`Failed to decode resourceId parameter: ${errorMessage}`);
+            throw ResourceError.invalidUriFormat(
+                resourceIdParam,
+                'valid URI-encoded resource identifier'
+            );
+        }
+    }
+
     // Health check endpoint
     app.get('/health', (req, res) => {
         res.status(200).send('OK');
     });
+
+    // Prompts listing endpoint (for WebUI slash command autocomplete)
+    app.get('/api/prompts', async (_req, res, next) => {
+        try {
+            const prompts = await activeAgent.listPrompts();
+            const list = Object.values(prompts);
+            return res.status(200).json({ prompts: list });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    app.post('/api/prompts/custom', express.json({ limit: '10mb' }), async (req, res, next) => {
+        try {
+            const payload = parseBody(CustomPromptRequestSchema, req.body);
+            const promptArguments = payload.arguments
+                ?.map((arg) => ({
+                    name: arg.name,
+                    ...(arg.description ? { description: arg.description } : {}),
+                    ...(typeof arg.required === 'boolean' ? { required: arg.required } : {}),
+                }))
+                .filter(Boolean);
+
+            const createPayload = {
+                name: payload.name,
+                content: payload.content,
+                ...(payload.title ? { title: payload.title } : {}),
+                ...(payload.description ? { description: payload.description } : {}),
+                ...(promptArguments && promptArguments.length > 0
+                    ? { arguments: promptArguments }
+                    : {}),
+                ...(payload.resource
+                    ? {
+                          resource: {
+                              base64: payload.resource.base64,
+                              mimeType: payload.resource.mimeType,
+                              ...(payload.resource.filename
+                                  ? { filename: payload.resource.filename }
+                                  : {}),
+                          },
+                      }
+                    : {}),
+            };
+            const prompt = await activeAgent.createCustomPrompt(createPayload);
+            return res.status(201).json({ prompt });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    app.delete('/api/prompts/custom/:name', async (req, res, next) => {
+        try {
+            const encodedName = req.params.name;
+            const name = decodeURIComponent(encodedName);
+            await activeAgent.deleteCustomPrompt(name);
+            return res.status(204).send();
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Get a specific prompt definition
+    app.get('/api/prompts/:name', async (req, res, next) => {
+        try {
+            const name = req.params.name;
+            if (!name) throw PromptError.nameRequired();
+            const definition = await activeAgent.getPromptDefinition(name);
+            if (!definition) throw PromptError.notFound(name);
+            return sendJsonResponse(res, { definition }, 200);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Resolve a prompt to text content (without sending to the agent)
+    // Supports optional args via query string. For natural language after the
+    // slash command, pass as `q` or `_context` (both map to `_context`).
+    app.get('/api/prompts/:name/resolve', async (req, res, next) => {
+        try {
+            const inputName = req.params.name;
+            if (!inputName) throw PromptError.nameRequired();
+
+            // Extract optional arguments from query string
+            const query = req.query as Record<string, unknown>;
+            const q = typeof query.q === 'string' ? query.q : undefined;
+            const ctx = typeof query._context === 'string' ? query._context : undefined;
+
+            // Optional structured args in `args` query param as JSON
+            let parsedArgs: Record<string, unknown> | undefined;
+            if (typeof query.args === 'string') {
+                try {
+                    const parsed = JSON.parse(query.args);
+                    if (parsed && typeof parsed === 'object') {
+                        parsedArgs = parsed as Record<string, unknown>;
+                    }
+                } catch {
+                    // Ignore malformed args JSON; continue with whatever we have
+                }
+            }
+
+            // Build options object with only defined values (exactOptionalPropertyTypes compatibility)
+            const options: {
+                q?: string;
+                context?: string;
+                args?: Record<string, unknown>;
+            } = {};
+            if (q !== undefined) options.q = q;
+            if (ctx !== undefined) options.context = ctx;
+            if (parsedArgs !== undefined) options.args = parsedArgs;
+
+            // Use DextoAgent's resolvePrompt method
+            const result = await activeAgent.resolvePrompt(inputName, options);
+
+            return sendJsonResponse(res, { text: result.text, resources: result.resources }, 200);
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Note: We intentionally omit an "execute" endpoint; clients resolve prompts
+    // and then call the regular message endpoint, keeping server surface minimal.
 
     // JSON body size limit for message endpoints supporting base64 image/file payloads
     // Both /api/message and /api/message-sync accept base64 attachments; increased limit to avoid 413s.
@@ -532,6 +709,132 @@ export async function initializeApi(
             }
         }
     );
+
+    // ============= RESOURCE MANAGEMENT ENDPOINTS =============
+
+    // Get all available resources
+    app.get('/api/resources', async (_req, res, next) => {
+        try {
+            const resources = await activeAgent.listResources();
+            return res.status(200).json({ ok: true, resources: Object.values(resources) });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Read resource content
+    app.get('/api/resources/:resourceId/content', async (req, res, next) => {
+        const resourceIdParam = req.params.resourceId;
+        let decodedResourceId: string;
+        try {
+            decodedResourceId = decodeResourceId(resourceIdParam);
+        } catch (error) {
+            return next(error);
+        }
+
+        // Validate resourceId
+        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
+        try {
+            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
+            const content = await activeAgent.readResource(validatedResourceId);
+            return res.status(200).json({ ok: true, content });
+        } catch (error) {
+            if (error instanceof z.ZodError)
+                return next(handleZodError(error, 'Invalid resourceId validation'));
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error reading resource content for '${decodedResourceId}': ${errorMessage}`
+            );
+            return next(error);
+        }
+    });
+
+    // Check if resource exists
+    app.head('/api/resources/:resourceId', async (req, res, next) => {
+        const resourceIdParam = req.params.resourceId;
+        let decodedResourceId: string;
+        try {
+            decodedResourceId = decodeResourceId(resourceIdParam);
+        } catch (error) {
+            return next(error);
+        }
+
+        const resourceIdSchema = z.string().min(1, 'Resource ID cannot be empty');
+        try {
+            const validatedResourceId = resourceIdSchema.parse(decodedResourceId);
+            const exists = await activeAgent.hasResource(validatedResourceId);
+            return res.status(exists ? 200 : 404).end();
+        } catch (error) {
+            if (error instanceof z.ZodError)
+                return next(handleZodError(error, 'Invalid resourceId validation'));
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error checking resource existence for '${decodedResourceId}': ${errorMessage}`
+            );
+            return next(error);
+        }
+    });
+
+    // List resources for a specific MCP server
+    app.get('/api/mcp/servers/:serverId/resources', async (req, res, next) => {
+        try {
+            const { serverId } = z.object({ serverId: z.string().min(1) }).parse(req.params);
+            const resources = await activeAgent.listResourcesForServer(serverId);
+            return sendJsonResponse(res, { success: true, resources }, 200);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const serverId = req.params.serverId;
+            logger.error(`Error fetching resources for server '${serverId}': ${errorMessage}`);
+            return next(error);
+        }
+    });
+
+    // Read resource content from specific MCP server
+    app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res, next) => {
+        const serverId = req.params.serverId;
+        const resourceIdParam = req.params.resourceId;
+        if (!serverId || !resourceIdParam) {
+            return next(
+                new DextoValidationError([
+                    {
+                        code: AgentErrorCode.API_VALIDATION_ERROR,
+                        message: 'Missing serverId or resourceId parameters',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error' as const,
+                    },
+                ])
+            );
+        }
+        let decodedResourceId: string;
+        try {
+            decodedResourceId = decodeResourceId(resourceIdParam);
+        } catch (_error) {
+            return next(
+                new DextoValidationError([
+                    {
+                        code: AgentErrorCode.API_VALIDATION_ERROR,
+                        message: 'Invalid resourceId parameter - failed to decode URI component',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error' as const,
+                        context: { resourceIdParam },
+                    },
+                ])
+            );
+        }
+        try {
+            const qualifiedUri = `mcp:${serverId}:${decodedResourceId}`;
+            const content = await activeAgent.readResource(qualifiedUri);
+            return sendJsonResponse(res, { success: true, data: { content } }, 200);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(
+                `Error reading resource '${decodedResourceId}' from server '${serverId}': ${errorMessage}`
+            );
+            return next(error);
+        }
+    });
 
     // WebSocket handling
     // handle inbound client messages over WebSocket

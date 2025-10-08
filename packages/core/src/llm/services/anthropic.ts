@@ -9,7 +9,7 @@ import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../regist
 import { ImageData, FileData } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -29,11 +29,12 @@ export class AnthropicService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         anthropic: Anthropic,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager?: import('../../resources/index.js').ResourceManager
     ) {
         this.config = config;
         this.anthropic = anthropic;
@@ -46,14 +47,18 @@ export class AnthropicService implements ILLMService {
         const tokenizer = createTokenizer(config.provider, config.model);
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
+        // Use the provided ResourceManager
+
         this.contextManager = new ContextManager<MessageParam>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            undefined, // Use default compression strategies
+            resourceManager
         );
     }
 

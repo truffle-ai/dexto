@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from "@/lib/utils";
 import { 
     Message, 
@@ -44,6 +44,9 @@ import { MarkdownText } from './ui/markdown-text';
 import { TooltipIconButton } from './ui/tooltip-icon-button';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
+import { useResourceContent, type ResourceState, type NormalizedResourceItem } from './hooks/useResourceContent';
+import { useResources } from './hooks/useResources';
+import type { ResourceMetadata } from './types/resources';
 
 interface MessageListProps {
   messages: Message[];
@@ -163,6 +166,11 @@ function isSafeMediaUrl(src: string, expectedType?: 'image' | 'video' | 'audio')
   return false;
 }
 
+// Helper to check if a URL is safe for audio rendering
+function isSafeAudioUrl(src: string): boolean {
+  return isSafeMediaUrl(src, 'audio');
+}
+
 // Helper to resolve media source from different formats
 function resolveMediaSrc(part: any): string {
   // Check for base64 data with mimeType
@@ -232,6 +240,16 @@ export default function MessageList({ messages, activeError, onDismissError, out
     src: '',
     alt: ''
   });
+  const { resources: availableResources } = useResources();
+  const resourceSet = useMemo<Record<string, ResourceMetadata>>(() => {
+    const map: Record<string, ResourceMetadata> = {};
+    for (const resource of availableResources) {
+      map[resource.uri] = {
+        ...resource,
+      };
+    }
+    return map;
+  }, [availableResources]);
 
   // Add CSS for audio controls overflow handling
   useEffect(() => {
@@ -524,9 +542,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                   }
                                   if (isTextPart(part)) {
                                     return (
-                                      <pre key={index} className="whitespace-pre-wrap break-words overflow-auto bg-background/50 p-2 rounded text-xs text-muted-foreground my-1">
-                                        {part.text}
-                                      </pre>
+                                      <MessageContentWithResources
+                                        key={`${msgKey}-tool-text-${index}`}
+                                        text={part.text}
+                                        isUser={false}
+                                        onOpenImage={openImageModal}
+                                        resourceSet={resourceSet}
+                                      />
                                     );
                                   }
                                   if (isFilePart(part)) {
@@ -571,12 +593,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
                         <div className="relative">
                           {isThinkingMessage ? (
                             <ThinkingIndicator />
-                          ) : isUser ? (
-                            <p className="text-base whitespace-pre-line break-normal">
-                              {msg.content}
-                            </p>
                           ) : (
-                            <MarkdownText>{msg.content}</MarkdownText>
+                            <MessageContentWithResources
+                              key={`${msgKey}-text-content`}
+                              text={msg.content}
+                              isUser={isUser}
+                              onOpenImage={openImageModal}
+                              resourceSet={resourceSet}
+                            />
                           )}
                         </div>
                       )}
@@ -591,17 +615,32 @@ export default function MessageList({ messages, activeError, onDismissError, out
                         const partKey = `${msgKey}-part-${partIdx}`;
                         if (part.type === 'text') {
                           return (
-                            <div key={partKey} className="relative">
-                              {isUser ? (
-                                <p className="text-base whitespace-pre-line break-normal">
-                                  {(part as TextPart).text}
-                                </p>
-                              ) : (
-                                <MarkdownText>{(part as TextPart).text}</MarkdownText>
-                              )}
-                            </div>
+                            <MessageContentWithResources
+                              key={partKey}
+                              text={(part as TextPart).text}
+                              isUser={isUser}
+                              onOpenImage={openImageModal}
+                              resourceSet={resourceSet}
+                            />
                           );
                         }
+                        // Handle image parts
+                        if (isImagePart(part)) {
+                          const src = resolveMediaSrc(part);
+                          if (src && isSafeMediaUrl(src, 'image')) {
+                            return (
+                              <img
+                                key={partKey}
+                                src={src}
+                                alt="Message attachment"
+                                className="mt-2 max-h-60 w-full rounded-lg border border-border object-contain cursor-pointer"
+                                onClick={() => openImageModal(src, "Message attachment")}
+                              />
+                            );
+                          }
+                          return null;
+                        }
+
                         const videoInfo = getVideoInfo(part);
                         if (videoInfo) {
                           const { src, filename, mimeType } = videoInfo;
@@ -976,4 +1015,289 @@ export default function MessageList({ messages, activeError, onDismissError, out
       )}
     </div>
   );
-} 
+}
+
+function extractResourceData(
+  text: string,
+  resourceSet: Record<string, ResourceMetadata>
+): { cleanedText: string; uris: string[] } {
+  if (!text) {
+    return { cleanedText: '', uris: [] };
+  }
+
+  const references: Array<{
+    kind: 'uri' | 'server' | 'name';
+    value: string;
+    serverName?: string;
+  }> = [];
+
+  const regex = /@(?:(<[^>]+>)|([a-zA-Z0-9_-]+):([a-zA-Z0-9._/-]+)|([a-zA-Z0-9._/-]+))/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const [_, uriWithBrackets, serverName, serverResource, simpleName] = match;
+    if (uriWithBrackets) {
+      references.push({ kind: 'uri', value: uriWithBrackets.slice(1, -1) });
+    } else if (serverName && serverResource) {
+      references.push({ kind: 'server', value: serverResource, serverName });
+    } else if (simpleName) {
+      references.push({ kind: 'name', value: simpleName });
+    }
+  }
+
+  const resourcesArray = Object.entries(resourceSet);
+
+  const findByServerAndName = (server: string, identifier: string): string | undefined => {
+    for (const [uri, resource] of resourcesArray) {
+      if (resource.serverName !== server) continue;
+      if (resource.name === identifier) return uri;
+      const originalUri = typeof resource.metadata?.originalUri === 'string' ? resource.metadata?.originalUri : undefined;
+      if (originalUri && originalUri.includes(identifier)) return uri;
+    }
+    return undefined;
+  };
+
+  const findByName = (identifier: string): string | undefined => {
+    for (const [uri, resource] of resourcesArray) {
+      if (resource.name === identifier) return uri;
+    }
+    for (const [uri, resource] of resourcesArray) {
+      if (resource.name && resource.name.includes(identifier)) return uri;
+    }
+    for (const [uri, resource] of resourcesArray) {
+      if (uri.includes(identifier)) return uri;
+      const originalUri = typeof resource.metadata?.originalUri === 'string' ? resource.metadata?.originalUri : undefined;
+      if (originalUri && originalUri.includes(identifier)) return uri;
+    }
+    return undefined;
+  };
+
+  const resolvedUris = new Set<string>();
+  for (const ref of references) {
+    if (ref.kind === 'uri') {
+      const value = ref.value;
+      resolvedUris.add(value);
+      continue;
+    }
+    if (ref.kind === 'server' && ref.serverName) {
+      const found = findByServerAndName(ref.serverName, ref.value);
+      if (found) {
+        resolvedUris.add(found);
+      }
+      continue;
+    }
+    if (ref.kind === 'name') {
+      const found = findByName(ref.value);
+      if (found) {
+        resolvedUris.add(found);
+      }
+      continue;
+    }
+  }
+
+  const cleanedText = text
+    .replace(/@<([^>]+)>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return { cleanedText, uris: Array.from(resolvedUris) };
+}
+
+function MessageContentWithResources({
+  text,
+  isUser,
+  onOpenImage,
+  resourceSet,
+}: {
+  text: string;
+  isUser: boolean;
+  onOpenImage: (src: string, alt: string) => void;
+  resourceSet: Record<string, ResourceMetadata>;
+}) {
+  const { cleanedText, uris } = useMemo(() => extractResourceData(text, resourceSet), [text, resourceSet]);
+  const resourceStates = useResourceContent(uris);
+  const hasText = cleanedText.length > 0;
+
+  return (
+    <div className="space-y-3">
+      {hasText && (
+        <div className="relative">
+          {isUser ? (
+            <p className="text-base whitespace-pre-line break-normal">{cleanedText}</p>
+          ) : (
+            <MarkdownText>{cleanedText}</MarkdownText>
+          )}
+        </div>
+      )}
+
+      {uris.map((uri) => (
+        <ResourceAttachment
+          key={uri}
+          uri={uri}
+          state={resourceStates[uri]}
+          onOpenImage={onOpenImage}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ResourceAttachment({
+  uri,
+  state,
+  onOpenImage,
+}: {
+  uri: string;
+  state?: ResourceState;
+  onOpenImage: (src: string, alt: string) => void;
+}) {
+  if (!state || state.status === 'loading') {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <span>Loading resource…</span>
+      </div>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <div className="flex items-start gap-2 text-xs text-destructive">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5" />
+        <div className="space-y-1">
+          <p className="font-medium">Failed to load resource</p>
+          <p className="break-all text-[11px] text-destructive/80">{uri}</p>
+          <p className="text-[11px] text-destructive/70">{state.error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const data = state.data;
+  if (!data || data.items.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground">
+        <p className="font-medium">{data?.name || uri}</p>
+        <p className="text-[11px] text-muted-foreground/80">No previewable content.</p>
+      </div>
+    );
+  }
+
+  const primaryMime = data.items.find(
+      (item): item is NormalizedResourceItem & { mimeType: string } =>
+      'mimeType' in item && typeof item.mimeType === 'string'
+  )?.mimeType;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
+        <Info className="h-3.5 w-3.5" />
+        <span className="font-medium text-foreground">{data.name || uri}</span>
+        {primaryMime && <span className="text-[10px]">{primaryMime}</span>}
+      </div>
+
+      {data.items.map((item, index) =>
+        renderNormalizedItem({
+          item,
+          index,
+          onOpenImage,
+        })
+      )}
+    </div>
+  );
+}
+
+function renderNormalizedItem({
+  item,
+  index,
+  onOpenImage,
+}: {
+  item: NormalizedResourceItem;
+  index: number;
+  onOpenImage: (src: string, alt: string) => void;
+}) {
+  const key = `resource-item-${index}`;
+
+  switch (item.kind) {
+    case 'text': {
+      if (item.mimeType && item.mimeType.includes('markdown')) {
+        return (
+          <div key={key} className="text-sm">
+            <MarkdownText>{item.text}</MarkdownText>
+          </div>
+        );
+      }
+      return (
+        <pre
+          key={key}
+          className="whitespace-pre-wrap break-words rounded-md bg-background/60 p-2 text-sm text-foreground"
+        >
+          {item.text}
+        </pre>
+      );
+    }
+    case 'image': {
+      if (!isSafeMediaUrl(item.src)) {
+        return (
+          <div key={key} className="text-xs text-muted-foreground">
+            Unsupported image source
+          </div>
+        );
+      }
+      return (
+        <img
+          key={key}
+          src={item.src}
+          alt={item.alt || 'Resource image'}
+          onClick={() => onOpenImage(item.src, item.alt || 'Resource image')}
+          className="max-h-60 w-full cursor-zoom-in rounded-lg border border-border object-contain"
+        />
+      );
+    }
+    case 'audio': {
+      if (!isSafeAudioUrl(item.src)) {
+        return (
+          <div key={key} className="text-xs text-muted-foreground">
+            Unsupported audio source
+          </div>
+        );
+      }
+      return (
+        <div key={key} className="flex items-center gap-2 rounded-lg border border-border bg-background/50 p-2">
+          <FileAudio className="h-4 w-4" />
+          <audio controls src={item.src} className="h-8 flex-1" />
+          {item.filename && (
+            <span className="max-w-[140px] truncate text-xs text-muted-foreground">
+              {item.filename}
+            </span>
+          )}
+        </div>
+      );
+    }
+    case 'file': {
+      return (
+        <div key={key} className="flex items-center gap-3 rounded-lg border border-border bg-background/60 p-2">
+          <File className="h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-1 flex-col">
+            <span className="text-sm font-medium text-foreground">
+              {item.filename || 'Resource file'}
+            </span>
+            {item.mimeType && (
+              <span className="text-[11px] text-muted-foreground">{item.mimeType}</span>
+            )}
+          </div>
+          {item.src && (
+            <a
+              href={item.src}
+              download={item.filename || 'resource.bin'}
+              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Download
+            </a>
+          )}
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+}

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
 
 interface ServersPanelProps {
@@ -174,7 +175,9 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       }
 
       await fetchServers(); // Refresh server list
-      
+      // Clear prompt cache since removed server's prompts are no longer available
+      clearPromptCache();
+
       // Sync registry with updated server status
       try {
         await serverRegistry.syncWithServerStatus();
@@ -210,6 +213,43 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       };
     }
   }, [refreshTrigger, isOpen, fetchServers]);
+
+  // Listen for real-time MCP server and resource updates
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleServerConnected = (event: any) => {
+      const detail = event?.detail || {};
+      console.log('🔗 Server connected:', detail);
+      // Refresh server list when a new server is connected
+      fetchServers();
+    };
+
+    const handleResourceCacheInvalidated = (event: any) => {
+      const detail = event?.detail || {};
+      console.log('💾 Resource cache invalidated for server panel:', detail);
+      // If we have a selected server and it matches the updated server, refresh tools
+      if (selectedServerId && detail.serverName) {
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const normalizedSelectedId = normalize(selectedServerId);
+        const normalizedServerName = normalize(detail.serverName);
+        if (normalizedSelectedId === normalizedServerName) {
+          handleServerSelect(selectedServerId);
+        }
+      }
+    };
+
+    // Listen for WebSocket events that indicate server/resource changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('dexto:mcpServerConnected', handleServerConnected);
+      window.addEventListener('dexto:resourceCacheInvalidated', handleResourceCacheInvalidated);
+      
+      return () => {
+        window.removeEventListener('dexto:mcpServerConnected', handleServerConnected);
+        window.removeEventListener('dexto:resourceCacheInvalidated', handleResourceCacheInvalidated);
+      };
+    }
+  }, [isOpen, fetchServers, selectedServerId]);
 
   const handleServerSelect = useCallback(async (serverId: string, signal?: AbortSignal) => {
     const server = servers.find(s => s.id === serverId);

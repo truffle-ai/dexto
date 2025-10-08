@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { ChatInputContainer, ButtonFooter, StreamToggle, AttachButton, RecordButton } from './ChatInput';
@@ -20,6 +21,13 @@ import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
+import ResourceAutocomplete from './ResourceAutocomplete';
+import type { ResourceMetadata as UIResourceMetadata } from './types/resources';
+import { useResources } from './hooks/useResources';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import CreatePromptModal from './CreatePromptModal';
+import { parseSlashInput } from '../lib/parseSlash';
+import { clearPromptCache } from '../lib/promptCache';
 
 interface ModelOption {
   name: string;
@@ -65,6 +73,62 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
   const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
+
+  // Resources (for @ mention autocomplete)
+  const { resources, loading: resourcesLoading, refresh: refreshResources } = useResources();
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMention, setShowMention] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | null>(null);
+
+  // Helpers for @ mention parsing/filtering
+  const filterResources = useCallback(
+    (list: ReturnType<typeof useResources>['resources'], q: string) => {
+      const query = q.toLowerCase();
+      const parseDate = (val?: string | Date): number => {
+        if (!val) return 0;
+        const time = new Date(val).getTime();
+        return isNaN(time) ? 0 : time;
+      };
+      const sorted = [...list].sort((a, b) => {
+        const aTime = parseDate(a.lastModified);
+        const bTime = parseDate(b.lastModified);
+        return bTime - aTime;
+      });
+      return sorted
+        .filter(
+          (r) =>
+            (r.name || '').toLowerCase().includes(query) ||
+            r.uri.toLowerCase().includes(query) ||
+            (r.serverName || '').toLowerCase().includes(query)
+        )
+        .slice(0, 25);
+    },
+    []
+  );
+
+  const findActiveAtIndex = (value: string, caret: number) => {
+    // Walk backwards from caret to find an '@'
+    // @ is only valid if:
+    // 1. At the start of the message (i === 0), OR
+    // 2. Preceded by whitespace
+    for (let i = caret - 1; i >= 0; i--) {
+      const ch = value[i];
+      if (ch === '@') {
+        // Check if @ is at start or preceded by whitespace
+        if (i === 0) {
+          return i; // @ at start is valid
+        }
+        const prev = value[i - 1];
+        if (/\s/.test(prev)) {
+          return i; // @ after whitespace is valid
+        }
+        return -1; // @ in middle of text (like email) - ignore
+      }
+      if (/\s/.test(ch)) break; // stop at whitespace
+    }
+    return -1;
+  };
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
@@ -77,11 +141,44 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   // File size limit (64MB)
   const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
 
+  // Slash command state
+  const [showSlashCommands, setShowSlashCommands] = useState(false);
+  const [showCreatePromptModal, setShowCreatePromptModal] = useState(false);
+  const [slashRefreshKey, setSlashRefreshKey] = useState(0);
+
   const showUserError = (message: string) => {
     setFileUploadError(message);
     // Auto-clear error after 5 seconds
     setTimeout(() => setFileUploadError(null), 5000);
   };
+
+  const openCreatePromptModal = React.useCallback(() => {
+    setShowSlashCommands(false);
+    setShowCreatePromptModal(true);
+  }, []);
+
+  const handlePromptCreated = React.useCallback(
+    (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
+      // Manual cache clear needed for custom prompt creation (not triggered by WebSocket events)
+      clearPromptCache();
+      setShowCreatePromptModal(false);
+      setSlashRefreshKey((prev) => prev + 1);
+      const slashCommand = `/${prompt.name}`;
+      setText(slashCommand);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(slashCommand.length, slashCommand.length);
+      }
+    },
+    []
+  );
+
+  const handleCloseCreatePrompt = React.useCallback(() => {
+    setShowCreatePromptModal(false);
+    if (text === '/') {
+      setText('');
+    }
+  }, [text]);
 
   // Fetch current LLM configuration
   useEffect(() => {
@@ -141,10 +238,48 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   // NOTE: We intentionally do not manually resize the textarea. We rely on
   // CSS max-height + overflow to keep layout stable.
 
-  const handleSend = () => {
-    const trimmed = text.trim();
+  const handleSend = async () => {
+    let trimmed = text.trim();
     // Allow sending if we have text OR any attachment
     if (!trimmed && !imageData && !fileData) return;
+
+    // If slash command typed, resolve to full prompt content at send time
+    if (trimmed === '/') {
+      openCreatePromptModal();
+      return;
+    } else if (trimmed.startsWith('/')) {
+      const parsed = parseSlashInput(trimmed);
+      const name = parsed.command;
+      // Preserve original suffix including quotes/spacing (trim only leading space)
+      const originalArgsText = trimmed.slice(1 + name.length).trimStart();
+      if (name) {
+        try {
+          const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
+          if (originalArgsText) url.searchParams.set('_context', originalArgsText);
+
+          // Add timeout to prevent hanging on slow responses
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+          try {
+            const res = await fetch(url.toString(), { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              const data = await res.json();
+              const txt = typeof data?.text === 'string' ? data.text : '';
+              if (txt.trim()) {
+                trimmed = txt;
+              }
+            }
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        } catch {
+          // keep original
+        }
+      }
+    }
+
     onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
     setText('');
     setImageData(null);
@@ -152,12 +287,149 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     // Height handled by CSS; no imperative adjustments.
   };
 
+  const applyMentionSelection = (index: number, selectedResource?: UIResourceMetadata) => {
+    const list = filterResources(resources, mentionQuery);
+    if (!selectedResource && list.length === 0) return;
+    const selected = selectedResource ?? list[Math.max(0, Math.min(index, list.length - 1))];
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const caret = ta.selectionStart ?? text.length;
+    const atIndex = findActiveAtIndex(text, caret);
+    if (atIndex === -1) return;
+    const before = text.slice(0, atIndex);
+    const after = text.slice(caret);
+    // Mask input with readable name, rely on runtime resolver for expansion
+    const name = selected.name || selected.uri.split('/').pop() || selected.uri;
+    const insertion = selected.serverName ? `@${selected.serverName}:${name}` : `@${name}`;
+    const next = before + insertion + after;
+    setText(next);
+    setShowMention(false);
+    setMentionQuery('');
+    setMentionIndex(0);
+    // Restore caret after inserted mention
+    requestAnimationFrame(() => {
+      const pos = (before + insertion).length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention menu open, handle navigation
+    if (showMention) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const list = filterResources(resources, mentionQuery);
+        setMentionIndex((prev) => (prev + 1) % Math.max(1, list.length));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const list = filterResources(resources, mentionQuery);
+        setMentionIndex((prev) => (prev - 1 + Math.max(1, list.length)) % Math.max(1, list.length));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyMentionSelection(mentionIndex);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        applyMentionSelection(mentionIndex);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowMention(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
+
+  // Handle slash command input
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setText(value);
+
+    // Show slash commands when user types "/"
+    if (value === '/') {
+      setShowSlashCommands(true);
+    } else if (value.startsWith('/') && !value.includes(' ')) {
+      setShowSlashCommands(true);
+    } else {
+      if (showSlashCommands) {
+        setShowSlashCommands(false);
+      }
+    }
+  };
+
+  // Handle prompt selection
+  const handlePromptSelect = (prompt: { 
+    name: string; 
+    arguments?: Array<{ name: string; required?: boolean }>
+  }) => {
+    const slash = `/${prompt.name}`;
+    setText(slash);
+    setShowSlashCommands(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(slash.length, slash.length);
+    }
+  };
+
+  const closeSlashCommands = () => {
+    setShowSlashCommands(false);
+  };
+
+  // Detect @mention context on text change and caret move
+  useEffect(() => {
+    const ta = textareaRef.current;
+    const caret = ta ? ta.selectionStart ?? text.length : text.length;
+    const atIndex = findActiveAtIndex(text, caret);
+    if (atIndex >= 0) {
+      const q = text.slice(atIndex + 1, caret);
+      setMentionQuery(q);
+      setShowMention(true);
+      setMentionIndex(0);
+      // Compute dropdown viewport position via textarea's bounding rect
+      const anchor = ta?.getBoundingClientRect();
+      if (anchor) {
+        const margin = 16; // inner padding from InputArea
+        const left = Math.max(8, anchor.left + window.scrollX + margin);
+        const maxWidth = Math.max(280, anchor.width - margin * 2);
+        const bottomOffset = 64; // keep above footer area
+        const bottom = Math.max(80, window.innerHeight - (anchor.bottom + window.scrollY) + bottomOffset);
+        setDropdownStyle({
+          position: 'fixed',
+          left,
+          bottom,
+          width: maxWidth,
+          zIndex: 9999,
+        });
+      }
+    } else {
+      setShowMention(false);
+      setMentionQuery('');
+      setDropdownStyle(null);
+    }
+  }, [text]);
+
+  const mentionActiveRef = React.useRef(false);
+  useEffect(() => {
+    if (showMention) {
+      if (!mentionActiveRef.current) {
+        mentionActiveRef.current = true;
+        void refreshResources();
+      }
+    } else {
+      mentionActiveRef.current = false;
+    }
+  }, [showMention, refreshResources]);
 
   // Large paste guard to prevent layout from exploding with very large text
   const LARGE_PASTE_THRESHOLD = 20000; // characters
@@ -491,15 +763,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             )}
 
             {/* Editor area: scrollable, independent from footer */}
-            <div className="flex-auto overflow-y-auto">
+            <div className="flex-auto overflow-y-auto relative">
               {fontsReady ? (
                 <TextareaAutosize
                   ref={textareaRef}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
+                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -509,14 +781,38 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   ref={textareaRef}
                   rows={1}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
+                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}
+
+              {showMention && dropdownStyle && typeof window !== 'undefined' && ReactDOM.createPortal(
+                <div style={dropdownStyle} className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+                  <ResourceAutocomplete
+                    resources={resources}
+                    query={mentionQuery}
+                    selectedIndex={mentionIndex}
+                    onHoverIndex={(i) => setMentionIndex(i)}
+                    onSelect={(r) => applyMentionSelection(mentionIndex, r)}
+                    loading={resourcesLoading}
+                  />
+                </div>,
+                document.body
+              )}
             </div>
+
+            {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
+            <SlashCommandAutocomplete 
+              isVisible={showSlashCommands}
+              searchQuery={text}
+              onSelectPrompt={handlePromptSelect}
+              onClose={closeSlashCommands}
+              onCreatePrompt={openCreatePromptModal}
+              refreshKey={slashRefreshKey}
+            />
 
             {/* Footer row: normal flow */}
             <ButtonFooter
@@ -605,6 +901,12 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           accept="audio/*"
           className="hidden"
           onChange={handleAudioFileChange}
+        />
+
+        <CreatePromptModal
+          open={showCreatePromptModal}
+          onClose={handleCloseCreatePrompt}
+          onCreated={handlePromptCreated}
         />
       </div>
     </div>

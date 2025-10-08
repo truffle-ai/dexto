@@ -1,7 +1,10 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
+import { expandBlobReferences } from '../context/utils.js';
+import { PromptsManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -42,7 +45,7 @@ import { parseDocument } from 'yaml';
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'promptManager',
+    'systemPromptManager',
     'agentEventBus',
     'stateManager',
     'sessionManager',
@@ -114,11 +117,13 @@ export class DextoAgent {
      * But the main recommended entry points/functions would still be the wrapper methods we define below
      */
     public readonly mcpManager!: MCPManager;
-    public readonly promptManager!: PromptManager;
+    public readonly systemPromptManager!: SystemPromptManager;
     public readonly agentEventBus!: AgentEventBus;
+    public readonly promptsManager!: PromptsManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -182,7 +187,8 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
-                promptManager: services.promptManager,
+                resourceManager: services.resourceManager,
+                systemPromptManager: services.systemPromptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
@@ -191,6 +197,18 @@ export class DextoAgent {
 
             // Initialize search service from services
             this.searchService = services.searchService;
+
+            // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            const promptsManager = new PromptsManager(
+                this.mcpManager,
+                this.resourceManager,
+                'prompts',
+                this.config,
+                this.agentEventBus,
+                services.storage.database
+            );
+            await promptsManager.initialize();
+            Object.assign(this, { promptsManager });
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -393,7 +411,68 @@ export class DextoAgent {
                     imageDataInput
                 )}, hasFile=${Boolean(fileDataInput)}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+            // Expand @resource mentions into content before sending to the model
+            let finalText = textInput;
+            let finalImageData = imageDataInput;
+            if (textInput && textInput.includes('@')) {
+                try {
+                    const resources = await this.resourceManager.list();
+                    const expansion = await expandMessageReferences(textInput, resources, (uri) =>
+                        this.resourceManager.read(uri)
+                    );
+
+                    // Warn about unresolved references
+                    if (expansion.unresolvedReferences.length > 0) {
+                        const unresolvedNames = expansion.unresolvedReferences
+                            .map((ref) => ref.originalRef)
+                            .join(', ');
+                        logger.warn(
+                            `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+                        );
+                    }
+
+                    // Validate expanded message size (5MB limit)
+                    const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                    const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
+                    if (expandedSize > MAX_EXPANDED_SIZE) {
+                        logger.warn(
+                            `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                        );
+                    }
+
+                    finalText = expansion.expandedMessage;
+
+                    // If we extracted images from resources and don't already have image data, use the first extracted image
+                    if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                        const firstImage = expansion.extractedImages[0];
+                        if (firstImage) {
+                            finalImageData = {
+                                image: firstImage.image,
+                                mimeType: firstImage.mimeType,
+                            };
+                            logger.debug(
+                                `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                            );
+                        }
+                    }
+                } catch (error) {
+                    // Log error but continue with original message to avoid blocking the user
+                    logger.error(
+                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
+                    );
+                    // Continue with original text instead of throwing
+                }
+            }
+
+            // Validate that we have either text or media content after expansion
+            if (!finalText.trim() && !finalImageData && !fileDataInput) {
+                logger.warn(
+                    'Resource expansion resulted in empty content. Using original message.'
+                );
+                finalText = textInput;
+            }
+
+            const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -517,7 +596,24 @@ export class DextoAgent {
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return await session.getHistory();
+        const history = await session.getHistory();
+        if (!this.resourceManager) {
+            return history;
+        }
+
+        return await Promise.all(
+            history.map(async (message) => ({
+                ...message,
+                content: await expandBlobReferences(message.content, this.resourceManager).catch(
+                    (error) => {
+                        logger.warn(
+                            `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                        return message.content; // Return original content on error
+                    }
+                ),
+            }))
+        );
     }
 
     /**
@@ -901,6 +997,9 @@ export class DextoAgent {
             // Connect the server
             await this.mcpManager.connectServer(name, validatedConfig);
 
+            // Ensure tool cache reflects the newly connected server before notifying listeners
+            await this.toolManager.refresh();
+
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,
                 success: true,
@@ -949,6 +1048,9 @@ export class DextoAgent {
 
         // Then remove from runtime state
         this.stateManager.removeMcpServer(name);
+
+        // Refresh tool cache after server removal so the LLM sees updated set
+        await this.toolManager.refresh();
     }
 
     /**
@@ -1003,6 +1105,59 @@ export class DextoAgent {
         return this.mcpManager.getFailedConnections();
     }
 
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Lists all available resources with their info.
+     * This includes resources from MCP servers and any custom resource providers.
+     */
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.list();
+    }
+
+    /**
+     * Checks if a resource exists by URI.
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.has(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource by URI.
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+                return { uri: original, name, originalUri: original, serverName };
+            });
+        return serverResources;
+    }
+
     // ============= PROMPT MANAGEMENT =============
 
     /**
@@ -1034,7 +1189,102 @@ export class DextoAgent {
         const context = {
             mcpManager: this.mcpManager,
         };
-        return await this.promptManager.build(context);
+        return await this.systemPromptManager.build(context);
+    }
+
+    /**
+     * Lists all available prompts from all providers (MCP, internal, starter, custom).
+     * @returns Promise resolving to a PromptSet with all available prompts
+     */
+    public async listPrompts(): Promise<import('../prompts/index.js').PromptSet> {
+        this.ensureStarted();
+        return await this.promptsManager.list();
+    }
+
+    /**
+     * Gets the definition of a specific prompt by name.
+     * @param name The name of the prompt
+     * @returns Promise resolving to the prompt definition or null if not found
+     */
+    public async getPromptDefinition(
+        name: string
+    ): Promise<import('../prompts/index.js').PromptDefinition | null> {
+        this.ensureStarted();
+        return await this.promptsManager.getPromptDefinition(name);
+    }
+
+    /**
+     * Creates a new custom prompt.
+     * @param input The prompt creation input
+     * @returns Promise resolving to the created prompt info
+     */
+    public async createCustomPrompt(
+        input: import('../prompts/index.js').CreateCustomPromptInput
+    ): Promise<import('../prompts/index.js').PromptInfo> {
+        this.ensureStarted();
+        return await this.promptsManager.createCustomPrompt(input);
+    }
+
+    /**
+     * Deletes a custom prompt by name.
+     * @param name The name of the custom prompt to delete
+     */
+    public async deleteCustomPrompt(name: string): Promise<void> {
+        this.ensureStarted();
+        return await this.promptsManager.deleteCustomPrompt(name);
+    }
+
+    /**
+     * Resolves a prompt to its text content with all arguments applied.
+     * This is a high-level method that handles:
+     * - Prompt key resolution (resolving aliases)
+     * - Argument normalization (including special _context field)
+     * - Prompt execution and flattening
+     * - Context appending
+     *
+     * @param name The prompt name or alias
+     * @param options Optional configuration for prompt resolution
+     * @returns Promise resolving to the resolved text and resource URIs
+     */
+    public async resolvePrompt(
+        name: string,
+        options: {
+            q?: string;
+            context?: string;
+            args?: Record<string, unknown>;
+        } = {}
+    ): Promise<{ text: string; resources: string[] }> {
+        this.ensureStarted();
+
+        const { normalizePromptArgs, appendContext, flattenPromptResult } = await import(
+            '../prompts/index.js'
+        );
+        const { PromptError } = await import('../prompts/index.js');
+
+        // Build args from options
+        const args: Record<string, unknown> = { ...options.args };
+        if (options.q?.trim()) args._context = options.q.trim();
+        else if (options.context?.trim()) args._context = options.context.trim();
+
+        // Resolve provided name to a valid prompt key using promptsManager
+        const resolvedName = (await this.promptsManager.resolvePromptKey(name)) ?? name;
+
+        // Normalize args (converts to strings, extracts context)
+        const normalized = normalizePromptArgs(args);
+
+        // Get and flatten the prompt result
+        const promptResult = await this.promptsManager.getPrompt(resolvedName, normalized.args);
+        const flattened = flattenPromptResult(promptResult);
+
+        // Append context to the text
+        const finalText = appendContext(flattened.text, normalized.context);
+
+        // Validate result
+        if (!finalText && flattened.resourceUris.length === 0) {
+            throw PromptError.emptyResolvedContent(resolvedName);
+        }
+
+        return { text: finalText, resources: flattened.resourceUris };
     }
 
     // ============= CONFIGURATION ACCESS =============
@@ -1252,3 +1502,5 @@ export class DextoAgent {
     // - Tool chaining and workflow automation
     // - Agent collaboration and delegation
 }
+
+// (resource methods are defined on the class above; no interface augmentation required)

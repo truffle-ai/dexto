@@ -1,0 +1,15 @@
+{
+  "name": "resources-demo-server",
+  "version": "1.0.0",
+  "description": "MCP server demonstrating Resources capability",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.1"
+  },
+  "keywords": ["mcp", "resources", "demo"],
+  "license": "MIT"
+}
