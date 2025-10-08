@@ -70,7 +70,11 @@ export default [
             'no-restricted-syntax': [
                 'error',
                 {
-                    selector: 'MemberExpression[object.name="z"][property.name="infer"]',
+                    selector: 'TSTypeReference > TSTypeQuery > Identifier[name="z"] ~ TSQualifiedName > Identifier[name="infer"]',
+                    message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                },
+                {
+                    selector: 'TSTypeReference[typeName.type="TSQualifiedName"][typeName.left.name="z"][typeName.right.name="infer"]',
                     message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
                 },
             ],
