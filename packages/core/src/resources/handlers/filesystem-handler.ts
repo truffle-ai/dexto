@@ -196,9 +196,9 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         this.visitedPaths.clear();
         this.fileCount = 0;
 
-        const maxFiles = this.config?.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
+        const { maxFiles, paths } = this.config;
 
-        for (const configPath of this.config?.paths ?? []) {
+        for (const configPath of paths) {
             if (this.fileCount >= maxFiles) {
                 logger.warn(`Reached maximum file limit (${maxFiles}), stopping scan`);
                 break;

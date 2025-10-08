@@ -5,8 +5,6 @@
  * the local filesystem backend.
  */
 
-import type { ValidatedBlobServiceConfig } from './schemas.js';
-
 /**
  * Input data for blob storage - supports various formats
  */

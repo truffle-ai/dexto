@@ -3,17 +3,14 @@ import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { BlobService } from '../../blob/index.js';
-import type {
-    BlobResourceConfig,
-    InternalResourceHandler,
-    InternalResourceServices,
-} from './types.js';
+import type { ValidatedBlobResourceConfig } from '../schemas.js';
+import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 
 export class BlobResourceHandler implements InternalResourceHandler {
-    private config: BlobResourceConfig;
+    private config: ValidatedBlobResourceConfig;
     private blobService: BlobService;
 
-    constructor(config: BlobResourceConfig, blobService: BlobService) {
+    constructor(config: ValidatedBlobResourceConfig, blobService: BlobService) {
         this.config = config;
         this.blobService = blobService;
     }
