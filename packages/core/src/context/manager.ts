@@ -630,21 +630,17 @@ export class ContextManager<TMessage = unknown> {
         let messageHistory: InternalMessage[] =
             history ?? (await this.historyProvider.getHistory());
 
-        // Resolve blob references if resource manager is available
-        // TODO: (355) Drop if after making resource manager mandatory
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413043808
-        if (this.resourceManager) {
-            logger.debug('Resolving blob references in message history before formatting');
-            messageHistory = await Promise.all(
-                messageHistory.map(async (message) => {
-                    const expandedContent = await expandBlobReferences(
-                        message.content,
-                        this.resourceManager!
-                    );
-                    return { ...message, content: expandedContent };
-                })
-            );
-        }
+        // Resolve blob references using resource manager
+        logger.debug('Resolving blob references in message history before formatting');
+        messageHistory = await Promise.all(
+            messageHistory.map(async (message) => {
+                const expandedContent = await expandBlobReferences(
+                    message.content,
+                    this.resourceManager
+                );
+                return { ...message, content: expandedContent };
+            })
+        );
 
         // Use pre-computed system prompt if provided
         const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));

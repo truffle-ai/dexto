@@ -31,8 +31,8 @@ export class InternalResourcesProvider implements ResourceProvider {
 
         for (const resourceConfig of this.config.resources) {
             try {
-                const handler = createInternalResourceHandler(resourceConfig.type);
                 const parsedConfig = InternalResourceConfigSchema.parse(resourceConfig);
+                const handler = createInternalResourceHandler(parsedConfig, this.services);
                 await handler.initialize(parsedConfig, this.services);
                 this.handlers.set(resourceConfig.type, handler);
                 logger.debug(`Initialized ${resourceConfig.type} resource handler`);
@@ -110,8 +110,8 @@ export class InternalResourcesProvider implements ResourceProvider {
 
     async addResourceConfig(config: InternalResourceConfig): Promise<void> {
         try {
-            const handler = createInternalResourceHandler(config.type);
             const parsedConfig = InternalResourceConfigSchema.parse(config);
+            const handler = createInternalResourceHandler(parsedConfig, this.services);
             await handler.initialize(parsedConfig, this.services);
             this.handlers.set(config.type, handler);
             this.config.resources.push(parsedConfig);

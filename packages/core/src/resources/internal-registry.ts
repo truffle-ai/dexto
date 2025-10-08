@@ -38,13 +38,15 @@ export interface InternalResourceHandler {
 }
 
 export class FileSystemResourceHandler implements InternalResourceHandler {
-    // TODO: (355) Incorrect optional
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413235156
-    private config?: FileSystemResourceConfig;
+    private config: FileSystemResourceConfig;
     private resourcesCache: Map<string, ResourceMetadata> = new Map();
     private visitedPaths: Set<string> = new Set();
     private fileCount: number = 0;
     private canonicalRoots: string[] = [];
+
+    constructor(config: FileSystemResourceConfig) {
+        this.config = config;
+    }
 
     private static readonly DEFAULT_MAX_DEPTH = 3;
     private static readonly DEFAULT_MAX_FILES = 1000;
@@ -81,18 +83,10 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     }
 
     async initialize(
-        config: InternalResourceConfig,
+        _config: InternalResourceConfig,
         _services: InternalResourceServices
     ): Promise<void> {
-        if (config.type !== 'filesystem') {
-            throw ResourceError.providerError(
-                'Filesystem',
-                'initialize',
-                'Invalid config type for FileSystemResourceHandler'
-            );
-        }
-        this.config = config;
-
+        // Config is now set in constructor, just do async initialization
         this.canonicalRoots = [];
         for (const configPath of this.config.paths) {
             try {
@@ -494,38 +488,23 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 }
 
 export class BlobResourceHandler implements InternalResourceHandler {
-    // TODO: (355) Incorrect optionals
-    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413234608
-    private config?: BlobResourceConfig;
-    private blobService?: BlobService;
+    private config: BlobResourceConfig;
+    private blobService: BlobService;
+
+    constructor(config: BlobResourceConfig, blobService: BlobService) {
+        this.config = config;
+        this.blobService = blobService;
+    }
 
     getType(): string {
         return 'blob';
     }
 
     async initialize(
-        config: InternalResourceConfig,
-        services: InternalResourceServices
+        _config: InternalResourceConfig,
+        _services: InternalResourceServices
     ): Promise<void> {
-        if (config.type !== 'blob') {
-            throw ResourceError.providerError(
-                'Blob',
-                'initialize',
-                'Invalid config type for BlobResourceHandler'
-            );
-        }
-        this.config = config;
-
-        // Use the provided BlobService from services
-        if (!services.blobService) {
-            throw ResourceError.providerError(
-                'Blob',
-                'initialize',
-                'BlobService is required but not provided in services'
-            );
-        }
-
-        this.blobService = services.blobService;
+        // Config and blobService are now set in constructor
         logger.debug('BlobResourceHandler initialized with BlobService');
     }
 
@@ -759,9 +738,24 @@ export class BlobResourceHandler implements InternalResourceHandler {
     }
 }
 
-export function createInternalResourceHandler(type: string): InternalResourceHandler {
-    if (type === 'filesystem') return new FileSystemResourceHandler();
-    if (type === 'blob') return new BlobResourceHandler();
+export function createInternalResourceHandler(
+    config: InternalResourceConfig,
+    services: InternalResourceServices
+): InternalResourceHandler {
+    const type = config.type;
+    if (type === 'filesystem') {
+        return new FileSystemResourceHandler(config);
+    }
+    if (type === 'blob') {
+        if (!services.blobService) {
+            throw ResourceError.providerError(
+                'Internal',
+                'createInternalResourceHandler',
+                'BlobService is required for blob resource handler'
+            );
+        }
+        return new BlobResourceHandler(config, services.blobService);
+    }
     throw ResourceError.providerError(
         'Internal',
         'createInternalResourceHandler',
