@@ -1074,7 +1074,7 @@ function extractResourceData(
   const resolvedUris = new Set<string>();
   for (const ref of references) {
     if (ref.kind === 'uri') {
-      const value = ref.value.startsWith('blob:') ? ref.value : ref.value.startsWith('mcp:') ? ref.value : ref.value;
+      const value = ref.value;
       resolvedUris.add(value);
       continue;
     }
