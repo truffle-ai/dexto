@@ -16,6 +16,8 @@ import type { ResourceManager } from '../resources/manager.js';
 import type { DatabaseBackend } from '../storage/backend/database-backend.js';
 
 interface PromptCacheEntry {
+    // TODO: (355) Likely duplicate key. We also might be doing double caching in both prompt manager and the providers which is unnecessary
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413113270
     key: string;
     providerName: string;
     providerPromptName: string;
@@ -23,12 +25,16 @@ interface PromptCacheEntry {
     info: PromptInfo;
 }
 
+// TODO: (355) Nit: rename to PromptManager for consistency with other services + add docstring
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413083171
 export class PromptsManager {
     private providers: Map<string, PromptProvider> = new Map();
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
 
+    // TODO: (355) Unnecessary optional args
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413106494
     constructor(
         mcpManager: MCPManager,
         resourceManager: ResourceManager,
@@ -262,6 +268,8 @@ export class PromptsManager {
         }
         this.buildPromise = this.buildCache();
         try {
+            // TODO: (355) Agent: check if double caching in prompt manager and providers can be simplified, add a TODO for this at least
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413167239
             await this.buildPromise;
         } finally {
             this.buildPromise = null;

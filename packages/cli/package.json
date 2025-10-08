@@ -29,6 +29,7 @@
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.build.json && pnpm run copy-agents",
+    "_comment_build": "TODO: (355) This is a known issue with MCP SDK >= 1.18.1 taking heap space, see if we can solve this without heap size hacks - https://github.com/truffle-ai/dexto/pull/355#discussion_r2412949424",
     "copy-agents": "tsx scripts/copy-agents.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",

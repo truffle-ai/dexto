@@ -41,8 +41,12 @@ export async function initializeMcpToolAggregationServer(
         const jsonSchema = toolDef.parameters ?? { type: 'object', properties: {} };
         const paramsShape = jsonSchemaToZodShape(jsonSchema);
         const _paramsSchema = z.object(paramsShape);
+        // TODO: (355) Use z.output instead of z.infer, add linter rule for enforcing this
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412898960
         type ToolArgs = z.infer<typeof _paramsSchema>;
 
+        // TODO: (355) This if condition is not necessary, logger.debug already handles this and only shows if log level matches
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412900959
         const level = typeof logger.getLevel === 'function' ? logger.getLevel() : 'info';
         if (level === 'debug' || level === 'verbose' || level === 'silly') {
             logger.debug(
@@ -75,6 +79,8 @@ export async function initializeMcpToolAggregationServer(
         const allResources = await mcpManager.listAllResources();
         logger.info(`Registering ${allResources.length} resources from connected MCP servers`);
 
+        // TODO: (355) Verify if client collisions are handled and re-test this aggregator flow
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412904294
         allResources.forEach((resource, index) => {
             const safeId = resource.key.replace(/[^a-zA-Z0-9]/g, '_');
             mcpServer.resource(`resource_${index}_${safeId}`, resource.key, async () => {

@@ -47,6 +47,8 @@ export class CustomPromptProvider implements PromptProvider {
     private promptsCache: PromptInfo[] = [];
     private promptRecords: Map<string, StoredCustomPrompt> = new Map();
 
+    // TODO: (355) Unnecessary optional
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413111123
     constructor(
         private database: DatabaseBackend,
         private resourceManager?: ResourceManager

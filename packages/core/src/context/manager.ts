@@ -95,6 +95,8 @@ export class ContextManager<TMessage = unknown> {
      * When provided, blob references like @blob:abc123 will be resolved to actual data
      * before passing messages to the LLM formatter.
      */
+    // TODO: (355) Agent: check if this should be optional or mandatory (I guess mandatory)
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413009241
     private resourceManager?: import('../resources/index.js').ResourceManager | undefined;
 
     /**
@@ -212,6 +214,8 @@ export class ContextManager<TMessage = unknown> {
             new MiddleRemovalStrategy(),
             new OldestRemovalStrategy(),
         ],
+        // TODO: (355) Agent: check if this should be mandatory
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413010450
         resourceManager?: import('../resources/index.js').ResourceManager
     ) {
         this.llmConfig = llmConfig;
@@ -571,6 +575,8 @@ export class ContextManager<TMessage = unknown> {
         // Sanitize tool result to avoid adding non-text data as raw text
         // and to convert media/data-uris/base64 to structured parts.
         // If a resource manager is available, automatically store large media as blobs.
+        // TODO: (355) Make blobService also mandatory and avoid optional checks, fallbacks
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413042444
         const blobService = this.resourceManager?.getBlobService();
         const content = blobService
             ? await sanitizeToolResultToContentWithBlobs(result, blobService, {
@@ -637,6 +643,8 @@ export class ContextManager<TMessage = unknown> {
             history ?? (await this.historyProvider.getHistory());
 
         // Resolve blob references if resource manager is available
+        // TODO: (355) Drop if after making resource manager mandatory
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413043808
         if (this.resourceManager) {
             logger.debug('Resolving blob references in message history before formatting');
             messageHistory = await Promise.all(

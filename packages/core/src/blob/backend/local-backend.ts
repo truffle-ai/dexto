@@ -27,6 +27,8 @@ interface ResolvedLocalBlobConfig {
     storePath: string;
 }
 
+// TODO: (355) Dup: derive from zod schema
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412964564
 /**
  * Local filesystem blob backend implementation
  *
@@ -34,6 +36,8 @@ interface ResolvedLocalBlobConfig {
  * and metadata tracking. This is the default backend for development
  * and single-machine deployments.
  */
+// TODO: (355) For agent: review this implementation for local filesystem
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412986667
 export class LocalBlobBackend implements BlobBackend {
     private config: ResolvedLocalBlobConfig;
     private storePath: string;
@@ -42,6 +46,8 @@ export class LocalBlobBackend implements BlobBackend {
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
 
+    // TODO: (355) Avoid defaults here and fallback defaults in constructor, zod would have them so the config already has everything it needs by this point
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412984478
     private static readonly DEFAULT_CONFIG = {
         maxBlobSize: 50 * 1024 * 1024, // 50MB
         maxTotalSize: 1024 * 1024 * 1024, // 1GB

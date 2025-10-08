@@ -16,6 +16,8 @@ interface ParsedPrompt {
     content: string;
 }
 
+// TODO: (355) Might not actually need InternalPromptProvider, seems equivalent to starter-prompt-provider with a hardcoded directory. Can keep for now but basically we can add file based prompt providers instead (refer to relative file colocated near the agent)
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413151059
 export class InternalPromptProvider implements PromptProvider {
     private readonly promptsDir: string;
     private readonly resourceManager: ResourceManager;

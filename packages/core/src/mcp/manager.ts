@@ -39,6 +39,8 @@ import { eventBus } from '../events/index.js';
  * ```
  */
 type ResourceCacheEntry = {
+    // TODO: (355) This key is likely duplicate of the key in the map
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413067958
     key: string;
     serverName: string;
     client: IMCPClient;
@@ -456,6 +458,8 @@ export class MCPManager {
     /**
      * Get all cached MCP resources (no network calls).
      */
+    // TODO: (355) Might need to check if cache is up to date and update if necessary, similar for other methods
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413049689
     async listAllResources(): Promise<MCPResolvedResource[]> {
         return Array.from(this.resourceCache.values()).map(({ key, serverName, summary }) => ({
             key,
@@ -732,6 +736,8 @@ export class MCPManager {
     /**
      * Handle prompts list changed notification
      */
+    // TODO: (355) Similar promptCache like the new resourceCache might make sense
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413076381
     private async handlePromptsListChanged(serverName: string, client: IMCPClient): Promise<void> {
         try {
             // Refresh the prompts for this client

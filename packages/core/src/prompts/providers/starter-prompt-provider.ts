@@ -19,6 +19,8 @@ export class StarterPromptProvider implements PromptProvider {
     private promptsCache: PromptInfo[] = [];
     private cacheValid: boolean = false;
 
+    // TODO: (355) Unnecessary optional argument
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413095645
     constructor(agentConfig?: ValidatedAgentConfig) {
         // Starter prompts come from the validated AgentConfig schema
         this.starterPrompts = agentConfig?.starterPrompts ?? [];
@@ -44,6 +46,8 @@ export class StarterPromptProvider implements PromptProvider {
     /**
      * Update starter prompts configuration
      */
+    // TODO: (355) Unnecessary optional argument
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413094859
     updateConfig(agentConfig?: ValidatedAgentConfig): void {
         this.starterPrompts = agentConfig?.starterPrompts ?? [];
         this.invalidateCache();

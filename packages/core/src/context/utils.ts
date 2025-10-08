@@ -11,6 +11,8 @@ const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format over
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
+// TODO: (355) Agent: add tests for utility functions in this file, check for duplicates, unused functions and delete them
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413039994
 type ToolBlobNamingOptions = {
     toolName?: string;
     toolCallId?: string;
@@ -946,6 +948,8 @@ export async function sanitizeToolResultToContentWithBlobs(
  *
  * @deprecated Use sanitizeToolResultToContentWithBlobs for automatic blob storage
  */
+// TODO: (355) Check for usages and delete, prefer to avoid @deprecated in early stages of project
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413036892
 export function sanitizeToolResultToContent(result: unknown): InternalMessage['content'] {
     try {
         // Case 1: string outputs

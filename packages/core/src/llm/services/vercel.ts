@@ -61,6 +61,8 @@ export class VercelLLMService implements ILLMService {
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
+        // TODO: (355) Mandatory
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413031752
         resourceManager?: import('../../resources/index.js').ResourceManager
     ) {
         this.model = model;

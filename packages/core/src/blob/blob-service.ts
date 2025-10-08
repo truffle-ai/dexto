@@ -17,6 +17,13 @@ import type {
  *
  * Provides blob storage operations using the local filesystem backend.
  */
+// TODO: (355) See how this can be integrated into existing storage modules and what needs to be refactored for that
+// Notes:
+// - we likely don't need this class and can use storage-manager
+// - error codes don't need blob scope, but storage scope
+// - new backends would move into storage/backend
+// - new schemas move into storage/schemas and types in storage/types
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412970941
 export class BlobService implements IBlobService {
     private backend: BlobBackend;
     private config: BlobServiceConfig;

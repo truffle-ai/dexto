@@ -315,6 +315,10 @@ export async function initializeApi(
         ]);
     }
 
+    // TODO: (355) This function is not necessary, middleware handles this (verify this)
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412906143
+    // TODO: (355) Refactor: this is a function that has one line and calls another function. Not needed, move logic into decodeURIComponent if necessary and remove this function
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412910346
     function decodeResourceId(resourceIdParam: string): string {
         try {
             return decodeURIComponent(resourceIdParam);
@@ -396,6 +400,8 @@ export async function initializeApi(
     // Get a specific prompt definition
     app.get('/api/prompts/:name', async (req, res, next) => {
         try {
+            // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412920162
             const name = req.params.name;
             if (!name) throw PromptError.nameRequired();
             const definition = await activeAgent.getPromptDefinition(name);
@@ -411,6 +417,8 @@ export async function initializeApi(
     // slash command, pass as `q` or `_context` (both map to `_context`).
     app.get('/api/prompts/:name/resolve', async (req, res, next) => {
         try {
+            // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412924016
             const inputName = req.params.name;
             if (!inputName) throw PromptError.nameRequired();
 
@@ -724,6 +732,9 @@ export async function initializeApi(
 
     // Read resource content
     app.get('/api/resources/:resourceId/content', async (req, res, next) => {
+        // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
+        // Could potentially use zod schema transforms for this resource id decoding which is happening very frequently
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412929417
         const resourceIdParam = req.params.resourceId;
         let decodedResourceId: string;
         try {
@@ -751,6 +762,8 @@ export async function initializeApi(
 
     // Check if resource exists
     app.head('/api/resources/:resourceId', async (req, res, next) => {
+        // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412926008
         const resourceIdParam = req.params.resourceId;
         let decodedResourceId: string;
         try {
@@ -791,6 +804,8 @@ export async function initializeApi(
 
     // Read resource content from specific MCP server
     app.get('/api/mcp/servers/:serverId/resources/:resourceId/content', async (req, res, next) => {
+        // TODO: (355) Avoid manually checking each argument, use zod schemas and parseBody everywhere for consistency
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412928497
         const serverId = req.params.serverId;
         const resourceIdParam = req.params.resourceId;
         if (!serverId || !resourceIdParam) {

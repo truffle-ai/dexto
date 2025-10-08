@@ -1,3 +1,5 @@
+// TODO: (355) Agent: add tests for util functions in this file
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413159604
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 export interface FlattenedPromptResult {

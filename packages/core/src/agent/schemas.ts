@@ -147,11 +147,15 @@ export const AgentConfigSchema = z
                         prompt: z
                             .string()
                             .describe('The actual prompt text that gets resolved and sent'),
+                        // TODO: (355) Nit: might be better to not use a strict enum here and be more open-ended to allow any type of tags
+                        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412961820
                         category: z
                             .enum(['general', 'coding', 'analysis', 'tools', 'learning'])
                             .optional()
                             .default('general')
                             .describe('Category for organizing starter prompts'),
+                        // TODO: (355) Nit: remove this default and keep it in description
+                        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412960566
                         icon: z
                             .string()
                             .optional()
@@ -186,6 +190,8 @@ export const AgentConfigSchema = z
             .describe('Starter prompts that appear as clickable buttons in the WebUI'),
 
         // Blob storage configuration (infrastructure-level blob storage)
+        // TODO: (355) Move into storage schema as a sub-schema along with all blob store code being moved into storage folder, also add .strict()
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412958781
         blobStorage: BlobServiceConfigSchema.default({
             type: 'local',
             maxBlobSize: 50 * 1024 * 1024, // 50MB

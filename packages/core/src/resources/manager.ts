@@ -8,6 +8,8 @@ import { logger } from '../logger/index.js';
 import { ResourceError } from './errors.js';
 import { eventBus } from '../events/index.js';
 
+// TODO: (355) Unnecessary optional config
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413204846
 export interface ResourceManagerOptions {
     internalResourcesConfig?: ValidatedInternalResourcesConfig;
     blobService?: import('../blob/index.js').BlobService;

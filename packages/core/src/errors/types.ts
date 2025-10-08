@@ -29,6 +29,8 @@ export enum ErrorScope {
     PREFERENCE = 'preference', // Global preferences file operations and validation
     AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
+    // TODO: (355) Delete this once blob is moved into storage layer, same as below
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413026177
     BLOB = 'blob', // Blob storage operations and backend management
 }
 

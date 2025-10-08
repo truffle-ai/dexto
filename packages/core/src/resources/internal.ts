@@ -15,5 +15,7 @@ export type {
     BlobResourceConfig,
 } from './internal-registry.js';
 
+// TODO: (355) Delete this file
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413194816
 // Legacy BlobStore has been fully migrated to BlobService
 // All blob storage functionality is now provided by the infrastructure-level BlobService

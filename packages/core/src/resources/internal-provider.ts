@@ -18,6 +18,8 @@ export class InternalResourcesProvider implements ResourceProvider {
     constructor(config: ValidatedInternalResourcesConfig, services: InternalResourceServices = {}) {
         this.config = config;
         this.services = services;
+        // TODO: (355) Nit: incorrect use of logger args
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413189928
         logger.debug('InternalResourcesProvider initialized with config:', config);
     }
 
@@ -85,6 +87,8 @@ export class InternalResourcesProvider implements ResourceProvider {
                 }
             }
         }
+        // TODO: (355) Throw a typed error instead
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413187597
         throw new Error(`No handler found for resource: ${uri}`);
     }
 
@@ -124,6 +128,8 @@ export class InternalResourcesProvider implements ResourceProvider {
     async removeResourceHandler(type: string): Promise<void> {
         if (this.handlers.has(type)) {
             const handler = this.handlers.get(type);
+            // TODO: (355) None of the handlers' support this and it's not mentioned in the interface either. Can delete this try catch block entirely
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413253688
             try {
                 // Optional cleanup if supported by handler
                 if (handler && typeof (handler as any).dispose === 'function') {

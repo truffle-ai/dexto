@@ -401,6 +401,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         try {
             const response = await this.client!.listResources();
             logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
+            // TODO: (355) Avoid any
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413060577
             return response.resources.map((r: any) => ({
                 uri: r.uri,
                 name: r.name,
@@ -500,6 +502,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
 
         try {
             // Resource updated
+            // TODO: (355) Avoid any cast
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413057093
             (this.client as any).setNotificationHandler?.(
                 'notifications/resources/updated',
                 (params: { uri: string; title?: string }) => this.handleResourceUpdated(params)
@@ -509,6 +513,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         }
         try {
             // Prompts list changed
+            // TODO: (355) Avoid any cast
+            // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413057545
             (this.client as any).setNotificationHandler?.(
                 'notifications/prompts/list_changed',
                 () => this.handlePromptsListChanged()

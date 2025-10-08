@@ -147,6 +147,8 @@ function _createVercelLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
+    // TODO: (355) Make resourceManager argument mandatory everywhere. it's always defined
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413029197
     resourceManager?: import('../../resources/index.js').ResourceManager
 ): VercelLLMService {
     const model = _createVercelModel(config);
@@ -174,6 +176,8 @@ export function createLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
+    // TODO: (355) Mandatory
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413030069
     resourceManager?: import('../../resources/index.js').ResourceManager
 ): ILLMService {
     if (router === 'vercel') {

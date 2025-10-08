@@ -49,6 +49,8 @@ export const promptCommands: CommandDefinition[] = [
         category: 'Prompt Management',
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
+                // TODO: (355) Verify if casting is necessary
+                // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412935778
                 const prompts = (await agent.promptsManager.list()) as Record<string, PromptInfo>;
                 const promptNames = Object.keys(prompts || {});
 
@@ -156,6 +158,8 @@ export const promptCommands: CommandDefinition[] = [
         },
     },
     {
+        // TODO: (355) Nit: rename to 'use prompt'?
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412938399
         name: 'use',
         description: 'Use a specific prompt with optional arguments',
         usage: '/<prompt-name> [args]',
@@ -304,6 +308,8 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
+        // TODO: (355) Nit: check if casting is necessary
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412944939
         const prompts = (await agent.promptsManager.list()) as Record<string, PromptInfo>;
         return Object.values(prompts).map(createPromptCommand);
     } catch (error) {

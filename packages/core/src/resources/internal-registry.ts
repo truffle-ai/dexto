@@ -1,3 +1,5 @@
+// TODO: (355) Nit: refactor this file into separate implementations - filesystem resource handler and blobresource handler
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2413200170
 import { ResourceMetadata } from './types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { promises as fs } from 'fs';
@@ -36,6 +38,8 @@ export interface InternalResourceHandler {
 }
 
 export class FileSystemResourceHandler implements InternalResourceHandler {
+    // TODO: (355) Incorrect optional
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413235156
     private config?: FileSystemResourceConfig;
     private resourcesCache: Map<string, ResourceMetadata> = new Map();
     private visitedPaths: Set<string> = new Set();
@@ -131,6 +135,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         const normalizedPath = path.normalize(canonicalPath).replace(/\\/g, '/');
 
         // Common blob storage directory patterns
+        // TODO: (355) This blobPatterns paradigm is very fragile and will need to be improved. Will check later
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413247321
         const blobPatterns = ['/.dexto/blobs', '/.dexto/data/blobs', '/blobs', '/data/blobs'];
 
         return blobPatterns.some(
@@ -301,6 +307,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             return;
         }
 
+        // TODO: (355) Avoid default overrides, config should already have defaults since it's been through zod
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413248615
         const maxDepth = this.config?.maxDepth ?? FileSystemResourceHandler.DEFAULT_MAX_DEPTH;
         const maxFiles = this.config?.maxFiles ?? FileSystemResourceHandler.DEFAULT_MAX_FILES;
         const includeHidden = this.config?.includeHidden ?? false;
@@ -486,6 +494,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 }
 
 export class BlobResourceHandler implements InternalResourceHandler {
+    // TODO: (355) Incorrect optionals
+    // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413234608
     private config?: BlobResourceConfig;
     private blobService?: BlobService;
 

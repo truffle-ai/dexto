@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+// TODO: (355) Agent: check this file for unused schemas and delete them
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412990031
 /**
  * Base blob backend configuration schema
  */
@@ -96,6 +98,8 @@ export const BlobStatsSchema = z
     .describe('Storage statistics');
 
 // Type exports for convenience
+// TODO: (355) Nit: use z.output, delete unused schemas
+// https://github.com/truffle-ai/dexto/pull/355#discussion_r2412967958
 export type ValidatedBlobServiceConfig = z.infer<typeof BlobServiceConfigSchema>;
 export type ValidatedBlobMetadata = z.infer<typeof BlobMetadataSchema>;
 export type ValidatedStoredBlobMetadata = z.infer<typeof StoredBlobMetadataSchema>;
