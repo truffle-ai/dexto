@@ -427,8 +427,9 @@ export default function ChatApp() {
         setTimeout(() => setSuccessMessage(null), 4000);
         setServerRegistryOpen(false);
         return 'connected';
-      } catch (err: any) {
-        throw new Error(err?.message || 'Failed to install server');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to install server';
+        throw new Error(message);
       } finally {
         setIsRegistryBusy(false);
       }
@@ -1030,7 +1031,6 @@ export default function ChatApp() {
             setSuccessMessage(`Added ${name}`);
             setTimeout(() => setSuccessMessage(null), 4000);
             connectPrefill?.onCloseRegistryModal?.();
-            setServerRegistryOpen(false);
             setIsRegistryBusy(false);
             setConnectPrefill(null);
           }}
