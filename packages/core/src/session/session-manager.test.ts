@@ -980,22 +980,21 @@ describe('SessionManager', () => {
         let realSessionManager: SessionManager;
 
         beforeEach(async () => {
-            // Create real storage backends for end-to-end testing
-            const { createStorageBackends } = await import('../storage/index.js');
+            // Create real storage manager for end-to-end testing
+            const { createStorageManager } = await import('../storage/index.js');
 
             const storageConfig = StorageSchema.parse({
                 cache: { type: 'in-memory' as const },
                 database: { type: 'in-memory' as const },
             });
 
-            const result = await createStorageBackends(storageConfig);
-            realStorageBackends = result.backends;
+            realStorageBackends = await createStorageManager(storageConfig);
 
             // Create SessionManager with real storage and short TTL for faster testing
             realSessionManager = new SessionManager(
                 {
                     ...mockServices,
-                    storage: realStorageBackends,
+                    storageManager: realStorageBackends,
                 },
                 {
                     maxSessions: 10,

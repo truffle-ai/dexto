@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StorageAllowedToolsProvider } from './storage.js';
-import type { StorageBackends } from '@core/storage/index.js';
+import type { StorageManager } from '@core/storage/index.js';
 
 // Mock the logger
 vi.mock('@core/logger/index.js', () => ({
@@ -14,7 +14,7 @@ vi.mock('@core/logger/index.js', () => ({
 
 describe('StorageAllowedToolsProvider', () => {
     let provider: StorageAllowedToolsProvider;
-    let mockStorage: StorageBackends;
+    let mockStorageManager: StorageManager;
     let mockDatabase: any;
 
     beforeEach(() => {
@@ -25,12 +25,12 @@ describe('StorageAllowedToolsProvider', () => {
             list: vi.fn(),
         };
 
-        mockStorage = {
-            database: mockDatabase,
-            cache: {} as any,
-        };
+        mockStorageManager = {
+            getDatabase: vi.fn().mockReturnValue(mockDatabase),
+            getCache: vi.fn(),
+        } as any;
 
-        provider = new StorageAllowedToolsProvider(mockStorage);
+        provider = new StorageAllowedToolsProvider(mockStorageManager);
     });
 
     describe('Session-scoped tool allowance', () => {
