@@ -95,8 +95,8 @@ describe('MCPManager Integration Tests', () => {
             const firstContent = content.contents[0];
             expect(firstContent).toBeDefined();
 
-            console.log('Resource content type:', firstContent.mimeType);
-            expect(firstContent.mimeType).toBe('application/json');
+            console.log('Resource content type:', firstContent!.mimeType);
+            expect(firstContent!.mimeType).toBe('application/json');
         }, 15000);
 
         it('should cache and retrieve prompts from resources-demo server', async () => {
@@ -156,8 +156,8 @@ describe('MCPManager Integration Tests', () => {
             const firstMessage = promptResult.messages[0];
             expect(firstMessage).toBeDefined();
 
-            console.log('Prompt message role:', firstMessage.role);
-            expect(firstMessage.role).toBe('user');
+            console.log('Prompt message role:', firstMessage!.role);
+            expect(firstMessage!.role).toBe('user');
         }, 15000);
 
         it('should cache and discover tools from resources-demo server', async () => {
@@ -190,10 +190,10 @@ describe('MCPManager Integration Tests', () => {
                 `Tool calculate-growth-rate should exist.\nAvailable tools: ${JSON.stringify(tools, null, 2)}`
             ).toBeDefined();
 
-            console.log('Growth rate tool has parameters:', !!growthRateTool.parameters);
-            expect(growthRateTool.parameters).toBeDefined();
-            expect(growthRateTool.parameters.type).toBe('object');
-            expect(growthRateTool.parameters.properties).toBeDefined();
+            console.log('Growth rate tool has parameters:', !!growthRateTool!.parameters);
+            expect(growthRateTool!.parameters).toBeDefined();
+            expect(growthRateTool!.parameters.type).toBe('object');
+            expect(growthRateTool!.parameters.properties).toBeDefined();
         }, 15000);
 
         it('should have all three capabilities: resources, prompts, and tools', async () => {
