@@ -93,7 +93,7 @@ describe('MCPManager Integration Tests', () => {
             expect(content.contents.length).toBeGreaterThan(0);
 
             const firstContent = content.contents[0];
-            if (!firstContent) throw new Error('No content returned');
+            expect(firstContent).toBeDefined();
 
             console.log('Resource content type:', firstContent.mimeType);
             expect(firstContent.mimeType).toBe('application/json');
@@ -154,7 +154,7 @@ describe('MCPManager Integration Tests', () => {
             expect(promptResult.messages.length).toBeGreaterThan(0);
 
             const firstMessage = promptResult.messages[0];
-            if (!firstMessage) throw new Error('No message returned');
+            expect(firstMessage).toBeDefined();
 
             console.log('Prompt message role:', firstMessage.role);
             expect(firstMessage.role).toBe('user');
@@ -185,11 +185,10 @@ describe('MCPManager Integration Tests', () => {
 
             // Verify tool schema - tools have 'parameters' field (converted from inputSchema)
             const growthRateTool = tools['calculate-growth-rate'];
-            expect(growthRateTool).toBeDefined();
-            if (!growthRateTool) {
-                console.error('Available tools:', JSON.stringify(tools, null, 2));
-                throw new Error('Tool calculate-growth-rate not found');
-            }
+            expect(
+                growthRateTool,
+                `Tool calculate-growth-rate should exist.\nAvailable tools: ${JSON.stringify(tools, null, 2)}`
+            ).toBeDefined();
 
             console.log('Growth rate tool has parameters:', !!growthRateTool.parameters);
             expect(growthRateTool.parameters).toBeDefined();
