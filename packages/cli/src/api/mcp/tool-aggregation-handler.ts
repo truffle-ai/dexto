@@ -92,8 +92,10 @@ export async function initializeMcpToolAggregationServer(
         for (const promptName of allPrompts) {
             mcpServer.prompt(promptName, `Prompt: ${promptName}`, async (extra) => {
                 logger.info(`Prompt aggregation: resolving ${promptName}`);
-                const promptArgs =
-                    (extra && 'arguments' in extra ? extra.arguments : undefined) ?? {};
+                const promptArgs: Record<string, unknown> | undefined =
+                    extra && 'arguments' in extra
+                        ? (extra.arguments as Record<string, unknown>)
+                        : undefined;
                 return await mcpManager.getPrompt(promptName, promptArgs);
             });
         }

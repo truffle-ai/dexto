@@ -159,7 +159,8 @@ export class ContextManager<TMessage = unknown> {
                 const blobInput =
                     typeof data === 'string' &&
                     !data.startsWith('data:') &&
-                    !isLikelyBase64String(data)
+                    !isLikelyBase64String(data) &&
+                    !isLikelyBinary
                         ? Buffer.from(data, 'utf-8')
                         : data;
 
