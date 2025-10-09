@@ -242,13 +242,15 @@ export default function SlashCommandAutocomplete({
       return;
     }
 
-    // Remove the leading "/" for filtering
-    const query = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+    // Extract just the command name (first word after /) for filtering
+    // E.g., "/summarize technical 100 'text'" -> "summarize"
+    const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+    const commandName = withoutSlash.split(/\s+/)[0] || '';
 
     const filtered = prompts.filter(prompt =>
-      prompt.name.toLowerCase().includes(query.toLowerCase()) ||
-      (prompt.description && prompt.description.toLowerCase().includes(query.toLowerCase())) ||
-      (prompt.title && prompt.title.toLowerCase().includes(query.toLowerCase()))
+      prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
+      (prompt.description && prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
+      (prompt.title && prompt.title.toLowerCase().includes(commandName.toLowerCase()))
     );
 
     setFilteredPrompts(filtered);
