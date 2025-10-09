@@ -8,7 +8,7 @@ export type BlobStoreType = (typeof BLOB_STORE_TYPES)[number];
  */
 const InMemoryBlobStoreSchema = z
     .object({
-        type: z.literal('in-memory'),
+        type: z.literal('in-memory').describe('Blob store type identifier'),
         maxBlobSize: z
             .number()
             .int()
@@ -33,7 +33,7 @@ export type InMemoryBlobStoreConfig = z.output<typeof InMemoryBlobStoreSchema>;
  */
 const LocalBlobStoreSchema = z
     .object({
-        type: z.literal('local'),
+        type: z.literal('local').describe('Blob store type identifier'),
         storePath: z
             .string()
             .optional()

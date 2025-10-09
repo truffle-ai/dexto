@@ -3,9 +3,18 @@ import type { DatabaseConfig, PostgresDatabaseConfig, SqliteDatabaseConfig } fro
 import { MemoryDatabaseStore } from './memory-database-store.js';
 import { logger } from '../../logger/index.js';
 
+// Types for database store constructors
+interface SQLiteStoreConstructor {
+    new (config: SqliteDatabaseConfig): Database;
+}
+
+interface PostgresStoreConstructor {
+    new (config: PostgresDatabaseConfig): Database;
+}
+
 // Lazy imports for optional dependencies
-let SQLiteStore: any;
-let PostgresStore: any;
+let SQLiteStore: SQLiteStoreConstructor | null = null;
+let PostgresStore: PostgresStoreConstructor | null = null;
 
 /**
  * Create a database store based on configuration.

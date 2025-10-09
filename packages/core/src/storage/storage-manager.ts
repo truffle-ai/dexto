@@ -98,29 +98,25 @@ export class StorageManager {
     async disconnect(): Promise<void> {
         if (!this.connected) return;
 
-        // Disconnect all stores, continue even if some fail
+        // Disconnect all stores concurrently, continue even if some fail
+        const results = await Promise.allSettled([
+            this.cache.disconnect(),
+            this.database.disconnect(),
+            this.blobStore.disconnect(),
+        ]);
+
+        // Track errors from failed disconnections
         const errors: Error[] = [];
+        const storeNames = ['cache', 'database', 'blob store'];
 
-        try {
-            await this.cache.disconnect();
-        } catch (error) {
-            logger.error(`Failed to disconnect cache: ${error}`);
-            errors.push(error instanceof Error ? error : new Error(String(error)));
-        }
-
-        try {
-            await this.database.disconnect();
-        } catch (error) {
-            logger.error(`Failed to disconnect database: ${error}`);
-            errors.push(error instanceof Error ? error : new Error(String(error)));
-        }
-
-        try {
-            await this.blobStore.disconnect();
-        } catch (error) {
-            logger.error(`Failed to disconnect blob store: ${error}`);
-            errors.push(error instanceof Error ? error : new Error(String(error)));
-        }
+        results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                const storeName = storeNames[index];
+                const error = result.reason;
+                logger.error(`Failed to disconnect ${storeName}: ${error}`);
+                errors.push(error instanceof Error ? error : new Error(String(error)));
+            }
+        });
 
         this.connected = false;
 

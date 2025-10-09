@@ -351,7 +351,7 @@ export default function ChatApp() {
 
       try {
         setIsRegistryBusy(true);
-        const res = await fetch('/api/connect-server', {
+        const res = await fetch('/api/mcp/servers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),

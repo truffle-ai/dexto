@@ -146,7 +146,7 @@ This server demonstrates the complete MCP protocol implementation:
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                  Dexto Client                       │
 │                                                     │

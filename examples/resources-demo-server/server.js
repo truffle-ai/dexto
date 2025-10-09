@@ -448,7 +448,7 @@ Users comparing us to competitors highlighted:
 
   async getPromptContent(name, args = {}) {
     switch (name) {
-      case 'analyze-metrics':
+      case 'analyze-metrics': {
         const metricType = args.metric_type || 'users';
         const timePeriod = args.time_period || 'Q4 2024';
         return [
@@ -468,8 +468,9 @@ Use the product-metrics resource (mcp-demo://product-metrics) for data.`,
             },
           },
         ];
+      }
 
-      case 'generate-report':
+      case 'generate-report': {
         const reportType = args.report_type || 'metrics';
         let resourceUri;
         switch (reportType) {
@@ -501,6 +502,7 @@ Include:
             },
           },
         ];
+      }
 
       default:
         throw new Error(`Unknown prompt: ${name}`);
@@ -509,7 +511,7 @@ Include:
 
   async callTool(name, args = {}) {
     switch (name) {
-      case 'calculate-growth-rate':
+      case 'calculate-growth-rate': {
         const { current_value, previous_value } = args;
         if (previous_value === 0) {
           return {
@@ -524,8 +526,9 @@ Include:
           previous_value,
           absolute_change: current_value - previous_value,
         };
+      }
 
-      case 'format-metric':
+      case 'format-metric': {
         const { value, unit } = args;
         let formatted;
         switch (unit) {
@@ -546,6 +549,7 @@ Include:
           raw_value: value,
           unit: unit,
         };
+      }
 
       default:
         throw new Error(`Unknown tool: ${name}`);

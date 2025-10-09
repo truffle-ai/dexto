@@ -15,7 +15,7 @@ let BetterSqlite3Database: any;
  * Implements the Database interface with proper schema and connection handling.
  */
 export class SQLiteStore implements Database {
-    private db: any; // Database.Database
+    private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
 
@@ -151,6 +151,7 @@ export class SQLiteStore implements Database {
     async disconnect(): Promise<void> {
         if (this.db) {
             this.db.close();
+            this.db = null;
         }
     }
 

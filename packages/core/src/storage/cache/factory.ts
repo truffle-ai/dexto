@@ -3,8 +3,13 @@ import type { RedisCacheConfig, CacheConfig } from '../schemas.js';
 import { MemoryCacheStore } from './memory-cache-store.js';
 import { logger } from '../../logger/index.js';
 
+// Type for Redis store constructor
+interface RedisStoreConstructor {
+    new (config: RedisCacheConfig): Cache;
+}
+
 // Lazy import for optional Redis dependency
-let RedisStore: any;
+let RedisStore: RedisStoreConstructor | null = null;
 
 /**
  * Create a cache store based on configuration.

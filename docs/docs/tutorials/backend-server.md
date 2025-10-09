@@ -799,7 +799,7 @@ We've built up our React app layer by layer:
 
 1. **Layer 1**: Basic synchronous messaging (`/api/message-sync`)
 2. **Layer 2**: Real-time streaming (WebSocket events)
-3. **Layer 3**: Server management (`/api/mcp/servers`, `/api/connect-server`)
+3. **Layer 3**: Server management (`/api/mcp/servers`)
 4. **Layer 4**: Direct tool execution (`/api/mcp/servers/:id/tools/:tool/execute`)
 
 ## Key Takeaways

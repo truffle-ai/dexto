@@ -84,6 +84,11 @@ export class BlobResourceHandler implements InternalResourceHandler {
             // Extract blob ID from URI (remove 'blob:' prefix)
             const blobId = uri.substring(5);
 
+            // Validate blob ID
+            if (!blobId) {
+                throw ResourceError.readFailed(uri, new Error('Invalid blob URI: missing blob ID'));
+            }
+
             // Special case: blob store info
             if (blobId === 'store') {
                 const stats = await this.blobStore.getStats();
@@ -98,14 +103,14 @@ export class BlobResourceHandler implements InternalResourceHandler {
                 };
             }
 
-            // Retrieve actual blob data
-            const result = await this.blobStore.retrieve(uri, 'base64');
+            // Retrieve actual blob data using blob ID
+            const result = await this.blobStore.retrieve(blobId, 'base64');
 
             return {
                 contents: [
                     {
                         uri,
-                        mimeType: result.metadata.mimeType,
+                        mimeType: result.metadata.mimeType || 'application/octet-stream',
                         blob: result.data as string, // base64 data from retrieve call
                     },
                 ],

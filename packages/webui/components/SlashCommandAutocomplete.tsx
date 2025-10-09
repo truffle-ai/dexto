@@ -240,10 +240,8 @@ export default function SlashCommandAutocomplete({
     );
 
     setFilteredPrompts(filtered);
-    // Calculate index based on filtered count, not current state
-    const shouldShowCreate = searchQuery.startsWith('/') && filtered.length === 0;
-    const defaultIndex = shouldShowCreate && filtered.length > 0 ? 1 : 0;
-    setSelectedIndex(defaultIndex);
+    // Reset to first item (create option takes index 0 if shown)
+    setSelectedIndex(0);
   }, [searchQuery, prompts]);
 
   const itemsLength = combinedItems.length;
