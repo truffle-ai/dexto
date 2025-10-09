@@ -1,12 +1,12 @@
 import { MCPClient } from './mcp-client.js';
 import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
 import { logger } from '../logger/index.js';
-import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
 import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js';
 import { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
-import type { PromptDefinition, PromptArgument } from '../prompts/types.js';
+import type { PromptDefinition } from '../prompts/types.js';
 import type { JSONSchema7 } from 'json-schema';
 
 /**
@@ -333,43 +333,24 @@ export class MCPManager {
             return; // Early return on error, no caching
         }
 
-        // Cache prompts with metadata, if supported
+        // Cache prompts with metadata from listPrompts() (no additional network calls needed)
         try {
-            const prompts = await client.listPrompts();
+            const prompts: Prompt[] = await client.listPrompts();
 
-            // Fetch metadata for each prompt
-            for (const promptName of prompts) {
-                try {
-                    // Get prompt definition to extract metadata
-                    const promptResult = await client.getPrompt(promptName);
-                    const definition: PromptDefinition = {
-                        name: promptName,
-                        description: promptResult.description,
-                    };
+            for (const prompt of prompts) {
+                // Convert MCP SDK Prompt to our PromptDefinition
+                const definition: PromptDefinition = {
+                    name: prompt.name,
+                    ...(prompt.title && { title: prompt.title }),
+                    ...(prompt.description && { description: prompt.description }),
+                    ...(prompt.arguments && { arguments: prompt.arguments }),
+                };
 
-                    // Add arguments if present in the result
-                    if ('arguments' in promptResult && promptResult.arguments) {
-                        definition.arguments = promptResult.arguments as PromptArgument[];
-                    }
-
-                    this.promptCache.set(promptName, {
-                        serverName: clientName,
-                        client,
-                        definition,
-                    });
-                } catch (metadataError) {
-                    logger.debug(
-                        `Could not fetch metadata for prompt '${promptName}': ${metadataError}`
-                    );
-                    // Store minimal metadata even if fetch fails
-                    this.promptCache.set(promptName, {
-                        serverName: clientName,
-                        client,
-                        definition: {
-                            name: promptName,
-                        },
-                    });
-                }
+                this.promptCache.set(prompt.name, {
+                    serverName: clientName,
+                    client,
+                    definition,
+                });
             }
 
             logger.debug(`Cached ${prompts.length} prompts for client: ${clientName}`);
@@ -882,51 +863,35 @@ export class MCPManager {
                 this.promptCache.delete(promptName);
             });
 
-            // Add new prompts with metadata
+            // Add new prompts with metadata from listPrompts() (no additional network calls needed)
             try {
-                const newPrompts = await client.listPrompts();
+                const newPrompts: Prompt[] = await client.listPrompts();
 
-                // Fetch metadata for each prompt
-                for (const promptName of newPrompts) {
-                    try {
-                        // Get prompt definition to extract metadata
-                        const promptResult = await client.getPrompt(promptName);
-                        const definition: PromptDefinition = {
-                            name: promptName,
-                            description: promptResult.description,
-                        };
+                for (const prompt of newPrompts) {
+                    // Convert MCP SDK Prompt to our PromptDefinition
+                    const definition: PromptDefinition = {
+                        name: prompt.name,
+                        ...(prompt.title && { title: prompt.title }),
+                        ...(prompt.description && { description: prompt.description }),
+                        ...(prompt.arguments && { arguments: prompt.arguments }),
+                    };
 
-                        // Add arguments if present in the result
-                        if ('arguments' in promptResult && promptResult.arguments) {
-                            definition.arguments = promptResult.arguments as PromptArgument[];
-                        }
-
-                        this.promptCache.set(promptName, {
-                            serverName,
-                            client,
-                            definition,
-                        });
-                    } catch (metadataError) {
-                        logger.debug(
-                            `Could not fetch metadata for prompt '${promptName}': ${metadataError}`
-                        );
-                        // Store minimal metadata even if fetch fails
-                        this.promptCache.set(promptName, {
-                            serverName,
-                            client,
-                            definition: {
-                                name: promptName,
-                            },
-                        });
-                    }
+                    this.promptCache.set(prompt.name, {
+                        serverName,
+                        client,
+                        definition,
+                    });
                 }
 
-                logger.debug(`Updated prompts cache for ${serverName}: [${newPrompts.join(', ')}]`);
+                const promptNames = newPrompts.map((p) => p.name);
+                logger.debug(
+                    `Updated prompts cache for ${serverName}: [${promptNames.join(', ')}]`
+                );
 
                 // Emit event to notify other parts of the system
                 eventBus.emit('dexto:mcpPromptsListChanged', {
                     serverName,
-                    prompts: newPrompts,
+                    prompts: promptNames,
                 });
             } catch (error) {
                 logger.warn(`Failed to refresh prompts for ${serverName}: ${error}`);

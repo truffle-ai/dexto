@@ -2,16 +2,17 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * MCP-compliant prompt argument definition
+ * Matches the MCP SDK's Prompt.arguments structure
  */
 export interface PromptArgument {
     name: string;
-    description?: string;
-    // Optional to accommodate providers that omit it; treat as false when missing
-    required?: boolean;
+    description?: string | undefined;
+    required?: boolean | undefined;
 }
 
 /**
  * MCP-compliant prompt definition
+ * Matches the MCP SDK's Prompt structure
  */
 export interface PromptDefinition {
     name: string;
@@ -24,7 +25,7 @@ export interface PromptDefinition {
  * Enhanced prompt info with MCP-compliant structure
  */
 export interface PromptInfo extends PromptDefinition {
-    source: 'mcp' | 'internal' | 'starter' | 'custom';
+    source: 'mcp' | 'file' | 'starter' | 'custom';
     metadata?: Record<string, unknown>;
 }
 
