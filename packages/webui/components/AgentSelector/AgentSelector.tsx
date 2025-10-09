@@ -54,7 +54,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       setCurrentId(data.current.id);
       return data;
     } catch (err) {
-      console.error('AgentSelector load error:', err);
+      console.error(`AgentSelector load error: ${err}`);
       return null;
     }
   }, []);
@@ -70,7 +70,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       // Check if the agent exists in the installed list
       const agent = installed.find(agent => agent.id === agentId);
       if (!agent) {
-        console.error('Agent not found in installed list:', agentId);
+        console.error(`Agent not found in installed list: ${agentId}`);
         throw new Error(`Agent '${agentId}' not found. Please refresh the agents list.`);
       }
       
@@ -81,7 +81,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        console.error('Agent switch failed:', errorData);
+        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
         throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
       }
       setCurrentId(agentId);
@@ -124,7 +124,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       // Check if the agent exists in the freshly loaded installed list
       const agent = freshData.installed.find(a => a.id === agentId);
       if (!agent) {
-        console.error('Agent not found in fresh installed list:', agentId);
+        console.error(`Agent not found in fresh installed list: ${agentId}`);
         throw new Error(`Agent '${agentId}' not found after installation. Please refresh.`);
       }
 
@@ -136,7 +136,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!switchRes.ok) {
         const errorData = await switchRes.json().catch(() => ({}));
-        console.error('Agent switch failed:', errorData);
+        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
         throw new Error(errorData.error || errorData.message || `Switch failed: ${switchRes.status} ${switchRes.statusText}`);
       }
       setCurrentId(agentId);
@@ -150,7 +150,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       } catch {}
       returnToWelcome();
     } catch (err) {
-      console.error('Install agent failed:', err);
+      console.error(`Install agent failed: ${err}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
       alert(`Failed to install agent: ${errorMessage}`);
     } finally {
@@ -180,7 +180,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         setCurrentId(null);
       }
     } catch (err) {
-      console.error('Delete agent failed:', err);
+      console.error(`Delete agent failed: ${err}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete agent';
       alert(`Failed to delete agent: ${errorMessage}`);
     } finally {
