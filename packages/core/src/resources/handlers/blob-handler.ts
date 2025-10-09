@@ -38,6 +38,12 @@ export class BlobResourceHandler implements InternalResourceHandler {
                 logger.debug(`📄 Found ${blobs.length} individual blobs`);
 
                 for (const blob of blobs) {
+                    // Filter out 'system' source blobs - these are internal configuration
+                    // (e.g., prompt .md files) and shouldn't be user-referenceable resources
+                    if (blob.metadata.source === 'system') {
+                        continue;
+                    }
+
                     // Generate a user-friendly name with proper extension
                     const displayName = this.generateBlobDisplayName(blob.metadata, blob.id);
                     const friendlyType = this.getFriendlyType(blob.metadata.mimeType);
