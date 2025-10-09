@@ -135,7 +135,7 @@ This server demonstrates the complete MCP protocol implementation:
 2. **Client Side** (Dexto):
    - **MCPManager**: Discovers and caches all capabilities from the server
    - **ResourceManager**: Aggregates MCP resources with qualified URIs
-   - **PromptsManager**: Manages prompt templates and argument substitution
+   - **PromptManager**: Manages prompt templates and argument substitution
    - **ToolManager**: Executes MCP tools with proper error handling
    - All capabilities are cached for performance (no network calls after initial discovery)
 
@@ -151,7 +151,7 @@ This server demonstrates the complete MCP protocol implementation:
 │                  Dexto Client                       │
 │                                                     │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐ │
-│  │ResourceManager│  │PromptsManager│  │MCPManager│ │
+│  │ResourceManager│  │PromptManager│  │MCPManager│ │
 │  └──────┬───────┘  └──────┬───────┘  └────┬─────┘ │
 │         │                 │                │       │
 │         └─────────────────┴────────────────┘       │
