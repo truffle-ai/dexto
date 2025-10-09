@@ -73,21 +73,24 @@ export default function ChatApp() {
 
   // Starter prompts state (from agent config via /api/prompts)
   const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
+  const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
 
   // Fetch starter prompts when in welcome state
   useEffect(() => {
     if (!isWelcomeState) return;
 
     let cancelled = false;
+    setStarterPromptsLoaded(false);
     loadPrompts()
       .then((prompts) => {
         if (!cancelled) {
           setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
+          setStarterPromptsLoaded(true);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setStarterPrompts([]);
+          setStarterPromptsLoaded(true);
         }
       });
 
@@ -478,27 +481,37 @@ export default function ChatApp() {
 
   // Merge dynamic quick actions from starter prompts
   const dynamicQuickActions = React.useMemo(() => {
+    // Only show actions after prompts have loaded
+    if (!starterPromptsLoaded) {
+      return [];
+    }
+
     // If starter prompts are present, hide the built-in defaults to avoid duplication
-    const actions: Array<{ description: string; action: () => void }> =
-      starterPrompts.length > 0 ? [] : quickActions.map(a => ({ description: `${a.icon} ${a.title}`, action: a.action }));
+    const actions: Array<{ description: string; tooltip?: string; action: () => void }> =
+      starterPrompts.length > 0 ? [] : quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
     starterPrompts.forEach((prompt) => {
-      const description = prompt.description || 'Starter prompt';
+      const description = prompt.title || prompt.description || 'Starter prompt';
+      const tooltip = prompt.description;
 
       if (prompt?.name === 'starter:connect-tools') {
         actions.push({
           description,
+          tooltip,
           action: () => setServersPanelOpen(true),
         });
       } else {
-        const slash = `/${prompt.name}`;
+        // Use the actual prompt text from metadata if available, otherwise fall back to slash command
+        const promptText = prompt.metadata?.prompt as string | undefined;
+        const messageToSend = promptText || `/${prompt.name}`;
         actions.push({
           description,
-          action: () => handleSend(slash),
+          tooltip,
+          action: () => handleSend(messageToSend),
         });
       }
     });
     return actions;
-  }, [starterPrompts, quickActions, handleSend, setServersPanelOpen]);
+  }, [starterPrompts, starterPromptsLoaded, quickActions, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -818,7 +831,7 @@ export default function ChatApp() {
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        {greeting ?? "Welcome to Dexto"}
+                        {greeting || 'Welcome to Dexto'}
                       </h2>
                     </div>
                     <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
@@ -829,7 +842,7 @@ export default function ChatApp() {
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
                     {dynamicQuickActions.map((action, index) => {
-                      return (
+                      const button = (
                         <button
                           key={index}
                           onClick={action.action}
@@ -840,6 +853,21 @@ export default function ChatApp() {
                           </span>
                         </button>
                       );
+
+                      if (action.tooltip) {
+                        return (
+                          <Tooltip key={index}>
+                            <TooltipTrigger asChild>
+                              {button}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {action.tooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+
+                      return button;
                     })}
                   </div>
 
