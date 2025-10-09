@@ -164,13 +164,14 @@ export function appendContext(text: string, context?: string): string {
 /**
  * Expand simple placeholder syntax in a template using positional args.
  * Supported tokens:
- * - $ARGUMENTS → all positional tokens joined by a single space
+ * - $ARGUMENTS → remaining positional tokens (after $1..$9) joined by a single space
  * - $1..$9     → nth positional token or empty string if missing
  * - $$         → literal dollar sign
  *
  * Notes:
  * - Positional tokens are expected under args._positional as string[]
  * - Key/value args are ignored here (handled separately by providers if needed)
+ * - $ARGUMENTS only includes args not consumed by explicit $N placeholders
  */
 export function expandPlaceholders(content: string, args?: Record<string, unknown>): string {
     if (!content) return '';
@@ -183,9 +184,18 @@ export function expandPlaceholders(content: string, args?: Record<string, unknow
     const ESC = '__DOLLAR__PLACEHOLDER__';
     let out = content.replaceAll('$$', ESC);
 
-    // $ARGUMENTS → all positional joined by space
+    // Find highest $N placeholder used in template (1-9)
+    let maxExplicitIndex = 0;
+    for (let i = 1; i <= 9; i++) {
+        if (out.includes(`$${i}`)) {
+            maxExplicitIndex = i;
+        }
+    }
+
+    // $ARGUMENTS → remaining positional args after explicit $N placeholders
     if (out.includes('$ARGUMENTS')) {
-        out = out.replaceAll('$ARGUMENTS', positional.join(' '));
+        const remainingArgs = positional.slice(maxExplicitIndex);
+        out = out.replaceAll('$ARGUMENTS', remainingArgs.join(' '));
     }
 
     // $1..$9 → corresponding positional token

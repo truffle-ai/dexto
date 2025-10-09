@@ -337,9 +337,9 @@ export class FilePromptProvider implements PromptProvider {
     }
 
     private applyArguments(content: string, args?: Record<string, unknown>): string {
-        // Check if content uses any placeholders
+        // Check if content uses any placeholders ($1-$9, $ARGUMENTS, or $$)
         const hasPlaceholders =
-            content.includes('$ARGUMENTS') || /\$[1-9]/.test(content) || content.includes('$$');
+            /\$[1-9]/.test(content) || content.includes('$ARGUMENTS') || content.includes('$$');
 
         // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
         const expanded = expandPlaceholders(content, args).trim();

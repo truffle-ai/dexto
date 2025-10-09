@@ -66,7 +66,7 @@ File prompts support Claude Code's positional argument system:
 | Placeholder | Expands To | Use Case |
 |-------------|------------|----------|
 | `$1`, `$2`, ..., `$9` | Individual arguments by position | Structured parameters |
-| `$ARGUMENTS` | All arguments joined with spaces | Free-form text content |
+| `$ARGUMENTS` | Remaining arguments after `$1..$9` | Free-form text content |
 | `$$` | Literal dollar sign | When you need `$` in output |
 
 ### Examples
