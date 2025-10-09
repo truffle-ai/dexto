@@ -174,9 +174,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Delete failed: ${res.status}`);
       }
-      await loadAgents();
-      // If we deleted the current agent, clear current
-      if (currentId === agent.id) {
+      const updated = await loadAgents();
+      // If the backend still reports the deleted id as current, clear it locally
+      if (updated?.current.id === agent.id) {
         setCurrentId(null);
       }
     } catch (err) {
