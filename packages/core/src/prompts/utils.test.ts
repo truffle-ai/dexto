@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'vitest';
-import { flattenPromptResult, normalizePromptArgs, appendContext } from './utils.js';
+import {
+    flattenPromptResult,
+    normalizePromptArgs,
+    appendContext,
+    expandPlaceholders,
+} from './utils.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 describe('flattenPromptResult', () => {
@@ -262,6 +267,23 @@ describe('flattenPromptResult', () => {
 
         expect(flattened.text).toBe('Content without URI\nValid resource\n\n@<file:///valid.txt>');
         expect(flattened.resourceUris).toEqual(['file:///valid.txt']);
+    });
+});
+
+describe('expandPlaceholders', () => {
+    test('replaces $ARGUMENTS with all positional tokens', () => {
+        const out = expandPlaceholders('Run: $ARGUMENTS', { _positional: ['a', 'b', 'c'] });
+        expect(out).toBe('Run: a b c');
+    });
+
+    test('replaces $1..$3 with corresponding tokens and leaves missing empty', () => {
+        const out = expandPlaceholders('A:$1 B:$2 C:$3 D:$4', { _positional: ['x', 'y'] });
+        expect(out).toBe('A:x B:y C: D:');
+    });
+
+    test('respects $$ escape', () => {
+        const out = expandPlaceholders('Price $$1 and token $1', { _positional: ['X'] });
+        expect(out).toBe('Price $1 and token X');
     });
 });
 

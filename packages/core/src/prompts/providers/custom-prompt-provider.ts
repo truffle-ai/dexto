@@ -9,6 +9,7 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Database } from '../../storage/database/types.js';
 import type { ResourceManager } from '../../resources/manager.js';
 import { logger } from '../../logger/index.js';
+import { expandPlaceholders } from '../utils.js';
 import { PromptError } from '../errors.js';
 
 const CUSTOM_PROMPT_KEY_PREFIX = 'prompt:custom:';
@@ -91,7 +92,9 @@ export class CustomPromptProvider implements PromptProvider {
         }
 
         const messages: GetPromptResult['messages'] = [];
-        const textContent = this.applyArguments(record.content, args);
+        // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
+        const expanded = expandPlaceholders(record.content, args);
+        const textContent = this.applyArguments(expanded, args);
         messages.push({
             role: 'user',
             content: {
@@ -308,6 +311,7 @@ export class CustomPromptProvider implements PromptProvider {
         }
         let result = content;
         for (const [key, value] of Object.entries(args)) {
+            if (key.startsWith('_')) continue; // skip special keys
             const placeholder = `{{${key}}}`;
             result = result.replaceAll(placeholder, String(value));
         }

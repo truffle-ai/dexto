@@ -1,4 +1,5 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
+import { expandPlaceholders } from '../utils.js';
 import { assertValidPromptName } from '../name-validation.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
@@ -299,13 +300,16 @@ export class InternalPromptProvider implements PromptProvider {
     }
 
     private applyArguments(content: string, args?: Record<string, unknown>): string {
+        // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
+        const expanded = expandPlaceholders(content, args).trim();
+
         if (!args || typeof args !== 'object' || Object.keys(args).length === 0) {
-            return content.trim();
+            return expanded;
         }
 
-        if (args._context) {
-            const contextString = String(args._context);
-            return `Context: ${contextString}\n\n${content.trim()}`;
+        if ((args as any)._context) {
+            const contextString = String((args as any)._context);
+            return `Context: ${contextString}\n\n${expanded}`;
         }
 
         const argContext = Object.entries(args)
@@ -314,9 +318,9 @@ export class InternalPromptProvider implements PromptProvider {
             .join(', ');
 
         if (!argContext) {
-            return content.trim();
+            return expanded;
         }
 
-        return `Arguments: ${argContext}\n\n${content.trim()}`;
+        return `Arguments: ${argContext}\n\n${expanded}`;
     }
 }

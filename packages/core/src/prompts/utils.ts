@@ -139,3 +139,45 @@ export function appendContext(text: string, context?: string): string {
     }
     return `${text}\n\n${context}`;
 }
+
+/**
+ * Expand simple placeholder syntax in a template using positional args.
+ * Supported tokens:
+ * - $ARGUMENTS → all positional tokens joined by a single space
+ * - $1..$9     → nth positional token or empty string if missing
+ * - $$         → literal dollar sign
+ *
+ * Notes:
+ * - Positional tokens are expected under args._positional as string[]
+ * - Key/value args are ignored here (handled separately by providers if needed)
+ */
+export function expandPlaceholders(content: string, args?: Record<string, unknown>): string {
+    if (!content) return '';
+
+    const positional = Array.isArray((args as any)?._positional)
+        ? ((args as any)._positional as string[])
+        : [];
+
+    // Protect escaped dollars
+    const ESC = '__DOLLAR__PLACEHOLDER__';
+    let out = content.replaceAll('$$', ESC);
+
+    // $ARGUMENTS → all positional joined by space
+    if (out.includes('$ARGUMENTS')) {
+        out = out.replaceAll('$ARGUMENTS', positional.join(' '));
+    }
+
+    // $1..$9 → corresponding positional token
+    for (let i = 1; i <= 9; i++) {
+        const token = `$${i}`;
+        if (out.includes(token)) {
+            const val = positional[i - 1] ?? '';
+            // Use split/join to avoid $-replacement semantics in regex
+            out = out.split(token).join(val);
+        }
+    }
+
+    // Restore $$
+    out = out.replaceAll(ESC, '$');
+    return out;
+}

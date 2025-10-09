@@ -26,7 +26,7 @@ import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
-import { parseSlashInput } from '../lib/parseSlash';
+import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { clearPromptCache } from '../lib/promptCache';
 
 interface ModelOption {
@@ -255,6 +255,20 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       if (name) {
         try {
           const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
+          // Build structured args from tokens: key=value map + positional array
+          if (parsed.argsArray && parsed.argsArray.length > 0) {
+            const { keyValues, positional } = splitKeyValueAndPositional(parsed.argsArray);
+            const argsPayload: Record<string, unknown> = { ...keyValues };
+            if (positional.length > 0) argsPayload._positional = positional;
+            if (Object.keys(argsPayload).length > 0) {
+              try {
+                url.searchParams.set('args', JSON.stringify(argsPayload));
+              } catch {
+                // ignore JSON errors and fall back to context-only
+              }
+            }
+          }
+          // Keep context for natural language compatibility
           if (originalArgsText) url.searchParams.set('context', originalArgsText);
 
           // Add timeout to prevent hanging on slow responses

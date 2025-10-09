@@ -540,7 +540,7 @@ export class MCPManager {
      * @param args Arguments for the prompt (optional).
      * @returns Promise resolving to the prompt definition.
      */
-    async getPrompt(name: string, args?: any): Promise<GetPromptResult> {
+    async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
         const client = this.getPromptClient(name);
         if (!client) {
             throw MCPError.promptNotFound(name);
