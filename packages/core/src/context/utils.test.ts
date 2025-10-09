@@ -13,7 +13,7 @@ import * as registry from '../llm/registry.js';
 import type { ResourceManager } from '../resources/manager.js';
 
 // Mock the registry module
-vi.mock('@core/llm/registry.js');
+vi.mock('../llm/registry.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
 
 describe('filterMessagesByLLMCapabilities', () => {

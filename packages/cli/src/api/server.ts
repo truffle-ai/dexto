@@ -718,8 +718,8 @@ export async function initializeApi(
                         .status(404)
                         .json({ success: false, error: `Server '${serverId}' not found` });
                 }
-                // Execute tool through the agent's unified wrapper method
-                const rawResult = await activeAgent.executeTool(toolName, req.body);
+                // Execute tool directly on the specified server
+                const rawResult = await client.callTool(toolName, req.body);
                 // Return standardized result shape
                 return res.json({ success: true, data: rawResult });
             } catch (error) {

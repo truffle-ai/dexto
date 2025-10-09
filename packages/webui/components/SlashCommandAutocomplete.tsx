@@ -272,7 +272,6 @@ export default function SlashCommandAutocomplete({
         e.preventDefault();
         e.stopPropagation();
         // Some environments support stopImmediatePropagation on DOM events
-        // @ts-expect-error - not in TS lib typing for all targets
         if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       };
       switch (e.key) {

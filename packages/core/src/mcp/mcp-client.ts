@@ -15,12 +15,14 @@ import { ToolSet } from '../tools/types.js';
 import { IMCPClient, MCPResourceSummary } from './types.js';
 import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
-import {
+import type {
     GetPromptResult,
     ReadResourceResult,
     Resource,
-    ResourceUpdatedNotificationSchema,
     ResourceUpdatedNotification,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+    ResourceUpdatedNotificationSchema,
     PromptListChangedNotificationSchema,
     ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js';
