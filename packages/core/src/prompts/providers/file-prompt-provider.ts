@@ -214,29 +214,31 @@ export class FilePromptProvider implements PromptProvider {
 
                 for (const line of frontmatterLines) {
                     if (line.includes('description:')) {
-                        const descMatch = line.match(/description:\s*['"]?([^'"]+)['"]?/);
-                        if (descMatch && descMatch[1]) {
-                            description = descMatch[1];
+                        // Match: description: value OR description: "value" OR description: 'value'
+                        // Handles quotes inside the value properly
+                        const descMatch = line.match(/description:\s*(?:['"](.+)['"]|(.+))/);
+                        if (descMatch) {
+                            description = (descMatch[1] || descMatch[2] || '').trim();
                         }
                     } else if (line.includes('id:')) {
-                        const idMatch = line.match(/id:\s*['"]?([^'"]+)['"]?/);
-                        if (idMatch && idMatch[1]) {
-                            id = idMatch[1];
+                        const idMatch = line.match(/id:\s*(?:['"](.+)['"]|(.+))/);
+                        if (idMatch) {
+                            id = (idMatch[1] || idMatch[2] || '').trim();
                         }
                     } else if (line.includes('name:')) {
-                        const nameMatch = line.match(/name:\s*['"]?([^'"]+)['"]?/);
-                        if (nameMatch && nameMatch[1]) {
-                            nameOverride = nameMatch[1];
+                        const nameMatch = line.match(/name:\s*(?:['"](.+)['"]|(.+))/);
+                        if (nameMatch) {
+                            nameOverride = (nameMatch[1] || nameMatch[2] || '').trim();
                         }
                     } else if (line.includes('category:')) {
-                        const categoryMatch = line.match(/category:\s*['"]?([^'"]+)['"]?/);
-                        if (categoryMatch && categoryMatch[1]) {
-                            category = categoryMatch[1];
+                        const categoryMatch = line.match(/category:\s*(?:['"](.+)['"]|(.+))/);
+                        if (categoryMatch) {
+                            category = (categoryMatch[1] || categoryMatch[2] || '').trim();
                         }
                     } else if (line.includes('argument-hint:')) {
-                        const hintMatch = line.match(/argument-hint:\s*['"]?([^'"]+)['"]?/);
-                        if (hintMatch && hintMatch[1]) {
-                            argumentHint = hintMatch[1];
+                        const hintMatch = line.match(/argument-hint:\s*(?:['"](.+)['"]|(.+))/);
+                        if (hintMatch) {
+                            argumentHint = (hintMatch[1] || hintMatch[2] || '').trim();
                         }
                     }
                 }
