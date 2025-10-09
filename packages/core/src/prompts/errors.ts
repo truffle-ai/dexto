@@ -82,6 +82,24 @@ export class PromptError {
         ]);
     }
 
+    /**
+     * Invalid prompt name format validation error
+     */
+    static invalidName(name: string, guidance: string, context?: string, hint?: string) {
+        const contextPrefix = context ?? 'Prompt name';
+        const hintSuffix = hint ? ` ${hint}` : '';
+        return new DextoValidationError([
+            {
+                code: PromptErrorCode.PROMPT_INVALID_NAME,
+                message: `${contextPrefix} '${name}' must be ${guidance}.${hintSuffix}`,
+                scope: ErrorScope.PROMPT,
+                type: ErrorType.USER,
+                severity: 'error',
+                context: { name, guidance },
+            },
+        ]);
+    }
+
     /** Duplicate prompt name validation error */
     static alreadyExists(name: string) {
         return new DextoValidationError([

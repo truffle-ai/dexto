@@ -1,3 +1,5 @@
+import { PromptError } from './errors.js';
+
 export const PROMPT_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const PROMPT_NAME_GUIDANCE =
@@ -20,7 +22,5 @@ export function assertValidPromptName(
         return;
     }
 
-    const context = options.context ?? 'Prompt name';
-    const hint = options.hint ? ` ${options.hint}` : '';
-    throw new Error(`${context} '${name}' must be ${PROMPT_NAME_GUIDANCE}.${hint}`);
+    throw PromptError.invalidName(name, PROMPT_NAME_GUIDANCE, options.context, options.hint);
 }

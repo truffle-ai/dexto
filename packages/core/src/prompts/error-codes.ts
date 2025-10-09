@@ -10,6 +10,7 @@ export enum PromptErrorCode {
 
     // Validation errors
     PROMPT_NAME_REQUIRED = 'prompt_name_required',
+    PROMPT_INVALID_NAME = 'prompt_invalid_name',
     PROMPT_MISSING_TEXT = 'prompt_missing_text',
     PROMPT_MISSING_REQUIRED_ARGUMENTS = 'prompt_missing_required_arguments',
     PROMPT_ALREADY_EXISTS = 'prompt_already_exists',
