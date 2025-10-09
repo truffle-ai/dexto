@@ -44,7 +44,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  const loadAgents = useCallback(async () => {
+  const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
     try {
       const res = await fetch('/api/agents');
       if (!res.ok) throw new Error('Failed to fetch agents');
@@ -52,8 +52,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       setInstalled(data.installed || []);
       setAvailable(data.available || []);
       setCurrentId(data.current.id);
+      return data;
     } catch (err) {
       console.error('AgentSelector load error:', err);
+      return null;
     }
   }, []);
 
@@ -113,17 +115,48 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Install failed: ${res.status}`);
       }
-      // Reload agents list to reflect the newly installed agent
-      await loadAgents();
+      // Reload agents list to get fresh data
+      const freshData = await loadAgents();
+      if (!freshData) {
+        throw new Error('Failed to reload agents list after installation');
+      }
+
+      // Check if the agent exists in the freshly loaded installed list
+      const agent = freshData.installed.find(a => a.id === agentId);
+      if (!agent) {
+        console.error('Agent not found in fresh installed list:', agentId);
+        throw new Error(`Agent '${agentId}' not found after installation. Please refresh.`);
+      }
+
       // After successful install, switch to the agent
-      await handleSwitch(agentId);
+      const switchRes = await fetch('/api/agents/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: agentId }),
+      });
+      if (!switchRes.ok) {
+        const errorData = await switchRes.json().catch(() => ({}));
+        console.error('Agent switch failed:', errorData);
+        throw new Error(errorData.error || errorData.message || `Switch failed: ${switchRes.status} ${switchRes.statusText}`);
+      }
+      setCurrentId(agentId);
+      setOpen(false);
+      try {
+        window.dispatchEvent(
+          new CustomEvent('dexto:agentSwitched', {
+            detail: { id: agentId, name: agent.name },
+          })
+        );
+      } catch {}
+      returnToWelcome();
     } catch (err) {
       console.error('Install agent failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
       alert(`Failed to install agent: ${errorMessage}`);
+    } finally {
       setSwitching(false);
     }
-  }, [handleSwitch, loadAgents]);
+  }, [loadAgents, returnToWelcome]);
 
   const handleDelete = useCallback(async (agent: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete
@@ -155,7 +188,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }
   }, [currentId, loadAgents]);
 
-  const handleAgentCreated = useCallback(async (agentName: string) => {
+  const handleAgentCreated = useCallback(async (_agentName: string) => {
     // Add a small delay to ensure the agent is fully installed
     await new Promise(resolve => setTimeout(resolve, 1000));
     // Reload agents list to show the newly created agent

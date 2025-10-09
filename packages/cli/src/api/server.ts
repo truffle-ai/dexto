@@ -1119,14 +1119,23 @@ export async function initializeApi(
 
     const AgentIdentifierSchema = z
         .object({
-            id: z.string().min(1, 'Agent id is required'),
+            id: z
+                .string()
+                .min(1, 'Agent id is required')
+                .describe('Unique agent identifier (e.g., "database-agent")'),
         })
         .strict();
 
     const UninstallAgentSchema = z
         .object({
-            id: z.string().min(1, 'Agent id is required'),
-            force: z.boolean().default(false),
+            id: z
+                .string()
+                .min(1, 'Agent id is required')
+                .describe('Unique agent identifier to uninstall'),
+            force: z
+                .boolean()
+                .default(false)
+                .describe('Force uninstall even if agent is currently active'),
         })
         .strict();
 
@@ -1135,16 +1144,25 @@ export async function initializeApi(
         .object({
             id: z.string().min(1, 'Agent id is required'),
             name: z.string().optional().describe('Display name (defaults to derived from id)'),
-            sourcePath: z.string().min(1),
+            sourcePath: z.string().min(1).describe('Path to agent configuration file or directory'),
             metadata: z
                 .object({
-                    description: z.string().min(1),
-                    author: z.string().min(1),
-                    tags: z.array(z.string()),
-                    main: z.string().optional(),
+                    description: z
+                        .string()
+                        .min(1)
+                        .describe('Human-readable description of the agent'),
+                    author: z.string().min(1).describe('Agent author or organization name'),
+                    tags: z.array(z.string()).describe('Tags for categorizing the agent'),
+                    main: z
+                        .string()
+                        .optional()
+                        .describe('Main configuration file name within source directory'),
                 })
                 .strict(),
-            injectPreferences: z.boolean().default(true),
+            injectPreferences: z
+                .boolean()
+                .default(true)
+                .describe('Whether to inject user preferences into agent config'),
         })
         .strict()
         .transform((value) => {
