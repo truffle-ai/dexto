@@ -46,6 +46,12 @@ storage:
   database:
     type: sqlite
     # path: ./data/dexto.db  # Optional: customize database location
+  blob:
+    type: local  # 'local', 's3', 'gcs', 'azure' (s3, gcs, azure coming in future Phases)
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
+    # storePath: ~/.dexto/blobs (defaults to context-aware path for local backend)
 
 toolConfirmation:
   mode: event-based
@@ -53,7 +59,7 @@ toolConfirmation:
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
 # Internal resources configuration - manages file system access and blob storage
-# NOTE: Blob storage capacity and backend settings are in the 'blobStorage' section below
+# NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above
 internalResources:
   enabled: true
   resources:
@@ -65,7 +71,7 @@ internalResources:
       includeHidden: false         # Include hidden files/directories
       includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
 
-    # Blob resource - enables large file upload/storage (settings in blobStorage section)
+    # Blob resource - enables large file upload/storage (settings in storage.blob section above)
     - type: blob
 
 # Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
@@ -96,17 +102,6 @@ starterPrompts:
     prompt: "I want to connect new tools to expand my capabilities. Can you help me understand what MCP servers are available and how to add them?"
     category: tools
     priority: 3
-
-# Blob storage configuration - infrastructure-level storage for large files
-# This section controls the actual blob backend, size limits, and cleanup policies
-# TODO: (355) Should move to existing storage schema, along with code moving to storage module: storage - cache, database, blob
-# https://github.com/truffle-ai/dexto/pull/355#discussion_r2412881684
-blobStorage:
-  type: local  # 'local', 's3', 'gcs', 'azure' (s3, gcs, azure coming in future Phases)
-  maxBlobSize: 52428800     # 50MB per blob
-  maxTotalSize: 1073741824  # 1GB total storage
-  cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
-  # storePath: ~/.dexto/blobs (defaults to context-aware path for local backend)
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
