@@ -118,6 +118,17 @@ class ResourcesDemoServer {
               },
             ],
           },
+          {
+            name: 'deep-dive-analysis',
+            description: 'Perform deep analysis with linked reference data (demonstrates resource_link)',
+            arguments: [
+              {
+                name: 'focus',
+                description: 'Analysis focus area (growth, satisfaction, operations)',
+                required: false,
+              },
+            ],
+          },
         ];
 
         return {
@@ -451,6 +462,12 @@ Users comparing us to competitors highlighted:
       case 'analyze-metrics': {
         const metricType = args.metric_type || 'users';
         const timePeriod = args.time_period || 'Q4 2024';
+
+        // Fetch the resource content to embed
+        const resourceContent = await this.getResourceContent('mcp-demo://product-metrics');
+
+        // Return multiple messages, each with a single content block
+        // This is spec-compliant: PromptMessage.content must be a single ContentBlock
         return [
           {
             role: 'user',
@@ -462,9 +479,18 @@ Consider:
 1. Current trends and patterns
 2. Growth or decline rates
 3. Key insights and recommendations
-4. Areas of concern or opportunity
-
-Use the product-metrics resource (mcp-demo://product-metrics) for data.`,
+4. Areas of concern or opportunity`,
+            },
+          },
+          {
+            role: 'user',
+            content: {
+              type: 'resource',
+              resource: {
+                uri: resourceContent.uri,
+                mimeType: resourceContent.mimeType,
+                text: resourceContent.text,
+              },
             },
           },
         ];
@@ -487,18 +513,134 @@ Use the product-metrics resource (mcp-demo://product-metrics) for data.`,
             resourceUri = 'mcp-demo://product-metrics';
         }
 
+        // Fetch the resource content to embed
+        const resourceContent = await this.getResourceContent(resourceUri);
+
+        // Return multiple messages, each with a single content block
+        // This is spec-compliant: PromptMessage.content must be a single ContentBlock
         return [
           {
             role: 'user',
             content: {
               type: 'text',
-              text: `Generate a comprehensive ${reportType} report using data from ${resourceUri}.
+              text: `Generate a comprehensive ${reportType} report.
 
 Include:
 - Executive summary
 - Key findings
 - Data visualization suggestions
 - Actionable recommendations`,
+            },
+          },
+          {
+            role: 'user',
+            content: {
+              type: 'resource',
+              resource: {
+                uri: resourceContent.uri,
+                mimeType: resourceContent.mimeType,
+                text: resourceContent.text,
+              },
+            },
+          },
+        ];
+      }
+
+      case 'deep-dive-analysis': {
+        const focus = args.focus || 'growth';
+
+        // Define analysis based on focus area
+        let analysisPrompt;
+        let relevantResources = [];
+
+        switch (focus) {
+          case 'growth':
+            analysisPrompt = `Conduct a comprehensive growth analysis:
+
+1. Analyze user acquisition and retention trends from the metrics
+2. Identify growth drivers and potential bottlenecks
+3. Cross-reference user feedback to understand growth quality
+4. Evaluate system capacity for scaling
+
+Reference the linked data sources below and provide:
+- Growth trajectory analysis with key inflection points
+- User sentiment correlation with growth metrics
+- Infrastructure readiness assessment
+- Actionable growth recommendations for next quarter`;
+            relevantResources = [
+              'mcp-demo://product-metrics',
+              'mcp-demo://user-feedback',
+              'mcp-demo://system-status',
+            ];
+            break;
+
+          case 'satisfaction':
+            analysisPrompt = `Perform deep customer satisfaction analysis:
+
+1. Examine satisfaction scores and NPS trends in metrics
+2. Analyze qualitative feedback themes and sentiment
+3. Correlate feature usage with satisfaction levels
+4. Assess support team performance impact
+
+Reference the linked data sources below and provide:
+- Satisfaction trend analysis with root causes
+- Feature satisfaction breakdown
+- Critical improvement areas ranked by impact
+- Customer retention risk assessment`;
+            relevantResources = [
+              'mcp-demo://product-metrics',
+              'mcp-demo://user-feedback',
+            ];
+            break;
+
+          case 'operations':
+            analysisPrompt = `Analyze operational health and performance:
+
+1. Review system performance metrics and uptime
+2. Assess infrastructure capacity and efficiency
+3. Identify operational risks and bottlenecks
+4. Evaluate technical debt and maintenance needs
+
+Reference the linked data sources below and provide:
+- System health score with risk factors
+- Performance optimization opportunities
+- Capacity planning recommendations
+- Incident prevention strategies`;
+            relevantResources = [
+              'mcp-demo://system-status',
+              'mcp-demo://product-metrics',
+            ];
+            break;
+
+          default:
+            // Default to growth analysis
+            analysisPrompt = `Conduct a comprehensive growth analysis with available data sources.`;
+            relevantResources = [
+              'mcp-demo://product-metrics',
+              'mcp-demo://user-feedback',
+              'mcp-demo://system-status',
+            ];
+        }
+
+        // Build resource reference links using @<uri> syntax
+        // This demonstrates the difference from embedded resources:
+        // - Embedded resources (type: 'resource'): Content included directly in prompt
+        // - Resource references (@<uri>): Pointers that UI/client can fetch separately
+        // - Use references when you have multiple large data sources
+        const resourceRefs = relevantResources.map(uri => `@<${uri}>`).join('\n');
+
+        const fullPrompt = `${analysisPrompt}
+
+Data sources for analysis:
+${resourceRefs}`;
+
+        // Return single message with text content including @<uri> references
+        return [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: fullPrompt,
             },
           },
         ];

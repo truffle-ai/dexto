@@ -63,3 +63,13 @@ export type { AgentEventMap, SessionEventMap } from './events/index.js';
 // LLM registry types (used by client-sdk package)
 export type { ModelInfo, ProviderInfo } from './llm/registry.js';
 export type { SupportedFileType } from './llm/types.js';
+
+// Resource types and utilities (used by webui package)
+// Note: Only export browser-safe reference parsing functions, NOT ResourceManager
+// (ResourceManager requires logger which has Node.js dependencies)
+export type { ResourceMetadata } from './resources/types.js';
+export type { ResourceReference } from './resources/reference-parser.js';
+export {
+    parseResourceReferences,
+    resolveResourceReferences,
+} from './resources/reference-parser.js';

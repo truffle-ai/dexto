@@ -177,6 +177,47 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
   - cyan/cyanBright: Status updates
   - blue: Information, progress
 
+### Logger Architecture & Browser Compatibility
+
+**Current State (Temporary)**: Pure utility functions (like `packages/core/src/resources/reference-parser.ts`) have logging removed to maintain browser compatibility. This creates a gap in observability but keeps functions universally usable.
+
+**Future Architecture (Planned - Option A)**: Dependency injection pattern for logger configuration
+- **CLI Runtime**: File-based logger (current winston singleton)
+- **Browser Runtime**: Console logger or no-op logger
+- **Flexibility**: Different logger implementations based on execution context
+
+**Why Not Subpath Exports (Option C)?**: Package.json conditional exports (`browser` vs `default`) don't work reliably with Next.js/Webpack bundlers. Attempted in Jan 2025, reverted due to webpack still resolving Node.js-only dependencies.
+
+**Implementation Pattern for Browser-Safe Functions**:
+```typescript
+// Current (Option B - logging removed):
+export function parseResourceReferences(message: string): ResourceReference[] {
+  // No logging - keeps function browser-safe
+  const references: ResourceReference[] = [];
+  // ... parsing logic
+  return references;
+}
+
+// Future (Option A - dependency injection):
+export function parseResourceReferences(
+  message: string,
+  logger?: Logger  // Optional logger injected by caller
+): ResourceReference[] {
+  logger?.debug(`Parsing resource references from message`);
+  const references: ResourceReference[] = [];
+  // ... parsing logic
+  return references;
+}
+```
+
+**Browser Entry Point (`packages/core/src/index.browser.ts`)**:
+- **Import directly from source files** - Avoid barrel exports that pull in Node.js dependencies
+- **Never export ResourceManager** - Contains logger singleton (Node.js-only winston)
+- **Example issue**: Importing through `resources/index.ts` pulls in ResourceManager → logger → winston → fs module
+- **Solution**: Direct imports from specific files: `./resources/reference-parser.js`, `./resources/types.js`
+
+**Key Principle**: Log at orchestration layers (API, DextoAgent), not in pure utility functions, until Option A is implemented.
+
 ### TypeScript Best Practices
 - **Strict null safety** - Handle null/undefined cases explicitly
 - **Proper error handling** - Use type guards and proper error messages

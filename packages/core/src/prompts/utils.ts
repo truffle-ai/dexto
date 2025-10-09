@@ -39,6 +39,7 @@ function handleContent(
                 return;
             }
             case 'resource': {
+                // Embedded resource: content is included directly
                 const resourceContent = content as {
                     resource?: {
                         uri?: string;
@@ -53,6 +54,21 @@ function handleContent(
                     if (typeof resource.uri === 'string' && resource.uri.length > 0) {
                         accumulator.resourceUris.push(resource.uri);
                     }
+                }
+                return;
+            }
+            case 'resource_link': {
+                // Resource link: pointer to be fetched separately
+                // Add a text marker so UI knows to fetch this resource
+                const linkContent = content as {
+                    resource?: {
+                        uri?: string;
+                    };
+                };
+                const resource = linkContent.resource;
+                if (resource && typeof resource.uri === 'string' && resource.uri.length > 0) {
+                    accumulator.textParts.push(`@<${resource.uri}>`);
+                    accumulator.resourceUris.push(resource.uri);
                 }
                 return;
             }
@@ -80,13 +96,12 @@ export function flattenPromptResult(result: GetPromptResult): FlattenedPromptRes
         .join('\n')
         .trim();
 
-    const referenceLines = uniqueUris.map((uri) => `@<${uri}>`);
-    const text = [joinedText, referenceLines.join('\n')] // maintain order, avoid trailing spaces
-        .filter((segment) => segment && segment.length > 0)
-        .join('\n\n');
-
+    // Note: We don't append @<uri> references here because:
+    // 1. For embedded resources (type: 'resource'), the content is already in the text
+    // 2. resourceUris array is returned for metadata/tracking purposes only
+    // 3. The UI should not try to fetch these URIs as separate attachments
     return {
-        text,
+        text: joinedText,
         resourceUris: uniqueUris,
     };
 }

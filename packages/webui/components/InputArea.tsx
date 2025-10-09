@@ -785,7 +785,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
+                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -798,7 +798,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
+                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}
