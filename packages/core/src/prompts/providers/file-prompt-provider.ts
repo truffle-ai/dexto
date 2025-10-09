@@ -335,22 +335,35 @@ export class FilePromptProvider implements PromptProvider {
     }
 
     private applyArguments(content: string, args?: Record<string, unknown>): string {
+        // Check if content uses any placeholders
+        const hasPlaceholders =
+            content.includes('$ARGUMENTS') || /\$[1-9]/.test(content) || content.includes('$$');
+
         // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
         const expanded = expandPlaceholders(content, args).trim();
 
-        // For file prompts, we don't need to prepend named arguments since they're
-        // already expanded via placeholders. Only add context if explicitly provided.
         if (!args || typeof args !== 'object' || Object.keys(args).length === 0) {
             return expanded;
         }
 
-        // Only append _context if provided (for natural language after slash commands)
+        // Handle _context separately (for natural language after slash commands)
         if ((args as any)._context) {
             const contextString = String((args as any)._context);
             return `Context: ${contextString}\n\n${expanded}`;
         }
 
-        // Don't prepend named arguments - they're already handled by placeholder expansion
+        // If the prompt doesn't use placeholders, append formatted arguments
+        // so they're available to the LLM even without explicit placeholder syntax
+        if (!hasPlaceholders) {
+            const argEntries = Object.entries(args).filter(([key]) => !key.startsWith('_'));
+            if (argEntries.length > 0) {
+                const formattedArgs = argEntries
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join(', ');
+                return `${expanded}\n\nArguments: ${formattedArgs}`;
+            }
+        }
+
         return expanded;
     }
 }
