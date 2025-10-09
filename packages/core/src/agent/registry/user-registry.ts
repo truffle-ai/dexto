@@ -126,7 +126,7 @@ export async function addAgentToUserRegistry(
     userRegistry.agents[agentId] = {
         ...entry,
         id: agentId, // Force consistency between key and id field
-        name: entry.name || deriveDisplayName(agentId), // Ensure name is never undefined
+        name: entry.name && entry.name.trim().length > 0 ? entry.name : deriveDisplayName(agentId), // Ensure name is never undefined or whitespace-only
         type: 'custom',
     };
 
