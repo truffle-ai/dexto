@@ -4,7 +4,8 @@
 
 **Pre-commit Validation** - Before completing any task, ALWAYS run and ensure ALL commands pass:
 1. `pnpm run build` - Verify compilation
-2. `pnpm test` - Ensure all tests pass  
+   - **If dev server is running**: Restart it after build completes
+2. `pnpm test` - Ensure all tests pass
 3. `pnpm run lint` - Check code style
 4. `pnpm run typecheck` - Validate TypeScript types
 

@@ -81,23 +81,16 @@ export class FilePromptProvider implements PromptProvider {
         }
 
         const resolved = this.applyArguments(text, args);
-        const resourceContent = {
-            type: 'resource' as const,
-            resource: {
-                uri: resourceUri ?? `prompt:${name}`,
-                name,
-                title: prompt.title ?? name,
-                mimeType: 'text/markdown',
-                text: resolved,
-            },
-        };
 
         return {
             description: prompt.description,
             messages: [
                 {
                     role: 'user',
-                    content: resourceContent,
+                    content: {
+                        type: 'text',
+                        text: resolved,
+                    },
                 },
             ],
         };
