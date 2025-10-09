@@ -79,6 +79,21 @@ class MockMCPClient extends EventEmitter implements IMCPClient {
             contents: [{ uri, mimeType: 'text/plain', text: `Resource content for ${uri}` }],
         };
     }
+
+    // Public setters for test manipulation
+    setTools(
+        tools: Record<string, { name?: string; description?: string; parameters: JSONSchema7 }>
+    ): void {
+        this.tools = tools;
+    }
+
+    setPrompts(prompts: string[]): void {
+        this.prompts = prompts;
+    }
+
+    setResources(resources: MCPResourceSummary[]): void {
+        this.resources = resources;
+    }
 }
 
 describe('MCPManager Tool Conflict Resolution', () => {
@@ -780,10 +795,10 @@ describe('Tool notification handling', () => {
         expect(manager['toolCache'].has('tool2')).toBe(true);
 
         // Update tools on the mock client
-        client1['tools'] = {
+        client1.setTools({
             tool1: { name: 'tool1', description: 'Tool 1 Updated', parameters: {} },
             tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
-        };
+        });
 
         // Trigger handleToolsListChanged
         await manager['handleToolsListChanged']('server1', client1);
@@ -803,9 +818,9 @@ describe('Tool notification handling', () => {
         await manager['updateClientCache']('server1', client1);
 
         // Update tools
-        client1['tools'] = {
+        client1.setTools({
             tool1: { name: 'tool1', description: 'Tool 1 Updated', parameters: {} },
-        };
+        });
 
         // Trigger notification handler
         await manager['handleToolsListChanged']('server1', client1);
@@ -830,10 +845,10 @@ describe('Tool notification handling', () => {
         expect(manager['toolConflicts'].has('tool1')).toBe(false);
 
         // Update server2 to also provide tool1 (conflict!)
-        client2['tools'] = {
+        client2.setTools({
             tool1: { name: 'tool1', description: 'Tool 1 from server2', parameters: {} },
             tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
-        };
+        });
 
         // Trigger notification handler
         await manager['handleToolsListChanged']('server2', client2);
@@ -847,12 +862,12 @@ describe('Tool notification handling', () => {
 
     it('should resolve conflicts when notification removes conflicting tool', async () => {
         // Setup: Both servers provide tool1 (conflict exists)
-        client1['tools'] = {
+        client1.setTools({
             tool1: { name: 'tool1', description: 'Tool 1 from server1', parameters: {} },
-        };
-        client2['tools'] = {
+        });
+        client2.setTools({
             tool1: { name: 'tool1', description: 'Tool 1 from server2', parameters: {} },
-        };
+        });
 
         manager.registerClient('server1', client1);
         manager.registerClient('server2', client2);
@@ -865,9 +880,9 @@ describe('Tool notification handling', () => {
         expect(manager['toolCache'].has('server2--tool1')).toBe(true);
 
         // Update server2 to no longer provide tool1
-        client2['tools'] = {
+        client2.setTools({
             tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
-        };
+        });
 
         // Trigger notification handler
         await manager['handleToolsListChanged']('server2', client2);
@@ -890,7 +905,7 @@ describe('Tool notification handling', () => {
         expect(manager['toolCache'].size).toBe(2);
 
         // Update to empty tools
-        client1['tools'] = {};
+        client1.setTools({});
 
         await manager['handleToolsListChanged']('server1', client1);
 
@@ -908,7 +923,7 @@ describe('Tool notification handling', () => {
         expect(manager['toolCache'].size).toBe(3);
 
         // Update server1 tools
-        client1['tools'] = { tool1: { name: 'tool1', description: 'Tool 1 Only', parameters: {} } };
+        client1.setTools({ tool1: { name: 'tool1', description: 'Tool 1 Only', parameters: {} } });
 
         await manager['handleToolsListChanged']('server1', client1);
 
