@@ -1180,10 +1180,8 @@ export async function initializeApi(
         try {
             // Check if this is a custom agent installation (has sourcePath and metadata)
             if (req.body.sourcePath && req.body.metadata) {
-                const { id, displayName, sourcePath, metadata, injectPreferences } = parseBody(
-                    CustomAgentInstallSchema,
-                    req.body
-                );
+                const { id, displayName, sourcePath, metadata, injectPreferences } =
+                    CustomAgentInstallSchema.parse(req.body);
 
                 // Clean metadata to match exact optional property types
                 await Dexto.installCustomAgent(

@@ -12,7 +12,6 @@ import {
 import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck, Plus } from 'lucide-react';
 import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
-import { deriveDisplayName } from '@dexto/core';
 
 type AgentItem = {
   id: string;
@@ -200,7 +199,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const currentLabel = useMemo(() => {
     if (!currentId) return 'Choose Agent';
     const match = installed.find(agent => agent.id === currentId) || available.find(agent => agent.id === currentId);
-    return match?.name ?? deriveDisplayName(currentId);
+    return match?.name ?? currentId;
   }, [available, currentId, installed]);
 
   const getButtonClassName = (mode: string) => {

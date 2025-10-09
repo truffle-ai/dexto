@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { ResourceMetadata } from '../components/types/resources.js';
+import type { ResourceMetadata } from '@dexto/core';
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
