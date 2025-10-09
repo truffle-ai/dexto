@@ -128,6 +128,12 @@ export function normalizePromptArgs(input: Record<string, unknown>): {
             continue;
         }
 
+        // Preserve _positional array as-is for prompt expansion and mapping
+        if (key === '_positional') {
+            (args as any)._positional = value;
+            continue;
+        }
+
         if (typeof value === 'string') {
             args[key] = value;
         } else if (value !== undefined && value !== null) {

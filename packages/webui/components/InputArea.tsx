@@ -371,9 +371,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     setText(value);
 
     // Show slash commands when user types "/"
+    // Keep it open as long as the line starts with "/" and doesn't have a newline
     if (value === '/') {
       setShowSlashCommands(true);
-    } else if (value.startsWith('/') && !value.includes(' ')) {
+    } else if (value.startsWith('/') && !value.includes('\n')) {
       setShowSlashCommands(true);
     } else {
       if (showSlashCommands) {

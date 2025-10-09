@@ -1295,6 +1295,7 @@ export class DextoAgent {
         const normalized = normalizePromptArgs(args);
 
         // Get and flatten the prompt result
+        // Note: PromptManager handles positional-to-named argument mapping internally
         const promptResult = await this.promptManager.getPrompt(resolvedName, normalized.args);
         const flattened = flattenPromptResult(promptResult);
 

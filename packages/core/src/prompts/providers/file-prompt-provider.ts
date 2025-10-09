@@ -338,24 +338,19 @@ export class FilePromptProvider implements PromptProvider {
         // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
         const expanded = expandPlaceholders(content, args).trim();
 
+        // For file prompts, we don't need to prepend named arguments since they're
+        // already expanded via placeholders. Only add context if explicitly provided.
         if (!args || typeof args !== 'object' || Object.keys(args).length === 0) {
             return expanded;
         }
 
+        // Only append _context if provided (for natural language after slash commands)
         if ((args as any)._context) {
             const contextString = String((args as any)._context);
             return `Context: ${contextString}\n\n${expanded}`;
         }
 
-        const argContext = Object.entries(args)
-            .filter(([key]) => !key.startsWith('_'))
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
-
-        if (!argContext) {
-            return expanded;
-        }
-
-        return `Arguments: ${argContext}\n\n${expanded}`;
+        // Don't prepend named arguments - they're already handled by placeholder expansion
+        return expanded;
     }
 }
