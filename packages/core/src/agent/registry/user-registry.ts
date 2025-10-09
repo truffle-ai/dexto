@@ -2,7 +2,13 @@ import { promises as fs, readFileSync } from 'fs';
 import { existsSync } from 'fs';
 import path from 'path';
 import { getDextoGlobalPath } from '@core/utils/path.js';
-import { Registry, RegistrySchema, AgentRegistryEntry, normalizeRegistryJson } from './types.js';
+import {
+    Registry,
+    RegistrySchema,
+    AgentRegistryEntry,
+    normalizeRegistryJson,
+    deriveDisplayName,
+} from './types.js';
 import { RegistryError } from './errors.js';
 import { logger } from '@core/logger/index.js';
 
@@ -116,9 +122,11 @@ export async function addAgentToUserRegistry(
         throw RegistryError.agentAlreadyExists(agentId);
     }
 
-    // Add with type: 'custom'
+    // Add with type: 'custom', enforcing invariants
     userRegistry.agents[agentId] = {
         ...entry,
+        id: agentId, // Force consistency between key and id field
+        name: entry.name || deriveDisplayName(agentId), // Ensure name is never undefined
         type: 'custom',
     };
 

@@ -1142,7 +1142,7 @@ export async function initializeApi(
     // Schema for custom agent installation (CLI/automation entrypoint)
     const CustomAgentInstallSchema = z
         .object({
-            id: z.string().min(1, 'Agent id is required'),
+            id: z.string().min(1, 'Agent id is required').describe('Unique agent identifier'),
             name: z.string().optional().describe('Display name (defaults to derived from id)'),
             sourcePath: z.string().min(1).describe('Path to agent configuration file or directory'),
             metadata: z

@@ -94,7 +94,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       } catch {}
       returnToWelcome();
     } catch (err) {
-      console.error('Switch agent failed:', err);
+      console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to switch agent';
       alert(`Failed to switch agent: ${errorMessage}`);
     } finally {
@@ -149,7 +149,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       } catch {}
       returnToWelcome();
     } catch (err) {
-      console.error(`Install agent failed: ${err}`);
+      console.error(`Install agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
       alert(`Failed to install agent: ${errorMessage}`);
     } finally {
@@ -179,7 +179,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         setCurrentId(null);
       }
     } catch (err) {
-      console.error(`Delete agent failed: ${err}`);
+      console.error(`Delete agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete agent';
       alert(`Failed to delete agent: ${errorMessage}`);
     } finally {
