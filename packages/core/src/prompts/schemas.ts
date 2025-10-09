@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { PROMPT_NAME_REGEX, PROMPT_NAME_GUIDANCE } from './name-validation.js';
 
 /**
  * Schema for starter prompts configuration
@@ -18,7 +19,7 @@ export const StarterPromptsSchema = z
                     .string()
                     .min(1)
                     .max(64)
-                    .regex(/^[a-z0-9-]+$/)
+                    .regex(PROMPT_NAME_REGEX, `Starter prompt id must be ${PROMPT_NAME_GUIDANCE}`)
                     .describe('Kebab-case slug id for the starter prompt (e.g., quick-start)'),
                 title: z.string().optional().describe('Display title for the starter prompt'),
                 description: z

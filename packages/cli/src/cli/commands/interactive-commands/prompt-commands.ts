@@ -5,7 +5,7 @@
  * These commands provide functionality for viewing and managing system prompts.
  *
  * Available Prompt Commands:
- * - /prompt - Display the current system prompt
+ * - /sysprompt - Display the current system prompt
  * - /prompts - List all available prompts (MCP + internal)
  * - /<prompt-name> [args] - Direct prompt execution (auto-generated for each prompt)
  */
@@ -21,9 +21,9 @@ import type { CommandDefinition } from './command-parser.js';
  */
 export const promptCommands: CommandDefinition[] = [
     {
-        name: 'prompt',
+        name: 'sysprompt',
         description: 'Display the current system prompt',
-        usage: '/prompt',
+        usage: '/sysprompt',
         category: 'Prompt Management',
         handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
@@ -82,7 +82,9 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             const args =
                                 info.arguments && info.arguments.length > 0
@@ -103,7 +105,9 @@ export const promptCommands: CommandDefinition[] = [
                     internalPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
                                 `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
@@ -118,7 +122,9 @@ export const promptCommands: CommandDefinition[] = [
                     starterPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
                                 `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
@@ -133,7 +139,9 @@ export const promptCommands: CommandDefinition[] = [
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
                                 `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`

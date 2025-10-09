@@ -1,4 +1,5 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
+import { assertValidPromptName } from '../name-validation.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';
@@ -192,7 +193,6 @@ export class InternalPromptProvider implements PromptProvider {
         const lines = content.trim().split('\n');
         let description = `Internal prompt: ${promptName}`;
         let title = promptName;
-        let command: string | undefined;
         let category: string | undefined;
         let id: string | undefined;
         let nameOverride: string | undefined;
@@ -233,11 +233,6 @@ export class InternalPromptProvider implements PromptProvider {
                         if (nameMatch && nameMatch[1]) {
                             nameOverride = nameMatch[1];
                         }
-                    } else if (line.includes('command:')) {
-                        const commandMatch = line.match(/command:\s*['"]?([^'"]+)['"]?/);
-                        if (commandMatch && commandMatch[1]) {
-                            command = commandMatch[1];
-                        }
                     } else if (line.includes('category:')) {
                         const categoryMatch = line.match(/category:\s*['"]?([^'"]+)['"]?/);
                         if (categoryMatch && categoryMatch[1]) {
@@ -260,8 +255,13 @@ export class InternalPromptProvider implements PromptProvider {
             }
         }
 
+        const finalName = (nameOverride ?? promptName).trim();
+        assertValidPromptName(finalName, {
+            hint: "Use kebab-case in the 'name:' field or file name.",
+        });
+
         const promptInfo: PromptInfo = {
-            name: nameOverride ?? promptName,
+            name: finalName,
             title,
             description,
             source: 'internal',
@@ -270,7 +270,6 @@ export class InternalPromptProvider implements PromptProvider {
                 fileName,
                 filePath,
                 ...(id && { id }),
-                ...(command && { command }),
                 ...(category && { category }),
             },
         };
@@ -288,7 +287,9 @@ export class InternalPromptProvider implements PromptProvider {
             return { inlineContent: content };
         }
 
-        const blob = await blobService.store(content, {
+        const blobInput = Buffer.from(content, 'utf-8');
+
+        const blob = await blobService.store(blobInput, {
             mimeType: 'text/markdown',
             originalName: fileName,
             source: 'system',

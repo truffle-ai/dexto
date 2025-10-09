@@ -1,8 +1,7 @@
 ---
 description: "Debug code issues with systematic problem-solving and troubleshooting steps"
 id: debug
-name: Debug Assistant
-command: /debug
+name: debug
 category: tools
 ---
 

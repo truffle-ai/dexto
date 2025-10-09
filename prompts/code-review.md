@@ -1,8 +1,7 @@
 ---
 description: "Review code for bugs, improvements, and best practices with actionable feedback"
 id: code-review
-name: Code Review Assistant
-command: /code-review
+name: code-review
 category: coding
 ---
 
