@@ -7,10 +7,12 @@ export function useGreeting(sessionId?: string | null) {
     const [greeting, setGreeting] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [agentVersion, setAgentVersion] = useState(0);
 
     useEffect(() => {
         const controller = new AbortController();
         const { signal } = controller;
+
         const fetchGreeting = async () => {
             setIsLoading(true);
             setError(null);
@@ -45,7 +47,21 @@ export function useGreeting(sessionId?: string | null) {
 
         fetchGreeting();
         return () => controller.abort();
-    }, [sessionId]);
+    }, [sessionId, agentVersion]);
+
+    // Listen for agent switching events to refresh greeting
+    useEffect(() => {
+        const handleAgentSwitched = () => {
+            setAgentVersion((prev) => prev + 1);
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
+            return () => {
+                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
+            };
+        }
+    }, []);
 
     return { greeting, isLoading, error };
 }

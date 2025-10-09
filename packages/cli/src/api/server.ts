@@ -34,7 +34,7 @@ import {
     isRouterSupportedForModel,
 } from '@dexto/core';
 import type { ProviderInfo, LLMProvider } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
+import { getProviderKeyStatus, saveProviderApiKey, getPrimaryApiKeyEnvVar } from '@dexto/core';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema, type McpServerConfig } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
@@ -1233,7 +1233,7 @@ export async function initializeApi(
             // Agent configuration
             llm: z
                 .object({
-                    provider: z.string().min(1, 'Provider is required').describe('LLM provider id'),
+                    provider: z.enum(LLM_PROVIDERS).describe('LLM provider id'),
                     model: z.string().min(1, 'Model is required').describe('Model name'),
                     apiKey: z
                         .string()
@@ -1259,18 +1259,16 @@ export async function initializeApi(
                 req.body
             );
 
+            const provider: LLMProvider = llm.provider;
+
             // Handle API key: if it's a raw key, store securely and use env var reference
             let apiKeyRef: string | undefined;
             if (llm.apiKey && !llm.apiKey.startsWith('$')) {
                 // Raw API key provided - store securely and get env var reference
-                const meta = await saveProviderApiKey(
-                    llm.provider as LLMProvider,
-                    llm.apiKey,
-                    process.cwd()
-                );
+                const meta = await saveProviderApiKey(provider, llm.apiKey, process.cwd());
                 apiKeyRef = `$${meta.envVar}`;
                 logger.info(
-                    `Stored API key securely for ${llm.provider}, using env var: ${meta.envVar}`
+                    `Stored API key securely for ${provider}, using env var: ${meta.envVar}`
                 );
             } else if (llm.apiKey) {
                 // Already an env var reference
@@ -1280,14 +1278,15 @@ export async function initializeApi(
             // Create agent YAML content (with env var reference instead of raw key)
             const agentConfig = {
                 llm: {
-                    provider: llm.provider,
+                    provider,
                     model: llm.model,
-                    ...(apiKeyRef && { apiKey: apiKeyRef }),
+                    apiKey: apiKeyRef || `$${getPrimaryApiKeyEnvVar(provider)}`,
                 },
                 systemPrompt,
             };
 
             const yamlContent = yamlStringify(agentConfig);
+            logger.info(`Creating agent config for ${name}:`, { agentConfig, yamlContent });
 
             // Create temporary file
             const tmpDir = os.tmpdir();
