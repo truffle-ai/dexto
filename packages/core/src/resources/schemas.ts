@@ -71,11 +71,16 @@ const FileSystemResourceSchema = z
     .strict();
 
 /**
+ * Validated filesystem resource configuration type
+ */
+export type ValidatedFileSystemResourceConfig = z.output<typeof FileSystemResourceSchema>;
+
+/**
  * Schema for blob storage resource configuration
  *
  * NOTE: This only enables the blob resource provider.
  * Actual blob storage settings (size limits, backend, cleanup) are configured
- * in the 'blobStorage' section of the agent config.
+ * in the 'storage.blob' section of the agent config.
  */
 const BlobResourceSchema = z
     .object({
@@ -83,16 +88,26 @@ const BlobResourceSchema = z
     })
     .strict()
     .describe(
-        'Blob resource provider configuration - actual storage settings are in blobStorage section'
+        'Blob resource provider configuration - actual storage settings are in storage.blob section'
     );
 
 /**
- * Union schema for all internal resource types
+ * Validated blob resource configuration type
+ */
+export type ValidatedBlobResourceConfig = z.output<typeof BlobResourceSchema>;
+
+/**
+ * Union schema for all internal resource types (composed from individual schemas)
  */
 export const InternalResourceConfigSchema = z.discriminatedUnion('type', [
     FileSystemResourceSchema,
     BlobResourceSchema,
 ]);
+
+/**
+ * Validated union type for all internal resource configurations
+ */
+export type ValidatedInternalResourceConfig = z.output<typeof InternalResourceConfigSchema>;
 
 /**
  * Schema for internal resources configuration with smart auto-enable logic

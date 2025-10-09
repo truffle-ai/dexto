@@ -19,9 +19,9 @@ export class StarterPromptProvider implements PromptProvider {
     private promptsCache: PromptInfo[] = [];
     private cacheValid: boolean = false;
 
-    constructor(agentConfig?: ValidatedAgentConfig) {
+    constructor(agentConfig: ValidatedAgentConfig) {
         // Starter prompts come from the validated AgentConfig schema
-        this.starterPrompts = agentConfig?.starterPrompts ?? [];
+        this.starterPrompts = agentConfig.starterPrompts;
         this.buildPromptsCache();
     }
 
@@ -44,8 +44,8 @@ export class StarterPromptProvider implements PromptProvider {
     /**
      * Update starter prompts configuration
      */
-    updateConfig(agentConfig?: ValidatedAgentConfig): void {
-        this.starterPrompts = agentConfig?.starterPrompts ?? [];
+    updateConfig(agentConfig: ValidatedAgentConfig): void {
+        this.starterPrompts = agentConfig.starterPrompts;
         this.invalidateCache();
         this.buildPromptsCache();
     }
@@ -66,7 +66,6 @@ export class StarterPromptProvider implements PromptProvider {
                 metadata: {
                     prompt: starterPrompt.prompt,
                     category: starterPrompt.category,
-                    icon: starterPrompt.icon,
                     priority: starterPrompt.priority,
                     originalId: starterPrompt.id,
                 },

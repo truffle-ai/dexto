@@ -217,7 +217,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
-            const res = await fetch('/api/connect-server', {
+            const res = await fetch('/api/mcp/servers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),

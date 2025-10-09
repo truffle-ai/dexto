@@ -239,33 +239,62 @@ export class Logger {
 
     // General logging methods with optional color parameter
     error(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.error(message, { ...meta, color });
+        // Handle Error objects specially to preserve stack traces
+        if (meta instanceof Error) {
+            this.logger.error(message, meta);
+        } else {
+            this.logger.error(message, { ...meta, color });
+        }
     }
 
     warn(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.warn(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.warn(message, meta);
+        } else {
+            this.logger.warn(message, { ...meta, color });
+        }
     }
 
     info(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.info(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.info(message, meta);
+        } else {
+            this.logger.info(message, { ...meta, color });
+        }
     }
 
     http(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.http(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.http(message, meta);
+        } else {
+            this.logger.http(message, { ...meta, color });
+        }
     }
 
     verbose(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.verbose(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.verbose(message, meta);
+        } else {
+            this.logger.verbose(message, { ...meta, color });
+        }
     }
 
     debug(message: string | object, meta?: any, color?: ChalkColor) {
         const formattedMessage =
             typeof message === 'string' ? message : JSON.stringify(message, null, 2);
-        this.logger.debug(formattedMessage, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.debug(formattedMessage, meta);
+        } else {
+            this.logger.debug(formattedMessage, { ...meta, color });
+        }
     }
 
     silly(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.silly(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.silly(message, meta);
+        } else {
+            this.logger.silly(message, { ...meta, color });
+        }
     }
 
     // Display AI response in a box

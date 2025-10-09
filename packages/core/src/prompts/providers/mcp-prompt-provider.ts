@@ -1,27 +1,17 @@
 import type { MCPManager } from '../../mcp/manager.js';
-import type {
-    PromptProvider,
-    PromptInfo,
-    PromptDefinition,
-    PromptListResult,
-    PromptArgument,
-} from '../types.js';
+import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 
 /**
  * MCP Prompt Provider - Provides prompts from connected MCP servers
  *
- * This provider acts as a bridge between the PromptsManager and MCPManager,
+ * This provider acts as a bridge between the PromptManager and MCPManager,
  * exposing prompts from all connected MCP servers through a unified interface.
- * It implements the MCP specification for prompt discovery and retrieval.
+ * It leverages MCPManager's built-in prompt metadata cache for efficient access.
  */
 export class MCPPromptProvider implements PromptProvider {
     private mcpManager: MCPManager;
-
-    // Prompt caching for performance
-    private promptsCache: PromptInfo[] = [];
-    private cacheValid: boolean = false;
 
     constructor(mcpManager: MCPManager) {
         this.mcpManager = mcpManager;
@@ -35,88 +25,42 @@ export class MCPPromptProvider implements PromptProvider {
     }
 
     /**
-     * Invalidate the prompts cache
+     * Invalidate the prompts cache (no-op as MCPManager handles caching)
      */
     invalidateCache(): void {
-        this.cacheValid = false;
-        this.promptsCache = [];
-        logger.debug('MCPPromptProvider cache invalidated');
+        // MCPManager handles cache invalidation through event notifications
+        logger.debug('MCPPromptProvider cache invalidation (handled by MCPManager)');
     }
 
     /**
-     * Build the prompts cache from MCP servers
-     */
-    private async buildPromptsCache(): Promise<void> {
-        const allPrompts: PromptInfo[] = [];
-
-        try {
-            // Get all available prompt names
-            const promptNames = await this.mcpManager.listAllPrompts();
-
-            for (const promptName of promptNames) {
-                try {
-                    // Get the prompt definition to extract metadata
-                    const promptDef = await this.mcpManager.getPrompt(promptName);
-
-                    // Convert MCP prompt definition to our internal format
-                    const args = (promptDef as { arguments?: PromptArgument[] }).arguments;
-                    const promptInfo: PromptInfo = {
-                        name: promptName,
-                        title: promptDef.description || `MCP prompt: ${promptName}`,
-                        description: promptDef.description || `MCP prompt: ${promptName}`,
-                        ...(args && { arguments: args }),
-                        source: 'mcp',
-                        metadata: {
-                            originalName: promptName,
-                            description: promptDef.description,
-                            messages: promptDef.messages,
-                        },
-                    };
-
-                    allPrompts.push(promptInfo);
-                } catch (error) {
-                    logger.debug(
-                        `Failed to get prompt definition for '${promptName}': ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    // Still add the prompt with minimal info
-                    allPrompts.push({
-                        name: promptName,
-                        title: `MCP prompt: ${promptName}`,
-                        description: `MCP prompt: ${promptName}`,
-                        source: 'mcp',
-                        metadata: {
-                            originalName: promptName,
-                        },
-                    });
-                }
-            }
-
-            logger.debug(`📝 Cached ${allPrompts.length} MCP prompts`);
-            this.promptsCache = allPrompts;
-            this.cacheValid = true;
-            return;
-        } catch (error) {
-            logger.error(
-                `Error in MCPPromptProvider.buildPromptsCache: ${error instanceof Error ? error.message : String(error)}`,
-                null,
-                'red'
-            );
-            this.promptsCache = [];
-            this.cacheValid = false;
-            return;
-        }
-    }
-
-    /**
-     * List all available prompts from MCP servers
+     * List all available prompts from MCP servers using MCPManager's cache
      */
     async listPrompts(_cursor?: string): Promise<PromptListResult> {
-        if (!this.cacheValid) {
-            await this.buildPromptsCache();
-        }
+        const cachedPrompts = this.mcpManager.getAllPromptMetadata();
+
+        const prompts: PromptInfo[] = cachedPrompts.map(
+            ({ promptName, serverName, definition }) => {
+                const promptInfo: PromptInfo = {
+                    name: promptName,
+                    title:
+                        definition.title || definition.description || `MCP prompt: ${promptName}`,
+                    description: definition.description || `MCP prompt: ${promptName}`,
+                    ...(definition.arguments && { arguments: definition.arguments }),
+                    source: 'mcp',
+                    metadata: {
+                        serverName,
+                        originalName: promptName,
+                        ...definition,
+                    },
+                };
+                return promptInfo;
+            }
+        );
+
+        logger.debug(`📝 Listed ${prompts.length} MCP prompts from cache`);
 
         return {
-            prompts: this.promptsCache,
+            prompts,
         };
     }
 
@@ -129,21 +73,20 @@ export class MCPPromptProvider implements PromptProvider {
     }
 
     /**
-     * Get prompt definition (metadata only)
+     * Get prompt definition (metadata only) from MCPManager's cache
      */
     async getPromptDefinition(name: string): Promise<PromptDefinition | null> {
         try {
-            const { prompts } = await this.listPrompts();
-            const promptInfo = prompts.find((p) => p.name === name);
-            if (!promptInfo) {
+            const definition = this.mcpManager.getPromptMetadata(name);
+            if (!definition) {
                 return null;
             }
 
             return {
-                name: promptInfo.name,
-                ...(promptInfo.title && { title: promptInfo.title }),
-                ...(promptInfo.description && { description: promptInfo.description }),
-                ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
+                name: definition.name,
+                ...(definition.title && { title: definition.title }),
+                ...(definition.description && { description: definition.description }),
+                ...(definition.arguments && { arguments: definition.arguments }),
             };
         } catch (error) {
             logger.debug(

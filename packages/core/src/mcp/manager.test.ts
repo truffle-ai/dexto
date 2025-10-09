@@ -1,17 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'events';
 import { MCPManager } from './manager.js';
-import { IMCPClient } from './types.js';
+import { IMCPClient, MCPResourceSummary } from './types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { MCPErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import { eventBus } from '../events/index.js';
+import type { JSONSchema7 } from 'json-schema';
 
 // Mock client for testing
-class MockMCPClient implements IMCPClient {
-    private tools: Record<string, any> = {};
+class MockMCPClient extends EventEmitter implements IMCPClient {
+    private tools: Record<
+        string,
+        { name?: string; description?: string; parameters: JSONSchema7 }
+    > = {};
     private prompts: string[] = [];
-    private resources: string[] = [];
+    private resources: MCPResourceSummary[] = [];
 
-    constructor(tools: Record<string, any> = {}, prompts: string[] = [], resources: string[] = []) {
+    constructor(
+        tools: Record<
+            string,
+            { name?: string; description?: string; parameters: JSONSchema7 }
+        > = {},
+        prompts: string[] = [],
+        resources: MCPResourceSummary[] = []
+    ) {
+        super();
         this.tools = tools;
         this.prompts = prompts;
         this.resources = resources;
@@ -26,7 +40,9 @@ class MockMCPClient implements IMCPClient {
         return {} as any; // Mock client
     }
 
-    async getTools(): Promise<Record<string, any>> {
+    async getTools(): Promise<
+        Record<string, { name?: string; description?: string; parameters: JSONSchema7 }>
+    > {
         return this.tools;
     }
 
@@ -45,18 +61,38 @@ class MockMCPClient implements IMCPClient {
         if (!this.prompts.includes(name)) {
             throw new Error(`Prompt ${name} not found`);
         }
-        return { content: `Prompt ${name}` };
+        return {
+            description: `Prompt ${name}`,
+            messages: [{ role: 'user', content: { type: 'text', text: `Content for ${name}` } }],
+        };
     }
 
-    async listResources(): Promise<string[]> {
+    async listResources(): Promise<MCPResourceSummary[]> {
         return this.resources;
     }
 
     async readResource(uri: string): Promise<any> {
-        if (!this.resources.includes(uri)) {
+        if (!this.resources.find((r) => r.uri === uri)) {
             throw new Error(`Resource ${uri} not found`);
         }
-        return { content: `Resource ${uri}` };
+        return {
+            contents: [{ uri, mimeType: 'text/plain', text: `Resource content for ${uri}` }],
+        };
+    }
+
+    // Public setters for test manipulation
+    setTools(
+        tools: Record<string, { name?: string; description?: string; parameters: JSONSchema7 }>
+    ): void {
+        this.tools = tools;
+    }
+
+    setPrompts(prompts: string[]): void {
+        this.prompts = prompts;
+    }
+
+    setResources(resources: MCPResourceSummary[]): void {
+        this.resources = resources;
     }
 }
 
@@ -71,20 +107,44 @@ describe('MCPManager Tool Conflict Resolution', () => {
 
         // Create clients with overlapping and unique tools
         client1 = new MockMCPClient({
-            unique_tool_1: { description: 'Tool unique to server 1' },
-            shared_tool: { description: 'Tool shared between servers' },
-            tool__with__underscores: { description: 'Tool with underscores in name' },
+            unique_tool_1: {
+                description: 'Tool unique to server 1',
+                parameters: { type: 'object', properties: {} },
+            },
+            shared_tool: {
+                description: 'Tool shared between servers',
+                parameters: { type: 'object', properties: {} },
+            },
+            tool__with__underscores: {
+                description: 'Tool with underscores in name',
+                parameters: { type: 'object', properties: {} },
+            },
         });
 
         client2 = new MockMCPClient({
-            unique_tool_2: { description: 'Tool unique to server 2' },
-            shared_tool: { description: 'Different implementation of shared tool' },
-            another_shared: { description: 'Another shared tool' },
+            unique_tool_2: {
+                description: 'Tool unique to server 2',
+                parameters: { type: 'object', properties: {} },
+            },
+            shared_tool: {
+                description: 'Different implementation of shared tool',
+                parameters: { type: 'object', properties: {} },
+            },
+            another_shared: {
+                description: 'Another shared tool',
+                parameters: { type: 'object', properties: {} },
+            },
         });
 
         client3 = new MockMCPClient({
-            unique_tool_3: { description: 'Tool unique to server 3' },
-            another_shared: { description: 'Third implementation of another_shared' },
+            unique_tool_3: {
+                description: 'Tool unique to server 3',
+                parameters: { type: 'object', properties: {} },
+            },
+            another_shared: {
+                description: 'Third implementation of another_shared',
+                parameters: { type: 'object', properties: {} },
+            },
         });
     });
 
@@ -265,27 +325,24 @@ describe('MCPManager Tool Conflict Resolution', () => {
             await manager['updateClientCache']('server@@with@@delimiters', client2);
         });
 
-        it('should parse qualified names correctly using last delimiter', () => {
+        it('should parse qualified names correctly using last delimiter', async () => {
             const parse = manager['parseQualifiedToolName'].bind(manager);
 
-            // Normal case
+            // Wait for cache to populate
+            await manager['updateClientCache']('server__with__underscores', client1);
+            await manager['updateClientCache']('server@@with@@delimiters', client2);
+
+            // shared_tool is the only conflicted tool - both servers have it, so it's qualified
             const result1 = parse('server__with__underscores--shared_tool');
             expect(result1).toEqual({
                 serverName: 'server__with__underscores',
                 toolName: 'shared_tool',
             });
 
-            // Tool name with underscores
-            const result2 = parse('server__with__underscores--tool__with__underscores');
-            expect(result2).toEqual({
-                serverName: 'server__with__underscores',
-                toolName: 'tool__with__underscores',
-            });
-
             // Server name with delimiters gets sanitized, so we need to use the sanitized version
             // 'server@@with@@delimiters' becomes 'server__with__delimiters' when sanitized
-            const result3 = parse('server__with__delimiters--shared_tool');
-            expect(result3).toEqual({
+            const result2 = parse('server__with__delimiters--shared_tool');
+            expect(result2).toEqual({
                 serverName: 'server@@with@@delimiters',
                 toolName: 'shared_tool',
             });
@@ -346,8 +403,8 @@ describe('MCPManager Tool Conflict Resolution', () => {
         });
     });
 
-    describe('Performance Optimizations', () => {
-        it('should cache client tool calls in getAllTools', async () => {
+    describe('Performance Optimizations and Caching', () => {
+        it('should use cache for getAllTools (no network calls)', async () => {
             const getToolsSpy1 = vi.spyOn(client1, 'getTools');
             const getToolsSpy2 = vi.spyOn(client2, 'getTools');
 
@@ -356,25 +413,18 @@ describe('MCPManager Tool Conflict Resolution', () => {
             await manager['updateClientCache']('server1', client1);
             await manager['updateClientCache']('server2', client2);
 
-            // Reset spy counts (updateClientCache calls getTools)
+            // Reset spy counts (updateClientCache calls getTools during initialization)
             getToolsSpy1.mockClear();
             getToolsSpy2.mockClear();
 
-            // Call getAllTools - should call getTools once per client
+            // Call getAllTools multiple times - should use cache, NO network calls
+            await manager.getAllTools();
+            await manager.getAllTools();
             await manager.getAllTools();
 
-            expect(getToolsSpy1).toHaveBeenCalledTimes(1);
-            expect(getToolsSpy2).toHaveBeenCalledTimes(1);
-
-            // Reset and call again - should use cache within the same call
-            getToolsSpy1.mockClear();
-            getToolsSpy2.mockClear();
-
-            await manager.getAllTools();
-
-            // Should call each client's getTools exactly once per getAllTools call
-            expect(getToolsSpy1).toHaveBeenCalledTimes(1);
-            expect(getToolsSpy2).toHaveBeenCalledTimes(1);
+            // ZERO calls to getTools - uses toolCache
+            expect(getToolsSpy1).toHaveBeenCalledTimes(0);
+            expect(getToolsSpy2).toHaveBeenCalledTimes(0);
         });
 
         it('should use O(1) lookup for qualified name parsing', async () => {
@@ -435,7 +485,10 @@ describe('MCPManager Tool Conflict Resolution', () => {
     describe('Edge Cases and Error Handling', () => {
         it('should handle tools with @@ in their names', async () => {
             const clientWithWeirdTool = new MockMCPClient({
-                'tool@@with@@delimiters': { description: 'Tool with @@ in name' },
+                'tool@@with@@delimiters': {
+                    description: 'Tool with @@ in name',
+                    parameters: { type: 'object', properties: {} },
+                },
             });
 
             manager.registerClient('normalserver', clientWithWeirdTool);
@@ -476,24 +529,407 @@ describe('MCPManager Tool Conflict Resolution', () => {
     });
 
     describe('Complete Cleanup', () => {
-        it('should clear all maps on disconnectAll', async () => {
+        it('should clear all caches on disconnectAll', async () => {
             manager.registerClient('server1', client1);
             manager.registerClient('server2', client2);
             await manager['updateClientCache']('server1', client1);
             await manager['updateClientCache']('server2', client2);
 
-            // Verify maps are populated
+            // Verify caches are populated
             expect(manager['sanitizedNameToServerMap'].size).toBe(2);
-            expect(manager['toolToClientMap'].size).toBeGreaterThan(0);
-            expect(manager['serverToolsMap'].size).toBe(2);
+            expect(manager['toolCache'].size).toBeGreaterThan(0);
+            expect(manager['toolConflicts'].size).toBeGreaterThan(0);
 
             await manager.disconnectAll();
 
-            // Verify all maps are cleared
+            // Verify all caches are cleared
             expect(manager['sanitizedNameToServerMap'].size).toBe(0);
-            expect(manager['toolToClientMap'].size).toBe(0);
-            expect(manager['serverToolsMap'].size).toBe(0);
+            expect(manager['toolCache'].size).toBe(0);
             expect(manager['toolConflicts'].size).toBe(0);
+            expect(manager['promptCache'].size).toBe(0);
+            expect(manager['resourceCache'].size).toBe(0);
         });
+    });
+});
+
+describe('MCPManager Prompt Caching', () => {
+    let manager: MCPManager;
+    let client1: MockMCPClient;
+    let client2: MockMCPClient;
+
+    beforeEach(() => {
+        manager = new MCPManager();
+
+        client1 = new MockMCPClient({}, ['prompt1', 'prompt2', 'shared_prompt'], []);
+
+        client2 = new MockMCPClient({}, ['prompt3', 'shared_prompt'], []);
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should cache prompts during updateClientCache', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        // Verify prompt cache is populated
+        expect(manager['promptCache'].size).toBe(3);
+        expect(manager['promptCache'].has('prompt1')).toBe(true);
+        expect(manager['promptCache'].has('prompt2')).toBe(true);
+        expect(manager['promptCache'].has('shared_prompt')).toBe(true);
+    });
+
+    it('should use cache for listAllPrompts (no network calls)', async () => {
+        const listPromptsSpy = vi.spyOn(client1, 'listPrompts');
+
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        listPromptsSpy.mockClear();
+
+        // Multiple calls should use cache
+        const prompts1 = await manager.listAllPrompts();
+        const prompts2 = await manager.listAllPrompts();
+
+        expect(prompts1).toHaveLength(3);
+        expect(prompts2).toHaveLength(3);
+        expect(listPromptsSpy).toHaveBeenCalledTimes(0); // No network calls
+    });
+
+    it('should get prompt metadata from cache', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        const metadata = manager.getPromptMetadata('prompt1');
+        expect(metadata).toBeDefined();
+        expect(metadata?.name).toBe('prompt1');
+        expect(metadata?.description).toBe('Prompt prompt1');
+    });
+
+    it('should return all prompt metadata from cache', async () => {
+        manager.registerClient('server1', client1);
+        manager.registerClient('server2', client2);
+        await manager['updateClientCache']('server1', client1);
+        await manager['updateClientCache']('server2', client2);
+
+        const allMetadata = manager.getAllPromptMetadata();
+
+        // Should have 4 unique prompts (shared_prompt from server2 overwrites server1)
+        // Unlike tools, prompts don't have conflict detection - last writer wins
+        expect(allMetadata.length).toBe(4);
+
+        const promptNames = allMetadata.map((m) => m.promptName);
+        expect(promptNames).toContain('prompt1');
+        expect(promptNames).toContain('prompt2');
+        expect(promptNames).toContain('prompt3');
+        expect(promptNames).toContain('shared_prompt');
+
+        // Check server attribution
+        const prompt1Meta = allMetadata.find((m) => m.promptName === 'prompt1');
+        expect(prompt1Meta?.serverName).toBe('server1');
+
+        // shared_prompt should be from server2 (last writer wins)
+        const sharedPromptMeta = allMetadata.find((m) => m.promptName === 'shared_prompt');
+        expect(sharedPromptMeta?.serverName).toBe('server2');
+    });
+
+    it('should clear prompt cache on client removal', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        expect(manager['promptCache'].size).toBe(3);
+
+        await manager.removeClient('server1');
+
+        expect(manager['promptCache'].size).toBe(0);
+    });
+});
+
+describe('MCPManager Resource Caching', () => {
+    let manager: MCPManager;
+    let client1: MockMCPClient;
+    let client2: MockMCPClient;
+
+    beforeEach(() => {
+        manager = new MCPManager();
+
+        client1 = new MockMCPClient(
+            {},
+            [],
+            [
+                { uri: 'file:///test1.txt', name: 'Test 1', mimeType: 'text/plain' },
+                { uri: 'file:///test2.txt', name: 'Test 2', mimeType: 'text/plain' },
+            ]
+        );
+
+        client2 = new MockMCPClient(
+            {},
+            [],
+            [{ uri: 'file:///test3.txt', name: 'Test 3', mimeType: 'text/plain' }]
+        );
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should cache resources during updateClientCache', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        // Verify resource cache is populated with qualified keys
+        expect(manager['resourceCache'].size).toBe(2);
+        expect(manager.hasResource('mcp:server1:file:///test1.txt')).toBe(true);
+        expect(manager.hasResource('mcp:server1:file:///test2.txt')).toBe(true);
+    });
+
+    it('should use cache for listAllResources (no network calls)', async () => {
+        const listResourcesSpy = vi.spyOn(client1, 'listResources');
+
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        listResourcesSpy.mockClear();
+
+        // Multiple calls should use cache
+        const resources1 = await manager.listAllResources();
+        const resources2 = await manager.listAllResources();
+
+        expect(resources1).toHaveLength(2);
+        expect(resources2).toHaveLength(2);
+        expect(listResourcesSpy).toHaveBeenCalledTimes(0); // No network calls
+    });
+
+    it('should get resource metadata from cache', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        const resource = manager.getResource('mcp:server1:file:///test1.txt');
+        expect(resource).toBeDefined();
+        expect(resource?.summary.uri).toBe('file:///test1.txt');
+        expect(resource?.summary.name).toBe('Test 1');
+        expect(resource?.serverName).toBe('server1');
+    });
+
+    it('should handle resources from multiple servers', async () => {
+        manager.registerClient('server1', client1);
+        manager.registerClient('server2', client2);
+        await manager['updateClientCache']('server1', client1);
+        await manager['updateClientCache']('server2', client2);
+
+        const allResources = await manager.listAllResources();
+
+        expect(allResources).toHaveLength(3);
+
+        const serverNames = allResources.map((r) => r.serverName);
+        expect(serverNames).toContain('server1');
+        expect(serverNames).toContain('server2');
+    });
+
+    it('should clear resource cache on client removal', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        expect(manager['resourceCache'].size).toBe(2);
+
+        await manager.removeClient('server1');
+
+        expect(manager['resourceCache'].size).toBe(0);
+        expect(manager.hasResource('mcp:server1:file:///test1.txt')).toBe(false);
+    });
+
+    it('should only clear resources for removed client', async () => {
+        manager.registerClient('server1', client1);
+        manager.registerClient('server2', client2);
+        await manager['updateClientCache']('server1', client1);
+        await manager['updateClientCache']('server2', client2);
+
+        expect(manager['resourceCache'].size).toBe(3);
+
+        await manager.removeClient('server1');
+
+        // server2 resources should remain
+        expect(manager['resourceCache'].size).toBe(1);
+        expect(manager.hasResource('mcp:server2:file:///test3.txt')).toBe(true);
+        expect(manager.hasResource('mcp:server1:file:///test1.txt')).toBe(false);
+    });
+});
+
+describe('Tool notification handling', () => {
+    let manager: MCPManager;
+    let client1: MockMCPClient;
+    let client2: MockMCPClient;
+
+    beforeEach(() => {
+        manager = new MCPManager();
+        client1 = new MockMCPClient(
+            {
+                tool1: { name: 'tool1', description: 'Tool 1', parameters: {} },
+                tool2: { name: 'tool2', description: 'Tool 2', parameters: {} },
+            },
+            [],
+            []
+        );
+
+        client2 = new MockMCPClient(
+            {
+                tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
+            },
+            [],
+            []
+        );
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should refresh tool cache when toolsListChanged notification received', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        // Verify initial cache
+        expect(manager['toolCache'].size).toBe(2);
+        expect(manager['toolCache'].has('tool1')).toBe(true);
+        expect(manager['toolCache'].has('tool2')).toBe(true);
+
+        // Update tools on the mock client
+        client1.setTools({
+            tool1: { name: 'tool1', description: 'Tool 1 Updated', parameters: {} },
+            tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
+        });
+
+        // Trigger handleToolsListChanged
+        await manager['handleToolsListChanged']('server1', client1);
+
+        // Verify cache was refreshed
+        expect(manager['toolCache'].size).toBe(2);
+        expect(manager['toolCache'].has('tool1')).toBe(true);
+        expect(manager['toolCache'].has('tool3')).toBe(true);
+        expect(manager['toolCache'].has('tool2')).toBe(false); // tool2 removed
+    });
+
+    it('should emit dexto:mcpToolsListChanged event with correct payload', async () => {
+        const eventSpy = vi.fn();
+        eventBus.on('dexto:mcpToolsListChanged', eventSpy);
+
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        // Update tools
+        client1.setTools({
+            tool1: { name: 'tool1', description: 'Tool 1 Updated', parameters: {} },
+        });
+
+        // Trigger notification handler
+        await manager['handleToolsListChanged']('server1', client1);
+
+        expect(eventSpy).toHaveBeenCalledWith({
+            serverName: 'server1',
+            tools: ['tool1'],
+        });
+
+        eventBus.off('dexto:mcpToolsListChanged', eventSpy);
+    });
+
+    it('should detect conflicts when notification adds conflicting tool', async () => {
+        // Setup: server1 has tool1
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        // Setup: server2 has tool3
+        manager.registerClient('server2', client2);
+        await manager['updateClientCache']('server2', client2);
+
+        expect(manager['toolConflicts'].has('tool1')).toBe(false);
+
+        // Update server2 to also provide tool1 (conflict!)
+        client2.setTools({
+            tool1: { name: 'tool1', description: 'Tool 1 from server2', parameters: {} },
+            tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
+        });
+
+        // Trigger notification handler
+        await manager['handleToolsListChanged']('server2', client2);
+
+        // Should detect conflict and use qualified names
+        expect(manager['toolConflicts'].has('tool1')).toBe(true);
+        expect(manager['toolCache'].has('tool1')).toBe(false); // Simple name removed
+        expect(manager['toolCache'].has('server1--tool1')).toBe(true);
+        expect(manager['toolCache'].has('server2--tool1')).toBe(true);
+    });
+
+    it('should resolve conflicts when notification removes conflicting tool', async () => {
+        // Setup: Both servers provide tool1 (conflict exists)
+        client1.setTools({
+            tool1: { name: 'tool1', description: 'Tool 1 from server1', parameters: {} },
+        });
+        client2.setTools({
+            tool1: { name: 'tool1', description: 'Tool 1 from server2', parameters: {} },
+        });
+
+        manager.registerClient('server1', client1);
+        manager.registerClient('server2', client2);
+        await manager['updateClientCache']('server1', client1);
+        await manager['updateClientCache']('server2', client2);
+
+        // Verify conflict detected
+        expect(manager['toolConflicts'].has('tool1')).toBe(true);
+        expect(manager['toolCache'].has('server1--tool1')).toBe(true);
+        expect(manager['toolCache'].has('server2--tool1')).toBe(true);
+
+        // Update server2 to no longer provide tool1
+        client2.setTools({
+            tool3: { name: 'tool3', description: 'Tool 3', parameters: {} },
+        });
+
+        // Trigger notification handler
+        await manager['handleToolsListChanged']('server2', client2);
+
+        // Conflict should be resolved, tool1 restored to simple name
+        expect(manager['toolConflicts'].has('tool1')).toBe(false);
+        expect(manager['toolCache'].has('tool1')).toBe(true);
+        expect(manager['toolCache'].has('server1--tool1')).toBe(false);
+        expect(manager['toolCache'].has('server2--tool1')).toBe(false);
+
+        // Verify it points to server1
+        const entry = manager['toolCache'].get('tool1');
+        expect(entry?.serverName).toBe('server1');
+    });
+
+    it('should handle empty tool list notification', async () => {
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        expect(manager['toolCache'].size).toBe(2);
+
+        // Update to empty tools
+        client1.setTools({});
+
+        await manager['handleToolsListChanged']('server1', client1);
+
+        // All server1 tools should be removed
+        const remainingTools = Array.from(manager['toolCache'].values());
+        expect(remainingTools.every((entry) => entry.serverName !== 'server1')).toBe(true);
+    });
+
+    it('should not affect other servers tools during notification', async () => {
+        manager.registerClient('server1', client1);
+        manager.registerClient('server2', client2);
+        await manager['updateClientCache']('server1', client1);
+        await manager['updateClientCache']('server2', client2);
+
+        expect(manager['toolCache'].size).toBe(3);
+
+        // Update server1 tools
+        client1.setTools({ tool1: { name: 'tool1', description: 'Tool 1 Only', parameters: {} } });
+
+        await manager['handleToolsListChanged']('server1', client1);
+
+        // server2's tool3 should still be there
+        expect(manager['toolCache'].has('tool3')).toBe(true);
+        const tool3Entry = manager['toolCache'].get('tool3');
+        expect(tool3Entry?.serverName).toBe('server2');
     });
 });

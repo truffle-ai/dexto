@@ -3,11 +3,13 @@ import { z } from 'zod';
 import {
     StorageSchema,
     type StorageConfig,
-    type InMemoryBackendConfig,
-    type RedisBackendConfig,
-    type SqliteBackendConfig,
-    type PostgresBackendConfig,
-    type BackendConfig,
+    type InMemoryCacheConfig,
+    type RedisCacheConfig,
+    type InMemoryDatabaseConfig,
+    type SqliteDatabaseConfig,
+    type PostgresDatabaseConfig,
+    type CacheConfig,
+    type DatabaseConfig,
 } from './schemas.js';
 
 describe('StorageSchema', () => {
@@ -27,7 +29,14 @@ describe('StorageSchema', () => {
         });
 
         it('should accept in-memory backend with optional connection options', () => {
-            const config: InMemoryBackendConfig = {
+            const cacheConfig: InMemoryCacheConfig = {
+                type: 'in-memory',
+                maxConnections: 10,
+                idleTimeoutMillis: 5000,
+                connectionTimeoutMillis: 3000,
+            };
+
+            const dbConfig: InMemoryDatabaseConfig = {
                 type: 'in-memory',
                 maxConnections: 10,
                 idleTimeoutMillis: 5000,
@@ -35,8 +44,8 @@ describe('StorageSchema', () => {
             };
 
             const result = StorageSchema.safeParse({
-                cache: config,
-                database: config,
+                cache: cacheConfig,
+                database: dbConfig,
             });
             expect(result.success).toBe(true);
         });
@@ -44,7 +53,7 @@ describe('StorageSchema', () => {
 
     describe('Backend Configuration - Redis', () => {
         it('should accept Redis backend with URL', () => {
-            const config: RedisBackendConfig = {
+            const config: RedisCacheConfig = {
                 type: 'redis',
                 url: 'redis://localhost:6379',
             };
@@ -60,7 +69,7 @@ describe('StorageSchema', () => {
         });
 
         it('should accept Redis backend with host/port', () => {
-            const config: RedisBackendConfig = {
+            const config: RedisCacheConfig = {
                 type: 'redis',
                 host: 'localhost',
                 port: 6379,
@@ -87,14 +96,14 @@ describe('StorageSchema', () => {
             });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.custom);
-            expect(result.error?.issues[0]?.message).toContain('Redis backend requires either');
+            expect(result.error?.issues[0]?.message).toContain('Redis cache requires either');
             expect(result.error?.issues[0]?.path).toEqual(['cache', 'url']);
         });
     });
 
     describe('Backend Configuration - SQLite', () => {
         it('should accept SQLite backend with path', () => {
-            const config: SqliteBackendConfig = {
+            const config: SqliteDatabaseConfig = {
                 type: 'sqlite',
                 path: '/tmp/dexto.db',
             };
@@ -110,7 +119,7 @@ describe('StorageSchema', () => {
         });
 
         it('should accept SQLite backend with database filename', () => {
-            const config: SqliteBackendConfig = {
+            const config: SqliteDatabaseConfig = {
                 type: 'sqlite',
                 database: 'dexto.db',
             };
@@ -138,7 +147,7 @@ describe('StorageSchema', () => {
 
     describe('Backend Configuration - PostgreSQL', () => {
         it('should accept PostgreSQL backend with URL', () => {
-            const config: PostgresBackendConfig = {
+            const config: PostgresDatabaseConfig = {
                 type: 'postgres',
                 url: 'postgresql://user:pass@localhost:5432/dexto',
             };
@@ -154,7 +163,7 @@ describe('StorageSchema', () => {
         });
 
         it('should accept PostgreSQL backend with connection string', () => {
-            const config: PostgresBackendConfig = {
+            const config: PostgresDatabaseConfig = {
                 type: 'postgres',
                 connectionString: 'postgresql://user:pass@localhost:5432/dexto',
             };
@@ -172,7 +181,7 @@ describe('StorageSchema', () => {
         });
 
         it('should accept PostgreSQL backend with host/port details', () => {
-            const config: PostgresBackendConfig = {
+            const config: PostgresDatabaseConfig = {
                 type: 'postgres',
                 host: 'localhost',
                 port: 5432,
@@ -201,7 +210,7 @@ describe('StorageSchema', () => {
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.custom);
             expect(result.error?.issues[0]?.message).toContain(
-                'PostgreSQL backend requires one of'
+                'PostgreSQL database requires one of'
             );
             expect(result.error?.issues[0]?.path).toEqual(['database', 'url']);
         });
@@ -229,7 +238,7 @@ describe('StorageSchema', () => {
             });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_union_discriminator);
-            expect(result.error?.issues[0]?.message).toContain('Invalid backend type');
+            expect(result.error?.issues[0]?.message).toContain('Invalid cache type');
             expect(result.error?.issues[0]?.path).toEqual(['cache', 'type']);
         });
     });
@@ -334,20 +343,34 @@ describe('StorageSchema', () => {
             }
         });
 
-        it('should handle backend config type unions correctly', () => {
-            const backends: BackendConfig[] = [
+        it('should handle cache config type unions correctly', () => {
+            const cacheConfigs: CacheConfig[] = [
                 { type: 'in-memory' },
                 { type: 'redis', url: 'redis://localhost:6379' },
+            ];
+
+            cacheConfigs.forEach((cacheConfig) => {
+                const result = StorageSchema.parse({
+                    cache: cacheConfig,
+                    database: { type: 'in-memory' },
+                });
+                expect(result.cache.type).toBe(cacheConfig.type);
+            });
+        });
+
+        it('should handle database config type unions correctly', () => {
+            const dbConfigs: DatabaseConfig[] = [
+                { type: 'in-memory' },
                 { type: 'sqlite', path: '/tmp/test.db' },
                 { type: 'postgres', url: 'postgresql://localhost/test' },
             ];
 
-            backends.forEach((backend) => {
+            dbConfigs.forEach((dbConfig) => {
                 const result = StorageSchema.parse({
-                    cache: backend,
-                    database: { type: 'in-memory' },
+                    cache: { type: 'in-memory' },
+                    database: dbConfig,
                 });
-                expect(result.cache.type).toBe(backend.type);
+                expect(result.database.type).toBe(dbConfig.type);
             });
         });
     });
@@ -362,7 +385,14 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse(devConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data).toEqual(devConfig);
+                // Blob config is added with default value
+                expect(result.data).toMatchObject(devConfig);
+                expect(result.data.blob).toEqual({
+                    type: 'local',
+                    maxBlobSize: 50 * 1024 * 1024,
+                    maxTotalSize: 1024 * 1024 * 1024,
+                    cleanupAfterDays: 30,
+                });
             }
         });
 
@@ -385,7 +415,14 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse(prodConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data).toEqual(prodConfig);
+                // Blob config is added with default value
+                expect(result.data).toMatchObject(prodConfig);
+                expect(result.data.blob).toEqual({
+                    type: 'local',
+                    maxBlobSize: 50 * 1024 * 1024,
+                    maxTotalSize: 1024 * 1024 * 1024,
+                    cleanupAfterDays: 30,
+                });
             }
         });
 
@@ -411,7 +448,14 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse(haConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                expect(result.data).toEqual(haConfig);
+                // Blob config is added with default value
+                expect(result.data).toMatchObject(haConfig);
+                expect(result.data.blob).toEqual({
+                    type: 'local',
+                    maxBlobSize: 50 * 1024 * 1024,
+                    maxTotalSize: 1024 * 1024 * 1024,
+                    cleanupAfterDays: 30,
+                });
             }
         });
     });

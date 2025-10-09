@@ -6,6 +6,8 @@ import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js'
 import { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
+import type { PromptDefinition, PromptArgument } from '../prompts/types.js';
+import type { JSONSchema7 } from 'json-schema';
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -39,19 +41,33 @@ import { eventBus } from '../events/index.js';
  * ```
  */
 type ResourceCacheEntry = {
-    key: string;
     serverName: string;
     client: IMCPClient;
     summary: MCPResourceSummary;
 };
 
+type PromptCacheEntry = {
+    serverName: string;
+    client: IMCPClient;
+    definition: PromptDefinition;
+};
+
+type ToolCacheEntry = {
+    serverName: string;
+    client: IMCPClient;
+    definition: {
+        name?: string;
+        description?: string;
+        parameters: JSONSchema7;
+    };
+};
+
 export class MCPManager {
     private clients: Map<string, IMCPClient> = new Map();
     private connectionErrors: { [key: string]: string } = {};
-    private toolToClientMap: Map<string, IMCPClient> = new Map();
-    private serverToolsMap: Map<string, Map<string, IMCPClient>> = new Map();
-    private toolConflicts: Set<string> = new Set();
-    private promptToClientMap: Map<string, IMCPClient> = new Map();
+    private toolCache: Map<string, ToolCacheEntry> = new Map();
+    private toolConflicts: Set<string> = new Set(); // Track which tool names have conflicts
+    private promptCache: Map<string, PromptCacheEntry> = new Map();
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
 
@@ -127,13 +143,19 @@ export class MCPManager {
         delete this.connectionErrors[name];
     }
 
+    /**
+     * Clears all cached data for a disconnected MCP client
+     *
+     * Performs comprehensive cleanup of tool, prompt, and resource caches.
+     * Uses two-pass algorithm to detect and resolve tool name conflicts:
+     * if a conflicted tool now has only one provider, restores simple name.
+     *
+     * @param clientName - The name/identifier of the MCP server being removed
+     * @private
+     */
     private clearClientCache(clientName: string): void {
         const client = this.clients.get(clientName);
         if (!client) return;
-
-        // Remove from server tools map
-        const hadServerTools = this.serverToolsMap.has(clientName);
-        this.serverToolsMap.delete(clientName);
 
         // Remove from sanitized name mapping
         const sanitizedName = this.sanitizeServerName(clientName);
@@ -141,54 +163,68 @@ export class MCPManager {
             this.sanitizedNameToServerMap.delete(sanitizedName);
         }
 
-        [this.toolToClientMap, this.promptToClientMap].forEach((cacheMap) => {
-            for (const [key, mappedClient] of Array.from(cacheMap.entries())) {
-                if (mappedClient === client) {
-                    cacheMap.delete(key);
+        // Clear tool cache for this server and restore simple names when conflicts resolve
+        const removedToolBaseNames = new Set<string>();
+
+        // First pass: collect base names and remove all tools from this server
+        for (const [toolKey, entry] of Array.from(this.toolCache.entries())) {
+            if (entry.serverName === clientName) {
+                // Extract base name from qualified key (handle both simple and qualified names)
+                const delimiterIndex = toolKey.lastIndexOf(MCPManager.SERVER_DELIMITER);
+                const baseName =
+                    delimiterIndex === -1
+                        ? toolKey
+                        : toolKey.substring(delimiterIndex + MCPManager.SERVER_DELIMITER.length);
+
+                removedToolBaseNames.add(baseName);
+                this.toolCache.delete(toolKey);
+            }
+        }
+
+        // Second pass: check for resolved conflicts and restore simple names
+        for (const baseName of removedToolBaseNames) {
+            // Find all remaining tools with this base name
+            const remainingTools = Array.from(this.toolCache.entries()).filter(([key, _]) => {
+                const delimiterIndex = key.lastIndexOf(MCPManager.SERVER_DELIMITER);
+                const bn =
+                    delimiterIndex === -1
+                        ? key
+                        : key.substring(delimiterIndex + MCPManager.SERVER_DELIMITER.length);
+                return bn === baseName;
+            });
+
+            if (remainingTools.length === 0) {
+                // No tools with this name remain
+                this.toolConflicts.delete(baseName);
+            } else if (remainingTools.length === 1 && this.toolConflicts.has(baseName)) {
+                // Exactly one tool remains - restore to simple name
+                const singleTool = remainingTools[0];
+                if (singleTool) {
+                    const [qualifiedKey, entry] = singleTool;
+                    this.toolCache.delete(qualifiedKey);
+                    this.toolCache.set(baseName, entry);
+                    this.toolConflicts.delete(baseName);
+                    logger.debug(`Restored tool '${baseName}' to simple name (conflict resolved)`);
                 }
             }
-        });
+            // If remainingTools.length > 1, conflict still exists, keep qualified names
+        }
 
+        // Clear prompt metadata cache for this server
+        for (const [promptName, entry] of Array.from(this.promptCache.entries())) {
+            if (entry.serverName === clientName) {
+                this.promptCache.delete(promptName);
+            }
+        }
+
+        // Clear resource cache for this server
         for (const [key, entry] of Array.from(this.resourceCache.entries())) {
             if (entry.client === client || entry.serverName === clientName) {
                 this.resourceCache.delete(key);
             }
         }
 
-        // Only rebuild conflicts if this client actually had tools
-        if (hadServerTools) {
-            this.rebuildToolConflicts();
-        }
         logger.debug(`Cleared cache for client: ${clientName}`);
-    }
-
-    private rebuildToolConflicts(): void {
-        this.toolConflicts.clear();
-        const toolCounts = new Map<string, number>();
-
-        // Count tool occurrences across all servers
-        for (const serverTools of this.serverToolsMap.values()) {
-            for (const toolName of serverTools.keys()) {
-                toolCounts.set(toolName, (toolCounts.get(toolName) || 0) + 1);
-            }
-        }
-
-        // Remove conflicted tools from main map first
-        for (const [toolName, count] of toolCounts.entries()) {
-            if (count > 1) {
-                this.toolConflicts.add(toolName);
-                this.toolToClientMap.delete(toolName);
-            }
-        }
-
-        // Re-add non-conflicted tools to main map
-        for (const [_, serverTools] of this.serverToolsMap.entries()) {
-            for (const [toolName, client] of serverTools.entries()) {
-                if (!this.toolConflicts.has(toolName)) {
-                    this.toolToClientMap.set(toolName, client);
-                }
-            }
-        }
     }
 
     /**
@@ -199,12 +235,41 @@ export class MCPManager {
         return serverName.replace(/[^a-zA-Z0-9_-]/g, '_');
     }
 
+    /**
+     * Updates internal caches for a connected MCP client
+     *
+     * This method performs initial cache population after a client connects.
+     * It fetches and caches tools, prompts, and resources from the MCP server,
+     * implementing conflict detection and resolution for tool names.
+     *
+     * @param clientName - The name/identifier of the MCP server
+     * @param client - The connected MCP client instance
+     *
+     * @remarks
+     * **Tool Caching:**
+     * - Fetches all tools and caches them with full definitions
+     * - Detects naming conflicts when multiple servers provide same tool name
+     * - On conflict: uses qualified names (`server--toolname`) for all conflicting tools
+     * - Updates toolConflicts set to track which base names have conflicts
+     *
+     * **Prompt Caching:**
+     * - Fetches all prompts and their metadata (description, arguments)
+     * - Stores full prompt definitions in promptCache for efficient access
+     * - Falls back to minimal metadata if full definition fetch fails
+     *
+     * **Resource Caching:**
+     * - Fetches all resource summaries (uri, name, mimeType)
+     * - Stores resource metadata in resourceCache for quick lookups
+     *
+     * **Error Handling:**
+     * - Tool fetch errors abort caching entirely (early return)
+     * - Prompt/resource errors log warnings but don't block other caching
+     * - Individual prompt metadata errors are caught and logged
+     *
+     * @private
+     */
     private async updateClientCache(clientName: string, client: IMCPClient): Promise<void> {
-        // Initialize server tools map
-        const serverTools = new Map<string, IMCPClient>();
-        this.serverToolsMap.set(clientName, serverTools);
-
-        // Cache tools
+        // Cache tools with full definitions
         try {
             const tools = await client.getTools();
             logger.debug(
@@ -212,20 +277,49 @@ export class MCPManager {
             );
 
             for (const toolName in tools) {
-                // Store in server-specific map
-                serverTools.set(toolName, client);
+                const toolDef = tools[toolName];
+                if (!toolDef) continue; // Skip undefined tool definitions
 
-                // Add to main map if no conflict, otherwise mark as conflicted
-                const existingClient = this.toolToClientMap.get(toolName);
-                if (existingClient && existingClient !== client) {
-                    // Conflict detected
+                // Check if this tool name already exists from a different server
+                const existingEntry = this.toolCache.get(toolName);
+                if (existingEntry && existingEntry.serverName !== clientName) {
+                    // Conflict detected! Move existing to qualified name
                     this.toolConflicts.add(toolName);
-                    this.toolToClientMap.delete(toolName);
+                    this.toolCache.delete(toolName);
+
+                    const existingSanitized = this.sanitizeServerName(existingEntry.serverName);
+                    const existingQualified = `${existingSanitized}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                    this.toolCache.set(existingQualified, existingEntry);
+
+                    // Add new tool with qualified name
+                    const newSanitized = this.sanitizeServerName(clientName);
+                    const newQualified = `${newSanitized}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                    this.toolCache.set(newQualified, {
+                        serverName: clientName,
+                        client,
+                        definition: toolDef,
+                    });
+
                     logger.warn(
-                        `⚠️  Tool conflict detected for '${toolName}' - will use server prefix`
+                        `⚠️  Tool conflict detected for '${toolName}' - using server prefixes: ${existingQualified}, ${newQualified}`
                     );
-                } else if (!this.toolConflicts.has(toolName)) {
-                    this.toolToClientMap.set(toolName, client);
+                } else if (this.toolConflicts.has(toolName)) {
+                    // This tool name is already known to be conflicted
+                    const sanitizedName = this.sanitizeServerName(clientName);
+                    const qualifiedName = `${sanitizedName}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                    this.toolCache.set(qualifiedName, {
+                        serverName: clientName,
+                        client,
+                        definition: toolDef,
+                    });
+                    logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
+                } else {
+                    // No conflict, cache with simple name
+                    this.toolCache.set(toolName, {
+                        serverName: clientName,
+                        client,
+                        definition: toolDef,
+                    });
                     logger.debug(`✅ Tool '${toolName}' mapped to ${clientName}`);
                 }
             }
@@ -239,13 +333,46 @@ export class MCPManager {
             return; // Early return on error, no caching
         }
 
-        // Cache prompts, if supported
+        // Cache prompts with metadata, if supported
         try {
             const prompts = await client.listPrompts();
-            prompts.forEach((promptName) => {
-                this.promptToClientMap.set(promptName, client);
-            });
-            logger.debug(`Cached prompts for client: ${clientName}`);
+
+            // Fetch metadata for each prompt
+            for (const promptName of prompts) {
+                try {
+                    // Get prompt definition to extract metadata
+                    const promptResult = await client.getPrompt(promptName);
+                    const definition: PromptDefinition = {
+                        name: promptName,
+                        description: promptResult.description,
+                    };
+
+                    // Add arguments if present in the result
+                    if ('arguments' in promptResult && promptResult.arguments) {
+                        definition.arguments = promptResult.arguments as PromptArgument[];
+                    }
+
+                    this.promptCache.set(promptName, {
+                        serverName: clientName,
+                        client,
+                        definition,
+                    });
+                } catch (metadataError) {
+                    logger.debug(
+                        `Could not fetch metadata for prompt '${promptName}': ${metadataError}`
+                    );
+                    // Store minimal metadata even if fetch fails
+                    this.promptCache.set(promptName, {
+                        serverName: clientName,
+                        client,
+                        definition: {
+                            name: promptName,
+                        },
+                    });
+                }
+            }
+
+            logger.debug(`Cached ${prompts.length} prompts for client: ${clientName}`);
         } catch (error) {
             logger.debug(`Skipping prompts for client ${clientName}: ${error}`);
         }
@@ -258,7 +385,6 @@ export class MCPManager {
             resources.forEach((summary) => {
                 const key = this.buildQualifiedResourceKey(clientName, summary.uri);
                 this.resourceCache.set(key, {
-                    key,
                     serverName: clientName,
                     client,
                     summary,
@@ -271,55 +397,37 @@ export class MCPManager {
     }
 
     /**
-     * Get all available MCP tools from all connected clients, updating the cache.
-     * Conflicted tools are prefixed with server name using distinctive delimiter.
+     * Get all available MCP tools from cache (no network calls).
+     * Conflicted tools are already stored with qualified names.
      * @returns Promise resolving to a ToolSet mapping tool names to Tool definitions
      */
     async getAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
-        const clientToolsCache = new Map<IMCPClient, ToolSet>();
 
-        // Helper function to get tools for a client (with caching)
-        const getClientTools = async (client: IMCPClient): Promise<ToolSet> => {
-            if (!clientToolsCache.has(client)) {
-                const tools = await client.getTools();
-                clientToolsCache.set(client, tools);
-            }
-            return clientToolsCache.get(client)!;
-        };
+        // Build tool set from cache
+        for (const [toolKey, entry] of this.toolCache.entries()) {
+            const toolDef = entry.definition;
 
-        // Add non-conflicted MCP tools directly
-        for (const [toolName, client] of Array.from(this.toolToClientMap.entries())) {
-            const clientTools = await getClientTools(client);
-            const toolDef = clientTools[toolName];
-            if (toolDef) {
-                allTools[toolName] = toolDef;
-            }
-        }
-
-        // Add conflicted tools with server prefix using distinctive delimiter
-        for (const [serverName, serverTools] of this.serverToolsMap.entries()) {
-            for (const [toolName, client] of serverTools.entries()) {
-                if (this.toolConflicts.has(toolName)) {
-                    const sanitizedServerName = this.sanitizeServerName(serverName);
-                    const qualifiedName = `${sanitizedServerName}${MCPManager.SERVER_DELIMITER}${toolName}`;
-
-                    const clientTools = await getClientTools(client);
-                    const toolDef = clientTools[toolName];
-                    if (toolDef) {
-                        allTools[qualifiedName] = {
-                            ...toolDef,
-                            description: toolDef.description
-                                ? `${toolDef.description} (via ${serverName})`
-                                : `Tool from ${serverName}`,
-                        };
-                    }
-                }
+            // For qualified names (conflicts), enhance description with server name
+            if (toolKey.includes(MCPManager.SERVER_DELIMITER)) {
+                allTools[toolKey] = {
+                    ...toolDef,
+                    description: toolDef.description
+                        ? `${toolDef.description} (via ${entry.serverName})`
+                        : `Tool from ${entry.serverName}`,
+                };
+            } else {
+                // Simple name, use as-is
+                allTools[toolKey] = toolDef;
             }
         }
+
+        const serverNames = Array.from(
+            new Set(Array.from(this.toolCache.values()).map((e) => e.serverName))
+        );
 
         logger.debug(
-            `🔧 MCP tool discovery: ${Object.keys(allTools).length} total tools, ${this.toolConflicts.size} conflicts, connected servers: ${Array.from(this.serverToolsMap.keys()).join(', ')}`
+            `🔧 MCP tools from cache: ${Object.keys(allTools).length} total tools, ${this.toolConflicts.size} conflicts, connected servers: ${serverNames.join(', ')}`
         );
 
         if (logger.getLevel() === 'debug') {
@@ -355,10 +463,9 @@ export class MCPManager {
 
         // O(1) lookup using pre-computed sanitized name map
         const originalServerName = this.sanitizedNameToServerMap.get(serverPrefix);
-        if (
-            originalServerName &&
-            this.serverToolsMap.get(originalServerName)?.has(actualToolName)
-        ) {
+
+        // Verify this qualified name exists in cache
+        if (originalServerName && this.toolCache.has(toolName)) {
             return { serverName: originalServerName, toolName: actualToolName };
         }
 
@@ -372,15 +479,8 @@ export class MCPManager {
      * @returns The client that provides the tool, or undefined if not found
      */
     getToolClient(toolName: string): IMCPClient | undefined {
-        // First try to parse as qualified tool name
-        const parsed = this.parseQualifiedToolName(toolName);
-        if (parsed) {
-            const serverTools = this.serverToolsMap.get(parsed.serverName);
-            return serverTools?.get(parsed.toolName);
-        }
-
-        // Otherwise try as simple tool name
-        return this.toolToClientMap.get(toolName);
+        // Try to get directly from cache (handles both simple and qualified names)
+        return this.toolCache.get(toolName)?.client;
     }
 
     /**
@@ -394,13 +494,8 @@ export class MCPManager {
         const client = this.getToolClient(toolName);
         if (!client) {
             logger.error(`❌ No MCP tool found: ${toolName}`);
-            logger.debug(
-                `Available MCP tools: ${Array.from(this.toolToClientMap.keys()).join(', ')}`
-            );
+            logger.debug(`Available MCP tools: ${Array.from(this.toolCache.keys()).join(', ')}`);
             logger.debug(`Conflicted tools: ${Array.from(this.toolConflicts).join(', ')}`);
-            logger.debug(
-                `Server tools map keys: ${Array.from(this.serverToolsMap.keys()).join(', ')}`
-            );
             throw MCPError.toolNotFound(toolName);
         }
 
@@ -427,7 +522,7 @@ export class MCPManager {
      * @returns Promise resolving to an array of unique prompt names.
      */
     async listAllPrompts(): Promise<string[]> {
-        return Array.from(this.promptToClientMap.keys());
+        return Array.from(this.promptCache.keys());
     }
 
     /**
@@ -436,7 +531,7 @@ export class MCPManager {
      * @returns The client instance or undefined.
      */
     getPromptClient(promptName: string): IMCPClient | undefined {
-        return this.promptToClientMap.get(promptName);
+        return this.promptCache.get(promptName)?.client;
     }
 
     /**
@@ -454,10 +549,36 @@ export class MCPManager {
     }
 
     /**
+     * Get cached prompt metadata (no network calls).
+     * @param promptName Name of the prompt.
+     * @returns Cached prompt definition or undefined if not cached.
+     */
+    getPromptMetadata(promptName: string): PromptDefinition | undefined {
+        const entry = this.promptCache.get(promptName);
+        return entry?.definition;
+    }
+
+    /**
+     * Get all cached prompt metadata (no network calls).
+     * @returns Array of all cached prompt definitions with server info.
+     */
+    getAllPromptMetadata(): Array<{
+        promptName: string;
+        serverName: string;
+        definition: PromptDefinition;
+    }> {
+        return Array.from(this.promptCache.entries()).map(([promptName, entry]) => ({
+            promptName,
+            serverName: entry.serverName,
+            definition: entry.definition,
+        }));
+    }
+
+    /**
      * Get all cached MCP resources (no network calls).
      */
     async listAllResources(): Promise<MCPResolvedResource[]> {
-        return Array.from(this.resourceCache.values()).map(({ key, serverName, summary }) => ({
+        return Array.from(this.resourceCache.entries()).map(([key, { serverName, summary }]) => ({
             key,
             serverName,
             summary,
@@ -478,7 +599,7 @@ export class MCPManager {
         const entry = this.getResourceCacheEntry(resourceKey);
         if (!entry) return undefined;
         return {
-            key: entry.key,
+            key: resourceKey,
             serverName: entry.serverName,
             summary: entry.summary,
         };
@@ -598,6 +719,23 @@ export class MCPManager {
     }
 
     /**
+     * Refresh all client caches by re-fetching capabilities from servers
+     * Useful when you want to force a full refresh of tools, prompts, and resources
+     * In normal operation, caches are automatically kept fresh via server notifications
+     */
+    async refresh(): Promise<void> {
+        logger.debug('Refreshing all MCPManager caches...');
+        const refreshPromises: Promise<void>[] = [];
+
+        for (const [clientName, client] of this.clients.entries()) {
+            refreshPromises.push(this.updateClientCache(clientName, client));
+        }
+
+        await Promise.all(refreshPromises);
+        logger.debug(`✅ MCPManager cache refresh complete for ${this.clients.size} client(s)`);
+    }
+
+    /**
      * Disconnect and remove a specific client by name.
      * @param name The name of the client to remove.
      */
@@ -648,10 +786,9 @@ export class MCPManager {
 
         this.clients.clear();
         this.connectionErrors = {};
-        this.toolToClientMap.clear();
-        this.serverToolsMap.clear();
+        this.toolCache.clear();
         this.toolConflicts.clear();
-        this.promptToClientMap.clear();
+        this.promptCache.clear();
         this.resourceCache.clear();
         this.sanitizedNameToServerMap.clear();
         logger.info('Disconnected all clients and cleared caches.');
@@ -663,7 +800,7 @@ export class MCPManager {
     private setupClientNotifications(clientName: string, client: IMCPClient): void {
         try {
             // Listen for resource updates
-            client.on('resourceUpdated', async (params: { uri: string; title?: string }) => {
+            client.on('resourceUpdated', async (params: { uri: string }) => {
                 logger.debug(
                     `Received resource update notification from ${clientName}: ${params.uri}`
                 );
@@ -676,9 +813,15 @@ export class MCPManager {
                 await this.handlePromptsListChanged(clientName, client);
             });
 
+            // Listen for tool list changes
+            client.on('toolsListChanged', async () => {
+                logger.debug(`Received tools list change notification from ${clientName}`);
+                await this.handleToolsListChanged(clientName, client);
+            });
+
             logger.debug(`Set up notification listeners for client: ${clientName}`);
         } catch (error) {
-            logger.debug(`Failed to set up notification listeners for ${clientName}: ${error}`);
+            logger.warn(`Failed to set up notification listeners for ${clientName}: ${error}`);
         }
     }
 
@@ -687,7 +830,7 @@ export class MCPManager {
      */
     private async handleResourceUpdated(
         serverName: string,
-        params: { uri: string; title?: string }
+        params: { uri: string }
     ): Promise<void> {
         try {
             // Update the resource cache for this specific resource
@@ -703,7 +846,6 @@ export class MCPManager {
                     if (updatedResource) {
                         // Update cache with new resource info
                         this.resourceCache.set(key, {
-                            key,
                             serverName,
                             client,
                             summary: updatedResource,
@@ -711,19 +853,15 @@ export class MCPManager {
                         logger.debug(`Updated resource cache for: ${params.uri}`);
                     }
                 } catch (error) {
-                    logger.debug(`Failed to refresh resource ${params.uri}: ${error}`);
+                    logger.warn(`Failed to refresh resource ${params.uri}: ${error}`);
                 }
             }
 
             // Emit event to notify other parts of the system
-            const eventData: { serverName: string; resourceUri: string; title?: string } = {
+            eventBus.emit('dexto:mcpResourceUpdated', {
                 serverName,
                 resourceUri: params.uri,
-            };
-            if (params.title) {
-                eventData.title = params.title;
-            }
-            eventBus.emit('dexto:mcpResourceUpdated', eventData);
+            });
         } catch (error) {
             logger.error(`Error handling resource update: ${error}`);
         }
@@ -735,21 +873,53 @@ export class MCPManager {
     private async handlePromptsListChanged(serverName: string, client: IMCPClient): Promise<void> {
         try {
             // Refresh the prompts for this client
-            const existingPrompts = Array.from(this.promptToClientMap.entries())
-                .filter(([_, mappedClient]) => mappedClient === client)
+            const existingPrompts = Array.from(this.promptCache.entries())
+                .filter(([_, entry]) => entry.client === client)
                 .map(([promptName]) => promptName);
 
-            // Remove old prompts
+            // Remove old prompts from cache
             existingPrompts.forEach((promptName) => {
-                this.promptToClientMap.delete(promptName);
+                this.promptCache.delete(promptName);
             });
 
-            // Add new prompts
+            // Add new prompts with metadata
             try {
                 const newPrompts = await client.listPrompts();
-                newPrompts.forEach((promptName) => {
-                    this.promptToClientMap.set(promptName, client);
-                });
+
+                // Fetch metadata for each prompt
+                for (const promptName of newPrompts) {
+                    try {
+                        // Get prompt definition to extract metadata
+                        const promptResult = await client.getPrompt(promptName);
+                        const definition: PromptDefinition = {
+                            name: promptName,
+                            description: promptResult.description,
+                        };
+
+                        // Add arguments if present in the result
+                        if ('arguments' in promptResult && promptResult.arguments) {
+                            definition.arguments = promptResult.arguments as PromptArgument[];
+                        }
+
+                        this.promptCache.set(promptName, {
+                            serverName,
+                            client,
+                            definition,
+                        });
+                    } catch (metadataError) {
+                        logger.debug(
+                            `Could not fetch metadata for prompt '${promptName}': ${metadataError}`
+                        );
+                        // Store minimal metadata even if fetch fails
+                        this.promptCache.set(promptName, {
+                            serverName,
+                            client,
+                            definition: {
+                                name: promptName,
+                            },
+                        });
+                    }
+                }
 
                 logger.debug(`Updated prompts cache for ${serverName}: [${newPrompts.join(', ')}]`);
 
@@ -759,10 +929,136 @@ export class MCPManager {
                     prompts: newPrompts,
                 });
             } catch (error) {
-                logger.debug(`Failed to refresh prompts for ${serverName}: ${error}`);
+                logger.warn(`Failed to refresh prompts for ${serverName}: ${error}`);
             }
         } catch (error) {
             logger.error(`Error handling prompts list change: ${error}`);
+        }
+    }
+
+    /**
+     * Handle tools list changed notification
+     */
+    private async handleToolsListChanged(serverName: string, client: IMCPClient): Promise<void> {
+        try {
+            // Remove old tools for this client
+            const removedToolBaseNames = new Set<string>();
+            for (const [toolKey, entry] of Array.from(this.toolCache.entries())) {
+                if (entry.serverName === serverName) {
+                    const delimiterIndex = toolKey.lastIndexOf(MCPManager.SERVER_DELIMITER);
+                    const baseName =
+                        delimiterIndex === -1
+                            ? toolKey
+                            : toolKey.substring(
+                                  delimiterIndex + MCPManager.SERVER_DELIMITER.length
+                              );
+                    removedToolBaseNames.add(baseName);
+                    this.toolCache.delete(toolKey);
+                }
+            }
+
+            // Fetch and cache new tools
+            try {
+                const tools = await client.getTools();
+                const toolNames = Object.keys(tools);
+
+                logger.debug(
+                    `🔧 Refreshing tools from server '${serverName}': [${toolNames.join(', ')}]`
+                );
+
+                // Re-run conflict detection logic for each tool
+                for (const toolName in tools) {
+                    const toolDef = tools[toolName];
+                    if (!toolDef) continue;
+
+                    // Check if this tool name already exists from a different server
+                    const existingEntry = this.toolCache.get(toolName);
+                    if (existingEntry && existingEntry.serverName !== serverName) {
+                        // Conflict detected! Move existing to qualified name
+                        this.toolConflicts.add(toolName);
+                        this.toolCache.delete(toolName);
+
+                        const existingSanitized = this.sanitizeServerName(existingEntry.serverName);
+                        const existingQualified = `${existingSanitized}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                        this.toolCache.set(existingQualified, existingEntry);
+
+                        // Add new tool with qualified name
+                        const newSanitized = this.sanitizeServerName(serverName);
+                        const newQualified = `${newSanitized}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                        this.toolCache.set(newQualified, {
+                            serverName,
+                            client,
+                            definition: toolDef,
+                        });
+
+                        logger.warn(
+                            `⚠️  Tool conflict detected for '${toolName}' - using server prefixes: ${existingQualified}, ${newQualified}`
+                        );
+                    } else if (this.toolConflicts.has(toolName)) {
+                        // This tool name is already known to be conflicted
+                        const sanitizedName = this.sanitizeServerName(serverName);
+                        const qualifiedName = `${sanitizedName}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                        this.toolCache.set(qualifiedName, {
+                            serverName,
+                            client,
+                            definition: toolDef,
+                        });
+                        logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
+                    } else {
+                        // No conflict, cache with simple name
+                        this.toolCache.set(toolName, {
+                            serverName,
+                            client,
+                            definition: toolDef,
+                        });
+                        logger.debug(`✅ Tool '${toolName}' mapped to ${serverName}`);
+                    }
+                }
+
+                // Check for resolved conflicts from removed tools
+                for (const baseName of removedToolBaseNames) {
+                    const remainingTools = Array.from(this.toolCache.entries()).filter(
+                        ([key, _]) => {
+                            const delimiterIndex = key.lastIndexOf(MCPManager.SERVER_DELIMITER);
+                            const bn =
+                                delimiterIndex === -1
+                                    ? key
+                                    : key.substring(
+                                          delimiterIndex + MCPManager.SERVER_DELIMITER.length
+                                      );
+                            return bn === baseName;
+                        }
+                    );
+
+                    if (remainingTools.length === 0) {
+                        this.toolConflicts.delete(baseName);
+                    } else if (remainingTools.length === 1 && this.toolConflicts.has(baseName)) {
+                        // Restore to simple name
+                        const singleTool = remainingTools[0];
+                        if (singleTool) {
+                            const [qualifiedKey, entry] = singleTool;
+                            this.toolCache.delete(qualifiedKey);
+                            this.toolCache.set(baseName, entry);
+                            this.toolConflicts.delete(baseName);
+                            logger.debug(
+                                `Restored tool '${baseName}' to simple name (conflict resolved)`
+                            );
+                        }
+                    }
+                }
+
+                logger.debug(`Updated tools cache for ${serverName}: [${toolNames.join(', ')}]`);
+
+                // Emit event to notify other parts of the system
+                eventBus.emit('dexto:mcpToolsListChanged', {
+                    serverName,
+                    tools: toolNames,
+                });
+            } catch (error) {
+                logger.warn(`Failed to refresh tools for ${serverName}: ${error}`);
+            }
+        } catch (error) {
+            logger.error(`Error handling tools list change: ${error}`);
         }
     }
 }

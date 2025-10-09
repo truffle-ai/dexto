@@ -41,14 +41,9 @@ export async function initializeMcpToolAggregationServer(
         const jsonSchema = toolDef.parameters ?? { type: 'object', properties: {} };
         const paramsShape = jsonSchemaToZodShape(jsonSchema);
         const _paramsSchema = z.object(paramsShape);
-        type ToolArgs = z.infer<typeof _paramsSchema>;
+        type ToolArgs = z.output<typeof _paramsSchema>;
 
-        const level = typeof logger.getLevel === 'function' ? logger.getLevel() : 'info';
-        if (level === 'debug' || level === 'verbose' || level === 'silly') {
-            logger.debug(
-                `Registering tool '${toolName}' with schema: ${JSON.stringify(jsonSchema)}`
-            );
-        }
+        logger.debug(`Registering tool '${toolName}' with schema: ${JSON.stringify(jsonSchema)}`);
 
         mcpServer.tool(
             toolName,
@@ -75,6 +70,9 @@ export async function initializeMcpToolAggregationServer(
         const allResources = await mcpManager.listAllResources();
         logger.info(`Registering ${allResources.length} resources from connected MCP servers`);
 
+        // Collision handling verified:
+        // - Tools/Prompts: Names come from mcpManager which handles collisions at source
+        // - Resources: Index prefix ensures uniqueness even if multiple clients have same key
         allResources.forEach((resource, index) => {
             const safeId = resource.key.replace(/[^a-zA-Z0-9]/g, '_');
             mcpServer.resource(`resource_${index}_${safeId}`, resource.key, async () => {

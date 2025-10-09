@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Image as ImageIcon, Loader2 } from 'lucide-react';
-import type { ResourceMetadata } from './types/resources.js';
+import type { ResourceMetadata } from '@dexto/core';
 import { useResourceContent } from './hooks/useResourceContent';
 import type { NormalizedResourceItem, ResourceState } from './hooks/useResourceContent';
 

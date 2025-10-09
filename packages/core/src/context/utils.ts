@@ -137,26 +137,6 @@ async function resolveBlobReferenceToParts(
     }
 }
 
-function cloneMessagePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart | FilePart {
-    if (part.type === 'text') {
-        return { type: 'text', text: part.text };
-    }
-    if (part.type === 'image') {
-        return part.mimeType !== undefined
-            ? { type: 'image', image: part.image, mimeType: part.mimeType }
-            : { type: 'image', image: part.image };
-    }
-    const cloned: FilePart = {
-        type: 'file',
-        data: part.data,
-        mimeType: part.mimeType,
-    };
-    if (part.filename) {
-        cloned.filename = part.filename;
-    }
-    return cloned;
-}
-
 /**
  * Counts the total tokens in an array of InternalMessages using a provided tokenizer.
  * Includes an estimated overhead per message.
@@ -318,19 +298,19 @@ export function getFileData(filePart: {
  * Extracts image data with blob resolution support.
  * If the image is a blob reference, resolves it from the resource manager.
  * @param imagePart The image part containing image data or blob reference
- * @param resourceManager Optional resource manager for resolving blob references
+ * @param resourceManager Resource manager for resolving blob references
  * @returns Promise<Base64-encoded string or URL string>
  */
 export async function getImageDataWithBlobSupport(
     imagePart: {
         image: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager?: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager
 ): Promise<string> {
     const { image } = imagePart;
 
     // Check if it's a blob reference
-    if (typeof image === 'string' && image.startsWith('@blob:') && resourceManager) {
+    if (typeof image === 'string' && image.startsWith('@blob:')) {
         try {
             const uri = image.substring(1); // Remove @ prefix
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
@@ -353,19 +333,19 @@ export async function getImageDataWithBlobSupport(
  * Extracts file data with blob resolution support.
  * If the data is a blob reference, resolves it from the resource manager.
  * @param filePart The file part containing file data or blob reference
- * @param resourceManager Optional resource manager for resolving blob references
+ * @param resourceManager Resource manager for resolving blob references
  * @returns Promise<Base64-encoded string or URL string>
  */
 export async function getFileDataWithBlobSupport(
     filePart: {
         data: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager?: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager
 ): Promise<string> {
     const { data } = filePart;
 
     // Check if it's a blob reference
-    if (typeof data === 'string' && data.startsWith('@blob:') && resourceManager) {
+    if (typeof data === 'string' && data.startsWith('@blob:')) {
         try {
             const uri = data.substring(1); // Remove @ prefix
             const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
@@ -429,7 +409,7 @@ export async function expandBlobReferences(
             }
 
             if (resolvedParts.length > 0) {
-                parts.push(...resolvedParts.map(cloneMessagePart));
+                parts.push(...resolvedParts.map((part) => ({ ...part })));
             } else {
                 parts.push({ type: 'text', text: token });
             }
@@ -467,7 +447,7 @@ export async function expandBlobReferences(
                 const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
                 const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
                 if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map(cloneMessagePart));
+                    expandedParts.push(...resolved.map((part) => ({ ...part })));
                 } else {
                     expandedParts.push(part);
                 }
@@ -483,7 +463,7 @@ export async function expandBlobReferences(
                 const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
                 const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
                 if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map(cloneMessagePart));
+                    expandedParts.push(...resolved.map((part) => ({ ...part })));
                 } else {
                     try {
                         const resolvedData = await getFileDataWithBlobSupport(
@@ -504,7 +484,7 @@ export async function expandBlobReferences(
                 if (typeof expanded === 'string') {
                     expandedParts.push({ ...part, text: expanded });
                 } else if (Array.isArray(expanded)) {
-                    expandedParts.push(...expanded.map(cloneMessagePart));
+                    expandedParts.push(...expanded.map((part) => ({ ...part })));
                 } else {
                     expandedParts.push(part);
                 }
@@ -648,7 +628,7 @@ function sanitizeDeepObject(obj: unknown): unknown {
  */
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
-    blobService?: import('../blob/index.js').BlobService,
+    blobStore?: import('../storage/blob/types.js').BlobStore,
     namingOptions?: ToolBlobNamingOptions
 ): Promise<InternalMessage['content']> {
     try {
@@ -664,14 +644,14 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 // Check if we should store as blob based on size
                 const approxSize = Math.floor((dataUri.base64.length * 3) / 4);
-                const shouldStoreAsBlob = blobService && approxSize > 1024; // Store blobs > 1KB
+                const shouldStoreAsBlob = blobStore && approxSize > 1024; // Store blobs > 1KB
 
                 if (shouldStoreAsBlob) {
                     try {
                         logger.debug(
                             `Storing data URI as blob (${approxSize} bytes, ${mediaType})`
                         );
-                        const blobRef = await blobService.store(result, {
+                        const blobRef = await blobStore.store(result, {
                             mimeType: mediaType,
                             source: 'tool',
                             originalName: buildToolBlobName('output', mediaType, namingOptions),
@@ -701,11 +681,11 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 // Check if we should store as blob
                 const approxSize = Math.floor((result.length * 3) / 4);
-                const shouldStoreAsBlob = blobService && approxSize > 1024;
+                const shouldStoreAsBlob = blobStore && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobService.store(result, {
+                        const blobRef = await blobStore.store(result, {
                             mimeType: 'application/octet-stream',
                             source: 'tool',
                             originalName: buildToolBlobName('output', undefined, namingOptions),
@@ -753,7 +733,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Process each item recursively
                 const processedItem = await sanitizeToolResultToContentWithBlobs(
                     item,
-                    blobService,
+                    blobStore,
                     namingOptions
                 );
 
@@ -787,14 +767,14 @@ export async function sanitizeToolResultToContentWithBlobs(
                             typeof fileData === 'string'
                                 ? Math.floor((fileData.length * 3) / 4)
                                 : 0;
-                        const shouldStoreAsBlob = blobService && approxSize > 1024;
+                        const shouldStoreAsBlob = blobStore && approxSize > 1024;
 
                         if (shouldStoreAsBlob) {
                             try {
                                 logger.debug(
                                     `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
                                 );
-                                const blobRef = await blobService.store(fileData, {
+                                const blobRef = await blobStore.store(fileData, {
                                     mimeType,
                                     source: 'tool',
                                     originalName: buildToolBlobName(
@@ -848,11 +828,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Check if we should store as blob
                 const approxSize =
                     typeof imageData === 'string' ? Math.floor((imageData.length * 3) / 4) : 0;
-                const shouldStoreAsBlob = blobService && approxSize > 1024;
+                const shouldStoreAsBlob = blobStore && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobService.store(imageData, {
+                        const blobRef = await blobStore.store(imageData, {
                             mimeType,
                             source: 'tool',
                             originalName: buildToolBlobName('image', mimeType, namingOptions),
@@ -884,11 +864,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Check if we should store as blob
                 const approxSize =
                     typeof fileData === 'string' ? Math.floor((fileData.length * 3) / 4) : 0;
-                const shouldStoreAsBlob = blobService && approxSize > 1024;
+                const shouldStoreAsBlob = blobStore && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobService.store(fileData, {
+                        const blobRef = await blobStore.store(fileData, {
                             mimeType,
                             source: 'tool',
                             originalName: buildToolBlobName(
@@ -930,172 +910,6 @@ export async function sanitizeToolResultToContentWithBlobs(
         logger.warn(
             `sanitizeToolResultToContentWithBlobs failed, falling back to string: ${String(err)}`
         );
-        try {
-            return safeStringify(result ?? '');
-        } catch {
-            return String(result ?? '');
-        }
-    }
-}
-
-/**
- * Convert an arbitrary tool result into safe InternalMessage content.
- * - Converts data URIs and base64 blobs to media/file parts
- * - Removes huge binary blobs inside objects
- * - Truncates extremely long raw text
- *
- * @deprecated Use sanitizeToolResultToContentWithBlobs for automatic blob storage
- */
-export function sanitizeToolResultToContent(result: unknown): InternalMessage['content'] {
-    try {
-        // Case 1: string outputs
-        if (typeof result === 'string') {
-            // Data URI
-            const dataUri = parseDataUri(result);
-            if (dataUri) {
-                const mediaType = dataUri.mediaType;
-                logger.debug(
-                    `sanitizeToolResultToContent: detected data URI (${mediaType}), converting to media part`
-                );
-                if (mediaType.startsWith('image/')) {
-                    return [{ type: 'image', image: dataUri.base64, mimeType: mediaType }];
-                }
-                // Use a generic file part for non-image media types
-                return [{ type: 'file', data: dataUri.base64, mimeType: mediaType }];
-            }
-            // Raw base64-like blob
-            if (isLikelyBase64String(result)) {
-                logger.debug(
-                    'sanitizeToolResultToContent: detected base64-like string, converting to file part'
-                );
-                return [
-                    {
-                        type: 'file',
-                        data: result,
-                        mimeType: 'application/octet-stream',
-                        filename: 'tool-output.bin',
-                    },
-                ];
-            }
-            // Long text: truncate with ellipsis to keep context sane
-            if (result.length > MAX_TOOL_TEXT_CHARS) {
-                const head = result.slice(0, 4000);
-                const tail = result.slice(-1000);
-                logger.debug(
-                    `sanitizeToolResultToContent: truncating long text tool output (len=${result.length})`
-                );
-                return `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`;
-            }
-            return result;
-        }
-
-        // Case 2: array of parts or mixed
-        if (Array.isArray(result)) {
-            // Ensure only supported part types (text|image|file) appear in the array
-            const parts: Array<TextPart | ImagePart | FilePart> = [];
-            for (const item of result as unknown[]) {
-                if (item == null) continue;
-                // Strings: decide if base64/file or plain text
-                if (typeof item === 'string') {
-                    const dataUri = parseDataUri(item);
-                    if (dataUri) {
-                        const mt = dataUri.mediaType;
-                        if (mt.startsWith('image/'))
-                            parts.push({ type: 'image', image: dataUri.base64, mimeType: mt });
-                        else parts.push({ type: 'file', data: dataUri.base64, mimeType: mt });
-                        continue;
-                    }
-                    if (isLikelyBase64String(item)) {
-                        parts.push({
-                            type: 'file',
-                            data: item,
-                            mimeType: 'application/octet-stream',
-                            filename: 'tool-output.bin',
-                        });
-                        continue;
-                    }
-                    parts.push({ type: 'text', text: item });
-                    continue;
-                }
-                // Objects: try coercions, else stringify as text
-                if (typeof item === 'object') {
-                    const obj = item as Record<string, any>;
-                    // Explicitly-typed text part
-                    if (obj.type === 'text' && typeof obj.text === 'string') {
-                        parts.push({ type: 'text', text: obj.text });
-                        continue;
-                    }
-                    // Image-like
-                    if ((obj.type === 'image' && obj.image !== undefined) || 'image' in obj) {
-                        parts.push({
-                            type: 'image',
-                            image: getImageData({ image: obj.image }),
-                            mimeType: obj.mimeType || 'image/jpeg',
-                        });
-                        continue;
-                    }
-                    // File-like
-                    if (obj.type === 'file' && obj.data !== undefined) {
-                        parts.push({
-                            type: 'file',
-                            data: getFileData({ data: obj.data }),
-                            mimeType: obj.mimeType || 'application/octet-stream',
-                            filename: obj.filename,
-                        });
-                        continue;
-                    }
-                    if ('data' in obj && (typeof obj.mimeType === 'string' || obj.filename)) {
-                        parts.push({
-                            type: 'file',
-                            data: getFileData({ data: obj.data }),
-                            mimeType: obj.mimeType || 'application/octet-stream',
-                            filename: obj.filename,
-                        });
-                        continue;
-                    }
-                    // Unknown object -> stringify a sanitized copy as text
-                    const cleaned = sanitizeDeepObject(obj);
-                    parts.push({ type: 'text', text: safeStringify(cleaned) });
-                    continue;
-                }
-                // Other primitives -> coerce to text
-                parts.push({ type: 'text', text: String(item) });
-            }
-            return parts as InternalMessage['content'];
-        }
-
-        // Case 3: object — attempt to infer media, otherwise stringify safely
-        if (result && typeof result === 'object') {
-            // Common shapes: { image, mimeType? } or { data, mimeType }
-            const anyObj = result as Record<string, any>;
-            if ('image' in anyObj) {
-                return [
-                    {
-                        type: 'image',
-                        image: getImageData({ image: anyObj.image }),
-                        mimeType: anyObj.mimeType || 'image/jpeg',
-                    },
-                ];
-            }
-            if ('data' in anyObj && anyObj.mimeType) {
-                return [
-                    {
-                        type: 'file',
-                        data: getFileData({ data: anyObj.data }),
-                        mimeType: anyObj.mimeType,
-                        filename: anyObj.filename,
-                    },
-                ];
-            }
-            // Generic object: remove huge base64 fields and stringify
-            const cleaned = sanitizeDeepObject(anyObj);
-            return safeStringify(cleaned);
-        }
-
-        // Fallback
-        return safeStringify(result ?? '');
-    } catch (err) {
-        logger.warn(`sanitizeToolResultToContent failed, falling back to string: ${String(err)}`);
         try {
             return safeStringify(result ?? '');
         } catch {

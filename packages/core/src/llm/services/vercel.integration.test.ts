@@ -71,24 +71,30 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         20000
     );
 
-    t('stream works normally', async () => {
-        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
-        try {
-            const response = await env.agent.run(
-                'Hello',
-                undefined,
-                undefined,
-                env.sessionId,
-                true
+    t(
+        'stream works normally',
+        async () => {
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
             );
+            try {
+                const response = await env.agent.run(
+                    'Hello',
+                    undefined,
+                    undefined,
+                    env.sessionId,
+                    true
+                );
 
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-            expect(response.length).toBeGreaterThan(0);
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+                expect(response.length).toBeGreaterThan(0);
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     t(
         'multi-turn stream works normally',
@@ -123,25 +129,31 @@ describe('Vercel AI SDK LLM Service Integration', () => {
         20000
     );
 
-    t('creating sessions works normally', async () => {
-        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
-        try {
-            const newSession = await env.agent.createSession('test-vercel-session');
-            const response = await env.agent.run(
-                'Hello in new session',
-                undefined,
-                undefined,
-                newSession.id
+    t(
+        'creating sessions works normally',
+        async () => {
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
             );
+            try {
+                const newSession = await env.agent.createSession('test-vercel-session');
+                const response = await env.agent.run(
+                    'Hello in new session',
+                    undefined,
+                    undefined,
+                    newSession.id
+                );
 
-            expect(newSession).toBeTruthy();
-            expect(newSession.id).toBe('test-vercel-session');
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+                expect(newSession).toBeTruthy();
+                expect(newSession.id).toBe('test-vercel-session');
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     // Multiple Provider Support through Vercel AI SDK
     (requiresApiKey('anthropic') ? test.concurrent : test.skip)(
@@ -164,7 +176,8 @@ describe('Vercel AI SDK LLM Service Integration', () => {
             } finally {
                 await cleanupTestEnvironment(anthropicEnv);
             }
-        }
+        },
+        20000
     );
 
     (requiresApiKey('google') ? test.concurrent : test.skip)(
@@ -187,40 +200,47 @@ describe('Vercel AI SDK LLM Service Integration', () => {
             } finally {
                 await cleanupTestEnvironment(googleEnv);
             }
-        }
+        },
+        20000
     );
 
     // Error handling tests
-    t('errors handled with correct error codes', async () => {
-        // Test with unsupported file type to trigger validation error
-        const invalidFileData = Buffer.from('test data').toString('base64');
+    t(
+        'errors handled with correct error codes',
+        async () => {
+            // Test with unsupported file type to trigger validation error
+            const invalidFileData = Buffer.from('test data').toString('base64');
 
-        const env = await createTestEnvironment(TestConfigs.createVercelConfig(defaultProvider));
-        try {
-            await expect(
-                env.agent.run(
-                    'Process this file',
-                    undefined,
-                    {
-                        data: invalidFileData,
-                        mimeType: 'application/unknown-type',
-                        filename: 'test.unknown',
-                    },
-                    env.sessionId
-                )
-            ).rejects.toMatchObject({
-                issues: [
-                    expect.objectContaining({
-                        code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.USER,
-                    }),
-                ],
-            });
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig(defaultProvider)
+            );
+            try {
+                await expect(
+                    env.agent.run(
+                        'Process this file',
+                        undefined,
+                        {
+                            data: invalidFileData,
+                            mimeType: 'application/unknown-type',
+                            filename: 'test.unknown',
+                        },
+                        env.sessionId
+                    )
+                ).rejects.toMatchObject({
+                    issues: [
+                        expect.objectContaining({
+                            code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.USER,
+                        }),
+                    ],
+                });
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     // Positive media/file tests (OpenAI via Vercel)
     (requiresApiKey('openai') ? test.concurrent : test.skip)(
@@ -258,7 +278,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
-        30000
+        20000
     );
 
     (requiresApiKey('openai') ? test.concurrent : test.skip)(
@@ -295,7 +315,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
-        30000
+        20000
     );
 
     (requiresApiKey('openai') ? test.concurrent : test.skip)(
@@ -332,7 +352,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
-        30000
+        20000
     );
 
     // Skip test warnings

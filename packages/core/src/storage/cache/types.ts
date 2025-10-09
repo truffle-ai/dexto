@@ -2,7 +2,7 @@
  * Fast, ephemeral storage for temporary data and performance optimization.
  * Supports TTL for automatic cleanup of temporary data.
  */
-export interface CacheBackend {
+export interface Cache {
     // Basic operations
     get<T>(key: string): Promise<T | undefined>;
     set<T>(key: string, value: T, ttlSeconds?: number): Promise<void>;
@@ -12,5 +12,5 @@ export interface CacheBackend {
     connect(): Promise<void>;
     disconnect(): Promise<void>;
     isConnected(): boolean;
-    getBackendType(): string;
+    getStoreType(): string;
 }

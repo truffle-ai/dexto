@@ -1,15 +1,13 @@
-import type { CacheBackend } from './cache-backend.js';
-import type { DatabaseBackend } from './database-backend.js';
+import type { Cache } from './types.js';
 import { StorageError } from '../errors.js';
 
 /**
- * In-memory storage backend for development and testing.
- * Implements both CacheBackend and DatabaseBackend interfaces.
+ * In-memory cache store for development and testing.
+ * Supports TTL for automatic cleanup of temporary data.
  * Data is lost when the process restarts.
  */
-export class MemoryBackend implements CacheBackend, DatabaseBackend {
+export class MemoryCacheStore implements Cache {
     private data = new Map<string, any>();
-    private lists = new Map<string, any[]>();
     private ttls = new Map<string, number>();
     private connected = false;
 
@@ -22,7 +20,6 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
     async disconnect(): Promise<void> {
         this.connected = false;
         this.data.clear();
-        this.lists.clear();
         this.ttls.clear();
     }
 
@@ -30,11 +27,10 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
         return this.connected;
     }
 
-    getBackendType(): string {
+    getStoreType(): string {
         return 'memory';
     }
 
-    // Core operations
     async get<T>(key: string): Promise<T | undefined> {
         this.checkConnection();
         try {
@@ -71,50 +67,13 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
     async delete(key: string): Promise<void> {
         this.checkConnection();
         this.data.delete(key);
-        this.lists.delete(key);
         this.ttls.delete(key);
-    }
-
-    // List operations (DatabaseBackend)
-    async list(prefix: string): Promise<string[]> {
-        const keys: string[] = [];
-
-        // Search in regular data
-        for (const key of Array.from(this.data.keys())) {
-            if (key.startsWith(prefix)) {
-                keys.push(key);
-            }
-        }
-
-        // Search in list data
-        for (const key of Array.from(this.lists.keys())) {
-            if (key.startsWith(prefix)) {
-                keys.push(key);
-            }
-        }
-
-        // Return unique sorted keys
-        return Array.from(new Set(keys)).sort();
-    }
-
-    async append<T>(key: string, item: T): Promise<void> {
-        this.checkConnection();
-        if (!this.lists.has(key)) {
-            this.lists.set(key, []);
-        }
-        this.lists.get(key)!.push(item);
-    }
-
-    async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
-        this.checkConnection();
-        const list = this.lists.get(key) || [];
-        return list.slice(start, start + count);
     }
 
     // Helper methods
     private checkConnection(): void {
         if (!this.connected) {
-            throw StorageError.notConnected('MemoryBackend');
+            throw StorageError.notConnected('MemoryCacheStore');
         }
     }
 
@@ -129,14 +88,12 @@ export class MemoryBackend implements CacheBackend, DatabaseBackend {
     // Development helpers
     async clear(): Promise<void> {
         this.data.clear();
-        this.lists.clear();
         this.ttls.clear();
     }
 
-    async dump(): Promise<{ data: Record<string, any>; lists: Record<string, any[]> }> {
+    async dump(): Promise<{ data: Record<string, any> }> {
         return {
             data: Object.fromEntries(this.data.entries()),
-            lists: Object.fromEntries(this.lists.entries()),
         };
     }
 }

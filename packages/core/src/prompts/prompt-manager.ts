@@ -13,17 +13,16 @@ import {
 import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 import type { ResourceManager } from '../resources/manager.js';
-import type { DatabaseBackend } from '../storage/backend/database-backend.js';
+import type { Database } from '../storage/database/types.js';
 
 interface PromptCacheEntry {
-    key: string;
     providerName: string;
     providerPromptName: string;
     originalName: string;
     info: PromptInfo;
 }
 
-export class PromptsManager {
+export class PromptManager {
     private providers: Map<string, PromptProvider> = new Map();
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
@@ -32,54 +31,50 @@ export class PromptsManager {
     constructor(
         mcpManager: MCPManager,
         resourceManager: ResourceManager,
-        promptsDir?: string,
-        agentConfig?: ValidatedAgentConfig,
-        private readonly eventBus?: AgentEventBus,
-        private readonly database?: DatabaseBackend
+        agentConfig: ValidatedAgentConfig,
+        private readonly eventBus: AgentEventBus,
+        private readonly database: Database,
+        promptsDir?: string
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
         const internalOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
         this.providers.set('internal', new InternalPromptProvider(internalOptions));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
-        if (this.database) {
-            this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
-        }
+        this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
 
         logger.debug(
-            `PromptsManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
+            `PromptManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
 
-        if (this.eventBus && typeof (this.eventBus as any).on === 'function') {
-            const refresh = async (reason: string) => {
-                logger.debug(`PromptsManager refreshing due to: ${reason}`);
-                await this.refresh();
-            };
+        const refresh = async (reason: string) => {
+            logger.debug(`PromptManager refreshing due to: ${reason}`);
+            await this.refresh();
+        };
 
-            this.eventBus.on('dexto:mcpServerConnected', async (p) => {
-                if (p.success) {
-                    await refresh(`mcpServerConnected:${p.name}`);
-                }
-            });
-            this.eventBus.on('dexto:mcpServerRemoved', async (p) => {
-                await refresh(`mcpServerRemoved:${p.serverName}`);
-            });
-            this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
-                await refresh(`mcpServerUpdated:${p.serverName}`);
-            });
+        this.eventBus.on('dexto:mcpServerConnected', async (p) => {
+            if (p.success) {
+                await refresh(`mcpServerConnected:${p.name}`);
+            }
+        });
+        this.eventBus.on('dexto:mcpServerRemoved', async (p) => {
+            await refresh(`mcpServerRemoved:${p.serverName}`);
+        });
+        this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
+            await refresh(`mcpServerUpdated:${p.serverName}`);
+        });
 
-            // Listen for MCP notifications for surgical updates
-            this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
-                await this.updatePromptsForServer(p.serverName, p.prompts);
-                logger.debug(
-                    `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`
-                );
-            });
-        }
+        // Listen for MCP notifications for surgical updates
+        this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
+            await this.updatePromptsForServer(p.serverName, p.prompts);
+            logger.debug(
+                `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`
+            );
+        });
     }
 
     async initialize(): Promise<void> {
         await this.ensureCache();
-        logger.debug('PromptsManager initialization complete');
+        logger.debug('PromptManager initialization complete');
     }
 
     async list(): Promise<PromptSet> {
@@ -162,7 +157,7 @@ export class PromptsManager {
             provider.invalidateCache();
         }
         await this.ensureCache();
-        logger.info('PromptsManager refreshed');
+        logger.info('PromptManager refreshed');
     }
 
     /**
@@ -314,7 +309,6 @@ export class PromptsManager {
             const existingKey = `${existing.providerName}:${existing.originalName}`;
             const updatedExisting: PromptCacheEntry = {
                 ...existing,
-                key: existingKey,
                 info:
                     existing.info.name === existingKey
                         ? existing.info
@@ -328,7 +322,6 @@ export class PromptsManager {
         const entryInfo =
             prepared.name === key ? prepared : ({ ...prepared, name: key } as PromptInfo);
         const entry: PromptCacheEntry = {
-            key,
             providerName,
             providerPromptName,
             originalName,

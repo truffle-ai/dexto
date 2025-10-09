@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ResourceMetadata } from '../types/resources.js';
+import type { ResourceMetadata } from '@dexto/core';
 
 let cachedResources: ResourceMetadata[] | null = null;
 let cachedError: string | null = null;

@@ -4,63 +4,38 @@ import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
 import { logger } from '../../logger/index.js';
 import { getDextoPath } from '../../utils/path.js';
-import { BlobError } from '../errors.js';
+import { StorageError } from '../errors.js';
 import type {
-    BlobBackend,
+    BlobStore,
     BlobInput,
     BlobMetadata,
     BlobReference,
     BlobData,
     BlobStats,
     StoredBlobMetadata,
-    LocalBlobBackendConfig,
-} from '../types.js';
+} from './types.js';
+import type { LocalBlobStoreConfig } from './schemas.js';
 
 /**
- * Internal configuration with all required properties
- */
-interface ResolvedLocalBlobConfig {
-    type: 'local';
-    maxBlobSize: number;
-    maxTotalSize: number;
-    cleanupAfterDays: number;
-    storePath: string;
-}
-
-/**
- * Local filesystem blob backend implementation
+ * Local filesystem blob store implementation.
  *
  * Stores blobs on the local filesystem with content-based deduplication
- * and metadata tracking. This is the default backend for development
+ * and metadata tracking. This is the default store for development
  * and single-machine deployments.
  */
-export class LocalBlobBackend implements BlobBackend {
-    private config: ResolvedLocalBlobConfig;
+export class LocalBlobStore implements BlobStore {
+    private config: LocalBlobStoreConfig;
     private storePath: string;
     private connected = false;
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
 
-    private static readonly DEFAULT_CONFIG = {
-        maxBlobSize: 50 * 1024 * 1024, // 50MB
-        maxTotalSize: 1024 * 1024 * 1024, // 1GB
-        cleanupAfterDays: 30,
-    } as const;
-
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobBackendConfig) {
-        const storePath = config.storePath || getDextoPath('data', 'blobs');
-        this.config = {
-            type: 'local',
-            maxBlobSize: config.maxBlobSize ?? LocalBlobBackend.DEFAULT_CONFIG.maxBlobSize,
-            maxTotalSize: config.maxTotalSize ?? LocalBlobBackend.DEFAULT_CONFIG.maxTotalSize,
-            cleanupAfterDays:
-                config.cleanupAfterDays ?? LocalBlobBackend.DEFAULT_CONFIG.cleanupAfterDays,
-            storePath,
-        };
-        this.storePath = storePath;
+    constructor(config: LocalBlobStoreConfig) {
+        this.config = config;
+        this.storePath = config.storePath || getDextoPath('data', 'blobs');
     }
 
     async connect(): Promise<void> {
@@ -71,15 +46,15 @@ export class LocalBlobBackend implements BlobBackend {
             await this.refreshStatsCache();
             this.lastStatsRefresh = Date.now();
             this.connected = true;
-            logger.debug(`LocalBlobBackend connected at: ${this.storePath}`);
+            logger.debug(`LocalBlobStore connected at: ${this.storePath}`);
         } catch (error) {
-            throw BlobError.operationFailed('connect', 'local', error);
+            throw StorageError.blobOperationFailed('connect', 'local', error);
         }
     }
 
     async disconnect(): Promise<void> {
         this.connected = false;
-        logger.debug('LocalBlobBackend disconnected');
+        logger.debug('LocalBlobStore disconnected');
     }
 
     /**
@@ -97,13 +72,13 @@ export class LocalBlobBackend implements BlobBackend {
         return this.connected;
     }
 
-    getBackendType(): string {
+    getStoreType(): string {
         return 'local';
     }
 
     async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         // Convert input to buffer for processing
@@ -111,7 +86,7 @@ export class LocalBlobBackend implements BlobBackend {
 
         // Check size limits
         if (buffer.length > this.config.maxBlobSize) {
-            throw BlobError.sizeExceeded(buffer.length, this.config.maxBlobSize);
+            throw StorageError.blobSizeExceeded(buffer.length, this.config.maxBlobSize);
         }
 
         // Generate content-based hash for deduplication
@@ -128,10 +103,6 @@ export class LocalBlobBackend implements BlobBackend {
             const existingMetadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
             logger.debug(`Blob ${id} already exists, returning existing reference (deduplication)`);
 
-            // Note: We don't update statsCache here since no new blob was added.
-            // The cache remains accurate. If external modifications occur, the time-based
-            // reconciliation in ensureStatsCache() will detect and correct any drift.
-
             return {
                 id,
                 uri: `blob:${id}`,
@@ -146,7 +117,10 @@ export class LocalBlobBackend implements BlobBackend {
         if (maxTotalSize) {
             const stats = await this.ensureStatsCache();
             if (stats.totalSize + buffer.length > maxTotalSize) {
-                throw BlobError.totalSizeExceeded(stats.totalSize + buffer.length, maxTotalSize);
+                throw StorageError.blobTotalSizeExceeded(
+                    stats.totalSize + buffer.length,
+                    maxTotalSize
+                );
             }
         }
 
@@ -183,7 +157,7 @@ export class LocalBlobBackend implements BlobBackend {
                 fs.unlink(blobPath).catch(() => {}),
                 fs.unlink(metaPath).catch(() => {}),
             ]);
-            throw BlobError.operationFailed('store', 'local', error);
+            throw StorageError.blobOperationFailed('store', 'local', error);
         }
     }
 
@@ -192,7 +166,7 @@ export class LocalBlobBackend implements BlobBackend {
         format: 'base64' | 'buffer' | 'path' | 'stream' | 'url' = 'buffer'
     ): Promise<BlobData> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const id = this.parseReference(reference);
@@ -225,7 +199,7 @@ export class LocalBlobBackend implements BlobBackend {
                     return { format: 'stream', data: stream, metadata };
                 }
                 case 'url': {
-                    // For local backend, return file:// URL (cross‑platform)
+                    // For local store, return file:// URL (cross-platform)
                     const absolutePath = path.resolve(blobPath);
                     return {
                         format: 'url',
@@ -234,19 +208,19 @@ export class LocalBlobBackend implements BlobBackend {
                     };
                 }
                 default:
-                    throw BlobError.invalidInput(format, `Unsupported format: ${format}`);
+                    throw StorageError.blobInvalidInput(format, `Unsupported format: ${format}`);
             }
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                throw BlobError.notFound(reference);
+                throw StorageError.blobNotFound(reference);
             }
-            throw BlobError.operationFailed('retrieve', 'local', error);
+            throw StorageError.blobOperationFailed('retrieve', 'local', error);
         }
     }
 
     async exists(reference: string): Promise<boolean> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const id = this.parseReference(reference);
@@ -263,7 +237,7 @@ export class LocalBlobBackend implements BlobBackend {
 
     async delete(reference: string): Promise<void> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const id = this.parseReference(reference);
@@ -279,15 +253,15 @@ export class LocalBlobBackend implements BlobBackend {
             this.updateStatsCacheAfterDelete(metadata.size);
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                throw BlobError.notFound(reference);
+                throw StorageError.blobNotFound(reference);
             }
-            throw BlobError.operationFailed('delete', 'local', error);
+            throw StorageError.blobOperationFailed('delete', 'local', error);
         }
     }
 
     async cleanup(olderThan?: Date): Promise<number> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const cleanupDays = this.config.cleanupAfterDays;
@@ -328,13 +302,13 @@ export class LocalBlobBackend implements BlobBackend {
 
             return deletedCount;
         } catch (error) {
-            throw BlobError.cleanupFailed('local', error);
+            throw StorageError.blobCleanupFailed('local', error);
         }
     }
 
     async getStats(): Promise<BlobStats> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         const stats = await this.ensureStatsCache();
@@ -347,15 +321,19 @@ export class LocalBlobBackend implements BlobBackend {
         };
     }
 
-    async listBlobs(): Promise<import('../types.js').BlobReference[]> {
+    getStoragePath(): string | undefined {
+        return this.storePath;
+    }
+
+    async listBlobs(): Promise<BlobReference[]> {
         if (!this.connected) {
-            throw BlobError.backendNotConnected('local');
+            throw StorageError.blobBackendNotConnected('local');
         }
 
         try {
             const files = await fs.readdir(this.storePath);
             const metaFiles = files.filter((f) => f.endsWith('.meta.json'));
-            const blobs: import('../types.js').BlobReference[] = [];
+            const blobs: BlobReference[] = [];
 
             for (const metaFile of metaFiles) {
                 try {
@@ -385,7 +363,7 @@ export class LocalBlobBackend implements BlobBackend {
     private async ensureStatsCache(): Promise<{ count: number; totalSize: number }> {
         const now = Date.now();
         const cacheAge = now - this.lastStatsRefresh;
-        const isStale = cacheAge > LocalBlobBackend.STATS_REFRESH_INTERVAL_MS;
+        const isStale = cacheAge > LocalBlobStore.STATS_REFRESH_INTERVAL_MS;
 
         // Refresh if cache is missing OR stale
         if (!this.statsCache || isStale) {
@@ -470,7 +448,10 @@ export class LocalBlobBackend implements BlobBackend {
                     const base64Data = input.substring(commaIndex + 1);
                     return Buffer.from(base64Data, 'base64');
                 }
-                throw BlobError.encodingError('inputToBuffer', 'Unsupported data URI format');
+                throw StorageError.blobEncodingError(
+                    'inputToBuffer',
+                    'Unsupported data URI format'
+                );
             }
 
             // Handle file path - only if it looks like an actual file path
@@ -487,11 +468,11 @@ export class LocalBlobBackend implements BlobBackend {
             try {
                 return Buffer.from(input, 'base64');
             } catch {
-                throw BlobError.encodingError('inputToBuffer', 'Invalid base64 string');
+                throw StorageError.blobEncodingError('inputToBuffer', 'Invalid base64 string');
             }
         }
 
-        throw BlobError.invalidInput(input, `Unsupported input type: ${typeof input}`);
+        throw StorageError.blobInvalidInput(input, `Unsupported input type: ${typeof input}`);
     }
 
     /**
@@ -499,13 +480,13 @@ export class LocalBlobBackend implements BlobBackend {
      */
     private parseReference(reference: string): string {
         if (!reference) {
-            throw BlobError.invalidReference(reference, 'Empty reference');
+            throw StorageError.blobInvalidReference(reference, 'Empty reference');
         }
 
         if (reference.startsWith('blob:')) {
             const id = reference.substring(5);
             if (!id) {
-                throw BlobError.invalidReference(reference, 'Empty blob ID after prefix');
+                throw StorageError.blobInvalidReference(reference, 'Empty blob ID after prefix');
             }
             return id;
         }

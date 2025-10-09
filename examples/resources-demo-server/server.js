@@ -2,9 +2,13 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { 
-  ListResourcesRequestSchema, 
-  ReadResourceRequestSchema 
+import {
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+  ListToolsRequestSchema,
+  CallToolRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 
 class ResourcesDemoServer {
@@ -17,6 +21,8 @@ class ResourcesDemoServer {
       {
         capabilities: {
           resources: {},
+          prompts: {},
+          tools: {},
         },
       }
     );
@@ -76,6 +82,147 @@ class ResourcesDemoServer {
       } catch (error) {
         console.error(`Error reading MCP resource ${request.params.uri}: ${error.message}`);
         throw new Error(`Failed to read resource: ${error.message}`);
+      }
+    });
+
+    // Handle prompts/list requests
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      try {
+        console.error(`📝 MCP Prompts: Listing available prompts`);
+
+        const prompts = [
+          {
+            name: 'analyze-metrics',
+            description: 'Analyze product metrics and provide insights',
+            arguments: [
+              {
+                name: 'metric_type',
+                description: 'Type of metric to analyze (users, revenue, features)',
+                required: true,
+              },
+              {
+                name: 'time_period',
+                description: 'Time period for analysis (e.g., "Q4 2024")',
+                required: false,
+              },
+            ],
+          },
+          {
+            name: 'generate-report',
+            description: 'Generate a comprehensive product report',
+            arguments: [
+              {
+                name: 'report_type',
+                description: 'Type of report (metrics, feedback, status)',
+                required: true,
+              },
+            ],
+          },
+        ];
+
+        return {
+          prompts: prompts,
+        };
+      } catch (error) {
+        console.error(`Error listing MCP prompts: ${error.message}`);
+        return {
+          prompts: [],
+        };
+      }
+    });
+
+    // Handle prompts/get requests
+    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      try {
+        const { name, arguments: args } = request.params;
+        console.error(`📖 MCP Prompts: Reading prompt ${name}`);
+
+        const promptContent = await this.getPromptContent(name, args);
+
+        return {
+          messages: promptContent,
+        };
+      } catch (error) {
+        console.error(`Error reading MCP prompt ${request.params.name}: ${error.message}`);
+        throw new Error(`Failed to read prompt: ${error.message}`);
+      }
+    });
+
+    // Handle tools/list requests
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      try {
+        console.error(`🔧 MCP Tools: Listing available tools`);
+
+        const tools = [
+          {
+            name: 'calculate-growth-rate',
+            description: 'Calculate growth rate between two metrics',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                current_value: {
+                  type: 'number',
+                  description: 'Current metric value',
+                },
+                previous_value: {
+                  type: 'number',
+                  description: 'Previous metric value',
+                },
+              },
+              required: ['current_value', 'previous_value'],
+            },
+          },
+          {
+            name: 'format-metric',
+            description: 'Format a metric value with appropriate unit',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                value: {
+                  type: 'number',
+                  description: 'Metric value to format',
+                },
+                unit: {
+                  type: 'string',
+                  description: 'Unit type (users, dollars, percentage)',
+                  enum: ['users', 'dollars', 'percentage'],
+                },
+              },
+              required: ['value', 'unit'],
+            },
+          },
+        ];
+
+        return {
+          tools: tools,
+        };
+      } catch (error) {
+        console.error(`Error listing MCP tools: ${error.message}`);
+        return {
+          tools: [],
+        };
+      }
+    });
+
+    // Handle tools/call requests
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      try {
+        const { name, arguments: args } = request.params;
+        console.error(`⚙️ MCP Tools: Calling tool ${name}`);
+
+        const result = await this.callTool(name, args);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        console.error(`Error calling MCP tool ${request.params.name}: ${error.message}`);
+        throw new Error(`Failed to call tool: ${error.message}`);
       }
     });
   }
@@ -299,14 +446,124 @@ Users comparing us to competitors highlighted:
     }
   }
 
+  async getPromptContent(name, args = {}) {
+    switch (name) {
+      case 'analyze-metrics': {
+        const metricType = args.metric_type || 'users';
+        const timePeriod = args.time_period || 'Q4 2024';
+        return [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Please analyze the ${metricType} metrics for ${timePeriod}.
+
+Consider:
+1. Current trends and patterns
+2. Growth or decline rates
+3. Key insights and recommendations
+4. Areas of concern or opportunity
+
+Use the product-metrics resource (mcp-demo://product-metrics) for data.`,
+            },
+          },
+        ];
+      }
+
+      case 'generate-report': {
+        const reportType = args.report_type || 'metrics';
+        let resourceUri;
+        switch (reportType) {
+          case 'metrics':
+            resourceUri = 'mcp-demo://product-metrics';
+            break;
+          case 'feedback':
+            resourceUri = 'mcp-demo://user-feedback';
+            break;
+          case 'status':
+            resourceUri = 'mcp-demo://system-status';
+            break;
+          default:
+            resourceUri = 'mcp-demo://product-metrics';
+        }
+
+        return [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Generate a comprehensive ${reportType} report using data from ${resourceUri}.
+
+Include:
+- Executive summary
+- Key findings
+- Data visualization suggestions
+- Actionable recommendations`,
+            },
+          },
+        ];
+      }
+
+      default:
+        throw new Error(`Unknown prompt: ${name}`);
+    }
+  }
+
+  async callTool(name, args = {}) {
+    switch (name) {
+      case 'calculate-growth-rate': {
+        const { current_value, previous_value } = args;
+        if (previous_value === 0) {
+          return {
+            growth_rate: null,
+            error: 'Cannot calculate growth rate with zero previous value',
+          };
+        }
+        const growthRate = ((current_value - previous_value) / previous_value) * 100;
+        return {
+          growth_rate: growthRate.toFixed(2) + '%',
+          current_value,
+          previous_value,
+          absolute_change: current_value - previous_value,
+        };
+      }
+
+      case 'format-metric': {
+        const { value, unit } = args;
+        let formatted;
+        switch (unit) {
+          case 'users':
+            formatted = value.toLocaleString() + ' users';
+            break;
+          case 'dollars':
+            formatted = '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            break;
+          case 'percentage':
+            formatted = value.toFixed(1) + '%';
+            break;
+          default:
+            formatted = value.toString();
+        }
+        return {
+          formatted_value: formatted,
+          raw_value: value,
+          unit: unit,
+        };
+      }
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  }
+
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    
+
     console.error('🚀 MCP Resources Demo Server started');
-    console.error('📋 Capability: Resources (external data via MCP protocol)');
-    console.error('🔄 Available operations: resources/list, resources/read');
-    console.error('💡 This demonstrates MCP Resources from external server');
+    console.error('📋 Capabilities: Resources, Prompts, Tools');
+    console.error('🔄 Operations: resources/*, prompts/*, tools/*');
+    console.error('💡 Comprehensive demo of MCP protocol features');
   }
 }
 

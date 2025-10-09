@@ -1,11 +1,12 @@
 ---
 description: "Review code for bugs, improvements, and best practices with actionable feedback"
 id: code-review
-name: Code Review Assistant
-command: /code-review
+name: code-review
 category: coding
 ---
 
+<!-- TODO: (355) Move all prompts off absolute path and into relative agent specific paths, referenced using @dexto.agent_dir colocated near their folders. This allows us to keep agent specific prompts -->
+<!-- https://github.com/truffle-ai/dexto/pull/355#discussion_r2413003414 -->
 # Code Review Assistant
 
 I'm here to help you review code for bugs, improvements, and best practices. I'll analyze your code and provide actionable feedback with specific suggestions for improvement.

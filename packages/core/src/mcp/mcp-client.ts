@@ -15,8 +15,17 @@ import { ToolSet } from '../tools/types.js';
 import { IMCPClient, MCPResourceSummary } from './types.js';
 import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
-import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import type {
+    GetPromptResult,
+    ReadResourceResult,
+    Resource,
+    ResourceUpdatedNotification,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+    ResourceUpdatedNotificationSchema,
+    PromptListChangedNotificationSchema,
+    ToolListChangedNotificationSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 /**
@@ -401,12 +410,14 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         try {
             const response = await this.client!.listResources();
             logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
-            return response.resources.map((r: any) => ({
-                uri: r.uri,
-                name: r.name,
-                description: r.description,
-                mimeType: r.mimeType,
-            }));
+            return response.resources.map(
+                (r: Resource): MCPResourceSummary => ({
+                    uri: r.uri,
+                    name: r.name,
+                    ...(r.description !== undefined && { description: r.description }),
+                    ...(r.mimeType !== undefined && { mimeType: r.mimeType }),
+                })
+            );
         } catch (error) {
             logger.debug(
                 `Failed to list resources from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
@@ -500,30 +511,43 @@ export class MCPClient extends EventEmitter implements IMCPClient {
 
         try {
             // Resource updated
-            (this.client as any).setNotificationHandler?.(
-                'notifications/resources/updated',
-                (params: { uri: string; title?: string }) => this.handleResourceUpdated(params)
+            this.client.setNotificationHandler(
+                ResourceUpdatedNotificationSchema,
+                (notification: ResourceUpdatedNotification) => {
+                    // SDK notification.params has type { uri: string; _meta?: {...} } with passthrough
+                    // Access uri directly - it's the only guaranteed field per SDK spec
+                    this.handleResourceUpdated({
+                        uri: notification.params.uri,
+                    });
+                }
             );
         } catch (error) {
             logger.warn(`Could not set resources/updated notification handler: ${error}`);
         }
         try {
             // Prompts list changed
-            (this.client as any).setNotificationHandler?.(
-                'notifications/prompts/list_changed',
-                () => this.handlePromptsListChanged()
-            );
+            this.client.setNotificationHandler(PromptListChangedNotificationSchema, () => {
+                this.handlePromptsListChanged();
+            });
         } catch (error) {
             logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
         }
+        try {
+            // Tools list changed
+            this.client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+                this.handleToolsListChanged();
+            });
+        } catch (error) {
+            logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
+        }
 
-        logger.debug('MCP notification handlers registered (resources, prompts)');
+        logger.debug('MCP notification handlers registered (resources, prompts, tools)');
     }
 
     /**
      * Handle resource updated notification
      */
-    private handleResourceUpdated(params: { uri: string; title?: string }): void {
+    private handleResourceUpdated(params: { uri: string }): void {
         logger.debug(`Resource updated: ${params.uri}`);
         this.emit('resourceUpdated', params);
     }
@@ -534,5 +558,13 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private handlePromptsListChanged(): void {
         logger.debug('Prompts list changed');
         this.emit('promptsListChanged');
+    }
+
+    /**
+     * Handle tools list changed notification
+     */
+    private handleToolsListChanged(): void {
+        logger.debug('Tools list changed');
+        this.emit('toolsListChanged');
     }
 }

@@ -223,7 +223,6 @@ main() {
   # MCP endpoints validation
   run_test "GET /api/mcp/servers" GET "/api/mcp/servers" 200 || failures=$((failures+1))
   run_test "POST /api/mcp/servers no data" POST "/api/mcp/servers" 400 '{}' || failures=$((failures+1))
-  run_test "POST /api/connect-server no data" POST "/api/connect-server" 400 '{}' || failures=$((failures+1))
 
   # Webhook endpoints validation
   run_test "POST /api/webhooks no data" POST "/api/webhooks" 400 '{}' || failures=$((failures+1))

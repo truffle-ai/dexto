@@ -39,33 +39,58 @@ describe('SessionManager', () => {
     beforeEach(() => {
         vi.resetAllMocks();
 
-        // Mock storage manager - should match StorageBackends interface
+        // Mock storage manager with proper getter structure
+        const mockCache = {
+            get: vi.fn().mockResolvedValue(null),
+            set: vi.fn().mockResolvedValue(undefined),
+            delete: vi.fn().mockResolvedValue(true),
+            list: vi.fn().mockResolvedValue([]),
+            clear: vi.fn().mockResolvedValue(undefined),
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            isConnected: vi.fn().mockReturnValue(true),
+            getBackendType: vi.fn().mockReturnValue('memory'),
+        };
+
+        const mockDatabase = {
+            get: vi.fn().mockResolvedValue(null),
+            set: vi.fn().mockResolvedValue(undefined),
+            delete: vi.fn().mockResolvedValue(true),
+            list: vi.fn().mockResolvedValue([]),
+            clear: vi.fn().mockResolvedValue(undefined),
+            append: vi.fn().mockResolvedValue(undefined),
+            getRange: vi.fn().mockResolvedValue([]),
+            getLength: vi.fn().mockResolvedValue(0),
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            isConnected: vi.fn().mockReturnValue(true),
+            getBackendType: vi.fn().mockReturnValue('memory'),
+        };
+
+        const mockBlobStore = {
+            store: vi.fn().mockResolvedValue({ id: 'test', uri: 'blob:test' }),
+            retrieve: vi.fn().mockResolvedValue({ data: '', metadata: {} }),
+            exists: vi.fn().mockResolvedValue(false),
+            delete: vi.fn().mockResolvedValue(undefined),
+            cleanup: vi.fn().mockResolvedValue(0),
+            getStats: vi.fn().mockResolvedValue({ count: 0, totalSize: 0, backendType: 'local' }),
+            listBlobs: vi.fn().mockResolvedValue([]),
+            getStoragePath: vi.fn().mockReturnValue(undefined),
+            connect: vi.fn().mockResolvedValue(undefined),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            isConnected: vi.fn().mockReturnValue(true),
+            getStoreType: vi.fn().mockReturnValue('local'),
+        };
+
         mockStorageManager = {
-            cache: {
-                get: vi.fn().mockResolvedValue(null),
-                set: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(true),
-                list: vi.fn().mockResolvedValue([]),
-                clear: vi.fn().mockResolvedValue(undefined),
-                connect: vi.fn().mockResolvedValue(undefined),
-                disconnect: vi.fn().mockResolvedValue(undefined),
-                isConnected: vi.fn().mockReturnValue(true),
-                getBackendType: vi.fn().mockReturnValue('memory'),
-            },
-            database: {
-                get: vi.fn().mockResolvedValue(null),
-                set: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(true),
-                list: vi.fn().mockResolvedValue([]),
-                clear: vi.fn().mockResolvedValue(undefined),
-                append: vi.fn().mockResolvedValue(undefined),
-                getRange: vi.fn().mockResolvedValue([]),
-                getLength: vi.fn().mockResolvedValue(0),
-                connect: vi.fn().mockResolvedValue(undefined),
-                disconnect: vi.fn().mockResolvedValue(undefined),
-                isConnected: vi.fn().mockReturnValue(true),
-                getBackendType: vi.fn().mockReturnValue('memory'),
-            },
+            getCache: vi.fn().mockReturnValue(mockCache),
+            getDatabase: vi.fn().mockReturnValue(mockDatabase),
+            getBlobStore: vi.fn().mockReturnValue(mockBlobStore),
+            disconnect: vi.fn().mockResolvedValue(undefined),
+            // Also expose direct references for test assertions
+            cache: mockCache,
+            database: mockDatabase,
+            blobStore: mockBlobStore,
         };
 
         // Mock services
@@ -83,7 +108,7 @@ describe('SessionManager', () => {
             agentEventBus: {
                 emit: vi.fn(),
             },
-            storage: mockStorageManager,
+            storageManager: mockStorageManager,
         };
 
         // Parse LLM config now that mocks are set up
@@ -980,22 +1005,21 @@ describe('SessionManager', () => {
         let realSessionManager: SessionManager;
 
         beforeEach(async () => {
-            // Create real storage backends for end-to-end testing
-            const { createStorageBackends } = await import('../storage/index.js');
+            // Create real storage manager for end-to-end testing
+            const { createStorageManager } = await import('../storage/index.js');
 
             const storageConfig = StorageSchema.parse({
                 cache: { type: 'in-memory' as const },
                 database: { type: 'in-memory' as const },
             });
 
-            const result = await createStorageBackends(storageConfig);
-            realStorageBackends = result.backends;
+            realStorageBackends = await createStorageManager(storageConfig);
 
             // Create SessionManager with real storage and short TTL for faster testing
             realSessionManager = new SessionManager(
                 {
                     ...mockServices,
-                    storage: realStorageBackends,
+                    storageManager: realStorageBackends,
                 },
                 {
                     maxSessions: 10,

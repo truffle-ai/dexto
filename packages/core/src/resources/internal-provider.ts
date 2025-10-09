@@ -1,24 +1,26 @@
 import { ResourceProvider, ResourceMetadata, ResourceSource } from './types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../logger/index.js';
-import {
-    InternalResourceConfig,
-    InternalResourceHandler,
-    InternalResourceServices,
-    createInternalResourceHandler,
-} from './internal-registry.js';
-import type { ValidatedInternalResourcesConfig } from './schemas.js';
+import { createInternalResourceHandler } from './handlers/factory.js';
+import type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
+import type {
+    ValidatedInternalResourcesConfig,
+    ValidatedInternalResourceConfig,
+} from './schemas.js';
 import { InternalResourceConfigSchema } from './schemas.js';
+import { ResourceError } from './errors.js';
 
 export class InternalResourcesProvider implements ResourceProvider {
     private config: ValidatedInternalResourcesConfig;
     private handlers: Map<string, InternalResourceHandler> = new Map();
     private services: InternalResourceServices;
 
-    constructor(config: ValidatedInternalResourcesConfig, services: InternalResourceServices = {}) {
+    constructor(config: ValidatedInternalResourcesConfig, services: InternalResourceServices) {
         this.config = config;
         this.services = services;
-        logger.debug('InternalResourcesProvider initialized with config:', config);
+        logger.debug(
+            `InternalResourcesProvider initialized with config: ${JSON.stringify(config)}`
+        );
     }
 
     async initialize(): Promise<void> {
@@ -29,9 +31,9 @@ export class InternalResourcesProvider implements ResourceProvider {
 
         for (const resourceConfig of this.config.resources) {
             try {
-                const handler = createInternalResourceHandler(resourceConfig.type);
                 const parsedConfig = InternalResourceConfigSchema.parse(resourceConfig);
-                await handler.initialize(parsedConfig, this.services);
+                const handler = createInternalResourceHandler(parsedConfig, this.services);
+                await handler.initialize(this.services);
                 this.handlers.set(resourceConfig.type, handler);
                 logger.debug(`Initialized ${resourceConfig.type} resource handler`);
             } catch (error) {
@@ -85,7 +87,7 @@ export class InternalResourcesProvider implements ResourceProvider {
                 }
             }
         }
-        throw new Error(`No handler found for resource: ${uri}`);
+        throw ResourceError.noSuitableProvider(uri);
     }
 
     async refresh(): Promise<void> {
@@ -104,11 +106,11 @@ export class InternalResourcesProvider implements ResourceProvider {
         }
     }
 
-    async addResourceConfig(config: InternalResourceConfig): Promise<void> {
+    async addResourceConfig(config: ValidatedInternalResourceConfig): Promise<void> {
         try {
-            const handler = createInternalResourceHandler(config.type);
             const parsedConfig = InternalResourceConfigSchema.parse(config);
-            await handler.initialize(parsedConfig, this.services);
+            const handler = createInternalResourceHandler(parsedConfig, this.services);
+            await handler.initialize(this.services);
             this.handlers.set(config.type, handler);
             this.config.resources.push(parsedConfig);
             logger.info(`Added new ${config.type} resource handler`);
@@ -123,15 +125,6 @@ export class InternalResourcesProvider implements ResourceProvider {
 
     async removeResourceHandler(type: string): Promise<void> {
         if (this.handlers.has(type)) {
-            const handler = this.handlers.get(type);
-            try {
-                // Optional cleanup if supported by handler
-                if (handler && typeof (handler as any).dispose === 'function') {
-                    await (handler as any).dispose();
-                }
-            } catch (error) {
-                logger.error(`Cleanup failed for ${type} resource handler`, error);
-            }
             this.handlers.delete(type);
             this.config.resources = this.config.resources.filter((r) => r.type !== type);
             logger.info(`Removed ${type} resource handler`);

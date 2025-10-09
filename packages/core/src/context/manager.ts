@@ -9,7 +9,6 @@ import { logger } from '../logger/index.js';
 import { eventBus } from '../events/index.js';
 import {
     countMessagesTokens,
-    sanitizeToolResultToContent,
     sanitizeToolResultToContentWithBlobs,
     expandBlobReferences,
 } from './utils.js';
@@ -91,16 +90,16 @@ export class ContextManager<TMessage = unknown> {
     private readonly sessionId: string;
 
     /**
-     * Optional ResourceManager for resolving blob references in message content.
-     * When provided, blob references like @blob:abc123 will be resolved to actual data
+     * ResourceManager for resolving blob references in message content.
+     * Blob references like @blob:abc123 are resolved to actual data
      * before passing messages to the LLM formatter.
      */
-    private resourceManager?: import('../resources/index.js').ResourceManager | undefined;
+    private resourceManager: import('../resources/index.js').ResourceManager;
 
     /**
-     * Get the ResourceManager instance (if available)
+     * Get the ResourceManager instance
      */
-    public getResourceManager(): import('../resources/index.js').ResourceManager | undefined {
+    public getResourceManager(): import('../resources/index.js').ResourceManager {
         return this.resourceManager;
     }
 
@@ -116,11 +115,7 @@ export class ContextManager<TMessage = unknown> {
             source?: 'user' | 'system';
         }
     ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
-        // Only process if we have a blob service available
-        const blobService = this.resourceManager?.getBlobService();
-        if (!blobService) {
-            return data;
-        }
+        const blobService = this.resourceManager.getBlobStore();
 
         // Estimate data size to decide if we should store as blob
         let shouldStoreAsBlob = false;
@@ -208,11 +203,11 @@ export class ContextManager<TMessage = unknown> {
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
+        resourceManager: import('../resources/index.js').ResourceManager,
         compressionStrategies: ICompressionStrategy[] = [
             new MiddleRemovalStrategy(),
             new OldestRemovalStrategy(),
-        ],
-        resourceManager?: import('../resources/index.js').ResourceManager
+        ]
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -570,14 +565,12 @@ export class ContextManager<TMessage = unknown> {
         }
         // Sanitize tool result to avoid adding non-text data as raw text
         // and to convert media/data-uris/base64 to structured parts.
-        // If a resource manager is available, automatically store large media as blobs.
-        const blobService = this.resourceManager?.getBlobService();
-        const content = blobService
-            ? await sanitizeToolResultToContentWithBlobs(result, blobService, {
-                  toolName: name,
-                  toolCallId,
-              })
-            : sanitizeToolResultToContent(result);
+        // Automatically store large media as blobs using the blob service.
+        const blobService = this.resourceManager.getBlobStore();
+        const content = await sanitizeToolResultToContentWithBlobs(result, blobService, {
+            toolName: name,
+            toolCallId,
+        });
 
         // Log what we are storing (brief)
         if (typeof content === 'string') {
@@ -636,19 +629,17 @@ export class ContextManager<TMessage = unknown> {
         let messageHistory: InternalMessage[] =
             history ?? (await this.historyProvider.getHistory());
 
-        // Resolve blob references if resource manager is available
-        if (this.resourceManager) {
-            logger.debug('Resolving blob references in message history before formatting');
-            messageHistory = await Promise.all(
-                messageHistory.map(async (message) => {
-                    const expandedContent = await expandBlobReferences(
-                        message.content,
-                        this.resourceManager!
-                    );
-                    return { ...message, content: expandedContent };
-                })
-            );
-        }
+        // Resolve blob references using resource manager
+        logger.debug('Resolving blob references in message history before formatting');
+        messageHistory = await Promise.all(
+            messageHistory.map(async (message) => {
+                const expandedContent = await expandBlobReferences(
+                    message.content,
+                    this.resourceManager
+                );
+                return { ...message, content: expandedContent };
+            })
+        );
 
         // Use pre-computed system prompt if provided
         const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));

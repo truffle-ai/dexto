@@ -127,9 +127,13 @@ export default function SlashCommandAutocomplete({
   const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const selectedIndexRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastRefreshKeyRef = useRef<number>(0);
+
+  // Keep the latest selected index accessible in callbacks without needing extra effect deps
+  selectedIndexRef.current = selectedIndex;
 
   const showCreateOption = React.useMemo(() => {
     const trimmed = searchQuery.trim();
@@ -219,36 +223,42 @@ export default function SlashCommandAutocomplete({
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery === '/') {
       setFilteredPrompts(prompts);
-      setSelectedIndex(0);
+      // Calculate index based on prompts we're setting, not current state
+      const shouldShowCreate = searchQuery === '/';
+      const defaultIndex = shouldShowCreate && prompts.length > 0 ? 1 : 0;
+      setSelectedIndex(defaultIndex);
       return;
     }
 
     // Remove the leading "/" for filtering
     const query = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
-    
-    const filtered = prompts.filter(prompt => 
+
+    const filtered = prompts.filter(prompt =>
       prompt.name.toLowerCase().includes(query.toLowerCase()) ||
       (prompt.description && prompt.description.toLowerCase().includes(query.toLowerCase())) ||
       (prompt.title && prompt.title.toLowerCase().includes(query.toLowerCase()))
     );
-    
+
     setFilteredPrompts(filtered);
+    // Reset to first item (create option takes index 0 if shown)
     setSelectedIndex(0);
   }, [searchQuery, prompts]);
 
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [showCreateOption, filteredPrompts.length, searchQuery]);
+  const itemsLength = combinedItems.length;
 
   useEffect(() => {
-    if (combinedItems.length === 0) {
-      setSelectedIndex(0);
-      return;
-    }
-    if (selectedIndex >= combinedItems.length) {
-      setSelectedIndex(combinedItems.length - 1);
-    }
-  }, [combinedItems, selectedIndex]);
+    setSelectedIndex(prevIndex => {
+      if (itemsLength === 0) {
+        return 0;
+      }
+
+      if (prevIndex >= itemsLength) {
+        return itemsLength - 1;
+      }
+
+      return prevIndex;
+    });
+  }, [itemsLength]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -256,25 +266,31 @@ export default function SlashCommandAutocomplete({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const items = combinedItems;
+      const stop = () => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Some environments support stopImmediatePropagation on DOM events
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      };
       switch (e.key) {
         case 'ArrowDown':
           if (items.length === 0) return;
-          e.preventDefault();
+          stop();
           setSelectedIndex((prev) => (prev + 1) % items.length);
           break;
         case 'ArrowUp':
           if (items.length === 0) return;
-          e.preventDefault();
+          stop();
           setSelectedIndex((prev) => (prev - 1 + items.length) % items.length);
           break;
         case 'Enter':
-          e.preventDefault();
+          stop();
           if (items.length === 0) {
             onCreatePrompt?.();
             return;
           }
           {
-            const item = items[selectedIndex];
+            const item = items[selectedIndexRef.current];
             if (item.kind === 'create') {
               onCreatePrompt?.();
             } else {
@@ -283,17 +299,17 @@ export default function SlashCommandAutocomplete({
           }
           break;
         case 'Escape':
-          e.preventDefault();
+          stop();
           onClose();
           break;
         case 'Tab':
-          e.preventDefault();
+          stop();
           if (items.length === 0) {
             onCreatePrompt?.();
             return;
           }
           {
-            const item = items[selectedIndex];
+            const item = items[selectedIndexRef.current];
             if (item.kind === 'create') {
               onCreatePrompt?.();
             } else {
@@ -304,9 +320,10 @@ export default function SlashCommandAutocomplete({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isVisible, combinedItems, selectedIndex, onSelectPrompt, onClose, onCreatePrompt]);
+    // Use capture phase so we can intercept Enter before input handlers stop propagation
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isVisible, combinedItems, onSelectPrompt, onClose, onCreatePrompt]);
 
   // Scroll selected item into view when selectedIndex changes
   useEffect(() => {

@@ -7,14 +7,14 @@ mcpServers:
     type: stdio
     command: node
     args:
-      - "./examples/resources-demo-server/server.js"
+      - "${{dexto.agent_dir}}/server.js"
     timeout: 30000
     connectionMode: lenient
 
 # LLM configuration
 llm:
   provider: openai
-  model: gpt-4o-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
 # System prompt configuration

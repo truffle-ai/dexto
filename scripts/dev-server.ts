@@ -7,6 +7,10 @@
  * 3. Starts WebUI in dev mode with hot reload
  *
  * No symlinks needed - runs directly from built files!
+ *
+ * Usage:
+ *   pnpm dev                                    # Use default agent
+ *   pnpm dev -- --agent examples/resources-demo-server/agent.yml
  */
 
 import { execSync, spawn, ChildProcess } from 'child_process';
@@ -17,6 +21,11 @@ const cliPath = join(rootDir, 'packages/cli/dist/index.js');
 
 let apiProcess: ChildProcess | null = null;
 let webuiProcess: ChildProcess | null = null;
+
+// Parse command-line arguments
+const args = process.argv.slice(2);
+const agentIndex = args.indexOf('--agent');
+const agentPath = agentIndex !== -1 && agentIndex + 1 < args.length ? args[agentIndex + 1] : null;
 
 // Cleanup function
 function cleanup() {
@@ -51,8 +60,15 @@ try {
 console.log('🚀 Starting development servers...\n');
 
 // Start API server directly from dist
-console.log('📡 Starting API server on port 3001...');
-apiProcess = spawn('node', [cliPath, '--mode', 'server'], {
+const cliArgs = [cliPath, '--mode', 'server'];
+if (agentPath) {
+    console.log(`📡 Starting API server on port 3001 with agent: ${agentPath}...`);
+    cliArgs.push('--agent', agentPath);
+} else {
+    console.log('📡 Starting API server on port 3001...');
+}
+
+apiProcess = spawn('node', cliArgs, {
     stdio: ['inherit', 'pipe', 'pipe'],
     cwd: rootDir,
     env: {

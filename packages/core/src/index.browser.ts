@@ -26,8 +26,8 @@ export {
 } from './mcp/schemas.js';
 
 // Storage types and constants (used by webui)
-export type { CacheBackendType, DatabaseBackendType } from './storage/schemas.js';
-export { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from './storage/schemas.js';
+export type { CacheType, DatabaseType } from './storage/schemas.js';
+export { CACHE_TYPES, DATABASE_TYPES } from './storage/schemas.js';
 
 // Tool confirmation types and constants (used by webui)
 export type { ToolConfirmationMode, AllowedToolsStorageType } from './tools/schemas.js';

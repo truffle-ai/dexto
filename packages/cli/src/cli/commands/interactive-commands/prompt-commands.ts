@@ -5,7 +5,7 @@
  * These commands provide functionality for viewing and managing system prompts.
  *
  * Available Prompt Commands:
- * - /prompt - Display the current system prompt
+ * - /sysprompt - Display the current system prompt
  * - /prompts - List all available prompts (MCP + internal)
  * - /<prompt-name> [args] - Direct prompt execution (auto-generated for each prompt)
  */
@@ -21,9 +21,9 @@ import type { CommandDefinition } from './command-parser.js';
  */
 export const promptCommands: CommandDefinition[] = [
     {
-        name: 'prompt',
+        name: 'sysprompt',
         description: 'Display the current system prompt',
-        usage: '/prompt',
+        usage: '/sysprompt',
         category: 'Prompt Management',
         handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
@@ -49,7 +49,7 @@ export const promptCommands: CommandDefinition[] = [
         category: 'Prompt Management',
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean> => {
             try {
-                const prompts = (await agent.promptsManager.list()) as Record<string, PromptInfo>;
+                const prompts = await agent.listPrompts();
                 const promptNames = Object.keys(prompts || {});
 
                 if (promptNames.length === 0) {
@@ -82,7 +82,9 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             const args =
                                 info.arguments && info.arguments.length > 0
@@ -103,7 +105,9 @@ export const promptCommands: CommandDefinition[] = [
                     internalPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
                                 `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
@@ -118,7 +122,9 @@ export const promptCommands: CommandDefinition[] = [
                     starterPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
                                 `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
@@ -133,7 +139,9 @@ export const promptCommands: CommandDefinition[] = [
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            const title = info.title ? ` (${info.title})` : '';
+                            // Only show title if it's different from name
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
                                 `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
@@ -156,6 +164,8 @@ export const promptCommands: CommandDefinition[] = [
         },
     },
     {
+        // TODO: (355) USER TO CHECK: Nit: rename to 'use prompt'?
+        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412938399
         name: 'use',
         description: 'Use a specific prompt with optional arguments',
         usage: '/<prompt-name> [args]',
@@ -177,7 +187,7 @@ export const promptCommands: CommandDefinition[] = [
                 const promptArgs = args.slice(1);
 
                 // Check if prompt exists
-                if (!promptName || !(await agent.promptsManager.has(promptName))) {
+                if (!promptName || !(await agent.hasPrompt(promptName))) {
                     console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
                     console.log(chalk.dim('Use /prompts to see available prompts'));
                     return true;
@@ -193,7 +203,7 @@ export const promptCommands: CommandDefinition[] = [
                     console.log(chalk.dim(`Context: ${context}`));
                 }
 
-                const result = await agent.promptsManager.getPrompt(promptName!, argMap);
+                const result = await agent.getPrompt(promptName!, argMap);
 
                 const flattened = flattenPromptResult(result);
                 if (flattened.resourceUris.length > 0) {
@@ -262,7 +272,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     );
                 }
 
-                const result = await agent.promptsManager.getPrompt(promptInfo.name, argMap);
+                const result = await agent.getPrompt(promptInfo.name, argMap);
 
                 const flattened = flattenPromptResult(result);
                 if (flattened.resourceUris.length > 0) {
@@ -304,7 +314,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
  */
 export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
     try {
-        const prompts = (await agent.promptsManager.list()) as Record<string, PromptInfo>;
+        const prompts = await agent.listPrompts();
         return Object.values(prompts).map(createPromptCommand);
     } catch (error) {
         logger.error(

@@ -210,7 +210,6 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                     data: {
                         serverName: payload.serverName,
                         resourceUri: payload.resourceUri,
-                        title: payload.title,
                     },
                 });
             },
@@ -225,6 +224,20 @@ export class WebSocketEventSubscriber implements EventSubscriber {
                     data: {
                         serverName: payload.serverName,
                         prompts: payload.prompts,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpToolsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpToolsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        tools: payload.tools,
                     },
                 });
             },

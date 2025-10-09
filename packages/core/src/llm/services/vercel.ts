@@ -13,7 +13,6 @@ import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
 import {
-    sanitizeToolResultToContent,
     sanitizeToolResultToContentWithBlobs,
     summarizeToolContentForText,
 } from '../../context/utils.js';
@@ -61,7 +60,7 @@ export class VercelLLMService implements ILLMService {
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
-        resourceManager?: import('../../resources/index.js').ResourceManager
+        resourceManager: import('../../resources/index.js').ResourceManager
     ) {
         this.model = model;
         this.config = config;
@@ -84,8 +83,8 @@ export class VercelLLMService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            undefined, // Use default compression strategies
             resourceManager
+            // compressionStrategies uses default
         );
 
         logger.debug(
@@ -121,20 +120,18 @@ export class VercelLLMService implements ILLMService {
                             // Sanitize tool result to prevent large/base64 media from exploding context
                             // Convert arbitrary result -> InternalMessage content (media as structured parts)
                             // then summarize to concise text suitable for Vercel tool output.
-                            // Use blob-aware sanitization if blob store is available
+                            // Use blob-aware sanitization with blob store
                             const resourceManager = this.contextManager.getResourceManager();
-                            const blobService = resourceManager?.getBlobService();
+                            const blobService = resourceManager.getBlobStore();
 
-                            const safeContent = blobService
-                                ? await sanitizeToolResultToContentWithBlobs(
-                                      rawResult,
-                                      blobService,
-                                      {
-                                          toolName,
-                                          toolCallId: options.toolCallId,
-                                      }
-                                  )
-                                : sanitizeToolResultToContent(rawResult);
+                            const safeContent = await sanitizeToolResultToContentWithBlobs(
+                                rawResult,
+                                blobService,
+                                {
+                                    toolName,
+                                    toolCallId: options.toolCallId,
+                                }
+                            );
                             const summaryText = summarizeToolContentForText(safeContent);
                             return summaryText;
                         } catch (err: unknown) {

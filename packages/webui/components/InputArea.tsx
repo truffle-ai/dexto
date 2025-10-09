@@ -22,7 +22,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/t
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn } from '../lib/utils';
 import ResourceAutocomplete from './ResourceAutocomplete';
-import type { ResourceMetadata as UIResourceMetadata } from './types/resources';
+import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
@@ -255,7 +255,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       if (name) {
         try {
           const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
-          if (originalArgsText) url.searchParams.set('_context', originalArgsText);
+          if (originalArgsText) url.searchParams.set('context', originalArgsText);
 
           // Add timeout to prevent hanging on slow responses
           const controller = new AbortController();

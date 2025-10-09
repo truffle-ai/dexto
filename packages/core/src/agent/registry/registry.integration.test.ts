@@ -152,7 +152,8 @@ describe('LocalAgentRegistry - Integration Tests', () => {
             expect(agents).toHaveProperty('default-agent');
             expect(agents).toHaveProperty('coding-agent');
             expect(agents).toHaveProperty('custom-test');
-            expect(agents['custom-test'].type).toBe('custom');
+            expect(agents['custom-test']).toBeDefined();
+            expect(agents['custom-test']!.type).toBe('custom');
             expect(Object.keys(agents)).toHaveLength(3);
         });
     });
@@ -176,8 +177,9 @@ describe('LocalAgentRegistry - Integration Tests', () => {
             expect(registry.hasAgent('my-agent')).toBe(true);
 
             const agents = registry.getAvailableAgents();
-            expect(agents['my-agent'].type).toBe('custom');
-            expect(agents['my-agent'].description).toBe('My custom agent');
+            expect(agents['my-agent']).toBeDefined();
+            expect(agents['my-agent']!.type).toBe('custom');
+            expect(agents['my-agent']!.description).toBe('My custom agent');
         });
 
         it('should install custom agent from directory', async () => {

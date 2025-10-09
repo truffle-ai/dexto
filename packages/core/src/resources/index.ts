@@ -4,28 +4,27 @@
  */
 
 // Core resource types and manager
+export type { ResourceSource, ResourceMetadata, ResourceProvider, ResourceSet } from './types.js';
+
 export type {
-    ResourceSource,
-    ResourceMetadata,
-    ResourceProvider,
-    ResourceSet,
     InternalResourcesConfig,
     ValidatedInternalResourcesConfig,
-} from './core.js';
-export { ResourceManager, ResourceError, ResourceErrorCodes } from './core.js';
+    ValidatedInternalResourceConfig,
+    ValidatedFileSystemResourceConfig,
+    ValidatedBlobResourceConfig,
+} from './schemas.js';
 
-// Internal resources provider and registry
-export type {
-    InternalResourceConfig,
-    InternalResourceHandler,
-    InternalResourceServices,
-    BlobResourceConfig,
-} from './internal.js';
+export { ResourceManager } from './manager.js';
+export { ResourceError } from './errors.js';
+export { ResourceErrorCodes } from './error-codes.js';
+
+// Internal resources provider and handlers
+export type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
+export { InternalResourcesProvider } from './internal-provider.js';
 export {
-    InternalResourcesProvider,
     createInternalResourceHandler,
     getInternalResourceHandlerTypes,
-} from './internal.js';
+} from './handlers/factory.js';
 
 // Resource reference parsing and expansion
 /**
@@ -51,13 +50,13 @@ export {
  * - "user@example.com" → literal text (no leading space)
  * - "See @file1.txt and email user@example.com" → only @file1.txt is a reference
  */
-export type { ResourceReference, ResourceExpansionResult } from './reference.js';
+export type { ResourceReference, ResourceExpansionResult } from './reference-parser.js';
 export {
     parseResourceReferences,
     resolveResourceReferences,
     expandMessageReferences,
     formatResourceContent,
-} from './reference.js';
+} from './reference-parser.js';
 
 // Schemas and validation
 export {

@@ -73,21 +73,24 @@ export default function ChatApp() {
 
   // Starter prompts state (from agent config via /api/prompts)
   const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
+  const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
 
   // Fetch starter prompts when in welcome state
   useEffect(() => {
     if (!isWelcomeState) return;
 
     let cancelled = false;
+    setStarterPromptsLoaded(false);
     loadPrompts()
       .then((prompts) => {
         if (!cancelled) {
           setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
+          setStarterPromptsLoaded(true);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setStarterPrompts([]);
+          setStarterPromptsLoaded(true);
         }
       });
 
@@ -351,7 +354,7 @@ export default function ChatApp() {
 
       try {
         setIsRegistryBusy(true);
-        const res = await fetch('/api/connect-server', {
+        const res = await fetch('/api/mcp/servers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
@@ -449,7 +452,8 @@ export default function ChatApp() {
     }
   }, [handleSessionChange]);
 
-  const quickActions = [
+  // Memoize quick actions to prevent unnecessary recomputation
+  const quickActions = React.useMemo(() => [
     {
       title: "Help me get started",
       description: "Show me what you can do",
@@ -474,38 +478,41 @@ export default function ChatApp() {
       action: () => handleSend("Pick one of your most interesting tools and demonstrate it with a practical example. Show me what it can do."),
       icon: "⚡"
     }
-  ];
+  ], [handleSend, setServersPanelOpen]);
 
   // Merge dynamic quick actions from starter prompts
   const dynamicQuickActions = React.useMemo(() => {
+    // Show default quick actions while loading
+    if (!starterPromptsLoaded) {
+      return quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
+    }
+
     // If starter prompts are present, hide the built-in defaults to avoid duplication
-    const actions: Array<{ title: string; description: string; action: () => void; icon: string }> =
-      starterPrompts.length > 0 ? [] : [...quickActions];
+    const actions: Array<{ description: string; tooltip?: string; action: () => void }> =
+      starterPrompts.length > 0 ? [] : quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
     starterPrompts.forEach((prompt) => {
-      const iconFromConfig =
-        typeof prompt?.metadata === 'object' && prompt.metadata !== null &&
-        typeof (prompt.metadata as { icon?: unknown }).icon === 'string'
-          ? ((prompt.metadata as { icon?: unknown }).icon as string)
-          : undefined;
+      const description = prompt.title || prompt.description || 'Starter prompt';
+      const tooltip = prompt.description;
+
       if (prompt?.name === 'starter:connect-tools') {
         actions.push({
-          title: prompt.title || prompt.name,
-          description: prompt.description || 'Starter prompt',
+          description,
+          tooltip,
           action: () => setServersPanelOpen(true),
-          icon: iconFromConfig || '🔧',
         });
       } else {
-        const slash = `/${prompt.name}`;
+        // Use the actual prompt text from metadata if available, otherwise fall back to slash command
+        const promptText = prompt.metadata?.prompt as string | undefined;
+        const messageToSend = promptText || `/${prompt.name}`;
         actions.push({
-          title: prompt.title || prompt.name,
-          description: prompt.description || 'Starter prompt',
-          action: () => handleSend(slash),
-          icon: iconFromConfig || '⭐',
+          description,
+          tooltip,
+          action: () => handleSend(messageToSend),
         });
       }
     });
     return actions;
-  }, [starterPrompts, handleSend, setServersPanelOpen]);
+  }, [starterPrompts, starterPromptsLoaded, quickActions, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -825,7 +832,7 @@ export default function ChatApp() {
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        {greeting ?? "Welcome to Dexto"}
+                        {greeting || 'Welcome to Dexto'}
                       </h2>
                     </div>
                     <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
@@ -836,23 +843,32 @@ export default function ChatApp() {
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
                     {dynamicQuickActions.map((action, index) => {
-                      const title = action.title || '';
-                      const icon = action.icon || '';
-                      const showIcon = Boolean(icon) && !title.includes(icon);
-                      return (
+                      const button = (
                         <button
                           key={index}
                           onClick={action.action}
                           className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
                         >
-                          <div className="flex items-center space-x-1.5">
-                            {showIcon && <span className="text-sm">{icon}</span>}
-                            <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
-                              {title}
-                            </span>
-                          </div>
+                          <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
+                            {action.description}
+                          </span>
                         </button>
                       );
+
+                      if (action.tooltip) {
+                        return (
+                          <Tooltip key={index}>
+                            <TooltipTrigger asChild>
+                              {button}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {action.tooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+
+                      return button;
                     })}
                   </div>
 

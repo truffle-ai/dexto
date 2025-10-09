@@ -63,5 +63,4 @@ export * from './utils/index.js';
 // Resources
 export * from './resources/index.js';
 
-// Blob Service
-export * from './blob/index.js';
+// Note: Blob types, schemas, and errors are exported from './storage/index.js'

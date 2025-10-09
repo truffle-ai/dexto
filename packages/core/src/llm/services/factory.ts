@@ -37,7 +37,7 @@ function _createInBuiltLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
-    resourceManager?: import('../../resources/index.js').ResourceManager
+    resourceManager: import('../../resources/index.js').ResourceManager
 ): ILLMService {
     const apiKey = config.apiKey;
 
@@ -147,7 +147,7 @@ function _createVercelLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
-    resourceManager?: import('../../resources/index.js').ResourceManager
+    resourceManager: import('../../resources/index.js').ResourceManager
 ): VercelLLMService {
     const model = _createVercelModel(config);
 
@@ -174,7 +174,7 @@ export function createLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
-    resourceManager?: import('../../resources/index.js').ResourceManager
+    resourceManager: import('../../resources/index.js').ResourceManager
 ): ILLMService {
     if (router === 'vercel') {
         return _createVercelLLMService(

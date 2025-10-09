@@ -6,7 +6,7 @@ This guide explains how to add support for a new Large Language Model (LLM) prov
 
 Dexto uses an abstraction layer to interact with different LLM providers:
 
-```
+```text
 +-----------------+      +---------------------+      +---------------------+
 |  Client Manager |----->|     LLM Factory     |<-----|       Config        |
 | (Tool Execution)|      +----------+----------+      +---------------------+
