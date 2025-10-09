@@ -122,7 +122,7 @@ export class StorageManager {
 
         // If any disconnections failed, throw an aggregated error
         if (errors.length > 0) {
-            throw new Error(
+            throw StorageError.connectionFailed(
                 `Failed to disconnect ${errors.length} storage backend(s): ${errors.map((e) => e.message).join(', ')}`
             );
         }

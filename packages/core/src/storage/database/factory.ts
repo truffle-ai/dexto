@@ -44,7 +44,10 @@ async function createPostgresStore(config: PostgresDatabaseConfig): Promise<Data
         logger.info('Connecting to PostgreSQL database');
         return new PostgresStore(config);
     } catch (error) {
-        logger.warn(`PostgreSQL not available, falling back to in-memory database: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn(
+            `PostgreSQL not available, falling back to in-memory database: ${errorMessage}`
+        );
         return new MemoryDatabaseStore();
     }
 }
@@ -58,10 +61,8 @@ async function createSQLiteStore(config: SqliteDatabaseConfig): Promise<Database
         logger.info(`Using SQLite database at ${config.path}`);
         return new SQLiteStore(config);
     } catch (error) {
-        logger.error(
-            `SQLite store failed to load: ${error instanceof Error ? error.message : String(error)}`
-        );
-        logger.error(`Full error details: ${JSON.stringify(error)}`);
+        const err = error instanceof Error ? error : new Error(String(error));
+        logger.error(`SQLite store failed to load: ${err.message}`, err);
         logger.warn('Falling back to in-memory database store');
         return new MemoryDatabaseStore();
     }

@@ -452,7 +452,8 @@ export default function ChatApp() {
     }
   }, [handleSessionChange]);
 
-  const quickActions = [
+  // Memoize quick actions to prevent unnecessary recomputation
+  const quickActions = React.useMemo(() => [
     {
       title: "Help me get started",
       description: "Show me what you can do",
@@ -477,7 +478,7 @@ export default function ChatApp() {
       action: () => handleSend("Pick one of your most interesting tools and demonstrate it with a practical example. Show me what it can do."),
       icon: "⚡"
     }
-  ];
+  ], [handleSend, setServersPanelOpen]);
 
   // Merge dynamic quick actions from starter prompts
   const dynamicQuickActions = React.useMemo(() => {

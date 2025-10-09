@@ -2,7 +2,7 @@ import { logger } from '../../logger/index.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { BlobStore } from '../../storage/blob/types.js';
+import type { BlobStore, StoredBlobMetadata } from '../../storage/blob/types.js';
 import type { ValidatedBlobResourceConfig } from '../schemas.js';
 import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 
@@ -147,7 +147,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
     /**
      * Generate a user-friendly display name for a blob with proper file extension
      */
-    private generateBlobDisplayName(metadata: any, _blobId: string): string {
+    private generateBlobDisplayName(metadata: StoredBlobMetadata, _blobId: string): string {
         // If we have an original name with extension, use it
         if (metadata.originalName && metadata.originalName.includes('.')) {
             return metadata.originalName;

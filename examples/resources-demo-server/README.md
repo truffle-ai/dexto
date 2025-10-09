@@ -112,7 +112,7 @@ Try these interactions to test each capability:
 ✅ **With All Capabilities Working:**
 - Dexto connects to the MCP server successfully
 - **Resources:** ResourceManager.listAllResources() returns 3 resources with URIs like `mcp:resources-demo:mcp-demo://product-metrics`
-- **Prompts:** PromptsManager.getAllPromptMetadata() returns 2 prompts (analyze-metrics, generate-report)
+- **Prompts:** MCPManager.getAllPromptMetadata() returns 2 prompts (analyze-metrics, generate-report)
 - **Tools:** MCPManager.getAllTools() returns 2 tools (calculate-growth-rate, format-metric)
 - All capabilities are cached and accessible without network calls after initial connection
 
