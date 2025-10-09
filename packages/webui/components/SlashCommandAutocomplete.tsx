@@ -415,7 +415,7 @@ export default function SlashCommandAutocomplete({
       {/* Header - Compact with prompt count */}
       <div className="px-3 py-2 border-b border-border bg-muted/50">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>Available Prompts</span>
+          <span>Available Prompts (hover over arguments for more info)</span>
           <Badge variant="secondary" className="ml-auto text-xs px-2 py-0.5">
             {prompts.length}
           </Badge>

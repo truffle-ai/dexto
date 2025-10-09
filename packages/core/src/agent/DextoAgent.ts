@@ -1264,7 +1264,6 @@ export class DextoAgent {
      * - Prompt key resolution (resolving aliases)
      * - Argument normalization (including special _context field)
      * - Prompt execution and flattening
-     * - Context appending
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
@@ -1278,36 +1277,7 @@ export class DextoAgent {
         } = {}
     ): Promise<{ text: string; resources: string[] }> {
         this.ensureStarted();
-
-        const { normalizePromptArgs, appendContext, flattenPromptResult } = await import(
-            '../prompts/index.js'
-        );
-        const { PromptError } = await import('../prompts/index.js');
-
-        // Build args from options
-        const args: Record<string, unknown> = { ...options.args };
-        if (options.context?.trim()) args._context = options.context.trim();
-
-        // Resolve provided name to a valid prompt key using promptManager
-        const resolvedName = (await this.promptManager.resolvePromptKey(name)) ?? name;
-
-        // Normalize args (converts to strings, extracts context)
-        const normalized = normalizePromptArgs(args);
-
-        // Get and flatten the prompt result
-        // Note: PromptManager handles positional-to-named argument mapping internally
-        const promptResult = await this.promptManager.getPrompt(resolvedName, normalized.args);
-        const flattened = flattenPromptResult(promptResult);
-
-        // Append context to the text
-        const finalText = appendContext(flattened.text, normalized.context);
-
-        // Validate result
-        if (!finalText && flattened.resourceUris.length === 0) {
-            throw PromptError.emptyResolvedContent(resolvedName);
-        }
-
-        return { text: finalText, resources: flattened.resourceUris };
+        return await this.promptManager.resolvePrompt(name, options);
     }
 
     // ============= CONFIGURATION ACCESS =============

@@ -256,7 +256,7 @@ Becomes:
 
 - Check you're using correct placeholder syntax: `$1` not `{1}`
 - Verify argument positions match usage: `$1` = first arg after command
-- Remember `$ARGUMENTS` includes ALL positional args (including `$1`, `$2`, etc.)
+- Remember `$ARGUMENTS` only includes remaining positional args after explicit `$1..$9` placeholders.
 
 ### UI not showing argument hints
 

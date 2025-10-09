@@ -298,6 +298,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     setText('');
     setImageData(null);
     setFileData(null);
+    // Ensure guidance window closes after submit
+    setShowSlashCommands(false);
     // Height handled by CSS; no imperative adjustments.
   };
 
@@ -370,16 +372,13 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     const value = e.target.value;
     setText(value);
 
-    // Show slash commands when user types "/"
-    // Keep it open as long as the line starts with "/" and doesn't have a newline
-    if (value === '/') {
+    // Guidance UX: keep slash guidance window open while the user is constructing
+    // a slash command (i.e., as long as the input starts with '/' and has no newline).
+    // This lets users see argument hints while typing positional/named args.
+    if (value.startsWith('/') && !value.includes('\n')) {
       setShowSlashCommands(true);
-    } else if (value.startsWith('/') && !value.includes('\n')) {
-      setShowSlashCommands(true);
-    } else {
-      if (showSlashCommands) {
-        setShowSlashCommands(false);
-      }
+    } else if (showSlashCommands) {
+      setShowSlashCommands(false);
     }
   };
 

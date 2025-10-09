@@ -336,10 +336,25 @@ export class FilePromptProvider implements PromptProvider {
         return { resourceUri: blob.uri };
     }
 
+    /**
+     * Apply arguments to a file prompt's content.
+     *
+     * Behavior mirrors Claude Code-style file prompts:
+     * - Positional placeholders ($1..$9 and $ARGUMENTS) are expanded first.
+     * - If and only if the template contains explicit placeholders ($1..$9 or $ARGUMENTS),
+     *   then we consider arguments "deconstructed in-template" and DO NOT append them again.
+     * - If the template contains no such placeholders, we append either:
+     *   - `Context: <_context>` above the content when `_context` is provided, or
+     *   - `Arguments: key: value, ...` below the content for plain named args.
+     *
+     * Notes:
+     * - The `$$` sequence is an escape for a literal dollar sign. It MUST NOT be
+     *   treated as a placeholder indicator and should not suppress argument appending.
+     */
     private applyArguments(content: string, args?: Record<string, unknown>): string {
-        // Check if content uses any placeholders ($1-$9, $ARGUMENTS, or $$)
-        const hasPlaceholders =
-            /\$[1-9]/.test(content) || content.includes('$ARGUMENTS') || content.includes('$$');
+        // Detect whether content uses positional placeholders. DO NOT treat `$$` as placeholder usage.
+        const usesPositionalPlaceholders =
+            /\$[1-9]/.test(content) || content.includes('$ARGUMENTS');
 
         // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
         const expanded = expandPlaceholders(content, args).trim();
@@ -350,7 +365,7 @@ export class FilePromptProvider implements PromptProvider {
 
         // If the prompt doesn't use placeholders, append formatted arguments
         // so they're available to the LLM even without explicit placeholder syntax
-        if (!hasPlaceholders) {
+        if (!usesPositionalPlaceholders) {
             // Handle _context separately (for natural language after slash commands)
             if ((args as any)._context) {
                 const contextString = String((args as any)._context);
