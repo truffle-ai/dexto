@@ -64,9 +64,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe(
-            'Check this file\nFile content here\n\n@<file:///path/to/file.txt>'
-        );
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Check this file\nFile content here');
         expect(flattened.resourceUris).toEqual(['file:///path/to/file.txt']);
     });
 
@@ -98,8 +97,8 @@ describe('flattenPromptResult', () => {
         const flattened = flattenPromptResult(result);
 
         expect(flattened.resourceUris).toEqual(['file:///same.txt']);
-        // Should only appear once in reference section
-        expect(flattened.text).toBe('Content 1\nContent 2\n\n@<file:///same.txt>');
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Content 1\nContent 2');
     });
 
     test('should handle string content directly', () => {
@@ -140,9 +139,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe(
-            'Direct string\nText object\nResource text\n\n@<mcp://server/resource>'
-        );
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Direct string\nText object\nResource text');
         expect(flattened.resourceUris).toEqual(['mcp://server/resource']);
     });
 
@@ -166,7 +164,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe('Main content\n\n@<blob:abc123>');
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Main content');
         expect(flattened.resourceUris).toEqual(['blob:abc123']);
     });
 
@@ -265,7 +264,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe('Content without URI\nValid resource\n\n@<file:///valid.txt>');
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Content without URI\nValid resource');
         expect(flattened.resourceUris).toEqual(['file:///valid.txt']);
     });
 });

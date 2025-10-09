@@ -369,7 +369,7 @@ export class FilePromptProvider implements PromptProvider {
             // Handle _context separately (for natural language after slash commands)
             if ((args as any)._context) {
                 const contextString = String((args as any)._context);
-                return `Context: ${contextString}\n\n${expanded}`;
+                return `${expanded}\n\nContext: ${contextString}`;
             }
 
             const argEntries = Object.entries(args).filter(([key]) => !key.startsWith('_'));

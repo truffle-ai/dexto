@@ -94,7 +94,7 @@ export class CustomPromptProvider implements PromptProvider {
         const messages: GetPromptResult['messages'] = [];
         // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
         const expanded = expandPlaceholders(record.content, args);
-        const textContent = this.applyArguments(expanded, args);
+        const textContent = this.applyArguments(expanded, args, record.arguments);
         messages.push({
             role: 'user',
             content: {
@@ -305,16 +305,48 @@ export class CustomPromptProvider implements PromptProvider {
         return slug;
     }
 
-    private applyArguments(content: string, args?: Record<string, unknown>): string {
+    private applyArguments(
+        content: string,
+        args?: Record<string, unknown>,
+        declaredArgs?: PromptArgument[]
+    ): string {
         if (!args || Object.keys(args).length === 0) {
             return content;
         }
+
+        // Replace named placeholders {{name}}
         let result = content;
         for (const [key, value] of Object.entries(args)) {
             if (key.startsWith('_')) continue; // skip special keys
             const placeholder = `{{${key}}}`;
             result = result.replaceAll(placeholder, String(value));
         }
+
+        // Determine if placeholders were used in the template
+        const usesPositional = /\$[1-9]/.test(content) || content.includes('$ARGUMENTS');
+        let usesNamed = false;
+        if (declaredArgs && declaredArgs.length > 0) {
+            usesNamed = declaredArgs.some((a) => a.name && content.includes(`{{${a.name}}}`));
+        } else {
+            // Fallback heuristic: any {{...}} token counts as named placeholder usage
+            usesNamed = content.includes('{{') && content.includes('}}');
+        }
+
+        const placeholdersUsed = usesPositional || usesNamed;
+
+        // If no placeholders are used, append context/arguments at the END
+        if (!placeholdersUsed) {
+            if ((args as any)._context) {
+                const contextString = String((args as any)._context);
+                return `${result}\n\nContext: ${contextString}`;
+            }
+            const argEntries = Object.entries(args).filter(([k]) => !k.startsWith('_'));
+            if (argEntries.length > 0) {
+                const formattedArgs = argEntries.map(([k, v]) => `${k}: ${v}`).join(', ');
+                return `${result}\n\nArguments: ${formattedArgs}`;
+            }
+        }
+
         return result;
     }
 }

@@ -178,15 +178,18 @@ Price: $$100`
             expect(result.text).toContain('Context: Context from option');
         });
 
-        test('should not treat $$ as a placeholder and still append context', async () => {
+        test('should not treat $$ as a placeholder and still append context (appended at end)', async () => {
             const result = await promptManager.resolvePrompt('dollar-only', {
                 context: 'Cost details',
             });
 
             // Ensure $$ escape preserved as literal '$'
             expect(result.text).toContain('Price: $100');
-            // And context appended since there are no $1..$9 or $ARGUMENTS placeholders
-            expect(result.text.startsWith('Context: Cost details')).toBe(true);
+            // And context appended at the end since there are no $1..$9 or $ARGUMENTS placeholders
+            const priceIndex = result.text.indexOf('Price: $100');
+            const contextIndex = result.text.indexOf('Context: Cost details');
+            expect(priceIndex).toBeGreaterThanOrEqual(0);
+            expect(contextIndex).toBeGreaterThan(priceIndex);
         });
     });
 
