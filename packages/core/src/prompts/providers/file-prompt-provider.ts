@@ -8,7 +8,7 @@ import { readFile, readdir } from 'fs/promises';
 import { join, extname, resolve } from 'path';
 import type { ResourceManager } from '../../resources/manager.js';
 
-interface InternalPromptProviderOptions {
+interface FilePromptProviderOptions {
     promptsDir?: string;
     resourceManager: ResourceManager;
 }
@@ -18,9 +18,9 @@ interface ParsedPrompt {
     content: string;
 }
 
-// TODO: (355) Might not actually need InternalPromptProvider, seems equivalent to starter-prompt-provider with a hardcoded directory. Can keep for now but basically we can add file based prompt providers instead (refer to relative file colocated near the agent)
+// TODO: (355) Might not actually need FilePromptProvider, seems equivalent to starter-prompt-provider with a hardcoded directory. Can keep for now but basically we can add file based prompt providers instead (refer to relative file colocated near the agent)
 // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413151059
-export class InternalPromptProvider implements PromptProvider {
+export class FilePromptProvider implements PromptProvider {
     private readonly promptsDir: string;
     private readonly resourceManager: ResourceManager;
     private promptsCache: PromptInfo[] = [];
@@ -28,13 +28,13 @@ export class InternalPromptProvider implements PromptProvider {
     private promptResources: Map<string, string> = new Map();
     private inlineContent: Map<string, string> = new Map();
 
-    constructor(options: InternalPromptProviderOptions) {
+    constructor(options: FilePromptProviderOptions) {
         this.promptsDir = resolve(options.promptsDir ?? 'prompts');
         this.resourceManager = options.resourceManager;
     }
 
     getSource(): string {
-        return 'internal';
+        return 'file';
     }
 
     invalidateCache(): void {
@@ -42,7 +42,7 @@ export class InternalPromptProvider implements PromptProvider {
         this.promptsCache = [];
         this.promptResources.clear();
         this.inlineContent.clear();
-        logger.debug('InternalPromptProvider cache invalidated');
+        logger.debug('FilePromptProvider cache invalidated');
     }
 
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
@@ -173,7 +173,7 @@ export class InternalPromptProvider implements PromptProvider {
                 }
             }
 
-            logger.debug(`📝 Cached ${cache.length} internal prompts from ${this.promptsDir}`);
+            logger.debug(`📝 Cached ${cache.length} file prompts from ${this.promptsDir}`);
         } catch (error) {
             logger.debug(
                 `Prompts directory '${this.promptsDir}' not found or not accessible: ${error instanceof Error ? error.message : String(error)}`
@@ -192,7 +192,7 @@ export class InternalPromptProvider implements PromptProvider {
         const content = await readFile(filePath, 'utf-8');
 
         const lines = content.trim().split('\n');
-        let description = `Internal prompt: ${promptName}`;
+        let description = `File prompt: ${promptName}`;
         let title = promptName;
         let category: string | undefined;
         let id: string | undefined;
@@ -265,7 +265,7 @@ export class InternalPromptProvider implements PromptProvider {
             name: finalName,
             title,
             description,
-            source: 'internal',
+            source: 'file',
             metadata: {
                 originalName: promptName,
                 fileName,

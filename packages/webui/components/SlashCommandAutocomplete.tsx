@@ -48,9 +48,9 @@ const PromptItem = ({ prompt, isSelected, onClick, onMouseEnter, dataIndex }: {
               MCP
             </Badge>
           )}
-          {prompt.source === 'internal' && (
+          {prompt.source === 'file' && (
             <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
-              Internal
+              File
             </Badge>
           )}
           {prompt.source === 'custom' && (

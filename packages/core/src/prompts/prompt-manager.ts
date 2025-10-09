@@ -4,7 +4,7 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
-import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
+import { FilePromptProvider } from './providers/file-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
 import {
     CustomPromptProvider,
@@ -37,8 +37,8 @@ export class PromptManager {
         promptsDir?: string
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
-        const internalOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
-        this.providers.set('internal', new InternalPromptProvider(internalOptions));
+        const fileOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
+        this.providers.set('file', new FilePromptProvider(fileOptions));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
         this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
 

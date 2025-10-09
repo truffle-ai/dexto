@@ -61,15 +61,15 @@ export const promptCommands: CommandDefinition[] = [
 
                 // Group by source
                 const mcpPrompts: string[] = [];
-                const internalPrompts: string[] = [];
+                const filePrompts: string[] = [];
                 const starterPrompts: string[] = [];
                 const customPrompts: string[] = [];
 
                 for (const [name, info] of Object.entries(prompts)) {
                     if (info.source === 'mcp') {
                         mcpPrompts.push(name);
-                    } else if (info.source === 'internal') {
-                        internalPrompts.push(name);
+                    } else if (info.source === 'file') {
+                        filePrompts.push(name);
                     } else if (info.source === 'starter') {
                         starterPrompts.push(name);
                     } else if (info.source === 'custom') {
@@ -100,9 +100,9 @@ export const promptCommands: CommandDefinition[] = [
                     console.log();
                 }
 
-                if (internalPrompts.length > 0) {
-                    console.log(chalk.magenta('📁 Internal Prompts:'));
-                    internalPrompts.forEach((name) => {
+                if (filePrompts.length > 0) {
+                    console.log(chalk.magenta('📁 File Prompts:'));
+                    filePrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
                             // Only show title if it's different from name
