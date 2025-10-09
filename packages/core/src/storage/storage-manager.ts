@@ -62,22 +62,74 @@ export class StorageManager {
             return;
         }
 
-        // Establish connections
-        await this.cache.connect();
-        await this.database.connect();
-        await this.blobStore.connect();
+        // Establish connections with rollback on partial failure
+        const connected: ('cache' | 'database' | 'blob')[] = [];
+        try {
+            await this.cache.connect();
+            connected.push('cache');
 
-        this.connected = true;
+            await this.database.connect();
+            connected.push('database');
+
+            await this.blobStore.connect();
+            connected.push('blob');
+
+            this.connected = true;
+        } catch (error) {
+            // Rollback: disconnect any stores that were successfully connected
+            logger.warn(
+                `Storage connection failed, rolling back ${connected.length} connected stores`
+            );
+            for (const store of connected.reverse()) {
+                try {
+                    if (store === 'cache') await this.cache.disconnect();
+                    else if (store === 'database') await this.database.disconnect();
+                    else if (store === 'blob') await this.blobStore.disconnect();
+                } catch (disconnectError) {
+                    logger.error(
+                        `Failed to rollback ${store} during connection failure: ${disconnectError}`
+                    );
+                }
+            }
+            throw error;
+        }
     }
 
     async disconnect(): Promise<void> {
         if (!this.connected) return;
 
-        await this.cache.disconnect();
-        await this.database.disconnect();
-        await this.blobStore.disconnect();
+        // Disconnect all stores, continue even if some fail
+        const errors: Error[] = [];
+
+        try {
+            await this.cache.disconnect();
+        } catch (error) {
+            logger.error(`Failed to disconnect cache: ${error}`);
+            errors.push(error instanceof Error ? error : new Error(String(error)));
+        }
+
+        try {
+            await this.database.disconnect();
+        } catch (error) {
+            logger.error(`Failed to disconnect database: ${error}`);
+            errors.push(error instanceof Error ? error : new Error(String(error)));
+        }
+
+        try {
+            await this.blobStore.disconnect();
+        } catch (error) {
+            logger.error(`Failed to disconnect blob store: ${error}`);
+            errors.push(error instanceof Error ? error : new Error(String(error)));
+        }
 
         this.connected = false;
+
+        // If any disconnections failed, throw an aggregated error
+        if (errors.length > 0) {
+            throw new Error(
+                `Failed to disconnect ${errors.length} storage backend(s): ${errors.map((e) => e.message).join(', ')}`
+            );
+        }
     }
 
     isConnected(): boolean {
