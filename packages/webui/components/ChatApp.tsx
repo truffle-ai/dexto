@@ -482,9 +482,9 @@ export default function ChatApp() {
 
   // Merge dynamic quick actions from starter prompts
   const dynamicQuickActions = React.useMemo(() => {
-    // Only show actions after prompts have loaded
+    // Show default quick actions while loading
     if (!starterPromptsLoaded) {
-      return [];
+      return quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
     }
 
     // If starter prompts are present, hide the built-in defaults to avoid duplication
