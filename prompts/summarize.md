@@ -1,14 +1,13 @@
 ---
-description: Summarize text content with customizable style and length. Usage `/summarize technical 100 "Your text here"`
-argument-hint: [style] [length]
+description: Summarize text content with customizable style and length. Usage `/summarize technical 100 'Machine learning'`
+argument-hint: [style] [length] [content]
 ---
 
 # Summarize Content
 
 Please summarize the following content using a **$1** style with approximately **$2** words.
 
-Content to summarize:
-$ARGUMENTS
+Content to summarize: $ARGUMENTS
 
 Guidelines:
 - Use clear, concise language

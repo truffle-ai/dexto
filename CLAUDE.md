@@ -3,8 +3,9 @@
 ## Code Quality Requirements
 
 **Pre-commit Validation** - Before completing any task, ALWAYS run and ensure ALL commands pass:
-1. `pnpm run build` - Verify compilation
+1. `pnpm run build` - Verify compilation.
    - **If dev server is running**: Restart it after build completes
+   - **Suppress verbose output**: Run as `pnpm run build > /dev/null 2>&1 || pnpm run build` to save context unless there's a failure
 2. `pnpm test` - Ensure all tests pass
 3. `pnpm run lint` - Check code style
 4. `pnpm run typecheck` - Validate TypeScript types

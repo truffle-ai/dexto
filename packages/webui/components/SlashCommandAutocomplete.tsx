@@ -286,6 +286,13 @@ export default function SlashCommandAutocomplete({
         // Some environments support stopImmediatePropagation on DOM events
         if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       };
+
+      // Check if user has typed arguments after the command name
+      // E.g., "/summarize technical 100 'text'" -> has arguments, so Enter should submit
+      const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+      const parts = withoutSlash.split(/\s+/);
+      const hasArguments = parts.length > 1 && parts.slice(1).some(p => p.trim().length > 0);
+
       switch (e.key) {
         case 'ArrowDown':
           if (items.length === 0) return;
@@ -298,6 +305,10 @@ export default function SlashCommandAutocomplete({
           setSelectedIndex((prev) => (prev - 1 + items.length) % items.length);
           break;
         case 'Enter':
+          // If user has typed arguments, let Enter pass through to submit the message
+          if (hasArguments) {
+            return; // Don't intercept - let InputArea handle submission
+          }
           stop();
           if (items.length === 0) {
             onCreatePrompt?.();
@@ -337,7 +348,7 @@ export default function SlashCommandAutocomplete({
     // Use capture phase so we can intercept Enter before input handlers stop propagation
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isVisible, combinedItems, onSelectPrompt, onClose, onCreatePrompt]);
+  }, [isVisible, combinedItems, onSelectPrompt, onClose, onCreatePrompt, searchQuery]);
 
   // Scroll selected item into view when selectedIndex changes
   useEffect(() => {
