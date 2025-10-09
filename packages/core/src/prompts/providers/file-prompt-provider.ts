@@ -348,15 +348,15 @@ export class FilePromptProvider implements PromptProvider {
             return expanded;
         }
 
-        // Handle _context separately (for natural language after slash commands)
-        if ((args as any)._context) {
-            const contextString = String((args as any)._context);
-            return `Context: ${contextString}\n\n${expanded}`;
-        }
-
         // If the prompt doesn't use placeholders, append formatted arguments
         // so they're available to the LLM even without explicit placeholder syntax
         if (!hasPlaceholders) {
+            // Handle _context separately (for natural language after slash commands)
+            if ((args as any)._context) {
+                const contextString = String((args as any)._context);
+                return `Context: ${contextString}\n\n${expanded}`;
+            }
+
             const argEntries = Object.entries(args).filter(([key]) => !key.startsWith('_'));
             if (argEntries.length > 0) {
                 const formattedArgs = argEntries
