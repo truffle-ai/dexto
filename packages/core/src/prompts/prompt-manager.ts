@@ -115,7 +115,27 @@ export class PromptManager {
             throw PromptError.providerNotFound(entry.providerName);
         }
 
-        return await provider.getPrompt(entry.providerPromptName, args);
+        // Map positional arguments to named arguments based on prompt's argument schema
+        // This bridges the gap between user input (positional, like Claude Code's $1 $2)
+        // and MCP protocol expectations (named arguments like { report_type: "metrics" })
+        let finalArgs = args;
+        if (args?._positional && Array.isArray(args._positional) && args._positional.length > 0) {
+            const promptArgs = entry.info.arguments;
+            if (promptArgs && promptArgs.length > 0) {
+                finalArgs = { ...args };
+                const positionalArgs = args._positional as unknown[];
+                // Map positional args to named args based on the prompt's argument order
+                promptArgs.forEach((argDef, index) => {
+                    if (index < positionalArgs.length && !finalArgs![argDef.name]) {
+                        // Only set if not already provided as a named argument
+                        const value = positionalArgs[index];
+                        finalArgs![argDef.name] = typeof value === 'string' ? value : String(value);
+                    }
+                });
+            }
+        }
+
+        return await provider.getPrompt(entry.providerPromptName, finalArgs);
     }
 
     async resolvePromptKey(nameOrAlias: string): Promise<string | null> {
