@@ -190,6 +190,7 @@ export class FilePromptProvider implements PromptProvider {
         let category: string | undefined;
         let id: string | undefined;
         let nameOverride: string | undefined;
+        let argumentHint: string | undefined;
         let contentBody: string | undefined;
 
         if (lines[0]?.trim() === '---') {
@@ -232,6 +233,11 @@ export class FilePromptProvider implements PromptProvider {
                         if (categoryMatch && categoryMatch[1]) {
                             category = categoryMatch[1];
                         }
+                    } else if (line.includes('argument-hint:')) {
+                        const hintMatch = line.match(/argument-hint:\s*['"]?([^'"]+)['"]?/);
+                        if (hintMatch && hintMatch[1]) {
+                            argumentHint = hintMatch[1];
+                        }
                     }
                 }
             }
@@ -254,11 +260,16 @@ export class FilePromptProvider implements PromptProvider {
             hint: "Use kebab-case in the 'name:' field or file name.",
         });
 
+        // Parse argument-hint into structured arguments array
+        // Format: [arg1] [arg2?] → array of {name, required}
+        const parsedArguments = argumentHint ? this.parseArgumentHint(argumentHint) : undefined;
+
         const promptInfo: PromptInfo = {
             name: finalName,
             title,
             description,
             source: 'file',
+            ...(parsedArguments && { arguments: parsedArguments }),
             metadata: {
                 originalName: promptName,
                 fileName,
@@ -269,6 +280,37 @@ export class FilePromptProvider implements PromptProvider {
         };
 
         return { info: promptInfo, content: contentBody };
+    }
+
+    /**
+     * Parse argument-hint string into structured argument definitions
+     * Format: "[style] [length?]" → [{name: "style", required: true}, {name: "length", required: false}]
+     */
+    private parseArgumentHint(
+        hint: string
+    ): Array<{ name: string; required: boolean; description?: string }> {
+        const args: Array<{ name: string; required: boolean; description?: string }> = [];
+
+        // Match [argname] or [argname?]
+        const argPattern = /\[([^\]]+)\]/g;
+        let match;
+
+        while ((match = argPattern.exec(hint)) !== null) {
+            const argText = match[1];
+            if (!argText) continue;
+
+            const isOptional = argText.endsWith('?');
+            const name = isOptional ? argText.slice(0, -1).trim() : argText.trim();
+
+            if (name) {
+                args.push({
+                    name,
+                    required: !isOptional,
+                });
+            }
+        }
+
+        return args;
     }
 
     private async storePromptContent(
