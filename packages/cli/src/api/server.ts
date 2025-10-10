@@ -1894,6 +1894,7 @@ export async function initializeApi(
                             createdAt: metadata?.createdAt || null,
                             lastActivity: metadata?.lastActivity || null,
                             messageCount: metadata?.messageCount || 0,
+                            title: metadata?.title || null,
                         };
                     } catch (_error) {
                         // Skip sessions that no longer exist
@@ -1902,6 +1903,7 @@ export async function initializeApi(
                             createdAt: null,
                             lastActivity: null,
                             messageCount: 0,
+                            title: null,
                         };
                     }
                 })
@@ -1927,6 +1929,7 @@ export async function initializeApi(
                     createdAt: metadata?.createdAt || Date.now(),
                     lastActivity: metadata?.lastActivity || Date.now(),
                     messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || null,
                 },
             });
         } catch (error) {
@@ -1960,6 +1963,7 @@ export async function initializeApi(
                     createdAt: metadata?.createdAt || null,
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || null,
                     history: history.length,
                 },
             });
@@ -2039,6 +2043,33 @@ export async function initializeApi(
             // deleteSession already checks existence internally
             await activeAgent.deleteSession(sessionId);
             return res.json({ status: 'deleted', sessionId });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    // Rename session title
+    const PatchSessionBodySchema = z.object({
+        title: z.string().min(1, 'Title is required').max(120, 'Title too long'),
+    });
+    const PatchSessionParamsSchema = z.object({
+        sessionId: z.string().min(1, 'Session ID is required'),
+    });
+    app.patch('/api/sessions/:sessionId', express.json(), async (req, res, next) => {
+        try {
+            const { sessionId } = parseQuery(PatchSessionParamsSchema, req.params);
+            const { title } = parseBody(PatchSessionBodySchema, req.body);
+            await activeAgent.setSessionTitle(sessionId, title);
+            const metadata = await activeAgent.getSessionMetadata(sessionId);
+            return res.json({
+                session: {
+                    id: sessionId,
+                    createdAt: metadata?.createdAt || null,
+                    lastActivity: metadata?.lastActivity || null,
+                    messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || title,
+                },
+            });
         } catch (error) {
             return next(error);
         }

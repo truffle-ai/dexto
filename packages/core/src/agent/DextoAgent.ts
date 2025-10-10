@@ -585,6 +585,22 @@ export class DextoAgent {
     }
 
     /**
+     * Sets a human-friendly title for the given session.
+     */
+    public async setSessionTitle(sessionId: string, title: string): Promise<void> {
+        this.ensureStarted();
+        await this.sessionManager.setSessionTitle(sessionId, title);
+    }
+
+    /**
+     * Gets the human-friendly title for the given session, if any.
+     */
+    public async getSessionTitle(sessionId: string): Promise<string | undefined> {
+        this.ensureStarted();
+        return await this.sessionManager.getSessionTitle(sessionId);
+    }
+
+    /**
      * Gets the conversation history for a specific session.
      * @param sessionId The session ID
      * @returns Promise that resolves to the session's conversation history
