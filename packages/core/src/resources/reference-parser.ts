@@ -278,7 +278,7 @@ export async function expandMessageReferences(
                 const pattern = new RegExp(escapeRegExp(ref.originalRef), 'g');
                 expandedMessage = expandedMessage.replace(pattern, formattedContent);
             }
-        } catch (error) {
+        } catch (_error) {
             failedRefs.push(ref);
         }
     }

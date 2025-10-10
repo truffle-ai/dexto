@@ -308,7 +308,7 @@ export function SystemPromptSection({
                             value={getFilesValue(contributor.id, contributor.files)}
                             onChange={(e) => setFilesValue(contributor.id, e.target.value)}
                             onBlur={(e) => commitFiles(contributor.id, e.target.value)}
-                            placeholder="./prompts/context.md, ./prompts/rules.txt"
+                            placeholder="./commands/context.md, ./commands/rules.txt"
                             className="font-mono"
                           />
                         </div>

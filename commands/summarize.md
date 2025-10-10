@@ -18,3 +18,4 @@ Guidelines:
 Examples:
 - Style: technical, casual, formal, academic
 - Length: 50, 100, 200, 500 (word count)
+

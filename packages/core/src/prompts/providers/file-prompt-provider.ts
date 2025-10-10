@@ -6,10 +6,16 @@ import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';
 import { readFile, readdir } from 'fs/promises';
 import { join, extname, resolve } from 'path';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
+import { findDextoProjectRoot, findDextoSourceRoot } from '../../utils/execution-context.js';
 import type { ResourceManager } from '../../resources/manager.js';
 
 interface FilePromptProviderOptions {
     promptsDir?: string;
+    // Optional list of directories to search, in precedence order.
+    // If provided, overrides promptsDir.
+    commandsDirs?: string[];
     resourceManager: ResourceManager;
 }
 
@@ -21,7 +27,8 @@ interface ParsedPrompt {
 // TODO: (355) Might not actually need FilePromptProvider, seems equivalent to starter-prompt-provider with a hardcoded directory. Can keep for now but basically we can add file based prompt providers instead (refer to relative file colocated near the agent)
 // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413151059
 export class FilePromptProvider implements PromptProvider {
-    private readonly promptsDir: string;
+    // Multiple search directories (local project/repo and global user dir)
+    private readonly searchDirs: string[];
     private readonly resourceManager: ResourceManager;
     private promptsCache: PromptInfo[] = [];
     private cacheValid = false;
@@ -29,7 +36,19 @@ export class FilePromptProvider implements PromptProvider {
     private inlineContent: Map<string, string> = new Map();
 
     constructor(options: FilePromptProviderOptions) {
-        this.promptsDir = resolve(options.promptsDir ?? 'prompts');
+        // Resolve search directories with the following precedence:
+        // 1) Explicit commandsDirs (if provided)
+        // 2) Explicit promptsDir (legacy single-directory option)
+        // 3) Default resolution:
+        //    - <repo_or_project_root>/commands
+        //    - ~/.dexto/commands (global)
+        if (options.commandsDirs && options.commandsDirs.length > 0) {
+            this.searchDirs = options.commandsDirs.map((d) => resolve(d));
+        } else if (options.promptsDir) {
+            this.searchDirs = [resolve(options.promptsDir)];
+        } else {
+            this.searchDirs = this.resolveDefaultSearchDirs();
+        }
         this.resourceManager = options.resourceManager;
     }
 
@@ -127,51 +146,76 @@ export class FilePromptProvider implements PromptProvider {
         const cache: PromptInfo[] = [];
         const resourceMap: Map<string, string> = new Map();
         const inlineMap: Map<string, string> = new Map();
+        const seenNames = new Set<string>();
 
-        try {
-            // Prompts are treated as agent configuration, so this provider loads the markdown
-            // files directly before handing stored content off to ResourceManager/BlobService.
-            const files = await readdir(this.promptsDir);
-            const markdownFiles = files.filter((file) => extname(file).toLowerCase() === '.md');
+        const scannedDirs: string[] = [];
 
-            for (const file of markdownFiles) {
-                try {
-                    const parsed = await this.parsePromptFile(file);
-                    const storage = await this.storePromptContent(parsed.content, file);
-                    if (storage.resourceUri) {
-                        resourceMap.set(parsed.info.name, storage.resourceUri);
-                    }
-                    if (storage.inlineContent) {
-                        inlineMap.set(parsed.info.name, storage.inlineContent);
-                    }
-
-                    if (storage.resourceUri || storage.inlineContent) {
-                        const metadata = {
-                            ...(parsed.info.metadata ?? {}),
-                            ...(storage.resourceUri && { resourceUri: storage.resourceUri }),
-                        };
-                        if (Object.keys(metadata).length > 0) {
-                            parsed.info = { ...parsed.info, metadata };
-                        } else {
-                            parsed.info = { ...parsed.info };
-                            delete parsed.info.metadata;
-                        }
-                    }
-
-                    cache.push(parsed.info);
-                } catch (error) {
-                    logger.warn(
-                        `Failed to process prompt file '${file}': ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
+        for (const dir of this.searchDirs) {
+            if (!existsSync(dir)) {
+                continue;
             }
+            try {
+                scannedDirs.push(dir);
+                const files = await readdir(dir);
+                const markdownFiles = files.filter((file) => extname(file).toLowerCase() === '.md');
 
-            logger.debug(`📝 Cached ${cache.length} file prompts from ${this.promptsDir}`);
-        } catch (error) {
-            logger.debug(
-                `Prompts directory '${this.promptsDir}' not found or not accessible: ${error instanceof Error ? error.message : String(error)}`
-            );
+                for (const file of markdownFiles) {
+                    try {
+                        const parsed = await this.parsePromptFile(file, dir);
+                        if (seenNames.has(parsed.info.name)) {
+                            // Prefer the first occurrence (local overrides global)
+                            logger.debug(
+                                `Skipping duplicate prompt name '${parsed.info.name}' from ${join(
+                                    dir,
+                                    file
+                                )}`
+                            );
+                            continue;
+                        }
+                        const storage = await this.storePromptContent(parsed.content, file);
+                        if (storage.resourceUri) {
+                            resourceMap.set(parsed.info.name, storage.resourceUri);
+                        }
+                        if (storage.inlineContent) {
+                            inlineMap.set(parsed.info.name, storage.inlineContent);
+                        }
+
+                        if (storage.resourceUri || storage.inlineContent) {
+                            const metadata = {
+                                ...(parsed.info.metadata ?? {}),
+                                ...(storage.resourceUri && { resourceUri: storage.resourceUri }),
+                                sourceDir: dir,
+                            } as Record<string, unknown>;
+                            if (Object.keys(metadata).length > 0) {
+                                parsed.info = { ...parsed.info, metadata };
+                            } else {
+                                parsed.info = { ...parsed.info };
+                                delete parsed.info.metadata;
+                            }
+                        }
+
+                        cache.push(parsed.info);
+                        seenNames.add(parsed.info.name);
+                    } catch (error) {
+                        logger.warn(
+                            `Failed to process prompt file '${file}' in '${dir}': ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
+                    }
+                }
+            } catch (error) {
+                logger.debug(
+                    `Commands directory '${dir}' not accessible: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+            }
         }
+
+        logger.debug(
+            `📝 Cached ${cache.length} file prompts from directories: ${scannedDirs.join(', ')}`
+        );
 
         this.promptsCache = cache;
         this.promptResources = resourceMap;
@@ -179,9 +223,9 @@ export class FilePromptProvider implements PromptProvider {
         this.cacheValid = true;
     }
 
-    private async parsePromptFile(fileName: string): Promise<ParsedPrompt> {
+    private async parsePromptFile(fileName: string, baseDir: string): Promise<ParsedPrompt> {
         const promptName = fileName.replace(/\.md$/, '');
-        const filePath = join(this.promptsDir, fileName);
+        const filePath = join(baseDir, fileName);
         const content = await readFile(filePath, 'utf-8');
 
         const lines = content.trim().split('\n');
@@ -382,5 +426,35 @@ export class FilePromptProvider implements PromptProvider {
         }
 
         return expanded;
+    }
+
+    // Determine default search directories based on execution context
+    private resolveDefaultSearchDirs(): string[] {
+        const dirs: string[] = [];
+
+        // Try to find dexto source or a dexto-using project root
+        const sourceRoot = findDextoSourceRoot();
+        const projectRoot = findDextoProjectRoot();
+        const localRoot = sourceRoot ?? projectRoot ?? null;
+
+        if (localRoot) {
+            const commandsDir = resolve(localRoot, 'commands');
+            if (existsSync(commandsDir)) dirs.push(commandsDir);
+        }
+
+        // Global user commands directory
+        const globalCommands = resolve(homedir(), '.dexto', 'commands');
+        if (existsSync(globalCommands)) dirs.push(globalCommands);
+
+        // If nothing exists yet, still return preferred order so that subsequent
+        // checks log clearly which paths are attempted.
+        if (dirs.length === 0) {
+            if (localRoot) {
+                dirs.push(resolve(localRoot, 'commands'));
+            }
+            dirs.push(globalCommands);
+        }
+
+        return dirs;
     }
 }

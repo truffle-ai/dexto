@@ -1,34 +1,36 @@
-# Dexto Prompts Guide
+# Dexto Commands (File Prompts)
 
-This directory contains **File Prompts** - reusable prompt templates that work like Claude Code's custom slash commands.
+This directory contains File Prompts — reusable prompt templates that work like Claude Code's custom slash commands.
 
 ## Prompt Types in Dexto
 
 Dexto supports four types of prompts, each with different capabilities:
 
-### 1. 📁 File Prompts (This Directory)
-**Location:** `prompts/` folder
-**Format:** Markdown files with frontmatter
-**Arguments:** Positional placeholders (`$1`, `$2`, `$ARGUMENTS`)
-**Best for:** Simple, file-based prompts you can version control
+### 1. 📁 File Prompts (Commands)
+Location:
+- Local: `commands/`
+- Global: `~/.dexto/commands`
+Format: Markdown files with frontmatter
+Arguments: Positional placeholders (`$1`, `$2`, `$ARGUMENTS`)
+Best for: Simple, file-based prompts you can version control
 
 ### 2. 🔌 MCP Prompts
-**Source:** Connected MCP servers
-**Format:** Defined by MCP protocol
-**Arguments:** Named arguments (e.g., `report_type: "metrics"`)
-**Best for:** Complex prompts from external services (GitHub, databases, etc.)
+Source: Connected MCP servers
+Format: Defined by MCP protocol
+Arguments: Named arguments (e.g., `report_type: "metrics"`)
+Best for: Complex prompts from external services (GitHub, databases, etc.)
 
 ### 3. ⚡ Starter Prompts
-**Source:** Built into Dexto
-**Format:** Hardcoded in code
-**Arguments:** Varies by prompt
-**Best for:** Common operations provided out-of-the-box
+Source: Built into Dexto
+Format: Hardcoded in code
+Arguments: Varies by prompt
+Best for: Common operations provided out-of-the-box
 
 ### 4. ✨ Custom Prompts
-**Source:** Created at runtime via API/UI
-**Format:** Stored in database
-**Arguments:** Positional placeholders like File Prompts
-**Best for:** User-created prompts that need persistence
+Source: Created at runtime via API/UI
+Format: Stored in database
+Arguments: Positional placeholders like File Prompts
+Best for: User-created prompts that need persistence
 
 ---
 
@@ -84,8 +86,8 @@ Translate from $1 to $2:
 $3
 ```
 
-**Usage:** `/translate english spanish "Hello world"`
-**Expands to:**
+Usage: `/translate english spanish "Hello world"`
+Expands to:
 ```
 Translate from english to spanish:
 
@@ -106,8 +108,8 @@ Full input for context:
 $ARGUMENTS
 ```
 
-**Usage:** `/analyze utils.ts performance "function slow() { ... }"`
-**Expands to:**
+Usage: `/analyze utils.ts performance "function slow() { ... }"`
+Expands to:
 ```
 Analyze the code in **utils.ts** focusing on: performance
 
@@ -128,8 +130,8 @@ Please improve the following text:
 $ARGUMENTS
 ```
 
-**Usage:** `/improve "This sentence not good"`
-**Expands to:**
+Usage: `/improve "This sentence not good"`
+Expands to:
 ```
 Please improve the following text:
 
@@ -142,16 +144,16 @@ This sentence not good
 
 ### Invoking File Prompts
 
-1. **Type `/` in chat** - Opens slash command autocomplete
-2. **Select your prompt** - Shows inline argument hints
-3. **Provide arguments** - Positional order matters!
+1. Type `/` in chat — opens slash command autocomplete
+2. Select your prompt — shows inline argument hints
+3. Provide arguments — positional order matters!
 
 ### Argument Display
 
 The UI shows:
-- **`<argname>`** - Required argument
-- **`<argname?>`** - Optional argument
-- **Hover tooltip** - Argument description (if provided)
+- `<argname>` — Required argument
+- `<argname?>` — Optional argument
+- Hover tooltip — Argument description (if provided)
 
 Example UI display for summarize:
 ```
@@ -165,7 +167,7 @@ Example UI display for summarize:
 
 ### File Prompts vs MCP Prompts
 
-**File Prompts** (like `summarize`):
+File Prompts (like `summarize`):
 ```
 User types: /summarize technical 100 "Machine learning..."
            ↓
@@ -174,7 +176,7 @@ Expands:    $1="technical", $2="100", $ARGUMENTS="technical 100 Machine learning
 Result:     Prompt text with placeholders replaced
 ```
 
-**MCP Prompts** (like `generate-report`):
+MCP Prompts (like `generate-report`):
 ```
 User types: /generate-report metrics
            ↓
@@ -183,9 +185,9 @@ Maps:       _positional=["metrics"] → report_type="metrics"
 Result:     MCP server receives {report_type: "metrics"}
 ```
 
-The key difference:
-- **File prompts**: Simple string replacement in markdown
-- **MCP prompts**: Structured data passed to external servers
+Key difference:
+- File prompts: Simple string replacement in markdown
+- MCP prompts: Structured data passed to external servers
 
 ---
 
@@ -193,29 +195,29 @@ The key difference:
 
 ### ✅ DO:
 
-- **Use descriptive names** - `analyze-performance` not `analyze`
-- **Add clear descriptions** - Help users understand what it does
-- **Include usage examples** - In the prompt content or description
-- **Use argument-hint** - Enables inline UI hints
-- **Keep it focused** - One clear purpose per prompt
-- **Use `$1`, `$2` for structure** - When you need specific parameters
-- **Use `$ARGUMENTS` for flexibility** - When content is variable
+- Use descriptive names — `analyze-performance` not `analyze`
+- Add clear descriptions — help users understand what it does
+- Include usage examples — in the prompt content or description
+- Use `argument-hint` — enables inline UI hints
+- Keep it focused — one clear purpose per prompt
+- Use `$1`, `$2` for structure — when you need specific parameters
+- Use `$ARGUMENTS` for flexibility — when content is variable
 
 ### ❌ DON'T:
 
-- **Don't use spaces in filenames** - Use kebab-case: `my-prompt.md`
-- **Don't create overly complex prompts** - Split into multiple files
-- **Don't forget argument-hint** - Users need to know what to provide
-- **Don't rely on order if flexible** - Document expected argument positions
+- Don't use spaces in filenames — use kebab-case: `my-prompt.md`
+- Don't create overly complex prompts — split into multiple files
+- Don't forget argument-hint — users need to know what to provide
+- Don't rely on order if flexible — document expected argument positions
 
 ---
 
 ## Testing Your Prompts
 
-1. **Create the `.md` file** in this directory
-2. **Restart the agent** (or wait for hot reload)
-3. **Type `/your-prompt-name`** in chat
-4. **Test with different arguments** - Verify placeholders expand correctly
+1. Create the `.md` file in this directory
+2. Restart the agent (or wait for hot reload)
+3. Type `/your-prompt-name` in chat
+4. Test with different arguments — verify placeholders expand correctly
 
 ---
 
@@ -236,10 +238,10 @@ Becomes:
 ]
 ```
 
-**Rules:**
+Rules:
 - `[name]` = required argument
 - `[name?]` = optional argument (with `?`)
-- Order matters - matches positional `$1`, `$2` positions
+- Order matters — matches positional `$1`, `$2` positions
 
 ---
 
@@ -250,31 +252,14 @@ Becomes:
 - Check filename ends with `.md`
 - Verify frontmatter is valid YAML
 - Ensure description field is present
+- Put your file in `commands/` (local) or `~/.dexto/commands` (global)
 - Restart the agent
-
-### Arguments not expanding
-
-- Check you're using correct placeholder syntax: `$1` not `{1}`
-- Verify argument positions match usage: `$1` = first arg after command
-- Remember `$ARGUMENTS` only includes remaining positional args after explicit `$1..$9` placeholders.
-
-### UI not showing argument hints
-
-- Ensure `argument-hint` field exists in frontmatter
-- Check format: `[arg1] [arg2?]` with square brackets
-- Verify agent restarted after adding/updating prompts
-
----
-
-## Examples in This Directory
-
-- **`summarize.md`** - Text summarization with style and length control
 
 ---
 
 ## Further Reading
 
-- **Prompt Manager Architecture**: `packages/core/src/prompts/prompt-manager.ts`
-- **File Prompt Provider**: `packages/core/src/prompts/providers/file-prompt-provider.ts`
-- **Placeholder Expansion**: `packages/core/src/prompts/utils.ts` (expandPlaceholders function)
-- **Claude Code Docs**: Dexto's file prompts are inspired by Claude Code's custom slash commands
+- Prompt Manager Architecture: `packages/core/src/prompts/prompt-manager.ts`
+- File Prompt Provider: `packages/core/src/prompts/providers/file-prompt-provider.ts`
+- Placeholder Expansion: `packages/core/src/prompts/utils.ts` (expandPlaceholders function)
+

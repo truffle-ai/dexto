@@ -204,8 +204,9 @@ export class DextoAgent {
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
-                services.storageManager.getDatabase(),
-                'prompts'
+                services.storageManager.getDatabase()
+                // No explicit promptsDir: FilePromptProvider will resolve
+                // commands/ (local) and ~/.dexto/commands (global) automatically
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
