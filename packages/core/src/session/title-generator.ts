@@ -26,9 +26,12 @@ export async function generateSessionTitle(
     userText: string,
     opts: { timeoutMs?: number } = {}
 ): Promise<GenerateSessionTitleResult> {
-    const timeoutMs = opts.timeoutMs ?? 6000;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutMs = opts.timeoutMs;
+    const controller = timeoutMs !== undefined ? new AbortController() : undefined;
+    let timer: NodeJS.Timeout | undefined;
+    if (controller && timeoutMs && Number.isFinite(timeoutMs) && timeoutMs > 0) {
+        timer = setTimeout(() => controller.abort(), timeoutMs);
+    }
 
     try {
         const history = new MemoryHistoryProvider();
@@ -54,7 +57,7 @@ export async function generateSessionTitle(
 
         const result = await tempService.completeTask(
             instruction,
-            { signal: controller.signal },
+            controller ? { signal: controller.signal } : {},
             undefined,
             undefined,
             false
@@ -66,13 +69,15 @@ export async function generateSessionTitle(
         }
         return { title: processed };
     } catch (error) {
-        if (controller.signal.aborted) {
+        if (controller?.signal.aborted) {
             return { timedOut: true, error: 'Timed out while waiting for LLM response' };
         }
         const message = error instanceof Error ? error.message : String(error);
         return { error: message };
     } finally {
-        clearTimeout(timer);
+        if (timer) {
+            clearTimeout(timer);
+        }
     }
 }
 

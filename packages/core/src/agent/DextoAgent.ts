@@ -644,8 +644,7 @@ export class DextoAgent {
                 this.toolManager,
                 this.systemPromptManager,
                 this.resourceManager,
-                userText,
-                { timeoutMs: 6000 }
+                userText
             );
             if (result.error) {
                 logger.debug(
