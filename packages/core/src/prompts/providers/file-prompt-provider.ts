@@ -5,7 +5,7 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';
 import { readFile, readdir } from 'fs/promises';
-import { join, extname, resolve } from 'path';
+import { join, extname, resolve, relative } from 'path';
 import { existsSync } from 'fs';
 import { homedir } from 'os';
 import { findDextoProjectRoot, findDextoSourceRoot } from '../../utils/execution-context.js';
@@ -148,6 +148,19 @@ export class FilePromptProvider implements PromptProvider {
 
                 for (const file of markdownFiles) {
                     try {
+                        // Security: Validate file path to prevent directory traversal
+                        const resolvedFile = resolve(dir, file);
+                        const resolvedDir = resolve(dir);
+                        if (
+                            !resolvedFile.startsWith(resolvedDir + '/') &&
+                            resolvedFile !== resolvedDir
+                        ) {
+                            logger.warn(
+                                `Skipping file '${file}' in '${dir}': path traversal attempt detected`
+                            );
+                            continue;
+                        }
+
                         const parsed = await this.parsePromptFile(file, dir);
                         if (seenNames.has(parsed.info.name)) {
                             // Prefer the first occurrence (local overrides global)
@@ -297,6 +310,10 @@ export class FilePromptProvider implements PromptProvider {
         // Format: [arg1] [arg2?] → array of {name, required}
         const parsedArguments = argumentHint ? this.parseArgumentHint(argumentHint) : undefined;
 
+        // Security: Use relative path to avoid exposing user's filesystem layout
+        // Compute relative to the base directory, not cwd, to avoid exposing ~/.dexto structure
+        const relativePath = relative(baseDir, filePath);
+
         const promptInfo: PromptInfo = {
             name: finalName,
             title,
@@ -306,7 +323,9 @@ export class FilePromptProvider implements PromptProvider {
             metadata: {
                 originalName: promptName,
                 fileName,
-                filePath,
+                // Only include relative path within the commands directory (e.g., "my-command.md")
+                // not the full path which could expose ~/.dexto or project structure
+                ...(relativePath && { filePath: relativePath }),
                 ...(id && { id }),
                 ...(category && { category }),
             },

@@ -5,6 +5,32 @@ export interface FlattenedPromptResult {
     resourceUris: string[];
 }
 
+/**
+ * Validates that a resource URI uses an allowed scheme.
+ * Prevents injection attacks via javascript:, data:, etc.
+ *
+ * Allowed schemes:
+ * - mcp: (MCP server resources)
+ * - blob: (blob storage)
+ * - file: (filesystem resources)
+ * - http/https: (web resources)
+ */
+function isValidResourceUri(uri: string): boolean {
+    try {
+        // Handle URIs with scheme
+        if (uri.includes(':')) {
+            const scheme = uri.split(':')[0]?.toLowerCase();
+            if (!scheme) return false;
+            const allowedSchemes = ['mcp', 'blob', 'file', 'http', 'https'];
+            return allowedSchemes.includes(scheme);
+        }
+        // Allow relative URIs (no scheme)
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function handleContent(
     content: unknown,
     accumulator: {
@@ -67,8 +93,11 @@ function handleContent(
                 };
                 const resource = linkContent.resource;
                 if (resource && typeof resource.uri === 'string' && resource.uri.length > 0) {
-                    accumulator.textParts.push(`@<${resource.uri}>`);
-                    accumulator.resourceUris.push(resource.uri);
+                    // Security: Validate URI scheme to prevent injection attacks
+                    if (isValidResourceUri(resource.uri)) {
+                        accumulator.textParts.push(`@<${resource.uri}>`);
+                        accumulator.resourceUris.push(resource.uri);
+                    }
                 }
                 return;
             }

@@ -1032,10 +1032,14 @@ function extractResourceData(
   // Resolve references using core function
   const resolved = resolveResourceReferences(references, resourceSet);
 
-  // Extract URIs from resolved references (filter out unresolved ones)
-  const resolvedUris = resolved
-    .filter(ref => ref.resourceUri)
-    .map(ref => ref.resourceUri!);
+  // Extract URIs from resolved references (filter out unresolved ones and deduplicate)
+  const resolvedUris = Array.from(
+    new Set(
+      resolved
+        .filter(ref => ref.resourceUri)
+        .map(ref => ref.resourceUri!)
+    )
+  );
 
   // Clean the text by removing @<uri> patterns
   const cleanedText = text
