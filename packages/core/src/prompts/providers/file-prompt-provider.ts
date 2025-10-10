@@ -4,8 +4,8 @@ import { assertValidPromptName } from '../name-validation.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../logger/index.js';
 import { PromptError } from '../errors.js';
-import { readFile, readdir } from 'fs/promises';
-import { join, extname, resolve, relative } from 'path';
+import { readFile, readdir, realpath } from 'fs/promises';
+import { join, extname, resolve, relative, sep } from 'path';
 import { existsSync } from 'fs';
 import { homedir } from 'os';
 import { findDextoProjectRoot, findDextoSourceRoot } from '../../utils/execution-context.js';
@@ -148,15 +148,29 @@ export class FilePromptProvider implements PromptProvider {
 
                 for (const file of markdownFiles) {
                     try {
-                        // Security: Validate file path to prevent directory traversal
-                        const resolvedFile = resolve(dir, file);
-                        const resolvedDir = resolve(dir);
-                        if (
-                            !resolvedFile.startsWith(resolvedDir + '/') &&
-                            resolvedFile !== resolvedDir
-                        ) {
+                        // Security: Validate file path to prevent directory traversal and symlink escapes
+                        // Use realpath to resolve symlinks to their actual targets
+                        try {
+                            const candidate = join(dir, file);
+                            const resolvedDir = await realpath(dir);
+                            const resolvedFile = await realpath(candidate);
+
+                            // Check if resolved file is within the allowed directory
+                            const rel = relative(resolvedDir, resolvedFile);
+                            if (
+                                rel.startsWith('..' + sep) ||
+                                rel === '..' ||
+                                rel.startsWith('..')
+                            ) {
+                                logger.warn(
+                                    `Skipping file '${file}' in '${dir}': path traversal attempt detected (resolved outside directory)`
+                                );
+                                continue;
+                            }
+                        } catch (realpathError) {
+                            // If realpath fails (file doesn't exist, permission denied, etc.), skip it
                             logger.warn(
-                                `Skipping file '${file}' in '${dir}': path traversal attempt detected`
+                                `Skipping file '${file}' in '${dir}': unable to resolve path (${realpathError instanceof Error ? realpathError.message : String(realpathError)})`
                             );
                             continue;
                         }
@@ -184,7 +198,8 @@ export class FilePromptProvider implements PromptProvider {
                             const metadata = {
                                 ...(parsed.info.metadata ?? {}),
                                 ...(storage.resourceUri && { resourceUri: storage.resourceUri }),
-                                sourceDir: dir,
+                                // Security: Don't expose absolute sourceDir path
+                                // The relative filePath in parsed.info.metadata is sufficient
                             } as Record<string, unknown>;
                             if (Object.keys(metadata).length > 0) {
                                 parsed.info = { ...parsed.info, metadata };
@@ -403,8 +418,11 @@ export class FilePromptProvider implements PromptProvider {
      */
     private applyArguments(content: string, args?: Record<string, unknown>): string {
         // Detect whether content uses positional placeholders. DO NOT treat `$$` as placeholder usage.
+        // Strip escaped dollars first to avoid false positives
+        const detectionTarget = content.replaceAll('$$', '');
+        // Use negative lookahead to avoid matching $1 in $10, $11, etc.
         const usesPositionalPlaceholders =
-            /\$[1-9]/.test(content) || content.includes('$ARGUMENTS');
+            /\$[1-9](?!\d)/.test(detectionTarget) || detectionTarget.includes('$ARGUMENTS');
 
         // First expand positional placeholders ($ARGUMENTS, $1..$9, $$)
         const expanded = expandPlaceholders(content, args).trim();

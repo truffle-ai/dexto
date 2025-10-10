@@ -1041,10 +1041,21 @@ function extractResourceData(
     )
   );
 
-  // Clean the text by removing @<uri> patterns
-  const cleanedText = text
-    .replace(/@<([^>]+)>/g, '')
+  // Clean the text by removing ALL resolved reference formats using originalRef
+  // This handles @<uri>, @name, and @server:resource patterns
+  // Only clean resolved references - leave unresolved ones visible to user
+  let cleanedText = text;
+  for (const ref of resolved) {
+    if (ref.resourceUri) {
+      // Use split/join to avoid regex escaping issues and handle all occurrences
+      cleanedText = cleanedText.split(ref.originalRef).join('');
+    }
+  }
+
+  // Clean up extra whitespace and newlines
+  cleanedText = cleanedText
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 
   return { cleanedText, uris: resolvedUris };
