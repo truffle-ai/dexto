@@ -12,10 +12,6 @@ import { findDextoProjectRoot, findDextoSourceRoot } from '../../utils/execution
 import type { ResourceManager } from '../../resources/manager.js';
 
 interface FilePromptProviderOptions {
-    promptsDir?: string;
-    // Optional list of directories to search, in precedence order.
-    // If provided, overrides promptsDir.
-    commandsDirs?: string[];
     resourceManager: ResourceManager;
 }
 
@@ -36,19 +32,10 @@ export class FilePromptProvider implements PromptProvider {
     private inlineContent: Map<string, string> = new Map();
 
     constructor(options: FilePromptProviderOptions) {
-        // Resolve search directories with the following precedence:
-        // 1) Explicit commandsDirs (if provided)
-        // 2) Explicit promptsDir (legacy single-directory option)
-        // 3) Default resolution:
-        //    - <repo_or_project_root>/commands
-        //    - ~/.dexto/commands (global)
-        if (options.commandsDirs && options.commandsDirs.length > 0) {
-            this.searchDirs = options.commandsDirs.map((d) => resolve(d));
-        } else if (options.promptsDir) {
-            this.searchDirs = [resolve(options.promptsDir)];
-        } else {
-            this.searchDirs = this.resolveDefaultSearchDirs();
-        }
+        // Opinionated resolution only; no external configuration
+        // - <repo_or_project_root>/commands
+        // - ~/.dexto/commands (global)
+        this.searchDirs = this.resolveDefaultSearchDirs();
         this.resourceManager = options.resourceManager;
     }
 

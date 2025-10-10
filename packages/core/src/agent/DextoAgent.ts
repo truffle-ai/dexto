@@ -199,14 +199,13 @@ export class DextoAgent {
             this.searchService = services.searchService;
 
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            // File prompts automatically resolve custom slash commands
             const promptManager = new PromptManager(
                 this.mcpManager,
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
                 services.storageManager.getDatabase()
-                // No explicit promptsDir: FilePromptProvider will resolve
-                // commands/ (local) and ~/.dexto/commands (global) automatically
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });

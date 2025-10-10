@@ -34,12 +34,10 @@ export class PromptManager {
         resourceManager: ResourceManager,
         agentConfig: ValidatedAgentConfig,
         private readonly eventBus: AgentEventBus,
-        private readonly database: Database,
-        promptsDir?: string
+        private readonly database: Database
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
-        const fileOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
-        this.providers.set('file', new FilePromptProvider(fileOptions));
+        this.providers.set('file', new FilePromptProvider({ resourceManager }));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
         this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
 
