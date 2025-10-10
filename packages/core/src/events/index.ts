@@ -23,6 +23,7 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpPromptsListChanged',
     'dexto:mcpToolsListChanged',
     'dexto:resourceCacheInvalidated',
+    'dexto:sessionTitleUpdated',
     // Tool confirmation events
     'dexto:toolConfirmationRequest',
     'dexto:toolConfirmationResponse',
@@ -240,6 +241,12 @@ export interface AgentEventMap {
         resourceUri?: string;
         serverName: string;
         action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+    };
+
+    /** Fired when a session's human-friendly title is updated */
+    'dexto:sessionTitleUpdated': {
+        sessionId: string;
+        title: string;
     };
 }
 

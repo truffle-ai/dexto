@@ -37,6 +37,7 @@ interface Session {
   createdAt: string | null;
   lastActivity: string | null;
   messageCount: number;
+  title?: string | null;
 }
 
 interface SessionPanelProps {
@@ -115,10 +116,16 @@ export default function SessionPanel({
     if (typeof window !== 'undefined') {
       window.addEventListener('dexto:message', handleMessage);
       window.addEventListener('dexto:response', handleResponse);
+      const handleTitleUpdated: EventListener = () => {
+        if (!isOpen) return;
+        void fetchSessions();
+      };
+      window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
       
       return () => {
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
+        window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
       };
     }
   }, [isOpen, fetchSessions]);
@@ -288,91 +295,98 @@ export default function SessionPanel({
               <p className="text-sm">Start a conversation to see it here</p>
             </div>
           ) : (
-            sessions.map((session) => (
-              <div
-                key={session.id}
-                className={cn(
-                  "group p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer",
-                  currentSessionId === session.id && "ring-2 ring-primary bg-primary/5"
-                )}
-                onClick={() => onSessionChange(session.id)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="font-medium text-sm truncate">
-                        {session.id}
-                      </h3>
-                      {currentSessionId === session.id && (
-                        <Badge variant="secondary" className="text-xs">
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-1">
-                          <Hash className="h-3 w-3" />
-                          <span>{session.messageCount} messages</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatRelativeTime(session.lastActivity)}</span>
+            <TooltipProvider>
+              {sessions.map((session) => {
+                const title = session.title && session.title.trim().length > 0 ? session.title : session.id;
+                const isActive = currentSessionId === session.id;
+                return (
+                  <Tooltip key={session.id} delayDuration={150}>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={cn(
+                          "group p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer",
+                          isActive && "ring-2 ring-primary bg-primary/5"
+                        )}
+                        onClick={() => onSessionChange(session.id)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <h3 className="font-medium text-sm truncate">{title}</h3>
+                              {isActive && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Active
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-1">
+                                  <Hash className="h-3 w-3" />
+                                  <span>{session.messageCount} messages</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{formatRelativeTime(session.lastActivity)}</span>
+                                </div>
+                              </div>
+                              
+                              {session.createdAt && (
+                                <div className="flex items-center space-x-1">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>Created {formatDate(session.createdAt)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Session Actions */}
+                          <div className="flex items-center space-x-1">
+                            {/* Conversation Actions - Direct Buttons */}
+                            {session.messageCount > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSessionForAction(session.id);
+                                  setDeleteConversationDialogOpen(true);
+                                }}
+                                className="h-8 w-8 p-0"
+                                title="Delete Conversation"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                            
+                            {/* Delete Session Button */}
+                            {session.messageCount === 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(session.id);
+                                }}
+                                disabled={deletingSessionId === session.id}
+                                className="h-8 w-8 p-0"
+                                title="Delete Session"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      
-                      {session.createdAt && (
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>Created {formatDate(session.createdAt)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Session Actions */}
-                  <div className="flex items-center space-x-1">
-                    {/* Conversation Actions - Direct Buttons */}
-                    {session.messageCount > 0 && (
-                      <>
-                        {/* Delete Conversation Button */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSessionForAction(session.id);
-                            setDeleteConversationDialogOpen(true);
-                          }}
-                          className="h-8 w-8 p-0"
-                          title="Delete Conversation"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </>
-                    )}
-                    
-                    {/* Delete Session Button */}
-                    {session.messageCount === 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSession(session.id);
-                        }}
-                        disabled={deletingSessionId === session.id}
-                        className="h-8 w-8 p-0"
-                        title="Delete Session"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center">
+                      <span className="font-mono text-xs">{session.id}</span>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </TooltipProvider>
           )}
         </div>
       </ScrollArea>

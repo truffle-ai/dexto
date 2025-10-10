@@ -592,6 +592,26 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     }
                     break;
                 }
+                case 'sessionTitleUpdated': {
+                    const isObject = (value: unknown): value is Record<string, unknown> =>
+                        typeof value === 'object' && value !== null;
+                    const sessionId =
+                        isObject(payload) && typeof payload.sessionId === 'string'
+                            ? payload.sessionId
+                            : undefined;
+                    const title =
+                        isObject(payload) && typeof payload.title === 'string'
+                            ? payload.title
+                            : undefined;
+                    if (typeof window !== 'undefined' && sessionId && title) {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:sessionTitleUpdated', {
+                                detail: { sessionId, title, timestamp: Date.now() },
+                            })
+                        );
+                    }
+                    break;
+                }
                 default:
                     break;
             }
