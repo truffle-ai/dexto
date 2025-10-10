@@ -41,6 +41,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
 import { parseDocument } from 'yaml';
+import { generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -472,6 +473,9 @@ export class DextoAgent {
                 finalText = textInput;
             }
 
+            // Kick off background title generation for first turn if needed
+            void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
+
             const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
@@ -598,6 +602,42 @@ export class DextoAgent {
     public async getSessionTitle(sessionId: string): Promise<string | undefined> {
         this.ensureStarted();
         return await this.sessionManager.getSessionTitle(sessionId);
+    }
+
+    /**
+     * Background task: generate and persist a session title using the same LLM.
+     * Runs only for the first user message (messageCount === 0 and no existing title).
+     * Never throws; timeboxed in the generator.
+     */
+    private async maybeGenerateTitle(
+        sessionId: string,
+        userText: string,
+        llmConfig: ValidatedLLMConfig
+    ): Promise<void> {
+        try {
+            const metadata = await this.sessionManager.getSessionMetadata(sessionId);
+            if (!metadata) return;
+            // Only generate on the first message and if no title exists
+            if (metadata.messageCount > 0 || (metadata as any).title) return;
+            if (!userText || !userText.trim()) return;
+
+            const title = await generateSessionTitle(
+                llmConfig,
+                llmConfig.router,
+                this.toolManager,
+                this.systemPromptManager,
+                this.resourceManager,
+                userText,
+                { timeoutMs: 2500 }
+            );
+            if (!title) return;
+
+            await this.sessionManager.setSessionTitle(sessionId, title);
+            this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
+        } catch (err) {
+            // Swallow background errors – never impact main flow
+            logger.silly(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
+        }
     }
 
     /**
