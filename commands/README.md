@@ -34,6 +34,61 @@ Best for: User-created prompts that need persistence
 
 ---
 
+**Custom Commands (Create, Use, Manage)**
+
+Custom commands are prompts you create at runtime. They live in the local database (not on disk) and are available to the active agent across sessions. They support the same placeholder behavior as file prompts:
+
+- `$1..$9` and `$ARGUMENTS` positional placeholders
+- `$$` escapes a literal dollar
+- `{{name}}` named placeholders (when you declare `arguments`)
+- If no placeholders are used in the template: arguments/context are appended at the end
+
+Create via Web UI
+- Open the “Create Custom Prompt” modal in the web UI
+- Provide `name`, optional `title`/`description`, and the prompt `content`
+- Use `$1..$9`/`$ARGUMENTS`/`{{name}}` placeholders in `content`
+- Optionally attach a resource file; it will be stored and included when the prompt runs
+
+Create via API
+- POST `POST /api/prompts/custom` with JSON:
+```
+{
+  "name": "research-summary",
+  "title": "Research Summary",
+  "description": "Summarize research papers with key findings",
+  "content": "Summarize in style $1 with length $2.\n\nContent:\n$ARGUMENTS",
+  "arguments": [
+    { "name": "style", "required": true },
+    { "name": "length", "required": true }
+  ],
+  "resource": {
+    "base64": "data:application/pdf;base64,...",
+    "mimeType": "application/pdf",
+    "filename": "paper.pdf"
+  }
+}
+```
+- Declaring `arguments` is optional but recommended; it enables inline argument hints in the slash UI and required-arg validation.
+- The `resource` field is optional; attached data is stored in the blob store and sent alongside the prompt when executed.
+
+Delete via API
+- `DELETE /api/prompts/custom/:name`
+
+Preview resolution (without sending to LLM)
+- `GET /api/prompts/:name/resolve?context=...&args={...}`
+  - `context` becomes `_context` for positional flows
+  - `args` is a JSON string for structured argument values
+
+Argument Handling Summary
+- Positional tokens typed after `/name` appear in `args._positional` and are expanded into `$1..$9` and `$ARGUMENTS`.
+- Named args can be declared in `arguments` and referenced as `{{name}}`.
+- If the template contains any placeholders ($1..$9, $ARGUMENTS, or {{name}}), arguments are considered deconstructed and are NOT appended.
+- If the template contains no placeholders, providers append at the end:
+  - `Context: <_context>` if provided, otherwise
+  - `Arguments: key: value, ...`
+
+---
+
 ## Creating File Prompts
 
 ### Basic Structure
@@ -262,4 +317,3 @@ Rules:
 - Prompt Manager Architecture: `packages/core/src/prompts/prompt-manager.ts`
 - File Prompt Provider: `packages/core/src/prompts/providers/file-prompt-provider.ts`
 - Placeholder Expansion: `packages/core/src/prompts/utils.ts` (expandPlaceholders function)
-
