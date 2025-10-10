@@ -157,11 +157,7 @@ export class FilePromptProvider implements PromptProvider {
 
                             // Check if resolved file is within the allowed directory
                             const rel = relative(resolvedDir, resolvedFile);
-                            if (
-                                rel.startsWith('..' + sep) ||
-                                rel === '..' ||
-                                rel.startsWith('..')
-                            ) {
+                            if (rel.startsWith('..' + sep) || rel === '..') {
                                 logger.warn(
                                     `Skipping file '${file}' in '${dir}': path traversal attempt detected (resolved outside directory)`
                                 );
