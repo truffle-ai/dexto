@@ -90,9 +90,6 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
   const handleInstallServer = async (entry: ServerRegistryEntry): Promise<'connected' | 'requires-input'> => {
     const config = buildConfigFromRegistryEntry(entry);
 
-    // Check if additional input is needed
-    // Only show modal if env vars or headers exist AND have empty/placeholder values
-
     const needsEnvInput = config.type === 'stdio' &&
                           Object.keys(config.env || {}).length > 0 &&
                           hasEmptyOrPlaceholderValue(config.env || {});

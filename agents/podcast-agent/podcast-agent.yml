@@ -21,6 +21,9 @@ mcpServers:
       - "@modelcontextprotocol/server-filesystem"
       - .
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🎙️ Hello! I'm your Podcast Agent. Let's create some amazing audio together!"
+
 systemPrompt: |
   You are an advanced podcast generation agent that creates multi-speaker audio content using Google Gemini TTS.
 

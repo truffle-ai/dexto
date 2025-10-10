@@ -14,18 +14,18 @@ import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
 
 type AgentItem = {
+  id: string;
   name: string;
   description: string;
   author?: string;
   tags?: string[];
-  installed: boolean;
   type: 'builtin' | 'custom';
 };
 
 type AgentsResponse = {
   installed: AgentItem[];
   available: AgentItem[];
-  current?: { name?: string | null };
+  current: { id: string | null; name: string | null };
 };
 
 type AgentSelectorProps = {
@@ -37,22 +37,24 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
   const [installed, setInstalled] = useState<AgentItem[]>([]);
   const [available, setAvailable] = useState<AgentItem[]>([]);
-  const [current, setCurrent] = useState<string | null>(null);
+  const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  const loadAgents = useCallback(async () => {
+  const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
     try {
       const res = await fetch('/api/agents');
       if (!res.ok) throw new Error('Failed to fetch agents');
       const data: AgentsResponse = await res.json();
       setInstalled(data.installed || []);
       setAvailable(data.available || []);
-      setCurrent(data.current?.name ?? null);
+      setCurrentId(data.current.id);
+      return data;
     } catch (err) {
-      console.error('AgentSelector load error:', err);
+      console.error(`AgentSelector load error: ${err}`);
+      return null;
     }
   }, []);
 
@@ -61,34 +63,38 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     loadAgents().finally(() => setLoading(false));
   }, [loadAgents]);
 
-  const handleSwitch = useCallback(async (name: string) => {
+  const handleSwitch = useCallback(async (agentId: string) => {
     try {
       setSwitching(true);
       // Check if the agent exists in the installed list
-      const agentExists = installed.some(agent => agent.name === name);
-      if (!agentExists) {
-        console.error('Agent not found in installed list:', name);
-        throw new Error(`Agent '${name}' not found. Please refresh the agents list.`);
+      const agent = installed.find(agent => agent.id === agentId);
+      if (!agent) {
+        console.error(`Agent not found in installed list: ${agentId}`);
+        throw new Error(`Agent '${agentId}' not found. Please refresh the agents list.`);
       }
       
       const res = await fetch('/api/agents/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ id: agentId }),
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        console.error('Agent switch failed:', errorData);
+        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
         throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
       }
-      setCurrent(name);
+      setCurrentId(agentId);
       setOpen(false); // Close dropdown after successful switch
       try {
-        window.dispatchEvent(new CustomEvent('dexto:agentSwitched', { detail: { name } }));
+        window.dispatchEvent(
+          new CustomEvent('dexto:agentSwitched', {
+            detail: { id: agentId, name: agent.name },
+          })
+        );
       } catch {}
       returnToWelcome();
     } catch (err) {
-      console.error('Switch agent failed:', err);
+      console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to switch agent';
       alert(`Failed to switch agent: ${errorMessage}`);
     } finally {
@@ -96,33 +102,64 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }
   }, [returnToWelcome, installed]);
 
-  const handleInstall = useCallback(async (name: string) => {
+  const handleInstall = useCallback(async (agentId: string) => {
     try {
       setSwitching(true);
       const res = await fetch('/api/agents/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ id: agentId }),
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Install failed: ${res.status}`);
       }
-      // Reload agents list to reflect the newly installed agent
-      await loadAgents();
+      // Reload agents list to get fresh data
+      const freshData = await loadAgents();
+      if (!freshData) {
+        throw new Error('Failed to reload agents list after installation');
+      }
+
+      // Check if the agent exists in the freshly loaded installed list
+      const agent = freshData.installed.find(a => a.id === agentId);
+      if (!agent) {
+        console.error(`Agent not found in fresh installed list: ${agentId}`);
+        throw new Error(`Agent '${agentId}' not found after installation. Please refresh.`);
+      }
+
       // After successful install, switch to the agent
-      await handleSwitch(name);
+      const switchRes = await fetch('/api/agents/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: agentId }),
+      });
+      if (!switchRes.ok) {
+        const errorData = await switchRes.json().catch(() => ({}));
+        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
+        throw new Error(errorData.error || errorData.message || `Switch failed: ${switchRes.status} ${switchRes.statusText}`);
+      }
+      setCurrentId(agentId);
+      setOpen(false);
+      try {
+        window.dispatchEvent(
+          new CustomEvent('dexto:agentSwitched', {
+            detail: { id: agentId, name: agent.name },
+          })
+        );
+      } catch {}
+      returnToWelcome();
     } catch (err) {
-      console.error('Install agent failed:', err);
+      console.error(`Install agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
       alert(`Failed to install agent: ${errorMessage}`);
+    } finally {
       setSwitching(false);
     }
-  }, [handleSwitch, loadAgents]);
+  }, [loadAgents, returnToWelcome]);
 
-  const handleDelete = useCallback(async (name: string, e: React.MouseEvent) => {
+  const handleDelete = useCallback(async (agent: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete
-    if (!confirm(`Are you sure you want to delete the custom agent "${name}"?`)) {
+    if (!confirm(`Are you sure you want to delete the custom agent "${agent.name}"?`)) {
       return;
     }
     try {
@@ -130,27 +167,27 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       const res = await fetch('/api/agents/uninstall', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ id: agent.id }),
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Delete failed: ${res.status}`);
       }
-      await loadAgents();
-      // If we deleted the current agent, clear current
-      if (current === name) {
-        setCurrent(null);
+      const updated = await loadAgents();
+      // If the backend still reports the deleted id as current, clear it locally
+      if (updated?.current.id === agent.id) {
+        setCurrentId(null);
       }
     } catch (err) {
-      console.error('Delete agent failed:', err);
+      console.error(`Delete agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete agent';
       alert(`Failed to delete agent: ${errorMessage}`);
     } finally {
       setSwitching(false);
     }
-  }, [loadAgents, current]);
+  }, [currentId, loadAgents]);
 
-  const handleAgentCreated = useCallback(async (agentName: string) => {
+  const handleAgentCreated = useCallback(async (_agentName: string) => {
     // Add a small delay to ensure the agent is fully installed
     await new Promise(resolve => setTimeout(resolve, 1000));
     // Reload agents list to show the newly created agent
@@ -159,7 +196,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     // The user can manually switch to it from the dropdown
   }, [loadAgents]);
 
-  const currentLabel = useMemo(() => current || 'Choose Agent', [current]);
+  const currentLabel = useMemo(() => {
+    if (!currentId) return 'Choose Agent';
+    const match = installed.find(agent => agent.id === currentId) || available.find(agent => agent.id === currentId);
+    return match?.name ?? currentId;
+  }, [available, currentId, installed]);
 
   const getButtonClassName = (mode: string) => {
     const baseClasses = 'transition-all duration-200 shadow-lg hover:shadow-xl font-semibold rounded-full';
@@ -223,16 +264,16 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                   .filter((a) => a.type === 'custom')
                   .map((agent) => (
                     <DropdownMenuItem
-                      key={agent.name}
-                      onClick={() => handleSwitch(agent.name)}
-                      disabled={switching || agent.name === current}
+                      key={agent.id}
+                      onClick={() => handleSwitch(agent.id)}
+                      disabled={switching || agent.id === currentId}
                       className="cursor-pointer py-3"
                     >
                       <div className="flex items-center justify-between w-full gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm truncate">{agent.name}</span>
-                            {agent.name === current && (
+                            {agent.id === currentId && (
                               <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
                             )}
                           </div>
@@ -246,7 +287,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                           )}
                         </div>
                         <button
-                          onClick={(e) => handleDelete(agent.name, e)}
+                          onClick={(e) => handleDelete(agent, e)}
                           disabled={switching}
                           className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
                           title="Delete custom agent"
@@ -269,16 +310,16 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                   .filter((a) => a.type === 'builtin')
                   .map((agent) => (
                     <DropdownMenuItem
-                      key={agent.name}
-                      onClick={() => handleSwitch(agent.name)}
-                      disabled={switching || agent.name === current}
+                      key={agent.id}
+                      onClick={() => handleSwitch(agent.id)}
+                      disabled={switching || agent.id === currentId}
                       className="cursor-pointer py-3"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm truncate">{agent.name}</span>
-                            {agent.name === current && (
+                            {agent.id === currentId && (
                               <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
                             )}
                           </div>
@@ -307,8 +348,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                   .filter((a) => a.type === 'builtin')
                   .map((agent) => (
                     <DropdownMenuItem
-                      key={agent.name}
-                      onClick={() => handleInstall(agent.name)}
+                      key={agent.id}
+                      onClick={() => handleInstall(agent.id)}
                       disabled={switching}
                       className="cursor-pointer py-3"
                     >

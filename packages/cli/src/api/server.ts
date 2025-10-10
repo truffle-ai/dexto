@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
-import { logger, redactSensitiveData, type AgentCard } from '@dexto/core';
+import { logger, redactSensitiveData, deriveDisplayName, type AgentCard } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
 import {
     createMcpTransport,
@@ -79,7 +79,7 @@ export async function initializeApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number,
-    agentName?: string
+    agentId?: string
 ): Promise<{
     app: Express;
     server: http.Server;
@@ -90,7 +90,7 @@ export async function initializeApi(
     const app = express();
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
-    let activeAgentName: string | undefined = agentName || 'default';
+    let activeAgentId: string | undefined = agentId || 'default-agent';
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
     // this will apply middleware to all /api/llm/* routes
@@ -100,7 +100,7 @@ export async function initializeApi(
     const server = http.createServer(app);
     const wss = new WebSocketServer({ server });
 
-    logger.info(`Initializing API server with agent: ${activeAgentName}`);
+    logger.info(`Initializing API server with agent: ${activeAgentId}`);
 
     // Initialize event subscribers
     const webSubscriber = new WebSocketEventSubscriber(wss);
@@ -141,7 +141,7 @@ export async function initializeApi(
         }
     }
 
-    async function switchAgentByName(name: string) {
+    async function switchAgentById(agentId: string) {
         if (isSwitchingAgent) {
             throw AgentError.apiValidationError('Agent switch already in progress');
         }
@@ -150,22 +150,22 @@ export async function initializeApi(
         let newAgent: DextoAgent | undefined;
         try {
             // Use orchestrator to create new agent
-            newAgent = await getDexto().createAgent(name);
+            newAgent = await getDexto().createAgent(agentId);
 
             // Register event subscribers with new agent before starting
             logger.info('Registering event subscribers with new agent...');
             newAgent.registerSubscriber(webSubscriber);
             newAgent.registerSubscriber(webhookSubscriber);
 
-            logger.info(`Starting new agent: ${name}`);
+            logger.info(`Starting new agent: ${agentId}`);
             await newAgent.start();
 
             // Stop previous agent last (only after new one is fully operational)
             const previousAgent = activeAgent;
             activeAgent = newAgent;
-            activeAgentName = name;
+            activeAgentId = agentId;
 
-            logger.info(`Successfully switched to agent: ${name}`);
+            logger.info(`Successfully switched to agent: ${agentId}`);
 
             // Now safely stop the previous agent
             try {
@@ -178,10 +178,12 @@ export async function initializeApi(
                 // Don't throw here as the switch was successful
             }
 
-            return { name };
+            return await resolveAgentInfo(agentId);
         } catch (error) {
             logger.error(
-                `Failed to switch to agent '${name}': ${error instanceof Error ? error.message : String(error)}`,
+                `Failed to switch to agent '${agentId}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
                 { error }
             );
 
@@ -1070,13 +1072,33 @@ export async function initializeApi(
     }
 
     // ===== Agents API =====
+
+    // TODO: Consider moving to AgentRegistry.getAgentInfo() if this pattern is needed
+    // outside of API response formatting (e.g., in CLI commands, WebUI hooks, client SDK)
+    /**
+     * Helper to resolve agent ID to { id, name } by looking up in registry
+     * @param agentId - The agent ID to resolve
+     * @returns Object with id and name (uses deriveDisplayName as fallback)
+     */
+    async function resolveAgentInfo(agentId: string): Promise<{ id: string; name: string }> {
+        const agents = await Dexto.listAgents();
+        const agent =
+            agents.installed.find((a) => a.id === agentId) ??
+            agents.available.find((a) => a.id === agentId);
+        return {
+            id: agentId,
+            name: agent?.name ?? deriveDisplayName(agentId),
+        };
+    }
+
     app.get('/api/agents', async (_req, res, next) => {
         try {
             const agents = await Dexto.listAgents();
+            const currentId = activeAgentId ?? null;
             return sendJsonResponse(res, {
                 installed: agents.installed,
                 available: agents.available,
-                current: { name: activeAgentName ?? 'default' },
+                current: currentId ? await resolveAgentInfo(currentId) : { id: null, name: null },
             });
         } catch (error) {
             return next(error);
@@ -1085,62 +1107,114 @@ export async function initializeApi(
 
     app.get('/api/agents/current', async (_req, res, next) => {
         try {
-            // TODO: Consider exposing agent.getName() method or config.name for more accurate tracking
-            return sendJsonResponse(res, { name: activeAgentName ?? 'default' });
+            const currentId = activeAgentId ?? null;
+            if (!currentId) {
+                return sendJsonResponse(res, { id: null, name: null });
+            }
+            return sendJsonResponse(res, await resolveAgentInfo(currentId));
         } catch (error) {
             return next(error);
         }
     });
 
-    // Agent name schema (shared by /api/agents/install, /api/agents/switch, /api/agents/validate-name)
-    const AgentNameSchema = z.object({ name: z.string().min(1) }).strict();
-
-    // Schema for custom agent installation
-    const CustomAgentInstallSchema = z
+    const AgentIdentifierSchema = z
         .object({
-            name: z.string().min(1),
-            sourcePath: z.string().min(1),
-            metadata: z.object({
-                description: z.string().min(1),
-                author: z.string().min(1),
-                tags: z.array(z.string()),
-                main: z.string().optional(),
-            }),
-            injectPreferences: z.boolean().default(true),
+            id: z
+                .string()
+                .min(1, 'Agent id is required')
+                .describe('Unique agent identifier (e.g., "database-agent")'),
         })
         .strict();
+
+    const UninstallAgentSchema = z
+        .object({
+            id: z
+                .string()
+                .min(1, 'Agent id is required')
+                .describe('Unique agent identifier to uninstall'),
+            force: z
+                .boolean()
+                .default(false)
+                .describe('Force uninstall even if agent is currently active'),
+        })
+        .strict();
+
+    // Schema for custom agent installation (CLI/automation entrypoint)
+    const CustomAgentInstallSchema = z
+        .object({
+            id: z.string().min(1, 'Agent id is required').describe('Unique agent identifier'),
+            name: z.string().optional().describe('Display name (defaults to derived from id)'),
+            sourcePath: z.string().min(1).describe('Path to agent configuration file or directory'),
+            metadata: z
+                .object({
+                    description: z
+                        .string()
+                        .min(1)
+                        .describe('Human-readable description of the agent'),
+                    author: z.string().min(1).describe('Agent author or organization name'),
+                    tags: z.array(z.string()).describe('Tags for categorizing the agent'),
+                    main: z
+                        .string()
+                        .optional()
+                        .describe('Main configuration file name within source directory'),
+                })
+                .strict(),
+            injectPreferences: z
+                .boolean()
+                .default(true)
+                .describe('Whether to inject user preferences into agent config'),
+        })
+        .strict()
+        .transform((value) => {
+            const displayName = value.name?.trim() || deriveDisplayName(value.id);
+            return {
+                id: value.id,
+                displayName,
+                sourcePath: value.sourcePath,
+                metadata: value.metadata,
+                injectPreferences: value.injectPreferences,
+            };
+        });
 
     app.post('/api/agents/install', express.json(), async (req, res, next) => {
         try {
             // Check if this is a custom agent installation (has sourcePath and metadata)
             if (req.body.sourcePath && req.body.metadata) {
-                const { name, sourcePath, metadata, injectPreferences } = parseBody(
-                    CustomAgentInstallSchema,
-                    req.body
-                );
+                const { id, displayName, sourcePath, metadata, injectPreferences } =
+                    CustomAgentInstallSchema.parse(req.body);
 
                 // Clean metadata to match exact optional property types
-                const cleanMetadata: {
-                    description: string;
-                    author: string;
-                    tags: string[];
-                    main?: string;
-                } = {
-                    description: metadata.description,
-                    author: metadata.author,
-                    tags: metadata.tags,
-                };
-                if (metadata.main !== undefined) {
-                    cleanMetadata.main = metadata.main;
-                }
-
-                await Dexto.installCustomAgent(name, sourcePath, cleanMetadata, injectPreferences);
-                return sendJsonResponse(res, { installed: true, name, type: 'custom' }, 201);
+                await Dexto.installCustomAgent(
+                    id,
+                    sourcePath,
+                    {
+                        name: displayName,
+                        description: metadata.description,
+                        author: metadata.author,
+                        tags: metadata.tags,
+                        ...(metadata.main ? { main: metadata.main } : {}),
+                    },
+                    injectPreferences
+                );
+                return sendJsonResponse(
+                    res,
+                    { installed: true, id, name: displayName, type: 'custom' },
+                    201
+                );
             } else {
                 // Registry agent installation
-                const { name } = parseBody(AgentNameSchema, req.body);
-                await Dexto.installAgent(name);
-                return sendJsonResponse(res, { installed: true, name, type: 'builtin' }, 201);
+                const { id } = parseBody(AgentIdentifierSchema, req.body);
+                await Dexto.installAgent(id);
+                const agentInfo = await resolveAgentInfo(id);
+                return sendJsonResponse(
+                    res,
+                    {
+                        installed: true,
+                        ...agentInfo,
+                        type: 'builtin',
+                    },
+                    201
+                );
             }
         } catch (error) {
             return next(error);
@@ -1149,8 +1223,8 @@ export async function initializeApi(
 
     app.post('/api/agents/switch', express.json(), async (req, res, next) => {
         try {
-            const { name } = parseBody(AgentNameSchema, req.body);
-            const result = await switchAgentByName(name);
+            const { id } = parseBody(AgentIdentifierSchema, req.body);
+            const result = await switchAgentById(id);
             return sendJsonResponse(res, { switched: true, ...result });
         } catch (error) {
             if (
@@ -1166,26 +1240,26 @@ export async function initializeApi(
 
     app.post('/api/agents/validate-name', express.json(), async (req, res, next) => {
         try {
-            const { name } = parseBody(AgentNameSchema, req.body);
+            const { id } = parseBody(AgentIdentifierSchema, req.body);
             const agents = await Dexto.listAgents();
 
             // Check if name exists in installed agents
-            const installedAgent = agents.installed.find((a) => a.name === name);
+            const installedAgent = agents.installed.find((a) => a.id === id);
             if (installedAgent) {
                 return sendJsonResponse(res, {
                     valid: false,
                     conflict: installedAgent.type,
-                    message: `Agent name '${name}' already exists (${installedAgent.type})`,
+                    message: `Agent id '${id}' already exists (${installedAgent.type})`,
                 });
             }
 
             // Check if name exists in available agents (registry)
-            const availableAgent = agents.available.find((a) => a.name === name);
+            const availableAgent = agents.available.find((a) => a.id === id);
             if (availableAgent) {
                 return sendJsonResponse(res, {
                     valid: false,
                     conflict: availableAgent.type,
-                    message: `Agent name '${name}' conflicts with ${availableAgent.type} agent`,
+                    message: `Agent id '${id}' conflicts with ${availableAgent.type} agent`,
                 });
             }
 
@@ -1195,18 +1269,11 @@ export async function initializeApi(
         }
     });
 
-    const UninstallAgentSchema = z
-        .object({
-            name: z.string().min(1),
-            force: z.boolean().default(false),
-        })
-        .strict();
-
     app.post('/api/agents/uninstall', express.json(), async (req, res, next) => {
         try {
-            const { name, force } = parseBody(UninstallAgentSchema, req.body);
-            await Dexto.uninstallAgent(name, force);
-            return sendJsonResponse(res, { uninstalled: true, name });
+            const { id, force } = parseBody(UninstallAgentSchema, req.body);
+            await Dexto.uninstallAgent(id, force);
+            return sendJsonResponse(res, { uninstalled: true, id });
         } catch (error) {
             return next(error);
         }
@@ -1216,14 +1283,18 @@ export async function initializeApi(
     const CustomAgentCreateSchema = z
         .object({
             // Registry metadata
+            id: z
+                .string()
+                .min(1, 'Agent ID is required')
+                .regex(
+                    /^[a-z0-9-]+$/,
+                    'Agent ID must contain only lowercase letters, numbers, and hyphens'
+                )
+                .describe('Unique agent identifier'),
             name: z
                 .string()
                 .min(1, 'Agent name is required')
-                .regex(
-                    /^[a-z0-9-]+$/,
-                    'Agent name must contain only lowercase letters, numbers, and hyphens'
-                )
-                .describe('Unique agent slug'),
+                .describe('Display name for the agent'),
             description: z
                 .string()
                 .min(1, 'Description is required')
@@ -1254,7 +1325,7 @@ export async function initializeApi(
     // Create a new custom agent from UI
     app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
         try {
-            const { name, description, author, tags, llm, systemPrompt } = parseBody(
+            const { id, name, description, author, tags, llm, systemPrompt } = parseBody(
                 CustomAgentCreateSchema,
                 req.body
             );
@@ -1286,19 +1357,20 @@ export async function initializeApi(
             };
 
             const yamlContent = yamlStringify(agentConfig);
-            logger.info(`Creating agent config for ${name}:`, { agentConfig, yamlContent });
+            logger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
 
             // Create temporary file
             const tmpDir = os.tmpdir();
-            const tmpFile = path.join(tmpDir, `${name}-${Date.now()}.yml`);
+            const tmpFile = path.join(tmpDir, `${id}-${Date.now()}.yml`);
             await fs.writeFile(tmpFile, yamlContent, 'utf-8');
 
             try {
                 // Install the custom agent
                 await Dexto.installCustomAgent(
-                    name,
+                    id,
                     tmpFile,
                     {
+                        name,
                         description,
                         author: author || 'Custom',
                         tags: tags || [],
@@ -1309,7 +1381,7 @@ export async function initializeApi(
                 // Clean up temp file
                 await fs.unlink(tmpFile).catch(() => {});
 
-                return sendJsonResponse(res, { created: true, name }, 201);
+                return sendJsonResponse(res, { created: true, id, name }, 201);
             } catch (installError) {
                 // Clean up temp file on error
                 await fs.unlink(tmpFile).catch(() => {});
@@ -2148,13 +2220,13 @@ export async function startApiServer(
     agent: DextoAgent,
     port = 3000,
     agentCardOverride?: Partial<AgentCard>,
-    agentName?: string
+    agentId?: string
 ) {
     const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
         agentCardOverride,
         port,
-        agentName
+        agentId
     );
 
     // API server for REST endpoints and WebSocket connections

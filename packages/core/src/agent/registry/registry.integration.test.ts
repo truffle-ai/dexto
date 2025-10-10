@@ -43,6 +43,8 @@ describe('LocalAgentRegistry - Integration Tests', () => {
             version: '1.0.0',
             agents: {
                 'default-agent': {
+                    id: 'default-agent',
+                    name: 'Default Agent',
                     description: 'Default builtin agent',
                     author: 'Dexto',
                     tags: ['builtin'],
@@ -50,6 +52,8 @@ describe('LocalAgentRegistry - Integration Tests', () => {
                     type: 'builtin',
                 },
                 'coding-agent': {
+                    id: 'coding-agent',
+                    name: 'Coding Agent',
                     description: 'Coding builtin agent',
                     author: 'Dexto',
                     tags: ['builtin', 'coding'],

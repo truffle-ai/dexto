@@ -26,6 +26,9 @@ mcpServers:
     timeout: 30000
     connectionMode: lenient
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🗄️ Hi! I'm your Database Agent. What would you like to explore?"
+
 # System prompt that defines the agent's database interaction capabilities
 systemPrompt:
   contributors:

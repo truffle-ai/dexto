@@ -3,6 +3,7 @@ import { getAgentRegistry } from './agent/registry/registry.js';
 import { loadAgentConfig } from './config/loader.js';
 import { AgentError } from './agent/errors.js';
 import { DextoAgent } from './agent/DextoAgent.js';
+import { deriveDisplayName } from './agent/registry/types.js';
 
 // Cached singleton instance
 let cachedDexto: Dexto | null = null;
@@ -93,6 +94,7 @@ export class Dexto {
      */
     public static async listAgents(): Promise<{
         installed: Array<{
+            id: string;
             name: string;
             description: string;
             author?: string;
@@ -100,13 +102,14 @@ export class Dexto {
             type: 'builtin' | 'custom';
         }>;
         available: Array<{
+            id: string;
             name: string;
             description: string;
             author?: string;
             tags?: string[];
             type: 'builtin' | 'custom';
         }>;
-        current?: { name?: string | null };
+        current?: { id?: string | null; name?: string | null };
     }> {
         const agentRegistry = getAgentRegistry();
         const availableMap = agentRegistry.getAvailableAgents();
@@ -114,11 +117,12 @@ export class Dexto {
 
         // Build installed agents list with metadata
         const installed = await Promise.all(
-            installedNames.map(async (name) => {
-                const registryEntry = availableMap[name];
+            installedNames.map(async (agentId) => {
+                const registryEntry = availableMap[agentId];
                 if (registryEntry) {
                     return {
-                        name,
+                        id: agentId,
+                        name: registryEntry.name,
                         description: registryEntry.description,
                         author: registryEntry.author,
                         tags: registryEntry.tags,
@@ -127,16 +131,21 @@ export class Dexto {
                 } else {
                     // Handle locally installed agents not in registry
                     try {
-                        const config = await loadAgentConfig(name);
+                        const config = await loadAgentConfig(agentId);
                         const author = config.agentCard?.provider?.organization;
                         const result: {
+                            id: string;
                             name: string;
                             description: string;
                             author?: string;
                             tags?: string[];
                             type: 'builtin' | 'custom';
                         } = {
-                            name,
+                            id: agentId,
+                            name:
+                                typeof config.agentCard?.name === 'string'
+                                    ? config.agentCard.name
+                                    : deriveDisplayName(agentId),
                             description: config.agentCard?.description || 'Local agent',
                             tags: [],
                             type: 'custom' as const, // Assume custom if not in registry
@@ -147,13 +156,15 @@ export class Dexto {
                         return result;
                     } catch {
                         const result: {
+                            id: string;
                             name: string;
                             description: string;
                             author?: string;
                             tags?: string[];
                             type: 'builtin' | 'custom';
                         } = {
-                            name,
+                            id: agentId,
+                            name: deriveDisplayName(agentId),
                             description: 'Local agent (config unavailable)',
                             tags: [],
                             type: 'custom' as const, // Assume custom if not in registry
@@ -166,9 +177,10 @@ export class Dexto {
 
         // Build available agents list (excluding already installed)
         const available = Object.entries(availableMap)
-            .filter(([name]) => !installedNames.includes(name))
-            .map(([name, entry]) => ({
-                name,
+            .filter(([agentId]) => !installedNames.includes(agentId))
+            .map(([agentId, entry]) => ({
+                id: agentId,
+                name: entry.name,
                 description: entry.description,
                 author: entry.author,
                 tags: entry.tags,
@@ -178,7 +190,7 @@ export class Dexto {
         return {
             installed,
             available,
-            current: { name: null }, // TODO: Track current agent name
+            current: { id: null, name: null }, // TODO: Track current agent name
         };
     }
 
@@ -243,6 +255,7 @@ export class Dexto {
         agentName: string,
         sourcePath: string,
         metadata: {
+            name?: string;
             description: string;
             author: string;
             tags: string[];

@@ -5,7 +5,13 @@ import { logger } from '@core/logger/index.js';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@core/utils/path.js';
 import { loadGlobalPreferences } from '@core/preferences/loader.js';
 import { writePreferencesToAgent } from '@core/config/writer.js';
-import { Registry, RegistrySchema, AgentRegistry, AgentRegistryEntry } from './types.js';
+import {
+    Registry,
+    RegistrySchema,
+    AgentRegistry,
+    AgentRegistryEntry,
+    normalizeRegistryJson,
+} from './types.js';
 import { RegistryError } from './errors.js';
 import {
     loadUserRegistry,
@@ -104,7 +110,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         try {
             const jsonData = readFileSync(jsonPath, 'utf-8');
             const rawRegistry = JSON.parse(jsonData);
-            bundledRegistry = RegistrySchema.parse(rawRegistry);
+            bundledRegistry = RegistrySchema.parse(normalizeRegistryJson(rawRegistry));
         } catch (error) {
             throw RegistryError.registryParseError(
                 jsonPath,
@@ -124,11 +130,11 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
-     * Check if agent exists in registry
+     * Check if agent exists in registry by ID
      */
-    hasAgent(name: string): boolean {
+    hasAgent(agentId: string): boolean {
         const registry = this.getRegistry();
-        return name in registry.agents;
+        return agentId in registry.agents;
     }
 
     /**
@@ -140,17 +146,38 @@ export class LocalAgentRegistry implements AgentRegistry {
     }
 
     /**
-     * Validate custom agent name doesn't conflict with bundled registry
-     * @throws RegistryError if name conflicts
+     * Validate custom agent ID doesn't conflict with bundled registry
+     * @throws RegistryError if ID conflicts with builtin agent
      */
-    private validateCustomAgentName(agentName: string): void {
-        // Load bundled registry directly to check conflicts
-        const jsonPath = resolveBundledScript('agents/agent-registry.json');
-        const jsonData = readFileSync(jsonPath, 'utf-8');
-        const bundledRegistry = RegistrySchema.parse(JSON.parse(jsonData));
+    private validateCustomAgentId(agentId: string): void {
+        let jsonPath: string;
+        try {
+            jsonPath = resolveBundledScript('agents/agent-registry.json');
+        } catch (error) {
+            throw RegistryError.registryNotFound(
+                'agents/agent-registry.json',
+                error instanceof Error ? error.message : String(error)
+            );
+        }
 
-        if (agentName in bundledRegistry.agents) {
-            throw RegistryError.customAgentNameConflict(agentName);
+        try {
+            const jsonData = readFileSync(jsonPath, 'utf-8');
+            const bundledRegistry = RegistrySchema.parse(
+                normalizeRegistryJson(JSON.parse(jsonData))
+            );
+
+            if (agentId in bundledRegistry.agents) {
+                throw RegistryError.customAgentNameConflict(agentId);
+            }
+        } catch (error) {
+            // Preserve original customAgentNameConflict throws
+            if (error instanceof Error && /name conflicts with builtin agent/.test(error.message)) {
+                throw error;
+            }
+            throw RegistryError.registryParseError(
+                jsonPath,
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 
@@ -158,27 +185,27 @@ export class LocalAgentRegistry implements AgentRegistry {
      * Resolve main config file for installed agent
      * Handles both directory agents (with main field) and single-file agents
      */
-    resolveMainConfig(agentDir: string, agentName: string): string {
+    resolveMainConfig(agentDir: string, agentId: string): string {
         const registry = this.getRegistry();
-        const agentData = registry.agents[agentName];
+        const agentData = registry.agents[agentId];
 
         if (!agentData) {
             const available = Object.keys(registry.agents);
-            throw RegistryError.agentNotFound(agentName, available);
+            throw RegistryError.agentNotFound(agentId, available);
         }
 
         if (agentData.source.endsWith('/')) {
             // Directory agent - main field is required
             if (!agentData.main) {
                 throw RegistryError.agentInvalidEntry(
-                    agentName,
+                    agentId,
                     'directory entry missing main field'
                 );
             }
 
             const mainConfigPath = path.join(agentDir, agentData.main);
             if (!existsSync(mainConfigPath)) {
-                throw RegistryError.mainConfigMissing(agentName, mainConfigPath);
+                throw RegistryError.mainConfigMissing(agentId, mainConfigPath);
             }
 
             return mainConfigPath;
@@ -197,26 +224,33 @@ export class LocalAgentRegistry implements AgentRegistry {
 
     /**
      * Install agent atomically using temp + rename pattern
-     * @param agentName Name of the agent to install
+     * @param agentId ID of the agent to install
      * @param injectPreferences Whether to inject global preferences into installed agent (default: true)
      */
-    async installAgent(agentName: string, injectPreferences: boolean = true): Promise<string> {
-        logger.info(`Installing agent: ${agentName}`);
+    async installAgent(agentId: string, injectPreferences: boolean = true): Promise<string> {
+        logger.info(`Installing agent: ${agentId}`);
         const registry = this.getRegistry();
-        const agentData = registry.agents[agentName];
+        const agentData = registry.agents[agentId];
 
         if (!agentData) {
             const available = Object.keys(registry.agents);
-            throw RegistryError.agentNotFound(agentName, available);
+            throw RegistryError.agentNotFound(agentId, available);
         }
 
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const targetDir = path.join(globalAgentsDir, agentName);
+        const targetDir = path.resolve(globalAgentsDir, agentId);
+        const relTarget = path.relative(globalAgentsDir, targetDir);
+        if (relTarget.startsWith('..') || path.isAbsolute(relTarget)) {
+            throw RegistryError.installationFailed(
+                agentId,
+                'invalid agentId: path traversal detected'
+            );
+        }
 
         // Check if already installed
         if (existsSync(targetDir)) {
-            logger.info(`Agent '${agentName}' already installed`);
-            return this.resolveMainConfig(targetDir, agentName);
+            logger.info(`Agent '${agentId}' already installed`);
+            return this.resolveMainConfig(targetDir, agentId);
         }
 
         // Ensure agents directory exists
@@ -241,38 +275,38 @@ export class LocalAgentRegistry implements AgentRegistry {
             }
 
             // Validate installation
-            const mainConfigPath = this.resolveMainConfig(tempDir, agentName);
+            const mainConfigPath = this.resolveMainConfig(tempDir, agentId);
             if (!existsSync(mainConfigPath)) {
-                throw RegistryError.installationValidationFailed(agentName, mainConfigPath);
+                throw RegistryError.installationValidationFailed(agentId, mainConfigPath);
             }
 
             // Atomic rename
             await fs.rename(tempDir, targetDir);
 
-            logger.info(`✓ Installed agent '${agentName}' to ${targetDir}`);
+            logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
 
             // Inject global preferences if requested
             if (injectPreferences) {
                 try {
                     const preferences = await loadGlobalPreferences();
                     await writePreferencesToAgent(targetDir, preferences);
-                    logger.info(`✓ Applied global preferences to installed agent '${agentName}'`);
+                    logger.info(`✓ Applied global preferences to installed agent '${agentId}'`);
                 } catch (error) {
                     // Log warning but don't fail installation if preference injection fails
                     logger.warn(
-                        `Failed to inject preferences to '${agentName}': ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to inject preferences to '${agentId}': ${error instanceof Error ? error.message : String(error)}`
                     );
                     console.log(
-                        `⚠️  Warning: Could not apply preferences to '${agentName}' - agent will use bundled settings`
+                        `⚠️  Warning: Could not apply preferences to '${agentId}' - agent will use bundled settings`
                     );
                 }
             } else {
                 logger.info(
-                    `Skipped preference injection for '${agentName}' (injectPreferences=false)`
+                    `Skipped preference injection for '${agentId}' (injectPreferences=false)`
                 );
             }
 
-            return this.resolveMainConfig(targetDir, agentName);
+            return this.resolveMainConfig(targetDir, agentId);
         } catch (error) {
             // Clean up temp directory on failure
             try {
@@ -288,7 +322,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             }
 
             throw RegistryError.installationFailed(
-                agentName,
+                agentId,
                 error instanceof Error ? error.message : String(error)
             );
         }
@@ -296,16 +330,17 @@ export class LocalAgentRegistry implements AgentRegistry {
 
     /**
      * Install a custom agent from a local file path
-     * @param agentName Unique name for the custom agent
+     * @param agentId Unique identifier for the custom agent
      * @param sourcePath Absolute path to agent YAML file or directory
-     * @param metadata Agent metadata (description, author, tags, main)
+     * @param metadata Agent metadata (name for display, description, author, tags, main)
      * @param injectPreferences Whether to inject global preferences (default: true)
      * @returns Path to the installed agent's main config file
      */
     async installCustomAgentFromPath(
-        agentName: string,
+        agentId: string,
         sourcePath: string,
         metadata: {
+            name?: string;
             description: string;
             author: string;
             tags: string[];
@@ -313,10 +348,10 @@ export class LocalAgentRegistry implements AgentRegistry {
         },
         injectPreferences: boolean = true
     ): Promise<string> {
-        logger.info(`Installing custom agent '${agentName}' from ${sourcePath}`);
+        logger.info(`Installing custom agent '${agentId}' from ${sourcePath}`);
 
-        // Validate agent name doesn't conflict with bundled registry
-        this.validateCustomAgentName(agentName);
+        // Validate agent ID doesn't conflict with bundled registry
+        this.validateCustomAgentId(agentId);
 
         // Check if source exists
         if (!existsSync(sourcePath)) {
@@ -324,11 +359,18 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
 
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const targetDir = path.join(globalAgentsDir, agentName);
+        const targetDir = path.resolve(globalAgentsDir, agentId);
+        const relTarget = path.relative(globalAgentsDir, targetDir);
+        if (relTarget.startsWith('..') || path.isAbsolute(relTarget)) {
+            throw RegistryError.installationFailed(
+                agentId,
+                'invalid agentId: path traversal detected'
+            );
+        }
 
         // Check if already installed
         if (existsSync(targetDir)) {
-            throw RegistryError.agentAlreadyExists(agentName);
+            throw RegistryError.agentAlreadyExists(agentId);
         }
 
         // Ensure agents directory exists
@@ -338,26 +380,36 @@ export class LocalAgentRegistry implements AgentRegistry {
         const stats = await fs.stat(sourcePath);
         const isDirectory = stats.isDirectory();
 
-        // For single-file agents, use agent name for filename
-        const configFileName = isDirectory ? undefined : `${agentName}.yml`;
+        // For single-file agents, use agent ID for filename
+        const configFileName = isDirectory ? undefined : `${agentId}.yml`;
 
         // Validate metadata
         if (!metadata.description) {
-            throw RegistryError.installationFailed(agentName, 'description is required');
+            throw RegistryError.installationFailed(agentId, 'description is required');
         }
         if (isDirectory && !metadata.main) {
             throw RegistryError.installationFailed(
-                agentName,
+                agentId,
                 'main field is required for directory-based agents'
             );
         }
 
         // Build registry entry
+        // Auto-generate display name from ID if not provided
+        const displayName =
+            metadata.name ||
+            agentId
+                .split('-')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+
         const registryEntry: Omit<AgentRegistryEntry, 'type'> = {
+            id: agentId,
+            name: displayName,
             description: metadata.description,
             author: metadata.author,
             tags: metadata.tags,
-            source: isDirectory ? `${agentName}/` : configFileName!,
+            source: isDirectory ? `${agentId}/` : configFileName!,
             main: metadata.main,
         };
 
@@ -381,13 +433,13 @@ export class LocalAgentRegistry implements AgentRegistry {
                 : path.join(tempDir, configFileName!);
 
             if (!existsSync(tempMainConfigPath)) {
-                throw RegistryError.installationValidationFailed(agentName, tempMainConfigPath);
+                throw RegistryError.installationValidationFailed(agentId, tempMainConfigPath);
             }
 
             // Atomic rename
             await fs.rename(tempDir, targetDir);
 
-            logger.info(`✓ Installed custom agent '${agentName}' to ${targetDir}`);
+            logger.info(`✓ Installed custom agent '${agentId}' to ${targetDir}`);
 
             // Calculate final main config path after rename
             const mainConfigPath =
@@ -397,8 +449,8 @@ export class LocalAgentRegistry implements AgentRegistry {
 
             // Add to user registry (with rollback on failure)
             try {
-                await addAgentToUserRegistry(agentName, registryEntry);
-                logger.info(`✓ Added '${agentName}' to user registry`);
+                await addAgentToUserRegistry(agentId, registryEntry);
+                logger.info(`✓ Added '${agentId}' to user registry`);
 
                 // Clear cached registry to force reload
                 this._registry = null;
@@ -411,7 +463,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                     }
                 } catch (rollbackError) {
                     logger.error(
-                        `Rollback failed for '${agentName}': ${
+                        `Rollback failed for '${agentId}': ${
                             rollbackError instanceof Error
                                 ? rollbackError.message
                                 : String(rollbackError)
@@ -427,13 +479,13 @@ export class LocalAgentRegistry implements AgentRegistry {
                 try {
                     const preferences = await loadGlobalPreferences();
                     await writePreferencesToAgent(targetDir, preferences);
-                    logger.info(`✓ Applied global preferences to custom agent '${agentName}'`);
+                    logger.info(`✓ Applied global preferences to custom agent '${agentId}'`);
                 } catch (error) {
                     logger.warn(
-                        `Failed to inject preferences to '${agentName}': ${error instanceof Error ? error.message : String(error)}`
+                        `Failed to inject preferences to '${agentId}': ${error instanceof Error ? error.message : String(error)}`
                     );
                     console.log(
-                        `⚠️  Warning: Could not apply preferences to '${agentName}' - agent will use default settings`
+                        `⚠️  Warning: Could not apply preferences to '${agentId}' - agent will use default settings`
                     );
                 }
             }
@@ -454,56 +506,60 @@ export class LocalAgentRegistry implements AgentRegistry {
             }
 
             throw RegistryError.installationFailed(
-                agentName,
+                agentId,
                 error instanceof Error ? error.message : String(error)
             );
         }
     }
 
     /**
-     * Resolve a registry agent name to a config path
-     * NOTE: Only handles registry names, not file paths (routing done in loadAgentConfig)
+     * Resolve a registry agent ID to a config path
+     * NOTE: Only handles registry IDs, not file paths (routing done in loadAgentConfig)
      * Handles installing agent if needed
-     * @param agentName Name of the agent to resolve
+     * @param agentId ID of the agent to resolve
      * @param autoInstall Whether to automatically install missing agents from registry (default: true)
      * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
      */
     async resolveAgent(
-        agentName: string,
+        agentId: string,
         autoInstall: boolean = true,
         injectPreferences: boolean = true
     ): Promise<string> {
-        logger.debug(`Resolving registry agent: ${agentName}`);
+        logger.debug(`Resolving registry agent: ${agentId}`);
 
         // 1. Check if installed
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const installedPath = path.join(globalAgentsDir, agentName);
+        const installedPath = path.resolve(globalAgentsDir, agentId);
+        const relInstalled = path.relative(globalAgentsDir, installedPath);
+        if (relInstalled.startsWith('..') || path.isAbsolute(relInstalled)) {
+            throw RegistryError.agentNotFound(agentId, Object.keys(this.getRegistry().agents));
+        }
 
         if (existsSync(installedPath)) {
-            const mainConfig = this.resolveMainConfig(installedPath, agentName);
-            logger.debug(`Resolved installed agent '${agentName}' to: ${mainConfig}`);
+            const mainConfig = this.resolveMainConfig(installedPath, agentId);
+            logger.debug(`Resolved installed agent '${agentId}' to: ${mainConfig}`);
             return mainConfig;
         }
 
-        logger.debug(`Agent '${agentName}' not found in installed path: ${installedPath}`);
+        logger.debug(`Agent '${agentId}' not found in installed path: ${installedPath}`);
 
         // 2. Check if available in registry
-        if (this.hasAgent(agentName)) {
+        if (this.hasAgent(agentId)) {
             if (autoInstall) {
-                logger.info(`Installing agent '${agentName}' from registry...`);
-                return await this.installAgent(agentName, injectPreferences);
+                logger.info(`Installing agent '${agentId}' from registry...`);
+                return await this.installAgent(agentId, injectPreferences);
             } else {
                 // Agent is available in registry but auto-install is disabled
                 const registry = this.getRegistry();
                 const available = Object.keys(registry.agents);
-                throw RegistryError.agentNotInstalledAutoInstallDisabled(agentName, available);
+                throw RegistryError.agentNotInstalledAutoInstallDisabled(agentId, available);
             }
         }
 
         // 3. Not found in registry
         const registry = this.getRegistry();
         const available = Object.keys(registry.agents);
-        throw RegistryError.agentNotFound(agentName, available);
+        throw RegistryError.agentNotFound(agentId, available);
     }
 
     /**
@@ -522,7 +578,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                 entries
                     .filter((entry) => entry.isDirectory())
                     .map((entry) => entry.name)
-                    // Exclude temp directories both when prefixed and suffixed (agentName.tmp.<ts>)
+                    // Exclude temp directories both when prefixed and suffixed (agentId.tmp.<ts>)
                     .filter((name) => !name.startsWith('.tmp') && !name.includes('.tmp.'))
             );
         } catch (error) {
@@ -534,15 +590,15 @@ export class LocalAgentRegistry implements AgentRegistry {
     /**
      * Check if an agent is safe to uninstall (not the default agent from preferences)
      */
-    private async isAgentSafeToUninstall(agentName: string): Promise<boolean> {
+    private async isAgentSafeToUninstall(agentId: string): Promise<boolean> {
         try {
             const preferences = await loadGlobalPreferences();
             const defaultAgent = preferences.defaults.defaultAgent;
-            return agentName !== defaultAgent;
+            return agentId !== defaultAgent;
         } catch {
             // If preferences can't be loaded, protect 'default-agent' as fallback
             logger.warn('Could not load preferences, using fallback protection for default-agent');
-            return agentName !== 'default-agent';
+            return agentId !== 'default-agent';
         }
     }
 
@@ -550,44 +606,51 @@ export class LocalAgentRegistry implements AgentRegistry {
      * Uninstall an agent by removing its directory
      * For custom agents: also removes from user registry
      * For builtin agents: only removes from disk
-     * @param agentName Name of the agent to uninstall
+     * @param agentId ID of the agent to uninstall
      * @param force Whether to force uninstall even if agent is protected (default: false)
      */
-    async uninstallAgent(agentName: string, force: boolean = false): Promise<void> {
+    async uninstallAgent(agentId: string, force: boolean = false): Promise<void> {
         const globalAgentsDir = getDextoGlobalPath('agents');
-        const agentDir = path.join(globalAgentsDir, agentName);
-        logger.info(`Uninstalling agent: ${agentName} from ${agentDir}`);
+        const agentDir = path.resolve(globalAgentsDir, agentId);
+        const relAgent = path.relative(globalAgentsDir, agentDir);
+        if (relAgent.startsWith('..') || path.isAbsolute(relAgent)) {
+            throw RegistryError.uninstallationFailed(
+                agentId,
+                'invalid agentId: path traversal detected'
+            );
+        }
+        logger.info(`Uninstalling agent: ${agentId} from ${agentDir}`);
 
         if (!existsSync(agentDir)) {
-            throw RegistryError.agentNotInstalled(agentName);
+            throw RegistryError.agentNotInstalled(agentId);
         }
 
         // Safety check for default agent unless forced
-        if (!force && !(await this.isAgentSafeToUninstall(agentName))) {
-            throw RegistryError.agentProtected(agentName);
+        if (!force && !(await this.isAgentSafeToUninstall(agentId))) {
+            throw RegistryError.agentProtected(agentId);
         }
 
         // Check if this is a custom agent (exists in user registry)
         const registry = this.getRegistry();
-        const agentData = registry.agents[agentName];
+        const agentData = registry.agents[agentId];
         const isCustomAgent = agentData?.type === 'custom';
 
         try {
             // Remove from disk
             await fs.rm(agentDir, { recursive: true, force: true });
-            logger.info(`✓ Removed agent '${agentName}' from ${agentDir}`);
+            logger.info(`✓ Removed agent '${agentId}' from ${agentDir}`);
 
             // If custom agent, also remove from user registry
             if (isCustomAgent) {
-                await removeAgentFromUserRegistry(agentName);
-                logger.info(`✓ Removed custom agent '${agentName}' from user registry`);
+                await removeAgentFromUserRegistry(agentId);
+                logger.info(`✓ Removed custom agent '${agentId}' from user registry`);
 
                 // Clear cached registry to force reload
                 this._registry = null;
             }
         } catch (error) {
             throw RegistryError.uninstallationFailed(
-                agentName,
+                agentId,
                 error instanceof Error ? error.message : String(error)
             );
         }

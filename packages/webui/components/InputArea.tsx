@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { ChatInputContainer, ButtonFooter, StreamToggle, AttachButton, RecordButton } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
 import { Badge } from './ui/badge';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -20,7 +20,7 @@ import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
-import { cn } from '../lib/utils';
+import { cn, filterAndSortResources } from '../lib/utils';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
@@ -81,30 +81,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [mentionIndex, setMentionIndex] = useState(0);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | null>(null);
 
-  // Helpers for @ mention parsing/filtering
-  const filterResources = useCallback(
-    (list: ReturnType<typeof useResources>['resources'], q: string) => {
-      const query = q.toLowerCase();
-      const parseDate = (val?: string | Date): number => {
-        if (!val) return 0;
-        const time = new Date(val).getTime();
-        return isNaN(time) ? 0 : time;
-      };
-      const sorted = [...list].sort((a, b) => {
-        const aTime = parseDate(a.lastModified);
-        const bTime = parseDate(b.lastModified);
-        return bTime - aTime;
-      });
-      return sorted
-        .filter(
-          (r) =>
-            (r.name || '').toLowerCase().includes(query) ||
-            r.uri.toLowerCase().includes(query) ||
-            (r.serverName || '').toLowerCase().includes(query)
-        )
-        .slice(0, 25);
-    },
-    []
+  // Memoize filtered resources to avoid re-sorting on every keypress
+  const filteredResources = useMemo(
+    () => filterAndSortResources(resources, mentionQuery),
+    [resources, mentionQuery]
   );
 
   const findActiveAtIndex = (value: string, caret: number) => {
@@ -288,9 +268,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   };
 
   const applyMentionSelection = (index: number, selectedResource?: UIResourceMetadata) => {
-    const list = filterResources(resources, mentionQuery);
-    if (!selectedResource && list.length === 0) return;
-    const selected = selectedResource ?? list[Math.max(0, Math.min(index, list.length - 1))];
+    if (!selectedResource && filteredResources.length === 0) return;
+    const selected = selectedResource ?? filteredResources[Math.max(0, Math.min(index, filteredResources.length - 1))];
     const ta = textareaRef.current;
     if (!ta) return;
     const caret = ta.selectionStart ?? text.length;
@@ -319,14 +298,12 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     if (showMention) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const list = filterResources(resources, mentionQuery);
-        setMentionIndex((prev) => (prev + 1) % Math.max(1, list.length));
+        setMentionIndex((prev) => (prev + 1) % Math.max(1, filteredResources.length));
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const list = filterResources(resources, mentionQuery);
-        setMentionIndex((prev) => (prev - 1 + Math.max(1, list.length)) % Math.max(1, list.length));
+        setMentionIndex((prev) => (prev - 1 + Math.max(1, filteredResources.length)) % Math.max(1, filteredResources.length));
         return;
       }
       if (e.key === 'Enter') {

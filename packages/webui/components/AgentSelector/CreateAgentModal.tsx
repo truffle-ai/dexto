@@ -18,6 +18,7 @@ interface CreateAgentModalProps {
 }
 
 interface RegistryMetadata {
+  id: string;
   name: string;
   description: string;
   author: string;
@@ -25,6 +26,7 @@ interface RegistryMetadata {
 }
 
 const initialMetadata: RegistryMetadata = {
+  id: '',
   name: '',
   description: '',
   author: '',
@@ -84,10 +86,14 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
     const newErrors: Record<string, string> = {};
 
     // Basic Info validation
+    if (!metadata.id.trim()) {
+      newErrors.id = 'Agent ID is required';
+    } else if (!/^[a-z0-9-]+$/.test(metadata.id)) {
+      newErrors.id = 'Agent ID must contain only lowercase letters, numbers, and hyphens';
+    }
+
     if (!metadata.name.trim()) {
       newErrors.name = 'Agent name is required';
-    } else if (!/^[a-z0-9-]+$/.test(metadata.name)) {
-      newErrors.name = 'Agent name must contain only lowercase letters, numbers, and hyphens';
     }
 
     if (!metadata.description.trim()) {
@@ -159,6 +165,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // Registry metadata
+          id: metadata.id.trim(),
           name: metadata.name.trim(),
           description: metadata.description.trim(),
           author: metadata.author.trim() || undefined,
@@ -189,9 +196,9 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
       // Close modal
       onOpenChange(false);
 
-      // Notify parent
-      if (onAgentCreated && data.name) {
-        onAgentCreated(data.name);
+      // Notify parent with agent ID
+      if (onAgentCreated && data.id) {
+        onAgentCreated(data.id);
       }
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'An unexpected error occurred');
@@ -239,14 +246,30 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
           >
             <div className="space-y-4">
               <div>
-                <LabelWithTooltip htmlFor="agent-name" tooltip="Unique identifier for this agent (lowercase, no spaces)">
+                <LabelWithTooltip htmlFor="agent-id" tooltip="Unique identifier for this agent (lowercase, no spaces, hyphens only)">
+                  Agent ID *
+                </LabelWithTooltip>
+                <Input
+                  id="agent-id"
+                  value={metadata.id}
+                  onChange={(e) => updateMetadataField('id', e.target.value)}
+                  placeholder="my-custom-agent"
+                  aria-invalid={!!errors.id}
+                />
+                {errors.id && (
+                  <p className="text-xs text-destructive mt-1">{errors.id}</p>
+                )}
+              </div>
+
+              <div>
+                <LabelWithTooltip htmlFor="agent-name" tooltip="Display name for this agent (shown in UI)">
                   Agent Name *
                 </LabelWithTooltip>
                 <Input
                   id="agent-name"
                   value={metadata.name}
                   onChange={(e) => updateMetadataField('name', e.target.value)}
-                  placeholder="my-custom-agent"
+                  placeholder="My Custom Agent"
                   aria-invalid={!!errors.name}
                 />
                 {errors.name && (

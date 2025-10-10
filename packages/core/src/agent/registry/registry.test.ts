@@ -59,12 +59,16 @@ describe('LocalAgentRegistry', () => {
         const registryPath = path.join(tempDir, 'user-agent-registry.json');
         createRegistryFile(registryPath, {
             'test-agent': {
+                id: 'test-agent',
+                name: 'Test Agent',
                 description: 'Test agent',
                 author: 'Test',
                 tags: ['test'],
                 source: 'test-agent.yml',
             },
             'dir-agent': {
+                id: 'dir-agent',
+                name: 'Dir Agent',
                 description: 'Directory agent',
                 author: 'Test',
                 tags: ['test'],
@@ -72,6 +76,8 @@ describe('LocalAgentRegistry', () => {
                 main: 'main.yml',
             },
             'auto-test-agent': {
+                id: 'auto-test-agent',
+                name: 'Auto Test Agent',
                 description: 'Auto-install test agent',
                 author: 'Test',
                 tags: ['test'],
@@ -125,6 +131,8 @@ describe('LocalAgentRegistry', () => {
             // Should return the full registry agents object
             expect(agents).toEqual({
                 'test-agent': {
+                    id: 'test-agent',
+                    name: 'Test Agent',
                     description: 'Test agent',
                     author: 'Test',
                     tags: ['test'],
@@ -132,6 +140,8 @@ describe('LocalAgentRegistry', () => {
                     type: 'builtin',
                 },
                 'dir-agent': {
+                    id: 'dir-agent',
+                    name: 'Dir Agent',
                     description: 'Directory agent',
                     author: 'Test',
                     tags: ['test'],
@@ -140,6 +150,8 @@ describe('LocalAgentRegistry', () => {
                     type: 'builtin',
                 },
                 'auto-test-agent': {
+                    id: 'auto-test-agent',
+                    name: 'Auto Test Agent',
                     description: 'Auto-install test agent',
                     author: 'Test',
                     tags: ['test'],
@@ -161,6 +173,8 @@ describe('LocalAgentRegistry', () => {
                 version: '1.0.0',
                 agents: {
                     'test-agent': {
+                        id: 'test-agent',
+                        name: 'Test Agent',
                         description: 'Test agent',
                         author: 'Test',
                         tags: ['test'],
@@ -168,6 +182,8 @@ describe('LocalAgentRegistry', () => {
                         type: 'builtin',
                     },
                     'dir-agent': {
+                        id: 'dir-agent',
+                        name: 'Dir Agent',
                         description: 'Directory agent',
                         author: 'Test',
                         tags: ['test'],
@@ -176,6 +192,8 @@ describe('LocalAgentRegistry', () => {
                         type: 'builtin',
                     },
                     'auto-test-agent': {
+                        id: 'auto-test-agent',
+                        name: 'Auto Test Agent',
                         description: 'Auto-install test agent',
                         author: 'Test',
                         tags: ['test'],
@@ -202,7 +220,7 @@ describe('LocalAgentRegistry', () => {
                 scope: ErrorScope.AGENT_REGISTRY,
                 type: ErrorType.USER,
                 context: {
-                    agentName: 'unknown-agent',
+                    agentId: 'unknown-agent',
                     availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
                 },
             });
@@ -351,7 +369,7 @@ describe('LocalAgentRegistry', () => {
                 scope: ErrorScope.AGENT_REGISTRY,
                 type: ErrorType.USER,
                 context: {
-                    agentName: 'unknown-agent',
+                    agentId: 'unknown-agent',
                     availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
                 },
                 recovery: expect.stringContaining('Available agents:'),
@@ -442,7 +460,7 @@ describe('LocalAgentRegistry', () => {
                     scope: ErrorScope.AGENT_REGISTRY,
                     type: ErrorType.USER,
                     context: {
-                        agentName: 'auto-test-agent',
+                        agentId: 'auto-test-agent',
                         availableAgents: expect.arrayContaining([
                             'test-agent',
                             'dir-agent',
@@ -509,6 +527,8 @@ describe('LocalAgentRegistry', () => {
             const badRegistryPath = path.join(tempDir, 'bad-registry.json');
             createRegistryFile(badRegistryPath, {
                 'bad-dir-agent': {
+                    id: 'bad-dir-agent',
+                    name: 'Bad Dir Agent',
                     description: 'Bad directory agent',
                     author: 'Test',
                     tags: ['test'],
@@ -526,7 +546,7 @@ describe('LocalAgentRegistry', () => {
                     scope: ErrorScope.AGENT_REGISTRY,
                     type: ErrorType.SYSTEM,
                     context: {
-                        agentName: 'bad-dir-agent',
+                        agentId: 'bad-dir-agent',
                         reason: 'directory entry missing main field',
                     },
                 })
