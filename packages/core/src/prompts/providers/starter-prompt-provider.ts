@@ -119,17 +119,22 @@ export class StarterPromptProvider implements PromptProvider {
 
         logger.debug(`📝 Reading starter prompt: ${name}`);
 
-        // Apply arguments if provided (similar to internal provider)
+        // Apply arguments if provided: append at END when no placeholders are used
         let content = promptText;
         if (args && typeof args === 'object') {
-            if (args._context) {
-                const contextString = String(args._context);
-                content = `Context: ${contextString}\n\n${content}`;
-            } else if (Object.keys(args).length > 0) {
-                const argContext = Object.entries(args)
-                    .map(([key, value]) => `${key}: ${value}`)
-                    .join(', ');
-                content = `Arguments: ${argContext}\n\n${content}`;
+            const hasPositionalPlaceholders =
+                /\$[1-9]/.test(content) || content.includes('$ARGUMENTS');
+            if (!hasPositionalPlaceholders) {
+                if ((args as any)._context) {
+                    const contextString = String((args as any)._context);
+                    content = `${content}\n\nContext: ${contextString}`;
+                } else {
+                    const argEntries = Object.entries(args).filter(([k]) => !k.startsWith('_'));
+                    if (argEntries.length > 0) {
+                        const argContext = argEntries.map(([k, v]) => `${k}: ${v}`).join(', ');
+                        content = `${content}\n\nArguments: ${argContext}`;
+                    }
+                }
             }
         }
 

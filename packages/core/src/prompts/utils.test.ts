@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'vitest';
-import { flattenPromptResult, normalizePromptArgs, appendContext } from './utils.js';
+import {
+    flattenPromptResult,
+    normalizePromptArgs,
+    appendContext,
+    expandPlaceholders,
+} from './utils.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 describe('flattenPromptResult', () => {
@@ -59,9 +64,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe(
-            'Check this file\nFile content here\n\n@<file:///path/to/file.txt>'
-        );
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Check this file\nFile content here');
         expect(flattened.resourceUris).toEqual(['file:///path/to/file.txt']);
     });
 
@@ -93,8 +97,8 @@ describe('flattenPromptResult', () => {
         const flattened = flattenPromptResult(result);
 
         expect(flattened.resourceUris).toEqual(['file:///same.txt']);
-        // Should only appear once in reference section
-        expect(flattened.text).toBe('Content 1\nContent 2\n\n@<file:///same.txt>');
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Content 1\nContent 2');
     });
 
     test('should handle string content directly', () => {
@@ -135,9 +139,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe(
-            'Direct string\nText object\nResource text\n\n@<mcp://server/resource>'
-        );
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Direct string\nText object\nResource text');
         expect(flattened.resourceUris).toEqual(['mcp://server/resource']);
     });
 
@@ -161,7 +164,8 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe('Main content\n\n@<blob:abc123>');
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Main content');
         expect(flattened.resourceUris).toEqual(['blob:abc123']);
     });
 
@@ -260,8 +264,78 @@ describe('flattenPromptResult', () => {
 
         const flattened = flattenPromptResult(result);
 
-        expect(flattened.text).toBe('Content without URI\nValid resource\n\n@<file:///valid.txt>');
+        // No reference line appended; resource URIs returned separately
+        expect(flattened.text).toBe('Content without URI\nValid resource');
         expect(flattened.resourceUris).toEqual(['file:///valid.txt']);
+    });
+});
+
+describe('expandPlaceholders', () => {
+    test('replaces $ARGUMENTS with all positional tokens when no explicit placeholders used', () => {
+        const out = expandPlaceholders('Run: $ARGUMENTS', { _positional: ['a', 'b', 'c'] });
+        expect(out).toBe('Run: a b c');
+    });
+
+    test('replaces $1..$3 with corresponding tokens and leaves missing empty', () => {
+        const out = expandPlaceholders('A:$1 B:$2 C:$3 D:$4', { _positional: ['x', 'y'] });
+        expect(out).toBe('A:x B:y C: D:');
+    });
+
+    test('respects $$ escape', () => {
+        const out = expandPlaceholders('Price $$1 and token $1', { _positional: ['X'] });
+        expect(out).toBe('Price $1 and token X');
+    });
+
+    test('$ARGUMENTS includes only remaining args after $1 and $2', () => {
+        const template = 'Style: $1, Length: $2, Content: $ARGUMENTS';
+        const args = { _positional: ['technical', '100', 'machine learning'] };
+        const result = expandPlaceholders(template, args);
+        expect(result).toBe('Style: technical, Length: 100, Content: machine learning');
+    });
+
+    test('$ARGUMENTS is empty when all args consumed by explicit placeholders', () => {
+        const template = '$1 $2 $3 rest: $ARGUMENTS';
+        const args = { _positional: ['a', 'b', 'c'] };
+        const result = expandPlaceholders(template, args);
+        expect(result).toBe('a b c rest: ');
+    });
+
+    test('$ARGUMENTS works with sparse placeholders ($1 and $3)', () => {
+        const template = 'First: $1, Third: $3, Rest: $ARGUMENTS';
+        const args = { _positional: ['a', 'b', 'c', 'd'] };
+        const result = expandPlaceholders(template, args);
+        // maxExplicitIndex = 3, so ARGUMENTS includes from index 3 onwards
+        expect(result).toBe('First: a, Third: c, Rest: d');
+    });
+
+    test('$ARGUMENTS works correctly with more positional args than explicit placeholders', () => {
+        const template = 'Arg1: $1, Remaining: $ARGUMENTS';
+        const args = { _positional: ['first', 'second', 'third', 'fourth'] };
+        const result = expandPlaceholders(template, args);
+        expect(result).toBe('Arg1: first, Remaining: second third fourth');
+    });
+
+    test('handles template with only $ARGUMENTS and no explicit placeholders', () => {
+        const template = 'All args: $ARGUMENTS';
+        const args = { _positional: ['one', 'two', 'three'] };
+        const result = expandPlaceholders(template, args);
+        expect(result).toBe('All args: one two three');
+    });
+
+    test('handles empty positional array with $ARGUMENTS', () => {
+        const template = 'Content: $ARGUMENTS';
+        const args = { _positional: [] };
+        const result = expandPlaceholders(template, args);
+        expect(result).toBe('Content: ');
+    });
+
+    test('real-world summarize.md use case', () => {
+        const template = 'Using style **$1** with length **$2**.\nContent: $ARGUMENTS';
+        const args = { _positional: ['technical', '100', 'machine learning'] };
+        const result = expandPlaceholders(template, args);
+        expect(result).toBe(
+            'Using style **technical** with length **100**.\nContent: machine learning'
+        );
     });
 });
 

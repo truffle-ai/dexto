@@ -50,3 +50,29 @@ export function parseSlashInput(input: string): SlashParse {
     const argsText = argsArray.join(' ');
     return { isSlash: true, command, argsArray, argsText };
 }
+
+export type ParsedArgs = {
+    keyValues: Record<string, string>;
+    positional: string[];
+};
+
+// Split tokens into key=value pairs and positional tokens.
+// Supports quoted tokens already handled by parseQuotedArguments.
+export function splitKeyValueAndPositional(tokens: string[]): ParsedArgs {
+    const keyValues: Record<string, string> = {};
+    const positional: string[] = [];
+
+    for (const tok of tokens) {
+        const eq = tok.indexOf('=');
+        if (eq > 0) {
+            const key = tok.slice(0, eq).trim();
+            const val = tok.slice(eq + 1);
+            if (key.length > 0) {
+                keyValues[key] = val;
+                continue;
+            }
+        }
+        positional.push(tok);
+    }
+    return { keyValues, positional };
+}

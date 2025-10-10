@@ -26,7 +26,7 @@ import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
-import { parseSlashInput } from '../lib/parseSlash';
+import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { clearPromptCache } from '../lib/promptCache';
 
 interface ModelOption {
@@ -235,6 +235,20 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       if (name) {
         try {
           const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
+          // Build structured args from tokens: key=value map + positional array
+          if (parsed.argsArray && parsed.argsArray.length > 0) {
+            const { keyValues, positional } = splitKeyValueAndPositional(parsed.argsArray);
+            const argsPayload: Record<string, unknown> = { ...keyValues };
+            if (positional.length > 0) argsPayload._positional = positional;
+            if (Object.keys(argsPayload).length > 0) {
+              try {
+                url.searchParams.set('args', JSON.stringify(argsPayload));
+              } catch {
+                // ignore JSON errors and fall back to context-only
+              }
+            }
+          }
+          // Keep context for natural language compatibility
           if (originalArgsText) url.searchParams.set('context', originalArgsText);
 
           // Add timeout to prevent hanging on slow responses
@@ -264,6 +278,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     setText('');
     setImageData(null);
     setFileData(null);
+    // Ensure guidance window closes after submit
+    setShowSlashCommands(false);
     // Height handled by CSS; no imperative adjustments.
   };
 
@@ -333,15 +349,13 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     const value = e.target.value;
     setText(value);
 
-    // Show slash commands when user types "/"
-    if (value === '/') {
+    // Guidance UX: keep slash guidance window open while the user is constructing
+    // a slash command (i.e., as long as the input starts with '/' and has no newline).
+    // This lets users see argument hints while typing positional/named args.
+    if (value.startsWith('/') && !value.includes('\n')) {
       setShowSlashCommands(true);
-    } else if (value.startsWith('/') && !value.includes(' ')) {
-      setShowSlashCommands(true);
-    } else {
-      if (showSlashCommands) {
-        setShowSlashCommands(false);
-      }
+    } else if (showSlashCommands) {
+      setShowSlashCommands(false);
     }
   };
 
@@ -748,7 +762,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
+                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -761,7 +775,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files (@ after space)"
+                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}

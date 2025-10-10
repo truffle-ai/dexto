@@ -1,7 +1,7 @@
 import { ValidatedMcpServerConfig } from './schemas.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { ToolProvider } from '../tools/types.js';
-import { GetPromptResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
 import { EventEmitter } from 'events';
 
 export interface MCPResourceSummary {
@@ -26,7 +26,7 @@ export interface IMCPClient extends ToolProvider, EventEmitter {
     disconnect?(): Promise<void>;
 
     // Prompt Management
-    listPrompts(): Promise<string[]>;
+    listPrompts(): Promise<Prompt[]>;
     getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult>;
 
     // Resource Management

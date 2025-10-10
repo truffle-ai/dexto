@@ -3,10 +3,14 @@
 ## Code Quality Requirements
 
 **Pre-commit Validation** - Before completing any task, ALWAYS run and ensure ALL commands pass:
-1. `pnpm run build` - Verify compilation
-2. `pnpm test` - Ensure all tests pass  
-3. `pnpm run lint` - Check code style
+1. `pnpm run build` - Verify compilation.
+   - **If dev server is running**: Restart it after build completes
+   - **Suppress verbose output**: Run as `pnpm run build > /dev/null 2>&1 || pnpm run build` to save context unless there's a failure
+2. `pnpm test` - Ensure all tests pass
+   - **Suppress verbose output**: Run as `pnpm test > /dev/null 2>&1 || pnpm test` to save context unless there's a failure
+3. `pnpm run lint` - Check code style (keep output visible to see warnings)
 4. `pnpm run typecheck` - Validate TypeScript types
+   - **Suppress verbose output**: Run as `pnpm run typecheck > /dev/null 2>&1 || pnpm run typecheck` to save context unless there's a failure
 
 ## General rules
 - Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
@@ -152,7 +156,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ## Code Standards
 
 ### Import Requirements
-- **All imports must end with `.js`** for ES module compatibility
+- **All imports must end with `.js`** in core repository only for ES module compatibility
 
 ### Module Organization
 - **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
@@ -175,6 +179,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
   - yellow: Warnings
   - cyan/cyanBright: Status updates
   - blue: Information, progress
+- **Browser compatibility**: See `packages/core/src/logger/logger.ts` for architecture notes on logger browser safety and future improvements
 
 ### TypeScript Best Practices
 - **Strict null safety** - Handle null/undefined cases explicitly

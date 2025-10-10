@@ -7,6 +7,7 @@ import { MCPErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { eventBus } from '../events/index.js';
 import type { JSONSchema7 } from 'json-schema';
+import type { Prompt } from '@modelcontextprotocol/sdk/types.js';
 
 // Mock client for testing
 class MockMCPClient extends EventEmitter implements IMCPClient {
@@ -53,8 +54,11 @@ class MockMCPClient extends EventEmitter implements IMCPClient {
         return { result: `Called ${name} with ${JSON.stringify(args)}` };
     }
 
-    async listPrompts(): Promise<string[]> {
-        return this.prompts;
+    async listPrompts(): Promise<Prompt[]> {
+        return this.prompts.map((name) => ({
+            name,
+            description: `Prompt ${name}`,
+        }));
     }
 
     async getPrompt(name: string, _args?: any): Promise<any> {
@@ -578,6 +582,29 @@ describe('MCPManager Prompt Caching', () => {
         expect(manager['promptCache'].has('prompt1')).toBe(true);
         expect(manager['promptCache'].has('prompt2')).toBe(true);
         expect(manager['promptCache'].has('shared_prompt')).toBe(true);
+    });
+
+    it('should cache prompt metadata without calling getPrompt (performance optimization)', async () => {
+        const listPromptsSpy = vi.spyOn(client1, 'listPrompts');
+        const getPromptSpy = vi.spyOn(client1, 'getPrompt');
+
+        manager.registerClient('server1', client1);
+        await manager['updateClientCache']('server1', client1);
+
+        // Verify listPrompts was called once during cache update
+        expect(listPromptsSpy).toHaveBeenCalledTimes(1);
+
+        // Critical: getPrompt should NEVER be called - metadata comes from listPrompts
+        expect(getPromptSpy).toHaveBeenCalledTimes(0);
+
+        // Verify metadata was cached correctly from listPrompts response
+        const metadata = manager.getPromptMetadata('prompt1');
+        expect(metadata).toBeDefined();
+        expect(metadata?.name).toBe('prompt1');
+        expect(metadata?.description).toBe('Prompt prompt1');
+
+        // Still no getPrompt calls when retrieving metadata
+        expect(getPromptSpy).toHaveBeenCalledTimes(0);
     });
 
     it('should use cache for listAllPrompts (no network calls)', async () => {

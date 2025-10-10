@@ -100,3 +100,4 @@ When reviewing for performance, I examine:
 - **Optimization**: Unnecessary operations, redundant calculations
 
 Now, share your code and I'll provide a comprehensive review! You can paste it directly or describe what you'd like me to focus on.
+

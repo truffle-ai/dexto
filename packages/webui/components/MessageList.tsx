@@ -47,6 +47,7 @@ import { SpeakButton } from './ui/speak-button';
 import { useResourceContent, type ResourceState, type NormalizedResourceItem } from './hooks/useResourceContent';
 import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
+import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
 
 interface MessageListProps {
   messages: Message[];
@@ -1025,81 +1026,39 @@ function extractResourceData(
     return { cleanedText: '', uris: [] };
   }
 
-  const references: Array<{
-    kind: 'uri' | 'server' | 'name';
-    value: string;
-    serverName?: string;
-  }> = [];
+  // Parse references using core function
+  const references = parseResourceReferences(text);
 
-  const regex = /@(?:(<[^>]+>)|([a-zA-Z0-9_-]+):([a-zA-Z0-9._/-]+)|([a-zA-Z0-9._/-]+))/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(text)) !== null) {
-    const [_, uriWithBrackets, serverName, serverResource, simpleName] = match;
-    if (uriWithBrackets) {
-      references.push({ kind: 'uri', value: uriWithBrackets.slice(1, -1) });
-    } else if (serverName && serverResource) {
-      references.push({ kind: 'server', value: serverResource, serverName });
-    } else if (simpleName) {
-      references.push({ kind: 'name', value: simpleName });
+  // Resolve references using core function
+  const resolved = resolveResourceReferences(references, resourceSet);
+
+  // Extract URIs from resolved references (filter out unresolved ones and deduplicate)
+  const resolvedUris = Array.from(
+    new Set(
+      resolved
+        .filter(ref => ref.resourceUri)
+        .map(ref => ref.resourceUri!)
+    )
+  );
+
+  // Clean the text by removing ALL resolved reference formats using originalRef
+  // This handles @<uri>, @name, and @server:resource patterns
+  // Only clean resolved references - leave unresolved ones visible to user
+  let cleanedText = text;
+  for (const ref of resolved) {
+    if (ref.resourceUri) {
+      // Use split/join to avoid regex escaping issues and handle all occurrences
+      cleanedText = cleanedText.split(ref.originalRef).join('');
     }
   }
 
-  const resourcesArray = Object.entries(resourceSet);
-
-  const findByServerAndName = (server: string, identifier: string): string | undefined => {
-    for (const [uri, resource] of resourcesArray) {
-      if (resource.serverName !== server) continue;
-      if (resource.name === identifier) return uri;
-      const originalUri = typeof resource.metadata?.originalUri === 'string' ? resource.metadata?.originalUri : undefined;
-      if (originalUri && originalUri.includes(identifier)) return uri;
-    }
-    return undefined;
-  };
-
-  const findByName = (identifier: string): string | undefined => {
-    for (const [uri, resource] of resourcesArray) {
-      if (resource.name === identifier) return uri;
-    }
-    for (const [uri, resource] of resourcesArray) {
-      if (resource.name && resource.name.includes(identifier)) return uri;
-    }
-    for (const [uri, resource] of resourcesArray) {
-      if (uri.includes(identifier)) return uri;
-      const originalUri = typeof resource.metadata?.originalUri === 'string' ? resource.metadata?.originalUri : undefined;
-      if (originalUri && originalUri.includes(identifier)) return uri;
-    }
-    return undefined;
-  };
-
-  const resolvedUris = new Set<string>();
-  for (const ref of references) {
-    if (ref.kind === 'uri') {
-      const value = ref.value;
-      resolvedUris.add(value);
-      continue;
-    }
-    if (ref.kind === 'server' && ref.serverName) {
-      const found = findByServerAndName(ref.serverName, ref.value);
-      if (found) {
-        resolvedUris.add(found);
-      }
-      continue;
-    }
-    if (ref.kind === 'name') {
-      const found = findByName(ref.value);
-      if (found) {
-        resolvedUris.add(found);
-      }
-      continue;
-    }
-  }
-
-  const cleanedText = text
-    .replace(/@<([^>]+)>/g, '')
+  // Clean up extra whitespace and newlines
+  cleanedText = cleanedText
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 
-  return { cleanedText, uris: Array.from(resolvedUris) };
+  return { cleanedText, uris: resolvedUris };
 }
 
 function MessageContentWithResources({

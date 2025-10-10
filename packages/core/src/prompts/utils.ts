@@ -5,6 +5,32 @@ export interface FlattenedPromptResult {
     resourceUris: string[];
 }
 
+/**
+ * Validates that a resource URI uses an allowed scheme.
+ * Prevents injection attacks via javascript:, data:, etc.
+ *
+ * Allowed schemes:
+ * - mcp: (MCP server resources)
+ * - blob: (blob storage)
+ * - file: (filesystem resources)
+ * - http/https: (web resources)
+ */
+function isValidResourceUri(uri: string): boolean {
+    try {
+        // Handle URIs with scheme
+        if (uri.includes(':')) {
+            const scheme = uri.split(':')[0]?.toLowerCase();
+            if (!scheme) return false;
+            const allowedSchemes = ['mcp', 'blob', 'file', 'http', 'https'];
+            return allowedSchemes.includes(scheme);
+        }
+        // Allow relative URIs (no scheme)
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function handleContent(
     content: unknown,
     accumulator: {
@@ -39,6 +65,7 @@ function handleContent(
                 return;
             }
             case 'resource': {
+                // Embedded resource: content is included directly
                 const resourceContent = content as {
                     resource?: {
                         uri?: string;
@@ -51,6 +78,24 @@ function handleContent(
                         accumulator.textParts.push(resource.text);
                     }
                     if (typeof resource.uri === 'string' && resource.uri.length > 0) {
+                        accumulator.resourceUris.push(resource.uri);
+                    }
+                }
+                return;
+            }
+            case 'resource_link': {
+                // Resource link: pointer to be fetched separately
+                // Add a text marker so UI knows to fetch this resource
+                const linkContent = content as {
+                    resource?: {
+                        uri?: string;
+                    };
+                };
+                const resource = linkContent.resource;
+                if (resource && typeof resource.uri === 'string' && resource.uri.length > 0) {
+                    // Security: Validate URI scheme to prevent injection attacks
+                    if (isValidResourceUri(resource.uri)) {
+                        accumulator.textParts.push(`@<${resource.uri}>`);
                         accumulator.resourceUris.push(resource.uri);
                     }
                 }
@@ -80,13 +125,12 @@ export function flattenPromptResult(result: GetPromptResult): FlattenedPromptRes
         .join('\n')
         .trim();
 
-    const referenceLines = uniqueUris.map((uri) => `@<${uri}>`);
-    const text = [joinedText, referenceLines.join('\n')] // maintain order, avoid trailing spaces
-        .filter((segment) => segment && segment.length > 0)
-        .join('\n\n');
-
+    // Note: We don't append @<uri> references here because:
+    // 1. For embedded resources (type: 'resource'), the content is already in the text
+    // 2. resourceUris array is returned for metadata/tracking purposes only
+    // 3. The UI should not try to fetch these URIs as separate attachments
     return {
-        text,
+        text: joinedText,
         resourceUris: uniqueUris,
     };
 }
@@ -110,6 +154,12 @@ export function normalizePromptArgs(input: Record<string, unknown>): {
                 // Don't add _context to args - it's handled separately
                 // ToDo: handle arg parsing for prompts
             }
+            continue;
+        }
+
+        // Preserve _positional array as-is for prompt expansion and mapping
+        if (key === '_positional') {
+            (args as any)._positional = value;
             continue;
         }
 
@@ -138,4 +188,56 @@ export function appendContext(text: string, context?: string): string {
         return context;
     }
     return `${text}\n\n${context}`;
+}
+
+/**
+ * Expand simple placeholder syntax in a template using positional args.
+ * Supported tokens:
+ * - $ARGUMENTS → remaining positional tokens (after $1..$9) joined by a single space
+ * - $1..$9     → nth positional token or empty string if missing
+ * - $$         → literal dollar sign
+ *
+ * Notes:
+ * - Positional tokens are expected under args._positional as string[]
+ * - Key/value args are ignored here (handled separately by providers if needed)
+ * - $ARGUMENTS only includes args not consumed by explicit $N placeholders
+ */
+export function expandPlaceholders(content: string, args?: Record<string, unknown>): string {
+    if (!content) return '';
+
+    const positional = Array.isArray((args as any)?._positional)
+        ? ((args as any)._positional as string[])
+        : [];
+
+    // Protect escaped dollars
+    const ESC = '__DOLLAR__PLACEHOLDER__';
+    let out = content.replaceAll('$$', ESC);
+
+    // Find highest $N placeholder used in template (1-9)
+    let maxExplicitIndex = 0;
+    for (let i = 1; i <= 9; i++) {
+        if (out.includes(`$${i}`)) {
+            maxExplicitIndex = i;
+        }
+    }
+
+    // $ARGUMENTS → remaining positional args after explicit $N placeholders
+    if (out.includes('$ARGUMENTS')) {
+        const remainingArgs = positional.slice(maxExplicitIndex);
+        out = out.replaceAll('$ARGUMENTS', remainingArgs.join(' '));
+    }
+
+    // $1..$9 → corresponding positional token
+    for (let i = 1; i <= 9; i++) {
+        const token = `$${i}`;
+        if (out.includes(token)) {
+            const val = positional[i - 1] ?? '';
+            // Use split/join to avoid $-replacement semantics in regex
+            out = out.split(token).join(val);
+        }
+    }
+
+    // Restore $$
+    out = out.replaceAll(ESC, '$');
+    return out;
 }

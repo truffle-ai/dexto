@@ -20,6 +20,7 @@ import type {
     ReadResourceResult,
     Resource,
     ResourceUpdatedNotification,
+    Prompt,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
     ResourceUpdatedNotificationSchema,
@@ -354,16 +355,15 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     }
 
     /**
-     * Get the list of prompts provided by this client
-     * @returns Array of available prompt names
-     * TODO: Turn exception logs back into error and only call this based on capabilities of the server
+     * Get the list of prompts provided by this client with full metadata
+     * @returns Array of Prompt objects from MCP SDK with name, title, description, and arguments
      */
-    async listPrompts(): Promise<string[]> {
+    async listPrompts(): Promise<Prompt[]> {
         this.ensureConnected();
         try {
             const response = await this.client!.listPrompts();
             logger.debug(`listPrompts response: ${JSON.stringify(response, null, 2)}`);
-            return response.prompts.map((p: any) => p.name);
+            return response.prompts;
         } catch (error) {
             logger.debug(
                 `Failed to list prompts from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`

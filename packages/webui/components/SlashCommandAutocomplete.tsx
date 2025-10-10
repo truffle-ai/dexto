@@ -39,18 +39,44 @@ const PromptItem = ({ prompt, isSelected, onClick, onMouseEnter, dataIndex }: {
       </div>
       
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium text-xs text-foreground">
-            /{prompt.name}
-          </span>
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          {/* Command name with inline arguments */}
+          <div className="flex items-center gap-1">
+            <span className="font-medium text-xs text-foreground">
+              /{prompt.name}
+            </span>
+            {prompt.arguments && prompt.arguments.length > 0 && (
+              <span className="flex items-center gap-1">
+                {prompt.arguments.map((arg, idx) => (
+                  <span
+                    key={arg.name}
+                    className="group relative inline-block"
+                    title={arg.description || arg.name}
+                  >
+                    <span className="text-xs text-muted-foreground/70 hover:text-muted-foreground cursor-help transition-colors">
+                      &lt;{arg.name}{arg.required ? '' : '?'}&gt;
+                    </span>
+                    {/* Tooltip on hover */}
+                    {arg.description && (
+                      <span className="invisible group-hover:visible absolute left-0 top-full mt-1 z-50 px-2 py-1 text-[10px] bg-popover text-popover-foreground border border-border rounded shadow-lg whitespace-nowrap pointer-events-none">
+                        {arg.description}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
+
+          {/* Source badges */}
           {prompt.source === 'mcp' && (
             <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
               MCP
             </Badge>
           )}
-          {prompt.source === 'internal' && (
+          {prompt.source === 'file' && (
             <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
-              Internal
+              File
             </Badge>
           )}
           {prompt.source === 'custom' && (
@@ -64,32 +90,18 @@ const PromptItem = ({ prompt, isSelected, onClick, onMouseEnter, dataIndex }: {
             </Badge>
           )}
         </div>
-        
+
         {/* Show title if available */}
         {prompt.title && (
           <div className="text-xs font-medium text-foreground/90 mb-0.5">
             {prompt.title}
           </div>
         )}
-        
+
         {/* Show description if available and different from title */}
         {prompt.description && prompt.description !== prompt.title && (
           <div className="text-xs text-muted-foreground mb-1.5 line-clamp-2">
             {prompt.description}
-          </div>
-        )}
-        
-        {prompt.arguments && prompt.arguments.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {prompt.arguments.map((arg) => (
-              <Badge 
-                key={arg.name} 
-                variant="secondary" 
-                className="text-xs px-1.5 py-0.5 h-4 bg-muted/60 text-muted-foreground"
-              >
-                {arg.name}{arg.required ? '*' : ''}
-              </Badge>
-            ))}
           </div>
         )}
       </div>
@@ -230,13 +242,15 @@ export default function SlashCommandAutocomplete({
       return;
     }
 
-    // Remove the leading "/" for filtering
-    const query = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+    // Extract just the command name (first word after /) for filtering
+    // E.g., "/summarize technical 100 'text'" -> "summarize"
+    const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+    const commandName = withoutSlash.split(/\s+/)[0] || '';
 
     const filtered = prompts.filter(prompt =>
-      prompt.name.toLowerCase().includes(query.toLowerCase()) ||
-      (prompt.description && prompt.description.toLowerCase().includes(query.toLowerCase())) ||
-      (prompt.title && prompt.title.toLowerCase().includes(query.toLowerCase()))
+      prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
+      (prompt.description && prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
+      (prompt.title && prompt.title.toLowerCase().includes(commandName.toLowerCase()))
     );
 
     setFilteredPrompts(filtered);
@@ -272,6 +286,13 @@ export default function SlashCommandAutocomplete({
         // Some environments support stopImmediatePropagation on DOM events
         if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       };
+
+      // Check if user has typed arguments after the command name
+      // E.g., "/summarize technical 100 'text'" -> has arguments, so Enter should submit
+      const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+      const parts = withoutSlash.split(/\s+/);
+      const hasArguments = parts.length > 1 && parts.slice(1).some(p => p.trim().length > 0);
+
       switch (e.key) {
         case 'ArrowDown':
           if (items.length === 0) return;
@@ -284,6 +305,10 @@ export default function SlashCommandAutocomplete({
           setSelectedIndex((prev) => (prev - 1 + items.length) % items.length);
           break;
         case 'Enter':
+          // If user has typed arguments, let Enter pass through to submit the message
+          if (hasArguments) {
+            return; // Don't intercept - let InputArea handle submission
+          }
           stop();
           if (items.length === 0) {
             onCreatePrompt?.();
@@ -323,7 +348,7 @@ export default function SlashCommandAutocomplete({
     // Use capture phase so we can intercept Enter before input handlers stop propagation
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isVisible, combinedItems, onSelectPrompt, onClose, onCreatePrompt]);
+  }, [isVisible, combinedItems, onSelectPrompt, onClose, onCreatePrompt, searchQuery]);
 
   // Scroll selected item into view when selectedIndex changes
   useEffect(() => {
@@ -390,7 +415,7 @@ export default function SlashCommandAutocomplete({
       {/* Header - Compact with prompt count */}
       <div className="px-3 py-2 border-b border-border bg-muted/50">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>Available Prompts</span>
+          <span>Available Prompts (hover over arguments for more info)</span>
           <Badge variant="secondary" className="ml-auto text-xs px-2 py-0.5">
             {prompts.length}
           </Badge>

@@ -11,6 +11,7 @@ import {
     countMessagesTokens,
     sanitizeToolResultToContentWithBlobs,
     expandBlobReferences,
+    isLikelyBase64String,
 } from './utils.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -155,7 +156,15 @@ export class ContextManager<TMessage = unknown> {
 
         if (shouldStoreAsBlob) {
             try {
-                const blobRef = await blobService.store(data, {
+                const blobInput =
+                    typeof data === 'string' &&
+                    !data.startsWith('data:') &&
+                    !isLikelyBase64String(data) &&
+                    !isLikelyBinary
+                        ? Buffer.from(data, 'utf-8')
+                        : data;
+
+                const blobRef = await blobService.store(blobInput, {
                     mimeType: metadata.mimeType,
                     originalName: metadata.originalName,
                     source: metadata.source || 'user',

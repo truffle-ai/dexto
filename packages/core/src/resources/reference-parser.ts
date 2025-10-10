@@ -1,6 +1,8 @@
 import type { ResourceSet } from './types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import { logger } from '../logger/index.js';
+
+// TODO: Implement Option A - pass logger as optional parameter for better observability
+// when we refactor to injectable logger pattern (see CLAUDE.md note about future logger architecture)
 
 export interface ResourceReference {
     originalRef: string;
@@ -63,7 +65,17 @@ export function resolveResourceReferences(
     for (const ref of resolvedRefs) {
         switch (ref.type) {
             case 'uri': {
-                if (availableResources[ref.identifier]) ref.resourceUri = ref.identifier;
+                // Try direct lookup first
+                if (availableResources[ref.identifier]) {
+                    ref.resourceUri = ref.identifier;
+                } else {
+                    // Fall back to searching by originalUri in metadata
+                    const uriMatchUri = findResourceByOriginalUri(
+                        availableResources,
+                        ref.identifier
+                    );
+                    if (uriMatchUri) ref.resourceUri = uriMatchUri;
+                }
                 break;
             }
             case 'server-scoped': {
@@ -83,6 +95,34 @@ export function resolveResourceReferences(
         }
     }
     return resolvedRefs;
+}
+
+function findResourceByOriginalUri(resources: ResourceSet, uri: string): string | undefined {
+    const normalizedUri = uri.trim().toLowerCase();
+
+    // Look for exact match in originalUri metadata
+    for (const [resourceUri, resource] of Object.entries(resources)) {
+        const originalUri =
+            typeof resource.metadata?.originalUri === 'string'
+                ? resource.metadata.originalUri
+                : undefined;
+        if (originalUri && originalUri.toLowerCase() === normalizedUri) {
+            return resourceUri;
+        }
+    }
+
+    // Fall back to partial match
+    for (const [resourceUri, resource] of Object.entries(resources)) {
+        const originalUri =
+            typeof resource.metadata?.originalUri === 'string'
+                ? resource.metadata.originalUri
+                : undefined;
+        if (originalUri && originalUri.toLowerCase().includes(normalizedUri)) {
+            return resourceUri;
+        }
+    }
+
+    return undefined;
 }
 
 function findResourceByServerAndName(
@@ -176,7 +216,8 @@ export async function expandMessageReferences(
     availableResources: ResourceSet,
     resourceReader: (uri: string) => Promise<ReadResourceResult>
 ): Promise<ResourceExpansionResult> {
-    logger.debug(`Expanding resource references in message: ${message.substring(0, 100)}...`);
+    // Note: Logging removed to keep this function browser-safe
+    // TODO: Add logger as optional parameter when implementing Option A
 
     const parsedRefs = parseResourceReferences(message);
     if (parsedRefs.length === 0) {
@@ -188,18 +229,9 @@ export async function expandMessageReferences(
         };
     }
 
-    logger.debug(
-        `Found ${parsedRefs.length} resource references: ${parsedRefs.map((r) => r.originalRef).join(', ')}`
-    );
     const resolvedRefs = resolveResourceReferences(parsedRefs, availableResources);
     const expandedReferences = resolvedRefs.filter((ref) => ref.resourceUri);
     const unresolvedReferences = resolvedRefs.filter((ref) => !ref.resourceUri);
-
-    if (unresolvedReferences.length > 0) {
-        logger.warn(
-            `Could not resolve ${unresolvedReferences.length} resource references: ${unresolvedReferences.map((r) => r.originalRef).join(', ')}`
-        );
-    }
 
     let expandedMessage = message;
     const failedRefs: ResourceReference[] = [];
@@ -236,9 +268,6 @@ export async function expandMessageReferences(
                     .replace(pattern, ' ')
                     .replace(/\s{2,}/g, ' ')
                     .trim();
-                logger.debug(
-                    `Extracted image reference ${ref.originalRef} for separate processing`
-                );
             } else {
                 // For non-image resources, expand them inline as before
                 const formattedContent = formatResourceContent(
@@ -248,14 +277,8 @@ export async function expandMessageReferences(
                 );
                 const pattern = new RegExp(escapeRegExp(ref.originalRef), 'g');
                 expandedMessage = expandedMessage.replace(pattern, formattedContent);
-                logger.debug(
-                    `Expanded reference ${ref.originalRef} with ${content.contents.length} content items`
-                );
             }
-        } catch (error) {
-            logger.error(
-                `Failed to read resource ${ref.resourceUri}: ${error instanceof Error ? error.message : String(error)}`
-            );
+        } catch (_error) {
             failedRefs.push(ref);
         }
     }
@@ -263,9 +286,6 @@ export async function expandMessageReferences(
     const failedRefSet = new Set(failedRefs);
     const finalExpandedReferences = expandedReferences.filter((ref) => !failedRefSet.has(ref));
     unresolvedReferences.push(...failedRefs);
-    logger.info(
-        `Expanded ${finalExpandedReferences.length} resource references, ${unresolvedReferences.length} unresolved, ${extractedImages.length} images extracted`
-    );
 
     return {
         expandedMessage,

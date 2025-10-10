@@ -4,7 +4,7 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
-import { InternalPromptProvider } from './providers/internal-prompt-provider.js';
+import { FilePromptProvider } from './providers/file-prompt-provider.js';
 import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
 import {
     CustomPromptProvider,
@@ -14,6 +14,7 @@ import { PromptError } from './errors.js';
 import { logger } from '../logger/index.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { Database } from '../storage/database/types.js';
+import { normalizePromptArgs, flattenPromptResult } from './utils.js';
 
 interface PromptCacheEntry {
     providerName: string;
@@ -33,12 +34,10 @@ export class PromptManager {
         resourceManager: ResourceManager,
         agentConfig: ValidatedAgentConfig,
         private readonly eventBus: AgentEventBus,
-        private readonly database: Database,
-        promptsDir?: string
+        private readonly database: Database
     ) {
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
-        const internalOptions = promptsDir ? { promptsDir, resourceManager } : { resourceManager };
-        this.providers.set('internal', new InternalPromptProvider(internalOptions));
+        this.providers.set('file', new FilePromptProvider({ resourceManager }));
         this.providers.set('starter', new StarterPromptProvider(agentConfig));
         this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
 
@@ -104,6 +103,20 @@ export class PromptManager {
         };
     }
 
+    /**
+     * Retrieve a prompt from the appropriate provider.
+     *
+     * Responsibilities:
+     * - Resolve the correct provider by prompt name (post-cache lookup)
+     * - Map positional arguments (`args._positional: string[]`) to named arguments based
+     *   on the prompt's declared `arguments` schema (order-based mapping)
+     * - Forward `_context` and any named args to the provider
+     *
+     * Mapping rules:
+     * - If `PromptInfo.arguments` is defined (e.g., MCP or file prompts with `argument-hint:`),
+     *   then each position in `_positional` fills the corresponding named arg if not already set.
+     * - Named arguments already present in `args` are not overwritten by positional tokens.
+     */
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
         const entry = await this.findEntry(name);
         if (!entry) {
@@ -115,7 +128,43 @@ export class PromptManager {
             throw PromptError.providerNotFound(entry.providerName);
         }
 
-        return await provider.getPrompt(entry.providerPromptName, args);
+        // Map positional arguments to named arguments based on prompt's argument schema
+        // This bridges the gap between user input (positional, like Claude Code's $1 $2)
+        // and MCP protocol expectations (named arguments like { report_type: "metrics" })
+        let finalArgs = args;
+        if (args?._positional && Array.isArray(args._positional) && args._positional.length > 0) {
+            const promptArgs = entry.info.arguments;
+            if (promptArgs && promptArgs.length > 0) {
+                finalArgs = { ...args };
+                const positionalArgs = args._positional as unknown[];
+                // Map positional args to named args based on the prompt's argument order
+                promptArgs.forEach((argDef, index) => {
+                    if (index < positionalArgs.length && !finalArgs![argDef.name]) {
+                        // Only set if not already provided as a named argument
+                        const value = positionalArgs[index];
+                        finalArgs![argDef.name] = typeof value === 'string' ? value : String(value);
+                    }
+                });
+            }
+        }
+
+        // Provider-specific argument filtering:
+        // - MCP: pass only declared arguments (strip internal keys and unknowns)
+        // - Others: pass through (file/custom use _positional/_context semantics)
+        let providerArgs: Record<string, unknown> | undefined = finalArgs;
+        if (entry.providerName === 'mcp') {
+            const declared = new Set((entry.info.arguments ?? []).map((a) => a.name));
+            const filtered: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(finalArgs ?? {})) {
+                if (key.startsWith('_')) continue; // strip internal keys
+                if (declared.size === 0 || declared.has(key)) {
+                    filtered[key] = value;
+                }
+            }
+            providerArgs = filtered;
+        }
+
+        return await provider.getPrompt(entry.providerPromptName, providerArgs);
     }
 
     async resolvePromptKey(nameOrAlias: string): Promise<string | null> {
@@ -148,6 +197,58 @@ export class PromptManager {
         }
         await provider.deletePrompt(name);
         await this.refresh();
+    }
+
+    /**
+     * Resolves a prompt to its text content with all arguments applied.
+     * This is a high-level method that handles:
+     * - Prompt key resolution (resolving aliases)
+     * - Argument normalization (including special `_context` field)
+     * - Passing `_context` through to providers so they can decide whether to append it
+     *   (e.g., file prompts without placeholders will append `Context: ...`)
+     * - Prompt execution and flattening
+     *
+     * @param name The prompt name or alias
+     * @param options Optional configuration for prompt resolution
+     * @returns Promise resolving to the resolved text and resource URIs
+     */
+    async resolvePrompt(
+        name: string,
+        options: {
+            context?: string;
+            args?: Record<string, unknown>;
+        } = {}
+    ): Promise<{ text: string; resources: string[] }> {
+        // Build args from options
+        const args: Record<string, unknown> = { ...options.args };
+        // Preserve `_context` on args for providers that need to decide whether to append it
+        if (options.context?.trim()) args._context = options.context.trim();
+
+        // Resolve provided name to a valid prompt key using promptManager
+        const resolvedName = (await this.resolvePromptKey(name)) ?? name;
+
+        // Normalize args (converts to strings, extracts context)
+        const normalized = normalizePromptArgs(args);
+
+        // Providers need `_context` to decide whether to append it (e.g., file prompts without placeholders)
+        const providerArgs = normalized.context
+            ? { ...normalized.args, _context: normalized.context }
+            : normalized.args;
+
+        // Get and flatten the prompt result
+        // Note: PromptManager handles positional-to-named argument mapping internally
+        const promptResult = await this.getPrompt(resolvedName, providerArgs);
+        const flattened = flattenPromptResult(promptResult);
+
+        // Context handling is done by the prompt providers themselves
+        // (they check for placeholders and decide whether to append context)
+
+        // Validate result
+        if (!flattened.text && flattened.resourceUris.length === 0) {
+            throw PromptError.emptyResolvedContent(resolvedName);
+        }
+
+        return { text: flattened.text, resources: flattened.resourceUris };
     }
 
     async refresh(): Promise<void> {
