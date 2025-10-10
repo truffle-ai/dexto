@@ -38,8 +38,9 @@ export class BlobResourceHandler implements InternalResourceHandler {
                 logger.debug(`📄 Found ${blobs.length} individual blobs`);
 
                 for (const blob of blobs) {
-                    // Filter out 'system' source blobs - these are internal configuration
-                    // (e.g., prompt .md files) and shouldn't be user-referenceable resources
+                    // Filter out 'system' source blobs (prompt .md files, custom prompt attachments).
+                    // These are internal config accessed via prompt system, not @-referenceable resources.
+                    // Prevents clutter and confusion in resource autocomplete.
                     if (blob.metadata.source === 'system') {
                         continue;
                     }
