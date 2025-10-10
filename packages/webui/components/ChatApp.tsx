@@ -8,11 +8,12 @@ import ConnectServerModal from './ConnectServerModal';
 import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
+import MemoryPanel from './MemoryPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -53,6 +54,7 @@ export default function ChatApp() {
   const [isExportOpen, setExportOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isCustomizePanelOpen, setCustomizePanelOpen] = useState(false);
+  const [isMemoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [exportName, setExportName] = useState('dexto-config');
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
@@ -545,6 +547,11 @@ export default function ChatApp() {
         e.preventDefault();
         setServersPanelOpen(prev => !prev);
       }
+      // Ctrl/Cmd + M to toggle memory panel
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'm') {
+        e.preventDefault();
+        setMemoryPanelOpen(prev => !prev);
+      }
       // Ctrl/Cmd + Shift + S to open search
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 's') {
         e.preventDefault();
@@ -576,6 +583,7 @@ export default function ChatApp() {
         if (isCustomizePanelOpen) setCustomizePanelOpen(false);
         else if (isServersPanelOpen) setServersPanelOpen(false);
         else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
+        else if (isMemoryPanelOpen) setMemoryPanelOpen(false);
         else if (isServerRegistryOpen) setServerRegistryOpen(false);
         else if (isExportOpen) setExportOpen(false);
         else if (showShortcuts) setShowShortcuts(false);
@@ -723,7 +731,27 @@ export default function ChatApp() {
                 </TooltipTrigger>
                 <TooltipContent>Settings</TooltipContent>
               </Tooltip>
-              
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
+                    className={cn(
+                      "h-8 px-2 text-sm transition-colors",
+                      isMemoryPanelOpen && "bg-muted"
+                    )}
+                  >
+                    <Brain className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline ml-1.5">Memories</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Toggle memories panel (⌘M)
+                </TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -1077,6 +1105,12 @@ export default function ChatApp() {
         {/* Settings Modal */}
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
 
+        {/* Memory Panel */}
+        <MemoryPanel
+          isOpen={isMemoryPanelOpen}
+          onClose={() => setMemoryPanelOpen(false)}
+          variant="modal"
+        />
 
         {/* Delete Conversation Confirmation Modal */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1128,6 +1162,7 @@ export default function ChatApp() {
                 { key: '⌘H', desc: 'Toggle chat history panel' },
                 { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
+                { key: '⌘M', desc: 'Toggle memories panel' },
                 { key: '⌘E', desc: 'Customize agent' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
                 { key: '⌘L', desc: 'Open MCP playground' },

@@ -1,6 +1,7 @@
 import type { ValidatedSystemPromptConfig, ValidatedContributorConfig } from './schemas.js';
-import { StaticContributor, FileContributor } from './contributors.js';
+import { StaticContributor, FileContributor, MemoryContributor } from './contributors.js';
 import { getPromptGenerator } from './registry.js';
+import type { MemoryManager } from '../memory/index.js';
 
 import type { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { DynamicContributor } from './contributors.js';
@@ -14,10 +15,16 @@ import { SystemPromptError } from './errors.js';
 export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
     private configDir: string;
+    private memoryManager?: MemoryManager | undefined;
 
     // TODO: move config dir logic somewhere else
-    constructor(config: ValidatedSystemPromptConfig, configDir: string = process.cwd()) {
+    constructor(
+        config: ValidatedSystemPromptConfig,
+        configDir: string = process.cwd(),
+        memoryManager?: MemoryManager | undefined
+    ) {
         this.configDir = configDir;
+        this.memoryManager = memoryManager;
         logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
 
         // Filter enabled contributors and create contributor instances
@@ -51,6 +58,23 @@ export class SystemPromptManager {
                     config.files,
                     config.options,
                     this.configDir
+                );
+            }
+
+            case 'memory': {
+                if (!this.memoryManager) {
+                    throw SystemPromptError.unknownContributorSource(
+                        'memory (MemoryManager not provided)'
+                    );
+                }
+                logger.debug(
+                    `[SystemPromptManager] Creating MemoryContributor "${config.id}" with options: ${JSON.stringify(config.options)}`
+                );
+                return new MemoryContributor(
+                    config.id,
+                    config.priority,
+                    this.memoryManager,
+                    config.options
                 );
             }
 

@@ -26,6 +26,7 @@ import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
+import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { clearPromptCache } from '../lib/promptCache';
 
@@ -125,6 +126,9 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [showCreatePromptModal, setShowCreatePromptModal] = useState(false);
   const [slashRefreshKey, setSlashRefreshKey] = useState(0);
+
+  // Memory state
+  const [showCreateMemoryModal, setShowCreateMemoryModal] = useState(false);
 
   const showUserError = (message: string) => {
     setFileUploadError(message);
@@ -340,6 +344,12 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Check if user typed `#` to create a memory
+      if (text.trim() === '#') {
+        setText('');
+        setShowCreateMemoryModal(true);
+        return;
+      }
       handleSend();
     }
   };
@@ -762,7 +772,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
+                  placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -775,7 +785,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
+                  placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}
@@ -898,6 +908,14 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           open={showCreatePromptModal}
           onClose={handleCloseCreatePrompt}
           onCreated={handlePromptCreated}
+        />
+
+        <CreateMemoryModal
+          open={showCreateMemoryModal}
+          onClose={() => setShowCreateMemoryModal(false)}
+          onSuccess={() => {
+            // Could add a success toast here if desired
+          }}
         />
       </div>
     </div>
