@@ -156,7 +156,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ## Code Standards
 
 ### Import Requirements
-- **All imports must end with `.js`** for ES module compatibility
+- **All imports must end with `.js`** in core repository only for ES module compatibility
 
 ### Module Organization
 - **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
