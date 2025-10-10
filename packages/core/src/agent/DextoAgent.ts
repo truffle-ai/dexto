@@ -41,7 +41,7 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
 import { parseDocument } from 'yaml';
-import { generateSessionTitle } from '../session/title-generator.js';
+import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -616,21 +616,59 @@ export class DextoAgent {
     ): Promise<void> {
         try {
             const metadata = await this.sessionManager.getSessionMetadata(sessionId);
-            if (!metadata) return;
-            // Only generate on the first message and if no title exists
-            if (metadata.messageCount > 0 || (metadata as any).title) return;
-            if (!userText || !userText.trim()) return;
+            if (!metadata) {
+                logger.debug(
+                    `[SessionTitle] No session metadata available for ${sessionId}, skipping title generation`
+                );
+                return;
+            }
+            if (metadata.title) {
+                logger.debug(
+                    `[SessionTitle] Session ${sessionId} already has title '${metadata.title}', skipping`
+                );
+                return;
+            }
+            if (!userText || !userText.trim()) {
+                logger.debug(
+                    `[SessionTitle] User text empty for session ${sessionId}, skipping title generation`
+                );
+                return;
+            }
 
-            const title = await generateSessionTitle(
+            logger.debug(
+                `[SessionTitle] Checking title generation preconditions for session ${sessionId}`
+            );
+            const result = await generateSessionTitle(
                 llmConfig,
                 llmConfig.router,
                 this.toolManager,
                 this.systemPromptManager,
                 this.resourceManager,
                 userText,
-                { timeoutMs: 2500 }
+                { timeoutMs: 6000 }
             );
-            if (!title) return;
+            if (result.error) {
+                logger.debug(
+                    `[SessionTitle] LLM title generation failed for ${sessionId}: ${result.error}${
+                        result.timedOut ? ' (timeout)' : ''
+                    }`
+                );
+            }
+
+            let title = result.title;
+            if (!title) {
+                title = deriveHeuristicTitle(userText);
+                if (title) {
+                    logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+                } else {
+                    logger.debug(
+                        `[SessionTitle] No suitable title derived for session ${sessionId}`
+                    );
+                    return;
+                }
+            } else {
+                logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
+            }
 
             await this.sessionManager.setSessionTitle(sessionId, title);
             this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });

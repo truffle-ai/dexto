@@ -44,6 +44,7 @@ export default function ChatApp() {
 
   const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
+  const [currentSessionTitle, setCurrentSessionTitle] = React.useState<string | null>(null);
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -416,6 +417,44 @@ export default function ChatApp() {
     }
   }, [currentSessionId, returnToWelcome]);
 
+  // Fetch current session title when session changes
+  useEffect(() => {
+    let abort = false;
+    async function fetchTitle() {
+      if (!currentSessionId) {
+        setCurrentSessionTitle(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/sessions/${currentSessionId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const title = data?.session?.title;
+        if (!abort) setCurrentSessionTitle(typeof title === 'string' && title.trim() ? title : null);
+      } catch {
+        // ignore
+      }
+    }
+    void fetchTitle();
+    return () => {
+      abort = true;
+    };
+  }, [currentSessionId]);
+
+  // Listen for sessionTitleUpdated and refresh local title when it matches current session
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ sessionId: string; title: string }>;
+      if (ce.detail?.sessionId && ce.detail.sessionId === currentSessionId) {
+        setCurrentSessionTitle(ce.detail.title);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('dexto:sessionTitleUpdated', handler as EventListener);
+      return () => window.removeEventListener('dexto:sessionTitleUpdated', handler as EventListener);
+    }
+  }, [currentSessionId]);
+
   const handleWelcomeSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (welcomeSearchQuery.trim()) {
@@ -670,12 +709,19 @@ export default function ChatApp() {
                   <TooltipTrigger asChild>
                     <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30 max-w-[120px] cursor-help">
                       <span className="truncate">
-                        {currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId}
+                        {currentSessionTitle && currentSessionTitle.trim().length > 0
+                          ? (currentSessionTitle.length > 24 ? `${currentSessionTitle.slice(0, 24)}...` : currentSessionTitle)
+                          : (currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId)}
                       </span>
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <span className="font-mono">{currentSessionId}</span>
+                    <div className="space-y-1">
+                      {currentSessionTitle && (
+                        <div className="text-xs">Title: <span className="font-medium">{currentSessionTitle}</span></div>
+                      )}
+                      <div className="text-xs">ID: <span className="font-mono">{currentSessionId}</span></div>
+                    </div>
                   </TooltipContent>
                 </Tooltip>
               )}

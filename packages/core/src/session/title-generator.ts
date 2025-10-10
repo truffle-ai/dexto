@@ -7,11 +7,15 @@ import { createLLMService } from '@core/llm/services/factory.js';
 import { SessionEventBus } from '@core/events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
 
+export interface GenerateSessionTitleResult {
+    title?: string;
+    error?: string;
+    timedOut?: boolean;
+}
+
 /**
  * Generate a concise title for a chat based on the first user message.
- * Runs a fast, isolated LLM completion that does not pollute real history.
- *
- * Returns null on timeout/failure – callers should handle fallback or skip.
+ * Runs a lightweight, isolated LLM completion that does not touch real history.
  */
 export async function generateSessionTitle(
     config: ValidatedLLMConfig,
@@ -21,15 +25,14 @@ export async function generateSessionTitle(
     resourceManager: ResourceManager,
     userText: string,
     opts: { timeoutMs?: number } = {}
-): Promise<string | null> {
-    const timeoutMs = opts.timeoutMs ?? 2500;
+): Promise<GenerateSessionTitleResult> {
+    const timeoutMs = opts.timeoutMs ?? 6000;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        // Create an isolated LLM service instance with empty in-memory history
         const history = new MemoryHistoryProvider();
-        const bus = new SessionEventBus(); // not forwarded to agent bus
+        const bus = new SessionEventBus();
         const tempService = createLLMService(
             config,
             router,
@@ -37,16 +40,13 @@ export async function generateSessionTitle(
             systemPromptManager,
             history,
             bus,
-            // Use a synthetic session id for isolation
             `titlegen-${Math.random().toString(36).slice(2)}`,
             resourceManager
         );
 
-        // Craft a strict instruction inline (keeps infra change minimal)
-        // Keep it short to minimize cost/latency.
         const instruction = [
             'Generate a short conversation title from the following user message.',
-            'Rules: 3–8 words; no quotes, punctuation at the end, emojis, or PII; return only the title.',
+            'Rules: 3–8 words; no surrounding punctuation, emojis, or PII; return only the title.',
             '',
             'Message:',
             sanitizeUserText(userText, 512),
@@ -60,35 +60,90 @@ export async function generateSessionTitle(
             false
         );
 
-        return postProcessTitle(result);
-    } catch {
-        return null;
+        const processed = postProcessTitle(result);
+        if (!processed) {
+            return { error: 'LLM returned empty title' };
+        }
+        return { title: processed };
+    } catch (error) {
+        if (controller.signal.aborted) {
+            return { timedOut: true, error: 'Timed out while waiting for LLM response' };
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        return { error: message };
     } finally {
         clearTimeout(timer);
     }
 }
 
-function sanitizeUserText(text: string, maxLen: number): string {
-    const t = (text || '').replace(/[\u0000-\u001F]/g, ' ').trim();
-    return t.length > maxLen ? t.slice(0, maxLen) : t;
+/**
+ * Heuristic fallback when the LLM-based title fails.
+ */
+export function deriveHeuristicTitle(userText: string): string | undefined {
+    const sanitized = sanitizeUserText(userText, 120);
+    if (!sanitized) return undefined;
+
+    const isSlashCommand = sanitized.startsWith('/');
+    if (isSlashCommand) {
+        const [commandTokenRaw, ...rest] = sanitized.split(/\s+/);
+        if (!commandTokenRaw) {
+            return undefined;
+        }
+        const commandToken = commandTokenRaw.trim();
+        const commandName = commandToken.startsWith('/') ? commandToken.slice(1) : commandToken;
+        if (!commandName) {
+            return undefined;
+        }
+        const command = commandName.replace(/[-_]+/g, ' ');
+        const commandTitle = toTitleCase(command);
+        const remainder = rest.join(' ').trim();
+        if (remainder) {
+            return truncateWords(`${commandTitle} — ${remainder}`, 10, 70);
+        }
+        return commandTitle || undefined;
+    }
+
+    const firstLine = sanitized.split(/\r?\n/)[0] ?? sanitized;
+    const withoutMarkdown = firstLine.replace(/[`*_~>#-]/g, '').trim();
+    if (!withoutMarkdown) {
+        return undefined;
+    }
+    return truncateWords(toSentenceCase(withoutMarkdown), 10, 70);
 }
 
-function postProcessTitle(raw: string): string | null {
-    if (!raw) return null;
+function sanitizeUserText(text: string, maxLen: number): string {
+    const cleaned = text.replace(/\p{Cc}+/gu, ' ').trim();
+    return cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
+}
+
+function postProcessTitle(raw: string): string | undefined {
+    if (!raw) return undefined;
     let t = raw.trim();
-    // Strip surrounding quotes/backticks
-    t = t.replace(/^\s*["'`]+|["'`]+\s*$/g, '');
-    // Normalize whitespace
+    t = t.replace(/^["'`\s]+|["'`\s]+$/g, '');
     t = t.replace(/\s+/g, ' ').trim();
-    // Remove trailing punctuation
     t = t.replace(/[\s\-–—,:;.!?]+$/g, '');
-    // Clamp to ~8 words
-    const words = t.split(' ').filter(Boolean);
-    if (words.length > 8) {
-        t = words.slice(0, 8).join(' ');
+    if (!t) return undefined;
+    return truncateWords(toSentenceCase(t), 8, 80);
+}
+
+function truncateWords(text: string, maxWords: number, maxChars: number): string {
+    const words = text.split(' ').filter(Boolean);
+    let truncated = words.slice(0, maxWords).join(' ');
+    if (truncated.length > maxChars) {
+        truncated = truncated.slice(0, maxChars).trimEnd();
     }
-    // Basic sentence case
-    t = t.charAt(0).toUpperCase() + t.slice(1);
-    if (!t) return null;
-    return t;
+    return truncated;
+}
+
+function toSentenceCase(text: string): string {
+    if (!text) return text;
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function toTitleCase(text: string): string {
+    return text
+        .split(' ')
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }

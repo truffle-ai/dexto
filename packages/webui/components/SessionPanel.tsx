@@ -37,6 +37,7 @@ interface Session {
   createdAt: string | null;
   lastActivity: string | null;
   messageCount: number;
+  title?: string | null;
 }
 
 interface SessionPanelProps {
@@ -115,10 +116,17 @@ export default function SessionPanel({
     if (typeof window !== 'undefined') {
       window.addEventListener('dexto:message', handleMessage);
       window.addEventListener('dexto:response', handleResponse);
+      const handleTitleUpdated = (e: Event) => {
+        if (!isOpen) return;
+        // e is CustomEvent with detail { sessionId, title }
+        fetchSessions();
+      };
+      window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated as EventListener);
       
       return () => {
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
+        window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated as EventListener);
       };
     }
   }, [isOpen, fetchSessions]);
@@ -301,7 +309,7 @@ export default function SessionPanel({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-2">
                       <h3 className="font-medium text-sm truncate">
-                        {session.id}
+                        {session.title && session.title.trim().length > 0 ? session.title : session.id}
                       </h3>
                       {currentSessionId === session.id && (
                         <Badge variant="secondary" className="text-xs">
