@@ -23,8 +23,8 @@ interface ParsedPrompt {
 // TODO: (355) Might not actually need FilePromptProvider, seems equivalent to starter-prompt-provider with a hardcoded directory. Can keep for now but basically we can add file based prompt providers instead (refer to relative file colocated near the agent)
 // https://github.com/truffle-ai/dexto/pull/355#discussion_r2413151059
 export class FilePromptProvider implements PromptProvider {
-    // Multiple search directories (local project/repo and global user dir)
-    private readonly searchDirs: string[];
+    // Multiple command directories (local project/repo and global user dir)
+    private readonly commandDirs: string[];
     private readonly resourceManager: ResourceManager;
     private promptsCache: PromptInfo[] = [];
     private cacheValid = false;
@@ -35,7 +35,7 @@ export class FilePromptProvider implements PromptProvider {
         // Opinionated resolution only; no external configuration
         // - <repo_or_project_root>/commands
         // - ~/.dexto/commands (global)
-        this.searchDirs = this.resolveDefaultSearchDirs();
+        this.commandDirs = this.resolveDefaultCommandDirs();
         this.resourceManager = options.resourceManager;
     }
 
@@ -137,7 +137,7 @@ export class FilePromptProvider implements PromptProvider {
 
         const scannedDirs: string[] = [];
 
-        for (const dir of this.searchDirs) {
+        for (const dir of this.commandDirs) {
             if (!existsSync(dir)) {
                 continue;
             }
@@ -448,8 +448,8 @@ export class FilePromptProvider implements PromptProvider {
         return expanded;
     }
 
-    // Determine default search directories based on execution context
-    private resolveDefaultSearchDirs(): string[] {
+    // Determine default command/prompt directories based on execution context
+    private resolveDefaultCommandDirs(): string[] {
         const dirs: string[] = [];
 
         // Try to find dexto source or a dexto-using project root
