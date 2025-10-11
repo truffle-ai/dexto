@@ -24,6 +24,10 @@ const MEMORY_KEY_PREFIX = 'memory:item:';
  * Storage format:
  * - Key: `memory:item:{id}`
  * - Value: Memory object
+ *
+ * TODO: Expand to support multi-scope memories (user, agent, entity, session)
+ * with namespaced keys (e.g., `memory:user:{userId}:item:{id}`) and
+ * context-aware retrieval.
  */
 export class MemoryManager {
     constructor(private database: Database) {
