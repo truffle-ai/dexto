@@ -70,12 +70,26 @@ export class MCPManager {
     private promptCache: Map<string, PromptCacheEntry> = new Map();
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
+    private approvalManager: any = null; // Will be set by service initializer
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
     private static readonly SERVER_DELIMITER = '--';
 
     constructor() {}
+
+    /**
+     * Set the approval manager for handling elicitation requests from MCP servers
+     */
+    setApprovalManager(approvalManager: any): void {
+        this.approvalManager = approvalManager;
+        // Update all existing clients with the approval manager
+        for (const [_name, client] of this.clients.entries()) {
+            if (client instanceof MCPClient) {
+                client.setApprovalManager(approvalManager);
+            }
+        }
+    }
 
     private buildQualifiedResourceKey(serverName: string, resourceUri: string): string {
         return `mcp:${serverName}:${resourceUri}`;
@@ -671,6 +685,12 @@ export class MCPManager {
         try {
             logger.info(`Attempting to connect to new server '${name}'...`);
             await client.connect(config, name);
+
+            // Set approval manager if available
+            if (this.approvalManager) {
+                client.setApprovalManager(this.approvalManager);
+            }
+
             this.registerClient(name, client);
             await this.updateClientCache(name, client);
             logger.info(`Successfully connected and cached new server '${name}'`);

@@ -837,9 +837,9 @@ export async function initializeApi(
             }
             try {
                 const data = JSON.parse(messageString);
-                if (data.type === 'toolConfirmationResponse' && data.data) {
-                    // Route confirmation back via AgentEventBus and do not broadcast an error
-                    activeAgent.agentEventBus.emit('dexto:toolConfirmationResponse', data.data);
+                if (data.type === 'approvalResponse' && data.data) {
+                    // Route approval response back via AgentEventBus and do not broadcast an error
+                    activeAgent.agentEventBus.emit('dexto:approvalResponse', data.data);
                     return;
                 } else if (
                     data.type === 'message' &&

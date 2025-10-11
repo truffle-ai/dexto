@@ -47,7 +47,7 @@ The webhook system supports all agent events:
 - `dexto:conversationReset` - Conversation history cleared
 - `dexto:mcpServerConnected` - MCP server connection established
 - `dexto:availableToolsUpdated` - Available tools changed
-- `dexto:toolConfirmationRequest` - Tool execution requires confirmation
+- `dexto:approvalRequest` - User approval required (tool confirmation, elicitation, etc.)
 - `dexto:llmSwitched` - LLM model switched
 - `dexto:stateChanged` - Agent state updated
 

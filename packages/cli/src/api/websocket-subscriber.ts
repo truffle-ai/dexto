@@ -189,12 +189,12 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             { signal }
         );
 
-        // Forward pre-execution tool confirmation events
+        // Forward approval request events (including tool confirmations)
         eventBus.on(
-            'dexto:toolConfirmationRequest',
+            'dexto:approvalRequest',
             (payload) => {
                 this.broadcast({
-                    event: 'toolConfirmationRequest',
+                    event: 'approvalRequest',
                     data: payload,
                 });
             },
