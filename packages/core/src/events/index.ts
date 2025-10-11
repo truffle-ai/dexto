@@ -23,9 +23,6 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpPromptsListChanged',
     'dexto:mcpToolsListChanged',
     'dexto:resourceCacheInvalidated',
-    // Tool confirmation events (legacy - maintained for backward compatibility)
-    'dexto:toolConfirmationRequest',
-    'dexto:toolConfirmationResponse',
     // User approval events (generalized approval system)
     'dexto:approvalRequest',
     'dexto:approvalResponse',
@@ -200,24 +197,6 @@ export interface AgentEventMap {
     'dexto:mcpServerUpdated': {
         serverName: string;
         config: any; // McpServerConfig type
-    };
-
-    /** Fired when tool confirmation is requested */
-    'dexto:toolConfirmationRequest': {
-        toolName: string;
-        args: Record<string, any>;
-        description?: string;
-        executionId: string;
-        timestamp: Date;
-        sessionId?: string;
-    };
-
-    /** Fired when tool confirmation response is received */
-    'dexto:toolConfirmationResponse': {
-        executionId: string;
-        approved: boolean;
-        rememberChoice?: boolean;
-        sessionId?: string;
     };
 
     /** Fired when user approval is requested (generalized approval system) */

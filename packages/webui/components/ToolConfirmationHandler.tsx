@@ -55,57 +55,78 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                 const message = JSON.parse(event.data);
 
                 if (message.event === 'approvalRequest') {
-                    // Only handle requests for the active session
-                    const sid = message?.data?.sessionId as string | undefined;
-                    if (!sid || sid !== currentSessionId) return;
-
-                    // Handle both tool confirmation and elicitation types
-                    if (message.data.type !== 'tool_confirmation' && message.data.type !== 'elicitation') {
-                        console.debug('[WebUI] Ignoring unsupported approval type:', message.data.type);
+                    // Validate message.data exists and is an object
+                    if (!message?.data || typeof message.data !== 'object') {
+                        console.error('[WebUI] Invalid approvalRequest: message.data is missing or not an object');
                         return;
                     }
 
-                    let confirmationEvent: ApprovalEvent;
+                    // Only handle requests for the active session
+                    const sid = message.data.sessionId as string | undefined;
+                    if (!sid || sid !== currentSessionId) return;
 
-                    if (message.data.type === 'tool_confirmation') {
-                        const toolMetadata = message.data.metadata as {
-                            toolName: string;
-                            args: Record<string, unknown>;
-                            description?: string;
-                        };
+                    // Handle both tool confirmation and elicitation types
+                    const messageType = message.data.type;
+                    if (messageType !== 'tool_confirmation' && messageType !== 'elicitation') {
+                        console.debug('[WebUI] Ignoring unsupported approval type:', messageType);
+                        return;
+                    }
 
-                        confirmationEvent = {
+                    let approvalEvent: ApprovalEvent;
+
+                    if (messageType === 'tool_confirmation') {
+                        // Validate metadata exists and has required properties
+                        const metadata = message.data.metadata;
+                        if (!metadata || typeof metadata !== 'object') {
+                            console.error('[WebUI] Invalid tool_confirmation: metadata is missing or not an object');
+                            return;
+                        }
+
+                        const toolName = metadata.toolName;
+                        const args = metadata.args;
+
+                        if (typeof toolName !== 'string') {
+                            console.error('[WebUI] Invalid tool_confirmation: metadata.toolName must be a string');
+                            return;
+                        }
+
+                        if (!args || typeof args !== 'object') {
+                            console.error('[WebUI] Invalid tool_confirmation: metadata.args must be an object');
+                            return;
+                        }
+
+                        approvalEvent = {
                             approvalId: message.data.approvalId,
-                            type: message.data.type,
-                            toolName: toolMetadata.toolName,
-                            args: toolMetadata.args,
-                            description: toolMetadata.description,
+                            type: messageType,
+                            toolName: toolName,
+                            args: args,
+                            description: typeof metadata.description === 'string' ? metadata.description : undefined,
                             timestamp: new Date(message.data.timestamp),
                             sessionId: message.data.sessionId,
-                            metadata: message.data.metadata,
+                            metadata: metadata,
                         };
                     } else {
                         // Elicitation request
-                        confirmationEvent = {
+                        approvalEvent = {
                             approvalId: message.data.approvalId,
-                            type: message.data.type,
+                            type: messageType,
                             timestamp: new Date(message.data.timestamp),
                             sessionId: message.data.sessionId,
-                            metadata: message.data.metadata,
+                            metadata: message.data.metadata || {},
                         };
                     }
 
-                    console.debug('[WebUI] Received approvalRequest', confirmationEvent);
+                    console.debug('[WebUI] Received approvalRequest', approvalEvent);
 
                     if (pendingConfirmation) {
                         // Buffer the request to be shown later
-                        queuedRequestsRef.current.push(confirmationEvent);
+                        queuedRequestsRef.current.push(approvalEvent);
                     } else {
-                        setPendingConfirmation(confirmationEvent);
+                        setPendingConfirmation(approvalEvent);
                     }
                 }
             } catch (error) {
-                console.error('Error parsing WebSocket message:', error);
+                console.error(`[WebUI] Error handling approvalRequest message: ${error instanceof Error ? error.message : String(error)}`);
             }
         };
 
