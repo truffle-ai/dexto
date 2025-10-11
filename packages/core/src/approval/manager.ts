@@ -170,8 +170,14 @@ export class ApprovalManager {
         if (response.status === 'approved') {
             // Handle auto-approve mode where data might be missing
             // Return empty formData object for approved-without-data case (e.g., NoOpApprovalProvider)
-            if (response.data && (response.data as any).formData) {
-                return (response.data as any).formData;
+            if (
+                response.data &&
+                typeof response.data === 'object' &&
+                'formData' in response.data &&
+                typeof (response.data as { formData: unknown }).formData === 'object' &&
+                (response.data as { formData: unknown }).formData !== null
+            ) {
+                return (response.data as { formData: Record<string, unknown> }).formData;
             }
             // Auto-approve without data returns empty form
             return {};

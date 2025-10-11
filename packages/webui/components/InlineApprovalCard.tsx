@@ -84,8 +84,9 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         step={fieldType === 'integer' ? '1' : 'any'}
                         value={fieldValue ?? ''}
                         onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            updateFormField(fieldName, val);
+                            const raw = e.target.value;
+                            const nextValue = raw === '' ? undefined : Number(raw);
+                            updateFormField(fieldName, nextValue);
                         }}
                         className={`w-full px-3 py-2 border rounded-md text-sm bg-background ${
                             hasError ? 'border-red-500' : 'border-border'
@@ -110,7 +111,18 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                     <select
                         id={fieldName}
                         value={fieldValue ?? ''}
-                        onChange={(e) => updateFormField(fieldName, e.target.value)}
+                        onChange={(e) => {
+                            const selected = e.target.value;
+                            if (selected === '') {
+                                updateFormField(fieldName, undefined);
+                                return;
+                            }
+
+                            const matched = fieldSchema.enum.find(
+                                (option: any) => String(option) === selected
+                            );
+                            updateFormField(fieldName, matched ?? selected);
+                        }}
                         className={`w-full px-3 py-2 border rounded-md text-sm bg-background ${
                             hasError ? 'border-red-500' : 'border-border'
                         }`}

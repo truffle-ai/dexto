@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useChatContext } from './hooks/ChatContext';
-import { InlineApprovalCard } from './InlineApprovalCard';
 
 export interface ApprovalEvent {
     approvalId: string;

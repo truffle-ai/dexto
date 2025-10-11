@@ -2,19 +2,21 @@ import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { ApprovalManager } from '../../../approval/manager.js';
 
-const AskUserInputSchema = z.object({
-    question: z.string().describe('The question or prompt to display to the user'),
-    schema: z
-        .object({
-            type: z.literal('object'),
-            properties: z.record(z.any()),
-            required: z.array(z.string()).optional(),
-        })
-        .passthrough()
-        .describe(
-            'JSON Schema defining the form structure. Must be an object with "type": "object" and "properties" defining form fields. Use "enum" arrays for dropdowns, "boolean" for yes/no, "number"/"integer" for numeric inputs, "string" for text. Include "required" array for mandatory fields.'
-        ),
-});
+const AskUserInputSchema = z
+    .object({
+        question: z.string().describe('The question or prompt to display to the user'),
+        schema: z
+            .object({
+                type: z.literal('object'),
+                properties: z.record(z.unknown()),
+                required: z.array(z.string()).optional(),
+            })
+            .passthrough()
+            .describe(
+                'JSON Schema defining the form structure. Must be an object with "type": "object" and "properties" defining form fields. Use "enum" arrays for dropdowns, "boolean" for yes/no, "number"/"integer" for numeric inputs, "string" for text. Include "required" array for mandatory fields.'
+            ),
+    })
+    .strict();
 
 type AskUserInput = z.input<typeof AskUserInputSchema>;
 

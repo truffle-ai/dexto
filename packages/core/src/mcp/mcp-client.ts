@@ -624,7 +624,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 params: z
                     .object({
                         message: z.string(),
-                        requestedSchema: z.any(),
+                        requestedSchema: z.unknown(),
                     })
                     .passthrough(),
             })
@@ -645,14 +645,19 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 }
 
                 const response = await this.approvalManager.requestElicitation({
-                    schema: params.requestedSchema,
+                    schema: params.requestedSchema as Record<string, unknown>,
                     prompt: params.message,
                     serverName: this.serverAlias || 'unknown',
                 });
 
                 if (response.status === 'approved' && response.data) {
                     // User accepted and provided data
-                    const formData = (response.data as any).formData;
+                    const formData =
+                        response.data &&
+                        typeof response.data === 'object' &&
+                        'formData' in response.data
+                            ? (response.data as { formData: unknown }).formData
+                            : {};
                     logger.info(`Elicitation approved for '${this.serverAlias}', returning data`);
                     return {
                         action: 'accept',
