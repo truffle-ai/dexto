@@ -74,6 +74,23 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
         }
     });
 
+    // Get memory count (with optional filtering)
+    // NOTE: Must be declared before /:id route to avoid route shadowing
+    router.get('/count', async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const queryOptions = ListMemoriesQuerySchema.parse(req.query);
+            const options: ListMemoriesOptions = {};
+            if (queryOptions.tags !== undefined) options.tags = queryOptions.tags;
+            if (queryOptions.source !== undefined) options.source = queryOptions.source;
+            if (queryOptions.pinned !== undefined) options.pinned = queryOptions.pinned;
+
+            const count = await agent.memoryManager.count(options);
+            return res.status(200).json({ ok: true, count });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     // Get a specific memory by ID
     router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         try {
@@ -103,22 +120,6 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
             const { id } = MemoryIdParamsSchema.parse(req.params);
             await agent.memoryManager.delete(id);
             return res.status(200).json({ ok: true, message: 'Memory deleted successfully' });
-        } catch (error) {
-            return next(error);
-        }
-    });
-
-    // Get memory count (with optional filtering)
-    router.get('/count', async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const queryOptions = ListMemoriesQuerySchema.parse(req.query);
-            const options: ListMemoriesOptions = {};
-            if (queryOptions.tags !== undefined) options.tags = queryOptions.tags;
-            if (queryOptions.source !== undefined) options.source = queryOptions.source;
-            if (queryOptions.pinned !== undefined) options.pinned = queryOptions.pinned;
-
-            const count = await agent.memoryManager.count(options);
-            return res.status(200).json({ ok: true, count });
         } catch (error) {
             return next(error);
         }

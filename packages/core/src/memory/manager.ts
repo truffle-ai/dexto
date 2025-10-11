@@ -1,6 +1,11 @@
 import type { Database } from '../storage/database/types.js';
 import type { Memory, CreateMemoryInput, UpdateMemoryInput, ListMemoriesOptions } from './types.js';
-import { MemorySchema, CreateMemoryInputSchema, UpdateMemoryInputSchema } from './schemas.js';
+import {
+    MemorySchema,
+    CreateMemoryInputSchema,
+    UpdateMemoryInputSchema,
+    ListMemoriesOptionsSchema,
+} from './schemas.js';
 import { MemoryError } from './errors.js';
 import { logger } from '../logger/index.js';
 import { nanoid } from 'nanoid';
@@ -158,6 +163,9 @@ export class MemoryManager {
      * List all memories with optional filtering
      */
     async list(options: ListMemoriesOptions = {}): Promise<Memory[]> {
+        // Validate and parse options
+        const validatedOptions = ListMemoriesOptionsSchema.parse(options);
+
         try {
             // Get all memory keys
             const keys = await this.database.list(MEMORY_KEY_PREFIX);
@@ -179,29 +187,29 @@ export class MemoryManager {
             let filtered = memories;
 
             // Filter by tags
-            if (options.tags && options.tags.length > 0) {
+            if (validatedOptions.tags && validatedOptions.tags.length > 0) {
                 filtered = filtered.filter((m) =>
-                    m.tags?.some((tag) => options.tags!.includes(tag))
+                    m.tags?.some((tag) => validatedOptions.tags!.includes(tag))
                 );
             }
 
             // Filter by source
-            if (options.source) {
-                filtered = filtered.filter((m) => m.metadata?.source === options.source);
+            if (validatedOptions.source) {
+                filtered = filtered.filter((m) => m.metadata?.source === validatedOptions.source);
             }
 
             // Filter by pinned status
-            if (options.pinned !== undefined) {
-                filtered = filtered.filter((m) => m.metadata?.pinned === options.pinned);
+            if (validatedOptions.pinned !== undefined) {
+                filtered = filtered.filter((m) => m.metadata?.pinned === validatedOptions.pinned);
             }
 
             // Sort by updatedAt descending (most recent first)
             filtered.sort((a, b) => b.updatedAt - a.updatedAt);
 
             // Apply pagination
-            if (options.offset !== undefined || options.limit !== undefined) {
-                const start = options.offset ?? 0;
-                const end = options.limit ? start + options.limit : undefined;
+            if (validatedOptions.offset !== undefined || validatedOptions.limit !== undefined) {
+                const start = validatedOptions.offset ?? 0;
+                const end = validatedOptions.limit ? start + validatedOptions.limit : undefined;
                 filtered = filtered.slice(start, end);
             }
 

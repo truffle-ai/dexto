@@ -50,6 +50,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'stateManager',
     'sessionManager',
     'searchService',
+    'memoryManager',
 ];
 
 /**
