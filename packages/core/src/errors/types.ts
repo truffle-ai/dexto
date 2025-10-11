@@ -11,6 +11,7 @@ import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
 import type { PromptErrorCode } from '@core/prompts/error-codes.js';
+import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -30,6 +31,7 @@ export enum ErrorScope {
     AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
     PROMPT = 'prompt', // Prompt management, resolution, and providers
+    MEMORY = 'memory', // Memory management and storage
 }
 
 /**
@@ -64,7 +66,8 @@ export type DextoErrorCode =
     | PreferenceErrorCode
     | RegistryErrorCode
     | ResourceErrorCode
-    | PromptErrorCode;
+    | PromptErrorCode
+    | MemoryErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

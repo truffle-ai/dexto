@@ -35,6 +35,7 @@ import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
+import { MemoryManager } from '../memory/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -49,6 +50,7 @@ export type AgentServices = {
     searchService: SearchService;
     storageManager: StorageManager;
     resourceManager: ResourceManager;
+    memoryManager: MemoryManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -81,6 +83,10 @@ export async function createAgentServices(
 
     // 4. Initialize search service
     const searchService = new SearchService(storageManager.getDatabase());
+
+    // 4.1 Initialize memory manager
+    const memoryManager = new MemoryManager(storageManager.getDatabase());
+    logger.debug('Memory manager initialized');
 
     // 5. Initialize tool manager with internal tools options
     // 5.1 - Create allowed tools provider based on configuration
@@ -128,7 +134,11 @@ export async function createAgentServices(
     logger.debug(
         `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
-    const systemPromptManager = new SystemPromptManager(config.systemPrompt, configDir);
+    const systemPromptManager = new SystemPromptManager(
+        config.systemPrompt,
+        configDir,
+        memoryManager
+    );
 
     // 7. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
@@ -173,5 +183,6 @@ export async function createAgentServices(
         searchService,
         storageManager,
         resourceManager,
+        memoryManager,
     };
 }

@@ -50,6 +50,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'stateManager',
     'sessionManager',
     'searchService',
+    'memoryManager',
 ];
 
 /**
@@ -124,6 +125,7 @@ export class DextoAgent {
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
     public readonly resourceManager!: ResourceManager;
+    public readonly memoryManager!: import('../memory/index.js').MemoryManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -192,6 +194,7 @@ export class DextoAgent {
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
+                memoryManager: services.memoryManager,
                 services: services,
             });
 

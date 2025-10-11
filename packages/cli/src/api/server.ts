@@ -8,6 +8,7 @@ import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
 import { logger, redactSensitiveData, deriveDisplayName, type AgentCard } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
+import { setupMemoryRoutes } from './memory/memory-handler.js';
 import {
     createMcpTransport,
     initializeMcpServer,
@@ -1047,6 +1048,9 @@ export async function initializeApi(
 
     // Setup A2A routes
     setupA2ARoutes(app, agentCardData);
+
+    // Setup Memory routes
+    app.use('/api/memory', setupMemoryRoutes(activeAgent));
 
     // --- Initialize and Setup MCP Server and Endpoints ---
     // Get transport type from environment variable or default to http

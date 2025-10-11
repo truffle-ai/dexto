@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, Square, FileAudio, File, Search } from 'lucide-react';
+import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, Square, FileAudio, File, Search, Brain } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
@@ -26,6 +26,7 @@ import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
+import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { clearPromptCache } from '../lib/promptCache';
 
@@ -125,6 +126,9 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [showCreatePromptModal, setShowCreatePromptModal] = useState(false);
   const [slashRefreshKey, setSlashRefreshKey] = useState(0);
+
+  // Memory state
+  const [showCreateMemoryModal, setShowCreateMemoryModal] = useState(false);
 
   const showUserError = (message: string) => {
     setFileUploadError(message);
@@ -338,11 +342,30 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       }
     }
 
+    // If memory hint is showing, handle Escape to dismiss
+    if (showMemoryHint && e.key === 'Escape') {
+      e.preventDefault();
+      setShowMemoryHint(false);
+      setText('');
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Check if user typed `#` to create a memory
+      if (text.trim() === '#') {
+        setText('');
+        setShowMemoryHint(false);
+        setShowCreateMemoryModal(true);
+        return;
+      }
       handleSend();
     }
   };
+
+  // Memory hint state
+  const [showMemoryHint, setShowMemoryHint] = useState(false);
+  const [memoryHintStyle, setMemoryHintStyle] = useState<React.CSSProperties | null>(null);
 
   // Handle slash command input
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -356,6 +379,31 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       setShowSlashCommands(true);
     } else if (showSlashCommands) {
       setShowSlashCommands(false);
+    }
+
+    // Show memory hint when user types exactly '#'
+    if (value.trim() === '#') {
+      setShowMemoryHint(true);
+      // Position hint below textarea
+      const ta = textareaRef.current;
+      if (ta) {
+        const anchor = ta.getBoundingClientRect();
+        const margin = 16;
+        const left = Math.max(8, anchor.left + window.scrollX + margin);
+        const maxWidth = Math.max(280, anchor.width - margin * 2);
+        const bottomOffset = 64;
+        const bottom = Math.max(80, window.innerHeight - (anchor.bottom + window.scrollY) + bottomOffset);
+        setMemoryHintStyle({
+          position: 'fixed',
+          left,
+          bottom,
+          width: maxWidth,
+          zIndex: 9999,
+        });
+      }
+    } else {
+      setShowMemoryHint(false);
+      setMemoryHintStyle(null);
     }
   };
 
@@ -762,7 +810,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
+                  placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -775,7 +823,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything... Type @resource to reference files, / to view prompts"
+                  placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}
@@ -790,6 +838,16 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                     onSelect={(r) => applyMentionSelection(mentionIndex, r)}
                     loading={resourcesLoading}
                   />
+                </div>,
+                document.body
+              )}
+
+              {showMemoryHint && memoryHintStyle && typeof window !== 'undefined' && ReactDOM.createPortal(
+                <div style={memoryHintStyle} className="rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+                  <div className="p-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Brain className="h-3.5 w-3.5" />
+                    <span>Press <kbd className="px-1.5 py-0.5 text-xs bg-muted border border-border rounded">Enter</kbd> to create a memory</span>
+                  </div>
                 </div>,
                 document.body
               )}
@@ -898,6 +956,14 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           open={showCreatePromptModal}
           onClose={handleCloseCreatePrompt}
           onCreated={handlePromptCreated}
+        />
+
+        <CreateMemoryModal
+          open={showCreateMemoryModal}
+          onClose={() => setShowCreateMemoryModal(false)}
+          onSuccess={() => {
+            // Could add a success toast here if desired
+          }}
         />
       </div>
     </div>

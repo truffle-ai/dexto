@@ -30,6 +30,15 @@ systemPrompt:
       priority: 10
       source: dateTime
       enabled: true
+    - id: memories
+      type: memory
+      priority: 40
+      enabled: true
+      options:
+        includeTimestamps: false
+        includeTags: true
+        limit: 10
+        pinnedOnly: false
 
 # Optional greeting shown at chat start (UI can consume this)
 greeting: "Hi! I’m Dexto — how can I help today?"
