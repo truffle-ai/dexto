@@ -34,12 +34,12 @@ export function createAskUserTool(approvalManager: ApprovalManager): InternalToo
 
             // Build elicitation request
             const elicitationRequest: {
-                schema: Record<string, any>;
+                schema: Record<string, unknown>;
                 prompt: string;
                 serverName: string;
                 sessionId?: string;
             } = {
-                schema: schema,
+                schema,
                 prompt: question,
                 serverName: 'Dexto Agent',
             };
@@ -49,19 +49,8 @@ export function createAskUserTool(approvalManager: ApprovalManager): InternalToo
                 elicitationRequest.sessionId = context.sessionId;
             }
 
-            // Request elicitation through ApprovalManager
-            const approvalResponse = await approvalManager.requestElicitation(elicitationRequest);
-
-            // Handle response
-            if (approvalResponse.status === 'approved' && approvalResponse.data) {
-                const formData = (approvalResponse.data as any).formData;
-                return formData;
-            } else if (approvalResponse.status === 'denied') {
-                throw new Error('User declined to answer the question');
-            } else {
-                // cancelled
-                throw new Error('User cancelled the question');
-            }
+            // Delegate to shared helper for typed errors and consistent logic
+            return approvalManager.getElicitationData(elicitationRequest);
         },
     };
 }

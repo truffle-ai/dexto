@@ -123,16 +123,22 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
 
         const isElicitation = pendingConfirmation.type === 'elicitation';
 
+        // For elicitation: only include data when approved AND formData exists
+        // For tool confirmation: always include rememberChoice
+        const responseData = isElicitation
+            ? approved && formData
+                ? { formData }
+                : undefined
+            : { rememberChoice: rememberChoice ?? false };
+
         const response = {
             type: 'approvalResponse',
             data: {
                 approvalId: pendingConfirmation.approvalId,
                 status: approved ? 'approved' : 'denied',
                 sessionId: pendingConfirmation.sessionId,
-                data: isElicitation && approved && formData
-                    ? { formData }
-                    : { rememberChoice: rememberChoice || false }
-            }
+                ...(responseData ? { data: responseData } : {}),
+            },
         };
 
         console.debug('[WebUI] Sending approvalResponse', response);

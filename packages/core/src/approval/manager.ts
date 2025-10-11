@@ -167,8 +167,14 @@ export class ApprovalManager {
     ): Promise<Record<string, unknown>> {
         const response = await this.requestElicitation(metadata);
 
-        if (response.status === 'approved' && response.data) {
-            return (response.data as any).formData;
+        if (response.status === 'approved') {
+            // Handle auto-approve mode where data might be missing
+            // Return empty formData object for approved-without-data case (e.g., NoOpApprovalProvider)
+            if (response.data && (response.data as any).formData) {
+                return (response.data as any).formData;
+            }
+            // Auto-approve without data returns empty form
+            return {};
         } else if (response.status === 'denied') {
             throw ApprovalError.elicitationDenied(metadata.serverName, metadata.sessionId);
         } else {

@@ -6,6 +6,7 @@ import { EventEmitter } from 'events';
 import { z } from 'zod';
 
 import { logger } from '../logger/index.js';
+import type { ApprovalManager } from '../approval/manager.js';
 import type {
     ValidatedMcpServerConfig,
     ValidatedStdioServerConfig,
@@ -45,7 +46,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverPid: number | null = null;
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
-    private approvalManager: any = null; // Will be set by MCPManager
+    private approvalManager: ApprovalManager | null = null; // Will be set by MCPManager
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
@@ -164,6 +165,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             logger.info('Connection established!\n\n');
             this.isConnected = true;
             this.setupNotificationHandlers();
+            // Set up elicitation handler now that client is connected
+            this.setupElicitationHandler();
 
             return this.client;
         } catch (error: any) {
@@ -212,6 +215,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             logger.info('Connection established!\n\n');
             this.isConnected = true;
             this.setupNotificationHandlers();
+            // Set up elicitation handler now that client is connected
+            this.setupElicitationHandler();
 
             return this.client;
         } catch (error: any) {
@@ -249,6 +254,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             this.isConnected = true;
             logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
             this.setupNotificationHandlers();
+            // Set up elicitation handler now that client is connected
+            this.setupElicitationHandler();
             return this.client;
         } catch (error: any) {
             logger.error(
@@ -588,9 +595,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     /**
      * Set the approval manager for handling elicitation requests
      */
-    setApprovalManager(approvalManager: any): void {
+    setApprovalManager(approvalManager: ApprovalManager): void {
         this.approvalManager = approvalManager;
-        this.setupElicitationHandler();
+        // Set up handler if client is already connected
+        if (this.client) {
+            this.setupElicitationHandler();
+        }
     }
 
     /**
@@ -629,6 +639,11 @@ export class MCPClient extends EventEmitter implements IMCPClient {
 
             try {
                 // Request elicitation through ApprovalManager
+                if (!this.approvalManager) {
+                    logger.error('Approval manager not available for elicitation request');
+                    return { action: 'decline' };
+                }
+
                 const response = await this.approvalManager.requestElicitation({
                     schema: params.requestedSchema,
                     prompt: params.message,

@@ -160,7 +160,9 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             const errors: Record<string, string> = {};
 
             for (const fieldName of required) {
-                if (!formData[fieldName] || (typeof formData[fieldName] === 'string' && formData[fieldName].trim() === '')) {
+                const value = formData[fieldName];
+                const isEmptyString = typeof value === 'string' && value.trim() === '';
+                if (value === undefined || value === null || isEmptyString) {
                     errors[fieldName] = 'This field is required';
                 }
             }

@@ -215,11 +215,15 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             let value: any;
 
             if (fieldType === 'boolean') {
-                value = await this.collectBooleanInput(fieldName);
+                value = await this.collectBooleanInput(fieldName, isRequired);
             } else if (fieldType === 'number' || fieldType === 'integer') {
-                value = await this.collectNumberInput(fieldName, fieldType === 'integer');
+                value = await this.collectNumberInput(
+                    fieldName,
+                    fieldType === 'integer',
+                    isRequired
+                );
             } else if (field.enum && Array.isArray(field.enum)) {
-                value = await this.collectEnumInput(fieldName, field.enum);
+                value = await this.collectEnumInput(fieldName, field.enum, isRequired);
             } else {
                 // Default to string input
                 value = await this.collectStringInput(fieldName, isRequired);
@@ -230,7 +234,10 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 return null;
             }
 
-            formData[fieldName] = value;
+            // Only assign if value is not undefined (allows skipping optional fields)
+            if (value !== undefined) {
+                formData[fieldName] = value;
+            }
         }
 
         return formData;
@@ -239,7 +246,10 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
     /**
      * Collect string input from user
      */
-    private collectStringInput(fieldName: string, required: boolean): Promise<string | null> {
+    private collectStringInput(
+        fieldName: string,
+        required: boolean
+    ): Promise<string | undefined | null> {
         return new Promise((resolve) => {
             const rl = readline.createInterface({
                 input: process.stdin,
@@ -264,7 +274,13 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                     return;
                 }
 
-                resolve(answer || '');
+                // Return undefined for optional skipped fields, empty string for provided empty input
+                if (!answer && !required) {
+                    resolve(undefined);
+                    return;
+                }
+
+                resolve(answer);
             });
         });
     }
@@ -272,14 +288,21 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
     /**
      * Collect boolean input from user (yes/no)
      */
-    private collectBooleanInput(fieldName: string): Promise<boolean | null> {
+    private collectBooleanInput(
+        fieldName: string,
+        required: boolean
+    ): Promise<boolean | undefined | null> {
         return new Promise((resolve) => {
             const rl = readline.createInterface({
                 input: process.stdin,
                 output: process.stdout,
             });
 
-            rl.question(`${fieldName} (yes/no): `, (answer) => {
+            const prompt = required
+                ? `${fieldName} (yes/no): `
+                : `${fieldName} (yes/no, press Enter to skip): `;
+
+            rl.question(prompt, (answer) => {
                 rl.close();
 
                 if (answer.toLowerCase() === 'cancel') {
@@ -288,13 +311,26 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 }
 
                 const normalized = answer.toLowerCase().trim();
+
+                // Allow skipping optional fields
+                if (!normalized && !required) {
+                    resolve(undefined);
+                    return;
+                }
+
+                if (!normalized && required) {
+                    console.log(chalk.red('This field is required'));
+                    resolve(this.collectBooleanInput(fieldName, required));
+                    return;
+                }
+
                 if (normalized === 'yes' || normalized === 'y' || normalized === 'true') {
                     resolve(true);
                 } else if (normalized === 'no' || normalized === 'n' || normalized === 'false') {
                     resolve(false);
                 } else {
                     console.log(chalk.red('Please answer yes or no'));
-                    resolve(this.collectBooleanInput(fieldName));
+                    resolve(this.collectBooleanInput(fieldName, required));
                 }
             });
         });
@@ -303,7 +339,11 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
     /**
      * Collect number input from user
      */
-    private collectNumberInput(fieldName: string, integer: boolean): Promise<number | null> {
+    private collectNumberInput(
+        fieldName: string,
+        integer: boolean,
+        required: boolean
+    ): Promise<number | undefined | null> {
         return new Promise((resolve) => {
             const rl = readline.createInterface({
                 input: process.stdin,
@@ -311,7 +351,11 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             });
 
             const type = integer ? 'integer' : 'number';
-            rl.question(`${fieldName} (${type}): `, (answer) => {
+            const prompt = required
+                ? `${fieldName} (${type}): `
+                : `${fieldName} (${type}, press Enter to skip): `;
+
+            rl.question(prompt, (answer) => {
                 rl.close();
 
                 if (answer.toLowerCase() === 'cancel') {
@@ -319,16 +363,28 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                     return;
                 }
 
+                // Allow skipping optional fields
+                if (!answer.trim() && !required) {
+                    resolve(undefined);
+                    return;
+                }
+
+                if (!answer.trim() && required) {
+                    console.log(chalk.red('This field is required'));
+                    resolve(this.collectNumberInput(fieldName, integer, required));
+                    return;
+                }
+
                 const num = Number(answer);
                 if (isNaN(num)) {
                     console.log(chalk.red(`Please enter a valid ${type}`));
-                    resolve(this.collectNumberInput(fieldName, integer));
+                    resolve(this.collectNumberInput(fieldName, integer, required));
                     return;
                 }
 
                 if (integer && !Number.isInteger(num)) {
                     console.log(chalk.red('Please enter an integer'));
-                    resolve(this.collectNumberInput(fieldName, integer));
+                    resolve(this.collectNumberInput(fieldName, integer, required));
                     return;
                 }
 
@@ -340,7 +396,11 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
     /**
      * Collect enum input from user (select from list)
      */
-    private collectEnumInput(fieldName: string, options: any[]): Promise<any | null> {
+    private collectEnumInput(
+        fieldName: string,
+        options: any[],
+        required: boolean
+    ): Promise<any | null> {
         return new Promise((resolve) => {
             console.log(chalk.gray('Available options:'));
             options.forEach((option, index) => {
@@ -352,11 +412,27 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 output: process.stdout,
             });
 
-            rl.question(`${fieldName} (enter number or value): `, (answer) => {
+            const prompt = required
+                ? `${fieldName} (enter number or value): `
+                : `${fieldName} (enter number or value, press Enter to skip): `;
+
+            rl.question(prompt, (answer) => {
                 rl.close();
 
                 if (answer.toLowerCase() === 'cancel') {
                     resolve(null);
+                    return;
+                }
+
+                // Allow skipping optional fields
+                if (!answer.trim() && !required) {
+                    resolve(undefined);
+                    return;
+                }
+
+                if (!answer.trim() && required) {
+                    console.log(chalk.red('This field is required'));
+                    resolve(this.collectEnumInput(fieldName, options, required));
                     return;
                 }
 
@@ -375,7 +451,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 }
 
                 console.log(chalk.red('Invalid selection'));
-                resolve(this.collectEnumInput(fieldName, options));
+                resolve(this.collectEnumInput(fieldName, options, required));
             });
         });
     }
