@@ -5,11 +5,11 @@ import { useChatContext } from './hooks/ChatContext';
 
 export interface ApprovalEvent {
     approvalId: string;
-    type: string;
+    type: 'tool_confirmation' | 'elicitation';
     toolName?: string; // For tool confirmation type
     args?: any; // For tool confirmation type
     description?: string; // For tool confirmation type
-    timestamp: Date;
+    timestamp: string; // ISO 8601 format from WebSocket
     sessionId?: string;
     metadata: Record<string, any>;
 }
@@ -37,9 +37,6 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
 
     // Queue to hold requests that arrive while an approval is pending
     const queuedRequestsRef = React.useRef<ApprovalEvent[]>([]);
-
-    // Store handlers in a ref so they can be accessed by the approval card
-    const handlersRef = React.useRef<ApprovalHandlers | null>(null);
 
     // Notify parent component when approval state changes
     useEffect(() => {
@@ -101,7 +98,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                             toolName: toolName,
                             args: args,
                             description: typeof metadata.description === 'string' ? metadata.description : undefined,
-                            timestamp: new Date(message.data.timestamp),
+                            timestamp: message.data.timestamp,
                             sessionId: message.data.sessionId,
                             metadata: metadata,
                         };
@@ -110,7 +107,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         approvalEvent = {
                             approvalId: message.data.approvalId,
                             type: messageType,
-                            timestamp: new Date(message.data.timestamp),
+                            timestamp: message.data.timestamp,
                             sessionId: message.data.sessionId,
                             metadata: message.data.metadata || {},
                         };

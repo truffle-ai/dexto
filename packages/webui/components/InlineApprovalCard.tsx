@@ -7,11 +7,11 @@ import { AlertTriangle, Wrench } from 'lucide-react';
 
 interface ApprovalEvent {
     approvalId: string;
-    type: string;
+    type: 'tool_confirmation' | 'elicitation';
     toolName?: string;
     args?: any;
     description?: string;
-    timestamp: Date;
+    timestamp: string; // ISO 8601 format from WebSocket
     sessionId?: string;
     metadata: Record<string, any>;
 }
