@@ -1,17 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createToolConfirmationProvider } from './factory.js';
-import { EventBasedConfirmationProvider } from './event-based-confirmation-provider.js';
+import { ApprovalBasedConfirmationProvider } from './approval-based-confirmation-provider.js';
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
 import { InMemoryAllowedToolsProvider } from './allowed-tools-provider/in-memory.js';
 import { AgentEventBus } from '../../events/index.js';
 import { ErrorScope, ErrorType } from '@core/errors/index.js';
-import { ToolErrorCode } from '../error-codes.js';
+import { ApprovalErrorCode } from '../../approval/error-codes.js';
+import { ApprovalManager } from '../../approval/manager.js';
 
 describe('Tool Confirmation Factory', () => {
     let agentEventBus: AgentEventBus;
+    let approvalManager: ApprovalManager;
 
     beforeEach(() => {
         agentEventBus = new AgentEventBus();
+        approvalManager = new ApprovalManager(agentEventBus, {
+            mode: 'event-based',
+            timeout: 120000,
+        });
     });
 
     describe('createToolConfirmationProvider', () => {
@@ -21,14 +27,13 @@ describe('Tool Confirmation Factory', () => {
             allowedToolsProvider = new InMemoryAllowedToolsProvider();
         });
 
-        it('should create event-based provider', () => {
+        it('should create approval-based provider', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'event-based',
                 allowedToolsProvider,
-                confirmationTimeout: 120000,
-                agentEventBus,
+                approvalManager,
             });
-            expect(provider).toBeInstanceOf(EventBasedConfirmationProvider);
+            expect(provider).toBeInstanceOf(ApprovalBasedConfirmationProvider);
         });
 
         it('should create auto-approve provider', () => {
@@ -51,29 +56,33 @@ describe('Tool Confirmation Factory', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'event-based',
                 allowedToolsProvider,
-                confirmationTimeout: 120000,
-                agentEventBus,
+                approvalManager,
             });
             expect(provider.allowedToolsProvider).toBe(allowedToolsProvider);
         });
 
-        it('should pass confirmation timeout to event-based provider', () => {
+        it('should pass approval manager to approval-based provider', () => {
             const provider = createToolConfirmationProvider({
                 mode: 'event-based',
                 allowedToolsProvider,
-                confirmationTimeout: 5000,
-                agentEventBus,
+                approvalManager,
             });
-            expect(provider).toBeInstanceOf(EventBasedConfirmationProvider);
+            expect(provider).toBeInstanceOf(ApprovalBasedConfirmationProvider);
         });
 
         it('should reject after the configured confirmation timeout if no response arrives', async () => {
             vi.useFakeTimers();
+
+            // Create approval manager with short timeout
+            const shortTimeoutApprovalManager = new ApprovalManager(agentEventBus, {
+                mode: 'event-based',
+                timeout: 5000,
+            });
+
             const provider = createToolConfirmationProvider({
                 mode: 'event-based',
                 allowedToolsProvider,
-                confirmationTimeout: 5000,
-                agentEventBus,
+                approvalManager: shortTimeoutApprovalManager,
             });
 
             const confirmationPromise = provider.requestConfirmation({
@@ -90,7 +99,7 @@ describe('Tool Confirmation Factory', () => {
             // Cross the timeout threshold
             await vi.advanceTimersByTimeAsync(1);
             await expect(confirmationPromise).rejects.toMatchObject({
-                code: ToolErrorCode.CONFIRMATION_TIMEOUT,
+                code: ApprovalErrorCode.APPROVAL_TIMEOUT,
                 scope: ErrorScope.TOOLS,
                 type: ErrorType.TIMEOUT,
             });

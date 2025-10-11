@@ -1,6 +1,8 @@
 import { InternalTool } from '../types.js';
 import { SearchService } from '../../search/index.js';
+import { ApprovalManager } from '../../approval/manager.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
+import { createAskUserTool } from './implementations/ask-user-tool.js';
 
 /**
  * Services available to internal tools
@@ -8,6 +10,7 @@ import { createSearchHistoryTool } from './implementations/search-history-tool.j
  */
 export interface InternalToolsServices {
     searchService?: SearchService;
+    approvalManager?: ApprovalManager;
     // Future services can be added here:
     // sessionManager?: SessionManager;
     // storageManager?: StorageManager;
@@ -23,7 +26,7 @@ type InternalToolFactory = (services: InternalToolsServices) => InternalTool;
  * Internal tool names - Manual array preserves literal types for z.enum()
  * Add new tool names here first, then implement in registry below
  */
-export const INTERNAL_TOOL_NAMES = ['search_history'] as const;
+export const INTERNAL_TOOL_NAMES = ['search_history', 'ask_user'] as const;
 
 /**
  * Derive type from names array - preserves literal union
@@ -44,6 +47,10 @@ export const INTERNAL_TOOL_REGISTRY: Record<
         factory: (services: InternalToolsServices) =>
             createSearchHistoryTool(services.searchService!),
         requiredServices: ['searchService'] as const,
+    },
+    ask_user: {
+        factory: (services: InternalToolsServices) => createAskUserTool(services.approvalManager!),
+        requiredServices: ['approvalManager'] as const,
     },
     // Add new tools here - must match INTERNAL_TOOL_NAMES array above
 };

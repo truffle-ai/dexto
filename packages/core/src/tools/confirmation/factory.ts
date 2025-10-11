@@ -15,11 +15,11 @@
  */
 
 import { ToolConfirmationProvider } from './types.js';
-import { EventBasedConfirmationProvider } from './event-based-confirmation-provider.js';
+import { ApprovalBasedConfirmationProvider } from './approval-based-confirmation-provider.js';
 import { NoOpConfirmationProvider } from './noop-confirmation-provider.js';
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
-import { AgentEventBus } from '../../events/index.js';
 import { ToolError } from '../errors.js';
+import { ApprovalManager } from '../../approval/manager.js';
 
 export type ToolConfirmationMode = 'event-based' | 'auto-approve' | 'auto-deny';
 
@@ -27,8 +27,7 @@ export type ToolConfirmationOptions =
     | {
           mode: 'event-based';
           allowedToolsProvider: IAllowedToolsProvider;
-          confirmationTimeout: number;
-          agentEventBus: AgentEventBus;
+          approvalManager: ApprovalManager;
       }
     | {
           mode: 'auto-approve' | 'auto-deny';
@@ -40,12 +39,9 @@ export function createToolConfirmationProvider(
 ): ToolConfirmationProvider {
     switch (options.mode) {
         case 'event-based':
-            return new EventBasedConfirmationProvider(
+            return new ApprovalBasedConfirmationProvider(
                 options.allowedToolsProvider,
-                options.agentEventBus,
-                {
-                    confirmationTimeout: options.confirmationTimeout,
-                }
+                options.approvalManager
             );
         case 'auto-approve':
             return new NoOpConfirmationProvider(options.allowedToolsProvider);

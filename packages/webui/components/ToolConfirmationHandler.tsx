@@ -1,38 +1,51 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Button } from './ui/button';
-import { Checkbox } from './ui/checkbox';
-import { Badge } from './ui/badge';
-import { AlertTriangle, Wrench, Clock } from 'lucide-react';
 import { useChatContext } from './hooks/ChatContext';
+import { InlineApprovalCard } from './InlineApprovalCard';
 
-interface ToolConfirmationEvent {
-    executionId: string;
-    toolName: string;
-    args: any;
-    description?: string;
+export interface ApprovalEvent {
+    approvalId: string;
+    type: string;
+    toolName?: string; // For tool confirmation type
+    args?: any; // For tool confirmation type
+    description?: string; // For tool confirmation type
     timestamp: Date;
     sessionId?: string;
+    metadata: Record<string, any>;
 }
 
 interface ToolConfirmationHandlerProps {
     websocket?: WebSocket | null;
+    onApprovalRequest?: (approval: ApprovalEvent | null) => void;
+    onApprove?: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onDeny?: () => void;
+    onHandlersReady?: (handlers: ApprovalHandlers) => void;
+}
+
+export interface ApprovalHandlers {
+    onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onDeny: () => void;
 }
 
 /**
- * WebUI component for handling tool confirmation requests
- * Displays confirmation dialogs and sends responses back through WebSocket
+ * WebUI component for handling approval requests
+ * Manages approval state and sends responses back through WebSocket
  */
-export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerProps) {
-    const [pendingConfirmation, setPendingConfirmation] = useState<ToolConfirmationEvent | null>(null);
-    const [rememberChoice, setRememberChoice] = useState(false);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprove: externalOnApprove, onDeny: externalOnDeny, onHandlersReady }: ToolConfirmationHandlerProps) {
+    const [pendingConfirmation, setPendingConfirmation] = useState<ApprovalEvent | null>(null);
     const { currentSessionId } = useChatContext();
 
-    // Queue to hold requests that arrive while a dialog is already open
-    const queuedRequestsRef = React.useRef<ToolConfirmationEvent[]>([]);
+    // Queue to hold requests that arrive while an approval is pending
+    const queuedRequestsRef = React.useRef<ApprovalEvent[]>([]);
+
+    // Store handlers in a ref so they can be accessed by the approval card
+    const handlersRef = React.useRef<ApprovalHandlers | null>(null);
+
+    // Notify parent component when approval state changes
+    useEffect(() => {
+        onApprovalRequest?.(pendingConfirmation);
+    }, [pendingConfirmation, onApprovalRequest]);
 
     // Handle incoming WebSocket messages
     useEffect(() => {
@@ -41,26 +54,55 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
         const handleMessage = (event: MessageEvent) => {
             try {
                 const message = JSON.parse(event.data);
-                
-                if (message.event === 'toolConfirmationRequest') {
+
+                if (message.event === 'approvalRequest') {
                     // Only handle requests for the active session
                     const sid = message?.data?.sessionId as string | undefined;
                     if (!sid || sid !== currentSessionId) return;
 
-                    const confirmationEvent: ToolConfirmationEvent = {
-                        ...message.data,
-                        timestamp: new Date(message.data.timestamp),
-                    };
+                    // Handle both tool confirmation and elicitation types
+                    if (message.data.type !== 'tool_confirmation' && message.data.type !== 'elicitation') {
+                        console.debug('[WebUI] Ignoring unsupported approval type:', message.data.type);
+                        return;
+                    }
 
-                    console.debug('[WebUI] Received toolConfirmationRequest', confirmationEvent);
+                    let confirmationEvent: ApprovalEvent;
 
-                    if (isDialogOpen) {
+                    if (message.data.type === 'tool_confirmation') {
+                        const toolMetadata = message.data.metadata as {
+                            toolName: string;
+                            args: Record<string, unknown>;
+                            description?: string;
+                        };
+
+                        confirmationEvent = {
+                            approvalId: message.data.approvalId,
+                            type: message.data.type,
+                            toolName: toolMetadata.toolName,
+                            args: toolMetadata.args,
+                            description: toolMetadata.description,
+                            timestamp: new Date(message.data.timestamp),
+                            sessionId: message.data.sessionId,
+                            metadata: message.data.metadata,
+                        };
+                    } else {
+                        // Elicitation request
+                        confirmationEvent = {
+                            approvalId: message.data.approvalId,
+                            type: message.data.type,
+                            timestamp: new Date(message.data.timestamp),
+                            sessionId: message.data.sessionId,
+                            metadata: message.data.metadata,
+                        };
+                    }
+
+                    console.debug('[WebUI] Received approvalRequest', confirmationEvent);
+
+                    if (pendingConfirmation) {
                         // Buffer the request to be shown later
                         queuedRequestsRef.current.push(confirmationEvent);
                     } else {
                         setPendingConfirmation(confirmationEvent);
-                        setIsDialogOpen(true);
-                        setRememberChoice(false);
                     }
                 }
             } catch (error) {
@@ -69,155 +111,65 @@ export function ToolConfirmationHandler({ websocket }: ToolConfirmationHandlerPr
         };
 
         websocket.addEventListener('message', handleMessage);
-        
+
         return () => {
             websocket.removeEventListener('message', handleMessage);
         };
-    }, [websocket, isDialogOpen, currentSessionId]);
+    }, [websocket, pendingConfirmation, currentSessionId]);
 
     // Send confirmation response
-    const sendResponse = useCallback((approved: boolean) => {
+    const sendResponse = useCallback((approved: boolean, formData?: Record<string, any>, rememberChoice?: boolean) => {
         if (!pendingConfirmation || !websocket) return;
 
+        const isElicitation = pendingConfirmation.type === 'elicitation';
+
         const response = {
-            type: 'toolConfirmationResponse',
+            type: 'approvalResponse',
             data: {
-                executionId: pendingConfirmation.executionId,
-                approved,
-                rememberChoice,
+                approvalId: pendingConfirmation.approvalId,
+                status: approved ? 'approved' : 'denied',
                 sessionId: pendingConfirmation.sessionId,
+                data: isElicitation && approved && formData
+                    ? { formData }
+                    : { rememberChoice: rememberChoice || false }
             }
         };
 
-        console.debug('[WebUI] Sending toolConfirmationResponse', response);
+        console.debug('[WebUI] Sending approvalResponse', response);
         websocket.send(JSON.stringify(response));
-        
-        // Close dialog and reset state
-        setIsDialogOpen(false);
+
+        // Clear current approval
         setPendingConfirmation(null);
-        setRememberChoice(false);
 
         // If there are queued requests, show the next one
         if (queuedRequestsRef.current.length > 0) {
             const next = queuedRequestsRef.current.shift()!;
-            // slight delay to allow dialog close animation
             setTimeout(() => {
                 setPendingConfirmation(next);
-                setIsDialogOpen(true);
-            }, 0);
+            }, 100);
         }
-    }, [pendingConfirmation, rememberChoice, websocket]);
+    }, [pendingConfirmation, websocket]);
 
-    const handleApprove = () => sendResponse(true);
-    const handleDeny = () => sendResponse(false);
+    const handleApprove = useCallback((formData?: Record<string, any>, rememberChoice?: boolean) => {
+        sendResponse(true, formData, rememberChoice);
+        externalOnApprove?.(formData, rememberChoice);
+    }, [sendResponse, externalOnApprove]);
 
-    // Format arguments for display
-    const formatArgs = (args: any): string => {
-        if (!args) return 'No arguments';
-        
-        try {
-            return JSON.stringify(args, null, 2);
-        } catch {
-            return String(args);
-        }
-    };
+    const handleDeny = useCallback(() => {
+        sendResponse(false);
+        externalOnDeny?.();
+    }, [sendResponse, externalOnDeny]);
 
-    // Auto-close dialog after timeout (optional safety feature)
+    // Expose handlers to parent via callback
     useEffect(() => {
-        if (!isDialogOpen) return;
+        if (onHandlersReady) {
+            onHandlersReady({
+                onApprove: handleApprove,
+                onDeny: handleDeny
+            });
+        }
+    }, [handleApprove, handleDeny, onHandlersReady]);
 
-        const timeout = setTimeout(() => {
-            // Auto-deny after 2 minutes for security
-            sendResponse(false);
-        }, 120000);
-
-        return () => clearTimeout(timeout);
-    }, [isDialogOpen, sendResponse]);
-
-    if (!pendingConfirmation) return null;
-
-    return (
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            if (!open) {
-                // If user closes dialog without responding, default to deny
-                sendResponse(false);
-            }
-        }}>
-            <DialogContent className="sm:max-w-[800px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                        Tool Execution Confirmation
-                    </DialogTitle>
-                </DialogHeader>
-                
-                <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
-                    <div className="flex items-center gap-2">
-                        <Wrench className="h-4 w-4 text-blue-500" />
-                        <span className="font-medium">Tool:</span>
-                        <Badge variant="outline">{pendingConfirmation.toolName}</Badge>
-                    </div>
-
-                    {pendingConfirmation.description && (
-                        <div>
-                            <span className="font-medium">Description:</span>
-                            <p className="text-sm text-gray-600 mt-1">{pendingConfirmation.description}</p>
-                        </div>
-                    )}
-
-                    <div className="flex flex-col">
-                        <span className="font-medium mb-2">Arguments:</span>
-                        <div className="bg-background/50 p-3 rounded-md text-xs overflow-auto max-h-80 min-h-16 text-muted-foreground border">
-                            <pre className="whitespace-pre-wrap break-words font-mono">
-                                {formatArgs(pendingConfirmation.args)}
-                            </pre>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Clock className="h-4 w-4" />
-                        <span>Requested at: {pendingConfirmation.timestamp.toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                        <Checkbox 
-                            id="remember" 
-                            checked={rememberChoice}
-                            onCheckedChange={(checked) => setRememberChoice(checked === true)}
-                            className="ml-1"
-                        />
-                        <label 
-                            htmlFor="remember" 
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                            Approve future executions of this tool for this session
-                        </label>
-                    </div>
-
-                    <div className="bg-yellow-50 p-3 rounded-md">
-                        <p className="text-sm text-yellow-800">
-                            <strong>Security Notice:</strong> Only approve tools you trust. 
-                            Tools can access your system and data according to their permissions.
-                        </p>
-                    </div>
-                </div>
-
-                <DialogFooter className="gap-2 flex-shrink-0 mt-4 pt-4 border-t">
-                    <Button 
-                        variant="outline" 
-                        onClick={handleDeny}
-                        className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-                    >
-                        Deny
-                    </Button>
-                    <Button 
-                        onClick={handleApprove}
-                        className="bg-green-600 hover:bg-green-700"
-                    >
-                        Approve
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
+    // Don't render anything - the approval will be rendered in MessageList
+    return null;
 }

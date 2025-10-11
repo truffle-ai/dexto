@@ -86,6 +86,12 @@ describe('DextoAgent Lifecycle Management', () => {
                 getBlobStore: vi.fn().mockReturnValue({}),
             } as any,
             resourceManager: {} as any,
+            approvalManager: {
+                requestToolConfirmation: vi.fn(),
+                requestElicitation: vi.fn(),
+                cancelApproval: vi.fn(),
+                cancelAllApprovals: vi.fn(),
+            } as any,
         };
 
         mockCreateAgentServices.mockResolvedValue(mockServices);

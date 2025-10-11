@@ -3,6 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { EventEmitter } from 'events';
+import { z } from 'zod';
 
 import { logger } from '../logger/index.js';
 import type {
@@ -44,6 +45,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverPid: number | null = null;
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
+    private approvalManager: any = null; // Will be set by MCPManager
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
@@ -144,7 +146,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 name: 'Dexto-stdio-mcp-client',
                 version: '1.0.0',
             },
-            { capabilities: { tools: {} } }
+            {
+                capabilities: {
+                    tools: {},
+                    elicitation: {}, // Enable elicitation capability
+                },
+            }
         );
 
         try {
@@ -188,7 +195,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 name: 'Dexto-sse-mcp-client',
                 version: '1.0.0',
             },
-            { capabilities: { tools: {} } }
+            {
+                capabilities: {
+                    tools: {},
+                    elicitation: {}, // Enable elicitation capability
+                },
+            }
         );
 
         try {
@@ -224,7 +236,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         });
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
-            { capabilities: { tools: {} } }
+            {
+                capabilities: {
+                    tools: {},
+                    elicitation: {}, // Enable elicitation capability
+                },
+            }
         );
         try {
             logger.info('Establishing HTTP connection...');
@@ -566,5 +583,88 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private handleToolsListChanged(): void {
         logger.debug('Tools list changed');
         this.emit('toolsListChanged');
+    }
+
+    /**
+     * Set the approval manager for handling elicitation requests
+     */
+    setApprovalManager(approvalManager: any): void {
+        this.approvalManager = approvalManager;
+        this.setupElicitationHandler();
+    }
+
+    /**
+     * Set up handler for elicitation requests from MCP server
+     */
+    private setupElicitationHandler(): void {
+        if (!this.client) {
+            logger.warn('Cannot setup elicitation handler: client not initialized');
+            return;
+        }
+
+        if (!this.approvalManager) {
+            logger.warn('Cannot setup elicitation handler: approval manager not set');
+            return;
+        }
+
+        // Create the request schema for elicitation/create
+        const ElicitationCreateRequestSchema = z
+            .object({
+                method: z.literal('elicitation/create'),
+                params: z
+                    .object({
+                        message: z.string(),
+                        requestedSchema: z.any(),
+                    })
+                    .passthrough(),
+            })
+            .passthrough();
+
+        // Set up request handler for elicitation/create
+        this.client.setRequestHandler(ElicitationCreateRequestSchema, async (request) => {
+            const params = request.params;
+            logger.info(
+                `Elicitation request from MCP server '${this.serverAlias}': ${params.message}`
+            );
+
+            try {
+                // Request elicitation through ApprovalManager
+                const response = await this.approvalManager.requestElicitation({
+                    schema: params.requestedSchema,
+                    prompt: params.message,
+                    serverName: this.serverAlias || 'unknown',
+                });
+
+                if (response.status === 'approved' && response.data) {
+                    // User accepted and provided data
+                    const formData = (response.data as any).formData;
+                    logger.info(`Elicitation approved for '${this.serverAlias}', returning data`);
+                    return {
+                        action: 'accept',
+                        content: formData,
+                    };
+                } else if (response.status === 'denied') {
+                    // User declined
+                    logger.info(`Elicitation declined for '${this.serverAlias}'`);
+                    return {
+                        action: 'decline',
+                    };
+                } else {
+                    // User cancelled
+                    logger.info(`Elicitation cancelled for '${this.serverAlias}'`);
+                    return {
+                        action: 'cancel',
+                    };
+                }
+            } catch (error) {
+                logger.error(`Elicitation error for '${this.serverAlias}': ${error}`);
+                // On error, return decline
+                return {
+                    action: 'decline',
+                };
+            }
+        });
+
+        logger.debug(`Elicitation handler registered for MCP server '${this.serverAlias}'`);
     }
 }

@@ -48,11 +48,16 @@ import { useResourceContent, type ResourceState, type NormalizedResourceItem } f
 import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
+import { type ApprovalEvent } from './ToolConfirmationHandler';
+import { InlineApprovalCard } from './InlineApprovalCard';
 
 interface MessageListProps {
   messages: Message[];
   activeError?: ErrorMessage | null;
   onDismissError?: () => void;
+  pendingApproval?: ApprovalEvent | null;
+  onApprovalApprove?: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+  onApprovalDeny?: () => void;
   /**
    * Optional ref to the outer content container so parents can observe size
    * changes (for robust autoscroll). When provided, it is attached to the
@@ -230,7 +235,7 @@ function ThinkingIndicator() {
   );
 }
 
-export default function MessageList({ messages, activeError, onDismissError, outerRef }: MessageListProps) {
+export default function MessageList({ messages, activeError, onDismissError, outerRef, pendingApproval, onApprovalApprove, onApprovalDeny }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
@@ -980,6 +985,25 @@ export default function MessageList({ messages, activeError, onDismissError, out
           </div>
         );
       })}
+
+      {/* Render pending approval as inline message */}
+      {pendingApproval && onApprovalApprove && onApprovalDeny && (
+        <div className="w-full" data-role="approval">
+          <div className="grid w-full grid-cols-[auto_1fr] gap-x-2 items-start">
+            <Bot className="h-7 w-7 mt-1 text-muted-foreground col-start-1 flex-shrink-0" />
+            <div className="flex flex-col group w-full col-start-2 justify-self-start items-start min-w-0">
+              <div className="p-3 rounded-xl shadow-sm w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base min-w-0">
+                <InlineApprovalCard
+                  approval={pendingApproval}
+                  onApprove={onApprovalApprove}
+                  onDeny={onApprovalDeny}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div key="end-anchor" ref={endRef} className="h-px" />
       
       {/* Image Modal */}

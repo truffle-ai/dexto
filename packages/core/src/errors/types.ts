@@ -11,6 +11,7 @@ import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
 import type { PromptErrorCode } from '@core/prompts/error-codes.js';
+import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -64,7 +65,8 @@ export type DextoErrorCode =
     | PreferenceErrorCode
     | RegistryErrorCode
     | ResourceErrorCode
-    | PromptErrorCode;
+    | PromptErrorCode
+    | ApprovalErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';
