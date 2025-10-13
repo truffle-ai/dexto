@@ -103,3 +103,7 @@ return { success: true, dextoApiKey: newKey.plaintext }
 - Rate limits: 1 rps per user (configurable), burst 5; 429 with Retry-After.
 - Timeouts: 60s per request default; cancel upstream accordingly.
 - Logging: structured, no prompts or secrets.
+### Runtime annotations
+- Each route can declare its runtime in Next.js route handlers:
+  - `export const runtime = 'edge'` for streaming proxy endpoints.
+  - `export const runtime = 'nodejs'` for endpoints needing Node libs (Stripe, Supabase admin, crypto bindings).

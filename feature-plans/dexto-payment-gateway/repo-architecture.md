@@ -25,13 +25,50 @@
 5. Keep the old host alive; add 307 redirects to the new host for `/api/*` until all clients update.
  6. Add Supabase tables (api_keys, balances, usage), keep `openrouter_keys` as-is (encrypted, per-user upstream).
 
+## Monorepo Structure (dexto-web)
+```
+apps/
+  web/                 # Next.js app: marketing site + dashboard (dexto.ai)
+  api/                 # Next.js app (route handlers) for API/gateway (api.dexto.ai)
+packages/
+  shared/              # Shared types/utils (zod schemas, dto, constants)
+
+# Optional: infra and migrations
+infra/
+  vercel/              # vercel.json / project configs if needed
+  cloudflare/          # notes / IaC for DNS records (manual if preferred)
+apps/api/supabase/
+  migrations/          # SQL migrations checked in to git
+  seed/                # optional seed SQL
+```
+Notes:
+- Each subdirectory (`apps/web`, `apps/api`) is linked to its own Vercel project.
+- `packages/shared` contains code shared by both apps (avoid duplicating types and constants).
+
 ### Functions to migrate
 - `openrouter-provision` → becomes `/api/openrouter-provision` (for BYOK provisioning) and/or merged into a new `/api/auth/*` flow.
   - When minting per-user OpenRouter keys, set `include_byok_in_limit: true`, initialize `limit` to purchased credits, and optionally `limit_reset: monthly` for subscriptions.
 - New endpoints (paid gateway):
   - `/v1/chat/completions` (OpenAI-compatible proxy)
   - `/v1/models` (model list; cached)
-  - `/me/usage` (credits + MTD usage)
+- `/me/usage` (credits + MTD usage)
+
+### Runtime selection per endpoint
+- Edge runtime (`export const runtime = 'edge'`):
+  - Low-latency, global, great for streaming. Limited Node APIs.
+  - Use for: `/v1/chat/completions` proxy (SSE/Web streams), `/v1/models` (if only fetching cached JSON).
+- Node runtime (`export const runtime = 'nodejs'`):
+  - Full Node APIs, libraries, and long-lived connections. Slightly higher latency.
+  - Use for: `/api/provision` (Supabase admin + encryption), Stripe webhooks, `/me/usage` (DB lookups/aggregation), key rotation endpoints.
+
+### DNS & Hosting
+- Domain registrar/DNS: Cloudflare.
+  - Create CNAME records for `dexto.ai` (apex via flattening or custom setup per Vercel docs) and `api.dexto.ai` pointing to Vercel-provided domains.
+  - Set records to "DNS only" (not proxied) to avoid issues with Vercel SSL.
+- Hosting: Vercel.
+  - Link monorepo with two projects: one rooted at `apps/web`, one at `apps/api`.
+  - Attach `dexto.ai` to the web project; attach `api.dexto.ai` to the API project.
+  - Configure environment variables separately for each project (Supabase keys, OpenRouter provisioning key, Stripe, encryption keys).
 
 ### Key handling
 - BYOK path (OpenRouter): keep storing per-user OpenRouter keys (encrypted) as implemented today; these keys are returned to users only on the BYOK flow.
@@ -54,3 +91,8 @@
 ## Analytics
 - Tag requests by provider (`dexto`, `openrouter`, native providers) and router (`vercel`, `in-built`).
 - Keep gateway logs secret-safe: userId, keyId, model, token counts, cost, latency.
+
+## Database migrations (Supabase)
+- Keep SQL migrations in `apps/api/supabase/migrations/*.sql` and commit them to git.
+- Local/dev: use Supabase CLI to generate/apply migrations; prod: run a CI step (GitHub Action) to apply migrations on merge to main.
+- Keep schema idempotent (`IF NOT EXISTS`) where possible; version with timestamps, e.g., `20251013_add_usage_ledger.sql`.
