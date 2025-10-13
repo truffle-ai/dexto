@@ -51,11 +51,16 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
             // Set timeout
             const timeoutId = setTimeout(() => {
                 // Emit synthetic cancellation so UI knows it timed out
-                const timeoutResponse: ApprovalResponse = {
-                    approvalId: request.approvalId,
-                    status: ApprovalStatus.CANCELLED,
-                    ...(request.sessionId && { sessionId: request.sessionId }),
-                };
+                const timeoutResponse: ApprovalResponse = request.sessionId
+                    ? {
+                          approvalId: request.approvalId,
+                          status: ApprovalStatus.CANCELLED,
+                          sessionId: request.sessionId,
+                      }
+                    : {
+                          approvalId: request.approvalId,
+                          status: ApprovalStatus.CANCELLED,
+                      };
 
                 logger.warn(
                     `Approval request timeout for '${request.type}', approvalId: ${request.approvalId}`

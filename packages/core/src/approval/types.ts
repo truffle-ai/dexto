@@ -2,7 +2,26 @@
 // USER APPROVAL TYPES - Generalized approval and user input system
 // ============================================================================
 
-import type { JSONSchema7 } from 'json-schema';
+import type { z } from 'zod';
+import type {
+    ToolConfirmationMetadataSchema,
+    ElicitationMetadataSchema,
+    CustomApprovalMetadataSchema,
+    BaseApprovalRequestSchema,
+    ToolConfirmationRequestSchema,
+    ElicitationRequestSchema,
+    CustomApprovalRequestSchema,
+    ApprovalRequestSchema,
+    ApprovalRequestDetailsSchema,
+    ToolConfirmationResponseDataSchema,
+    ElicitationResponseDataSchema,
+    CustomApprovalResponseDataSchema,
+    BaseApprovalResponseSchema,
+    ToolConfirmationResponseSchema,
+    ElicitationResponseSchema,
+    CustomApprovalResponseSchema,
+    ApprovalResponseSchema,
+} from './schemas.js';
 
 /**
  * Types of approval requests supported by the system
@@ -36,193 +55,127 @@ export enum ApprovalStatus {
     CANCELLED = 'cancelled',
 }
 
+// ============================================================================
+// Metadata Types - Derived from Zod schemas
+// ============================================================================
+
 /**
  * Tool confirmation specific metadata
+ * Derived from ToolConfirmationMetadataSchema
  */
-export interface ToolConfirmationMetadata {
-    toolName: string;
-    args: Record<string, unknown>;
-    description?: string;
-}
+export type ToolConfirmationMetadata = z.output<typeof ToolConfirmationMetadataSchema>;
 
 /**
  * Elicitation specific metadata (MCP)
+ * Derived from ElicitationMetadataSchema
  */
-export interface ElicitationMetadata {
-    /**
-     * JSON Schema defining the expected input structure
-     */
-    schema: JSONSchema7;
-
-    /**
-     * Prompt text to display to the user
-     */
-    prompt: string;
-
-    /**
-     * MCP server name requesting the input
-     */
-    serverName: string;
-
-    /**
-     * Additional context for the elicitation request
-     */
-    context?: Record<string, unknown>;
-}
+export type ElicitationMetadata = z.output<typeof ElicitationMetadataSchema>;
 
 /**
  * Custom approval metadata - flexible structure
+ * Derived from CustomApprovalMetadataSchema
  */
-export interface CustomApprovalMetadata {
-    [key: string]: unknown;
-}
+export type CustomApprovalMetadata = z.output<typeof CustomApprovalMetadataSchema>;
+
+// ============================================================================
+// Request Types - Derived from Zod schemas
+// ============================================================================
 
 /**
  * Base approval request that all approvals extend
+ * Derived from BaseApprovalRequestSchema
  */
-export interface BaseApprovalRequest<TMetadata = unknown> {
-    /**
-     * Unique identifier for this approval request
-     */
-    approvalId: string;
-
-    /**
-     * Type of approval being requested
-     */
-    type: ApprovalType;
-
-    /**
-     * Optional session identifier to scope the approval
-     */
-    sessionId?: string;
-
-    /**
-     * Timeout in milliseconds for this specific request
-     * Overrides default timeout if provided
-     */
-    timeout?: number;
-
-    /**
-     * Timestamp when the request was created
-     */
-    timestamp: Date;
-
-    /**
-     * Type-specific metadata for the approval
-     */
-    metadata: TMetadata;
-}
+export type BaseApprovalRequest<TMetadata = unknown> = z.output<typeof BaseApprovalRequestSchema>;
 
 /**
  * Tool confirmation request
+ * Derived from ToolConfirmationRequestSchema
  */
-export type ToolConfirmationRequest = BaseApprovalRequest<ToolConfirmationMetadata> & {
-    type: ApprovalType.TOOL_CONFIRMATION;
-};
+export type ToolConfirmationRequest = z.output<typeof ToolConfirmationRequestSchema>;
 
 /**
  * Elicitation request from MCP server
+ * Derived from ElicitationRequestSchema
  */
-export type ElicitationRequest = BaseApprovalRequest<ElicitationMetadata> & {
-    type: ApprovalType.ELICITATION;
-};
+export type ElicitationRequest = z.output<typeof ElicitationRequestSchema>;
 
 /**
  * Custom approval request
+ * Derived from CustomApprovalRequestSchema
  */
-export type CustomApprovalRequest = BaseApprovalRequest<CustomApprovalMetadata> & {
-    type: ApprovalType.CUSTOM;
-};
+export type CustomApprovalRequest = z.output<typeof CustomApprovalRequestSchema>;
 
 /**
  * Union of all approval request types
+ * Derived from ApprovalRequestSchema
  */
-export type ApprovalRequest = ToolConfirmationRequest | ElicitationRequest | CustomApprovalRequest;
+export type ApprovalRequest = z.output<typeof ApprovalRequestSchema>;
+
+// ============================================================================
+// Response Data Types - Derived from Zod schemas
+// ============================================================================
 
 /**
  * Tool confirmation response data
+ * Derived from ToolConfirmationResponseDataSchema
  */
-export interface ToolConfirmationResponseData {
-    /**
-     * Whether to remember this approval decision
-     */
-    rememberChoice?: boolean;
-}
+export type ToolConfirmationResponseData = z.output<typeof ToolConfirmationResponseDataSchema>;
 
 /**
  * Elicitation response data - validated form inputs
+ * Derived from ElicitationResponseDataSchema
  */
-export interface ElicitationResponseData {
-    /**
-     * Form data matching the requested schema
-     */
-    formData: Record<string, unknown>;
-}
+export type ElicitationResponseData = z.output<typeof ElicitationResponseDataSchema>;
 
 /**
  * Custom approval response data
+ * Derived from CustomApprovalResponseDataSchema
  */
-export interface CustomApprovalResponseData {
-    [key: string]: unknown;
-}
+export type CustomApprovalResponseData = z.output<typeof CustomApprovalResponseDataSchema>;
+
+// ============================================================================
+// Response Types - Derived from Zod schemas
+// ============================================================================
 
 /**
  * Base approval response
+ * Derived from BaseApprovalResponseSchema
  */
-export interface BaseApprovalResponse<TData = unknown> {
-    /**
-     * Must match the approvalId from the request
-     */
-    approvalId: string;
-
-    /**
-     * Status of the approval
-     */
-    status: ApprovalStatus;
-
-    /**
-     * Optional session identifier (should match request if provided)
-     */
-    sessionId?: string;
-
-    /**
-     * Type-specific response data
-     */
-    data?: TData;
-}
+export type BaseApprovalResponse<TData = unknown> = z.output<typeof BaseApprovalResponseSchema>;
 
 /**
  * Tool confirmation response
+ * Derived from ToolConfirmationResponseSchema
  */
-export type ToolConfirmationResponse = BaseApprovalResponse<ToolConfirmationResponseData>;
+export type ToolConfirmationResponse = z.output<typeof ToolConfirmationResponseSchema>;
 
 /**
  * Elicitation response
+ * Derived from ElicitationResponseSchema
  */
-export type ElicitationResponse = BaseApprovalResponse<ElicitationResponseData>;
+export type ElicitationResponse = z.output<typeof ElicitationResponseSchema>;
 
 /**
  * Custom approval response
+ * Derived from CustomApprovalResponseSchema
  */
-export type CustomApprovalResponse = BaseApprovalResponse<CustomApprovalResponseData>;
+export type CustomApprovalResponse = z.output<typeof CustomApprovalResponseSchema>;
 
 /**
  * Union of all approval response types
+ * Derived from ApprovalResponseSchema
  */
-export type ApprovalResponse =
-    | ToolConfirmationResponse
-    | ElicitationResponse
-    | CustomApprovalResponse;
+export type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
+
+// ============================================================================
+// Helper Types
+// ============================================================================
 
 /**
  * Details for creating an approval request
+ * Derived from ApprovalRequestDetailsSchema
  */
-export interface ApprovalRequestDetails {
-    type: ApprovalType;
-    sessionId?: string;
-    timeout?: number;
-    metadata: ToolConfirmationMetadata | ElicitationMetadata | CustomApprovalMetadata;
-}
+export type ApprovalRequestDetails = z.output<typeof ApprovalRequestDetailsSchema>;
 
 /**
  * Interface for approval providers

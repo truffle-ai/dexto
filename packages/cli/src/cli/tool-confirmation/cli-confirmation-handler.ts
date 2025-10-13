@@ -1,4 +1,4 @@
-import { logger, ApprovalType } from '@dexto/core';
+import { logger, ApprovalType, ApprovalStatus } from '@dexto/core';
 import * as readline from 'readline';
 import chalk from 'chalk';
 import boxen from 'boxen';
@@ -48,7 +48,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             // Send denial response on error
             const errorResponse: any = {
                 approvalId: event.approvalId,
-                status: 'denied' as const,
+                status: ApprovalStatus.DENIED,
             };
 
             if (event.sessionId !== undefined) {
@@ -87,12 +87,12 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         // Send response back via AgentEventBus
         const response: {
             approvalId: string;
-            status: 'approved' | 'denied';
+            status: ApprovalStatus;
             sessionId?: string;
             data: { rememberChoice: boolean };
         } = {
             approvalId: event.approvalId,
-            status: approved ? ('approved' as const) : ('denied' as const),
+            status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
             data: {
                 rememberChoice: false, // CLI won't persist choice
             },
@@ -149,11 +149,11 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             // User cancelled
             const cancelResponse: {
                 approvalId: string;
-                status: 'cancelled';
+                status: ApprovalStatus;
                 sessionId?: string;
             } = {
                 approvalId: event.approvalId,
-                status: 'cancelled',
+                status: ApprovalStatus.CANCELLED,
             };
 
             if (event.sessionId !== undefined) {
@@ -166,12 +166,12 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             // User provided data
             const response: {
                 approvalId: string;
-                status: 'approved';
+                status: ApprovalStatus;
                 sessionId?: string;
                 data: { formData: Record<string, any> };
             } = {
                 approvalId: event.approvalId,
-                status: 'approved',
+                status: ApprovalStatus.APPROVED,
                 data: { formData },
             };
 
@@ -461,7 +461,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
      */
     private sendApprovalResponse(response: {
         approvalId: string;
-        status: 'approved' | 'denied' | 'cancelled';
+        status: ApprovalStatus;
         sessionId?: string;
         data?: Record<string, any>;
     }): void {

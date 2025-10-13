@@ -173,35 +173,67 @@ Fired when session-specific configuration is cleared.
 }
 ```
 
-### Tool Confirmation Events
+### User Approval Events
 
-#### `dexto:toolConfirmationRequest`
+Dexto's generalized approval system handles various types of user input requests, including tool confirmations and form-based input (elicitation).
 
-Fired when a tool execution requires confirmation.
+#### `dexto:approvalRequest`
 
-```typescript
-{
-  toolName: string;
-  args: Record<string, any>;
-  description?: string;
-  executionId: string;
-  timestamp: string; // ISO 8601 timestamp
-  sessionId?: string;
-}
-```
-
-#### `dexto:toolConfirmationResponse`
-
-Fired when a confirmation response is received.
+Fired when user approval or input is requested. This event supports multiple approval types through a discriminated union based on the `type` field.
 
 ```typescript
 {
-  executionId: string;
-  approved: boolean;
-  rememberChoice?: boolean;
-  sessionId?: string;
+  approvalId: string;           // Unique identifier for this approval request
+  type: string;                 // 'tool_confirmation' | 'elicitation' | 'custom'
+  sessionId?: string;           // Optional session scope
+  timeout?: number;             // Request timeout in milliseconds
+  timestamp: Date;              // When the request was created
+  metadata: Record<string, any>; // Type-specific approval data
 }
 ```
+
+**Approval Types:**
+
+- **`tool_confirmation`**: Binary approval for tool execution
+  - `metadata.toolName`: Name of the tool requiring confirmation
+  - `metadata.args`: Tool arguments
+  - `metadata.description`: Optional tool description
+
+- **`elicitation`**: Schema-based form input (typically from MCP servers or ask_user tool)
+  - `metadata.schema`: JSON Schema defining expected input structure
+  - `metadata.prompt`: Prompt text to display to user
+  - `metadata.serverName`: Name of requesting entity (MCP server or 'Dexto Agent')
+  - `metadata.context`: Optional additional context
+
+- **`custom`**: Extensible approval type for custom use cases
+  - `metadata`: Custom structure defined by the consumer
+
+#### `dexto:approvalResponse`
+
+Fired when a user approval response is received from the UI layer.
+
+```typescript
+{
+  approvalId: string;                               // Must match the request approvalId
+  status: 'approved' | 'denied' | 'cancelled';     // Approval status
+  sessionId?: string;                              // Session identifier (if scoped)
+  data?: Record<string, any>;                      // Type-specific response data
+}
+```
+
+**Response Data by Type:**
+
+- **Tool confirmation**: `{ rememberChoice?: boolean }`
+- **Elicitation**: `{ formData: Record<string, unknown> }`
+- **Custom**: Defined by consumer
+
+**Usage Notes:**
+
+- Agent-initiated forms use `ask_user` tool → triggers elicitation request
+- MCP server input requests trigger elicitation automatically
+- Tool confirmations can be remembered per session via `rememberChoice`
+- Approval requests timeout based on configuration (default: 2 minutes)
+- Cancelled status indicates timeout or explicit cancellation
 
 ---
 
@@ -331,6 +363,20 @@ interface AgentEventMap {
   'dexto:mcpServerConnected': { name: string; success: boolean; error?: string };
   'dexto:availableToolsUpdated': { tools: string[]; source: string };
   'dexto:llmSwitched': { newConfig: LLMConfig; router?: string; historyRetained?: boolean; sessionIds: string[] };
+  'dexto:approvalRequest': {
+    approvalId: string;
+    type: 'tool_confirmation' | 'elicitation' | 'custom';
+    sessionId?: string;
+    timeout?: number;
+    timestamp: Date;
+    metadata: Record<string, any>;
+  };
+  'dexto:approvalResponse': {
+    approvalId: string;
+    status: 'approved' | 'denied' | 'cancelled';
+    sessionId?: string;
+    data?: Record<string, any>;
+  };
   // ... other events
 }
 

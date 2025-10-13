@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
+import { ApprovalStatus } from '../approval/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -212,9 +213,9 @@ export interface AgentEventMap {
     /** Fired when user approval response is received */
     'dexto:approvalResponse': {
         approvalId: string;
-        status: 'approved' | 'denied' | 'cancelled';
-        sessionId?: string;
-        data?: Record<string, any>;
+        status: ApprovalStatus;
+        sessionId?: string | undefined;
+        data?: Record<string, any> | undefined;
     };
 
     /** Fired when MCP server resource is updated */
