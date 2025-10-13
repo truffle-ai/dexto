@@ -9,7 +9,7 @@
 - Move `../functions` into the `dexto-lp` repo and rename the repo to `dexto-web`.
   - Keep a single Vercel monorepo project with two surfaces:
     - Web app (Next.js): `https://dexto.ai` (marketing + dashboard + login)
-    - API/gateway (Edge/Serverless functions): `https://api.dexto.ai` or `/api` under the same project
+    - API/gateway (Edge/Serverless functions): `https://api.dexto.ai` (preferred) or `/api` under the same project
   - Add Vercel project settings to map `api.dexto.ai` to the functions entrypoint (or use Next.js `app/api/*`).
 - Keep the CLI repo separate (`dexto`) to avoid heavy coupling; it talks to `api.dexto.ai` for login/provisioning and billing.
 
@@ -27,6 +27,7 @@
 
 ### Functions to migrate
 - `openrouter-provision` → becomes `/api/openrouter-provision` (for BYOK provisioning) and/or merged into a new `/api/auth/*` flow.
+  - When minting per-user OpenRouter keys, set `include_byok_in_limit: true`, initialize `limit` to purchased credits, and optionally `limit_reset: monthly` for subscriptions.
 - New endpoints (paid gateway):
   - `/v1/chat/completions` (OpenAI-compatible proxy)
   - `/v1/models` (model list; cached)
@@ -46,8 +47,9 @@
 - Show a Dashboard page:
   - Copy/paste `DEXTO_API_KEY` (rotate/revoke)
   - Credits balance, usage (chart), top-up button
-  - Model catalog link (OpenRouter-sourced)
-  - Per-user OpenRouter key status (exists/rotated/limit); never show raw key value for managed `dexto` path.
+- Model catalog link (OpenRouter-sourced)
+- Per-user OpenRouter key status (exists/rotated/limit); never show raw key value for managed `dexto` path.
+  - Show `limit_remaining`, `usage_monthly`, and `byok_usage_monthly` (queried by server from OpenRouter) to mirror “OpenRouter credits” UX.
 
 ## Analytics
 - Tag requests by provider (`dexto`, `openrouter`, native providers) and router (`vercel`, `in-built`).

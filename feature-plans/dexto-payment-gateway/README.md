@@ -35,7 +35,7 @@ Cons:
 - More lifecycle management (rotation/limits sync). We’ll keep keys server-side only for paid path to reduce risk.
 
 ## Backend (Gateway) MVP
-- Host under `dexto.ai` (Vercel/Supabase Edge compatible).
+- Host under `api.dexto.ai` (preferred) (Vercel/Supabase Edge compatible).
 - Endpoints (OpenAI-compatible):
   - `POST /v1/chat/completions` → proxy to `https://openrouter.ai/api/v1/chat/completions` with Dexto org key.
   - `GET /v1/models` → proxy OpenRouter list (optionally filtered or cached).
@@ -74,6 +74,23 @@ Cons:
   - Preflight optional: call `/me/usage` to display balance.
   - Read `X-Dexto-Credits-Remaining` header after each request and warn when low.
   - On `402`, print friendly message and link to top-up.
+
+## Domain Choice: `api.dexto.ai` vs `dexto.ai/api`
+- Prefer `api.dexto.ai`:
+  - Clear cookie/CORS isolation from the marketing/app domain.
+  - Independent WAF, rate limits, and deploy cadence for the API.
+  - Stable CLI base URL: `https://api.dexto.ai/v1`.
+- `dexto.ai/api` works but shares cookies and ties deploys together; choose only if infra constraints require it.
+
+## OpenRouter Credits (BYOK) – Explicit Behavior
+- Per-user OpenRouter key minted server-side with:
+  - `limit = credits_purchased` (acts as user-visible balance),
+  - `include_byok_in_limit = true` (BYOK usage decrements the same limit),
+  - optional `limit_reset = monthly` (for subscriptions).
+- For every upstream call, set `usage: { include: true }` so OpenRouter returns usage + credit cost.
+- Route BYOK explicitly with `provider: { order: ["openai"] }` (or `"anthropic"`, etc.) when needed; OpenRouter selects your linked BYOK.
+- Display user balance from OpenRouter’s key (`limit_remaining`, `usage_monthly`, `byok_usage_monthly`), or surface it via gateway headers.
+- Top-ups = `PATCH /api/v1/keys/{hash}` to increase `limit` (no custom price math in gateway).
 
 ## Provisioning Endpoint Changes
 - Replace current behavior in `../functions/openrouter-provision/api/openrouter-provision.ts`:

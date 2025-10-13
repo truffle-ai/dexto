@@ -14,6 +14,8 @@
    - Select upstream key: the user’s per‑user OpenRouter key (create on demand if missing).
    - Forward to OpenRouter with that upstream key.
    - Read response `usage` (OpenRouter-provided) or estimate tokens; compute `cost_cents`.
+     - Always send `usage: { include: true }` to receive authoritative credit cost and token counts from OpenRouter.
+     - When `include_byok_in_limit` is true on the user’s OR key, BYOK usage decrements the same credit limit; org credits are not consumed for BYOK.
    - Optionally mirror wallet changes to the upstream key’s spending limit (raise/lower) as a safety net.
    - Upsert usage row; decrement wallet.
    - Return response with headers:
@@ -29,6 +31,11 @@
 Notes:
 - Vercel AI SDK exposes `response.totalUsage` in our client code (we already surface this in events). Use it to show progress/estimates in the CLI/UI, but do not use it for billing — billing is computed on the gateway.
 - If the session may exceed current balance, the gateway should 402 early based on a conservative guard; optionally pre‑reserve against `max_output_tokens` when provided.
+
+## BYOK-specific accounting
+- Persist both `usage.cost` (OpenRouter credits) and, when present, `usage.cost_details.upstream_inference_cost` for receipts.
+- Top-ups raise the user key’s `limit` via OpenRouter (PATCH); no custom price arithmetic in the gateway.
+ - Gateway should surface a consistent “credits remaining” via header and/or `/me/usage`, sourced from OpenRouter `limit_remaining`.
 
 ## Streaming edge cases
 - Minimal: early 402 if `balance_cents < guard_cents`.
