@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { logger } from '../logger/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
+import { ApprovalStatus } from '../approval/types.js';
 import type {
     ValidatedMcpServerConfig,
     ValidatedStdioServerConfig,
@@ -650,7 +651,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                     serverName: this.serverAlias || 'unknown',
                 });
 
-                if (response.status === 'approved' && response.data) {
+                if (response.status === ApprovalStatus.APPROVED && response.data) {
                     // User accepted and provided data
                     const formData =
                         response.data &&
@@ -663,7 +664,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                         action: 'accept',
                         content: formData,
                     };
-                } else if (response.status === 'denied') {
+                } else if (response.status === ApprovalStatus.DENIED) {
                     // User declined
                     logger.info(`Elicitation declined for '${this.serverAlias}'`);
                     return {

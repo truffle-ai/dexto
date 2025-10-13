@@ -2,30 +2,23 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useChatContext } from './hooks/ChatContext';
-
-export interface ApprovalEvent {
-    approvalId: string;
-    type: 'tool_confirmation' | 'elicitation';
-    toolName?: string; // For tool confirmation type
-    args?: any; // For tool confirmation type
-    description?: string; // For tool confirmation type
-    timestamp: string; // ISO 8601 format from WebSocket
-    sessionId?: string;
-    metadata: Record<string, any>;
-}
+import type { ApprovalEvent } from '../types/approval.js';
 
 interface ToolConfirmationHandlerProps {
     websocket?: WebSocket | null;
     onApprovalRequest?: (approval: ApprovalEvent | null) => void;
-    onApprove?: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny?: () => void;
     onHandlersReady?: (handlers: ApprovalHandlers) => void;
 }
 
 export interface ApprovalHandlers {
-    onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onApprove: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny: () => void;
 }
+
+// Re-export for backward compatibility
+export type { ApprovalEvent } from '../types/approval.js';
 
 /**
  * WebUI component for handling approval requests

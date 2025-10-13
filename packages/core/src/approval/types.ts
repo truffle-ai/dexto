@@ -30,7 +30,11 @@ export enum ApprovalType {
 /**
  * Status of an approval response
  */
-export type ApprovalStatus = 'approved' | 'denied' | 'cancelled';
+export enum ApprovalStatus {
+    APPROVED = 'approved',
+    DENIED = 'denied',
+    CANCELLED = 'cancelled',
+}
 
 /**
  * Tool confirmation specific metadata

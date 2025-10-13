@@ -1,6 +1,7 @@
 import type { ToolConfirmationProvider, ToolExecutionDetails } from './types.js';
 import type { IAllowedToolsProvider } from './allowed-tools-provider/types.js';
 import type { ApprovalManager } from '../../approval/manager.js';
+import { ApprovalStatus } from '../../approval/types.js';
 import { logger } from '../../logger/index.js';
 
 /**
@@ -61,14 +62,14 @@ export class ApprovalBasedConfirmationProvider implements ToolConfirmationProvid
                     ? response.data.rememberChoice
                     : false;
 
-            if (response.status === 'approved' && rememberChoice) {
+            if (response.status === ApprovalStatus.APPROVED && rememberChoice) {
                 await this.allowedToolsProvider.allowTool(details.toolName, response.sessionId);
                 logger.info(
                     `Tool '${details.toolName}' added to allowed tools for session '${response.sessionId ?? 'global'}' (remember choice selected)`
                 );
             }
 
-            const approved = response.status === 'approved';
+            const approved = response.status === ApprovalStatus.APPROVED;
 
             logger.info(
                 `Tool confirmation ${approved ? 'approved' : 'denied'} for ${details.toolName}, sessionId: ${details.sessionId ?? 'global'}`

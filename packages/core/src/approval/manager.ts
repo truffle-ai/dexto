@@ -5,9 +5,10 @@ import type {
     ToolConfirmationMetadata,
     ElicitationMetadata,
 } from './types.js';
-import { ApprovalType } from './types.js';
+import { ApprovalType, ApprovalStatus } from './types.js';
 import { EventBasedApprovalProvider } from './providers/event-based-approval-provider.js';
 import { NoOpApprovalProvider } from './providers/noop-approval-provider.js';
+import { createApprovalRequest } from './providers/factory.js';
 import type { AgentEventBus } from '../events/index.js';
 import { logger } from '../logger/index.js';
 import { ApprovalError } from './errors.js';
@@ -17,7 +18,11 @@ import { ApprovalError } from './errors.js';
  */
 export interface ApprovalManagerConfig {
     mode: 'event-based' | 'auto-approve' | 'auto-deny';
-    timeout?: number;
+    /**
+     * Timeout in milliseconds for approval requests
+     * @default 120000 (2 minutes)
+     */
+    timeout: number;
 }
 
 /**
@@ -59,7 +64,7 @@ export class ApprovalManager {
         this.provider = this.createProvider(agentEventBus, config);
 
         logger.debug(
-            `ApprovalManager initialized with mode: ${config.mode}, timeout: ${config.timeout ?? 120000}ms`
+            `ApprovalManager initialized with mode: ${config.mode}, timeout: ${config.timeout}ms`
         );
     }
 
@@ -73,12 +78,12 @@ export class ApprovalManager {
         switch (config.mode) {
             case 'event-based':
                 return new EventBasedApprovalProvider(agentEventBus, {
-                    defaultTimeout: config.timeout ?? 120000, // 2 minutes default
+                    defaultTimeout: config.timeout,
                 });
             case 'auto-approve':
-                return new NoOpApprovalProvider({ defaultStatus: 'approved' });
+                return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.APPROVED });
             case 'auto-deny':
-                return new NoOpApprovalProvider({ defaultStatus: 'denied' });
+                return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.DENIED });
             default:
                 throw ApprovalError.invalidConfig(`Unknown approval mode: ${config.mode}`);
         }
@@ -88,7 +93,7 @@ export class ApprovalManager {
      * Request a generic approval
      */
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
-        const request = EventBasedApprovalProvider.createRequest(details);
+        const request = createApprovalRequest(details);
         return this.provider.requestApproval(request);
     }
 
@@ -149,9 +154,9 @@ export class ApprovalManager {
     ): Promise<boolean> {
         const response = await this.requestToolConfirmation(metadata);
 
-        if (response.status === 'approved') {
+        if (response.status === ApprovalStatus.APPROVED) {
             return true;
-        } else if (response.status === 'denied') {
+        } else if (response.status === ApprovalStatus.DENIED) {
             throw ApprovalError.toolConfirmationDenied(metadata.toolName, metadata.sessionId);
         } else {
             throw ApprovalError.cancelled(response.approvalId, ApprovalType.TOOL_CONFIRMATION);
@@ -167,7 +172,7 @@ export class ApprovalManager {
     ): Promise<Record<string, unknown>> {
         const response = await this.requestElicitation(metadata);
 
-        if (response.status === 'approved') {
+        if (response.status === ApprovalStatus.APPROVED) {
             // Handle auto-approve mode where data might be missing
             // Return empty formData object for approved-without-data case (e.g., NoOpApprovalProvider)
             if (
@@ -181,7 +186,7 @@ export class ApprovalManager {
             }
             // Auto-approve without data returns empty form
             return {};
-        } else if (response.status === 'denied') {
+        } else if (response.status === ApprovalStatus.DENIED) {
             throw ApprovalError.elicitationDenied(metadata.serverName, metadata.sessionId);
         } else {
             throw ApprovalError.cancelled(response.approvalId, ApprovalType.ELICITATION);

@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { z } from 'zod';
-import { ApprovalType } from './types.js';
+import { ApprovalType, ApprovalStatus } from './types.js';
 
 /**
  * Schema for approval types
@@ -13,7 +13,7 @@ export const ApprovalTypeSchema = z.nativeEnum(ApprovalType);
 /**
  * Schema for approval status
  */
-export const ApprovalStatusSchema = z.enum(['approved', 'denied', 'cancelled']);
+export const ApprovalStatusSchema = z.nativeEnum(ApprovalStatus);
 
 /**
  * Tool confirmation metadata schema

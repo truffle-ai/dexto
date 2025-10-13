@@ -1,10 +1,5 @@
-import { randomUUID } from 'crypto';
-import type {
-    ApprovalProvider,
-    ApprovalRequest,
-    ApprovalResponse,
-    ApprovalRequestDetails,
-} from '../types.js';
+import type { ApprovalProvider, ApprovalRequest, ApprovalResponse } from '../types.js';
+import { ApprovalStatus } from '../types.js';
 import type { AgentEventBus } from '../../events/index.js';
 import { logger } from '../../logger/index.js';
 import { ApprovalError } from '../errors.js';
@@ -58,7 +53,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                 // Emit synthetic cancellation so UI knows it timed out
                 const timeoutResponse: ApprovalResponse = {
                     approvalId: request.approvalId,
-                    status: 'cancelled',
+                    status: ApprovalStatus.CANCELLED,
                     ...(request.sessionId && { sessionId: request.sessionId }),
                 };
 
@@ -175,19 +170,5 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
      */
     getPendingApprovals(): string[] {
         return Array.from(this.pendingApprovals.keys());
-    }
-
-    /**
-     * Helper to create an approval request with generated ID
-     */
-    static createRequest(details: ApprovalRequestDetails): ApprovalRequest {
-        return {
-            approvalId: randomUUID(),
-            type: details.type,
-            sessionId: details.sessionId,
-            timeout: details.timeout,
-            timestamp: new Date(),
-            metadata: details.metadata,
-        } as ApprovalRequest;
     }
 }

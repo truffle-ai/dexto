@@ -4,33 +4,29 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { AlertTriangle, Wrench } from 'lucide-react';
-
-interface ApprovalEvent {
-    approvalId: string;
-    type: 'tool_confirmation' | 'elicitation';
-    toolName?: string;
-    args?: any;
-    description?: string;
-    timestamp: string; // ISO 8601 format from WebSocket
-    sessionId?: string;
-    metadata: Record<string, any>;
-}
+import type { ApprovalEvent } from '../types/approval.js';
+import {
+    getElicitationMetadata,
+    isElicitationEvent,
+    isToolConfirmationEvent,
+} from '../types/approval.js';
+import type { JSONSchema7 } from 'json-schema';
 
 interface InlineApprovalCardProps {
     approval: ApprovalEvent;
-    onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onApprove: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny: () => void;
 }
 
 export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprovalCardProps) {
-    const [formData, setFormData] = useState<Record<string, any>>({});
+    const [formData, setFormData] = useState<Record<string, unknown>>({});
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [rememberChoice, setRememberChoice] = useState(false);
 
-    const isElicitation = approval.type === 'elicitation';
+    const isElicitation = isElicitationEvent(approval);
 
     // Update form field value
-    const updateFormField = (fieldName: string, value: any) => {
+    const updateFormField = (fieldName: string, value: unknown) => {
         setFormData(prev => ({ ...prev, [fieldName]: value }));
         if (formErrors[fieldName]) {
             setFormErrors(prev => {
@@ -42,7 +38,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
     };
 
     // Render form field based on JSON Schema field type
-    const renderFormField = (fieldName: string, fieldSchema: any, isRequired: boolean) => {
+    const renderFormField = (fieldName: string, fieldSchema: JSONSchema7, isRequired: boolean) => {
         const fieldType = fieldSchema.type || 'string';
         const fieldValue = formData[fieldName];
         const hasError = !!formErrors[fieldName];
@@ -82,7 +78,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         id={fieldName}
                         type="number"
                         step={fieldType === 'integer' ? '1' : 'any'}
-                        value={fieldValue ?? ''}
+                        value={typeof fieldValue === 'number' ? fieldValue : ''}
                         onChange={(e) => {
                             const raw = e.target.value;
                             const nextValue = raw === '' ? undefined : Number(raw);
@@ -110,7 +106,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                     )}
                     <select
                         id={fieldName}
-                        value={fieldValue ?? ''}
+                        value={fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : ''}
                         onChange={(e) => {
                             const selected = e.target.value;
                             if (selected === '') {
@@ -118,8 +114,8 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                                 return;
                             }
 
-                            const matched = fieldSchema.enum.find(
-                                (option: any) => String(option) === selected
+                            const matched = (fieldSchema.enum as unknown[])?.find(
+                                (option) => String(option) === selected
                             );
                             updateFormField(fieldName, matched ?? selected);
                         }}
@@ -128,7 +124,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         }`}
                     >
                         <option value="">Select an option...</option>
-                        {fieldSchema.enum.map((option: any) => (
+                        {(fieldSchema.enum as unknown[])?.map((option) => (
                             <option key={String(option)} value={String(option)}>
                                 {String(option)}
                             </option>
@@ -152,7 +148,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                 <input
                     id={fieldName}
                     type="text"
-                    value={fieldValue ?? ''}
+                    value={fieldValue !== undefined && fieldValue !== null && typeof fieldValue !== 'object' ? String(fieldValue) : ''}
                     onChange={(e) => updateFormField(fieldName, e.target.value)}
                     className={`w-full px-3 py-2 border rounded-md text-sm bg-background ${
                         hasError ? 'border-red-500' : 'border-border'
@@ -167,8 +163,13 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
     const handleApprove = () => {
         if (isElicitation) {
             // Validate form
-            const schema = (approval.metadata as any).schema;
-            const required = schema?.required || [];
+            const elicitationMeta = getElicitationMetadata(approval);
+            if (!elicitationMeta) {
+                console.error('Invalid elicitation metadata');
+                return;
+            }
+
+            const required = (elicitationMeta.schema.required as string[]) || [];
             const errors: Record<string, string> = {};
 
             for (const fieldName of required) {
@@ -202,19 +203,30 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
 
             {/* Content */}
             {isElicitation ? (
-                <div className="space-y-4 min-w-0">
-                    <div className="bg-muted/50 p-3 rounded-md border border-border min-w-0">
-                        <p className="text-sm font-medium mb-1 break-words">
-                            {(approval.metadata as any).prompt}
-                        </p>
-                        <p className="text-xs text-muted-foreground break-words">
-                            From: {(approval.metadata as any).serverName || 'Dexto Agent'}
-                        </p>
-                    </div>
+                (() => {
+                    const elicitationMeta = getElicitationMetadata(approval);
+                    if (!elicitationMeta) {
+                        return (
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                                Invalid elicitation metadata
+                            </p>
+                        );
+                    }
+
+                    return (
+                        <div className="space-y-4 min-w-0">
+                            <div className="bg-muted/50 p-3 rounded-md border border-border min-w-0">
+                                <p className="text-sm font-medium mb-1 break-words">
+                                    {elicitationMeta.prompt}
+                                </p>
+                                <p className="text-xs text-muted-foreground break-words">
+                                    From: {elicitationMeta.serverName || 'Dexto Agent'}
+                                </p>
+                            </div>
 
                             <div>
                                 {(() => {
-                                    const schema = (approval.metadata as any).schema;
+                                    const schema = elicitationMeta.schema;
                                     if (!schema?.properties || typeof schema.properties !== 'object') {
                                         return (
                                             <p className="text-sm text-red-600 dark:text-red-400">
@@ -223,28 +235,36 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                                         );
                                     }
 
-                                    const required = schema.required || [];
+                                    const required = (schema.required as string[]) || [];
                                     const properties = schema.properties;
 
                                     return (
                                         <div className="space-y-4">
                                             {Object.entries(properties).map(([fieldName, fieldSchema]) => {
                                                 const isRequired = required.includes(fieldName);
-                                                return renderFormField(fieldName, fieldSchema, isRequired);
+                                                return renderFormField(
+                                                    fieldName,
+                                                    fieldSchema as JSONSchema7,
+                                                    isRequired
+                                                );
                                             })}
                                         </div>
                                     );
                                 })()}
                             </div>
                         </div>
-                    ) : (
-                        <div className="space-y-3 min-w-0">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <Wrench className="h-4 w-4 flex-shrink-0" />
-                                <span className="font-medium text-sm break-words min-w-0">Tool: {approval.toolName}</span>
-                            </div>
+                    );
+                })()
+            ) : isToolConfirmationEvent(approval) ? (
+                <div className="space-y-3 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Wrench className="h-4 w-4 flex-shrink-0" />
+                        <span className="font-medium text-sm break-words min-w-0">
+                            Tool: {approval.toolName}
+                        </span>
+                    </div>
 
-                            {approval.description && (
+                    {approval.description && (
                                 <p className="text-sm break-words">{approval.description}</p>
                             )}
 
@@ -266,7 +286,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                                 </label>
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
             {/* Actions */}
             <div className="flex gap-2 justify-end pt-3 border-t border-border">

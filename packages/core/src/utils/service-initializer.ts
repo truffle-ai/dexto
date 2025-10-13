@@ -77,14 +77,8 @@ export async function createAgentServices(
         database: config.storage.database.type,
     });
 
-    // 3. Initialize MCP manager
-    const mcpManager = new MCPManager();
-    await mcpManager.initializeFromConfig(config.mcpServers);
-
-    // 4. Initialize search service
-    const searchService = new SearchService(storageManager.getDatabase());
-
-    // 5. Initialize approval system (generalized user approval)
+    // 3. Initialize approval system (generalized user approval)
+    // Created before MCP manager since MCP manager depends on it for elicitation support
     logger.debug('Initializing approval manager');
     const approvalManager = new ApprovalManager(agentEventBus, {
         mode: config.toolConfirmation.mode,
@@ -92,9 +86,16 @@ export async function createAgentServices(
     });
     logger.debug('Approval system initialized');
 
-    // 5.1 - Wire approval manager into MCP manager for elicitation support
+    // 4. Initialize MCP manager
+    const mcpManager = new MCPManager();
+    await mcpManager.initializeFromConfig(config.mcpServers);
+
+    // 4.1 - Wire approval manager into MCP manager for elicitation support
     mcpManager.setApprovalManager(approvalManager);
     logger.debug('Approval manager connected to MCP manager for elicitation support');
+
+    // 5. Initialize search service
+    const searchService = new SearchService(storageManager.getDatabase());
 
     // 6. Initialize tool manager with internal tools options
     // 6.1 - Create allowed tools provider based on configuration

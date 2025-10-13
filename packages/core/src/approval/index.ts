@@ -8,7 +8,6 @@ export type {
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
-    ApprovalStatus,
     ElicitationMetadata,
     ElicitationRequest,
     ElicitationResponse,
@@ -24,7 +23,7 @@ export type {
 // Internal types - not exported to avoid naming conflicts with tools module
 // ToolConfirmationMetadata, ToolConfirmationRequest, ToolConfirmationResponse, ToolConfirmationResponseData
 
-export { ApprovalType } from './types.js';
+export { ApprovalType, ApprovalStatus } from './types.js';
 
 // Schemas
 export {

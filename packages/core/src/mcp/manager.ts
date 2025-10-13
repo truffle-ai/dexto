@@ -8,6 +8,7 @@ import { MCPError } from './errors.js';
 import { eventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
 import type { JSONSchema7 } from 'json-schema';
+import type { ApprovalManager } from '../approval/manager.js';
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -70,7 +71,7 @@ export class MCPManager {
     private promptCache: Map<string, PromptCacheEntry> = new Map();
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
-    private approvalManager: any = null; // Will be set by service initializer
+    private approvalManager: ApprovalManager | null = null; // Will be set by service initializer
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
@@ -80,8 +81,13 @@ export class MCPManager {
 
     /**
      * Set the approval manager for handling elicitation requests from MCP servers
+     *
+     * TODO: Consider making ApprovalManager a required constructor parameter instead of using a setter.
+     * This would make the dependency explicit and remove the need for defensive `if (!approvalManager)` checks.
+     * Current setter pattern is useful if we want to expose MCPManager as a standalone service to end-users
+     * without requiring them to know about ApprovalManager.
      */
-    setApprovalManager(approvalManager: any): void {
+    setApprovalManager(approvalManager: ApprovalManager): void {
         this.approvalManager = approvalManager;
         // Update all existing clients with the approval manager
         for (const [_name, client] of this.clients.entries()) {

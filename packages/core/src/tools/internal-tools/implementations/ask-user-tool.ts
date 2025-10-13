@@ -23,6 +23,16 @@ type AskUserInput = z.input<typeof AskUserInputSchema>;
 /**
  * Internal tool for asking the user questions during agent execution
  * Leverages the ApprovalManager to prompt the user cross-platform (CLI, WebUI)
+ *
+ * Usage distinction:
+ * - ask_user tool: Agent-initiated form-based input requests during task execution
+ *   (e.g., agent decides it needs specific information to complete a task)
+ * - MCP elicitation: Server-initiated input requests from external MCP servers
+ *   (e.g., MCP server requires configuration or authentication data)
+ *
+ * Both use ApprovalManager.requestElicitation() under the hood but serve different purposes:
+ * - ask_user: Part of agent's internal reasoning and task workflow
+ * - MCP elicitation: External server requirements for tool/resource access
  */
 export function createAskUserTool(approvalManager: ApprovalManager): InternalTool {
     return {
