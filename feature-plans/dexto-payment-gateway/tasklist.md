@@ -11,66 +11,128 @@ This task list tracks implementation of the Dexto gateway under `api.dexto.ai` a
 - 07-test-plan.md
 - 08-rollout.md
 
-## Phase 0 — Decisions, Security, and Prep
-- [ ] Confirm domain choice: `api.dexto.ai` (preferred) and version prefix `/v1`.
-- [ ] Confirm OpenRouter BYOK behavior: per-user OR key minted with `include_byok_in_limit: true`; set `limit` to purchased credits; optional `limit_reset: monthly`.
-- [ ] Define API auth policy: token-only Authorization on API; no cookies; strict CORS allowlist for `https://dexto.ai`.
-- [ ] Inventory secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `ENCRYPTION_KEY`, `OPENROUTER_PROVISIONING_KEY`, `STRIPE_*` (phase 2).
-- [ ] Choose telemetry/logging stack (Vercel logs + optional PostHog/OTEL) and redaction rules.
+## 🎯 Current Status (Updated 2025-10-14)
 
-## Phase 1 — Repo + Monorepo Setup (dexto-web)
-- [ ] Create `dexto-web` monorepo layout: `apps/web`, `apps/api`, `packages/shared`.
-- [ ] Set up two Vercel projects: `apps/web` (dexto.ai), `apps/api` (api.dexto.ai).
-- [ ] Cloudflare DNS: add CNAME for `api.dexto.ai` → Vercel API project; set DNS-only.
-- [ ] Move current serverless functions into `apps/api` Next.js Route Handlers.
-- [ ] Establish shared zod schemas/DTOs in `packages/shared`.
+**✅ Infrastructure Complete:**
+- Monorepo created (`dexto-web`)
+- Database schema deployed to production
+- API deployed to `api.dexto.ai`
+- CLI login provisions DEXTO_API_KEY
+
+**🔄 In Progress:**
+- Phase 3: CORS, key rotation endpoints
+- Phase 4: Remove OpenRouter commands, add Dexto-branded commands
+
+**⏸️ Blocked:**
+- Phase 5 (Dashboard): Waiting on `dexto-lp` → `dexto-web/apps/web` migration
+
+**⚠️ CRITICAL NEXT STEPS:**
+1. **Test production APIs** - Verify `/api/provision`, `/v1/chat/completions`, `/me/usage` work end-to-end
+2. **Fix RLS policies** - Lock down `openrouter_keys`, configure user access for other tables
+3. **Remove OpenRouter commands** - Clean up CLI to hide infrastructure from users
+4. **Migrate landing page** - Move `dexto-lp` to unblock dashboard development
+
+## Phase 0 — Decisions, Security, and Prep
+- [x] Confirm domain choice: `api.dexto.ai` (preferred) and version prefix `/v1`.
+- [x] Confirm OpenRouter BYOK behavior: per-user OR key minted with `include_byok_in_limit: true`; set `limit` to $10 initial; optional `limit_reset: monthly`.
+- [x] Define API auth policy: token-only Authorization on API; no cookies; strict CORS allowlist for `https://dexto.ai`.
+- [x] Inventory secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `ENCRYPTION_KEY`, `OPENROUTER_PROVISIONING_KEY`, `STRIPE_*` (phase 2).
+- [x] Choose telemetry/logging stack: Structured JSON logging; redact all prompts/keys.
+
+## Phase 1 — Repo + Monorepo Setup (dexto-web) 🔄 MOSTLY COMPLETED
+- [x] Create `dexto-web` monorepo layout: `apps/web`, `apps/api`, `packages/shared`.
+- [x] Turborepo + pnpm workspaces configured
+- [x] Move current serverless functions into `apps/api` Next.js Route Handlers.
+- [x] Establish shared zod schemas/DTOs in `packages/shared` (constants, types, schemas).
+- [x] Set up Vercel project for `apps/api` (api.dexto.ai) - deployed and live.
+- [x] Cloudflare DNS: add CNAME for `api.dexto.ai` → Vercel API project.
+- [ ] Migrate `dexto-lp` landing page into `dexto-web/apps/web` (currently separate repo).
+- [ ] Set up Vercel project for `apps/web` (dexto.ai) once migration complete.
 - [ ] CI: build/test per app; protect main; add preview deployments.
 
-## Phase 2 — Supabase Schema & Migrations
-- [ ] Author SQL migrations under `apps/api/supabase/migrations/*.sql`:
-  - [ ] `api_keys` (hashed `DEXTO_API_KEY`, status, scope, timestamps, RLS)
-  - [ ] `balances` (credits_cents, RLS)
-  - [ ] `usage_ledger` (model, token counts, cost_cents, ts, indexes, RLS)
-  - [ ] (Existing) `openrouter_keys` encrypted storage confirmation
-- [ ] Add RLS policies and service-role usage in server code.
-- [ ] Local: apply via Supabase CLI; Prod: add CI step to apply migrations on merge to main.
+## Phase 2 — Supabase Schema & Migrations 🔄 MOSTLY COMPLETED
+- [x] Author SQL migrations under `supabase/migrations/*.sql`:
+  - [x] `api_keys` (SHA-256 hashed `DEXTO_API_KEY`, status, scope, timestamps)
+  - [x] `balances` (credits_cents with 1000 cents ($10) default, version for optimistic locking)
+  - [x] `usage_ledger` (model, token counts, cost_cents, ts, indexes, JSONB metadata)
+  - [x] `openrouter_keys` (internal only, confirmed with `include_byok_in_limit: true`, never exposed to users)
+  - [x] RPC functions: `decrement_balance()` and `get_user_usage_summary()`
+- [x] Applied to production via `supabase db push`.
+- [x] Local testing setup with modular seed data.
+- [ ] **TODO: Fix RLS policies for all tables:**
+  - [ ] `openrouter_keys` - NO user access policies (service role only)
+  - [ ] `api_keys` - Users can view own keys metadata (not hash)
+  - [ ] `balances` - Users can read own balance
+  - [ ] `usage_ledger` - Users can read own usage history
+- [ ] CI: add step to apply migrations on merge to main (future automation).
 
-## Phase 3 — Gateway API MVP (apps/api)
-- [ ] `/api/provision` (Node runtime):
-  - [ ] Verify Supabase session; resolve user.
-  - [ ] Ensure per-user OR key exists; if missing, mint via OpenRouter with `include_byok_in_limit: true` and initial `limit`.
-  - [ ] Issue (or return existing) `DEXTO_API_KEY` (hash stored; plaintext returned once).
-  - [ ] Return `{ success, dextoApiKey, keyId, isNewKey }`.
-  - [ ] Logging: no prompts/keys; structured minimal metadata.
-- [ ] `/v1/chat/completions` (Edge runtime):
-  - [ ] Auth by `DEXTO_API_KEY` (hashed lookup → user, wallet).
-  - [ ] Optional rate-limits (token bucket).
-  - [ ] Proxy to OpenRouter with `usage: { include: true }`; BYOK routing via `provider.order` when desired.
-  - [ ] Read usage and compute `cost_cents`; decrement wallet atomically; insert ledger.
-  - [ ] Streaming support; set headers `X-Dexto-Credits-Remaining`, `X-Dexto-Cost-Cents`.
-  - [ ] Error handling: 402 guard, 429 rate-limit, upstream 5xx redacted.
-- [ ] `/v1/models` (Edge runtime):
-  - [ ] Return cached OpenRouter model list; periodic refresh.
-- [ ] `/me/usage` (Node runtime):
-  - [ ] Return `{ credits_cents, mtd_usage, recent }` for authorized users.
-- [ ] `/api/keys/rotate` (Node) and `/api/openrouter-key/rotate` (Node):
-  - [ ] Implement rotation flows; never return raw OR key.
-- [ ] CORS middleware: allow `https://dexto.ai`; disallow cookies; preflight handling.
+## Phase 3 — Gateway API MVP (apps/api) 🔄 MOSTLY COMPLETED
+- [x] `/api/provision` (Node runtime):
+  - [x] Verify Supabase session; resolve user (JWT bearer token required).
+  - [x] Ensure per-user OR key exists; if missing, mint via OpenRouter with `include_byok_in_limit: true` and initial `limit: 10`.
+  - [x] Issue new `DEXTO_API_KEY` (SHA-256 hash stored; plaintext returned once).
+  - [x] Initialize balance with 1000 cents ($10) for new users.
+  - [x] Return `{ success, dextoApiKey, keyId, isNewKey }`.
+  - [x] Logging: no prompts/keys; structured minimal metadata.
+- [x] `/v1/chat/completions` (Node runtime):
+  - [x] Auth by `DEXTO_API_KEY` (hashed lookup → user, wallet).
+  - [x] Proxy to OpenRouter with per-user internal key; forward usage data.
+  - [x] Read usage and compute `cost_cents`; decrement wallet atomically via RPC.
+  - [x] Insert usage_ledger entry.
+  - [x] Set headers `X-Dexto-Credits-Remaining`, `X-Dexto-Cost-Cents`, `X-Dexto-Request-ID`.
+  - [x] Error handling: 402 if insufficient funds, 401 for auth, 500 for upstream errors.
+  - [x] **Streaming support** (implemented with SSE and post-stream billing).
+- [x] `/v1/models` (Edge runtime):
+  - [x] Return cached OpenRouter model list with 1-hour cache.
+  - [x] Public endpoint (no auth required).
+- [x] `/me/usage` (Node runtime):
+  - [x] Return `{ credits_cents, mtd_usage, recent }`.
+  - [x] Auth by `DEXTO_API_KEY`.
+- [ ] **TODO: `/api/keys/rotate`** - Rotate user's DEXTO_API_KEY (JWT or API key auth).
+- [ ] **TODO: `/api/openrouter-key/rotate`** - Admin-only internal endpoint (low priority).
+- [ ] **TODO: CORS middleware** - Allow `https://dexto.ai` for dashboard (needed for Phase 5).
+- [ ] Rate-limits (token bucket) - defer to Phase 7.
 
-## Phase 4 — CLI Integration (dexto repo)
+## Phase 4 — CLI Integration (dexto repo) 🔄 MOSTLY COMPLETED
 - [x] Add `dexto` provider to `LLM_PROVIDERS`; treat as OpenAI-compatible with baseURL `https://api.dexto.ai/v1`.
-- [x] Update factory/router to support `dexto` seamlessly (similar to `openrouter`).
-- [x] `login-flow`: call `/api/provision`, persist `DEXTO_API_KEY`, write preferences with `provider: dexto`.
+- [x] Update factory/router to support `dexto` seamlessly.
+- [x] `dexto login` flow: OAuth → call `/api/provision` → persist `DEXTO_API_KEY` → write preferences with `provider: dexto`.
 - [x] Remove legacy OpenRouter provisioning fallback in login.
-- [ ] Add `dexto billing status` command → calls `/me/usage`.
-- [ ] Warnings: read `X-Dexto-Credits-Remaining` after requests.
-- [ ] Update default config URL to `https://api.dexto.ai` once API is live.
+- [x] CLI points to `https://api.dexto.ai` by default.
+- [ ] **TODO: Remove OpenRouter POC commands** (white-label approach, hide infrastructure):
+  - [ ] Remove `dexto openrouter status` (exposes OpenRouter to users)
+  - [ ] Remove `dexto openrouter regenerate` (exposes OpenRouter to users)
+  - [ ] Rebrand `dexto openrouter models` → `dexto models` (calls `/v1/models`)
+- [ ] **TODO: Add new Dexto-branded commands**:
+  - [ ] `dexto keys list` - List user's DEXTO_API_KEYs
+  - [ ] `dexto keys rotate` - Rotate DEXTO_API_KEY (calls `/api/keys/rotate`)
+  - [ ] `dexto billing status` - Show credits and usage (calls `/me/usage`)
+  - [ ] `dexto billing history` - Show recent usage (calls `/me/usage?detailed=true`)
+- [ ] **TODO: Add credit warnings after requests**:
+  - [ ] Read `X-Dexto-Credits-Remaining` header from responses
+  - [ ] Warn when balance < $1 (100 cents)
+  - [ ] Show warning: "Low balance: $X.XX remaining. Top up at https://dexto.ai/billing"
 
-## Phase 5 — Dashboard (apps/web)
-- [ ] Supabase Auth login; dashboard scaffolding.
-- [ ] Display `DEXTO_API_KEY` (create/rotate), balance, MTD usage, recent ledger.
-- [ ] Model catalog link and per-user OR key status (`limit_remaining`, `usage_monthly`, `byok_usage_monthly`).
-- [ ] Do not expose raw OR key.
+## Phase 5 — Dashboard (apps/web) ⏸️ BLOCKED
+**Prerequisite:** Migrate `dexto-lp` landing page to `dexto-web/apps/web` first (Phase 1 task).
+
+Once landing page is migrated:
+- [ ] Add Supabase Auth login/signup flow.
+- [ ] Dashboard scaffolding (protected routes, layout).
+- [ ] **API Keys page**:
+  - [ ] List user's DEXTO_API_KEYs (created_at, last_used_at, status).
+  - [ ] Create new DEXTO_API_KEY button (calls `/api/provision`).
+  - [ ] Rotate key button (calls `/api/keys/rotate`).
+  - [ ] Revoke key button.
+- [ ] **Billing page**:
+  - [ ] Display current balance (credits_cents).
+  - [ ] MTD usage summary (total_requests, total_cost_cents, total_tokens).
+  - [ ] Recent usage history table (timestamp, model, tokens, cost).
+  - [ ] "Top Up" button (links to Stripe - Phase 6).
+- [ ] **Models page** (optional):
+  - [ ] Display available models from `/v1/models`.
+  - [ ] Pricing information per model.
+- [ ] **IMPORTANT: Never expose raw OpenRouter key** - it's internal infrastructure.
 
 ## Phase 6 — Payments (Phase 2)
 - [ ] Stripe Checkout for packs; webhook → `balances` crediting and `stripe_transactions` table.
