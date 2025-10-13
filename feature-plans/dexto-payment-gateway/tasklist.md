@@ -28,8 +28,8 @@ This task list tracks implementation of the Dexto gateway under `api.dexto.ai` a
 
 **⚠️ CRITICAL NEXT STEPS:**
 1. **Test production APIs** - Verify `/api/provision`, `/v1/chat/completions`, `/me/usage` work end-to-end
-2. **Fix RLS policies** - Lock down `openrouter_keys`, configure user access for other tables
-3. **Remove OpenRouter commands** - Clean up CLI to hide infrastructure from users
+2. **Remove OpenRouter commands** - Clean up CLI to hide infrastructure from users
+3. **Add Dexto-branded CLI commands** - `dexto keys`, `dexto billing`, credit warnings
 4. **Migrate landing page** - Move `dexto-lp` to unblock dashboard development
 
 ## Phase 0 — Decisions, Security, and Prep
@@ -50,7 +50,7 @@ This task list tracks implementation of the Dexto gateway under `api.dexto.ai` a
 - [ ] Set up Vercel project for `apps/web` (dexto.ai) once migration complete.
 - [ ] CI: build/test per app; protect main; add preview deployments.
 
-## Phase 2 — Supabase Schema & Migrations 🔄 MOSTLY COMPLETED
+## Phase 2 — Supabase Schema & Migrations ✅ COMPLETED
 - [x] Author SQL migrations under `supabase/migrations/*.sql`:
   - [x] `api_keys` (SHA-256 hashed `DEXTO_API_KEY`, status, scope, timestamps)
   - [x] `balances` (credits_cents with 1000 cents ($10) default, version for optimistic locking)
@@ -59,11 +59,13 @@ This task list tracks implementation of the Dexto gateway under `api.dexto.ai` a
   - [x] RPC functions: `decrement_balance()` and `get_user_usage_summary()`
 - [x] Applied to production via `supabase db push`.
 - [x] Local testing setup with modular seed data.
-- [ ] **TODO: Fix RLS policies for all tables:**
-  - [ ] `openrouter_keys` - NO user access policies (service role only)
-  - [ ] `api_keys` - Users can view own keys metadata (not hash)
-  - [ ] `balances` - Users can read own balance
-  - [ ] `usage_ledger` - Users can read own usage history
+- [x] **RLS policies configured and tested:**
+  - [x] `openrouter_keys` - NO user access policies (service role only)
+  - [x] `api_keys` - Users can SELECT own keys (no writes)
+  - [x] `balances` - Users can SELECT own balance (no writes)
+  - [x] `usage_ledger` - Users can SELECT own usage history (no writes)
+  - [x] Tested user isolation (users can't see each other's data)
+  - [x] Tested write protection (users can't INSERT/UPDATE/DELETE)
 - [ ] CI: add step to apply migrations on merge to main (future automation).
 
 ## Phase 3 — Gateway API MVP (apps/api) 🔄 MOSTLY COMPLETED
