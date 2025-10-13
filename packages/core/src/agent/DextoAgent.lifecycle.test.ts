@@ -92,6 +92,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 cancelApproval: vi.fn(),
                 cancelAllApprovals: vi.fn(),
             } as any,
+            memoryManager: {} as any,
         };
 
         mockCreateAgentServices.mockResolvedValue(mockServices);

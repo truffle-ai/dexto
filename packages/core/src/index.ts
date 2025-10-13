@@ -66,4 +66,7 @@ export * from './resources/index.js';
 // Approval (User Approval System)
 export * from './approval/index.js';
 
+// Memory
+export * from './memory/index.js';
+
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'

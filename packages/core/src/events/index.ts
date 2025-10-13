@@ -24,6 +24,7 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpPromptsListChanged',
     'dexto:mcpToolsListChanged',
     'dexto:resourceCacheInvalidated',
+    'dexto:sessionTitleUpdated',
     // User approval events (generalized approval system)
     'dexto:approvalRequest',
     'dexto:approvalResponse',
@@ -241,6 +242,12 @@ export interface AgentEventMap {
         resourceUri?: string;
         serverName: string;
         action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+    };
+
+    /** Fired when a session's human-friendly title is updated */
+    'dexto:sessionTitleUpdated': {
+        sessionId: string;
+        title: string;
     };
 }
 

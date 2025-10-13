@@ -35,6 +35,7 @@ import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
+import { MemoryManager } from '../memory/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -50,6 +51,7 @@ export type AgentServices = {
     storageManager: StorageManager;
     resourceManager: ResourceManager;
     approvalManager: ApprovalManager;
+    memoryManager: MemoryManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -96,14 +98,18 @@ export async function createAgentServices(
     // 5. Initialize search service
     const searchService = new SearchService(storageManager.getDatabase());
 
-    // 6. Initialize tool manager with internal tools options
-    // 6.1 - Create allowed tools provider based on configuration
+    // 6. Initialize memory manager
+    const memoryManager = new MemoryManager(storageManager.getDatabase());
+    logger.debug('Memory manager initialized');
+
+    // 7. Initialize tool manager with internal tools options
+    // 7.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
         type: config.toolConfirmation.allowedToolsStorage,
         storageManager,
     });
 
-    // 6.2 - Initialize tool manager with direct ApprovalManager integration
+    // 7.2 - Initialize tool manager with direct ApprovalManager integration
     const toolManager = new ToolManager(
         mcpManager,
         approvalManager,
@@ -135,7 +141,11 @@ export async function createAgentServices(
     logger.debug(
         `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
-    const systemPromptManager = new SystemPromptManager(config.systemPrompt, configDir);
+    const systemPromptManager = new SystemPromptManager(
+        config.systemPrompt,
+        configDir,
+        memoryManager
+    );
 
     // 8. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
@@ -181,5 +191,6 @@ export async function createAgentServices(
         storageManager,
         resourceManager,
         approvalManager,
+        memoryManager,
     };
 }
