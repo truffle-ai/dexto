@@ -258,6 +258,20 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             },
             { signal }
         );
+
+        eventBus.on(
+            'dexto:sessionTitleUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'sessionTitleUpdated',
+                    data: {
+                        sessionId: payload.sessionId,
+                        title: payload.title,
+                    },
+                });
+            },
+            { signal }
+        );
     }
 
     /**

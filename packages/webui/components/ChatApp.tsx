@@ -672,21 +672,6 @@ export default function ChatApp() {
                 <span className="sr-only">Dexto</span>
               </a>
               
-              {/* Current Session Indicator - Only show when there's an active session */}
-              {currentSessionId && !isWelcomeState && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30 max-w-[120px] cursor-help">
-                      <span className="truncate">
-                        {currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId}
-                      </span>
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <span className="font-mono">{currentSessionId}</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
             </div>
 
             {/* Center Section - Agent Selector */}

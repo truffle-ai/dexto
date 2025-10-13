@@ -13,6 +13,7 @@ export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
+    title?: string;
     // Additional metadata for session management
 }
 
@@ -417,6 +418,7 @@ export class SessionManager {
                   createdAt: sessionData.createdAt,
                   lastActivity: sessionData.lastActivity,
                   messageCount: sessionData.messageCount,
+                  title: sessionData.metadata?.title,
               }
             : undefined;
     }
@@ -470,6 +472,53 @@ export class SessionManager {
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
+    }
+
+    /**
+     * Sets the human-friendly title for a session.
+     * Title is stored in session metadata and cached with TTL.
+     */
+    public async setSessionTitle(
+        sessionId: string,
+        title: string,
+        opts: { ifUnsetOnly?: boolean } = {}
+    ): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const normalized = title.trim().slice(0, 80);
+        if (opts.ifUnsetOnly && sessionData.metadata?.title) {
+            return;
+        }
+
+        sessionData.metadata = sessionData.metadata || {};
+        sessionData.metadata.title = normalized;
+        sessionData.lastActivity = Date.now();
+
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+    }
+
+    /**
+     * Gets the stored title for a session, if any.
+     */
+    public async getSessionTitle(sessionId: string): Promise<string | undefined> {
+        await this.ensureInitialized();
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+        return sessionData?.metadata?.title;
     }
 
     /**
