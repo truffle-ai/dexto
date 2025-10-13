@@ -7,6 +7,8 @@ import {
     ListMemoriesOptionsSchema,
 } from './schemas.js';
 import { MemoryError } from './errors.js';
+import { MemoryErrorCode } from './error-codes.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { logger } from '../logger/index.js';
 import { nanoid } from 'nanoid';
 
@@ -50,8 +52,8 @@ export class MemoryManager {
             content: validatedInput.content,
             createdAt: now,
             updatedAt: now,
-            tags: validatedInput.tags || undefined,
-            metadata: validatedInput.metadata || undefined,
+            tags: validatedInput.tags,
+            metadata: validatedInput.metadata,
         };
 
         // Validate the complete memory object
@@ -85,8 +87,11 @@ export class MemoryManager {
             }
             return memory;
         } catch (error) {
-            if (error instanceof Error && error.message.includes('not found')) {
-                throw MemoryError.notFound(id);
+            if (
+                error instanceof DextoRuntimeError &&
+                error.code === MemoryErrorCode.MEMORY_NOT_FOUND
+            ) {
+                throw error;
             }
             throw MemoryError.retrievalError(
                 `Failed to retrieve memory: ${error instanceof Error ? error.message : String(error)}`,
@@ -183,7 +188,9 @@ export class MemoryManager {
                         memories.push(memory);
                     }
                 } catch (error) {
-                    logger.warn(`Failed to retrieve memory from key ${key}: ${error}`);
+                    logger.warn(
+                        `Failed to retrieve memory from key ${key}: ${error instanceof Error ? error.message : String(error)}`
+                    );
                 }
             }
 
@@ -234,7 +241,10 @@ export class MemoryManager {
             await this.get(id);
             return true;
         } catch (error) {
-            if (error instanceof Error && error.message.includes('not found')) {
+            if (
+                error instanceof DextoRuntimeError &&
+                error.code === MemoryErrorCode.MEMORY_NOT_FOUND
+            ) {
                 return false;
             }
             throw error;
