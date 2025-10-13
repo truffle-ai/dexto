@@ -10,6 +10,7 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
     openai: ['OPENAI_API_KEY', 'OPENAI_KEY'],
     'openai-compatible': ['OPENAI_API_KEY', 'OPENAI_KEY'],
     openrouter: ['OPENROUTER_API_KEY'],
+    dexto: ['DEXTO_API_KEY'],
     anthropic: ['ANTHROPIC_API_KEY', 'ANTHROPIC_KEY', 'CLAUDE_API_KEY'],
     google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
     groq: ['GROQ_API_KEY'],

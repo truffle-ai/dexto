@@ -86,6 +86,9 @@ export const LLMConfigSchema = z
         if (data.provider === 'openrouter' && !data.baseURL) {
             data.baseURL = 'https://openrouter.ai/api/v1';
         }
+        if (data.provider === 'dexto' && !data.baseURL) {
+            data.baseURL = 'https://api.dexto.ai/v1';
+        }
 
         if (data.provider === 'openrouter') {
             scheduleOpenRouterModelRefresh({ apiKey: data.apiKey });
@@ -208,7 +211,7 @@ export const LLMConfigSchema = z
             }
         }
 
-        if (data.provider === 'openrouter') {
+        if (data.provider === 'openrouter' || data.provider === 'dexto') {
             const lookup = lookupOpenRouterModel(data.model);
             if (lookup === 'invalid') {
                 ctx.addIssue({

@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { logger } from '@dexto/core';
 import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
 import { writePreferencesToAgent } from '@dexto/core';
 import { handleBrowserLogin } from '../commands/auth/login.js';
 import { setupOpenRouterIfAvailable } from './openrouter-setup.js';
@@ -71,16 +72,17 @@ export async function handleCompleteLoginFlow(): Promise<void> {
  */
 async function setupDefaultPreferences() {
     try {
-        // Create preferences for OpenRouter with a popular model
+        // Prefer Dexto gateway if key is present; else default to OpenRouter
+        const provider: LLMProvider = process.env.DEXTO_API_KEY ? 'dexto' : 'openrouter';
         const preferences = createInitialPreferences(
-            'openrouter',
+            provider,
             undefined,
-            getPrimaryApiKeyEnvVar('openrouter'),
+            getPrimaryApiKeyEnvVar(provider),
             'default-agent'
         );
 
         await saveGlobalPreferences(preferences);
-        logger.debug('Default preferences set for logged-in user');
+        logger.debug(`Default preferences set for logged-in user (provider: ${provider})`);
         return preferences;
     } catch (error) {
         logger.warn(`Failed to set default preferences: ${error}`);

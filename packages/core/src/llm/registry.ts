@@ -284,6 +284,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'optional', // baseURL is automatically injected (https://openrouter.ai/api/v1)
         supportedFileTypes: ['pdf', 'image', 'audio'], // OpenRouter models have varying capabilities - user assumes responsibility
     },
+    dexto: {
+        models: [], // Empty - Dexto gateway proxies OpenRouter models; accepts OpenRouter model ids
+        supportedRouters: ['vercel', 'in-built'],
+        baseURLSupport: 'optional', // baseURL is automatically injected (https://api.dexto.ai/v1)
+        supportedFileTypes: ['pdf', 'image', 'audio'],
+    },
     anthropic: {
         models: [
             {

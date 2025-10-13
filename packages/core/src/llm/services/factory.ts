@@ -89,6 +89,23 @@ function _createInBuiltLLMService(
                 resourceManager
             );
         }
+        case 'dexto': {
+            // Dexto gateway - OpenAI-compatible with fixed baseURL
+            const openai = new OpenAI({
+                apiKey,
+                baseURL: 'https://api.dexto.ai/v1',
+            });
+            return new OpenAIService(
+                toolManager,
+                openai,
+                systemPromptManager,
+                historyProvider,
+                sessionEventBus,
+                config,
+                sessionId,
+                resourceManager
+            );
+        }
         case 'anthropic': {
             const anthropic = new Anthropic({ apiKey });
             return new AnthropicService(
@@ -135,6 +152,13 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             return createOpenAI({
                 apiKey,
                 baseURL: 'https://openrouter.ai/api/v1',
+            }).chat(model);
+        }
+        case 'dexto': {
+            // Dexto gateway - OpenAI-compatible with fixed baseURL
+            return createOpenAI({
+                apiKey,
+                baseURL: 'https://api.dexto.ai/v1',
             }).chat(model);
         }
         case 'anthropic':
