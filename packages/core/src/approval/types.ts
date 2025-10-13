@@ -85,7 +85,7 @@ export type CustomApprovalMetadata = z.output<typeof CustomApprovalMetadataSchem
  * Base approval request that all approvals extend
  * Derived from BaseApprovalRequestSchema
  */
-export type BaseApprovalRequest<TMetadata = unknown> = z.output<typeof BaseApprovalRequestSchema>;
+export type BaseApprovalRequest<_TMetadata = unknown> = z.output<typeof BaseApprovalRequestSchema>;
 
 /**
  * Tool confirmation request
@@ -141,7 +141,7 @@ export type CustomApprovalResponseData = z.output<typeof CustomApprovalResponseD
  * Base approval response
  * Derived from BaseApprovalResponseSchema
  */
-export type BaseApprovalResponse<TData = unknown> = z.output<typeof BaseApprovalResponseSchema>;
+export type BaseApprovalResponse<_TData = unknown> = z.output<typeof BaseApprovalResponseSchema>;
 
 /**
  * Tool confirmation response

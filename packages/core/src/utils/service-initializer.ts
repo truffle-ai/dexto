@@ -23,7 +23,6 @@
 
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { createToolConfirmationProvider } from '../tools/confirmation/factory.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
@@ -104,24 +103,18 @@ export async function createAgentServices(
         storageManager,
     });
 
-    // 6.2 - Create tool confirmation provider (now using ApprovalManager)
-    const confirmationProvider = createToolConfirmationProvider(
-        config.toolConfirmation.mode === 'event-based'
-            ? {
-                  mode: config.toolConfirmation.mode,
-                  allowedToolsProvider,
-                  approvalManager,
-              }
-            : {
-                  mode: config.toolConfirmation.mode,
-                  allowedToolsProvider,
-              }
+    // 6.2 - Initialize tool manager with direct ApprovalManager integration
+    const toolManager = new ToolManager(
+        mcpManager,
+        approvalManager,
+        allowedToolsProvider,
+        config.toolConfirmation.mode,
+        agentEventBus,
+        {
+            internalToolsServices: { searchService },
+            internalToolsConfig: config.internalTools,
+        }
     );
-    // 6.3 - Initialize tool manager with internal tools options
-    const toolManager = new ToolManager(mcpManager, confirmationProvider, agentEventBus, {
-        internalToolsServices: { searchService, approvalManager },
-        internalToolsConfig: config.internalTools,
-    });
     await toolManager.initialize();
 
     const mcpServerCount = Object.keys(config.mcpServers).length;

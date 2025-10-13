@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
-import { ToolConfirmationProvider } from './confirmation/types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
+import type { ApprovalManager } from '../approval/manager.js';
+import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import { ApprovalStatus } from '../approval/types.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -19,7 +21,8 @@ vi.mock('../logger/index.js', () => ({
 
 describe('ToolManager - Unit Tests (Pure Logic)', () => {
     let mockMcpManager: MCPManager;
-    let mockConfirmationProvider: ToolConfirmationProvider;
+    let mockApprovalManager: ApprovalManager;
+    let mockAllowedToolsProvider: IAllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
 
     beforeEach(() => {
@@ -30,10 +33,22 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             refresh: vi.fn().mockResolvedValue(undefined),
         } as any;
 
-        mockConfirmationProvider = {
-            requestConfirmation: vi.fn(),
-            allowedToolsProvider: {} as any,
-        };
+        mockApprovalManager = {
+            requestToolConfirmation: vi.fn().mockResolvedValue({
+                approvalId: 'test-approval-id',
+                status: ApprovalStatus.APPROVED,
+                data: { rememberChoice: false },
+            }),
+            getPendingApprovals: vi.fn().mockReturnValue([]),
+            cancelApproval: vi.fn(),
+            cancelAllApprovals: vi.fn(),
+        } as any;
+
+        mockAllowedToolsProvider = {
+            isToolAllowed: vi.fn().mockResolvedValue(false),
+            allowTool: vi.fn().mockResolvedValue(undefined),
+            disallowTool: vi.fn().mockResolvedValue(undefined),
+        } as any;
 
         mockAgentEventBus = {
             on: vi.fn(),
@@ -50,7 +65,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should correctly identify MCP tools', () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -61,7 +78,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should correctly identify internal tools', () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -72,7 +91,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should identify unknown tools', () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -84,7 +105,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should handle edge cases with empty tool names', () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -114,16 +137,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Tool Validation Logic', () => {
-        beforeEach(() => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
-        });
-
         it('should reject tools without proper prefix', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -139,7 +160,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should reject tools with prefix but no name', async () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -166,7 +189,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should reject internal tools when provider not initialized', async () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -177,49 +202,56 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Confirmation Flow Logic', () => {
-        it('should request confirmation with correct parameters', async () => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+        it('should request approval via ApprovalManager with correct parameters', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
 
-            expect(mockConfirmationProvider.requestConfirmation).toHaveBeenCalledWith({
+            expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
                 args: { path: '/test' },
                 sessionId: 'session123',
             });
         });
 
-        it('should request confirmation without sessionId when not provided', async () => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+        it('should request approval without sessionId when not provided', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' });
 
-            expect(mockConfirmationProvider.requestConfirmation).toHaveBeenCalledWith({
+            expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
                 args: { path: '/test' },
             });
         });
 
-        it('should throw execution denied error when confirmation denied', async () => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(false);
+        it('should throw execution denied error when approval denied', async () => {
+            mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                approvalId: 'test-approval-id',
+                status: ApprovalStatus.DENIED,
+            });
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -234,13 +266,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });
 
-        it('should proceed with execution when confirmation approved', async () => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
+        it('should proceed with execution when approval granted', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -253,6 +286,65 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             expect(result).toBe('success');
         });
+
+        it('should skip confirmation for tools in allowed list', async () => {
+            mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(true);
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
+                mockAgentEventBus
+            );
+
+            const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
+
+            expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
+                'mcp--file_read',
+                undefined
+            );
+            expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            expect(result).toBe('success');
+        });
+
+        it('should auto-approve when mode is auto-approve', async () => {
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus
+            );
+
+            const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
+
+            expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            expect(mockMcpManager.executeTool).toHaveBeenCalled();
+            expect(result).toBe('success');
+        });
+
+        it('should auto-deny when mode is auto-deny', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-deny',
+                mockAgentEventBus
+            );
+
+            const error = (await toolManager
+                .executeTool('mcp--file_read', { path: '/test' })
+                .catch((e) => e)) as DextoRuntimeError;
+
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
+            expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+        });
     });
 
     describe('Cache Management Logic', () => {
@@ -264,7 +356,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -284,7 +378,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -312,7 +408,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -330,7 +428,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -348,7 +448,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -368,7 +470,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -383,7 +487,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -395,7 +501,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should return false for tools without proper prefix', async () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -406,17 +514,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Error Propagation Logic', () => {
-        beforeEach(() => {
-            mockConfirmationProvider.requestConfirmation = vi.fn().mockResolvedValue(true);
-        });
-
         it('should propagate MCP tool execution errors', async () => {
             const executionError = new Error('Tool execution failed');
             mockMcpManager.executeTool = vi.fn().mockRejectedValue(executionError);
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
@@ -425,21 +531,21 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             ).rejects.toThrow('Tool execution failed');
         });
 
-        it('should propagate confirmation provider errors', async () => {
-            const confirmationError = new Error('Confirmation failed');
-            mockConfirmationProvider.requestConfirmation = vi
-                .fn()
-                .mockRejectedValue(confirmationError);
+        it('should propagate approval manager errors', async () => {
+            const approvalError = new Error('Approval request failed');
+            mockApprovalManager.requestToolConfirmation = vi.fn().mockRejectedValue(approvalError);
 
             const toolManager = new ToolManager(
                 mockMcpManager,
-                mockConfirmationProvider,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'event-based',
                 mockAgentEventBus
             );
 
             await expect(
                 toolManager.executeTool('mcp--file_read', { path: '/test' })
-            ).rejects.toThrow('Confirmation failed');
+            ).rejects.toThrow('Approval request failed');
         });
     });
 });
