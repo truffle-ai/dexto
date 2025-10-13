@@ -93,7 +93,7 @@ export async function handleBrowserLogin(): Promise<void> {
             console.log(chalk.dim(`Welcome back, ${result.user.email}`));
         }
 
-        await provisionOpenRouterKey(result.accessToken, result.user?.email);
+        await provisionKeys(result.accessToken, result.user?.email);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -169,35 +169,33 @@ async function verifyToken(token: string): Promise<boolean> {
     }
 }
 
-async function provisionOpenRouterKey(authToken: string, _userEmail?: string): Promise<void> {
+async function provisionKeys(authToken: string, _userEmail?: string): Promise<void> {
     try {
-        console.log(chalk.cyan('🔑 Setting up OpenRouter API key...'));
-
         const apiClient = await getDextoApiClient();
-        const { apiKey, keyId, isNewKey } = await apiClient.provisionOpenRouterKey(authToken);
+        console.log(chalk.cyan('🔑 Provisioning Dexto API key...'));
+        const { dextoApiKey, keyId, isNewKey } = await apiClient.provisionDextoApiKey(authToken);
 
         const auth = await loadAuth();
         if (auth) {
-            await storeAuth({
-                ...auth,
-                openRouterApiKey: apiKey,
-                openRouterKeyId: keyId,
-            });
+            await storeAuth({ ...auth, dextoApiKey, dextoKeyId: keyId });
         }
 
+        // Persist to ~/.dexto/.env
+        const { saveProviderApiKey } = await import('@dexto/core');
+        const { envVar, targetEnvPath } = await saveProviderApiKey('dexto', dextoApiKey);
+
         if (isNewKey) {
-            console.log(chalk.green('✅ New OpenRouter API key created and configured!'));
-            console.log(chalk.dim(`   Key ID: ${keyId}`));
-            console.log(chalk.dim('   $10 spending limit set'));
+            console.log(chalk.green('✅ Dexto API key created and configured!'));
         } else {
-            console.log(chalk.green('✅ Using existing OpenRouter API key!'));
-            console.log(chalk.dim(`   Key ID: ${keyId}`));
+            console.log(chalk.green('✅ Using existing Dexto API key!'));
         }
-        console.log(chalk.dim('   You can now use all OpenRouter models without manual setup'));
+        console.log(chalk.dim(`   Key ID: ${keyId}`));
+        console.log(chalk.dim(`   Saved ${envVar} to ${targetEnvPath}`));
+        console.log(chalk.dim('   Provider set to dexto by default in subsequent setup'));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.log(chalk.yellow(`⚠️  Failed to set up OpenRouter API key: ${errorMessage}`));
+        console.log(chalk.yellow(`⚠️  Failed to provision Dexto API key: ${errorMessage}`));
         console.log(chalk.dim('   You can still use Dexto with your own API keys'));
-        logger.warn(`OpenRouter provisioning failed: ${errorMessage}`);
+        logger.warn(`Provisioning failed: ${errorMessage}`);
     }
 }

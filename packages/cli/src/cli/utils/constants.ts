@@ -19,4 +19,4 @@ export const SUPABASE_ANON_KEY =
  * Dexto API URL for OpenRouter provisioning
  * Using stable production URL that always points to latest deployment
  */
-export const DEXTO_API_URL = 'https://openrouter-keys.vercel.app';
+export const DEXTO_API_URL = 'https://api.dexto.ai';

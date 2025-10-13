@@ -58,10 +58,10 @@ This task list tracks implementation of the Dexto gateway under `api.dexto.ai` a
 - [ ] CORS middleware: allow `https://dexto.ai`; disallow cookies; preflight handling.
 
 ## Phase 4 — CLI Integration (dexto repo)
-- [ ] Add `dexto` provider to `LLM_PROVIDERS`; treat as OpenAI-compatible with baseURL `https://api.dexto.ai/v1`.
-- [ ] Update factory/router to support `dexto` seamlessly (similar to `openrouter`).
-- [ ] `login-flow`: call `/api/provision`, persist `DEXTO_API_KEY`, write preferences with `provider: dexto`.
-- [ ] Fallback logic: prefer `dexto` when `DEXTO_API_KEY` present; fallback to `openrouter` if not.
+- [x] Add `dexto` provider to `LLM_PROVIDERS`; treat as OpenAI-compatible with baseURL `https://api.dexto.ai/v1`.
+- [x] Update factory/router to support `dexto` seamlessly (similar to `openrouter`).
+- [x] `login-flow`: call `/api/provision`, persist `DEXTO_API_KEY`, write preferences with `provider: dexto`.
+- [x] Remove legacy OpenRouter provisioning fallback in login.
 - [ ] Add `dexto billing status` command → calls `/me/usage`.
 - [ ] Warnings: read `X-Dexto-Credits-Remaining` after requests.
 - [ ] Update default config URL to `https://api.dexto.ai` once API is live.
@@ -98,4 +98,3 @@ This task list tracks implementation of the Dexto gateway under `api.dexto.ai` a
 - [ ] Public vs auth for `/v1/models`.
 - [ ] Flat platform fee vs per-model markup.
 - [ ] Region selection and cache strategy for models list.
-
