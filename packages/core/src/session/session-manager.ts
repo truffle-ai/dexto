@@ -478,7 +478,11 @@ export class SessionManager {
      * Sets the human-friendly title for a session.
      * Title is stored in session metadata and cached with TTL.
      */
-    public async setSessionTitle(sessionId: string, title: string): Promise<void> {
+    public async setSessionTitle(
+        sessionId: string,
+        title: string,
+        opts: { ifUnsetOnly?: boolean } = {}
+    ): Promise<void> {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
@@ -490,9 +494,13 @@ export class SessionManager {
             throw SessionError.notFound(sessionId);
         }
 
-        // Ensure metadata exists
+        const normalized = title.trim().slice(0, 80);
+        if (opts.ifUnsetOnly && sessionData.metadata?.title) {
+            return;
+        }
+
         sessionData.metadata = sessionData.metadata || {};
-        sessionData.metadata.title = title;
+        sessionData.metadata.title = normalized;
         sessionData.lastActivity = Date.now();
 
         await this.services.storageManager.getDatabase().set(sessionKey, sessionData);

@@ -669,7 +669,7 @@ export class DextoAgent {
                 logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
             }
 
-            await this.sessionManager.setSessionTitle(sessionId, title);
+            await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
             this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
         } catch (err) {
             // Swallow background errors – never impact main flow
