@@ -1,25 +1,25 @@
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
-import type { DatabaseBackend } from './database-backend.js';
+import type { Database } from './types.js';
 import { logger } from '../../logger/index.js';
-import type { SqliteBackendConfig } from '../schemas.js';
+import type { SqliteDatabaseConfig } from './schemas.js';
 import { getDextoPath } from '../../utils/path.js';
 import * as path from 'path';
 import { StorageError } from '../errors.js';
 
 // Dynamic import for better-sqlite3
-let Database: any;
+let BetterSqlite3Database: any;
 
 /**
- * SQLite storage backend for local development and production.
- * Implements the DatabaseBackend interface with proper schema and connection handling.
+ * SQLite database store for local development and production.
+ * Implements the Database interface with proper schema and connection handling.
  */
-export class SQLiteBackend implements DatabaseBackend {
-    private db: any; // Database.Database
+export class SQLiteStore implements Database {
+    private db: any | null = null; // Database.Database
     private dbPath: string;
-    private config: SqliteBackendConfig;
+    private config: SqliteDatabaseConfig;
 
-    constructor(config: SqliteBackendConfig) {
+    constructor(config: SqliteDatabaseConfig) {
         this.config = config;
         // Path will be resolved in connect() method
         this.dbPath = '';
@@ -84,10 +84,10 @@ export class SQLiteBackend implements DatabaseBackend {
 
     async connect(): Promise<void> {
         // Dynamic import of better-sqlite3
-        if (!Database) {
+        if (!BetterSqlite3Database) {
             try {
                 const module = await import('better-sqlite3');
-                Database = (module as any).default || module;
+                BetterSqlite3Database = (module as any).default || module;
             } catch (error) {
                 throw StorageError.connectionFailed(
                     `Failed to import better-sqlite3: ${error instanceof Error ? error.message : String(error)}`
@@ -121,7 +121,7 @@ export class SQLiteBackend implements DatabaseBackend {
             timeout: sqliteOptions.timeout || 5000,
         });
 
-        this.db = new Database(this.dbPath, {
+        this.db = new BetterSqlite3Database(this.dbPath, {
             readonly: sqliteOptions.readonly || false,
             fileMustExist: sqliteOptions.fileMustExist || false,
             timeout: sqliteOptions.timeout || 5000,
@@ -145,12 +145,13 @@ export class SQLiteBackend implements DatabaseBackend {
         // Create tables if they don't exist
         this.initializeTables();
 
-        logger.info(`✅ SQLite backend successfully connected to: ${this.dbPath}`);
+        logger.info(`✅ SQLite store successfully connected to: ${this.dbPath}`);
     }
 
     async disconnect(): Promise<void> {
         if (this.db) {
             this.db.close();
+            this.db = null;
         }
     }
 
@@ -158,7 +159,7 @@ export class SQLiteBackend implements DatabaseBackend {
         return this.db !== null;
     }
 
-    getBackendType(): string {
+    getStoreType(): string {
         return 'sqlite';
     }
 
@@ -282,7 +283,7 @@ export class SQLiteBackend implements DatabaseBackend {
 
     private checkConnection(): void {
         if (!this.db) {
-            throw StorageError.notConnected('SQLiteBackend');
+            throw StorageError.notConnected('SQLiteStore');
         }
     }
 

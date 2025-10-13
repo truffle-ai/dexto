@@ -12,7 +12,10 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { sanitizeToolResultToContent, summarizeToolContentForText } from '../../context/utils.js';
+import {
+    sanitizeToolResultToContentWithBlobs,
+    summarizeToolContentForText,
+} from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -22,7 +25,7 @@ import type { SessionEventBus } from '../../events/index.js';
 import { toError } from '../../utils/error-conversion.js';
 import { ToolErrorCode } from '../../tools/error-codes.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -52,11 +55,12 @@ export class VercelLLMService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         model: LanguageModel,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager: import('../../resources/index.js').ResourceManager
     ) {
         this.model = model;
         this.config = config;
@@ -69,14 +73,18 @@ export class VercelLLMService implements ILLMService {
         const tokenizer = createTokenizer(config.provider, this.getModelId());
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
+        // Use the provided ResourceManager
+
         this.contextManager = new ContextManager<ModelMessage>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            resourceManager
+            // compressionStrategies uses default
         );
 
         logger.debug(
@@ -112,7 +120,18 @@ export class VercelLLMService implements ILLMService {
                             // Sanitize tool result to prevent large/base64 media from exploding context
                             // Convert arbitrary result -> InternalMessage content (media as structured parts)
                             // then summarize to concise text suitable for Vercel tool output.
-                            const safeContent = sanitizeToolResultToContent(rawResult);
+                            // Use blob-aware sanitization with blob store
+                            const resourceManager = this.contextManager.getResourceManager();
+                            const blobService = resourceManager.getBlobStore();
+
+                            const safeContent = await sanitizeToolResultToContentWithBlobs(
+                                rawResult,
+                                blobService,
+                                {
+                                    toolName,
+                                    toolCallId: options.toolCallId,
+                                }
+                            );
                             const summaryText = summarizeToolContentForText(safeContent);
                             return summaryText;
                         } catch (err: unknown) {

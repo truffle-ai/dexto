@@ -73,6 +73,10 @@ describe('LLMConfigSchema OpenRouter validation', () => {
             apiKey: 'sk-test',
         });
         expect(invalidConfig.success).toBe(false);
-        expect(invalidConfig.error.issues[0]?.message).toContain('not available via OpenRouter');
+        if (!invalidConfig.success) {
+            expect(invalidConfig.error.issues[0]?.message).toContain(
+                'not available via OpenRouter'
+            );
+        }
     });
 });

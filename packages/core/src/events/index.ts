@@ -19,6 +19,11 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpServerAdded',
     'dexto:mcpServerRemoved',
     'dexto:mcpServerUpdated',
+    'dexto:mcpResourceUpdated',
+    'dexto:mcpPromptsListChanged',
+    'dexto:mcpToolsListChanged',
+    'dexto:resourceCacheInvalidated',
+    'dexto:sessionTitleUpdated',
     // Tool confirmation events
     'dexto:toolConfirmationRequest',
     'dexto:toolConfirmationResponse',
@@ -211,6 +216,37 @@ export interface AgentEventMap {
         approved: boolean;
         rememberChoice?: boolean;
         sessionId?: string;
+    };
+
+    /** Fired when MCP server resource is updated */
+    'dexto:mcpResourceUpdated': {
+        serverName: string;
+        resourceUri: string;
+    };
+
+    /** Fired when MCP server prompts list changes */
+    'dexto:mcpPromptsListChanged': {
+        serverName: string;
+        prompts: string[];
+    };
+
+    /** Fired when MCP server tools list changes */
+    'dexto:mcpToolsListChanged': {
+        serverName: string;
+        tools: string[];
+    };
+
+    /** Fired when resource cache should be invalidated */
+    'dexto:resourceCacheInvalidated': {
+        resourceUri?: string;
+        serverName: string;
+        action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+    };
+
+    /** Fired when a session's human-friendly title is updated */
+    'dexto:sessionTitleUpdated': {
+        sessionId: string;
+        title: string;
     };
 }
 

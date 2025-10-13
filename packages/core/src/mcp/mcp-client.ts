@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { EventEmitter } from 'events';
 
 import { logger } from '../logger/index.js';
 import type {
@@ -11,17 +12,27 @@ import type {
     ValidatedHttpServerConfig,
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
-import { IMCPClient } from './types.js';
+import { IMCPClient, MCPResourceSummary } from './types.js';
 import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
-import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import type {
+    GetPromptResult,
+    ReadResourceResult,
+    Resource,
+    ResourceUpdatedNotification,
+    Prompt,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+    ResourceUpdatedNotificationSchema,
+    PromptListChangedNotificationSchema,
+    ToolListChangedNotificationSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
-export class MCPClient implements IMCPClient {
+export class MCPClient extends EventEmitter implements IMCPClient {
     private client: Client | null = null;
     private transport: any = null;
     private isConnected = false;
@@ -33,7 +44,6 @@ export class MCPClient implements IMCPClient {
     private serverPid: number | null = null;
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
-
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
@@ -134,9 +144,7 @@ export class MCPClient implements IMCPClient {
                 name: 'Dexto-stdio-mcp-client',
                 version: '1.0.0',
             },
-            {
-                capabilities: { tools: {} },
-            }
+            { capabilities: { tools: {} } }
         );
 
         try {
@@ -148,6 +156,7 @@ export class MCPClient implements IMCPClient {
             logger.info(`✅ Stdio SERVER ${serverName} SPAWNED`);
             logger.info('Connection established!\n\n');
             this.isConnected = true;
+            this.setupNotificationHandlers();
 
             return this.client;
         } catch (error: any) {
@@ -179,9 +188,7 @@ export class MCPClient implements IMCPClient {
                 name: 'Dexto-sse-mcp-client',
                 version: '1.0.0',
             },
-            {
-                capabilities: { tools: {} },
-            }
+            { capabilities: { tools: {} } }
         );
 
         try {
@@ -192,6 +199,7 @@ export class MCPClient implements IMCPClient {
             logger.info(`✅ ${serverName} SSE SERVER SPAWNED`);
             logger.info('Connection established!\n\n');
             this.isConnected = true;
+            this.setupNotificationHandlers();
 
             return this.client;
         } catch (error: any) {
@@ -223,6 +231,7 @@ export class MCPClient implements IMCPClient {
             await this.client.connect(this.transport);
             this.isConnected = true;
             logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+            this.setupNotificationHandlers();
             return this.client;
         } catch (error: any) {
             logger.error(
@@ -346,16 +355,15 @@ export class MCPClient implements IMCPClient {
     }
 
     /**
-     * Get the list of prompts provided by this client
-     * @returns Array of available prompt names
-     * TODO: Turn exception logs back into error and only call this based on capabilities of the server
+     * Get the list of prompts provided by this client with full metadata
+     * @returns Array of Prompt objects from MCP SDK with name, title, description, and arguments
      */
-    async listPrompts(): Promise<string[]> {
+    async listPrompts(): Promise<Prompt[]> {
         this.ensureConnected();
         try {
             const response = await this.client!.listPrompts();
             logger.debug(`listPrompts response: ${JSON.stringify(response, null, 2)}`);
-            return response.prompts.map((p: any) => p.name);
+            return response.prompts;
         } catch (error) {
             logger.debug(
                 `Failed to list prompts from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
@@ -397,12 +405,19 @@ export class MCPClient implements IMCPClient {
      * @returns Array of available resource URIs
      * TODO: Turn exception logs back into error and only call this based on capabilities of the server
      */
-    async listResources(): Promise<string[]> {
+    async listResources(): Promise<MCPResourceSummary[]> {
         this.ensureConnected();
         try {
             const response = await this.client!.listResources();
             logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
-            return response.resources.map((r: any) => r.uri);
+            return response.resources.map(
+                (r: Resource): MCPResourceSummary => ({
+                    uri: r.uri,
+                    name: r.name,
+                    ...(r.description !== undefined && { description: r.description }),
+                    ...(r.mimeType !== undefined && { mimeType: r.mimeType }),
+                })
+            );
         } catch (error) {
             logger.debug(
                 `Failed to list resources from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
@@ -486,5 +501,70 @@ export class MCPClient implements IMCPClient {
         if (!this.isConnected || !this.client) {
             throw MCPError.clientNotConnected('Please call connect() first');
         }
+    }
+
+    /**
+     * Set up notification handlers for MCP server notifications
+     */
+    private setupNotificationHandlers(): void {
+        if (!this.client) return;
+
+        try {
+            // Resource updated
+            this.client.setNotificationHandler(
+                ResourceUpdatedNotificationSchema,
+                (notification: ResourceUpdatedNotification) => {
+                    // SDK notification.params has type { uri: string; _meta?: {...} } with passthrough
+                    // Access uri directly - it's the only guaranteed field per SDK spec
+                    this.handleResourceUpdated({
+                        uri: notification.params.uri,
+                    });
+                }
+            );
+        } catch (error) {
+            logger.warn(`Could not set resources/updated notification handler: ${error}`);
+        }
+        try {
+            // Prompts list changed
+            this.client.setNotificationHandler(PromptListChangedNotificationSchema, () => {
+                this.handlePromptsListChanged();
+            });
+        } catch (error) {
+            logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
+        }
+        try {
+            // Tools list changed
+            this.client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+                this.handleToolsListChanged();
+            });
+        } catch (error) {
+            logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
+        }
+
+        logger.debug('MCP notification handlers registered (resources, prompts, tools)');
+    }
+
+    /**
+     * Handle resource updated notification
+     */
+    private handleResourceUpdated(params: { uri: string }): void {
+        logger.debug(`Resource updated: ${params.uri}`);
+        this.emit('resourceUpdated', params);
+    }
+
+    /**
+     * Handle prompts list changed notification
+     */
+    private handlePromptsListChanged(): void {
+        logger.debug('Prompts list changed');
+        this.emit('promptsListChanged');
+    }
+
+    /**
+     * Handle tools list changed notification
+     */
+    private handleToolsListChanged(): void {
+        logger.debug('Tools list changed');
+        this.emit('toolsListChanged');
     }
 }

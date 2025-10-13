@@ -53,8 +53,11 @@ describe('DextoAgent Lifecycle Management', () => {
                 initializeFromConfig: vi.fn().mockResolvedValue(undefined),
             } as any,
             toolManager: {} as any,
-            promptManager: {} as any,
-            agentEventBus: {} as any,
+            systemPromptManager: {} as any,
+            agentEventBus: {
+                on: vi.fn(),
+                emit: vi.fn(),
+            } as any,
             stateManager: {
                 getRuntimeConfig: vi.fn().mockReturnValue({
                     llm: mockValidatedConfig.llm,
@@ -76,10 +79,14 @@ describe('DextoAgent Lifecycle Management', () => {
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
             } as any,
             searchService: {} as any,
-            storage: {} as any,
             storageManager: {
                 disconnect: vi.fn(),
+                getDatabase: vi.fn().mockReturnValue({}),
+                getCache: vi.fn().mockReturnValue({}),
+                getBlobStore: vi.fn().mockReturnValue({}),
             } as any,
+            resourceManager: {} as any,
+            memoryManager: {} as any,
         };
 
         mockCreateAgentServices.mockResolvedValue(mockServices);

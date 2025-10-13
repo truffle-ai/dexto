@@ -8,11 +8,12 @@ import ConnectServerModal from './ConnectServerModal';
 import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
+import MemoryPanel from './MemoryPanel';
 import { ToolConfirmationHandler } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -34,7 +35,11 @@ import SettingsModal from './SettingsModal';
 import AgentSelector from './AgentSelector/AgentSelector';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
+import { loadPrompts } from '../lib/promptCache';
+import type { ServerRegistryEntry } from '@/types';
 
 export default function ChatApp() {
 
@@ -49,6 +54,7 @@ export default function ChatApp() {
   const [isExportOpen, setExportOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isCustomizePanelOpen, setCustomizePanelOpen] = useState(false);
+  const [isMemoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [exportName, setExportName] = useState('dexto-config');
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
@@ -66,6 +72,34 @@ export default function ChatApp() {
 
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
+
+  // Starter prompts state (from agent config via /api/prompts)
+  const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
+  const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
+
+  // Fetch starter prompts when in welcome state
+  useEffect(() => {
+    if (!isWelcomeState) return;
+
+    let cancelled = false;
+    setStarterPromptsLoaded(false);
+    loadPrompts()
+      .then((prompts) => {
+        if (!cancelled) {
+          setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
+          setStarterPromptsLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStarterPromptsLoaded(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isWelcomeState]);
 
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -86,7 +120,9 @@ export default function ChatApp() {
     config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
     lockName?: boolean;
     registryEntryId?: string;
+    onCloseRegistryModal?: () => void;
   } | null>(null);
+  const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
@@ -287,21 +323,76 @@ export default function ChatApp() {
     setSessionsPanelOpen(false);
   }, [switchSession]);
 
-  const handleInstallServer = useCallback(async (entry: any) => {
-    // Open Connect modal with prefilled config
-    const config = {
-      type: entry.config.type,
-      command: entry.config.command,
-      args: entry.config.args || [],
-      url: entry.config.url,
-      env: entry.config.env || {},
-      headers: entry.config.headers || {},
-      timeout: entry.config.timeout || 30000,
-    };
-    setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
-    setServerRegistryOpen(false);
-    setModalOpen(true);
-  }, []);
+  type InstallableRegistryEntry = ServerRegistryEntry & {
+    onCloseRegistryModal?: () => void;
+  };
+
+  const handleInstallServer = useCallback(
+    async (entry: InstallableRegistryEntry): Promise<'connected' | 'requires-input'> => {
+      const config = buildConfigFromRegistryEntry(entry);
+
+      const needsEnvInput =
+        config.type === 'stdio' &&
+        Object.keys(config.env || {}).length > 0 &&
+        hasEmptyOrPlaceholderValue(config.env || {});
+      const needsHeaderInput =
+        (config.type === 'sse' || config.type === 'http') &&
+        'headers' in config &&
+        Object.keys(config.headers || {}).length > 0 &&
+        hasEmptyOrPlaceholderValue(config.headers || {});
+
+      // If inputs needed, open modal but keep registry open
+      if (needsEnvInput || needsHeaderInput) {
+        setConnectPrefill({
+          name: entry.name,
+          config,
+          lockName: true,
+          registryEntryId: entry.id,
+          onCloseRegistryModal: entry.onCloseRegistryModal ?? (() => setServerRegistryOpen(false)),
+        });
+        setModalOpen(true);
+        return 'requires-input';
+      }
+
+      try {
+        setIsRegistryBusy(true);
+        const res = await fetch('/api/mcp/servers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.error || `Server returned status ${res.status}`);
+        }
+
+        if (entry.id) {
+          try {
+            await serverRegistry.setInstalled(entry.id, true);
+          } catch (e) {
+            console.warn('Failed to mark registry entry installed:', e);
+          }
+        }
+
+        setServersRefreshTrigger(prev => prev + 1);
+        setSuccessMessage(`Added ${entry.name}`);
+        setTimeout(() => setSuccessMessage(null), 4000);
+        setServerRegistryOpen(false);
+        return 'connected';
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to install server';
+        throw new Error(message);
+      } finally {
+        setIsRegistryBusy(false);
+      }
+    }, [
+      setServerRegistryOpen,
+      setModalOpen,
+      setConnectPrefill,
+      setServersRefreshTrigger,
+      setSuccessMessage,
+      setIsRegistryBusy,
+    ]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
@@ -363,7 +454,8 @@ export default function ChatApp() {
     }
   }, [handleSessionChange]);
 
-  const quickActions = [
+  // Memoize quick actions to prevent unnecessary recomputation
+  const quickActions = React.useMemo(() => [
     {
       title: "Help me get started",
       description: "Show me what you can do",
@@ -388,7 +480,41 @@ export default function ChatApp() {
       action: () => handleSend("Pick one of your most interesting tools and demonstrate it with a practical example. Show me what it can do."),
       icon: "⚡"
     }
-  ];
+  ], [handleSend, setServersPanelOpen]);
+
+  // Merge dynamic quick actions from starter prompts
+  const dynamicQuickActions = React.useMemo(() => {
+    // Show default quick actions while loading
+    if (!starterPromptsLoaded) {
+      return quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
+    }
+
+    // If starter prompts are present, hide the built-in defaults to avoid duplication
+    const actions: Array<{ description: string; tooltip?: string; action: () => void }> =
+      starterPrompts.length > 0 ? [] : quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
+    starterPrompts.forEach((prompt) => {
+      const description = prompt.title || prompt.description || 'Starter prompt';
+      const tooltip = prompt.description;
+
+      if (prompt?.name === 'starter:connect-tools') {
+        actions.push({
+          description,
+          tooltip,
+          action: () => setServersPanelOpen(true),
+        });
+      } else {
+        // Use the actual prompt text from metadata if available, otherwise fall back to slash command
+        const promptText = prompt.metadata?.prompt as string | undefined;
+        const messageToSend = promptText || `/${prompt.name}`;
+        actions.push({
+          description,
+          tooltip,
+          action: () => handleSend(messageToSend),
+        });
+      }
+    });
+    return actions;
+  }, [starterPrompts, starterPromptsLoaded, quickActions, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -421,6 +547,11 @@ export default function ChatApp() {
         e.preventDefault();
         setServersPanelOpen(prev => !prev);
       }
+      // Ctrl/Cmd + M to toggle memory panel
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'm') {
+        e.preventDefault();
+        setMemoryPanelOpen(prev => !prev);
+      }
       // Ctrl/Cmd + Shift + S to open search
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 's') {
         e.preventDefault();
@@ -452,6 +583,7 @@ export default function ChatApp() {
         if (isCustomizePanelOpen) setCustomizePanelOpen(false);
         else if (isServersPanelOpen) setServersPanelOpen(false);
         else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
+        else if (isMemoryPanelOpen) setMemoryPanelOpen(false);
         else if (isServerRegistryOpen) setServerRegistryOpen(false);
         else if (isExportOpen) setExportOpen(false);
         else if (showShortcuts) setShowShortcuts(false);
@@ -463,7 +595,7 @@ export default function ChatApp() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen]);
+  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen]);
 
   return (
     <div className="flex h-screen bg-background">
@@ -540,21 +672,6 @@ export default function ChatApp() {
                 <span className="sr-only">Dexto</span>
               </a>
               
-              {/* Current Session Indicator - Only show when there's an active session */}
-              {currentSessionId && !isWelcomeState && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30 max-w-[120px] cursor-help">
-                      <span className="truncate">
-                        {currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId}
-                      </span>
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <span className="font-mono">{currentSessionId}</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
             </div>
 
             {/* Center Section - Agent Selector */}
@@ -599,7 +716,27 @@ export default function ChatApp() {
                 </TooltipTrigger>
                 <TooltipContent>Settings</TooltipContent>
               </Tooltip>
-              
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
+                    className={cn(
+                      "h-8 px-2 text-sm transition-colors",
+                      isMemoryPanelOpen && "bg-muted"
+                    )}
+                  >
+                    <Brain className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline ml-1.5">Memories</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Toggle memories panel (⌘M)
+                </TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -652,7 +789,7 @@ export default function ChatApp() {
                                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
                       <Server className="h-4 w-4 mr-2" />
-                      Browse MCP Registry
+                      Connect MCPs
                     </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="h-4 w-4 mr-2" />
@@ -708,7 +845,7 @@ export default function ChatApp() {
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
                       <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        {greeting ?? "Welcome to Dexto"}
+                        {greeting || 'Welcome to Dexto'}
                       </h2>
                     </div>
                     <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
@@ -718,20 +855,34 @@ export default function ChatApp() {
 
                   {/* Quick Actions Grid - Compact */}
                   <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
-                    {quickActions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={action.action}
-                        className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-1.5">
-                          <span className="text-sm">{action.icon}</span>
+                    {dynamicQuickActions.map((action, index) => {
+                      const button = (
+                        <button
+                          key={index}
+                          onClick={action.action}
+                          className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
+                        >
                           <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
-                            {action.title}
+                            {action.description}
                           </span>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+
+                      if (action.tooltip) {
+                        return (
+                          <Tooltip key={index}>
+                            <TooltipTrigger asChild>
+                              {button}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {action.tooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+
+                      return button;
+                    })}
                   </div>
 
                   {/* Central Search Bar with Full Features */}
@@ -808,17 +959,22 @@ export default function ChatApp() {
             isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
-              <ServersPanel
-                isOpen={isServersPanelOpen}
-                onClose={() => setServersPanelOpen(false)}
-                onOpenConnectModal={() => setModalOpen(true)}
-                onOpenConnectWithPrefill={(opts) => {
-                  setConnectPrefill(opts);
-                  setModalOpen(true);
-                }}
-                variant="inline"
-                refreshTrigger={serversRefreshTrigger}
-              />
+          <ServersPanel
+            isOpen={isServersPanelOpen}
+            onClose={() => setServersPanelOpen(false)}
+            onOpenConnectModal={() => setModalOpen(true)}
+            onOpenConnectWithPrefill={(opts) => {
+              setConnectPrefill(opts);
+              setModalOpen(true);
+            }}
+            onServerConnected={(name) => {
+              setServersRefreshTrigger(prev => prev + 1);
+              setSuccessMessage(`Added ${name}`);
+              setTimeout(() => setSuccessMessage(null), 4000);
+            }}
+            variant="inline"
+            refreshTrigger={serversRefreshTrigger}
+          />
             )}
           </div>
         </div>
@@ -831,28 +987,28 @@ export default function ChatApp() {
         />
         
         {/* Connect Server Modal */}
-        <ConnectServerModal 
-          isOpen={isModalOpen} 
+        <ConnectServerModal
+          isOpen={isModalOpen}
           onClose={() => {
             setModalOpen(false);
+            setIsRegistryBusy(false);
             setConnectPrefill(null);
-          }} 
+          }}
           onServerConnected={async () => {
-            // Mark the associated registry entry as installed, if applicable
             if (connectPrefill?.registryEntryId) {
               try {
                 await serverRegistry.setInstalled(connectPrefill.registryEntryId, true);
               } catch (e) {
-                // non-fatal; continue
                 console.warn('Failed to mark registry entry installed:', e);
               }
             }
-            // Trigger a refresh of the servers panel
             setServersRefreshTrigger(prev => prev + 1);
-            // Show success toast
             const name = connectPrefill?.name || 'Server';
             setSuccessMessage(`Added ${name}`);
             setTimeout(() => setSuccessMessage(null), 4000);
+            connectPrefill?.onCloseRegistryModal?.();
+            setIsRegistryBusy(false);
+            setConnectPrefill(null);
           }}
           initialName={connectPrefill?.name}
           initialConfig={connectPrefill?.config}
@@ -864,6 +1020,9 @@ export default function ChatApp() {
           isOpen={isServerRegistryOpen}
           onClose={() => setServerRegistryOpen(false)}
           onInstallServer={handleInstallServer}
+          onOpenConnectModal={() => setModalOpen(true)}
+          refreshTrigger={serversRefreshTrigger}
+          disableClose={isRegistryBusy}
         />
 
         {/* Export Configuration Modal */}
@@ -931,6 +1090,12 @@ export default function ChatApp() {
         {/* Settings Modal */}
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
 
+        {/* Memory Panel */}
+        <MemoryPanel
+          isOpen={isMemoryPanelOpen}
+          onClose={() => setMemoryPanelOpen(false)}
+          variant="modal"
+        />
 
         {/* Delete Conversation Confirmation Modal */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -982,6 +1147,7 @@ export default function ChatApp() {
                 { key: '⌘H', desc: 'Toggle chat history panel' },
                 { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
+                { key: '⌘M', desc: 'Toggle memories panel' },
                 { key: '⌘E', desc: 'Customize agent' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
                 { key: '⌘L', desc: 'Open MCP playground' },

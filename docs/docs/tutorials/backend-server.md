@@ -13,7 +13,7 @@ When Dexto runs in web mode, it provides these endpoints:
 - **`POST /api/message-sync`** - Send message and get complete response
 - **`POST /api/message`** - Send message asynchronously (use WebSocket for response)
 - **`POST /api/reset`** - Reset conversation history
-- **`POST /api/connect-server`** - Dynamically add new MCP servers
+- **`POST /api/mcp/servers`** - Dynamically add new MCP servers
 - **`GET /api/mcp/servers`** - List connected servers
 - **`GET /api/mcp/servers/:id/tools`** - List tools for a server
 - **`POST /api/mcp/servers/:id/tools/:tool/execute`** - Execute specific tools
@@ -458,7 +458,7 @@ export const ServerManagementChat: React.FC = () => {
     const args = argsInput ? argsInput.split(',').map(s => s.trim()) : [];
 
     try {
-      const response = await fetch('http://localhost:3001/api/connect-server', {
+      const response = await fetch('http://localhost:3001/api/mcp/servers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -799,7 +799,7 @@ We've built up our React app layer by layer:
 
 1. **Layer 1**: Basic synchronous messaging (`/api/message-sync`)
 2. **Layer 2**: Real-time streaming (WebSocket events)
-3. **Layer 3**: Server management (`/api/mcp/servers`, `/api/connect-server`)
+3. **Layer 3**: Server management (`/api/mcp/servers`)
 4. **Layer 4**: Direct tool execution (`/api/mcp/servers/:id/tools/:tool/execute`)
 
 ## Key Takeaways

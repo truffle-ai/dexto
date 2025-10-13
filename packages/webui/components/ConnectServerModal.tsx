@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
+import { clearPromptCache } from '../lib/promptCache';
 import { Checkbox } from './ui/checkbox';
 
 interface ConnectServerModalProps {
@@ -39,7 +40,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     const [envPairs, setEnvPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [persistToAgent, setPersistToAgent] = useState(true);
+    const [persistToAgent, setPersistToAgent] = useState(false);
 
     // Helper function to convert header pairs to record
     const headersToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {
@@ -216,7 +217,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
-            const res = await fetch('/api/connect-server', {
+            const res = await fetch('/api/mcp/servers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),
@@ -239,6 +240,9 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 }
                 console.debug(`[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`);
             }
+            // Clear prompt cache on server connect (slash dropdown may be closed when WebSocket event fires)
+            // Resources are handled automatically via useResources hook which is always listening
+            clearPromptCache();
             // Notify parent component that server was connected successfully
             if (onServerConnected) {
                 onServerConnected();

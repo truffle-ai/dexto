@@ -17,6 +17,9 @@ mcpServers:
     # env:
     #   GITHUB_OAUTH_SCOPES: 'repo read:user'
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🐙 Hello! I'm your GitHub Agent. How can I help with your repositories?"
+
 systemPrompt:
   contributors:
     - id: primary

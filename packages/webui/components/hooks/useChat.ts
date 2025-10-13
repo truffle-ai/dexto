@@ -501,6 +501,117 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     });
                     break;
                 }
+                case 'resourceCacheInvalidated': {
+                    // Handle resource cache invalidation events
+                    console.log('💾 Resource cache invalidated via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:resourceCacheInvalidated', {
+                                detail: {
+                                    resourceUri: payload.resourceUri,
+                                    serverName: payload.serverName,
+                                    action: payload.action,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                // TODO: Architectural Inconsistency - Event Handling Patterns
+                // The current event flow has 3 different patterns with 3 layers of transformation:
+                //
+                // EventEmitter (core) → WebSocket (API) → useChat (WebUI)
+                //
+                // Pattern 1 (chunk/toolCall): Updates React state only
+                // Pattern 2 (response): Updates React state + dispatches DOM events
+                // Pattern 3 (MCP events below): Only dispatches DOM events (no React state)
+                //
+                // This creates confusion and maintenance burden. Consider refactoring to:
+                // - React Context for shared state across components
+                // - Direct WebSocket subscriptions in components that need them
+                // - Unified event system instead of EventEmitter → WebSocket → DOM
+                //
+                // Related files:
+                // - packages/core/src/events/index.ts (EventEmitter)
+                // - packages/cli/src/api/websocket-subscriber.ts (WebSocket)
+                // - packages/webui/components/hooks/useChat.ts (DOM events)
+                case 'mcpPromptsListChanged': {
+                    // Handle prompt list change events
+                    console.log('✨ Prompts list changed via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpPromptsListChanged', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    prompts: payload.prompts,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                case 'mcpToolsListChanged': {
+                    // Handle tool list change events
+                    console.log('🔧 Tools list changed via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpToolsListChanged', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    tools: payload.tools,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                case 'mcpResourceUpdated': {
+                    // Handle resource update events
+                    console.log('📋 Resource updated via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpResourceUpdated', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    resourceUri: payload.resourceUri,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                case 'sessionTitleUpdated': {
+                    const isObject = (value: unknown): value is Record<string, unknown> =>
+                        typeof value === 'object' && value !== null;
+                    const sessionId =
+                        isObject(payload) && typeof payload.sessionId === 'string'
+                            ? payload.sessionId
+                            : undefined;
+                    const title =
+                        isObject(payload) && typeof payload.title === 'string'
+                            ? payload.title
+                            : undefined;
+                    if (typeof window !== 'undefined' && sessionId && title) {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:sessionTitleUpdated', {
+                                detail: { sessionId, title, timestamp: Date.now() },
+                            })
+                        );
+                    }
+                    break;
+                }
                 default:
                     break;
             }

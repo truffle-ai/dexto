@@ -67,6 +67,17 @@ export default [
             '@typescript-eslint/no-explicit-any': 'off',
             '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
             'no-dupe-class-members': 'off', // Allow TypeScript method overloading
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector: 'TSTypeReference > TSTypeQuery > Identifier[name="z"] ~ TSQualifiedName > Identifier[name="infer"]',
+                    message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                },
+                {
+                    selector: 'TSTypeReference[typeName.type="TSQualifiedName"][typeName.left.name="z"][typeName.right.name="infer"]',
+                    message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                },
+            ],
         },
     },
 

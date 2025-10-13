@@ -54,5 +54,16 @@ export * from './tools/index.js';
 // Context
 export * from './context/index.js';
 
+// Prompts
+export * from './prompts/index.js';
+
 // Utils
 export * from './utils/index.js';
+
+// Resources
+export * from './resources/index.js';
+
+// Memory
+export * from './memory/index.js';
+
+// Note: Blob types, schemas, and errors are exported from './storage/index.js'

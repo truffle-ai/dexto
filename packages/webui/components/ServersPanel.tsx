@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
-import { X, PlusCircle, Server, ListChecks, ChevronRight, RefreshCw, AlertTriangle, ChevronDown, Terminal, Trash2, Package } from 'lucide-react';
+import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
+import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
 
 interface ServersPanelProps {
@@ -19,26 +20,16 @@ interface ServersPanelProps {
     config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
     lockName?: boolean;
     registryEntryId?: string;
+    onCloseRegistryModal?: () => void;
   }) => void;
+  onServerConnected?: (serverName: string) => void;
   variant?: 'overlay' | 'inline';
   refreshTrigger?: number; // Add a trigger to force refresh
 }
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
 
-function buildConfigFromRegistryEntry(entry: ServerRegistryEntry) {
-  return {
-    type: entry.config.type,
-    command: entry.config.command,
-    args: entry.config.args || [],
-    url: entry.config.url,
-    env: entry.config.env || {},
-    headers: entry.config.headers || {},
-    timeout: entry.config.timeout || 30000,
-  };
-}
-
-export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
+export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -49,6 +40,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
   const [isToolsExpanded, setIsToolsExpanded] = useState(false); // State for tools section collapse
   const [isDeletingServer, setIsDeletingServer] = useState<string | null>(null); // Tracks which server is being deleted
   const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
+  const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
   const handleError = (message: string, area: 'servers' | 'tools' | 'delete') => {
     console.error(`ServersPanel Error (${area}):`, message);
@@ -95,38 +87,58 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     }
   }, []);
 
-  const handleInstallServer = async (entry: ServerRegistryEntry) => {
-    // Close the registry modal first
-    setIsRegistryModalOpen(false);
+  const handleInstallServer = async (entry: ServerRegistryEntry): Promise<'connected' | 'requires-input'> => {
+    const config = buildConfigFromRegistryEntry(entry);
 
-    // If parent supports prefilled connect modal, use it instead of immediate connect
-    if (typeof onOpenConnectWithPrefill === 'function') {
-      const config = buildConfigFromRegistryEntry(entry);
-      onOpenConnectWithPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
-      return;
+    const needsEnvInput = config.type === 'stdio' &&
+                          Object.keys(config.env || {}).length > 0 &&
+                          hasEmptyOrPlaceholderValue(config.env || {});
+    const needsHeaderInput = (config.type === 'sse' || config.type === 'http') &&
+                             Object.keys(config.headers || {}).length > 0 &&
+                             hasEmptyOrPlaceholderValue(config.headers || {});
+
+    // If additional input is needed, show the modal
+    if (needsEnvInput || needsHeaderInput) {
+      if (typeof onOpenConnectWithPrefill === 'function') {
+        onOpenConnectWithPrefill({
+          name: entry.name,
+          config,
+          lockName: true,
+          registryEntryId: entry.id,
+          onCloseRegistryModal: () => setIsRegistryModalOpen(false),
+        });
+      }
+      return 'requires-input';
     }
 
-    // Fallback: connect immediately via API
+    // Otherwise, connect directly
     try {
-      const res = await fetch('/api/connect-server', {
+      setIsRegistryBusy(true);
+      const res = await fetch('/api/mcp/servers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: entry.name, config: buildConfigFromRegistryEntry(entry) }),
+        body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
       });
       const result = await res.json();
       if (!res.ok) {
         throw new Error(result.error || `Server returned status ${res.status}`);
       }
       await fetchServers();
-      
+
       // Sync registry after installation
       try {
         await serverRegistry.syncWithServerStatus();
       } catch (e) {
         console.warn('Failed to sync registry after server install:', e);
       }
+
+      setIsRegistryModalOpen(false);
+      onServerConnected?.(entry.name);
+      return 'connected';
     } catch (error: any) {
       throw new Error(error.message || 'Failed to install server');
+    } finally {
+      setIsRegistryBusy(false);
     }
   };
 
@@ -174,7 +186,9 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       }
 
       await fetchServers(); // Refresh server list
-      
+      // Clear prompt cache since removed server's prompts are no longer available
+      clearPromptCache();
+
       // Sync registry with updated server status
       try {
         await serverRegistry.syncWithServerStatus();
@@ -210,6 +224,43 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       };
     }
   }, [refreshTrigger, isOpen, fetchServers]);
+
+  // Listen for real-time MCP server and resource updates
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleServerConnected = (event: any) => {
+      const detail = event?.detail || {};
+      console.log('🔗 Server connected:', detail);
+      // Refresh server list when a new server is connected
+      fetchServers();
+    };
+
+    const handleResourceCacheInvalidated = (event: any) => {
+      const detail = event?.detail || {};
+      console.log('💾 Resource cache invalidated for server panel:', detail);
+      // If we have a selected server and it matches the updated server, refresh tools
+      if (selectedServerId && detail.serverName) {
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const normalizedSelectedId = normalize(selectedServerId);
+        const normalizedServerName = normalize(detail.serverName);
+        if (normalizedSelectedId === normalizedServerName) {
+          handleServerSelect(selectedServerId);
+        }
+      }
+    };
+
+    // Listen for WebSocket events that indicate server/resource changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('dexto:mcpServerConnected', handleServerConnected);
+      window.addEventListener('dexto:resourceCacheInvalidated', handleResourceCacheInvalidated);
+      
+      return () => {
+        window.removeEventListener('dexto:mcpServerConnected', handleServerConnected);
+        window.removeEventListener('dexto:resourceCacheInvalidated', handleResourceCacheInvalidated);
+      };
+    }
+  }, [isOpen, fetchServers, selectedServerId]);
 
   const handleServerSelect = useCallback(async (serverId: string, signal?: AbortSignal) => {
     const server = servers.find(s => s.id === serverId);
@@ -302,21 +353,12 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       {/* Add Server Actions */}
       <div className="px-4 py-3 space-y-2 border-b border-border/30">
         <Button 
-          onClick={onOpenConnectModal} 
-          className="w-full h-9 text-sm font-medium"
-          size="sm"
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Connect Server
-        </Button>
-        <Button 
           onClick={() => setIsRegistryModalOpen(true)} 
-          variant="outline" 
           className="w-full h-9 text-sm font-medium"
           size="sm"
         >
           <Package className="mr-2 h-4 w-4" />
-          Browse Registry
+          Connect MCPs
         </Button>
       </div>
 
@@ -512,6 +554,8 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
         isOpen={isRegistryModalOpen}
         onClose={() => setIsRegistryModalOpen(false)}
         onInstallServer={handleInstallServer}
+        onOpenConnectModal={onOpenConnectModal}
+        disableClose={isRegistryBusy}
       />
     </aside>
   );

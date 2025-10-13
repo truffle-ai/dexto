@@ -200,6 +200,78 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             },
             { signal }
         );
+
+        // Forward MCP notification events
+        eventBus.on(
+            'dexto:mcpResourceUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpResourceUpdated',
+                    data: {
+                        serverName: payload.serverName,
+                        resourceUri: payload.resourceUri,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpPromptsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpPromptsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        prompts: payload.prompts,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpToolsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpToolsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        tools: payload.tools,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:resourceCacheInvalidated',
+            (payload) => {
+                this.broadcast({
+                    event: 'resourceCacheInvalidated',
+                    data: {
+                        resourceUri: payload.resourceUri,
+                        serverName: payload.serverName,
+                        action: payload.action,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:sessionTitleUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'sessionTitleUpdated',
+                    data: {
+                        sessionId: payload.sessionId,
+                        title: payload.title,
+                    },
+                });
+            },
+            { signal }
+        );
     }
 
     /**

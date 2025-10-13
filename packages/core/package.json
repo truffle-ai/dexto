@@ -27,13 +27,14 @@
     "@ai-sdk/openai": "^2.0.0",
     "@ai-sdk/xai": "^2.0.0",
     "@anthropic-ai/sdk": "^0.60.0",
-    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@modelcontextprotocol/sdk": "^1.18.1",
     "ai": "^5.0.0",
     "better-sqlite3": "^11.10.0",
     "boxen": "^7.1.1",
     "chalk": "^5.4.1",
     "dotenv": "^16.4.7",
     "ioredis": "^5.7.0",
+    "nanoid": "^5.1.6",
     "openai": "^5.16.0",
     "pg": "^8.15.4",
     "tiktoken": "^1.0.22",
@@ -46,8 +47,8 @@
     "@types/json-schema": "^7.0.15"
   },
   "scripts": {
-    "build": "tsup && node scripts/fix-dist-aliases.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "eslint . --ext .ts"
   },
   "files": [

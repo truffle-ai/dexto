@@ -3,11 +3,11 @@ import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { ILLMService } from '../llm/services/types.js';
-import type { PromptManager } from '../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { StorageBackends } from '../storage/backend/types.js';
+import type { StorageManager } from '../storage/index.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -114,10 +114,11 @@ export class ChatSession {
     constructor(
         private services: {
             stateManager: AgentStateManager;
-            promptManager: PromptManager;
+            systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
-            storage: StorageBackends;
+            storageManager: StorageManager;
+            resourceManager: import('../resources/index.js').ResourceManager;
         },
         public readonly id: string
     ) {
@@ -181,7 +182,7 @@ export class ChatSession {
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
         this.historyProvider = createDatabaseHistoryProvider(
-            this.services.storage.database,
+            this.services.storageManager.getDatabase(),
             this.id
         );
 
@@ -191,10 +192,11 @@ export class ChatSession {
             llmConfig,
             llmConfig.router,
             this.services.toolManager,
-            this.services.promptManager,
+            this.services.systemPromptManager,
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
-            this.id
+            this.id,
+            this.services.resourceManager // Pass ResourceManager for blob storage
         );
 
         logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -374,10 +376,11 @@ export class ChatSession {
                 newLLMConfig,
                 router,
                 this.services.toolManager,
-                this.services.promptManager,
+                this.services.systemPromptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus, // Use session event bus
-                this.id
+                this.id,
+                this.services.resourceManager
             );
 
             // Replace the LLM service

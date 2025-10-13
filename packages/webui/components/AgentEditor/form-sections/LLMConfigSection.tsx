@@ -68,25 +68,14 @@ export function LLMConfigSection({
 
         {/* Model */}
         <div>
-          <LabelWithTooltip
-            htmlFor="model"
-            tooltip={
-              value.provider === 'openrouter'
-                ? 'Enter an OpenRouter model id (e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet)'
-                : 'The specific model identifier (e.g., gpt-4, claude-3-opus)'
-            }
-          >
+          <LabelWithTooltip htmlFor="model" tooltip="The specific model identifier (e.g., gpt-4, claude-3-opus)">
             Model *
           </LabelWithTooltip>
           <Input
             id="model"
             value={value.model || ''}
             onChange={(e) => handleChange('model', e.target.value)}
-            placeholder={
-              value.provider === 'openrouter'
-                ? 'e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet'
-                : 'e.g., gpt-4, claude-3-opus-20240229'
-            }
+            placeholder="e.g., gpt-4, claude-3-opus-20240229"
             aria-invalid={!!errors['llm.model']}
           />
           {errors['llm.model'] && <p className="text-xs text-destructive mt-1">{errors['llm.model']}</p>}

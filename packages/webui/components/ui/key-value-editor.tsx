@@ -36,40 +36,20 @@ export function KeyValueEditor({
   keyLabel = 'Key',
   valueLabel = 'Value'
 }: KeyValueEditorProps) {
-  // Ensure we always have at least one empty pair for editing
-  useEffect(() => {
-    if (pairs.length === 0) {
-      const initialPair: KeyValuePair = {
-        key: '',
-        value: '',
-        id: `kv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      };
-      onChange([initialPair]);
-    }
-  }, [pairs.length]); // Remove onChange from dependencies to prevent infinite loops
 
   const addPair = () => {
     const newPair: KeyValuePair = {
       key: '',
       value: '',
-      id: `kv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      id: `kv-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
     };
     onChange([...pairs, newPair]);
   };
 
   const removePair = (id: string) => {
     const filteredPairs = pairs.filter(pair => pair.id !== id);
-    // If removing would leave us with no pairs, keep at least one empty pair
-    if (filteredPairs.length === 0) {
-      const emptyPair: KeyValuePair = {
-        key: '',
-        value: '',
-        id: `kv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      };
-      onChange([emptyPair]);
-    } else {
-      onChange(filteredPairs);
-    }
+    // Allow removing all pairs - don't force an empty pair
+    onChange(filteredPairs);
   };
 
   const updatePair = (id: string, field: 'key' | 'value', newValue: string) => {
@@ -85,15 +65,17 @@ export function KeyValueEditor({
       )}
       
       <div className="space-y-2">
-        {/* Header row */}
-        <div className="grid grid-cols-12 gap-2 items-center text-xs text-muted-foreground">
-          <div className="col-span-5">{keyLabel}</div>
-          <div className="col-span-6">{valueLabel}</div>
-          <div className="col-span-1"></div>
-        </div>
+        {/* Header row - only show if there are pairs */}
+        {pairs.length > 0 && (
+          <div className="grid grid-cols-12 gap-2 items-center text-xs text-muted-foreground">
+            <div className="col-span-5">{keyLabel}</div>
+            <div className="col-span-6">{valueLabel}</div>
+            <div className="col-span-1"></div>
+          </div>
+        )}
 
         {/* Key-value pair rows */}
-        {pairs.map((pair, index) => (
+        {pairs.map((pair) => (
           <div key={pair.id} className="grid grid-cols-12 gap-2 items-center">
             <Input
               placeholder={placeholder.key}
@@ -114,7 +96,7 @@ export function KeyValueEditor({
               variant="ghost"
               size="sm"
               onClick={() => removePair(pair.id)}
-              disabled={disabled || (pairs.length === 1 && !pair.key && !pair.value)}
+              disabled={disabled}
               className="col-span-1 h-8 w-8 p-0"
             >
               <Trash2 className="h-4 w-4" />

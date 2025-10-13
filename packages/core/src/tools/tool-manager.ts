@@ -6,6 +6,7 @@ import { ToolSet } from './types.js';
 import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
+import type { AgentEventBus } from '../events/index.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -36,6 +37,7 @@ export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
     private confirmationProvider: ToolConfirmationProvider;
+    private agentEventBus: AgentEventBus;
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -48,10 +50,12 @@ export class ToolManager {
     constructor(
         mcpManager: MCPManager,
         confirmationProvider: ToolConfirmationProvider,
+        agentEventBus: AgentEventBus,
         options?: InternalToolsOptions
     ) {
         this.mcpManager = mcpManager;
         this.confirmationProvider = confirmationProvider;
+        this.agentEventBus = agentEventBus;
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
@@ -61,6 +65,9 @@ export class ToolManager {
                 options.internalToolsConfig
             );
         }
+
+        // Set up event listeners for surgical cache updates
+        this.setupNotificationListeners();
 
         logger.debug('ToolManager initialized');
     }
@@ -81,6 +88,24 @@ export class ToolManager {
     private invalidateCache(): void {
         this.cacheValid = false;
         this.toolsCache = {};
+    }
+
+    /**
+     * Set up listeners for MCP notifications to invalidate cache on changes
+     */
+    private setupNotificationListeners(): void {
+        // Listen for MCP server connection changes that affect tools
+        this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
+            if (payload.success) {
+                logger.debug(`🔄 MCP server connected, invalidating tool cache: ${payload.name}`);
+                this.invalidateCache();
+            }
+        });
+
+        this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
+            logger.debug(`🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`);
+            this.invalidateCache();
+        });
     }
 
     getMcpManager(): MCPManager {
@@ -340,11 +365,15 @@ export class ToolManager {
 
     /**
      * Refresh tool discovery (call when MCP servers change)
+     * Refreshes both MCPManager's cache (server capabilities) and ToolManager's cache (combined tools)
      */
     async refresh(): Promise<void> {
-        // Invalidate cache since MCP servers may have changed
+        // First: Refresh MCPManager's cache to get fresh data from MCP servers
+        await this.mcpManager.refresh();
+
+        // Then: Invalidate our cache so next getAllTools() rebuilds from fresh MCP data
         this.invalidateCache();
 
-        logger.debug('ToolManager refreshed');
+        logger.debug('ToolManager refreshed (including MCP server capabilities)');
     }
 }

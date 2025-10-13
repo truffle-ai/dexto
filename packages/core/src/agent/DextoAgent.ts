@@ -1,7 +1,10 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
+import { expandBlobReferences } from '../context/utils.js';
+import { PromptManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -38,15 +41,17 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
 import { parseDocument } from 'yaml';
+import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'promptManager',
+    'systemPromptManager',
     'agentEventBus',
     'stateManager',
     'sessionManager',
     'searchService',
+    'memoryManager',
 ];
 
 /**
@@ -114,11 +119,14 @@ export class DextoAgent {
      * But the main recommended entry points/functions would still be the wrapper methods we define below
      */
     public readonly mcpManager!: MCPManager;
-    public readonly promptManager!: PromptManager;
+    public readonly systemPromptManager!: SystemPromptManager;
     public readonly agentEventBus!: AgentEventBus;
+    public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
+    public readonly memoryManager!: import('../memory/index.js').MemoryManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -182,15 +190,29 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
-                promptManager: services.promptManager,
+                resourceManager: services.resourceManager,
+                systemPromptManager: services.systemPromptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
+                memoryManager: services.memoryManager,
                 services: services,
             });
 
             // Initialize search service from services
             this.searchService = services.searchService;
+
+            // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            // File prompts automatically resolve custom slash commands
+            const promptManager = new PromptManager(
+                this.mcpManager,
+                this.resourceManager,
+                this.config,
+                this.agentEventBus,
+                services.storageManager.getDatabase()
+            );
+            await promptManager.initialize();
+            Object.assign(this, { promptManager });
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -393,7 +415,71 @@ export class DextoAgent {
                     imageDataInput
                 )}, hasFile=${Boolean(fileDataInput)}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+            // Expand @resource mentions into content before sending to the model
+            let finalText = textInput;
+            let finalImageData = imageDataInput;
+            if (textInput && textInput.includes('@')) {
+                try {
+                    const resources = await this.resourceManager.list();
+                    const expansion = await expandMessageReferences(textInput, resources, (uri) =>
+                        this.resourceManager.read(uri)
+                    );
+
+                    // Warn about unresolved references
+                    if (expansion.unresolvedReferences.length > 0) {
+                        const unresolvedNames = expansion.unresolvedReferences
+                            .map((ref) => ref.originalRef)
+                            .join(', ');
+                        logger.warn(
+                            `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+                        );
+                    }
+
+                    // Validate expanded message size (5MB limit)
+                    const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                    const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
+                    if (expandedSize > MAX_EXPANDED_SIZE) {
+                        logger.warn(
+                            `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                        );
+                    }
+
+                    finalText = expansion.expandedMessage;
+
+                    // If we extracted images from resources and don't already have image data, use the first extracted image
+                    if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                        const firstImage = expansion.extractedImages[0];
+                        if (firstImage) {
+                            finalImageData = {
+                                image: firstImage.image,
+                                mimeType: firstImage.mimeType,
+                            };
+                            logger.debug(
+                                `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                            );
+                        }
+                    }
+                } catch (error) {
+                    // Log error but continue with original message to avoid blocking the user
+                    logger.error(
+                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
+                    );
+                    // Continue with original text instead of throwing
+                }
+            }
+
+            // Validate that we have either text or media content after expansion
+            if (!finalText.trim() && !finalImageData && !fileDataInput) {
+                logger.warn(
+                    'Resource expansion resulted in empty content. Using original message.'
+                );
+                finalText = textInput;
+            }
+
+            // Kick off background title generation for first turn if needed
+            void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
+
+            const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -506,6 +592,95 @@ export class DextoAgent {
     }
 
     /**
+     * Sets a human-friendly title for the given session.
+     */
+    public async setSessionTitle(sessionId: string, title: string): Promise<void> {
+        this.ensureStarted();
+        await this.sessionManager.setSessionTitle(sessionId, title);
+    }
+
+    /**
+     * Gets the human-friendly title for the given session, if any.
+     */
+    public async getSessionTitle(sessionId: string): Promise<string | undefined> {
+        this.ensureStarted();
+        return await this.sessionManager.getSessionTitle(sessionId);
+    }
+
+    /**
+     * Background task: generate and persist a session title using the same LLM.
+     * Runs only for the first user message (messageCount === 0 and no existing title).
+     * Never throws; timeboxed in the generator.
+     */
+    private async maybeGenerateTitle(
+        sessionId: string,
+        userText: string,
+        llmConfig: ValidatedLLMConfig
+    ): Promise<void> {
+        try {
+            const metadata = await this.sessionManager.getSessionMetadata(sessionId);
+            if (!metadata) {
+                logger.debug(
+                    `[SessionTitle] No session metadata available for ${sessionId}, skipping title generation`
+                );
+                return;
+            }
+            if (metadata.title) {
+                logger.debug(
+                    `[SessionTitle] Session ${sessionId} already has title '${metadata.title}', skipping`
+                );
+                return;
+            }
+            if (!userText || !userText.trim()) {
+                logger.debug(
+                    `[SessionTitle] User text empty for session ${sessionId}, skipping title generation`
+                );
+                return;
+            }
+
+            logger.debug(
+                `[SessionTitle] Checking title generation preconditions for session ${sessionId}`
+            );
+            const result = await generateSessionTitle(
+                llmConfig,
+                llmConfig.router,
+                this.toolManager,
+                this.systemPromptManager,
+                this.resourceManager,
+                userText
+            );
+            if (result.error) {
+                logger.debug(
+                    `[SessionTitle] LLM title generation failed for ${sessionId}: ${result.error}${
+                        result.timedOut ? ' (timeout)' : ''
+                    }`
+                );
+            }
+
+            let title = result.title;
+            if (!title) {
+                title = deriveHeuristicTitle(userText);
+                if (title) {
+                    logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+                } else {
+                    logger.debug(
+                        `[SessionTitle] No suitable title derived for session ${sessionId}`
+                    );
+                    return;
+                }
+            } else {
+                logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
+            }
+
+            await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
+            this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
+        } catch (err) {
+            // Swallow background errors – never impact main flow
+            logger.silly(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
+        }
+    }
+
+    /**
      * Gets the conversation history for a specific session.
      * @param sessionId The session ID
      * @returns Promise that resolves to the session's conversation history
@@ -517,7 +692,24 @@ export class DextoAgent {
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return await session.getHistory();
+        const history = await session.getHistory();
+        if (!this.resourceManager) {
+            return history;
+        }
+
+        return await Promise.all(
+            history.map(async (message) => ({
+                ...message,
+                content: await expandBlobReferences(message.content, this.resourceManager).catch(
+                    (error) => {
+                        logger.warn(
+                            `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                        return message.content; // Return original content on error
+                    }
+                ),
+            }))
+        );
     }
 
     /**
@@ -901,6 +1093,9 @@ export class DextoAgent {
             // Connect the server
             await this.mcpManager.connectServer(name, validatedConfig);
 
+            // Ensure tool cache reflects the newly connected server before notifying listeners
+            await this.toolManager.refresh();
+
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,
                 success: true,
@@ -949,6 +1144,9 @@ export class DextoAgent {
 
         // Then remove from runtime state
         this.stateManager.removeMcpServer(name);
+
+        // Refresh tool cache after server removal so the LLM sees updated set
+        await this.toolManager.refresh();
     }
 
     /**
@@ -1003,6 +1201,59 @@ export class DextoAgent {
         return this.mcpManager.getFailedConnections();
     }
 
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Lists all available resources with their info.
+     * This includes resources from MCP servers and any custom resource providers.
+     */
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.list();
+    }
+
+    /**
+     * Checks if a resource exists by URI.
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.has(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource by URI.
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+                return { uri: original, name, originalUri: original, serverName };
+            });
+        return serverResources;
+    }
+
     // ============= PROMPT MANAGEMENT =============
 
     /**
@@ -1034,7 +1285,95 @@ export class DextoAgent {
         const context = {
             mcpManager: this.mcpManager,
         };
-        return await this.promptManager.build(context);
+        return await this.systemPromptManager.build(context);
+    }
+
+    /**
+     * Lists all available prompts from all providers (MCP, internal, starter, custom).
+     * @returns Promise resolving to a PromptSet with all available prompts
+     */
+    public async listPrompts(): Promise<import('../prompts/index.js').PromptSet> {
+        this.ensureStarted();
+        return await this.promptManager.list();
+    }
+
+    /**
+     * Gets the definition of a specific prompt by name.
+     * @param name The name of the prompt
+     * @returns Promise resolving to the prompt definition or null if not found
+     */
+    public async getPromptDefinition(
+        name: string
+    ): Promise<import('../prompts/index.js').PromptDefinition | null> {
+        this.ensureStarted();
+        return await this.promptManager.getPromptDefinition(name);
+    }
+
+    /**
+     * Checks if a prompt exists.
+     * @param name The name of the prompt to check
+     * @returns Promise resolving to true if the prompt exists, false otherwise
+     */
+    public async hasPrompt(name: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.promptManager.has(name);
+    }
+
+    /**
+     * Gets a prompt with its messages.
+     * @param name The name of the prompt
+     * @param args Optional arguments to pass to the prompt
+     * @returns Promise resolving to the prompt result with messages
+     */
+    public async getPrompt(
+        name: string,
+        args?: Record<string, unknown>
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').GetPromptResult> {
+        this.ensureStarted();
+        return await this.promptManager.getPrompt(name, args);
+    }
+
+    /**
+     * Creates a new custom prompt.
+     * @param input The prompt creation input
+     * @returns Promise resolving to the created prompt info
+     */
+    public async createCustomPrompt(
+        input: import('../prompts/index.js').CreateCustomPromptInput
+    ): Promise<import('../prompts/index.js').PromptInfo> {
+        this.ensureStarted();
+        return await this.promptManager.createCustomPrompt(input);
+    }
+
+    /**
+     * Deletes a custom prompt by name.
+     * @param name The name of the custom prompt to delete
+     */
+    public async deleteCustomPrompt(name: string): Promise<void> {
+        this.ensureStarted();
+        return await this.promptManager.deleteCustomPrompt(name);
+    }
+
+    /**
+     * Resolves a prompt to its text content with all arguments applied.
+     * This is a high-level method that handles:
+     * - Prompt key resolution (resolving aliases)
+     * - Argument normalization (including special _context field)
+     * - Prompt execution and flattening
+     *
+     * @param name The prompt name or alias
+     * @param options Optional configuration for prompt resolution
+     * @returns Promise resolving to the resolved text and resource URIs
+     */
+    public async resolvePrompt(
+        name: string,
+        options: {
+            context?: string;
+            args?: Record<string, unknown>;
+        } = {}
+    ): Promise<{ text: string; resources: string[] }> {
+        this.ensureStarted();
+        return await this.promptManager.resolvePrompt(name, options);
     }
 
     // ============= CONFIGURATION ACCESS =============

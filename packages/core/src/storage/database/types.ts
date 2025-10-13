@@ -2,7 +2,7 @@
  * Persistent, reliable storage for important data with list operations for message history.
  * Data survives restarts and supports enumeration for settings management.
  */
-export interface DatabaseBackend {
+export interface Database {
     // Basic operations
     get<T>(key: string): Promise<T | undefined>;
     set<T>(key: string, value: T): Promise<void>;
@@ -20,5 +20,5 @@ export interface DatabaseBackend {
     connect(): Promise<void>;
     disconnect(): Promise<void>;
     isConnected(): boolean;
-    getBackendType(): string;
+    getStoreType(): string;
 }

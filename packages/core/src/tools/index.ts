@@ -8,7 +8,7 @@
 // Core types and interfaces
 export * from './types.js';
 
-// Confirmation types
+// Confirmation types and providers
 export * from './confirmation/types.js';
 
 // Internal tools provider and types

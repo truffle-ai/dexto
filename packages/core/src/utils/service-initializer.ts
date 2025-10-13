@@ -24,16 +24,18 @@
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { createToolConfirmationProvider } from '../tools/confirmation/factory.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
-import { createStorageBackends, type StorageBackends, StorageManager } from '../storage/index.js';
+import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
+import { ResourceManager } from '../resources/manager.js';
+import { MemoryManager } from '../memory/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -41,13 +43,14 @@ import { AgentEventBus } from '../events/index.js';
 export type AgentServices = {
     mcpManager: MCPManager;
     toolManager: ToolManager;
-    promptManager: PromptManager;
+    systemPromptManager: SystemPromptManager;
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
     searchService: SearchService;
-    storage: StorageBackends;
-    storageManager?: StorageManager;
+    storageManager: StorageManager;
+    resourceManager: ResourceManager;
+    memoryManager: MemoryManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -65,25 +68,34 @@ export async function createAgentServices(
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Initialize storage backends (instance-specific, not singleton)
-    logger.debug('Initializing storage backends');
-    const storageResult = await createStorageBackends(config.storage);
-    const storage = storageResult.backends;
-    const storageManager = storageResult.manager;
+    // 2. Initialize storage manager
+    logger.debug('Initializing storage manager');
+    const storageManager = await createStorageManager(config.storage);
 
-    logger.debug('Storage backends initialized', {
+    logger.debug('Storage manager initialized', {
         cache: config.storage.cache.type,
         database: config.storage.database.type,
     });
 
-    // 3. Initialize client manager with configurable tool confirmation
-    // Create allowed tools provider based on configuration
+    // 3. Initialize MCP manager
+    const mcpManager = new MCPManager();
+    await mcpManager.initializeFromConfig(config.mcpServers);
+
+    // 4. Initialize search service
+    const searchService = new SearchService(storageManager.getDatabase());
+
+    // 4.1 Initialize memory manager
+    const memoryManager = new MemoryManager(storageManager.getDatabase());
+    logger.debug('Memory manager initialized');
+
+    // 5. Initialize tool manager with internal tools options
+    // 5.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
         type: config.toolConfirmation.allowedToolsStorage,
-        storage,
+        storageManager,
     });
 
-    // Create tool confirmation provider with configured mode and timeout
+    // 5.2 - Create tool confirmation provider with configured mode and timeout
     const confirmationProvider = createToolConfirmationProvider(
         config.toolConfirmation.mode === 'event-based'
             ? {
@@ -97,20 +109,11 @@ export async function createAgentServices(
                   allowedToolsProvider,
               }
     );
-
-    const mcpManager = new MCPManager();
-    await mcpManager.initializeFromConfig(config.mcpServers);
-
-    // 4. Initialize search service
-    const searchService = new SearchService(storage.database);
-
-    // 5. Initialize unified tool manager with internal tools options
-    const toolManager = new ToolManager(mcpManager, confirmationProvider, {
+    // 5.3 - Initialize tool manager with internal tools options
+    const toolManager = new ToolManager(mcpManager, confirmationProvider, agentEventBus, {
         internalToolsServices: { searchService },
         internalToolsConfig: config.internalTools,
     });
-
-    // Initialize the tool manager
     await toolManager.initialize();
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
@@ -129,22 +132,34 @@ export async function createAgentServices(
     // 6. Initialize prompt manager
     const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
     logger.debug(
-        `[ServiceInitializer] Creating PromptManager with configPath: ${configPath} → configDir: ${configDir}`
+        `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
-    const promptManager = new PromptManager(config.systemPrompt, configDir);
+    const systemPromptManager = new SystemPromptManager(
+        config.systemPrompt,
+        configDir,
+        memoryManager
+    );
 
     // 7. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
-    // 8. Initialize session manager
+    // 8. Initialize resource manager (MCP + internal resources)
+    const resourceManager = new ResourceManager(mcpManager, {
+        internalResourcesConfig: config.internalResources,
+        blobStore: storageManager.getBlobStore(),
+    });
+    await resourceManager.initialize();
+
+    // 9. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,
-            promptManager,
+            systemPromptManager,
             toolManager,
             agentEventBus,
-            storage, // Add storage backends to session services
+            storageManager, // Add storage manager to session services
+            resourceManager, // Add resource manager for blob storage
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -157,16 +172,17 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 9. Return the core services
+    // 10. Return the core services
     return {
         mcpManager,
         toolManager,
-        promptManager,
+        systemPromptManager,
         agentEventBus,
         stateManager,
         sessionManager,
         searchService,
-        storage,
         storageManager,
+        resourceManager,
+        memoryManager,
     };
 }

@@ -2,7 +2,13 @@ import { promises as fs, readFileSync } from 'fs';
 import { existsSync } from 'fs';
 import path from 'path';
 import { getDextoGlobalPath } from '@core/utils/path.js';
-import { Registry, RegistrySchema, AgentRegistryEntry } from './types.js';
+import {
+    Registry,
+    RegistrySchema,
+    AgentRegistryEntry,
+    normalizeRegistryJson,
+    deriveDisplayName,
+} from './types.js';
 import { RegistryError } from './errors.js';
 import { logger } from '@core/logger/index.js';
 
@@ -30,7 +36,7 @@ export function loadUserRegistry(): Registry {
     try {
         const content = readFileSync(registryPath, 'utf-8');
         const data = JSON.parse(content);
-        return RegistrySchema.parse(data);
+        return RegistrySchema.parse(normalizeRegistryJson(data));
     } catch (error) {
         throw RegistryError.registryParseError(
             registryPath,
@@ -96,9 +102,9 @@ export function mergeRegistries(bundled: Registry, user: Registry): Registry {
 /**
  * Check if agent exists in user registry
  */
-export function userRegistryHasAgent(agentName: string): boolean {
+export function userRegistryHasAgent(agentId: string): boolean {
     const userRegistry = loadUserRegistry();
-    return agentName in userRegistry.agents;
+    return agentId in userRegistry.agents;
 }
 
 /**
@@ -106,38 +112,40 @@ export function userRegistryHasAgent(agentName: string): boolean {
  * Validates that name doesn't conflict with bundled registry
  */
 export async function addAgentToUserRegistry(
-    agentName: string,
+    agentId: string,
     entry: Omit<AgentRegistryEntry, 'type'>
 ): Promise<void> {
     const userRegistry = loadUserRegistry();
 
     // Check if already exists in user registry
-    if (agentName in userRegistry.agents) {
-        throw RegistryError.agentAlreadyExists(agentName);
+    if (agentId in userRegistry.agents) {
+        throw RegistryError.agentAlreadyExists(agentId);
     }
 
-    // Add with type: 'custom'
-    userRegistry.agents[agentName] = {
+    // Add with type: 'custom', enforcing invariants
+    userRegistry.agents[agentId] = {
         ...entry,
+        id: agentId, // Force consistency between key and id field
+        name: entry.name && entry.name.trim().length > 0 ? entry.name : deriveDisplayName(agentId), // Ensure name is never undefined or whitespace-only
         type: 'custom',
     };
 
     await saveUserRegistry(userRegistry);
-    logger.info(`Added custom agent '${agentName}' to user registry`);
+    logger.info(`Added custom agent '${agentId}' to user registry`);
 }
 
 /**
  * Remove custom agent from user registry
  */
-export async function removeAgentFromUserRegistry(agentName: string): Promise<void> {
+export async function removeAgentFromUserRegistry(agentId: string): Promise<void> {
     const userRegistry = loadUserRegistry();
 
-    if (!(agentName in userRegistry.agents)) {
-        throw RegistryError.agentNotFound(agentName, Object.keys(userRegistry.agents));
+    if (!(agentId in userRegistry.agents)) {
+        throw RegistryError.agentNotFound(agentId, Object.keys(userRegistry.agents));
     }
 
-    delete userRegistry.agents[agentName];
+    delete userRegistry.agents[agentId];
 
     await saveUserRegistry(userRegistry);
-    logger.info(`Removed custom agent '${agentName}' from user registry`);
+    logger.info(`Removed custom agent '${agentId}' from user registry`);
 }

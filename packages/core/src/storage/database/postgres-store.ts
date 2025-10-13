@@ -1,18 +1,18 @@
 import { Pool, PoolClient } from 'pg';
-import type { DatabaseBackend } from './database-backend.js';
-import type { PostgresBackendConfig } from '../schemas.js';
+import type { Database } from './types.js';
+import type { PostgresDatabaseConfig } from './schemas.js';
 import { StorageError } from '../errors.js';
 
 /**
- * PostgreSQL storage backend for production database operations.
- * Implements the DatabaseBackend interface with connection pooling and JSONB support.
+ * PostgreSQL database store for production database operations.
+ * Implements the Database interface with connection pooling and JSONB support.
  * EXPERIMENTAL - NOT FULLY TESTED YET
  */
-export class PostgresBackend implements DatabaseBackend {
+export class PostgresStore implements Database {
     private pool: Pool | null = null;
     private connected = false;
 
-    constructor(private config: PostgresBackendConfig) {}
+    constructor(private config: PostgresDatabaseConfig) {}
 
     async connect(): Promise<void> {
         if (this.connected) return;
@@ -48,7 +48,7 @@ export class PostgresBackend implements DatabaseBackend {
         return this.connected && this.pool !== null;
     }
 
-    getBackendType(): string {
+    getStoreType(): string {
         return 'postgres';
     }
 
@@ -182,7 +182,7 @@ export class PostgresBackend implements DatabaseBackend {
 
     private checkConnection(): void {
         if (!this.connected || !this.pool) {
-            throw StorageError.notConnected('PostgresBackend');
+            throw StorageError.notConnected('PostgresStore');
         }
     }
 

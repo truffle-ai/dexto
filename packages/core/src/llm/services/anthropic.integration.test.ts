@@ -119,57 +119,65 @@ describe('Anthropic LLM Service Integration', () => {
         20000
     );
 
-    t('creating sessions works normally', async () => {
-        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
-        try {
-            const newSession = await env.agent.createSession('test-anthropic-session');
-            const response = await env.agent.run(
-                'Hello in new session',
-                undefined,
-                undefined,
-                newSession.id
-            );
+    t(
+        'creating sessions works normally',
+        async () => {
+            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            try {
+                const newSession = await env.agent.createSession('test-anthropic-session');
+                const response = await env.agent.run(
+                    'Hello in new session',
+                    undefined,
+                    undefined,
+                    newSession.id
+                );
 
-            expect(newSession).toBeTruthy();
-            expect(newSession.id).toBe('test-anthropic-session');
-            expect(response).toBeTruthy();
-            expect(typeof response).toBe('string');
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+                expect(newSession).toBeTruthy();
+                expect(newSession.id).toBe('test-anthropic-session');
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     // Error handling tests
-    t('errors handled with correct error codes', async () => {
-        // Test with unsupported file type to trigger validation error
-        const invalidFileData = Buffer.from('test data').toString('base64');
+    t(
+        'errors handled with correct error codes',
+        async () => {
+            // Test with unsupported file type to trigger validation error
+            const invalidFileData = Buffer.from('test data').toString('base64');
 
-        const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
-        try {
-            await expect(
-                env.agent.run(
-                    'Process this file',
-                    undefined,
-                    {
-                        data: invalidFileData,
-                        mimeType: 'application/unknown-type',
-                        filename: 'test.unknown',
-                    },
-                    env.sessionId
-                )
-            ).rejects.toMatchObject({
-                issues: [
-                    expect.objectContaining({
-                        code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.USER,
-                    }),
-                ],
-            });
-        } finally {
-            await cleanupTestEnvironment(env);
-        }
-    });
+            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            try {
+                await expect(
+                    env.agent.run(
+                        'Process this file',
+                        undefined,
+                        {
+                            data: invalidFileData,
+                            mimeType: 'application/unknown-type',
+                            filename: 'test.unknown',
+                        },
+                        env.sessionId
+                    )
+                ).rejects.toMatchObject({
+                    issues: [
+                        expect.objectContaining({
+                            code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.USER,
+                        }),
+                    ],
+                });
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        20000
+    );
 
     // Skip test warning
     if (skipTests) {

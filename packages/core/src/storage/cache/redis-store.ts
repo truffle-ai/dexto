@@ -1,18 +1,18 @@
 import { Redis } from 'ioredis';
-import type { CacheBackend } from './cache-backend.js';
-import type { RedisBackendConfig } from '../schemas.js';
+import type { Cache } from './types.js';
+import type { RedisCacheConfig } from './schemas.js';
 import { StorageError } from '../errors.js';
 
 /**
- * Redis storage backend for production cache operations.
- * Implements the CacheBackend interface with connection pooling and optimizations.
+ * Redis cache store for production cache operations.
+ * Implements the Cache interface with connection pooling and optimizations.
  * EXPERIMENTAL - NOT FULLY TESTED YET
  */
-export class RedisBackend implements CacheBackend {
+export class RedisStore implements Cache {
     private redis: Redis | null = null;
     private connected = false;
 
-    constructor(private config: RedisBackendConfig) {}
+    constructor(private config: RedisCacheConfig) {}
 
     async connect(): Promise<void> {
         if (this.connected) return;
@@ -62,7 +62,7 @@ export class RedisBackend implements CacheBackend {
         return this.connected && this.redis?.status === 'ready';
     }
 
-    getBackendType(): string {
+    getStoreType(): string {
         return 'redis';
     }
 
@@ -155,26 +155,9 @@ export class RedisBackend implements CacheBackend {
         return await this.redis!.decrby(key, by);
     }
 
-    // List operations (for compatibility with DatabaseBackend patterns)
-    async append<T>(key: string, item: T): Promise<void> {
-        this.checkConnection();
-        await this.redis!.rpush(key, JSON.stringify(item));
-    }
-
-    async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
-        this.checkConnection();
-        const items = await this.redis!.lrange(key, start, start + count - 1);
-        return items.map((item) => JSON.parse(item));
-    }
-
-    async list(prefix: string): Promise<string[]> {
-        this.checkConnection();
-        return await this.redis!.keys(`${prefix}*`);
-    }
-
     private checkConnection(): void {
         if (!this.connected || !this.redis || this.redis.status !== 'ready') {
-            throw StorageError.notConnected('RedisBackend');
+            throw StorageError.notConnected('RedisStore');
         }
     }
 

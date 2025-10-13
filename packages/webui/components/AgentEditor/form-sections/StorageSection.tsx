@@ -4,8 +4,8 @@ import React from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
-import type { AgentConfig, CacheBackendType, DatabaseBackendType } from '@dexto/core';
-import { CACHE_BACKEND_TYPES, DATABASE_BACKEND_TYPES } from '@dexto/core';
+import type { AgentConfig, CacheType, DatabaseType } from '@dexto/core';
+import { CACHE_TYPES, DATABASE_TYPES } from '@dexto/core';
 
 type StorageConfig = NonNullable<AgentConfig['storage']>;
 
@@ -65,10 +65,10 @@ export function StorageSection({
             <select
               id="cache-type"
               value={value.cache.type}
-              onChange={(e) => updateCache({ type: e.target.value as CacheBackendType })}
+              onChange={(e) => updateCache({ type: e.target.value as CacheType })}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              {CACHE_BACKEND_TYPES.map((type) => (
+              {CACHE_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -105,10 +105,10 @@ export function StorageSection({
             <select
               id="database-type"
               value={value.database.type}
-              onChange={(e) => updateDatabase({ type: e.target.value as DatabaseBackendType })}
+              onChange={(e) => updateDatabase({ type: e.target.value as DatabaseType })}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              {DATABASE_BACKEND_TYPES.map((type) => (
+              {DATABASE_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>

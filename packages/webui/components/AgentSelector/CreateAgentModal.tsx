@@ -18,6 +18,7 @@ interface CreateAgentModalProps {
 }
 
 interface RegistryMetadata {
+  id: string;
   name: string;
   description: string;
   author: string;
@@ -25,6 +26,7 @@ interface RegistryMetadata {
 }
 
 const initialMetadata: RegistryMetadata = {
+  id: '',
   name: '',
   description: '',
   author: '',
@@ -84,10 +86,14 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
     const newErrors: Record<string, string> = {};
 
     // Basic Info validation
+    if (!metadata.id.trim()) {
+      newErrors.id = 'Agent ID is required';
+    } else if (!/^[a-z0-9-]+$/.test(metadata.id)) {
+      newErrors.id = 'Agent ID must contain only lowercase letters, numbers, and hyphens';
+    }
+
     if (!metadata.name.trim()) {
       newErrors.name = 'Agent name is required';
-    } else if (!/^[a-z0-9-]+$/.test(metadata.name)) {
-      newErrors.name = 'Agent name must contain only lowercase letters, numbers, and hyphens';
     }
 
     if (!metadata.description.trim()) {
@@ -103,18 +109,18 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
       newErrors['llm.model'] = 'Model is required';
     }
 
-    // System Prompt validation - check if at least one contributor has content
+    // System Prompt validation - check if at least one static contributor has content
+    // Note: This modal only supports static contributors; dynamic/file contributors are not handled
     const systemPrompt = config.systemPrompt;
     if (systemPrompt && typeof systemPrompt === 'object' && 'contributors' in systemPrompt) {
       const contributors = systemPrompt.contributors;
       if (Array.isArray(contributors)) {
         const hasContent = contributors.some((c: Record<string, unknown>) => {
           if (c.type === 'static' && typeof c.content === 'string' && c.content.trim()) return true;
-          if (c.type === 'dynamic' || c.type === 'file') return true;
           return false;
         });
         if (!hasContent) {
-          newErrors.systemPrompt = 'At least one contributor with content is required';
+          newErrors.systemPrompt = 'At least one static contributor with content is required';
         }
       }
     } else if (typeof systemPrompt === 'string' && !systemPrompt.trim()) {
@@ -134,11 +140,32 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
     setCreateError(null);
 
     try {
+      // Extract system prompt content from contributors
+      let systemPromptContent = '';
+      if (config.systemPrompt && typeof config.systemPrompt === 'object' && 'contributors' in config.systemPrompt) {
+        const contributors = config.systemPrompt.contributors;
+        if (Array.isArray(contributors)) {
+          // Find the first static contributor with content
+          const staticContributor = contributors.find((c: Record<string, unknown>) => c.type === 'static' && c.content);
+          if (staticContributor && 'content' in staticContributor && typeof staticContributor.content === 'string') {
+            systemPromptContent = staticContributor.content.trim();
+          }
+        }
+      } else if (typeof config.systemPrompt === 'string') {
+        systemPromptContent = config.systemPrompt.trim();
+      }
+      
+      // Ensure we have a valid system prompt
+      if (!systemPromptContent) {
+        systemPromptContent = 'You are a helpful AI assistant.';
+      }
+
       const response = await fetch('/api/agents/custom/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // Registry metadata
+          id: metadata.id.trim(),
           name: metadata.name.trim(),
           description: metadata.description.trim(),
           author: metadata.author.trim() || undefined,
@@ -150,7 +177,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
             model: config.llm?.model?.trim(),
             ...(config.llm?.apiKey?.trim() && { apiKey: config.llm.apiKey.trim() }),
           },
-          systemPrompt: config.systemPrompt,
+          systemPrompt: systemPromptContent,
         }),
       });
 
@@ -169,9 +196,9 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
       // Close modal
       onOpenChange(false);
 
-      // Notify parent
-      if (onAgentCreated && data.name) {
-        onAgentCreated(data.name);
+      // Notify parent with agent ID
+      if (onAgentCreated && data.id) {
+        onAgentCreated(data.id);
       }
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'An unexpected error occurred');
@@ -219,14 +246,30 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
           >
             <div className="space-y-4">
               <div>
-                <LabelWithTooltip htmlFor="agent-name" tooltip="Unique identifier for this agent (lowercase, no spaces)">
+                <LabelWithTooltip htmlFor="agent-id" tooltip="Unique identifier for this agent (lowercase, no spaces, hyphens only)">
+                  Agent ID *
+                </LabelWithTooltip>
+                <Input
+                  id="agent-id"
+                  value={metadata.id}
+                  onChange={(e) => updateMetadataField('id', e.target.value)}
+                  placeholder="my-custom-agent"
+                  aria-invalid={!!errors.id}
+                />
+                {errors.id && (
+                  <p className="text-xs text-destructive mt-1">{errors.id}</p>
+                )}
+              </div>
+
+              <div>
+                <LabelWithTooltip htmlFor="agent-name" tooltip="Display name for this agent (shown in UI)">
                   Agent Name *
                 </LabelWithTooltip>
                 <Input
                   id="agent-name"
                   value={metadata.name}
                   onChange={(e) => updateMetadataField('name', e.target.value)}
-                  placeholder="my-custom-agent"
+                  placeholder="My Custom Agent"
                   aria-invalid={!!errors.name}
                 />
                 {errors.name && (
