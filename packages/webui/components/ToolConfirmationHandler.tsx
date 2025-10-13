@@ -51,9 +51,10 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         return;
                     }
 
-                    // Only handle requests for the active session
+                    // Skip only if sessionId is present and doesn't match current session
+                    // Allow messages with no sessionId (global/legacy approvals)
                     const sid = message.data.sessionId as string | undefined;
-                    if (!sid || sid !== currentSessionId) return;
+                    if (sid && sid !== currentSessionId) return;
 
                     // Handle both tool confirmation and elicitation types
                     const messageType = message.data.type;

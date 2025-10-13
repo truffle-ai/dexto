@@ -44,7 +44,11 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 logger.debug(`[CLI] Ignoring unsupported approval type: ${event.type}`);
             }
         } catch (error) {
-            logger.error(`Error handling approval request: ${error}`);
+            // Use structured logging to preserve error stack and metadata
+            logger.error(
+                `Error handling approval request: ${error instanceof Error ? error.message : String(error)}`,
+                error instanceof Error ? { error } : undefined
+            );
             // Send denial response on error
             const errorResponse: any = {
                 approvalId: event.approvalId,

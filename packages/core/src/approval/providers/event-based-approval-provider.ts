@@ -157,6 +157,13 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                 )
             );
             this.pendingApprovals.delete(approvalId);
+
+            // Emit cancellation event so UI listeners can dismiss the prompt
+            this.agentEventBus.emit('dexto:approvalResponse', {
+                approvalId,
+                status: ApprovalStatus.CANCELLED,
+                sessionId: pending.request.sessionId,
+            });
         }
     }
 
@@ -164,8 +171,15 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
      * Cancel all pending approval requests
      */
     cancelAllApprovals(): void {
-        for (const [_approvalId, pending] of this.pendingApprovals) {
+        for (const [approvalId, pending] of this.pendingApprovals) {
             pending.reject(ApprovalError.cancelledAll('all requests cancelled'));
+
+            // Emit cancellation event for each approval so UI listeners can dismiss the prompts
+            this.agentEventBus.emit('dexto:approvalResponse', {
+                approvalId,
+                status: ApprovalStatus.CANCELLED,
+                sessionId: pending.request.sessionId,
+            });
         }
         this.pendingApprovals.clear();
     }

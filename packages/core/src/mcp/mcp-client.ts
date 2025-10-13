@@ -193,7 +193,8 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             // Need to implement eventSourceInit for SSE events.
         });
 
-        logger.debug(`[connectViaSSE] SSE transport: ${JSON.stringify(this.transport, null, 2)}`);
+        // Avoid logging full transport to prevent leaking headers/tokens
+        logger.debug('[connectViaSSE] SSE transport initialized');
         this.client = new Client(
             {
                 name: 'Dexto-sse-mcp-client',
