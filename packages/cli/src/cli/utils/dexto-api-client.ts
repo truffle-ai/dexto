@@ -27,7 +27,7 @@ export class DextoApiClient {
         try {
             logger.debug('Validating DEXTO_API_KEY');
 
-            const response = await fetch(`${this.baseUrl}/api/keys/validate`, {
+            const response = await fetch(`${this.baseUrl}/keys/validate`, {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
@@ -55,7 +55,7 @@ export class DextoApiClient {
         try {
             logger.debug('Rotating DEXTO_API_KEY');
 
-            const response = await fetch(`${this.baseUrl}/api/keys/rotate`, {
+            const response = await fetch(`${this.baseUrl}/keys/rotate`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${authToken}`,

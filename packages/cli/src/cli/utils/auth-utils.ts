@@ -62,7 +62,7 @@ export async function callProtectedAPI(endpoint: string, data?: any): Promise<an
         fetchOptions.body = JSON.stringify(data);
     }
 
-    const response = await authenticatedFetch(`${DEXTO_API_URL}/api${endpoint}`, fetchOptions);
+    const response = await authenticatedFetch(`${DEXTO_API_URL}${endpoint}`, fetchOptions);
 
     if (!response.ok) {
         if (response.status === 401) {
