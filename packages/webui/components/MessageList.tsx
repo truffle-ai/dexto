@@ -1055,7 +1055,7 @@ function extractResourceData(
   // Clean up extra whitespace and newlines
   cleanedText = cleanedText
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/ {2,}/g, ' ')  // Only collapse multiple spaces, preserve newlines
     .trim();
 
   return { cleanedText, uris: resolvedUris };
