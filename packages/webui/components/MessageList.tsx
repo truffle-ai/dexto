@@ -1256,6 +1256,34 @@ function renderNormalizedItem({
         </div>
       );
     }
+    case 'video': {
+      if (!isSafeMediaUrl(item.src, 'video')) {
+        return (
+          <div key={key} className="text-xs text-muted-foreground">
+            Unsupported video source
+          </div>
+        );
+      }
+      return (
+        <div key={key} className="flex flex-col gap-2 rounded-lg border border-border bg-background/50 p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FileVideo className="h-4 w-4" />
+            <span>Video</span>
+            {item.filename && (
+              <span className="truncate font-medium">{item.filename}</span>
+            )}
+          </div>
+          <video
+            controls
+            src={item.src}
+            className="w-full max-h-[360px] rounded-lg bg-black"
+            preload="metadata"
+          >
+            Your browser does not support the video tag.
+          </video>
+        </div>
+      );
+    }
     case 'file': {
       return (
         <div key={key} className="flex items-center gap-3 rounded-lg border border-border bg-background/60 p-2">

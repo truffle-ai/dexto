@@ -758,63 +758,134 @@ export async function sanitizeToolResultToContentWithBlobs(
                 const processedContent = [];
 
                 for (const item of anyObj.content) {
-                    if (item && typeof item === 'object' && 'data' in item && item.mimeType) {
-                        const fileData = getFileData({ data: item.data });
-                        const mimeType = item.mimeType;
+                    if (item && typeof item === 'object') {
+                        // Handle MCP resource type (embedded resources)
+                        if (item.type === 'resource' && item.resource) {
+                            const resource = item.resource;
+                            if (resource.text && resource.mimeType) {
+                                const fileData = resource.text;
+                                const mimeType = resource.mimeType;
 
-                        // Check if we should store as blob
-                        const approxSize =
-                            typeof fileData === 'string'
-                                ? Math.floor((fileData.length * 3) / 4)
-                                : 0;
-                        const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                                // Check if we should store as blob
+                                const approxSize =
+                                    typeof fileData === 'string'
+                                        ? Math.floor((fileData.length * 3) / 4)
+                                        : 0;
+                                const shouldStoreAsBlob = blobStore && approxSize > 1024;
 
-                        if (shouldStoreAsBlob) {
-                            try {
-                                logger.debug(
-                                    `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
-                                );
-                                const blobRef = await blobStore.store(fileData, {
-                                    mimeType,
-                                    source: 'tool',
-                                    originalName: buildToolBlobName(
-                                        item.type === 'image' ? 'image' : 'file',
+                                if (shouldStoreAsBlob) {
+                                    try {
+                                        logger.debug(
+                                            `Storing MCP resource as blob (${approxSize} bytes, ${mimeType})`
+                                        );
+                                        const blobRef = await blobStore.store(fileData, {
+                                            mimeType,
+                                            source: 'tool',
+                                            originalName: buildToolBlobName(
+                                                mimeType.startsWith('image/') ? 'image' : 'file',
+                                                mimeType,
+                                                namingOptions,
+                                                resource.title
+                                            ),
+                                        });
+                                        logger.debug(
+                                            `Stored MCP resource blob: ${blobRef.uri} (${approxSize} bytes)`
+                                        );
+                                        processedContent.push(`@${blobRef.uri}`);
+                                        continue;
+                                    } catch (error) {
+                                        logger.warn(
+                                            `Failed to store MCP resource blob, falling back to inline: ${String(error)}`
+                                        );
+                                    }
+                                }
+
+                                // Fall back to original structure based on MIME type
+                                if (mimeType.startsWith('image/')) {
+                                    processedContent.push({
+                                        type: 'image',
+                                        image: fileData,
                                         mimeType,
-                                        namingOptions,
-                                        item.filename
-                                    ),
-                                });
-                                logger.debug(
-                                    `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
-                                );
-                                processedContent.push(`@${blobRef.uri}`);
+                                    });
+                                } else if (mimeType.startsWith('video/')) {
+                                    processedContent.push({
+                                        type: 'file',
+                                        data: fileData,
+                                        mimeType,
+                                        filename: resource.title,
+                                    });
+                                } else {
+                                    processedContent.push({
+                                        type: 'file',
+                                        data: fileData,
+                                        mimeType,
+                                        filename: resource.title,
+                                    });
+                                }
                                 continue;
-                            } catch (error) {
-                                logger.warn(
-                                    `Failed to store MCP blob, falling back to inline: ${String(error)}`
-                                );
                             }
                         }
 
-                        // Fall back to original structure
-                        if (item.type === 'image') {
-                            processedContent.push({
-                                type: 'image',
-                                image: fileData,
-                                mimeType,
-                            });
-                        } else {
-                            processedContent.push({
-                                type: 'file',
-                                data: fileData,
-                                mimeType,
-                                filename: item.filename,
-                            });
+                        // Handle legacy data field (for backwards compatibility)
+                        if ('data' in item && item.mimeType) {
+                            const fileData = getFileData({ data: item.data });
+                            const mimeType = item.mimeType;
+
+                            // Check if we should store as blob
+                            const approxSize =
+                                typeof fileData === 'string'
+                                    ? Math.floor((fileData.length * 3) / 4)
+                                    : 0;
+                            const shouldStoreAsBlob = blobStore && approxSize > 1024;
+
+                            if (shouldStoreAsBlob) {
+                                try {
+                                    logger.debug(
+                                        `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
+                                    );
+                                    const blobRef = await blobStore.store(fileData, {
+                                        mimeType,
+                                        source: 'tool',
+                                        originalName: buildToolBlobName(
+                                            item.type === 'image' ? 'image' : 'file',
+                                            mimeType,
+                                            namingOptions,
+                                            item.filename
+                                        ),
+                                    });
+                                    logger.debug(
+                                        `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
+                                    );
+                                    processedContent.push(`@${blobRef.uri}`);
+                                    continue;
+                                } catch (error) {
+                                    logger.warn(
+                                        `Failed to store MCP blob, falling back to inline: ${String(error)}`
+                                    );
+                                }
+                            }
+
+                            // Fall back to original structure
+                            if (item.type === 'image') {
+                                processedContent.push({
+                                    type: 'image',
+                                    image: fileData,
+                                    mimeType,
+                                });
+                            } else {
+                                processedContent.push({
+                                    type: 'file',
+                                    data: fileData,
+                                    mimeType,
+                                    filename: item.filename,
+                                });
+                            }
+                            continue;
                         }
-                    } else {
-                        // Non-media content, keep as-is
-                        processedContent.push(item);
                     }
+
+                    // Non-media content, keep as-is
+                    processedContent.push(item);
                 }
 
                 return processedContent;

@@ -432,6 +432,49 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 } else if (audioPart.audio || audioPart.url) {
                                     return part; // Keep original format for URL-based audio
                                 }
+                            } else if (
+                                typeof part === 'object' &&
+                                part !== null &&
+                                (part as { type?: unknown }).type === 'resource'
+                            ) {
+                                const resourcePart = part as any;
+                                // Handle MCP resource type (embedded resources)
+                                if (
+                                    resourcePart.resource &&
+                                    resourcePart.resource.text &&
+                                    resourcePart.resource.mimeType
+                                ) {
+                                    const resource = resourcePart.resource;
+                                    // Convert MCP resource to appropriate content type based on MIME type
+                                    if (resource.mimeType.startsWith('image/')) {
+                                        return {
+                                            type: 'image',
+                                            base64: resource.text,
+                                            mimeType: resource.mimeType,
+                                        };
+                                    } else if (resource.mimeType.startsWith('video/')) {
+                                        return {
+                                            type: 'video',
+                                            data: resource.text,
+                                            mimeType: resource.mimeType,
+                                            filename: resource.title,
+                                        };
+                                    } else if (resource.mimeType.startsWith('audio/')) {
+                                        return {
+                                            type: 'audio',
+                                            base64: resource.text,
+                                            mimeType: resource.mimeType,
+                                            filename: resource.title,
+                                        };
+                                    } else {
+                                        return {
+                                            type: 'file',
+                                            data: resource.text,
+                                            mimeType: resource.mimeType,
+                                            filename: resource.title,
+                                        };
+                                    }
+                                }
                             }
                             return part;
                         });

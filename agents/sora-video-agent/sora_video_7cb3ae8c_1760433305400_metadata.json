@@ -1,0 +1,14 @@
+{
+  "id": "video_68ee1498b6548198899222b9030ec4200bfbc7afaca0bdf2",
+  "object": "video",
+  "created_at": 1760433305,
+  "status": "queued",
+  "completed_at": null,
+  "error": null,
+  "expires_at": null,
+  "model": "sora-2",
+  "progress": 0,
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "720x1280"
+}
