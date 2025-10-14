@@ -468,5 +468,64 @@ describe('Core Environment Loading', () => {
             const content = fs.readFileSync(deepPath, 'utf8');
             expect(content).toContain('OPENAI_API_KEY=test-key');
         });
+
+        it('handles DEXTO_API_KEY (new provider key after whitelist removal)', async () => {
+            const envFilePath = path.join(tempDir, '.env');
+
+            await updateEnvFile(envFilePath, {
+                DEXTO_API_KEY: 'dxt_test123',
+            });
+
+            const content = fs.readFileSync(envFilePath, 'utf8');
+            expect(content).toContain('## Dexto env variables');
+            expect(content).toContain('DEXTO_API_KEY=dxt_test123');
+        });
+
+        it('accepts arbitrary provider keys (no whitelist)', async () => {
+            const envFilePath = path.join(tempDir, '.env');
+
+            await updateEnvFile(envFilePath, {
+                NEW_PROVIDER_API_KEY: 'new-key',
+                CUSTOM_SERVICE_TOKEN: 'custom-token',
+                FUTURE_AI_KEY: 'future-key',
+            });
+
+            const content = fs.readFileSync(envFilePath, 'utf8');
+            expect(content).toContain('NEW_PROVIDER_API_KEY=new-key');
+            expect(content).toContain('CUSTOM_SERVICE_TOKEN=custom-token');
+            expect(content).toContain('FUTURE_AI_KEY=future-key');
+        });
+
+        it('adds new keys while preserving existing keys from previous updates', async () => {
+            const envFilePath = path.join(tempDir, '.env');
+
+            // First update: add some keys
+            await updateEnvFile(envFilePath, {
+                OPENAI_API_KEY: 'openai-key',
+                ANTHROPIC_API_KEY: 'anthropic-key',
+            });
+
+            // Second update: add new key, existing keys should remain
+            await updateEnvFile(envFilePath, {
+                DEXTO_API_KEY: 'dexto-key',
+            });
+
+            const content = fs.readFileSync(envFilePath, 'utf8');
+            expect(content).toContain('OPENAI_API_KEY=openai-key'); // Preserved
+            expect(content).toContain('ANTHROPIC_API_KEY=anthropic-key'); // Preserved
+            expect(content).toContain('DEXTO_API_KEY=dexto-key'); // New
+
+            // Third update: update one key, add another
+            await updateEnvFile(envFilePath, {
+                OPENAI_API_KEY: 'openai-updated',
+                GROQ_API_KEY: 'groq-key',
+            });
+
+            const finalContent = fs.readFileSync(envFilePath, 'utf8');
+            expect(finalContent).toContain('OPENAI_API_KEY=openai-updated'); // Updated
+            expect(finalContent).toContain('ANTHROPIC_API_KEY=anthropic-key'); // Still preserved
+            expect(finalContent).toContain('DEXTO_API_KEY=dexto-key'); // Still preserved
+            expect(finalContent).toContain('GROQ_API_KEY=groq-key'); // New
+        });
     });
 });
