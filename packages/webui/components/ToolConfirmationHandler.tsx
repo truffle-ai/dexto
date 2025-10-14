@@ -129,7 +129,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
     }, [websocket, pendingConfirmation, currentSessionId]);
 
     // Send confirmation response
-    const sendResponse = useCallback((approved: boolean, formData?: Record<string, any>, rememberChoice?: boolean) => {
+    const sendResponse = useCallback((approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
         if (!pendingConfirmation || !websocket) return;
 
         const isElicitation = pendingConfirmation.type === 'elicitation';
@@ -167,7 +167,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
         }
     }, [pendingConfirmation, websocket]);
 
-    const handleApprove = useCallback((formData?: Record<string, any>, rememberChoice?: boolean) => {
+    const handleApprove = useCallback((formData?: Record<string, unknown>, rememberChoice?: boolean) => {
         sendResponse(true, formData, rememberChoice);
         externalOnApprove?.(formData, rememberChoice);
     }, [sendResponse, externalOnApprove]);

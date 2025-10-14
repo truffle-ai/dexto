@@ -53,7 +53,7 @@ export const BaseApprovalRequestSchema = z
         approvalId: z.string().uuid().describe('Unique approval identifier'),
         type: ApprovalTypeSchema.describe('Type of approval'),
         sessionId: z.string().optional().describe('Session identifier'),
-        timeout: z.number().int().positive().optional().describe('Timeout in milliseconds'),
+        timeout: z.number().int().positive().describe('Timeout in milliseconds'),
         timestamp: z.date().describe('When the request was created'),
     })
     .describe('Base approval request');
@@ -165,7 +165,7 @@ export const ApprovalResponseSchema = z.union([
 export const ApprovalRequestDetailsSchema = z.object({
     type: ApprovalTypeSchema,
     sessionId: z.string().optional(),
-    timeout: z.number().int().positive().optional(),
+    timeout: z.number().int().positive(),
     metadata: z.union([
         ToolConfirmationMetadataSchema,
         ElicitationMetadataSchema,

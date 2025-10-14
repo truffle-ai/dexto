@@ -108,14 +108,12 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
+            timeout: timeout ?? this.config.timeout,
             metadata: toolMetadata,
         };
 
         if (sessionId !== undefined) {
             details.sessionId = sessionId;
-        }
-        if (timeout !== undefined) {
-            details.timeout = timeout;
         }
 
         return this.requestApproval(details);
@@ -124,6 +122,9 @@ export class ApprovalManager {
     /**
      * Request elicitation from MCP server
      * Convenience method for MCP elicitation requests
+     *
+     * Note: sessionId is optional because MCP servers are shared across sessions
+     * and the MCP protocol doesn't include session context in elicitation requests.
      */
     async requestElicitation(
         metadata: ElicitationMetadata & { sessionId?: string; timeout?: number }
@@ -132,14 +133,12 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.ELICITATION,
+            timeout: timeout ?? this.config.timeout,
             metadata: elicitationMetadata,
         };
 
         if (sessionId !== undefined) {
             details.sessionId = sessionId;
-        }
-        if (timeout !== undefined) {
-            details.timeout = timeout;
         }
 
         return this.requestApproval(details);

@@ -646,6 +646,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                     return { action: 'decline' };
                 }
 
+                // Note: MCP elicitation requests do not include sessionId
+                // MCP servers are shared across sessions and the MCP protocol doesn't include
+                // session context. Elicitations are typically for server-level data (credentials,
+                // config) rather than session-specific data.
                 const response = await this.approvalManager.requestElicitation({
                     schema: params.requestedSchema as Record<string, unknown>,
                     prompt: params.message,
