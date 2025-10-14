@@ -517,41 +517,95 @@ program
         }
     });
 
-// 12) `openrouter-status` SUB-COMMAND
+// OpenRouter commands removed - infrastructure now hidden from users
+
+// 14) `models` SUB-COMMAND
 program
-    .command('openrouter-status')
-    .description('Show OpenRouter API key status')
-    .action(async () => {
+    .command('models')
+    .description('List available AI models from Dexto gateway')
+    .option('--json', 'Output in JSON format')
+    .option('--filter <text>', 'Filter models by name or ID')
+    .action(async (options: { json?: boolean; filter?: string }) => {
         try {
-            const { handleOpenRouterStatusCommand } = await import(
-                './cli/commands/openrouter/index.js'
-            );
-            await handleOpenRouterStatusCommand();
+            const { DEXTO_API_URL } = await import('./cli/utils/constants.js');
+
+            logger.debug(`Fetching models from ${DEXTO_API_URL}/v1/models`);
+
+            const response = await fetch(`${DEXTO_API_URL}/v1/models`);
+
+            if (!response.ok) {
+                console.error(
+                    `❌ Failed to fetch models: ${response.status} ${response.statusText}`
+                );
+                process.exit(1);
+            }
+
+            const data = await response.json();
+
+            if (!data.data || !Array.isArray(data.data)) {
+                console.error('❌ Invalid response format from models API');
+                process.exit(1);
+            }
+
+            let models = data.data;
+
+            // Apply filter if provided
+            if (options.filter) {
+                const filterLower = options.filter.toLowerCase();
+                models = models.filter(
+                    (model: any) =>
+                        model.id?.toLowerCase().includes(filterLower) ||
+                        model.name?.toLowerCase().includes(filterLower)
+                );
+            }
+
+            if (options.json) {
+                console.log(JSON.stringify({ data: models }, null, 2));
+            } else {
+                console.log(chalk.cyan(`\n📋 Available Models (${models.length} total)\n`));
+
+                for (const model of models.slice(0, 50)) {
+                    const id = model.id || 'unknown';
+                    const name = model.name || model.id || 'Unknown';
+                    const context = model.context_length
+                        ? ` (${model.context_length.toLocaleString()} tokens)`
+                        : '';
+
+                    console.log(`  ${chalk.green('•')} ${chalk.bold(id)}`);
+                    console.log(`    ${name}${context}`);
+                    if (model.pricing) {
+                        const promptPrice = model.pricing.prompt
+                            ? `$${model.pricing.prompt}/1M`
+                            : 'N/A';
+                        const completionPrice = model.pricing.completion
+                            ? `$${model.pricing.completion}/1M`
+                            : 'N/A';
+                        console.log(
+                            `    ${chalk.gray(`Pricing: ${promptPrice} prompt, ${completionPrice} completion`)}`
+                        );
+                    }
+                    console.log('');
+                }
+
+                if (models.length > 50) {
+                    console.log(chalk.yellow(`  ... and ${models.length - 50} more models`));
+                    console.log(
+                        chalk.gray(`  Use --json to see all models or --filter to search\n`)
+                    );
+                }
+
+                console.log(chalk.gray(`💡 Use these model IDs with: dexto -m <model-id>`));
+                console.log(chalk.gray(`   Example: dexto -m anthropic/claude-3-haiku "Hello"\n`));
+            }
+
             process.exit(0);
         } catch (err) {
-            console.error(`❌ dexto openrouter-status command failed: ${err}`);
+            console.error(`❌ dexto models command failed: ${err}`);
             process.exit(1);
         }
     });
 
-// 14) `openrouter-models` SUB-COMMAND
-program
-    .command('openrouter-models')
-    .description('Show available OpenRouter models')
-    .action(async () => {
-        try {
-            const { handleOpenRouterModelsCommand } = await import(
-                './cli/commands/openrouter/index.js'
-            );
-            await handleOpenRouterModelsCommand();
-            process.exit(0);
-        } catch (err) {
-            console.error(`❌ dexto openrouter-models command failed: ${err}`);
-            process.exit(1);
-        }
-    });
-
-// 12) `whoami` SUB-COMMAND
+// 15) `whoami` SUB-COMMAND
 program
     .command('whoami')
     .description('Show current user information')
@@ -565,7 +619,7 @@ program
         }
     });
 
-// 13) `mcp` SUB-COMMAND
+// 16) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -656,7 +710,7 @@ program
         )
     );
 
-// 15) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 17) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
 program
     .argument(
         '[prompt...]',
@@ -825,17 +879,15 @@ program
                     safeExit('main', 1, 'config-load-failed');
                 }
 
-                // ——— SETUP OPENROUTER (if available) ———
+                // ——— SETUP DEXTO (if available) ———
                 try {
-                    const { setupOpenRouterIfAvailable } = await import(
-                        './cli/utils/openrouter-setup.js'
-                    );
-                    const openRouterSetup = await setupOpenRouterIfAvailable();
-                    if (openRouterSetup) {
-                        logger.info('OpenRouter API key configured automatically');
+                    const { setupDextoIfAvailable } = await import('./cli/utils/dexto-setup.js');
+                    const dextoSetup = await setupDextoIfAvailable();
+                    if (dextoSetup) {
+                        logger.debug('DEXTO_API_KEY configured automatically');
                     }
                 } catch (error) {
-                    logger.debug(`OpenRouter setup skipped: ${error}`);
+                    logger.debug(`Dexto setup skipped: ${error}`);
                 }
 
                 // ——— CREATE AGENT ———
@@ -1070,5 +1122,5 @@ program
         )
     );
 
-// 16) PARSE & EXECUTE
+// 18) PARSE & EXECUTE
 program.parseAsync(process.argv);

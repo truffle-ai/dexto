@@ -52,7 +52,7 @@ export async function handleWelcomeFlow(): Promise<WelcomeChoice> {
 export async function showLoginDetails(): Promise<boolean> {
     p.note(
         '🚀 Login with Dexto provides:\n\n' +
-            '• Automatic OpenRouter API key provisioning\n' +
+            '• Automatic AI model access provisioning\n' +
             '• Access to 100+ AI models (GPT-4, Claude, Gemini, etc.)\n' +
             '• Free tier included with $10 credit\n' +
             '• No manual API key setup required\n' +

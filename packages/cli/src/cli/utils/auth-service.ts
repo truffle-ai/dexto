@@ -18,6 +18,8 @@ export interface AuthConfig {
     createdAt: number;
     openRouterApiKey?: string | undefined;
     openRouterKeyId?: string | undefined;
+    dextoApiKey?: string | undefined;
+    dextoKeyId?: string | undefined;
 }
 
 const AuthConfigSchema = z.object({
@@ -29,6 +31,8 @@ const AuthConfigSchema = z.object({
     createdAt: z.number(),
     openRouterApiKey: z.string().optional(),
     openRouterKeyId: z.string().optional(),
+    dextoApiKey: z.string().optional(),
+    dextoKeyId: z.string().optional(),
 });
 
 export async function storeAuth(config: AuthConfig): Promise<void> {
@@ -130,6 +134,11 @@ export async function getAuthToken(): Promise<string | null> {
 export async function getOpenRouterApiKey(): Promise<string | null> {
     const auth = await loadAuth();
     return auth?.openRouterApiKey || null;
+}
+
+export async function getDextoApiKey(): Promise<string | null> {
+    const auth = await loadAuth();
+    return auth?.dextoApiKey || null;
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<{

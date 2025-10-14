@@ -8,7 +8,7 @@ import { getPrimaryApiKeyEnvVar } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { writePreferencesToAgent } from '@dexto/core';
 import { handleBrowserLogin } from '../commands/auth/login.js';
-import { setupOpenRouterIfAvailable } from './openrouter-setup.js';
+import { setupDextoIfAvailable } from './dexto-setup.js';
 
 /**
  * Complete login flow that handles authentication, key provisioning, and configuration
@@ -29,14 +29,25 @@ export async function handleCompleteLoginFlow(): Promise<void> {
             // Perform browser-based OAuth login (handles its own UI)
             await handleBrowserLogin();
 
-            // Configure OpenRouter environment
+            // Configure Dexto AI gateway environment
             const spinner = p.spinner();
-            spinner.start('Configuring OpenRouter access...');
-            const openRouterConfigured = await setupOpenRouterIfAvailable();
+            spinner.start('Configuring Dexto AI gateway...');
 
-            if (!openRouterConfigured) {
-                spinner.stop(chalk.yellow('⚠️  OpenRouter configuration failed'));
-                throw new Error('Failed to configure OpenRouter access');
+            try {
+                const dextoConfigured = await setupDextoIfAvailable();
+
+                if (!dextoConfigured) {
+                    // This is okay - user might already have a key that wasn't provisioned,
+                    // or they can use manual API key setup
+                    spinner.stop(chalk.dim('ℹ️  Dexto API key not found locally'));
+                    logger.debug('setupDextoIfAvailable returned false - key not in auth.json');
+                } else {
+                    spinner.stop(chalk.green('✅ Dexto API key configured'));
+                }
+            } catch (error) {
+                spinner.stop(chalk.dim('ℹ️  Dexto setup skipped'));
+                logger.debug(`Dexto setup error: ${error}`);
+                // Don't block login - key setup is optional
             }
 
             // Set up default preferences for logged-in user
@@ -49,11 +60,9 @@ export async function handleCompleteLoginFlow(): Promise<void> {
 
             spinner.stop(chalk.green('✅ Login setup complete!'));
 
-            p.outro(chalk.green("🎉 You're all set! Dexto is configured with OpenRouter."));
-            console.log(
-                chalk.dim('\n💡 You can now use any OpenRouter model in your agent configs.')
-            );
-            console.log(chalk.dim('   Example: model: openai/gpt-4o'));
+            p.outro(chalk.green("🎉 You're all set! Dexto is ready to use."));
+            console.log(chalk.dim('\n💡 You can now use 100+ AI models with Dexto.'));
+            console.log(chalk.dim('   Example: dexto -m anthropic/claude-3-haiku "Hello"'));
             console.log(chalk.dim('\n🚀 Run `dexto` to start chatting!'));
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -72,8 +81,8 @@ export async function handleCompleteLoginFlow(): Promise<void> {
  */
 async function setupDefaultPreferences() {
     try {
-        // Prefer Dexto gateway if key is present; else default to OpenRouter
-        const provider: LLMProvider = process.env.DEXTO_API_KEY ? 'dexto' : 'openrouter';
+        // Use Dexto AI gateway as default provider for logged-in users
+        const provider: LLMProvider = 'dexto';
         const preferences = createInitialPreferences(
             provider,
             undefined,

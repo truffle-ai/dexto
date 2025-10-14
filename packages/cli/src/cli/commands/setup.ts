@@ -16,7 +16,7 @@ import { requiresSetup } from '../utils/setup-utils.js';
 import { handleWelcomeFlow } from '../utils/welcome-flow.js';
 import { handleCompleteLoginFlow } from '../utils/login-flow.js';
 import { isAuthenticated } from '../utils/auth-service.js';
-import { setupOpenRouterIfAvailable } from '../utils/openrouter-setup.js';
+import { setupDextoIfAvailable } from '../utils/dexto-setup.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -126,35 +126,33 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 
     console.log(chalk.cyan('\n🗿 Setting up Dexto...\n'));
 
-    // Check if user is already logged in and can use OpenRouter
+    // Check if user is already logged in and can use Dexto AI Gateway
     if (validated.interactive && !validated.provider && (await isAuthenticated())) {
         console.log(chalk.green('✅ Already logged in!'));
-        console.log(chalk.cyan('🔑 Setting up OpenRouter with your existing credentials...\n'));
+        console.log(chalk.cyan('🔑 Setting up Dexto AI gateway...\n'));
 
         try {
-            // Configure OpenRouter environment
-            const openRouterConfigured = await setupOpenRouterIfAvailable();
+            // Configure Dexto environment
+            const dextoConfigured = await setupDextoIfAvailable();
 
-            if (openRouterConfigured) {
-                // Create preferences for OpenRouter
+            if (dextoConfigured) {
+                // Create preferences for Dexto
                 const preferences = createInitialPreferences(
-                    'openrouter',
+                    'dexto',
                     undefined,
-                    getPrimaryApiKeyEnvVar('openrouter'),
+                    getPrimaryApiKeyEnvVar('dexto'),
                     validated.defaultAgent
                 );
 
                 await saveGlobalPreferences(preferences);
 
-                console.log(
-                    chalk.green('\n✨ Setup complete! Dexto is configured with OpenRouter.\n')
-                );
-                console.log(chalk.dim('💡 You can now use any OpenRouter model in your agents.'));
-                console.log(chalk.dim('   Example: model: openai/gpt-4o\n'));
+                console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));
+                console.log(chalk.dim('💡 You can now use 100+ AI models with Dexto.'));
+                console.log(chalk.dim('   Example: dexto -m anthropic/claude-3-haiku "Hello"\n'));
 
                 // Track successful auto-setup
                 capture('dexto_setup', {
-                    provider: 'openrouter',
+                    provider: 'dexto',
                     model: 'inherit',
                     hadApiKeyBefore: true,
                     setupMode: 'interactive',
@@ -163,10 +161,10 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
                 return; // Setup complete
             }
         } catch (error) {
-            logger.warn(`Failed to auto-configure OpenRouter: ${error}`);
+            logger.warn(`Failed to auto-configure Dexto: ${error}`);
             console.log(
                 chalk.yellow(
-                    '⚠️  Could not automatically configure OpenRouter. Proceeding with manual setup...\n'
+                    '⚠️  Could not automatically configure Dexto. Proceeding with manual setup...\n'
                 )
             );
             // Fall through to manual setup flow
