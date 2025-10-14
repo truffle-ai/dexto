@@ -796,7 +796,8 @@ export function getMaxInputTokensForModel(provider: LLMProvider, model: string):
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
 
-    if (provider === 'openrouter') {
+    // Both openrouter and dexto use OpenRouter-compatible model IDs
+    if (provider === 'openrouter' || provider === 'dexto') {
         const lookup = lookupOpenRouterModel(model);
         if (lookup === 'invalid') {
             logger.debug(`Model '${model}' is not recognized by OpenRouter`);
@@ -814,7 +815,8 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
 }
 
 export function getOpenRouterIdForModel(provider: LLMProvider, model: string): string | null {
-    if (provider === 'openrouter') {
+    // Both openrouter and dexto use OpenRouter-compatible model IDs directly
+    if (provider === 'openrouter' || provider === 'dexto') {
         return model;
     }
 

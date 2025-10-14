@@ -37,7 +37,8 @@ class LLMTestHelpers {
         let defaultModel = getDefaultModelForProvider(provider) || models[0];
 
         if (!defaultModel) {
-            if (provider === 'openrouter') {
+            // Both openrouter and dexto use OpenRouter-compatible model IDs
+            if (provider === 'openrouter' || provider === 'dexto') {
                 defaultModel = 'openai/gpt-4o-mini';
             } else {
                 defaultModel = 'custom-model';

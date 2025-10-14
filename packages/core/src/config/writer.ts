@@ -18,6 +18,8 @@ export interface LLMOverrides {
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4o-mini';
+const DEXTO_BASE_URL = 'https://api.dexto.ai/v1';
+const DEXTO_DEFAULT_MODEL = 'openai/gpt-4o-mini';
 
 function coerceLLMProvider(value: unknown): LLMProvider | undefined {
     if (typeof value !== 'string') {
@@ -119,25 +121,37 @@ export async function writeLLMPreferences(
     let finalModel = explicitModel ?? undefined;
     let finalBaseURL = baseURLPreference;
 
-    if (provider === 'openrouter') {
-        finalBaseURL = baseURLPreference ?? OPENROUTER_BASE_URL;
+    // Both openrouter and dexto use the same OpenRouter-compatible format
+    if (provider === 'openrouter' || provider === 'dexto') {
+        // Set baseURL: openrouter → openrouter.ai, dexto → api.dexto.ai
+        const defaultBaseURL = provider === 'openrouter' ? OPENROUTER_BASE_URL : DEXTO_BASE_URL;
+        const defaultModel =
+            provider === 'openrouter' ? OPENROUTER_DEFAULT_MODEL : DEXTO_DEFAULT_MODEL;
+        finalBaseURL = baseURLPreference ?? defaultBaseURL;
 
         if (!finalModel || finalModel.trim().length === 0) {
             const agentProvider = coerceLLMProvider(config.llm?.provider);
             const agentModel = config.llm?.model;
 
-            if (config.llm?.provider === 'openrouter' && agentModel) {
+            // If agent already uses same provider, reuse its model
+            if (
+                (config.llm?.provider === 'openrouter' || config.llm?.provider === 'dexto') &&
+                agentModel
+            ) {
                 finalModel = agentModel;
             } else if (agentProvider && agentModel) {
+                // Convert native provider/model to OpenRouter format (e.g., anthropic/claude-3-sonnet)
                 finalModel = getOpenRouterIdForModel(agentProvider, agentModel) ?? undefined;
             }
 
+            // If model already in provider/model format, use it as-is
             if (!finalModel && typeof agentModel === 'string' && agentModel.includes('/')) {
                 finalModel = agentModel;
             }
 
+            // Fall back to default model if still no model
             if (!finalModel) {
-                finalModel = OPENROUTER_DEFAULT_MODEL;
+                finalModel = defaultModel;
             }
         }
     } else if (!finalModel || finalModel.trim().length === 0) {

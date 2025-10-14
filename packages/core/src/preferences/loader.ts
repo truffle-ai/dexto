@@ -134,19 +134,17 @@ export function createInitialPreferences(
         );
     }
 
-    const resolvedBaseURL =
-        baseURL ??
-        (provider === 'openrouter'
-            ? 'https://openrouter.ai/api/v1'
-            : provider === 'dexto'
-              ? 'https://api.dexto.ai/v1'
-              : undefined);
+    // BaseURL handling:
+    // - openrouter/dexto: NEVER include in preferences (injected at runtime in config/writer.ts)
+    // - openai-compatible: Use provided baseURL (required for custom endpoints)
+    // - other providers: Use provided baseURL if any
+    const shouldIncludeBaseURL = provider !== 'openrouter' && provider !== 'dexto' && baseURL;
 
     const llm: GlobalPreferences['llm'] = {
         provider,
         apiKey: `$${apiKeyVar}`,
         ...(model ? { model } : {}),
-        ...(resolvedBaseURL && { baseURL: resolvedBaseURL }),
+        ...(shouldIncludeBaseURL && { baseURL }),
     };
 
     return {

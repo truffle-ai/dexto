@@ -152,12 +152,11 @@ describe('Preferences Loader', () => {
             expect(fileContent).toMatch(/^defaults:/m);
         });
 
-        it('should allow saving dexto preferences without a model', async () => {
+        it('should allow saving dexto preferences without a model or baseURL', async () => {
             const dextoPreferences: GlobalPreferences = {
                 llm: {
                     provider: 'dexto',
                     apiKey: '$DEXTO_API_KEY',
-                    baseURL: 'https://api.dexto.ai/v1',
                 },
                 defaults: {
                     defaultAgent: 'test-agent',
@@ -172,7 +171,7 @@ describe('Preferences Loader', () => {
             const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
             expect(fileContent).toContain('provider: dexto');
             expect(fileContent).toContain('apiKey: $DEXTO_API_KEY');
-            expect(fileContent).toContain('baseURL: https://api.dexto.ai/v1');
+            expect(fileContent).not.toContain('baseURL'); // BaseURL injected at runtime, not in preferences
             expect(fileContent).not.toContain('model:'); // No model specified
         });
 
@@ -354,7 +353,7 @@ setup:
 
             expect(preferences.llm.provider).toBe('openrouter');
             expect(preferences.llm.model).toBeUndefined();
-            expect(preferences.llm.baseURL).toBe('https://openrouter.ai/api/v1');
+            expect(preferences.llm.baseURL).toBeUndefined(); // BaseURL injected at runtime
         });
 
         it('should allow dexto preferences without a model', () => {
@@ -367,7 +366,7 @@ setup:
 
             expect(preferences.llm.provider).toBe('dexto');
             expect(preferences.llm.model).toBeUndefined();
-            expect(preferences.llm.baseURL).toBe('https://api.dexto.ai/v1');
+            expect(preferences.llm.baseURL).toBeUndefined(); // BaseURL injected at runtime
         });
 
         it('should allow dexto preferences with a model', () => {
@@ -380,7 +379,7 @@ setup:
 
             expect(preferences.llm.provider).toBe('dexto');
             expect(preferences.llm.model).toBe('anthropic/claude-4-sonnet');
-            expect(preferences.llm.baseURL).toBe('https://api.dexto.ai/v1');
+            expect(preferences.llm.baseURL).toBeUndefined(); // BaseURL injected at runtime
         });
 
         it('should require a model for non-openrouter/dexto providers', () => {

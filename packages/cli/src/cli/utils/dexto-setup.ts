@@ -8,7 +8,6 @@ import { saveProviderApiKey } from '@dexto/core';
  * Dexto AI Gateway configuration for CLI users
  */
 export const DEXTO_CONFIG = {
-    baseURL: 'https://api.dexto.ai/v1',
     provider: 'dexto' as const,
     router: 'vercel' as const,
 };
@@ -38,13 +37,14 @@ export async function setupDextoIfAvailable(): Promise<boolean> {
 
 /**
  * Get Dexto configuration for agent configs
+ * Note: baseURL is automatically injected at runtime (https://api.dexto.ai/v1)
  */
 export function getDextoLLMConfig(model: string) {
     return {
         provider: DEXTO_CONFIG.provider,
         model,
         router: DEXTO_CONFIG.router,
-        baseURL: DEXTO_CONFIG.baseURL,
+        // baseURL intentionally omitted - injected at runtime in config/writer.ts
         apiKey: '$DEXTO_API_KEY', // Will be resolved from environment
     };
 }
