@@ -59,7 +59,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                     // Handle both tool confirmation and elicitation types
                     const messageType = message.data.type;
                     if (messageType !== 'tool_confirmation' && messageType !== 'elicitation') {
-                        console.debug('[WebUI] Ignoring unsupported approval type:', messageType);
+                        console.debug(`[WebUI] Ignoring unsupported approval type: ${messageType}`);
                         return;
                     }
 
@@ -115,7 +115,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         };
                     }
 
-                    console.debug('[WebUI] Received approvalRequest', approvalEvent);
+                    console.debug(`[WebUI] Received approvalRequest: ${JSON.stringify(approvalEvent)}`);
 
                     if (pendingConfirmation) {
                         // Buffer the request to be shown later
@@ -160,8 +160,20 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
             },
         };
 
-        console.debug('[WebUI] Sending approvalResponse', response);
-        websocket.send(JSON.stringify(response));
+        console.debug(`[WebUI] Sending approvalResponse: ${JSON.stringify(response)}`);
+
+        // Check websocket is open before sending
+        if (websocket.readyState !== WebSocket.OPEN) {
+            console.warn(`[WebUI] WebSocket not open (readyState: ${websocket.readyState}), cannot send approval response for ${pendingConfirmation.approvalId}`);
+            return;
+        }
+
+        try {
+            websocket.send(JSON.stringify(response));
+        } catch (error) {
+            console.error(`[WebUI] Failed to send approval response: ${error instanceof Error ? error.message : String(error)}`);
+            return;
+        }
 
         // Clear current approval
         setPendingConfirmation(null);
