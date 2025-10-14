@@ -31,7 +31,9 @@ export const PreferenceLLMSchema = z
     .superRefine((data, ctx) => {
         const modelProvided = typeof data.model === 'string' && data.model.length > 0;
 
-        if (data.provider !== 'openrouter' && !modelProvided) {
+        // Allow model to be omitted for OpenRouter and Dexto (OpenRouter-compatible)
+        // Model will fall back to agent-specific configuration
+        if (data.provider !== 'openrouter' && data.provider !== 'dexto' && !modelProvided) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['model'],
