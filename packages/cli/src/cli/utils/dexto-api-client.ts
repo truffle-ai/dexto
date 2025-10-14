@@ -4,9 +4,6 @@ import { logger } from '@dexto/core';
 
 interface ProvisionResponse {
     success: boolean;
-    // Legacy (OpenRouter provisioning endpoint)
-    apiKey?: string;
-    // New (Gateway provisioning endpoint)
     dextoApiKey?: string;
     keyId?: string;
     isNewKey?: boolean;
@@ -14,107 +11,13 @@ interface ProvisionResponse {
 }
 
 /**
- * Dexto API client for OpenRouter provisioning
+ * Dexto API client for key management
  */
 export class DextoApiClient {
     private readonly baseUrl: string;
 
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
-    }
-
-    /**
-     * Provision OpenRouter API key for authenticated user (legacy path)
-     */
-    async provisionOpenRouterKey(
-        authToken: string
-    ): Promise<{ apiKey: string; keyId: string; isNewKey: boolean }> {
-        try {
-            logger.debug('Requesting OpenRouter API key from Dexto API');
-
-            const response = await fetch(`${this.baseUrl}/api/openrouter-provision`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${authToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API request failed: ${response.status} ${errorText}`);
-            }
-
-            const result: ProvisionResponse = await response.json();
-
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to provision OpenRouter API key');
-            }
-
-            if (!result.apiKey || !result.keyId) {
-                throw new Error('Invalid response from API');
-            }
-
-            logger.debug(`Successfully provisioned OpenRouter API key: ${result.keyId}`);
-            return {
-                apiKey: result.apiKey,
-                keyId: result.keyId,
-                isNewKey: result.isNewKey ?? false,
-            };
-        } catch (error) {
-            logger.error(
-                `Error provisioning OpenRouter API key at ${this.baseUrl}/api/openrouter-provision: ${error}`
-            );
-            throw error;
-        }
-    }
-
-    /**
-     * Provision Dexto API key (DEXTO_API_KEY); server also ensures per-user OpenRouter key exists.
-     */
-    async provisionDextoApiKey(
-        authToken: string
-    ): Promise<{ dextoApiKey: string; keyId: string; isNewKey: boolean }> {
-        try {
-            logger.debug('Requesting DEXTO_API_KEY from Dexto API');
-
-            const response = await fetch(`${this.baseUrl}/api/provision`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${authToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({}),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API request failed: ${response.status} ${errorText}`);
-            }
-
-            const result: ProvisionResponse = await response.json();
-
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to provision Dexto API key');
-            }
-
-            const key = result.dextoApiKey;
-            if (!key || !result.keyId) {
-                throw new Error('Invalid response from API');
-            }
-
-            logger.debug(`Successfully provisioned DEXTO_API_KEY: ${result.keyId}`);
-            return {
-                dextoApiKey: key,
-                keyId: result.keyId,
-                isNewKey: result.isNewKey ?? false,
-            };
-        } catch (error) {
-            logger.error(
-                `Error provisioning Dexto API key at ${this.baseUrl}/api/provision: ${error}`
-            );
-            throw error;
-        }
     }
 
     /**
