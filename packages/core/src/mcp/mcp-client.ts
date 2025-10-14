@@ -650,6 +650,19 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 // MCP servers are shared across sessions and the MCP protocol doesn't include
                 // session context. Elicitations are typically for server-level data (credentials,
                 // config) rather than session-specific data.
+
+                // Validate requestedSchema is an object before casting
+                if (
+                    typeof params.requestedSchema !== 'object' ||
+                    params.requestedSchema === null ||
+                    Array.isArray(params.requestedSchema)
+                ) {
+                    logger.error(
+                        `Invalid elicitation schema from '${this.serverAlias}': expected object, got ${typeof params.requestedSchema}`
+                    );
+                    return { action: 'decline' };
+                }
+
                 const response = await this.approvalManager.requestElicitation({
                     schema: params.requestedSchema as Record<string, unknown>,
                     prompt: params.message,

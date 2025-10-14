@@ -162,16 +162,49 @@ export const ApprovalResponseSchema = z.union([
 /**
  * Approval request details schema for creating requests
  */
-export const ApprovalRequestDetailsSchema = z.object({
-    type: ApprovalTypeSchema,
-    sessionId: z.string().optional(),
-    timeout: z.number().int().positive(),
-    metadata: z.union([
-        ToolConfirmationMetadataSchema,
-        ElicitationMetadataSchema,
-        CustomApprovalMetadataSchema,
-    ]),
-});
+export const ApprovalRequestDetailsSchema = z
+    .object({
+        type: ApprovalTypeSchema,
+        sessionId: z.string().optional(),
+        timeout: z.number().int().positive(),
+        metadata: z.union([
+            ToolConfirmationMetadataSchema,
+            ElicitationMetadataSchema,
+            CustomApprovalMetadataSchema,
+        ]),
+    })
+    .superRefine((data, ctx) => {
+        // Validate metadata matches type
+        if (data.type === ApprovalType.TOOL_CONFIRMATION) {
+            const result = ToolConfirmationMetadataSchema.safeParse(data.metadata);
+            if (!result.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message:
+                        'Metadata must match ToolConfirmationMetadataSchema for TOOL_CONFIRMATION type',
+                    path: ['metadata'],
+                });
+            }
+        } else if (data.type === ApprovalType.ELICITATION) {
+            const result = ElicitationMetadataSchema.safeParse(data.metadata);
+            if (!result.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'Metadata must match ElicitationMetadataSchema for ELICITATION type',
+                    path: ['metadata'],
+                });
+            }
+        } else if (data.type === ApprovalType.CUSTOM) {
+            const result = CustomApprovalMetadataSchema.safeParse(data.metadata);
+            if (!result.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'Metadata must match CustomApprovalMetadataSchema for CUSTOM type',
+                    path: ['metadata'],
+                });
+            }
+        }
+    });
 
 /**
  * Type inference for validated schemas

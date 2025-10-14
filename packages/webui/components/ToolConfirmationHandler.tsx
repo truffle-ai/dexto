@@ -63,6 +63,14 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         return;
                     }
 
+                    // Validate approvalId and timestamp before constructing events
+                    const approvalId = message.data.approvalId;
+                    const timestamp = message.data.timestamp;
+                    if (typeof approvalId !== 'string' || typeof timestamp !== 'string') {
+                        console.error('[WebUI] Invalid approvalRequest: approvalId and timestamp must be strings');
+                        return;
+                    }
+
                     let approvalEvent: ApprovalEvent;
 
                     if (messageType === 'tool_confirmation') {
@@ -87,21 +95,21 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         }
 
                         approvalEvent = {
-                            approvalId: message.data.approvalId,
+                            approvalId,
                             type: messageType,
                             toolName: toolName,
                             args: args,
                             description: typeof metadata.description === 'string' ? metadata.description : undefined,
-                            timestamp: message.data.timestamp,
+                            timestamp,
                             sessionId: message.data.sessionId,
                             metadata: metadata,
                         };
                     } else {
                         // Elicitation request
                         approvalEvent = {
-                            approvalId: message.data.approvalId,
+                            approvalId,
                             type: messageType,
-                            timestamp: message.data.timestamp,
+                            timestamp,
                             sessionId: message.data.sessionId,
                             metadata: message.data.metadata || {},
                         };
