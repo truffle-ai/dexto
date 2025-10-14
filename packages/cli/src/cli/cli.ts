@@ -237,7 +237,30 @@ export async function startAiCli(agent: DextoAgent) {
                         (err as any).aborted === true ||
                         /abort/i.test(err.message || '');
                     if (!aborted) {
-                        logger.error(`Error in processing input: ${err.message}`);
+                        // Display error to user (console) AND log to file
+                        if (
+                            error instanceof DextoRuntimeError &&
+                            error.code === LLMErrorCode.MODEL_UNKNOWN
+                        ) {
+                            console.log(chalk.red(`❌ LLM error: ${err.message}`));
+                            logger.error(`LLM error: ${err.message}`);
+                        } else if (error instanceof DextoValidationError) {
+                            console.log(chalk.red(`❌ Validation failed:`));
+                            logger.error(`Validation failed:`);
+                            (error as DextoValidationError).errors.forEach((e) => {
+                                console.log(chalk.red(`  - ${e.message}`));
+                                logger.error(`  - ${e.message}`);
+                            });
+                        } else if (
+                            error instanceof DextoRuntimeError &&
+                            error.scope === ErrorScope.CONFIG
+                        ) {
+                            console.log(chalk.red(`❌ Configuration error: ${err.message}`));
+                            logger.error(`Configuration error: ${err.message}`);
+                        } else {
+                            console.log(chalk.red(`❌ Error: ${err.message}`));
+                            logger.error(`Error: ${err.message}`);
+                        }
                     }
                 }
             }
