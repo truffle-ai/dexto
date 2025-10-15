@@ -3,6 +3,7 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
+import type { SanitizedToolResult } from '@dexto/core';
 
 interface ChatContextType {
   messages: Message[];
@@ -230,14 +231,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             
             // Look for corresponding tool result in subsequent messages
             let toolResult = undefined;
+            let toolResultMeta: SanitizedToolResult['meta'] | undefined;
             for (let j = index + 1; j < history.length; j++) {
               const nextMsg = history[j];
               if (nextMsg.role === 'tool' && nextMsg.toolCallId === toolCall.id) {
-                toolResult = nextMsg.content;
+                const normalizedContent = Array.isArray(nextMsg.content)
+                  ? nextMsg.content
+                  : typeof nextMsg.content === 'string'
+                    ? [{ type: 'text', text: nextMsg.content }]
+                    : [];
+                const sanitizedFromHistory: SanitizedToolResult = {
+                  content: normalizedContent,
+                  meta: {
+                    toolName,
+                    toolCallId: toolCall.id,
+                  },
+                };
+                toolResult = sanitizedFromHistory;
+                toolResultMeta = sanitizedFromHistory.meta;
                 break;
               }
             }
-            
+
             uiMessages.push({
               id: `session-${sessionId}-${index}-tool-${toolIndex}`,
               role: 'tool' as const,
@@ -247,6 +262,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               toolName: toolName,
               toolArgs: toolArgs,
               toolResult: toolResult,
+              toolResultMeta,
             });
           });
         } else if (msg.role === 'tool') {

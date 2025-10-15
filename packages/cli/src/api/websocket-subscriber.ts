@@ -95,15 +95,19 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:toolResult',
             (payload) => {
+                const data: Record<string, unknown> = {
+                    toolName: payload.toolName,
+                    callId: payload.callId,
+                    success: payload.success,
+                    sanitized: payload.sanitized,
+                    sessionId: payload.sessionId,
+                };
+                if (payload.rawResult !== undefined) {
+                    data.rawResult = payload.rawResult;
+                }
                 this.broadcast({
                     event: 'toolResult',
-                    data: {
-                        toolName: payload.toolName,
-                        result: payload.result,
-                        callId: payload.callId,
-                        success: payload.success,
-                        sessionId: payload.sessionId,
-                    },
+                    data,
                 });
             },
             { signal }

@@ -341,7 +341,8 @@ Fired when a tool execution completes.
 ```typescript
 {
   toolName: string;
-  result: any;
+  sanitized: SanitizedToolResult;
+  rawResult?: unknown; // only present when DECTO_DEBUG_TOOL_RESULT_RAW=true
   callId?: string;
   success: boolean;
   sessionId: string;
@@ -385,7 +386,14 @@ interface SessionEventMap {
   'llmservice:response': { content: string; tokenCount?: number; model?: string; sessionId: string };
   'llmservice:chunk': { content: string; isComplete?: boolean; sessionId: string };
   'llmservice:toolCall': { toolName: string; args: Record<string, any>; callId?: string; sessionId: string };
-  'llmservice:toolResult': { toolName: string; result: any; callId?: string; success: boolean; sessionId: string };
+  'llmservice:toolResult': {
+    toolName: string;
+    sanitized: SanitizedToolResult;
+    rawResult?: unknown;
+    callId?: string;
+    success: boolean;
+    sessionId: string;
+  };
   'llmservice:error': { error: Error; context?: string; recoverable?: boolean; sessionId: string };
   // ... other events
 }

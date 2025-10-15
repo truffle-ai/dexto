@@ -10,3 +10,4 @@ export * from './execution-context.js';
 export * from './fs-walk.js';
 export * from './redactor.js';
 export * from './api-key-store.js';
+export * from './debug.js';

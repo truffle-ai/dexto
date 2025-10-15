@@ -48,7 +48,7 @@ Listen for these events from the server. All events follow the `{ "event": "EVEN
 | `chunk` | `{ text, isComplete?, sessionId }` | A part of the agent's response when `stream` is `true`. |
 | `response` | `{ text, tokenCount?, model?, sessionId }` | The final, complete response from the agent. |
 | `toolCall` | `{ toolName, args, callId?, sessionId }` | Informs that the agent is about to execute a tool. |
-| `toolResult` | `{ toolName, result, callId?, success, sessionId }` | Provides the result from a tool's execution. |
+| `toolResult` | `{ toolName, sanitized, rawResult?, callId?, success, sessionId }` | Provides the canonical tool result payload (and, when `DECTO_DEBUG_TOOL_RESULT_RAW` is enabled, the raw result). |
 | `conversationReset` | `{ sessionId }` | Conversation history cleared for session. |
 | `mcpServerConnected` | `{ name, success, error? }` | MCP server connection result. |
 | `availableToolsUpdated` | `{ tools, source }` | Available tools changed. |

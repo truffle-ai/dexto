@@ -24,8 +24,36 @@ export interface ImagePart extends ImageData {
     type: 'image';
 }
 
+export type FileMediaKind = 'audio' | 'video' | 'binary';
+
 export interface FilePart extends FileData {
     type: 'file';
+    /**
+     * Optional hint describing the media intent for downstream consumers.
+     * Falls back to 'binary' when unspecified.
+     */
+    mediaKind?: FileMediaKind;
+}
+
+export interface SanitizedToolResult {
+    /** Ordered content parts ready for rendering or provider formatting */
+    content: Array<TextPart | ImagePart | FilePart>;
+    /**
+     * Resource references created during sanitization (e.g. blob store URIs).
+     * Consumers can dereference these via ResourceManager APIs.
+     */
+    resources?: Array<{
+        uri: string;
+        kind: 'image' | 'audio' | 'video' | 'binary';
+        mimeType: string;
+        filename?: string;
+        mediaKind?: FileMediaKind;
+    }>;
+    meta: {
+        toolName: string;
+        toolCallId: string;
+        success?: boolean;
+    };
 }
 
 export interface InternalMessage {

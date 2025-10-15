@@ -15,6 +15,7 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 
 /**
  * OpenAI implementation of LLMService
@@ -198,15 +199,21 @@ export class OpenAIService implements ILLMService {
                         args = JSON.parse(toolCall.function.arguments);
                     } catch (e) {
                         logger.error(`Error parsing arguments for ${toolName}:`, e);
-                        await this.contextManager.addToolResult(toolCall.id, toolName, {
-                            error: `Failed to parse arguments: ${e}`,
-                        });
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolCall.id,
+                            toolName,
+                            { error: `Failed to parse arguments: ${e}` },
+                            { success: false }
+                        );
                         // Notify failure so UI & logging subscribers stay in sync
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result: { error: `Failed to parse arguments: ${e}` },
                             callId: toolCall.id,
                             success: false,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult()
+                                ? { rawResult: { error: `Failed to parse arguments: ${e}` } }
+                                : {}),
                         });
                         continue;
                     }
@@ -227,14 +234,20 @@ export class OpenAIService implements ILLMService {
                         );
 
                         // Add tool result to message manager
-                        await this.contextManager.addToolResult(toolCall.id, toolName, result);
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolCall.id,
+                            toolName,
+                            result,
+                            { success: true }
+                        );
 
                         // Notify tool result
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result,
                             callId: toolCall.id,
                             success: true,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                         });
                     } catch (error) {
                         // Handle tool execution error
@@ -242,15 +255,21 @@ export class OpenAIService implements ILLMService {
                         logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
 
                         // Add error as tool result
-                        await this.contextManager.addToolResult(toolCall.id, toolName, {
-                            error: errorMessage,
-                        });
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolCall.id,
+                            toolName,
+                            { error: errorMessage },
+                            { success: false }
+                        );
 
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result: { error: errorMessage },
                             callId: toolCall.id,
                             success: false,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult()
+                                ? { rawResult: { error: errorMessage } }
+                                : {}),
                         });
                     }
                 }
