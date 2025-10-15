@@ -7,29 +7,18 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
-import { 
-  MessageSquare, 
-  Plus, 
-  Trash2, 
-  Calendar, 
-  Clock, 
+import {
+  Trash2,
+  Calendar,
+  Clock,
   Hash,
   AlertTriangle,
   RefreshCw,
-  MoreHorizontal,
   History,
   Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from './ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface Session {

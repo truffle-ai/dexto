@@ -13,7 +13,7 @@ import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationH
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -33,7 +33,7 @@ import { ThemeSwitch } from './ThemeSwitch';
 import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
 import AgentSelector from './AgentSelector/AgentSelector';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
@@ -69,9 +69,6 @@ export default function ChatApp() {
   // Conversation management states
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Welcome screen search state
-  const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
 
   // Approval state (for inline rendering in message stream)
   const [pendingApproval, setPendingApproval] = useState<ApprovalEvent | null>(null);
@@ -425,42 +422,6 @@ export default function ChatApp() {
     }
   }, [currentSessionId, returnToWelcome]);
 
-  const handleWelcomeSearch = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (welcomeSearchQuery.trim()) {
-      handleSend(welcomeSearchQuery.trim());
-      setWelcomeSearchQuery('');
-    }
-  }, [welcomeSearchQuery, handleSend]);
-
-  const createAndSwitchSession = useCallback(async () => {
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorBody = await response.json();
-          errorMessage = errorBody.message || errorBody.error || errorMessage;
-        } catch {
-          // If we can't parse the error body, use the status text
-        }
-        throw new Error(errorMessage);
-      }
-      
-      const data = await response.json();
-      handleSessionChange(data.session.id);
-    } catch (error) {
-      console.error('Error creating new session:', error);
-      setErrorMessage('Failed to create new session. Please try again.');
-      setTimeout(() => setErrorMessage(null), 5000);
-    }
-  }, [handleSessionChange]);
-
   // Memoize quick actions to prevent unnecessary recomputation
   const quickActions = React.useMemo(() => [
     {
@@ -544,10 +505,10 @@ export default function ChatApp() {
         e.preventDefault();
         setSessionsPanelOpen(prev => !prev);
       }
-      // Ctrl/Cmd + K to create new session
+      // Ctrl/Cmd + K to create new chat (return to welcome)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
         e.preventDefault();
-        createAndSwitchSession();
+        returnToWelcome();
       }
       // Ctrl/Cmd + J to toggle tools/servers panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
@@ -620,7 +581,7 @@ export default function ChatApp() {
             returnToWelcome={returnToWelcome}
             variant="inline"
             onSearchOpen={() => setSearchOpen(true)}
-            onNewChat={createAndSwitchSession}
+            onNewChat={returnToWelcome}
           />
         )}
       </div>
@@ -664,7 +625,7 @@ export default function ChatApp() {
               
               {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <NewChatButton onClick={createAndSwitchSession} />
+                <NewChatButton onClick={returnToWelcome} />
               )}
               
               {/* TODO: improve the non text part of logo */}
