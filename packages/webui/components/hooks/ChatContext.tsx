@@ -85,6 +85,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       void fetchCurrentLLM();
     }
   }, [currentLLM, fetchCurrentLLM]);
+
   
   // Get greeting from API
   const { greeting } = useGreeting(currentSessionId);
@@ -102,7 +103,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to create session');
       }
       
-      const data = await response.json();
+      const responseText = await response.text();
+      if (!responseText.trim()) {
+        throw new Error('Empty response from session creation');
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse session creation response:', parseError);
+        throw new Error('Invalid response from session creation');
+      }
+      
       return data.session.id;
     } catch (error) {
       console.error('Error creating auto session:', error);
@@ -166,7 +179,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to load session history');
       }
       
-      const data = await response.json();
+      const responseText = await response.text();
+      if (!responseText.trim()) {
+        // Empty response, treat as no history
+        setMessages([]);
+        return;
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse session history response:', parseError);
+        setMessages([]);
+        return;
+      }
+      
       const history = data.history || [];
       
       // Convert API history to UI messages
@@ -254,6 +282,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       throw error; // Re-throw so UI can handle the error
     }
   }, [currentSessionId, loadSessionHistory]);
+
 
   // Return to welcome state (no active session)
   const returnToWelcome = useCallback(() => {

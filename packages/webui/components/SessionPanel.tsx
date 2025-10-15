@@ -53,6 +53,7 @@ export default function SessionPanel({
   const [isNewSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionId, setNewSessionId] = useState('');
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const isDeletingRef = React.useRef(false);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -60,17 +61,33 @@ export default function SessionPanel({
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
   const fetchSessions = useCallback(async () => {
+    if (isDeletingRef.current) {
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const response = await fetch('/api/sessions');
       if (!response.ok) throw new Error('Failed to fetch sessions');
-      const data = await response.json();
-      // Sort sessions by lastActivity (most recent first)
+      const responseText = await response.text();
+      if (!responseText.trim()) {
+        setSessions([]);
+        return;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse sessions response:', parseError);
+        setError('Failed to parse sessions data');
+        return;
+      }
+
       const sortedSessions = (data.sessions || []).sort((a: Session, b: Session) => {
         const timeA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
         const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
-        return timeB - timeA; // Descending order (most recent first)
+        return timeB - timeA;
       });
       setSessions(sortedSessions);
     } catch (err) {
@@ -88,37 +105,35 @@ export default function SessionPanel({
   }, [isOpen, fetchSessions]);
 
   // Listen for message events to refresh session counts
+  // Update sessions list regardless of panel open/closed state
   useEffect(() => {
     const handleMessage = () => {
       // Refresh sessions when a message is sent to update message counts
-      if (isOpen) {
-        fetchSessions();
-      }
+      void fetchSessions();
     };
 
     const handleResponse = () => {
       // Refresh sessions when a response is received to update message counts
-      if (isOpen) {
-        fetchSessions();
-      }
+      void fetchSessions();
+    };
+
+    const handleTitleUpdated: EventListener = () => {
+      // Refresh sessions when title is updated, even if panel is closed
+      void fetchSessions();
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('dexto:message', handleMessage);
       window.addEventListener('dexto:response', handleResponse);
-      const handleTitleUpdated: EventListener = () => {
-        if (!isOpen) return;
-        void fetchSessions();
-      };
       window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
-      
+
       return () => {
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
         window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
       };
     }
-  }, [isOpen, fetchSessions]);
+  }, [fetchSessions]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
@@ -130,11 +145,28 @@ export default function SessionPanel({
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { error: 'Failed to create session' };
+        }
         throw new Error(errorData.error || 'Failed to create session');
       }
       
-      const data = await response.json();
+      const responseText = await response.text();
+      if (!responseText.trim()) {
+        throw new Error('Empty response from session creation');
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse session creation response:', parseError);
+        throw new Error('Invalid response from session creation');
+      }
       setSessions(prev => [...prev, data.session]);
       setNewSessionId('');
       setNewSessionOpen(false);
@@ -146,27 +178,38 @@ export default function SessionPanel({
   };
 
   const handleDeleteSession = async (sessionId: string) => {
+    const isDeletingCurrentSession = currentSessionId === sessionId;
+
+    isDeletingRef.current = true;
     setDeletingSessionId(sessionId);
     try {
       const response = await fetch(`/api/sessions/${sessionId}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { error: 'Failed to delete session' };
+        }
         throw new Error(errorData.error || 'Failed to delete session');
       }
-      
+
       setSessions(prev => prev.filter(s => s.id !== sessionId));
-      
-      // If we deleted the current session, trigger a page reload to return to welcome state
-      if (currentSessionId === sessionId) {
+
+      if (isDeletingCurrentSession) {
         returnToWelcome();
       }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (err) {
       console.error('Error deleting session:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete session');
     } finally {
+      isDeletingRef.current = false;
       setDeletingSessionId(null);
     }
   };
@@ -174,7 +217,10 @@ export default function SessionPanel({
 
   const handleDeleteConversation = async () => {
     if (!selectedSessionForAction) return;
-    
+
+    const isDeletingCurrentSession = currentSessionId === selectedSessionForAction;
+
+    isDeletingRef.current = true;
     setIsDeletingConversation(true);
     try {
       const response = await fetch(`/api/sessions/${selectedSessionForAction}`, {
@@ -188,20 +234,21 @@ export default function SessionPanel({
         throw new Error('Failed to delete conversation');
       }
 
-      // Remove session from local state
       setSessions(prev => prev.filter(s => s.id !== selectedSessionForAction));
-      
-      // If we deleted the current session, trigger a page reload to return to welcome state
-      if (currentSessionId === selectedSessionForAction) {
+
+      if (isDeletingCurrentSession) {
         returnToWelcome();
       }
-      
+
       setDeleteConversationDialogOpen(false);
       setSelectedSessionForAction(null);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error('Error deleting conversation:', error);
       setError(error instanceof Error ? error.message : 'Failed to delete conversation');
     } finally {
+      isDeletingRef.current = false;
       setIsDeletingConversation(false);
     }
   };

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
@@ -41,8 +42,12 @@ import type { PromptInfo } from '@dexto/core';
 import { loadPrompts } from '../lib/promptCache';
 import type { ServerRegistryEntry } from '@/types';
 
-export default function ChatApp() {
+interface ChatAppProps {
+  sessionId?: string;
+}
 
+export default function ChatApp({ sessionId }: ChatAppProps = {}) {
+  const router = useRouter();
   const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
 
@@ -50,6 +55,8 @@ export default function ChatApp() {
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
   const [isServersPanelOpen, setServersPanelOpen] = useState(false);
   const [isSessionsPanelOpen, setSessionsPanelOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const isFirstRenderRef = React.useRef(true);
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [isExportOpen, setExportOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
@@ -323,9 +330,74 @@ export default function ChatApp() {
   }, []);
 
   const handleSessionChange = useCallback((sessionId: string) => {
-    switchSession(sessionId);
-    setSessionsPanelOpen(false);
-  }, [switchSession]);
+    // Navigate to the session URL instead of just switching in context
+    router.push(`/chat/${sessionId}`);
+    // Keep the sessions panel open when switching sessions
+  }, [router]);
+
+  const handleReturnToWelcome = useCallback(() => {
+    // Clear the context state first, then navigate to home page
+    returnToWelcome();
+    router.push('/');
+  }, [router, returnToWelcome]);
+
+  // Handle hydration and restore localStorage state
+  useEffect(() => {
+    setIsHydrated(true);
+    // Restore sessions panel state from localStorage after hydration
+    const savedPanelState = localStorage.getItem('sessionsPanelOpen');
+    if (savedPanelState === 'true') {
+      setSessionsPanelOpen(true);
+    }
+    // Mark first render as complete to enable transitions
+    setTimeout(() => {
+      isFirstRenderRef.current = false;
+    }, 0);
+  }, []);
+
+  // Persist sessions panel state to localStorage
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('sessionsPanelOpen', isSessionsPanelOpen.toString());
+    }
+  }, [isSessionsPanelOpen, isHydrated]);
+
+  // Handle sessionId prop from URL - for loading specific sessions
+  useEffect(() => {
+    if (sessionId && sessionId !== currentSessionId) {
+      switchSession(sessionId);
+    }
+  }, [sessionId, currentSessionId, switchSession]);
+
+  // Ensure welcome state on home page (when no sessionId prop)
+  useEffect(() => {
+    if (!sessionId && !isWelcomeState) {
+      // We're on the home page but not in welcome state - reset to welcome
+      returnToWelcome();
+    }
+  }, [sessionId, isWelcomeState, returnToWelcome]);
+
+  // Navigate to new session URL after first message from welcome state
+  const prevSessionIdRef = React.useRef<string | null>(currentSessionId);
+  const prevWelcomeStateRef = React.useRef<boolean>(isWelcomeState);
+
+  useEffect(() => {
+    // Check if we just transitioned from welcome state to a session (first message sent)
+    const wasInWelcomeState = prevWelcomeStateRef.current;
+    const hadNoSession = prevSessionIdRef.current === null;
+    const nowHaveSession = currentSessionId !== null;
+    const notInWelcomeState = !isWelcomeState;
+    const onHomePage = !sessionId && typeof window !== 'undefined' && window.location.pathname === '/';
+
+    if (wasInWelcomeState && hadNoSession && nowHaveSession && notInWelcomeState && onHomePage) {
+      // User just sent their first message from welcome state, navigate to the new session
+      router.push(`/chat/${currentSessionId}`);
+    }
+
+    // Update refs for next render
+    prevSessionIdRef.current = currentSessionId;
+    prevWelcomeStateRef.current = isWelcomeState;
+  }, [currentSessionId, isWelcomeState, sessionId, router]);
 
   type InstallableRegistryEntry = ServerRegistryEntry & {
     onCloseRegistryModal?: () => void;
@@ -412,7 +484,7 @@ export default function ChatApp() {
       }
       
       setDeleteDialogOpen(false);
-      returnToWelcome();
+      handleReturnToWelcome();
     } catch (error) {
       console.error('Failed to delete conversation:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to delete conversation');
@@ -420,7 +492,7 @@ export default function ChatApp() {
     } finally {
       setIsDeleting(false);
     }
-  }, [currentSessionId, returnToWelcome]);
+    }, [currentSessionId, handleReturnToWelcome]);
 
   // Memoize quick actions to prevent unnecessary recomputation
   const quickActions = React.useMemo(() => [
@@ -508,7 +580,7 @@ export default function ChatApp() {
       // Ctrl/Cmd + K to create new chat (return to welcome)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
         e.preventDefault();
-        returnToWelcome();
+        handleReturnToWelcome();
       }
       // Ctrl/Cmd + J to toggle tools/servers panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
@@ -568,20 +640,24 @@ export default function ChatApp() {
   return (
     <div className="flex h-screen bg-background">
       {/* Left Sidebar - Chat History */}
-      <div className={cn(
-        "shrink-0 transition-all duration-300 ease-in-out border-r border-border/50 bg-card/50 backdrop-blur-sm",
-        isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
-      )}>
+      <div
+        className={cn(
+          "shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
+          !isFirstRenderRef.current && "transition-all duration-300 ease-in-out",
+          isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
+        )}
+        suppressHydrationWarning
+      >
         {isSessionsPanelOpen && (
           <SessionPanel
             isOpen={isSessionsPanelOpen}
             onClose={() => setSessionsPanelOpen(false)}
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
-            returnToWelcome={returnToWelcome}
+            returnToWelcome={handleReturnToWelcome}
             variant="inline"
             onSearchOpen={() => setSearchOpen(true)}
-            onNewChat={returnToWelcome}
+            onNewChat={handleReturnToWelcome}
           />
         )}
       </div>
@@ -625,7 +701,7 @@ export default function ChatApp() {
               
               {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <NewChatButton onClick={returnToWelcome} />
+                <NewChatButton onClick={handleReturnToWelcome} />
               )}
               
               {/* TODO: improve the non text part of logo */}
@@ -1135,7 +1211,7 @@ export default function ChatApp() {
         isOpen={isSearchOpen}
         onClose={() => setSearchOpen(false)}
         onNavigateToSession={(sessionId, messageIndex) => {
-          switchSession(sessionId);
+          router.push(`/chat/${sessionId}`);
           setSearchOpen(false);
         }}
       />
