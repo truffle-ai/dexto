@@ -321,20 +321,6 @@ export default function ServerRegistryModal({
                             className="pl-10 h-10 border-border/40 focus:border-primary/50 bg-background shadow-sm"
                         />
                     </div>
-                    <Button
-                        onClick={() => {
-                            if (!isCloseBlocked) {
-                                onClose(); // Close registry modal first
-                            }
-                            onOpenConnectModal?.(); // Then open connect modal
-                        }}
-                        size="sm"
-                        variant="outline"
-                        className="h-10 text-sm font-medium border-2 hover:bg-primary/10 hover:text-primary hover:border-primary/30 whitespace-nowrap"
-                    >
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Connect Custom
-                    </Button>
                     <div className="flex bg-muted/80 rounded-lg p-1 border border-border/40">
                         <Button
                             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}

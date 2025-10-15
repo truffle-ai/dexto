@@ -643,7 +643,7 @@ export default function ChatApp() {
             </div>
 
             {/* Center Section - Agent Selector */}
-            <div className="flex justify-center">
+            <div className="flex justify-center flex-1 max-w-2xl mx-auto">
               <AgentSelector mode="badge" />
             </div>
 
@@ -724,26 +724,7 @@ export default function ChatApp() {
                   Toggle tools panel (⌘J)
                 </TooltipContent>
               </Tooltip>
-            
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className="h-8 px-2 text-sm"
-                  >
-                    <Link href="/playground" target="_blank" rel="noopener noreferrer">
-                      <FlaskConical className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline ml-1.5">Playground</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Open MCP playground (⌘L)
-                </TooltipContent>
-              </Tooltip>
-            
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -759,6 +740,10 @@ export default function ChatApp() {
                       <Server className="h-4 w-4 mr-2" />
                       Connect MCPs
                     </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('/playground', '_blank')}>
+                    <FlaskConical className="h-4 w-4 mr-2" />
+                    MCP Playground
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="h-4 w-4 mr-2" />
                     Export Config
