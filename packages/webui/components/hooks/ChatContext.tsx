@@ -3,7 +3,7 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
-import type { SanitizedToolResult } from '@dexto/core';
+import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
 
 interface ChatContextType {
   messages: Message[];
@@ -200,6 +200,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       // Convert API history to UI messages
       const uiMessages: Message[] = [];
+      const pendingToolCalls = new Map<string, number>();
       
       for (let index = 0; index < history.length; index++) {
         const msg: any = history[index];
@@ -217,61 +218,125 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           provider: msg.provider,
         };
 
-        if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
-          // Handle assistant messages with tool calls
-          // First add the assistant message (if it has content)
+        const deriveResources = (
+          content: Array<TextPart | ImagePart | FilePart>
+        ): SanitizedToolResult['resources'] => {
+          const resources: NonNullable<SanitizedToolResult['resources']> = [];
+
+          for (const part of content) {
+            if (part.type === 'image' && typeof part.image === 'string' && part.image.startsWith('@blob:')) {
+              const uri = part.image.substring(1);
+              resources.push({
+                uri,
+                kind: 'image',
+                mimeType: part.mimeType ?? 'image/jpeg',
+              });
+            }
+
+            if (part.type === 'file' && typeof part.data === 'string' && part.data.startsWith('@blob:')) {
+              const uri = part.data.substring(1);
+              const kind: 'image' | 'audio' | 'video' | 'binary' = part.mediaKind
+                ? part.mediaKind
+                : part.mimeType?.startsWith('audio/')
+                  ? 'audio'
+                  : part.mimeType?.startsWith('video/')
+                    ? 'video'
+                    : part.mimeType?.startsWith('image/')
+                      ? 'image'
+                      : 'binary';
+
+              resources.push({
+                uri,
+                kind,
+                mimeType: part.mimeType ?? 'application/octet-stream',
+                ...(part.filename ? { filename: part.filename } : {}),
+                ...(part.mediaKind ? { mediaKind: part.mediaKind } : {}),
+              });
+            }
+          }
+
+          return resources.length > 0 ? resources : undefined;
+        };
+
+        if (msg.role === 'assistant') {
           if (msg.content) {
             uiMessages.push(baseMessage);
           }
-          
-          // Then add tool call messages for each tool call
-          msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
-            const toolArgs = toolCall.function ? JSON.parse(toolCall.function.arguments || '{}') : {};
-            const toolName = toolCall.function?.name || 'unknown';
-            
-            // Look for corresponding tool result in subsequent messages
-            let toolResult = undefined;
-            let toolResultMeta: SanitizedToolResult['meta'] | undefined;
-            for (let j = index + 1; j < history.length; j++) {
-              const nextMsg = history[j];
-              if (nextMsg.role === 'tool' && nextMsg.toolCallId === toolCall.id) {
-                const normalizedContent = Array.isArray(nextMsg.content)
-                  ? nextMsg.content
-                  : typeof nextMsg.content === 'string'
-                    ? [{ type: 'text', text: nextMsg.content }]
-                    : [];
-                const sanitizedFromHistory: SanitizedToolResult = {
-                  content: normalizedContent,
-                  meta: {
-                    toolName,
-                    toolCallId: toolCall.id,
-                  },
-                };
-                toolResult = sanitizedFromHistory;
-                toolResultMeta = sanitizedFromHistory.meta;
-                break;
-              }
-            }
 
-            uiMessages.push({
-              id: `session-${sessionId}-${index}-tool-${toolIndex}`,
-              role: 'tool' as const,
-              content: null,
-              createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
-              sessionId: sessionId,
-              toolName: toolName,
-              toolArgs: toolArgs,
-              toolResult: toolResult,
-              toolResultMeta,
+          if (msg.toolCalls && msg.toolCalls.length > 0) {
+            msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
+              const toolArgs = toolCall.function ? JSON.parse(toolCall.function.arguments || '{}') : {};
+              const toolName = toolCall.function?.name || 'unknown';
+
+              const toolMessage: Message = {
+                id: `session-${sessionId}-${index}-tool-${toolIndex}`,
+                role: 'tool',
+                content: null,
+                createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
+                sessionId,
+                toolName,
+                toolArgs,
+                toolResult: undefined,
+                toolResultMeta: undefined,
+                toolResultSuccess: undefined,
+              };
+
+              if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
+                pendingToolCalls.set(toolCall.id, uiMessages.length);
+              }
+
+              uiMessages.push(toolMessage);
             });
-          });
-        } else if (msg.role === 'tool') {
-          // Skip standalone tool messages as they're handled above with their corresponding tool calls
+          }
+
           continue;
-        } else {
-          // Handle regular messages (user, system, assistant without tool calls)
-          uiMessages.push(baseMessage);
         }
+
+        if (msg.role === 'tool') {
+          const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
+          const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
+          const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(msg.content)
+            ? (msg.content as Array<TextPart | ImagePart | FilePart>)
+            : typeof msg.content === 'string'
+              ? [{ type: 'text', text: msg.content }]
+              : [];
+
+          const inferredResources = deriveResources(normalizedContent);
+          const sanitizedFromHistory: SanitizedToolResult = {
+            content: normalizedContent,
+            ...(inferredResources ? { resources: inferredResources } : {}),
+            meta: {
+              toolName,
+              toolCallId: toolCallId ?? `tool-${index}`,
+              ...(typeof msg.success === 'boolean' ? { success: msg.success } : {}),
+            },
+          };
+
+          if (toolCallId && pendingToolCalls.has(toolCallId)) {
+            const messageIndex = pendingToolCalls.get(toolCallId)!;
+            uiMessages[messageIndex] = {
+              ...uiMessages[messageIndex],
+              toolResult: sanitizedFromHistory,
+              toolResultMeta: sanitizedFromHistory.meta,
+              toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
+            };
+          } else {
+            uiMessages.push({
+              ...baseMessage,
+              role: 'tool',
+              content: null,
+              toolName,
+              toolArgs: typeof msg.args === 'object' ? msg.args : undefined,
+              toolResult: sanitizedFromHistory,
+              toolResultMeta: sanitizedFromHistory.meta,
+              toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
+            });
+          }
+
+          continue;
+        }
+
+        uiMessages.push(baseMessage);
       }
       
       setMessages(uiMessages);
