@@ -4,6 +4,8 @@
  * These types represent approval events as they come over WebSocket.
  * They are derived from but separate from the core approval types,
  * as they represent the serialized WebSocket payload format.
+ *
+ * TODO: Consolidate these types from core/typed payloads later
  */
 
 import type { JSONSchema7 } from 'json-schema';

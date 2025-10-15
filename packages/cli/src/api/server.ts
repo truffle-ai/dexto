@@ -839,12 +839,7 @@ export async function initializeApi(
             }
             try {
                 const data = JSON.parse(messageString);
-                // Support both 'approvalResponse' and legacy 'toolConfirmationResponse'
-                if (
-                    (data.type === 'approvalResponse' ||
-                        data.type === 'toolConfirmationResponse') &&
-                    data.data
-                ) {
+                if (data.type === 'approvalResponse' && data.data) {
                     // Validate the approval response payload with Zod schema
                     const validationResult = ApprovalResponseSchema.safeParse(data.data);
                     if (!validationResult.success) {

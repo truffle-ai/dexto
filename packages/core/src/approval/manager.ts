@@ -70,6 +70,7 @@ export class ApprovalManager {
 
     /**
      * Create appropriate approval provider based on configuration
+     * TODO: Move this into factory.ts
      */
     private createProvider(
         agentEventBus: AgentEventBus,
