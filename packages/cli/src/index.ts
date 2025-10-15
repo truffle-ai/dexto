@@ -744,50 +744,6 @@ program
 
                     // Start the agent (initialize async services)
                     await agent.start();
-
-                    // Handle session options - simplified logic
-                    if (opts.resume) {
-                        try {
-                            // Resume specific session by ID
-                            await agent.loadSessionAsDefault(opts.resume);
-                            logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
-                        } catch (err) {
-                            console.error(
-                                `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
-                            );
-                            console.error('💡 Use `dexto session list` to see available sessions');
-                            safeExit('main', 1, 'resume-failed');
-                        }
-                    } else if (opts.continue) {
-                        try {
-                            // Continue from most recent session
-                            await loadMostRecentSession(agent);
-                            // If no sessions existed, create a new one to honor default-new invariant
-                            const sessionsAfter = await agent.listSessions();
-                            if (sessionsAfter.length === 0) {
-                                const session = await agent.createSession();
-                                await agent.loadSessionAsDefault(session.id);
-                                logger.info(`Created new session: ${session.id}`, null, 'green');
-                            }
-                        } catch (err) {
-                            console.error(
-                                `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                            safeExit('main', 1, 'continue-failed');
-                        }
-                    } else {
-                        // Default behavior: create new session
-                        try {
-                            const session = await agent.createSession();
-                            await agent.loadSessionAsDefault(session.id);
-                            logger.info(`Created new session: ${session.id}`, null, 'green');
-                        } catch (err) {
-                            console.error(
-                                `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                            safeExit('main', 1, 'create-session-failed');
-                        }
-                    }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
@@ -798,6 +754,56 @@ program
                 // ——— Dispatch based on --mode ———
                 switch (opts.mode) {
                     case 'cli': {
+                        // Handle session options - only for CLI mode
+                        if (opts.resume) {
+                            try {
+                                // Resume specific session by ID
+                                await agent.loadSessionAsDefault(opts.resume);
+                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                console.error(
+                                    '💡 Use `dexto session list` to see available sessions'
+                                );
+                                safeExit('main', 1, 'resume-failed');
+                            }
+                        } else if (opts.continue) {
+                            try {
+                                // Continue from most recent session
+                                await loadMostRecentSession(agent);
+                                // If no sessions existed, create a new one to honor default-new invariant
+                                const sessionsAfter = await agent.listSessions();
+                                if (sessionsAfter.length === 0) {
+                                    const session = await agent.createSession();
+                                    await agent.loadSessionAsDefault(session.id);
+                                    logger.info(
+                                        `Created new session: ${session.id}`,
+                                        null,
+                                        'green'
+                                    );
+                                }
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                safeExit('main', 1, 'continue-failed');
+                            }
+                        } else {
+                            // Default behavior: create new session for CLI mode
+                            try {
+                                const session = await agent.createSession();
+                                await agent.loadSessionAsDefault(session.id);
+                                logger.info(`Created new session: ${session.id}`, null, 'green');
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                safeExit('main', 1, 'create-session-failed');
+                            }
+                        }
+
                         const toolConfirmationMode =
                             agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
 
