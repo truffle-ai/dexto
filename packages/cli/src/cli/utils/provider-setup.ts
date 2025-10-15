@@ -6,12 +6,13 @@ import { type LLMProvider } from '@dexto/core';
 
 /**
  * Standardized provider options used across all setup flows
+ * Note: OpenRouter is handled in the login flow, not here
  */
 export const PROVIDER_OPTIONS = [
     {
         value: 'google',
         label: '🟢 Google Gemini',
-        hint: 'Free tier available - Recommended for beginners',
+        hint: 'Free tier available - Good for beginners',
     },
     {
         value: 'groq',
@@ -53,6 +54,8 @@ export async function selectProvider(): Promise<LLMProvider> {
  */
 export function getProviderDisplayName(provider: LLMProvider): string {
     switch (provider) {
+        case 'openai-compatible':
+            return 'OpenRouter';
         case 'google':
             return 'Google Gemini';
         case 'openai':
@@ -71,6 +74,8 @@ export function getProviderDisplayName(provider: LLMProvider): string {
  */
 export function isValidApiKeyFormat(apiKey: string, provider: LLMProvider): boolean {
     switch (provider) {
+        case 'openai-compatible':
+            return apiKey.startsWith('sk-or-') && apiKey.length > 40;
         case 'google':
             return apiKey.startsWith('AIza') && apiKey.length > 20;
         case 'openai':

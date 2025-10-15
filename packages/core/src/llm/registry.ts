@@ -9,6 +9,7 @@ import {
     type SupportedFileType,
 } from './types.js';
 import { logger } from '../logger/index.js';
+import { lookupOpenRouterModel } from './providers/openrouter-model-registry.js';
 
 export interface ModelInfo {
     name: string;
@@ -17,6 +18,7 @@ export interface ModelInfo {
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
     displayName?: string;
+    openRouterId: string;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: {
         inputPerM: number;
@@ -86,6 +88,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-5',
                 displayName: 'GPT-5',
+                openRouterId: 'openai/gpt-5',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -99,6 +102,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-5-mini',
                 displayName: 'GPT-5 Mini',
+                openRouterId: 'openai/gpt-5-mini',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -112,6 +116,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-5-nano',
                 displayName: 'GPT-5 Nano',
+                openRouterId: 'openai/gpt-5-nano',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -125,6 +130,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4.1',
                 displayName: 'GPT-4.1',
+                openRouterId: 'openai/gpt-4.1',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -138,6 +144,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4.1-mini',
                 displayName: 'GPT-4.1 Mini',
+                openRouterId: 'openai/gpt-4.1-mini',
                 maxInputTokens: 1048576,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
@@ -152,6 +159,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4.1-nano',
                 displayName: 'GPT-4.1 Nano',
+                openRouterId: 'openai/gpt-4.1-nano',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -165,6 +173,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4o',
                 displayName: 'GPT-4o',
+                openRouterId: 'openai/gpt-4o',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -178,6 +187,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4o-mini',
                 displayName: 'GPT-4o Mini',
+                openRouterId: 'openai/gpt-4o-mini',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -191,6 +201,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gpt-4o-audio-preview',
                 displayName: 'GPT-4o Audio Preview',
+                openRouterId: 'openai/gpt-4o-audio-preview',
                 maxInputTokens: 128000,
                 supportedFileTypes: ['audio'],
                 pricing: {
@@ -203,6 +214,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'o4-mini',
                 displayName: 'O4 Mini',
+                openRouterId: 'openai/o4-mini',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -216,6 +228,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'o3',
                 displayName: 'O3',
+                openRouterId: 'openai/o3',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -229,6 +242,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'o3-mini',
                 displayName: 'O3 Mini',
+                openRouterId: 'openai/o3-mini',
                 maxInputTokens: 200000,
                 supportedFileTypes: [],
                 pricing: {
@@ -242,6 +256,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'o1',
                 displayName: 'O1',
+                openRouterId: 'openai/o1',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -263,6 +278,18 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
     },
+    openrouter: {
+        models: [], // Empty - OpenRouter proxies 100+ models, accepts any model name
+        supportedRouters: ['vercel', 'in-built'],
+        baseURLSupport: 'optional', // baseURL is automatically injected (https://openrouter.ai/api/v1)
+        supportedFileTypes: ['pdf', 'image', 'audio'], // OpenRouter models have varying capabilities - user assumes responsibility
+    },
+    dexto: {
+        models: [], // Empty - Dexto gateway proxies OpenRouter models; accepts OpenRouter model ids
+        supportedRouters: ['vercel', 'in-built'],
+        baseURLSupport: 'optional', // baseURL is automatically injected (https://api.dexto.ai/v1)
+        supportedFileTypes: ['pdf', 'image', 'audio'],
+    },
     anthropic: {
         models: [
             {
@@ -283,6 +310,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-opus-4-1-20250805',
                 displayName: 'Claude 4.1 Opus',
+                openRouterId: 'anthropic/claude-opus-4.1',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -297,6 +325,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-4-opus-20250514',
                 displayName: 'Claude 4 Opus',
+                openRouterId: 'anthropic/claude-opus-4',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -311,6 +340,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-sonnet-4-5-20250929',
                 displayName: 'Claude 4.5 Sonnet',
+                openRouterId: 'anthropic/claude-sonnet-4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -325,6 +355,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-4-sonnet-20250514',
                 displayName: 'Claude 4 Sonnet',
+                openRouterId: 'anthropic/claude-sonnet-4',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -339,6 +370,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-3-7-sonnet-20250219',
                 displayName: 'Claude 3.7 Sonnet',
+                openRouterId: 'anthropic/claude-3.7-sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -353,6 +385,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-3-5-sonnet-20240620',
                 displayName: 'Claude 3.5 Sonnet',
+                openRouterId: 'anthropic/claude-3.5-sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -367,6 +400,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'claude-3-5-haiku-20241022',
                 displayName: 'Claude 3.5 Haiku',
+                openRouterId: 'anthropic/claude-3.5-haiku',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -388,6 +422,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.5-pro',
                 displayName: 'Gemini 2.5 Pro',
+                openRouterId: 'google/gemini-2.5-pro',
                 maxInputTokens: 1048576,
                 default: true,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
@@ -402,6 +437,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.5-flash',
                 displayName: 'Gemini 2.5 Flash',
+                openRouterId: 'google/gemini-2.5-flash',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
@@ -414,6 +450,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.5-flash-lite',
                 displayName: 'Gemini 2.5 Flash Lite',
+                openRouterId: 'google/gemini-2.5-flash-lite',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
@@ -427,6 +464,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.0-flash',
                 displayName: 'Gemini 2.0 Flash',
+                openRouterId: 'google/gemini-2.0-flash-001',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
@@ -441,6 +479,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemini-2.0-flash-lite',
                 displayName: 'Gemini 2.0 Flash Lite',
+                openRouterId: 'google/gemini-2.0-flash-lite-001',
                 maxInputTokens: 1048576,
                 supportedFileTypes: ['pdf', 'image', 'audio'],
                 pricing: {
@@ -461,6 +500,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'gemma-2-9b-it',
                 displayName: 'Gemma 2 9B Instruct',
+                openRouterId: 'google/gemma-2-9b-it',
                 maxInputTokens: 8192,
                 supportedFileTypes: [],
                 pricing: {
@@ -473,6 +513,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'openai/gpt-oss-20b',
                 displayName: 'GPT OSS 20B 128k',
+                openRouterId: 'openai/gpt-oss-20b',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -485,6 +526,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'openai/gpt-oss-120b',
                 displayName: 'GPT OSS 120B 128k',
+                openRouterId: 'openai/gpt-oss-120b',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -497,6 +539,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'moonshotai/kimi-k2-instruct',
                 displayName: 'Kimi K2 1T 128k',
+                openRouterId: 'moonshotai/kimi-k2',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -509,6 +552,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'meta-llama/llama-4-scout-17b-16e-instruct',
                 displayName: 'Llama 4 Scout (17Bx16E) 128k',
+                openRouterId: 'meta-llama/llama-4-scout',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -521,6 +565,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'meta-llama/llama-4-maverick-17b-128e-instruct',
                 displayName: 'Llama 4 Maverick (17Bx128E) 128k',
+                openRouterId: 'meta-llama/llama-4-maverick',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -533,6 +578,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'deepseek-r1-distill-llama-70b',
                 displayName: 'DeepSeek R1 Distill Llama 70B 128k',
+                openRouterId: 'deepseek/deepseek-r1-distill-llama-70b',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -545,6 +591,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'qwen/qwen3-32b',
                 displayName: 'Qwen3 32B 131k',
+                openRouterId: 'qwen/qwen3-32b',
                 maxInputTokens: 131000,
                 supportedFileTypes: [],
                 pricing: {
@@ -557,6 +604,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'llama-3.3-70b-versatile',
                 displayName: 'Llama 3.3 70B Versatile',
+                openRouterId: 'meta-llama/llama-3.3-70b-instruct',
                 maxInputTokens: 128000,
                 default: true,
                 supportedFileTypes: [],
@@ -579,6 +627,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-4',
                 displayName: 'Grok 4',
+                openRouterId: 'x-ai/grok-4',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: ['image'],
@@ -593,6 +642,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-3',
                 displayName: 'Grok 3',
+                openRouterId: 'x-ai/grok-3',
                 maxInputTokens: 131072,
                 supportedFileTypes: ['image'],
                 pricing: {
@@ -606,6 +656,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-3-mini',
                 displayName: 'Grok 3 Mini',
+                openRouterId: 'x-ai/grok-3-mini',
                 maxInputTokens: 131072,
                 supportedFileTypes: ['image'],
                 pricing: {
@@ -619,6 +670,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'grok-code-fast-1',
                 displayName: 'Grok Code Fast',
+                openRouterId: 'x-ai/grok-code-fast-1',
                 maxInputTokens: 131072,
                 supportedFileTypes: [],
                 pricing: {
@@ -640,6 +692,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-a-03-2025',
                 displayName: 'Command A (03-2025)',
+                openRouterId: 'cohere/command-a',
                 maxInputTokens: 256000,
                 default: true,
                 supportedFileTypes: [],
@@ -653,6 +706,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r-plus',
                 displayName: 'Command R+',
+                openRouterId: 'cohere/command-r-plus-08-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -665,6 +719,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r',
                 displayName: 'Command R',
+                openRouterId: 'cohere/command-r-08-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -677,6 +732,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             {
                 name: 'command-r7b',
                 displayName: 'Command R7B',
+                openRouterId: 'cohere/command-r7b-12-2024',
                 maxInputTokens: 128000,
                 supportedFileTypes: [],
                 pricing: {
@@ -753,7 +809,34 @@ export function getMaxInputTokensForModel(provider: LLMProvider, model: string):
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
+
+    // Both openrouter and dexto use OpenRouter-compatible model IDs
+    if (provider === 'openrouter' || provider === 'dexto') {
+        const lookup = lookupOpenRouterModel(model);
+        if (lookup === 'invalid') {
+            logger.debug(`Model '${model}' is not recognized by OpenRouter`);
+            return false;
+        }
+        return true;
+    }
+
+    // Special case: providers that accept any model name (e.g., openai-compatible)
+    if (acceptsAnyModel(provider)) {
+        return true;
+    }
+
     return providerInfo.models.some((m) => m.name.toLowerCase() === model.toLowerCase());
+}
+
+export function getOpenRouterIdForModel(provider: LLMProvider, model: string): string | null {
+    // Both openrouter and dexto use OpenRouter-compatible model IDs directly
+    if (provider === 'openrouter' || provider === 'dexto') {
+        return model;
+    }
+
+    const providerInfo = LLM_REGISTRY[provider];
+    const matched = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    return matched?.openRouterId ?? null;
 }
 
 /**

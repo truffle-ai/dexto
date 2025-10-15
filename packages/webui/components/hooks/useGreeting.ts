@@ -32,7 +32,8 @@ export function useGreeting(sessionId?: string | null) {
             } catch (err) {
                 // Ignore abort errors
                 if ((err as { name?: string } | null | undefined)?.name === 'AbortError') return;
-                const errorMessage = err instanceof Error ? err.message : 'Failed to fetch greeting';
+                const errorMessage =
+                    err instanceof Error ? err.message : 'Failed to fetch greeting';
                 setError(errorMessage);
                 console.error(`Error fetching greeting: ${errorMessage}`);
             } finally {

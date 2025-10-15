@@ -10,7 +10,9 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
   groq: "/logos/groq.svg",
   xai: "/logos/grok.svg",
   'openai-compatible': "/logos/openai.svg",
+  openrouter: "/logos/openai.svg", // TODO: Add OpenRouter-specific logo
   cohere: "/logos/cohere-color.svg",
+  dexto: "/logos/dexto/dexto_logo_icon.svg",
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -21,6 +23,7 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
   groq: "https://groq.com/pricing/",
   xai: "https://docs.x.ai/docs/models",
   cohere: "https://cohere.com/pricing",
+  openrouter: "https://openrouter.ai/models",
   // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 
@@ -48,7 +51,12 @@ export function formatPricingLines(pricing?: {
 }
 
 // Logos that have hardcoded colors and don't need dark mode inversion
-export const COLORED_LOGOS: readonly LLMProvider[] = ['google', 'cohere', 'anthropic'] as const;
+export const COLORED_LOGOS: readonly LLMProvider[] = [
+  'google',
+  'cohere',
+  'anthropic',
+  'dexto',
+] as const;
 
 // Helper to check if a logo needs dark mode inversion
 export const needsDarkModeInversion = (provider: LLMProvider): boolean => {

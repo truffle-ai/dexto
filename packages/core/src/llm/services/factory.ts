@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
+import { logger } from '@core/logger/index.js';
 
 /**
  * Create an instance of one of our in-built LLM services
@@ -71,6 +72,40 @@ function _createInBuiltLLMService(
                 resourceManager
             );
         }
+        case 'openrouter': {
+            // OpenRouter - hardcoded baseURL for unified LLM access
+            const openai = new OpenAI({
+                apiKey,
+                baseURL: 'https://openrouter.ai/api/v1',
+            });
+            return new OpenAIService(
+                toolManager,
+                openai,
+                systemPromptManager,
+                historyProvider,
+                sessionEventBus,
+                config,
+                sessionId,
+                resourceManager
+            );
+        }
+        case 'dexto': {
+            // Dexto gateway - OpenAI-compatible with fixed baseURL
+            const openai = new OpenAI({
+                apiKey,
+                baseURL: 'https://api.dexto.ai/v1',
+            });
+            return new OpenAIService(
+                toolManager,
+                openai,
+                systemPromptManager,
+                historyProvider,
+                sessionEventBus,
+                config,
+                sessionId,
+                resourceManager
+            );
+        }
         case 'anthropic': {
             const anthropic = new Anthropic({ apiKey });
             return new AnthropicService(
@@ -105,7 +140,26 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey, baseURL })(model);
+            // Many OpenAI-compatible providers (OpenRouter, Groq, etc.) only expose the
+            // legacy /chat/completions endpoint. The default provider() helper uses the
+            // newer /responses API path, which causes the base URL path segments to be
+            // interpreted as the model name. For compatibility we explicitly select the
+            // chat-centric model factory so requests go to /chat/completions.
+            return createOpenAI({ apiKey, baseURL }).chat(model);
+        }
+        case 'openrouter': {
+            // OpenRouter - hardcoded baseURL for unified LLM access
+            return createOpenAI({
+                apiKey,
+                baseURL: 'https://openrouter.ai/api/v1',
+            }).chat(model);
+        }
+        case 'dexto': {
+            // Dexto gateway - OpenAI-compatible with fixed baseURL
+            return createOpenAI({
+                apiKey,
+                baseURL: 'https://api.dexto.ai/v1',
+            }).chat(model);
         }
         case 'anthropic':
             return createAnthropic({ apiKey })(model);
@@ -150,6 +204,7 @@ function _createVercelLLMService(
     resourceManager: import('../../resources/index.js').ResourceManager
 ): VercelLLMService {
     const model = _createVercelModel(config);
+    logger.debug(`Created Vercel model: ${model}`);
 
     return new VercelLLMService(
         toolManager,

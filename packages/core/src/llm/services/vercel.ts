@@ -160,63 +160,17 @@ export class VercelLLMService implements ILLMService {
     }
 
     private async validateToolSupport(): Promise<boolean> {
-        const modelKey = `${this.config.provider}:${this.getModelId()}:${this.config.baseURL ?? ''}`;
-
-        // Check cache first
-        if (this.toolSupportCache.has(modelKey)) {
-            return this.toolSupportCache.get(modelKey)!;
-        }
-
-        // Only test tool support for providers using custom baseURL endpoints
-        // Built-in providers without baseURL have known tool support
-        if (!this.config.baseURL) {
-            logger.debug(`Skipping tool validation for ${modelKey} - no custom baseURL`);
-            // Assume built-in providers support tools
-            this.toolSupportCache.set(modelKey, true);
-            return true;
-        }
-
-        logger.debug(`Testing tool support for custom endpoint model: ${modelKey}`);
-
-        // Create a minimal test tool
-        const testTool = {
-            test_tool: {
-                inputSchema: jsonSchema({
-                    type: 'object',
-                    properties: {},
-                    additionalProperties: false,
-                }),
-                execute: async () => ({ result: 'test' }),
-            },
-        };
-
-        try {
-            // Make a minimal generateText call with tools to test support
-            await generateText({
-                model: this.model,
-                messages: [{ role: 'user', content: 'Hello' }],
-                tools: testTool,
-                stopWhen: stepCountIs(1),
-            });
-
-            // If we get here, tools are supported
-            this.toolSupportCache.set(modelKey, true);
-            logger.debug(`Model ${modelKey} supports tools`);
-            return true;
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            if (errorMessage.includes('does not support tools')) {
-                this.toolSupportCache.set(modelKey, false);
-                logger.debug(`Model ${modelKey} does not support tools`);
-                return false;
-            }
-            // Other errors - assume tools are supported and let the actual call handle it
-            logger.debug(
-                `Tool validation error for ${modelKey}, assuming supported: ${errorMessage}`
-            );
-            this.toolSupportCache.set(modelKey, true);
-            return true;
-        }
+        // Modern LLMs universally support tool calling (function calling)
+        // All current models (Claude, GPT-4, Gemini, Llama 3+, Mistral, etc.) support tools.
+        // If a model doesn't support tools, the actual generateText/streamText call will
+        // fail with a clear error message - no need for expensive preflight validation.
+        //
+        // Previous implementation made a test API call (50-200ms overhead) to check support,
+        // which was useful when tool support was spotty (2022-2023) but is now unnecessary.
+        //
+        // TODO: Consider deprecating this method entirely in a future major version.
+        // For now, keeping it for backward compatibility and to centralize the assumption.
+        return true;
     }
 
     async completeTask(

@@ -247,7 +247,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 
         if (this.fileCount >= maxFiles) return;
         if (currentDepth > maxDepth) {
-            logger.debug(`Skipping path due to depth limit (${maxDepth}): ${canonical}`);
+            logger.silly(`Skipping path due to depth limit (${maxDepth}): ${canonical}`);
             return;
         }
         if (this.visitedPaths.has(canonical)) return;

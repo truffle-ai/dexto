@@ -36,6 +36,9 @@ describe('MemoryManager Integration Tests', () => {
         expect(retrieved).toEqual(created);
 
         // Update
+        // microdelay to ensure timestamp difference on fast systems
+        await new Promise((resolve) => setTimeout(resolve, 1));
+
         const updated = await memoryManager.update(created.id, {
             content: 'Updated content',
             tags: ['updated'],

@@ -34,7 +34,16 @@ import type { LLMProvider, LLMRouter } from './types.js';
 class LLMTestHelpers {
     static getValidConfigForProvider(provider: LLMProvider): LLMConfig {
         const models = getSupportedModels(provider);
-        const defaultModel = getDefaultModelForProvider(provider) || models[0] || 'custom-model';
+        let defaultModel = getDefaultModelForProvider(provider) || models[0];
+
+        if (!defaultModel) {
+            // Both openrouter and dexto use OpenRouter-compatible model IDs
+            if (provider === 'openrouter' || provider === 'dexto') {
+                defaultModel = 'openai/gpt-4o-mini';
+            } else {
+                defaultModel = 'custom-model';
+            }
+        }
 
         // Get supported routers for the specific model
         const supportedRouters = getSupportedRoutersForModel(provider, defaultModel);

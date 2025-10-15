@@ -37,25 +37,29 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
         );
 
         // First, ask what they want to do
+        const options = [
+            {
+                value: 'setup',
+                label: 'Set up an API key now',
+                hint: 'Interactive setup (recommended)',
+            },
+            {
+                value: 'manual',
+                label: 'Set up manually later',
+                hint: 'Get instructions for manual setup',
+            },
+            {
+                value: 'exit',
+                label: 'Exit',
+                hint: 'Quit Dexto for now',
+            },
+        ];
+
+        // No special options for any provider - all use manual API key setup
+
         const action = await p.select({
             message: 'What would you like to do?',
-            options: [
-                {
-                    value: 'setup',
-                    label: 'Set up an API key now',
-                    hint: 'Interactive setup (recommended)',
-                },
-                {
-                    value: 'manual',
-                    label: 'Set up manually later',
-                    hint: 'Get instructions for manual setup',
-                },
-                {
-                    value: 'exit',
-                    label: 'Exit',
-                    hint: 'Quit Dexto for now',
-                },
-            ],
+            options,
         });
 
         if (action === 'exit') {
@@ -68,6 +72,8 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             console.log(chalk.dim('\n👋 Run dexto again once you have set up your API key!'));
             process.exit(0);
         }
+
+        // No login option in manual API key setup
 
         if (p.isCancel(action)) {
             p.cancel('Setup cancelled');
@@ -187,3 +193,5 @@ function showManualSetupInstructions(provider: LLMProvider): void {
 
     p.note(instructions, chalk.bold('Manual Setup Instructions'));
 }
+
+// OpenRouter login functionality has been moved to login-flow.ts

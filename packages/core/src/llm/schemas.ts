@@ -15,6 +15,10 @@ import {
     getSupportedRoutersForModel,
 } from './registry.js';
 import { LLM_PROVIDERS, LLM_ROUTERS } from './types.js';
+import {
+    lookupOpenRouterModel,
+    scheduleOpenRouterModelRefresh,
+} from './providers/openrouter-model-registry.js';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -78,6 +82,18 @@ export const LLMConfigSchema = z
     })
     .strict()
     .superRefine((data, ctx) => {
+        // Inject hardcoded baseURL for providers that require it
+        if (data.provider === 'openrouter' && !data.baseURL) {
+            data.baseURL = 'https://openrouter.ai/api/v1';
+        }
+        if (data.provider === 'dexto' && !data.baseURL) {
+            data.baseURL = 'https://api.dexto.ai/v1';
+        }
+
+        if (data.provider === 'openrouter') {
+            scheduleOpenRouterModelRefresh({ apiKey: data.apiKey });
+        }
+
         const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
         const maxInputTokensIsSet = data.maxInputTokens != null;
 
@@ -192,6 +208,23 @@ export const LLMConfigSchema = z
                         });
                     }
                 }
+            }
+        }
+
+        if (data.provider === 'openrouter' || data.provider === 'dexto') {
+            const lookup = lookupOpenRouterModel(data.model);
+            if (lookup === 'invalid') {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['model'],
+                    message: `Model '${data.model}' is not available via OpenRouter.`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                        provider: data.provider,
+                    },
+                });
             }
         }
 

@@ -13,6 +13,10 @@ import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
 import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
 import { selectProvider } from '../utils/provider-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
+import { handleWelcomeFlow } from '../utils/welcome-flow.js';
+import { handleCompleteLoginFlow } from '../utils/login-flow.js';
+import { isAuthenticated } from '../utils/auth-service.js';
+import { setupDextoIfAvailable } from '../utils/dexto-setup.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -122,6 +126,65 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 
     console.log(chalk.cyan('\n🗿 Setting up Dexto...\n'));
 
+    // Check if user is already logged in and can use Dexto AI Gateway
+    if (validated.interactive && !validated.provider && (await isAuthenticated())) {
+        console.log(chalk.green('✅ Already logged in!'));
+        console.log(chalk.cyan('🔑 Setting up Dexto AI gateway...\n'));
+
+        try {
+            // Configure Dexto environment
+            const dextoConfigured = await setupDextoIfAvailable();
+
+            if (dextoConfigured) {
+                // Create preferences for Dexto
+                const preferences = createInitialPreferences(
+                    'dexto',
+                    undefined,
+                    getPrimaryApiKeyEnvVar('dexto'),
+                    validated.defaultAgent
+                );
+
+                await saveGlobalPreferences(preferences);
+
+                console.log(chalk.green('\n✨ Setup complete! Dexto is ready to use.\n'));
+                console.log(chalk.dim('💡 You can now use 100+ AI models with Dexto.'));
+                console.log(chalk.dim('   Example: dexto -m anthropic/claude-3-haiku "Hello"\n'));
+
+                // Track successful auto-setup
+                capture('dexto_setup', {
+                    provider: 'dexto',
+                    model: 'inherit',
+                    hadApiKeyBefore: true,
+                    setupMode: 'interactive',
+                });
+
+                return; // Setup complete
+            }
+        } catch (error) {
+            logger.warn(`Failed to auto-configure Dexto: ${error}`);
+            console.log(
+                chalk.yellow(
+                    '⚠️  Could not automatically configure Dexto. Proceeding with manual setup...\n'
+                )
+            );
+            // Fall through to manual setup flow
+        }
+    }
+
+    // Show welcome flow for interactive setup without specific provider
+    if (validated.interactive && !validated.provider) {
+        const welcomeChoice = await handleWelcomeFlow();
+
+        if (welcomeChoice === 'login') {
+            await handleCompleteLoginFlow();
+            return; // Login flow handles complete setup
+        } else if (welcomeChoice === 'exit') {
+            p.cancel('Setup cancelled');
+            process.exit(0);
+        }
+        // Continue with manual setup if 'manual' chosen
+    }
+
     // Determine provider (interactive or from options)
     let provider = validated.provider;
     if (!provider) {
@@ -129,7 +192,12 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     }
 
     // Get model and API key details
-    const model = validated.model || getDefaultModelForProvider(provider);
+    let model = validated.model;
+
+    // For all providers, use the default model
+    const defaultModel = getDefaultModelForProvider(provider);
+    model = model || defaultModel || undefined;
+
     if (!model) {
         throw new Error(`Provider '${provider}' requires a specific model. Use --model option.`);
     }
