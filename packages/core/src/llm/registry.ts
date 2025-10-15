@@ -266,6 +266,21 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     anthropic: {
         models: [
             {
+                name: 'claude-haiku-4-5-20251001',
+                displayName: 'Claude 4.5 Haiku',
+                maxInputTokens: 200000,
+                default: true,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.0,
+                    outputPerM: 5.0,
+                    cacheWritePerM: 1.25,
+                    cacheReadPerM: 0.1,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'claude-opus-4-1-20250805',
                 displayName: 'Claude 4.1 Opus',
                 maxInputTokens: 200000,
@@ -297,7 +312,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'claude-sonnet-4-5-20250929',
                 displayName: 'Claude 4.5 Sonnet',
                 maxInputTokens: 200000,
-                default: true,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 3.0,

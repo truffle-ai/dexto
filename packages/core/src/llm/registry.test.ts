@@ -424,7 +424,8 @@ describe('Provider-Specific Tests', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('anthropic');
             expect(getSupportedModels('anthropic')).toContain('claude-4-sonnet-20250514');
-            expect(getDefaultModelForProvider('anthropic')).toBe('claude-sonnet-4-5-20250929');
+            expect(getSupportedModels('anthropic')).toContain('claude-haiku-4-5-20251001');
+            expect(getDefaultModelForProvider('anthropic')).toBe('claude-haiku-4-5-20251001');
             expect(supportsBaseURL('anthropic')).toBe(false);
             expect(requiresBaseURL('anthropic')).toBe(false);
             expect(acceptsAnyModel('anthropic')).toBe(false);

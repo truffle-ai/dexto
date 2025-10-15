@@ -152,7 +152,7 @@ describe('Setup Command', () => {
 
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 'anthropic',
-                'claude-sonnet-4-5-20250929', // Real default from registry
+                'claude-haiku-4-5-20251001', // Real default from registry
                 'ANTHROPIC_API_KEY',
                 'default-agent'
             );
@@ -193,7 +193,7 @@ describe('Setup Command', () => {
             expect(mockSelectProvider).toHaveBeenCalled();
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 'anthropic',
-                'claude-sonnet-4-5-20250929',
+                'claude-haiku-4-5-20251001',
                 'ANTHROPIC_API_KEY',
                 'default-agent'
             );
@@ -348,7 +348,7 @@ describe('Setup Command', () => {
                 },
                 {
                     provider: 'anthropic',
-                    expectedModel: 'claude-sonnet-4-5-20250929',
+                    expectedModel: 'claude-haiku-4-5-20251001',
                     expectedKey: 'ANTHROPIC_API_KEY',
                 },
                 {
