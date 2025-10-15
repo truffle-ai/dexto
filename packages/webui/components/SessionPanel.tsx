@@ -2,22 +2,17 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
 import {
   Trash2,
-  Calendar,
-  Clock,
-  Hash,
   AlertTriangle,
   RefreshCw,
   History,
   Search
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
@@ -211,12 +206,6 @@ export default function SessionPanel({
     }
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Unknown';
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
   const formatRelativeTime = (dateString: string | null) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
@@ -277,19 +266,19 @@ export default function SessionPanel({
       )}
 
       {/* Sessions List */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin" />
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No chat history</p>
-              <p className="text-sm">Start a conversation to see it here</p>
-            </div>
-          ) : (
+      <ScrollArea className="flex-1">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="h-6 w-6 animate-spin" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground px-4">
+            <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No chat history</p>
+            <p className="text-sm">Start a conversation to see it here</p>
+          </div>
+        ) : (
+          <div className="px-3 py-2 space-y-0.5">
             <TooltipProvider>
               {sessions.map((session) => {
                 const title = session.title && session.title.trim().length > 0 ? session.title : session.id;
@@ -298,92 +287,56 @@ export default function SessionPanel({
                   <Tooltip key={session.id} delayDuration={150}>
                     <TooltipTrigger asChild>
                       <div
-                        className={cn(
-                          "group p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer",
-                          isActive && "ring-2 ring-primary bg-primary/5"
-                        )}
+                        className={isActive
+                          ? "group relative px-3 py-3 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer"
+                          : "group relative px-3 py-2.5 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer"
+                        }
                         onClick={() => onSessionChange(session.id)}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h3 className="font-medium text-sm truncate">{title}</h3>
-                              {isActive && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Active
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <div className="space-y-1 text-xs text-muted-foreground">
-                              <div className="flex items-center space-x-4">
-                                <div className="flex items-center space-x-1">
-                                  <Hash className="h-3 w-3" />
-                                  <span>{session.messageCount} messages</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span>{formatRelativeTime(session.lastActivity)}</span>
-                                </div>
-                              </div>
-                              
-                              {session.createdAt && (
-                                <div className="flex items-center space-x-1">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>Created {formatDate(session.createdAt)}</span>
-                                </div>
-                              )}
-                            </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            <h3 className={isActive ? "font-semibold text-sm truncate" : "font-normal text-sm truncate text-muted-foreground"}>
+                              {title}
+                            </h3>
                           </div>
-                          
-                          {/* Session Actions */}
-                          <div className="flex items-center space-x-1">
-                            {/* Conversation Actions - Direct Buttons */}
-                            {session.messageCount > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(session.lastActivity)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (session.messageCount > 0) {
                                   setSelectedSessionForAction(session.id);
                                   setDeleteConversationDialogOpen(true);
-                                }}
-                                className="h-8 w-8 p-0"
-                                title="Delete Conversation"
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            )}
-                            
-                            {/* Delete Session Button */}
-                            {session.messageCount === 0 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                } else {
                                   handleDeleteSession(session.id);
-                                }}
-                                disabled={deletingSessionId === session.id}
-                                className="h-8 w-8 p-0"
-                                title="Delete Session"
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            )}
+                                }
+                              }}
+                              disabled={deletingSessionId === session.id}
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                            </Button>
                           </div>
                         </div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="right" align="center">
-                      <span className="font-mono text-xs">{session.id}</span>
+                      <div className="text-xs space-y-1">
+                        <div className="font-mono">{session.id}</div>
+                        <div className="text-muted-foreground">{session.messageCount} messages</div>
+                      </div>
                     </TooltipContent>
                   </Tooltip>
                 );
               })}
             </TooltipProvider>
-          )}
-        </div>
+          </div>
+        )}
       </ScrollArea>
 
       {/* New Chat Dialog */}
