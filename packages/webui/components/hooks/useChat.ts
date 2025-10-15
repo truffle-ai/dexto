@@ -214,25 +214,22 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     const chunkType = payload.type as 'text' | 'reasoning' | undefined;
 
                     if (chunkType === 'reasoning') {
+                        // For reasoning chunks, don't remove thinking message yet - keep it visible
                         // Update reasoning on the last assistant message if present,
                         // otherwise create a placeholder assistant message to host the reasoning stream.
                         setMessages((ms) => {
-                            const cleaned = ms.filter(
-                                (m) =>
-                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                            );
-                            const last = cleaned[cleaned.length - 1];
+                            const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
                                 const updated = {
                                     ...last,
                                     reasoning: (last.reasoning || '') + text,
                                     createdAt: Date.now(),
                                 };
-                                return [...cleaned.slice(0, -1), updated];
+                                return [...ms.slice(0, -1), updated];
                             }
                             // No assistant yet; create one with empty content and initial reasoning
                             return [
-                                ...cleaned,
+                                ...ms,
                                 {
                                     id: generateUniqueId(),
                                     role: 'assistant',
@@ -243,8 +240,9 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             ];
                         });
                     } else {
+                        // For text chunks, remove thinking message and start showing actual content
                         setMessages((ms) => {
-                            // Remove any existing 'thinking' system messages
+                            // Remove any existing 'thinking' system messages when we start receiving actual content
                             const cleaned = ms.filter(
                                 (m) =>
                                     !(m.role === 'system' && m.content === 'Dexto is thinking...')
