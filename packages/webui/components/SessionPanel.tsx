@@ -71,7 +71,13 @@ export default function SessionPanel({
       const response = await fetch('/api/sessions');
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
-      setSessions(data.sessions || []);
+      // Sort sessions by lastActivity (most recent first)
+      const sortedSessions = (data.sessions || []).sort((a: Session, b: Session) => {
+        const timeA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+        const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+        return timeB - timeA; // Descending order (most recent first)
+      });
+      setSessions(sortedSessions);
     } catch (err) {
       console.error('Error fetching sessions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
