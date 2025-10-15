@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
+import { ApprovalStatus } from '../approval/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -24,9 +25,9 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpToolsListChanged',
     'dexto:resourceCacheInvalidated',
     'dexto:sessionTitleUpdated',
-    // Tool confirmation events
-    'dexto:toolConfirmationRequest',
-    'dexto:toolConfirmationResponse',
+    // User approval events (generalized approval system)
+    'dexto:approvalRequest',
+    'dexto:approvalResponse',
 ] as const;
 
 /**
@@ -200,22 +201,22 @@ export interface AgentEventMap {
         config: any; // McpServerConfig type
     };
 
-    /** Fired when tool confirmation is requested */
-    'dexto:toolConfirmationRequest': {
-        toolName: string;
-        args: Record<string, any>;
-        description?: string;
-        executionId: string;
-        timestamp: Date;
+    /** Fired when user approval is requested (generalized approval system) */
+    'dexto:approvalRequest': {
+        approvalId: string;
+        type: string; // ApprovalType enum as string
         sessionId?: string;
+        timeout?: number;
+        timestamp: Date;
+        metadata: Record<string, any>;
     };
 
-    /** Fired when tool confirmation response is received */
-    'dexto:toolConfirmationResponse': {
-        executionId: string;
-        approved: boolean;
-        rememberChoice?: boolean;
-        sessionId?: string;
+    /** Fired when user approval response is received */
+    'dexto:approvalResponse': {
+        approvalId: string;
+        status: ApprovalStatus;
+        sessionId?: string | undefined;
+        data?: Record<string, any> | undefined;
     };
 
     /** Fired when MCP server resource is updated */

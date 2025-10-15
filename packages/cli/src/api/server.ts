@@ -46,6 +46,7 @@ import {
     AgentErrorCode,
     AgentError,
     AgentConfigSchema,
+    ApprovalResponseSchema,
 } from '@dexto/core';
 import { ResourceError } from '@dexto/core';
 import { PromptError } from '@dexto/core';
@@ -838,9 +839,18 @@ export async function initializeApi(
             }
             try {
                 const data = JSON.parse(messageString);
-                if (data.type === 'toolConfirmationResponse' && data.data) {
-                    // Route confirmation back via AgentEventBus and do not broadcast an error
-                    activeAgent.agentEventBus.emit('dexto:toolConfirmationResponse', data.data);
+                if (data.type === 'approvalResponse' && data.data) {
+                    // Validate the approval response payload with Zod schema
+                    const validationResult = ApprovalResponseSchema.safeParse(data.data);
+                    if (!validationResult.success) {
+                        logger.warn(
+                            `Received invalid approval response payload: ${validationResult.error.message}`
+                        );
+                        // Do not emit invalid payloads
+                        return;
+                    }
+                    // Route validated approval response back via AgentEventBus
+                    activeAgent.agentEventBus.emit('dexto:approvalResponse', validationResult.data);
                     return;
                 } else if (
                     data.type === 'message' &&

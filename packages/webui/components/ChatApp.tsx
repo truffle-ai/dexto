@@ -9,7 +9,7 @@ import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
 import MemoryPanel from './MemoryPanel';
-import { ToolConfirmationHandler } from './ToolConfirmationHandler';
+import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
@@ -72,6 +72,13 @@ export default function ChatApp() {
 
   // Welcome screen search state
   const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
+
+  // Approval state (for inline rendering in message stream)
+  const [pendingApproval, setPendingApproval] = useState<ApprovalEvent | null>(null);
+  const [approvalHandlers, setApprovalHandlers] = useState<{
+    onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onDeny: () => void;
+  } | null>(null);
 
   // Starter prompts state (from agent config via /api/prompts)
   const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
@@ -914,11 +921,14 @@ export default function ChatApp() {
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
                   <div className="min-h-full grid grid-rows-[1fr_auto]">
                     <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
-                      <MessageList 
+                      <MessageList
                         messages={messages}
                         activeError={activeError}
                         onDismissError={clearError}
                         outerRef={listContentRef}
+                        pendingApproval={pendingApproval}
+                        onApprovalApprove={approvalHandlers?.onApprove}
+                        onApprovalDeny={approvalHandlers?.onDeny}
                       />
                     </div>
                     {/* Sticky input dock inside scroll viewport */}
@@ -1185,7 +1195,11 @@ export default function ChatApp() {
       />
       
       {/* Tool Confirmation Handler */}
-      <ToolConfirmationHandler websocket={websocket} />
+      <ToolConfirmationHandler
+        websocket={websocket}
+        onApprovalRequest={setPendingApproval}
+        onHandlersReady={setApprovalHandlers}
+      />
     </div>
   );
 } 

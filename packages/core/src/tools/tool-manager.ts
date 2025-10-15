@@ -3,10 +3,12 @@ import { InternalToolsProvider } from './internal-tools/provider.js';
 import { InternalToolsServices } from './internal-tools/registry.js';
 import type { InternalToolsConfig } from './schemas.js';
 import { ToolSet } from './types.js';
-import { ToolConfirmationProvider } from './confirmation/types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
 import type { AgentEventBus } from '../events/index.js';
+import type { ApprovalManager } from '../approval/manager.js';
+import { ApprovalStatus } from '../approval/types.js';
+import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -27,16 +29,20 @@ export interface InternalToolsOptions {
  * - Aggregate tools from MCP servers and internal tools with conflict resolution
  * - Route tool execution to appropriate source (MCP vs Internal)
  * - Provide unified tool interface to LLM
- * - Manage tool confirmation and security
+ * - Manage tool confirmation and security via ApprovalManager
  * - Handle cross-source naming conflicts (internal tools have precedence)
  *
  * Architecture:
  * LLMService → ToolManager → [MCPManager, InternalToolsProvider]
+ *                ↓
+ *          ApprovalManager (for confirmations)
  */
 export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
-    private confirmationProvider: ToolConfirmationProvider;
+    private approvalManager: ApprovalManager;
+    private allowedToolsProvider: IAllowedToolsProvider;
+    private approvalMode: 'event-based' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
 
     // Tool source prefixing - ALL tools get prefixed by source
@@ -49,19 +55,23 @@ export class ToolManager {
 
     constructor(
         mcpManager: MCPManager,
-        confirmationProvider: ToolConfirmationProvider,
+        approvalManager: ApprovalManager,
+        allowedToolsProvider: IAllowedToolsProvider,
+        approvalMode: 'event-based' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
         options?: InternalToolsOptions
     ) {
         this.mcpManager = mcpManager;
-        this.confirmationProvider = confirmationProvider;
+        this.approvalManager = approvalManager;
+        this.allowedToolsProvider = allowedToolsProvider;
+        this.approvalMode = approvalMode;
         this.agentEventBus = agentEventBus;
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
             this.internalToolsProvider = new InternalToolsProvider(
                 options.internalToolsServices || {},
-                confirmationProvider,
+                approvalManager,
                 options.internalToolsConfig
             );
         }
@@ -207,17 +217,8 @@ export class ToolManager {
         logger.debug(`🔧 Tool execution requested: '${toolName}'`);
         logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
-        // Centralized confirmation for ALL tools
-        const approved = await this.confirmationProvider.requestConfirmation({
-            toolName,
-            args,
-            ...(sessionId && { sessionId }),
-        });
-
-        if (!approved) {
-            logger.debug(`🚫 Tool execution denied: ${toolName}`);
-            throw ToolError.executionDenied(toolName, sessionId);
-        }
+        // Handle approval/confirmation flow
+        await this.handleToolApproval(toolName, args, sessionId);
 
         logger.debug(`✅ Tool execution approved: ${toolName}`);
         logger.info(
@@ -364,6 +365,94 @@ export class ToolManager {
     }
 
     /**
+     * Handle tool approval/confirmation flow
+     * Checks allowed list, manages approval modes (event-based, auto-approve, auto-deny),
+     * and handles remember choice logic
+     */
+    private async handleToolApproval(
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId?: string
+    ): Promise<void> {
+        // Check if tool is in allowed list first
+        const isAllowed = await this.allowedToolsProvider.isToolAllowed(toolName, sessionId);
+
+        if (isAllowed) {
+            logger.info(
+                `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
+            );
+            return;
+        }
+
+        // Handle different approval modes
+        if (this.approvalMode === 'auto-approve') {
+            logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
+            return;
+        }
+
+        if (this.approvalMode === 'auto-deny') {
+            logger.debug(`🚫 Auto-denying tool execution: ${toolName}`);
+            throw ToolError.executionDenied(toolName, sessionId);
+        }
+
+        // Event-based mode - request approval
+        logger.info(
+            `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+        );
+
+        try {
+            // Request approval through the ApprovalManager
+            const requestData: {
+                toolName: string;
+                args: Record<string, unknown>;
+                sessionId?: string;
+            } = {
+                toolName,
+                args,
+            };
+
+            if (sessionId !== undefined) {
+                requestData.sessionId = sessionId;
+            }
+
+            const response = await this.approvalManager.requestToolConfirmation(requestData);
+
+            // Handle remember choice if approved
+            const rememberChoice =
+                response.data && 'rememberChoice' in response.data
+                    ? response.data.rememberChoice
+                    : false;
+
+            if (response.status === ApprovalStatus.APPROVED && rememberChoice) {
+                await this.allowedToolsProvider.allowTool(toolName, response.sessionId);
+                logger.info(
+                    `Tool '${toolName}' added to allowed tools for session '${response.sessionId ?? 'global'}' (remember choice selected)`
+                );
+            }
+
+            const approved = response.status === ApprovalStatus.APPROVED;
+
+            if (!approved) {
+                logger.info(
+                    `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                );
+                logger.debug(`🚫 Tool execution denied: ${toolName}`);
+                throw ToolError.executionDenied(toolName, sessionId);
+            }
+
+            logger.info(
+                `Tool confirmation approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+            );
+        } catch (error) {
+            // Log and re-throw - errors are already properly formatted by ApprovalManager
+            logger.error(
+                `Tool confirmation error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
+            );
+            throw error;
+        }
+    }
+
+    /**
      * Refresh tool discovery (call when MCP servers change)
      * Refreshes both MCPManager's cache (server capabilities) and ToolManager's cache (combined tools)
      */
@@ -375,5 +464,26 @@ export class ToolManager {
         this.invalidateCache();
 
         logger.debug('ToolManager refreshed (including MCP server capabilities)');
+    }
+
+    /**
+     * Get list of pending confirmation requests
+     */
+    getPendingConfirmations(): string[] {
+        return this.approvalManager.getPendingApprovals();
+    }
+
+    /**
+     * Cancel a pending confirmation request
+     */
+    cancelConfirmation(approvalId: string): void {
+        this.approvalManager.cancelApproval(approvalId);
+    }
+
+    /**
+     * Cancel all pending confirmation requests
+     */
+    cancelAllConfirmations(): void {
+        this.approvalManager.cancelAllApprovals();
     }
 }

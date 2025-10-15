@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
 import { InternalToolsProvider } from './provider.js';
-import { NoOpConfirmationProvider } from '../confirmation/noop-confirmation-provider.js';
 import type { InternalToolsServices } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
 import type { InternalTool } from '../types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { ApprovalManager } from '../../approval/manager.js';
 
 // Mock logger
 vi.mock('../../logger/index.js', () => ({
@@ -33,7 +33,7 @@ vi.mock('zod-to-json-schema', () => ({
 
 describe('InternalToolsProvider', () => {
     let mockServices: InternalToolsServices;
-    let confirmationProvider: NoOpConfirmationProvider;
+    let approvalManager: ApprovalManager;
     let config: InternalToolsConfig;
 
     beforeEach(() => {
@@ -49,7 +49,20 @@ describe('InternalToolsProvider', () => {
             } as any,
         };
 
-        confirmationProvider = new NoOpConfirmationProvider();
+        // Create ApprovalManager in auto-approve mode for tests
+        const mockAgentEventBus = {
+            on: vi.fn(),
+            emit: vi.fn(),
+            off: vi.fn(),
+            once: vi.fn(),
+            removeAllListeners: vi.fn(),
+        } as any;
+
+        approvalManager = new ApprovalManager(mockAgentEventBus, {
+            mode: 'auto-approve',
+            timeout: 120000,
+        });
+
         config = ['search_history'];
 
         vi.clearAllMocks();
@@ -57,7 +70,7 @@ describe('InternalToolsProvider', () => {
 
     describe('Initialization', () => {
         it('should initialize with empty config', async () => {
-            const provider = new InternalToolsProvider(mockServices, confirmationProvider, []);
+            const provider = new InternalToolsProvider(mockServices, approvalManager, []);
             await provider.initialize();
 
             expect(provider.getToolCount()).toBe(0);
@@ -65,7 +78,7 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should register tools when services are available', async () => {
-            const provider = new InternalToolsProvider(mockServices, confirmationProvider, config);
+            const provider = new InternalToolsProvider(mockServices, approvalManager, config);
             await provider.initialize();
 
             expect(provider.getToolCount()).toBe(1);
@@ -79,7 +92,7 @@ describe('InternalToolsProvider', () => {
 
             const provider = new InternalToolsProvider(
                 servicesWithoutSearch,
-                confirmationProvider,
+                approvalManager,
                 config
             );
             await provider.initialize();
@@ -94,11 +107,7 @@ describe('InternalToolsProvider', () => {
                 searchService: null as any, // This should cause issues during tool creation
             };
 
-            const provider = new InternalToolsProvider(
-                failingServices,
-                confirmationProvider,
-                config
-            );
+            const provider = new InternalToolsProvider(failingServices, approvalManager, config);
             await provider.initialize();
 
             // Tool should be skipped due to missing service, so count should be 0
@@ -108,7 +117,7 @@ describe('InternalToolsProvider', () => {
         it('should log initialization progress', async () => {
             const { logger } = await import('../../logger/index.js');
 
-            const provider = new InternalToolsProvider(mockServices, confirmationProvider, config);
+            const provider = new InternalToolsProvider(mockServices, approvalManager, config);
             await provider.initialize();
 
             expect(logger.info).toHaveBeenCalledWith('Initializing InternalToolsProvider...');
@@ -122,7 +131,7 @@ describe('InternalToolsProvider', () => {
         let provider: InternalToolsProvider;
 
         beforeEach(async () => {
-            provider = new InternalToolsProvider(mockServices, confirmationProvider, config);
+            provider = new InternalToolsProvider(mockServices, approvalManager, config);
             await provider.initialize();
         });
 
@@ -180,7 +189,7 @@ describe('InternalToolsProvider', () => {
         let provider: InternalToolsProvider;
 
         beforeEach(async () => {
-            provider = new InternalToolsProvider(mockServices, confirmationProvider, config);
+            provider = new InternalToolsProvider(mockServices, approvalManager, config);
             await provider.initialize();
         });
 
@@ -317,7 +326,7 @@ describe('InternalToolsProvider', () => {
 
             const provider = new InternalToolsProvider(
                 partialServices,
-                confirmationProvider,
+                approvalManager,
                 ['search_history'] // This tool requires searchService
             );
             await provider.initialize();
@@ -330,7 +339,7 @@ describe('InternalToolsProvider', () => {
 
             const provider = new InternalToolsProvider(
                 emptyServices,
-                confirmationProvider,
+                approvalManager,
                 ['search_history'] // This tool requires searchService
             );
             await provider.initialize();
@@ -343,7 +352,7 @@ describe('InternalToolsProvider', () => {
 
             const emptyServices: InternalToolsServices = {};
 
-            const provider = new InternalToolsProvider(emptyServices, confirmationProvider, [
+            const provider = new InternalToolsProvider(emptyServices, approvalManager, [
                 'search_history',
             ]);
             await provider.initialize();
@@ -359,7 +368,7 @@ describe('InternalToolsProvider', () => {
             // Note: Only search_history is available in current registry
             const provider = new InternalToolsProvider(
                 mockServices,
-                confirmationProvider,
+                approvalManager,
                 ['search_history'] // Add more tools here as they're implemented
             );
             await provider.initialize();
@@ -371,7 +380,7 @@ describe('InternalToolsProvider', () => {
             // The provider should handle unknown tools by catching errors during getInternalToolInfo
             const provider = new InternalToolsProvider(
                 mockServices,
-                confirmationProvider,
+                approvalManager,
                 ['search_history'] // Only use known tools for now
             );
 
@@ -387,7 +396,7 @@ describe('InternalToolsProvider', () => {
         it('should handle initialization failures gracefully', async () => {
             // Test with empty services to ensure error handling works
             const emptyServices: InternalToolsServices = {};
-            const provider = new InternalToolsProvider(emptyServices, confirmationProvider, config);
+            const provider = new InternalToolsProvider(emptyServices, approvalManager, config);
 
             // Should not throw, but should skip tools due to missing services
             await provider.initialize();
@@ -397,7 +406,7 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should handle tool execution context properly', async () => {
-            const provider = new InternalToolsProvider(mockServices, confirmationProvider, config);
+            const provider = new InternalToolsProvider(mockServices, approvalManager, config);
             await provider.initialize();
 
             // Execute without sessionId

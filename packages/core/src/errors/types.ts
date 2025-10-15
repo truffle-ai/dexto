@@ -11,6 +11,7 @@ import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
 import type { PromptErrorCode } from '@core/prompts/error-codes.js';
+import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 
 /**
@@ -67,6 +68,7 @@ export type DextoErrorCode =
     | RegistryErrorCode
     | ResourceErrorCode
     | PromptErrorCode
+    | ApprovalErrorCode
     | MemoryErrorCode;
 
 /** Severity of an issue */
