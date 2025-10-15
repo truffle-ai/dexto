@@ -54,6 +54,7 @@ export default function SessionPanel({
   const [newSessionId, setNewSessionId] = useState('');
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const isDeletingRef = React.useRef(false);
+  const requestIdRef = React.useRef(0);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -64,12 +65,21 @@ export default function SessionPanel({
     if (isDeletingRef.current) {
       return;
     }
+
+    requestIdRef.current += 1;
+    const currentRequestId = requestIdRef.current;
+
     setLoading(true);
     setError(null);
     try {
       const response = await fetch('/api/sessions');
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const responseText = await response.text();
+
+      if (currentRequestId !== requestIdRef.current) {
+        return;
+      }
+
       if (!responseText.trim()) {
         setSessions([]);
         return;
@@ -89,12 +99,19 @@ export default function SessionPanel({
         const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
         return timeB - timeA;
       });
-      setSessions(sortedSessions);
+
+      if (currentRequestId === requestIdRef.current) {
+        setSessions(sortedSessions);
+      }
     } catch (err) {
-      console.error('Error fetching sessions:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      if (currentRequestId === requestIdRef.current) {
+        console.error('Error fetching sessions:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -338,7 +355,16 @@ export default function SessionPanel({
                           ? "group relative px-3 py-3 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer"
                           : "group relative px-3 py-2.5 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer"
                         }
+                        role="button"
+                        tabIndex={0}
+                        aria-current={isActive ? "page" : undefined}
                         onClick={() => onSessionChange(session.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSessionChange(session.id);
+                          }
+                        }}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2.5 flex-1 min-w-0">
@@ -363,7 +389,8 @@ export default function SessionPanel({
                                 }
                               }}
                               disabled={deletingSessionId === session.id}
-                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                              aria-label={session.messageCount > 0 ? "Delete conversation" : "Delete chat"}
                               title="Delete"
                             >
                               <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
