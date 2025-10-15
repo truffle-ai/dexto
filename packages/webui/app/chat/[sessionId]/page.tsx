@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: ChatPageProps) {
   const { sessionId } = await params;
   
   return {
-    title: `Chat ${sessionId}`,
+    title: "Dexto Web UI",
     description: `Chat session ${sessionId}`,
   };
 }
