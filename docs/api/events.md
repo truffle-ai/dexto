@@ -342,7 +342,7 @@ Fired when a tool execution completes.
 {
   toolName: string;
   sanitized: SanitizedToolResult;
-  rawResult?: unknown; // only present when DECTO_DEBUG_TOOL_RESULT_RAW=true
+  rawResult?: unknown; // only present when DEXTO_DEBUG_TOOL_RESULT_RAW=true
   callId?: string;
   success: boolean;
   sessionId: string;
