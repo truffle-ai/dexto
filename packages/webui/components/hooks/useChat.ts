@@ -446,7 +446,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     data: payload,
                                     mimeType: audioPart.mimeType,
                                     ...(audioPart.filename ? { filename: audioPart.filename } : {}),
-                                    mediaKind: 'audio',
                                 } satisfies FilePart;
                             }
                         }
@@ -474,19 +473,11 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     } satisfies CoreImagePart;
                                 }
 
-                                const mediaKind: FilePart['mediaKind'] =
-                                    resource.mimeType.startsWith('video/')
-                                        ? 'video'
-                                        : resource.mimeType.startsWith('audio/')
-                                          ? 'audio'
-                                          : 'binary';
-
                                 return {
                                     type: 'file',
                                     data: resource.text,
                                     mimeType: resource.mimeType,
                                     ...(resource.title ? { filename: resource.title } : {}),
-                                    ...(mediaKind ? { mediaKind } : {}),
                                 } satisfies FilePart;
                             }
                         }
@@ -502,7 +493,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 data: filePart.data,
                                 mimeType: filePart.mimeType,
                                 ...(filePart.filename ? { filename: filePart.filename } : {}),
-                                ...(filePart.mediaKind ? { mediaKind: filePart.mediaKind } : {}),
                             } satisfies FilePart;
                         }
 

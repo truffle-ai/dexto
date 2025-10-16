@@ -5,6 +5,7 @@ import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
+import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 
 // Tunable heuristics and shared constants
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
@@ -27,7 +28,6 @@ type InlineMediaHint = {
     approxBytes: number;
     data: string | Buffer;
     filename?: string | undefined;
-    mediaKind?: FilePart['mediaKind'] | undefined;
 };
 
 export interface NormalizedToolResult {
@@ -96,9 +96,6 @@ function clonePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart 
     if (part.filename) {
         cloned.filename = part.filename;
     }
-    if (part.mediaKind) {
-        cloned.mediaKind = part.mediaKind;
-    }
     return cloned;
 }
 
@@ -141,9 +138,6 @@ function coerceContentToParts(
                     };
                     if (filePart.filename) {
                         cloned.filename = filePart.filename;
-                    }
-                    if (filePart.mediaKind) {
-                        cloned.mediaKind = filePart.mediaKind;
                     }
                     normalized.push(cloned);
                     continue;
@@ -229,7 +223,6 @@ function detectInlineMedia(
     const data = part.data;
     const mimeType = part.mimeType ?? 'application/octet-stream';
     const filename = part.filename;
-    const mediaKind = part.mediaKind;
 
     if (typeof data === 'string') {
         if (data.startsWith('@blob:')) return null;
@@ -246,7 +239,6 @@ function detectInlineMedia(
                     approxBytes: base64LengthToBytes(parsed.base64.length),
                     data: parsed.base64,
                     filename,
-                    mediaKind: mediaKind ?? inferMediaKind(parsed.mediaType),
                 };
             }
         }
@@ -258,7 +250,6 @@ function detectInlineMedia(
                 approxBytes: base64LengthToBytes(data.length),
                 data,
                 filename,
-                mediaKind,
             };
         }
     } else if (data instanceof Buffer) {
@@ -269,7 +260,6 @@ function detectInlineMedia(
             approxBytes: data.length,
             data,
             filename,
-            mediaKind,
         };
     } else if (data instanceof Uint8Array) {
         const buffer = Buffer.from(data);
@@ -280,7 +270,6 @@ function detectInlineMedia(
             approxBytes: buffer.length,
             data: buffer,
             filename,
-            mediaKind,
         };
     } else if (data instanceof ArrayBuffer) {
         const buffer = Buffer.from(new Uint8Array(data));
@@ -291,7 +280,6 @@ function detectInlineMedia(
             approxBytes: buffer.length,
             data: buffer,
             filename,
-            mediaKind,
         };
     }
 
@@ -370,11 +358,6 @@ async function resolveBlobReferenceToParts(
                     ? `data:${resolvedMime};base64,${base64Data}`
                     : base64Data,
                 mimeType: resolvedMime,
-                mediaKind: resolvedMime.startsWith('audio/')
-                    ? 'audio'
-                    : resolvedMime.startsWith('video/')
-                      ? 'video'
-                      : 'binary',
             };
             if (typeof item.filename === 'string' && item.filename.length > 0) {
                 filePart.filename = item.filename;
@@ -852,6 +835,9 @@ export function parseDataUri(value: string): { mediaType: string; base64: string
     return { mediaType, base64 };
 }
 
+// Re-export browser-safe helpers for convenience (already imported above)
+export { getFileMediaKind, getResourceKind };
+
 /**
  * Recursively sanitize objects by replacing suspiciously-large base64 strings
  * with placeholders to avoid blowing up the context window.
@@ -899,7 +885,8 @@ export async function normalizeToolResult(result: unknown): Promise<NormalizedTo
 }
 
 function shouldPersistInlineMedia(hint: InlineMediaHint): boolean {
-    if (hint.mediaKind && (hint.mediaKind === 'audio' || hint.mediaKind === 'video')) {
+    const kind = getFileMediaKind(hint.mimeType);
+    if (kind === 'audio' || kind === 'video') {
         return true;
     }
     return hint.approxBytes >= MIN_TOOL_INLINE_MEDIA_BYTES;
@@ -947,12 +934,7 @@ export async function persistToolMedia(
                 } else {
                     const resolvedMimeType = blobRef.metadata.mimeType || hint.mimeType;
                     const filename = blobRef.metadata.originalName ?? hint.filename;
-                    parts[hint.index] = createBlobFilePart(
-                        resourceUri,
-                        resolvedMimeType,
-                        filename,
-                        hint.mediaKind ?? inferMediaKind(resolvedMimeType)
-                    );
+                    parts[hint.index] = createBlobFilePart(resourceUri, resolvedMimeType, filename);
                 }
             } catch (error) {
                 logger.warn(
@@ -1012,14 +994,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         if (mediaType.startsWith('image/')) {
                             return [createBlobImagePart(blobRef.uri, mediaType)];
                         }
-                        return [
-                            createBlobFilePart(
-                                blobRef.uri,
-                                mediaType,
-                                undefined,
-                                inferMediaKind(mediaType)
-                            ),
-                        ];
+                        return [createBlobFilePart(blobRef.uri, mediaType, undefined)];
                     } catch (error) {
                         logger.warn(
                             `Failed to store blob, falling back to inline: ${String(error)}`
@@ -1037,11 +1012,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                         type: 'file',
                         data: dataUri.base64,
                         mimeType: mediaType,
-                        mediaKind: mediaType.startsWith('audio/')
-                            ? 'audio'
-                            : mediaType.startsWith('video/')
-                              ? 'video'
-                              : 'binary',
                     },
                 ];
             }
@@ -1068,8 +1038,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                             createBlobFilePart(
                                 blobRef.uri,
                                 'application/octet-stream',
-                                'tool-output.bin',
-                                'binary'
+                                'tool-output.bin'
                             ),
                         ];
                     } catch (error) {
@@ -1086,7 +1055,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                         data: result,
                         mimeType: 'application/octet-stream',
                         filename: 'tool-output.bin',
-                        mediaKind: 'binary',
                     },
                 ];
             }
@@ -1179,8 +1147,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                                                 createBlobFilePart(
                                                     blobRef.uri,
                                                     mimeType,
-                                                    resource.title,
-                                                    inferMediaKind(mimeType)
+                                                    resource.title
                                                 )
                                             );
                                         }
@@ -1205,7 +1172,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                                         data: fileData,
                                         mimeType,
                                         filename: resource.title,
-                                        mediaKind: inferMediaKind(mimeType),
                                     });
                                 } else {
                                     processedContent.push({
@@ -1213,7 +1179,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                                         data: fileData,
                                         mimeType,
                                         filename: resource.title,
-                                        mediaKind: 'binary',
                                     });
                                 }
                                 continue;
@@ -1256,12 +1221,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                                         );
                                     } else {
                                         processedContent.push(
-                                            createBlobFilePart(
-                                                blobRef.uri,
-                                                mimeType,
-                                                item.filename,
-                                                inferMediaKind(mimeType)
-                                            )
+                                            createBlobFilePart(blobRef.uri, mimeType, item.filename)
                                         );
                                     }
                                     continue;
@@ -1285,11 +1245,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                                     data: fileData,
                                     mimeType,
                                     filename: item.filename,
-                                    mediaKind: mimeType.startsWith('audio/')
-                                        ? 'audio'
-                                        : mimeType.startsWith('video/')
-                                          ? 'video'
-                                          : 'binary',
                                 });
                             }
                             continue;
@@ -1364,14 +1319,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         logger.debug(
                             `Stored tool file as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
-                        return [
-                            createBlobFilePart(
-                                blobRef.uri,
-                                mimeType,
-                                anyObj.filename,
-                                inferMediaKind(mimeType)
-                            ),
-                        ];
+                        return [createBlobFilePart(blobRef.uri, mimeType, anyObj.filename)];
                     } catch (error) {
                         logger.warn(
                             `Failed to store file blob, falling back to inline: ${String(error)}`
@@ -1385,11 +1333,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                         data: fileData,
                         mimeType,
                         filename: anyObj.filename,
-                        mediaKind: mimeType.startsWith('audio/')
-                            ? 'audio'
-                            : mimeType.startsWith('video/')
-                              ? 'video'
-                              : 'binary',
                     },
                 ];
             }
@@ -1413,20 +1356,9 @@ export async function sanitizeToolResultToContentWithBlobs(
     }
 }
 
-function inferResourceKind(
-    mimeType: string | undefined,
-    mediaKind?: FilePart['mediaKind']
-): 'image' | 'audio' | 'video' | 'binary' {
-    if (mimeType?.startsWith('image/')) return 'image';
-    if (mimeType?.startsWith('audio/') || mediaKind === 'audio') return 'audio';
-    if (mimeType?.startsWith('video/') || mediaKind === 'video') return 'video';
-    return 'binary';
-}
-
-function inferMediaKind(mimeType: string | undefined): FilePart['mediaKind'] {
-    if (mimeType?.startsWith('audio/')) return 'audio';
-    if (mimeType?.startsWith('video/')) return 'video';
-    return 'binary';
+// Deprecated: Use getResourceKind instead. Kept for internal backwards compatibility during migration.
+function inferResourceKind(mimeType: string | undefined): 'image' | 'audio' | 'video' | 'binary' {
+    return getResourceKind(mimeType);
 }
 
 function createBlobImagePart(uri: string, mimeType?: string): ImagePart {
@@ -1437,19 +1369,12 @@ function createBlobImagePart(uri: string, mimeType?: string): ImagePart {
     };
 }
 
-function createBlobFilePart(
-    uri: string,
-    mimeType: string,
-    filename?: string,
-    mediaKind?: FilePart['mediaKind']
-): FilePart {
-    const resolvedMediaKind = mediaKind ?? inferMediaKind(mimeType);
+function createBlobFilePart(uri: string, mimeType: string, filename?: string): FilePart {
     return {
         type: 'file',
         data: `@${uri}`,
         mimeType,
         ...(filename ? { filename } : {}),
-        ...(resolvedMediaKind ? { mediaKind: resolvedMediaKind } : {}),
     };
 }
 
@@ -1478,10 +1403,9 @@ function extractResourceDescriptors(
         ) {
             resources.push({
                 uri: part.data.substring(1),
-                kind: inferResourceKind(part.mimeType, part.mediaKind),
+                kind: inferResourceKind(part.mimeType),
                 mimeType: part.mimeType,
                 ...(part.filename ? { filename: part.filename } : {}),
-                ...(part.mediaKind ? { mediaKind: part.mediaKind } : {}),
             });
         }
     }

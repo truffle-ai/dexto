@@ -4,6 +4,7 @@ import React, { createContext, useContext, ReactNode, useEffect, useState, useCa
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
+import { getResourceKind } from '@dexto/core';
 
 interface ChatContextType {
   messages: Message[];
@@ -235,22 +236,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             if (part.type === 'file' && typeof part.data === 'string' && part.data.startsWith('@blob:')) {
               const uri = part.data.substring(1);
-              const kind: 'image' | 'audio' | 'video' | 'binary' = part.mediaKind
-                ? part.mediaKind
-                : part.mimeType?.startsWith('audio/')
-                  ? 'audio'
-                  : part.mimeType?.startsWith('video/')
-                    ? 'video'
-                    : part.mimeType?.startsWith('image/')
-                      ? 'image'
-                      : 'binary';
+              const mimeType = part.mimeType ?? 'application/octet-stream';
+              const kind = getResourceKind(mimeType);
 
               resources.push({
                 uri,
                 kind,
-                mimeType: part.mimeType ?? 'application/octet-stream',
+                mimeType,
                 ...(part.filename ? { filename: part.filename } : {}),
-                ...(part.mediaKind ? { mediaKind: part.mediaKind } : {}),
               });
             }
           }

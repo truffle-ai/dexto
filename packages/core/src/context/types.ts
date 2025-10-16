@@ -24,15 +24,8 @@ export interface ImagePart extends ImageData {
     type: 'image';
 }
 
-export type FileMediaKind = 'audio' | 'video' | 'binary';
-
 export interface FilePart extends FileData {
     type: 'file';
-    /**
-     * Optional hint describing the media intent for downstream consumers.
-     * Falls back to 'binary' when unspecified.
-     */
-    mediaKind?: FileMediaKind;
 }
 
 export interface SanitizedToolResult {
@@ -47,7 +40,6 @@ export interface SanitizedToolResult {
         kind: 'image' | 'audio' | 'video' | 'binary';
         mimeType: string;
         filename?: string;
-        mediaKind?: FileMediaKind;
     }>;
     meta: {
         toolName: string;

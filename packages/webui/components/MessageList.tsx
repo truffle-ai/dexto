@@ -2,19 +2,20 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from "@/lib/utils";
-import { 
-    Message, 
-    TextPart, 
+import {
+    Message,
+    TextPart,
     AudioPart,
-    isToolResultError, 
-    isToolResultContent, 
-    isTextPart, 
-    isImagePart, 
+    isToolResultError,
+    isToolResultContent,
+    isTextPart,
+    isImagePart,
     isAudioPart,
-    isFilePart, 
+    isFilePart,
     ErrorMessage,
     ToolResult
 } from './hooks/useChat';
+import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
     User,
@@ -206,7 +207,7 @@ function resolveMediaSrc(
           const preferKinds: Array<NormalizedResourceItem['kind']> = [];
           if (part?.type === 'image') preferKinds.push('image');
           if (part?.type === 'file') {
-            const mediaKind = part.mediaKind as 'audio' | 'video' | 'binary' | undefined;
+            const mediaKind = getFileMediaKind(part.mimeType);
             if (mediaKind === 'audio') preferKinds.push('audio');
             else if (mediaKind === 'video') preferKinds.push('video');
           }
@@ -262,9 +263,10 @@ function getVideoInfo(
   const mimeType = anyPart.mimeType || anyPart.mediaType;
   const filename = anyPart.filename || anyPart.name;
   
+  const mediaKind = anyPart.type === 'file' ? getFileMediaKind(anyPart.mimeType) : null;
   const isVideo =
     mimeType?.startsWith('video/') ||
-    anyPart.mediaKind === 'video' ||
+    mediaKind === 'video' ||
     anyPart.type === 'video' ||
     filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
   
@@ -483,7 +485,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
               }
             } else if (
               isFilePart(part) &&
-              (part.mediaKind === 'audio' || part.mimeType?.startsWith('audio/'))
+              (getFileMediaKind(part.mimeType) === 'audio' || part.mimeType?.startsWith('audio/'))
             ) {
               const src = resolveMediaSrc(part, toolResourceStates);
               if (src && isSafeMediaUrl(src, 'audio')) {
@@ -675,7 +677,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                     isImagePart(part) ||
                                     isAudioPart(part) ||
                                     (isFilePart(part) &&
-                                        (part.mediaKind === 'audio' ||
+                                        (getFileMediaKind(part.mimeType) === 'audio' ||
                                             part.mimeType?.startsWith('audio/'))) ||
                                     videoInfo
                                   ) {
@@ -693,11 +695,12 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                     );
                                   }
                                   if (isFilePart(part)) {
+                                    const mediaKind = getFileMediaKind(part.mimeType);
                                     const isAudioFile =
-                                      part.mediaKind === 'audio' ||
+                                      mediaKind === 'audio' ||
                                       part.mimeType?.startsWith('audio/');
                                     const isVideoFile =
-                                      part.mediaKind === 'video' ||
+                                      mediaKind === 'video' ||
                                       part.mimeType?.startsWith('video/');
                                     return (
                                       <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
