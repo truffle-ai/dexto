@@ -13,6 +13,7 @@ import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
 import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
+import type { PluginErrorCode } from '@core/plugins/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -33,6 +34,7 @@ export enum ErrorScope {
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
+    PLUGIN = 'plugin', // Plugin loading, validation, and execution
 }
 
 /**
@@ -69,7 +71,8 @@ export type DextoErrorCode =
     | ResourceErrorCode
     | PromptErrorCode
     | ApprovalErrorCode
-    | MemoryErrorCode;
+    | MemoryErrorCode
+    | PluginErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';
