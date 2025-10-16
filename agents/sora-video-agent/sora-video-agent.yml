@@ -38,9 +38,10 @@ systemPrompt: |
 mcpServers:
   sora_video:
     type: stdio
-    command: node
+    command: npx
     args:
-      - /Users/shaun/Desktop/Projects/mcp-servers/src/sora-video/dist/index.js
+      - -y
+      - @truffle-ai/sora-agent
     connectionMode: strict
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY

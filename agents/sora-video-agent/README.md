@@ -41,22 +41,22 @@ A Dexto agent specialized in AI video generation using OpenAI's Sora technology.
 ## Usage Examples
 
 ### Basic Video Generation
-```
+```text
 Create a video of a cat playing piano in a cozy living room
 ```
 
 ### Custom Settings
-```
+```text
 Generate an 8-second video in 16:9 format showing a sunset over mountains
 ```
 
 ### Reference-Based Creation
-```
+```text
 Create a video using this image as reference, showing the character walking through a forest
 ```
 
 ### Video Remixing
-```
+```text
 Create a remix of video_123 showing the same character but in a different setting
 ```
 
@@ -73,6 +73,17 @@ Create a remix of video_123 showing the same character but in a different settin
 - OpenAI API key with Sora access
 - Node.js 18+ for the MCP server
 - Sufficient storage space for video downloads
+- MCP Sora Video server installed and configured
+
+### Environment Setup
+
+Set the following environment variable to point to your MCP Sora Video server installation:
+
+```bash
+export MCP_SORA_VIDEO_PATH="/path/to/mcp-servers/src/sora-video/dist/index.js"
+```
+
+Add this to your shell profile (`.bashrc`, `.zshrc`, etc.) to persist across sessions.
 
 ## Workflow
 
