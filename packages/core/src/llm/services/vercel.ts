@@ -12,7 +12,7 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { summarizeToolContentForText, sanitizeToolResult } from '../../context/utils.js';
+import { summarizeToolContentForText, normalizeToolResult } from '../../context/utils.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
@@ -115,19 +115,11 @@ export class VercelLLMService implements ILLMService {
                             queue.push(rawResult);
                             this.rawResultsByCallId.set(callId, queue);
 
-                            // Sanitize tool result to prevent large/base64 media from exploding context
-                            // Convert arbitrary result -> InternalMessage content (media as structured parts)
-                            // then summarize to concise text suitable for Vercel tool output.
-                            // Use blob-aware sanitization with blob store
-                            const resourceManager = this.contextManager.getResourceManager();
-                            const blobService = resourceManager.getBlobStore();
-
-                            const sanitized = await sanitizeToolResult(rawResult, {
-                                blobStore: blobService,
-                                toolName,
-                                toolCallId: options.toolCallId,
-                            });
-                            const summaryText = summarizeToolContentForText(sanitized.content);
+                            // Normalize tool result for summary generation WITHOUT persisting blobs yet
+                            // Blobs will be persisted once in contextManager.addToolResult later
+                            // This avoids double sanitization/persistence (see context/utils.ts)
+                            const normalized = await normalizeToolResult(rawResult);
+                            const summaryText = summarizeToolContentForText(normalized.parts);
                             return summaryText;
                         } catch (err: unknown) {
                             // Return structured error to SDK so a toolResult step is produced
