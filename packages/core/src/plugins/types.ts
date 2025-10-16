@@ -51,7 +51,7 @@ export interface PluginNotice {
  * Execution context passed to every plugin method
  * Contains runtime state and read-only access to agent services
  */
-export interface ExecutionContext {
+export interface PluginExecutionContext {
     /** Current session ID */
     sessionId?: string | undefined;
 
@@ -136,25 +136,25 @@ export interface DextoPlugin {
     /** Extension point: before LLM request */
     beforeLLMRequest?(
         payload: BeforeLLMRequestPayload,
-        context: ExecutionContext
+        context: PluginExecutionContext
     ): Promise<PluginResult>;
 
     /** Extension point: before tool call */
     beforeToolCall?(
         payload: BeforeToolCallPayload,
-        context: ExecutionContext
+        context: PluginExecutionContext
     ): Promise<PluginResult>;
 
     /** Extension point: after tool result */
     afterToolResult?(
         payload: AfterToolResultPayload,
-        context: ExecutionContext
+        context: PluginExecutionContext
     ): Promise<PluginResult>;
 
     /** Extension point: before response */
     beforeResponse?(
         payload: BeforeResponsePayload,
-        context: ExecutionContext
+        context: PluginExecutionContext
     ): Promise<PluginResult>;
 
     /** Called when agent shuts down (cleanup) */

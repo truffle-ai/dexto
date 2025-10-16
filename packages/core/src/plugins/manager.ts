@@ -6,7 +6,7 @@ import { getContext } from '../utils/async-context.js';
 import type {
     DextoPlugin,
     ExtensionPoint,
-    ExecutionContext,
+    PluginExecutionContext,
     PluginConfig,
     LoadedPlugin,
     PluginResult,
@@ -273,7 +273,7 @@ export class PluginManager {
         const asyncCtx = getContext();
         const llmConfig = options.stateManager.getLLMConfig(options.sessionId);
 
-        const context: ExecutionContext = {
+        const context: PluginExecutionContext = {
             sessionId: options.sessionId ?? undefined,
             userId: asyncCtx?.userId ?? undefined,
             tenantId: asyncCtx?.tenantId ?? undefined,
