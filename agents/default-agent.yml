@@ -87,6 +87,36 @@ internalResources:
     # Blob resource - enables large file upload/storage (settings in storage.blob section above)
     - type: blob
 
+# Plugin system - built-in plugins for content policy and response sanitization
+plugins:
+  # ContentPolicy - validates and sanitizes input before sending to LLM
+  contentPolicy:
+    priority: 10              # Lower priority = runs first
+    blocking: true            # Blocks execution if validation fails
+    maxInputChars: 50000      # Maximum input length (characters)
+    redactEmails: true        # Redact email addresses from input
+    redactApiKeys: true       # Redact potential API keys from input
+    enabled: true             # Enable this plugin
+
+  # ResponseSanitizer - sanitizes LLM responses before returning to user
+  responseSanitizer:
+    priority: 900             # Higher priority = runs near the end
+    blocking: false           # Non-blocking (logs warnings but doesn't stop)
+    redactEmails: true        # Redact email addresses from responses
+    redactApiKeys: true       # Redact potential API keys from responses
+    maxResponseLength: 100000 # Maximum response length (characters)
+    enabled: true             # Enable this plugin
+
+  # Custom plugins can be added here (see documentation)
+  # custom:
+  #   - name: tenant-auth
+  #     module: "${{dexto.agent_dir}}/plugins/tenant-auth.ts"
+  #     enabled: true
+  #     blocking: true
+  #     priority: 100
+  #     config:
+  #       enforceQuota: true
+
 # Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
 # TODO: (355) Have to update docs for this starterPrompts and internalResources section and blob section
 # https://github.com/truffle-ai/dexto/pull/355#discussion_r2412886278
