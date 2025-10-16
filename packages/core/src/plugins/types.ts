@@ -53,13 +53,13 @@ export interface PluginNotice {
  */
 export interface ExecutionContext {
     /** Current session ID */
-    sessionId?: string;
+    sessionId?: string | undefined;
 
     /** User ID (set by application layer via AsyncLocalStorage) */
-    userId?: string;
+    userId?: string | undefined;
 
     /** Tenant ID (set by application layer for multi-tenant deployments via AsyncLocalStorage) */
-    tenantId?: string;
+    tenantId?: string | undefined;
 
     /** Current LLM configuration */
     llmConfig: ValidatedLLMConfig;
@@ -68,7 +68,7 @@ export interface ExecutionContext {
     logger: Logger;
 
     /** Abort signal for cancellation */
-    abortSignal?: AbortSignal;
+    abortSignal?: AbortSignal | undefined;
 
     /** Reference to agent services (read-only access) */
     agent: {
@@ -170,7 +170,7 @@ export interface PluginConfig {
     enabled: boolean;
     blocking: boolean;
     priority: number;
-    config?: Record<string, any>;
+    config?: Record<string, any> | undefined;
 }
 
 /**
