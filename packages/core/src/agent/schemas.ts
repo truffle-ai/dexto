@@ -14,6 +14,7 @@ import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/s
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { StarterPromptsSchema } from '@core/prompts/schemas.js';
+import { PluginsConfigSchema } from '@core/plugins/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
@@ -125,6 +126,11 @@ export const AgentConfigSchema = z
 
         // Agent-specific starter prompts configuration (used by WebUI and PromptManager)
         starterPrompts: StarterPromptsSchema,
+
+        // Plugin configuration
+        plugins: PluginsConfigSchema.describe(
+            'Plugin system configuration for built-in and custom plugins'
+        ),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
