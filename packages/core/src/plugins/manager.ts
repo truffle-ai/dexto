@@ -4,7 +4,6 @@ import { PluginErrorCode } from './error-codes.js';
 import { loadPluginModule, resolvePluginPath } from './loader.js';
 import { getContext } from '../utils/async-context.js';
 import type {
-    DextoPlugin,
     ExtensionPoint,
     PluginExecutionContext,
     PluginConfig,

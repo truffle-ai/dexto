@@ -1,7 +1,6 @@
 import { isAbsolute } from 'path';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from './error-codes.js';
-import type { DextoPlugin } from './types.js';
 
 /**
  * Validate that a loaded plugin implements the DextoPlugin interface correctly
@@ -95,8 +94,9 @@ export function resolvePluginPath(modulePath: string, configDir: string): string
             PluginErrorCode.PLUGIN_CONFIGURATION_INVALID,
             ErrorScope.PLUGIN,
             ErrorType.USER,
-            `Plugin module path must be absolute (got '${modulePath}'). ` +
-                `Use \$\{\{dexto.agent_dir\}\} template variable for agent-relative paths.`,
+            "Plugin module path must be absolute (got '" +
+                modulePath +
+                "'). Use ${{dexto.agent_dir}} template variable for agent-relative paths.",
             {
                 modulePath,
                 configDir,

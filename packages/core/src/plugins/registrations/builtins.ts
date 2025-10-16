@@ -14,7 +14,7 @@ import type { ValidatedAgentConfig } from '../../agent/schemas.js';
  * @param pluginManager - The PluginManager instance
  * @param config - Validated agent configuration
  */
-export function registerBuiltInPlugins(args: {
+export function registerBuiltInPlugins(_args: {
     pluginManager: PluginManager;
     config: ValidatedAgentConfig;
 }): void {
