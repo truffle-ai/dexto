@@ -2,7 +2,14 @@
 
 **Version:** 4.0
 **Date:** 2025-01-16
-**Status:** Approved for Implementation
+**Status:** In Progress - Infrastructure Complete
+
+**Progress:**
+- ✅ Core infrastructure implemented (10 commits on `plugins-2` branch)
+- ✅ All quality checks passing (build, tests, lint, typecheck)
+- ⏳ Built-in plugins (ContentPolicy, ResponseSanitizer) - Pending
+- ⏳ Extension point integration (4 sites) - Pending
+- ⏳ Non-Node.js fallback - Pending
 
 ## Table of Contents
 0. [Background & Context](#background--context)
@@ -2229,45 +2236,69 @@ Serverless offers significant cost advantages for variable workloads:
 
 ## Implementation Checklist
 
-### Core Implementation
-- [ ] Define plugin types (`packages/core/src/plugins/types.ts`)
-- [ ] Implement `PluginManager` (`packages/core/src/plugins/manager.ts`)
-  - [ ] Add `registerBuiltin()` method for built-in plugin registration
-  - [ ] Support both built-in and custom plugin loading
-- [ ] Implement plugin loader with .ts/.js support (`packages/core/src/plugins/loader.ts`)
-  - [ ] Add runtime shape validation (`validatePluginShape()`)
-  - [ ] Validate paths are absolute after template expansion
-  - [ ] Reject relative paths with clear error messages
-- [ ] Add plugin config schema to `AgentConfigSchema` with priority validation
-  - [ ] Schema for built-in plugins (contentPolicy, responseSanitizer)
-  - [ ] Schema for custom plugins (array with module paths)
-  - [ ] Discriminated union for two config formats
-- [ ] Create built-in plugin registry (`packages/core/src/plugins/registrations/builtins.ts`)
-  - [ ] Implement `registerBuiltInPlugins()` function
-  - [ ] Add registration logic for each built-in
-- [ ] Integrate `PluginManager` into service initializer
-  - [ ] Create PluginManager at step 5 (after storage, before tools)
-  - [ ] Call `registerBuiltInPlugins()` before `initialize()`
-  - [ ] Pass to ToolManager and SessionManager
-- [ ] Add plugin execution to 4 extension sites
-  - [ ] `chat-session.ts` - beforeLLMRequest, beforeResponse
-  - [ ] `tool-manager.ts` - beforeToolCall, afterToolResult
-- [ ] Implement path resolution (`${{dexto.agent_dir}}`)
-  - [ ] Template expansion happens in config loader (already exists)
-  - [ ] Validation that paths are absolute post-expansion
-- [ ] Add logging for plugin execution
-- [ ] Add error handling with fail-fast initialization
-- [ ] Add timeout handling (5 seconds default)
-- [ ] Validate priority uniqueness on startup (across both built-in and custom)
-- [ ] Add `DextoPluginError` class for plugin-specific errors
+### Core Infrastructure ✅ COMPLETED (2025-01-16)
+- [x] Define plugin types (`packages/core/src/plugins/types.ts`)
+  - Commit: cb00c557 "Add plugin system types"
+- [x] Implement `PluginManager` (`packages/core/src/plugins/manager.ts`)
+  - [x] Add `registerBuiltin()` method for built-in plugin registration
+  - [x] Support both built-in and custom plugin loading
+  - Commit: 4c087454 "Add PluginManager for orchestrating plugin execution"
+- [x] Implement plugin loader with .ts/.js support (`packages/core/src/plugins/loader.ts`)
+  - [x] Add runtime shape validation (`validatePluginShape()`)
+  - [x] Validate paths are absolute after template expansion
+  - [x] Reject relative paths with clear error messages
+  - Commit: 468b60d2 "Add plugin loader with runtime validation"
+- [x] Add AsyncLocalStorage utility for multi-tenant context
+  - Commit: ea72b494 "Add AsyncLocalStorage utility for multi-tenant context"
+- [x] Add plugin config schema to `AgentConfigSchema` with priority validation
+  - [x] Schema for built-in plugins (contentPolicy, responseSanitizer)
+  - [x] Schema for custom plugins (array with module paths)
+  - [x] Discriminated union for two config formats
+  - Commit: 4ba0c330 "Add plugin configuration schemas"
+- [x] Create built-in plugin registry (`packages/core/src/plugins/registrations/builtins.ts`)
+  - [x] Implement `registerBuiltInPlugins()` function stub
+  - [ ] Add registration logic for each built-in (TODO - needs built-in plugins)
+  - Commit: d4b388ac "Add built-in plugin registry stub"
+- [x] Integrate `PluginManager` into service initializer
+  - [x] Create PluginManager at step 6.5 (after storage, before tools)
+  - [x] Call `registerBuiltInPlugins()` before `initialize()`
+  - [x] Exposed in AgentServices
+  - Commit: b5e5e83a "Integrate PluginManager into service initializer"
+- [x] Implement path resolution (`${{dexto.agent_dir}}`)
+  - [x] Template expansion happens in config loader (already exists)
+  - [x] Validation that paths are absolute post-expansion
+  - Included in loader implementation
+- [x] Add logging for plugin execution (built into PluginManager)
+- [x] Add error handling with fail-fast initialization (built into PluginManager)
+- [x] Add timeout handling (5 seconds default in PluginManager)
+- [x] Validate priority uniqueness on startup (in PluginManager.initialize())
+- [x] Add plugin error codes (`packages/core/src/plugins/error-codes.ts`)
+- [x] Export plugin types from `@dexto/core`
+  - Commit: 9ee85dc2 "Export plugin types from core package"
+- [x] All quality checks passing
+  - Commit: 67ffc5be "Fix lint warnings and test failures"
 
-### Built-In Plugins
-- [ ] Port `ContentPolicy` to plugin
-- [ ] Port `ResponseSanitizer` to plugin
-- [ ] Add plugin barrel (`@dexto/core/plugins/builtins`)
+### Built-In Plugins (Next Phase)
+- [ ] Port `ContentPolicy` from feat/hooks branch to plugin
+  - Source: `feat/hooks:packages/core/src/hooks/registrations/content-policy.ts`
+  - Target: `packages/core/src/plugins/builtins/content-policy.ts`
+- [ ] Port `ResponseSanitizer` from feat/hooks branch to plugin
+  - Source: `feat/hooks:packages/core/src/hooks/registrations/response-sanitizer.ts`
+  - Target: `packages/core/src/plugins/builtins/response-sanitizer.ts`
+- [ ] Add plugin barrel (`packages/core/src/plugins/builtins/index.ts`)
+- [ ] Complete `registerBuiltInPlugins()` implementation
 - [ ] Update default agent config with correct priorities
 
-### Testing
+### Extension Point Integration (Next Phase)
+- [ ] Add plugin execution to 4 extension sites
+  - [ ] `chat-session.ts` - beforeLLMRequest extension point
+  - [ ] `chat-session.ts` - beforeResponse extension point
+  - [ ] `tool-manager.ts` - beforeToolCall extension point
+  - [ ] `tool-manager.ts` - afterToolResult extension point
+- [ ] Wire ExecutionContext construction (get tenantId/userId from AsyncLocalStorage)
+- [ ] Pass PluginManager to ToolManager and SessionManager constructors
+
+### Testing (Future Phase)
 - [ ] Unit tests for `PluginManager`
   - [ ] Test `registerBuiltin()` method
   - [ ] Test priority uniqueness validation (built-in + custom)
@@ -2289,12 +2320,12 @@ Serverless offers significant cost advantages for variable workloads:
 - [ ] Test priority ordering (lower = earlier)
 - [ ] Test priority uniqueness validation (built-in and custom together)
 - [ ] Test plugin timeout
-- [ ] Test multi-tenant context via session metadata
+- [ ] Test multi-tenant context via AsyncLocalStorage
 
-### Type Exports
-- [ ] Export all plugin types from `@dexto/core`
-- [ ] Verify TypeScript autocomplete works for plugin authors
-- [ ] Document type imports in plugin developer guide
+### Type Exports ✅ COMPLETED
+- [x] Export all plugin types from `@dexto/core`
+- [ ] Verify TypeScript autocomplete works for plugin authors (needs testing with actual plugins)
+- [ ] Document type imports in plugin developer guide (documentation phase)
 
 ### Documentation
 - [ ] Plugin developer guide

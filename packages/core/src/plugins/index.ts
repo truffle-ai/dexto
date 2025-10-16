@@ -39,3 +39,9 @@ export { loadPluginModule, resolvePluginPath, validatePluginShape } from './load
 
 // Built-in plugin registry (for extending with custom built-ins)
 export { registerBuiltInPlugins } from './registrations/builtins.js';
+
+// Built-in plugins
+export { ContentPolicyPlugin } from './builtins/content-policy.js';
+export type { ContentPolicyConfig } from './builtins/content-policy.js';
+export { ResponseSanitizerPlugin } from './builtins/response-sanitizer.js';
+export type { ResponseSanitizerConfig } from './builtins/response-sanitizer.js';
