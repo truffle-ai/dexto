@@ -71,19 +71,38 @@ Create a remix of video_123 showing the same character but in a different settin
 ## Technical Requirements
 
 - OpenAI API key with Sora access
-- Node.js 18+ for the MCP server
+- Node.js 18+ for running npx
 - Sufficient storage space for video downloads
-- MCP Sora Video server installed and configured
 
-### Environment Setup
+## Setup
 
-Set the following environment variable to point to your MCP Sora Video server installation:
+### Default Setup (Recommended)
+
+By default, this agent uses the published `@truffle-ai/sora-agent` NPM package via `npx`. No additional installation is required - the package will be automatically fetched and run when the agent starts.
+
+### Local Development Setup (Optional)
+
+If you're developing or modifying the Sora agent locally, you can override the default behavior:
+
+1. Clone and build the MCP Sora server locally
+2. Set the environment variable to point to your local installation:
 
 ```bash
 export MCP_SORA_VIDEO_PATH="/path/to/mcp-servers/src/sora-video/dist/index.js"
 ```
 
-Add this to your shell profile (`.bashrc`, `.zshrc`, etc.) to persist across sessions.
+3. Update the agent YAML to use the local path instead of npx:
+
+```yaml
+mcpServers:
+  sora_video:
+    type: stdio
+    command: node
+    args:
+      - ${MCP_SORA_VIDEO_PATH}
+```
+
+Add the environment variable to your shell profile (`.bashrc`, `.zshrc`, etc.) to persist across sessions.
 
 ## Workflow
 

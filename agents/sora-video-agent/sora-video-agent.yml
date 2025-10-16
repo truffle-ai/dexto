@@ -41,7 +41,7 @@ mcpServers:
     command: npx
     args:
       - -y
-      - @truffle-ai/sora-agent
+      - "@truffle-ai/sora-agent"
     connectionMode: strict
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
