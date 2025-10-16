@@ -9,6 +9,10 @@ import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus } from '../approval/types.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { PluginManager } from '../plugins/manager.js';
+import type { SessionManager } from '../session/index.js';
+import type { AgentStateManager } from '../agent/state-manager.js';
+import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -44,6 +48,11 @@ export class ToolManager {
     private allowedToolsProvider: IAllowedToolsProvider;
     private approvalMode: 'event-based' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
+
+    // Plugin support - set after construction to avoid circular dependencies
+    private pluginManager?: PluginManager;
+    private sessionManager?: SessionManager;
+    private stateManager?: AgentStateManager;
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -90,6 +99,20 @@ export class ToolManager {
             await this.internalToolsProvider.initialize();
         }
         logger.debug('ToolManager initialization complete');
+    }
+
+    /**
+     * Set plugin support services (called after construction to avoid circular dependencies)
+     */
+    setPluginSupport(
+        pluginManager: PluginManager,
+        sessionManager: SessionManager,
+        stateManager: AgentStateManager
+    ): void {
+        this.pluginManager = pluginManager;
+        this.sessionManager = sessionManager;
+        this.stateManager = stateManager;
+        logger.debug('Plugin support configured for ToolManager');
     }
 
     /**
@@ -227,6 +250,30 @@ export class ToolManager {
 
         const startTime = Date.now();
 
+        // Execute beforeToolCall plugins if available
+        if (this.pluginManager && this.sessionManager && this.stateManager) {
+            const beforePayload: BeforeToolCallPayload = {
+                toolName,
+                args,
+                ...(sessionId !== undefined && { sessionId }),
+            };
+
+            const modifiedPayload = await this.pluginManager.executePlugins(
+                'beforeToolCall',
+                beforePayload,
+                {
+                    sessionManager: this.sessionManager,
+                    mcpManager: this.mcpManager,
+                    toolManager: this,
+                    stateManager: this.stateManager,
+                    ...(sessionId !== undefined && { sessionId }),
+                }
+            );
+
+            // Use modified payload for execution
+            args = modifiedPayload.args;
+        }
+
         try {
             let result: unknown;
 
@@ -274,12 +321,59 @@ export class ToolManager {
             logger.info(
                 `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
+
+            // Execute afterToolResult plugins if available
+            if (this.pluginManager && this.sessionManager && this.stateManager) {
+                const afterPayload: AfterToolResultPayload = {
+                    toolName,
+                    result,
+                    success: true,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                const modifiedPayload = await this.pluginManager.executePlugins(
+                    'afterToolResult',
+                    afterPayload,
+                    {
+                        sessionManager: this.sessionManager,
+                        mcpManager: this.mcpManager,
+                        toolManager: this,
+                        stateManager: this.stateManager,
+                        ...(sessionId !== undefined && { sessionId }),
+                    }
+                );
+
+                // Use modified result
+                result = modifiedPayload.result;
+            }
+
             return result;
         } catch (error) {
             const duration = Date.now() - startTime;
             logger.error(
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
+
+            // Execute afterToolResult plugins for error case if available
+            if (this.pluginManager && this.sessionManager && this.stateManager) {
+                const afterPayload: AfterToolResultPayload = {
+                    toolName,
+                    result: error instanceof Error ? error.message : String(error),
+                    success: false,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                // Note: We still execute plugins even on error, but we don't use the modified result
+                // Plugins can log, track metrics, etc. but cannot suppress the error
+                await this.pluginManager.executePlugins('afterToolResult', afterPayload, {
+                    sessionManager: this.sessionManager,
+                    mcpManager: this.mcpManager,
+                    toolManager: this,
+                    stateManager: this.stateManager,
+                    ...(sessionId !== undefined && { sessionId }),
+                });
+            }
+
             throw error;
         }
     }

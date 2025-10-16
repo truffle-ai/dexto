@@ -185,6 +185,8 @@ export async function createAgentServices(
             agentEventBus,
             storageManager, // Add storage manager to session services
             resourceManager, // Add resource manager for blob storage
+            pluginManager, // Add plugin manager for plugin execution
+            mcpManager, // Add MCP manager for ChatSession
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -196,6 +198,10 @@ export async function createAgentServices(
     await sessionManager.init();
 
     logger.debug('Session manager initialized with storage support');
+
+    // 11.5 Wire up plugin support to ToolManager (after SessionManager is created)
+    toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
+    logger.debug('Plugin support connected to ToolManager');
 
     // 12. Return the core services
     return {

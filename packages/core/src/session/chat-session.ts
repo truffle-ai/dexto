@@ -8,6 +8,9 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
+import type { PluginManager } from '../plugins/manager.js';
+import type { MCPManager } from '../mcp/manager.js';
+import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../plugins/types.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -119,6 +122,9 @@ export class ChatSession {
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
+            pluginManager: PluginManager;
+            mcpManager: MCPManager;
+            sessionManager: import('./session-manager.js').SessionManager;
         },
         public readonly id: string
     ) {
@@ -240,14 +246,65 @@ export class ChatSession {
         this.currentRunController = new AbortController();
         const signal = this.currentRunController.signal;
         try {
+            // Execute beforeLLMRequest plugins
+            const beforeLLMPayload: BeforeLLMRequestPayload = {
+                text: input,
+                ...(imageDataInput !== undefined && { imageData: imageDataInput }),
+                ...(fileDataInput !== undefined && { fileData: fileDataInput }),
+                sessionId: this.id,
+            };
+
+            const modifiedBeforePayload = await this.services.pluginManager.executePlugins(
+                'beforeLLMRequest',
+                beforeLLMPayload,
+                {
+                    sessionManager: this.services.sessionManager,
+                    mcpManager: this.services.mcpManager,
+                    toolManager: this.services.toolManager,
+                    stateManager: this.services.stateManager,
+                    sessionId: this.id,
+                    abortSignal: signal,
+                }
+            );
+
+            // Use modified input from plugins
+            const finalInput = modifiedBeforePayload.text;
+            const finalImageData = modifiedBeforePayload.imageData;
+            const finalFileData = modifiedBeforePayload.fileData;
+
             const response = await this.llmService.completeTask(
-                input,
+                finalInput,
                 { signal },
-                imageDataInput,
-                fileDataInput,
+                finalImageData,
+                finalFileData,
                 stream
             );
-            return response;
+
+            // Execute beforeResponse plugins
+            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+            const beforeResponsePayload: BeforeResponsePayload = {
+                content: response,
+                provider: llmConfig.provider,
+                model: llmConfig.model,
+                router: llmConfig.router,
+                sessionId: this.id,
+            };
+
+            const modifiedResponsePayload = await this.services.pluginManager.executePlugins(
+                'beforeResponse',
+                beforeResponsePayload,
+                {
+                    sessionManager: this.services.sessionManager,
+                    mcpManager: this.services.mcpManager,
+                    toolManager: this.services.toolManager,
+                    stateManager: this.services.stateManager,
+                    sessionId: this.id,
+                    abortSignal: signal,
+                }
+            );
+
+            // Return modified response from plugins
+            return modifiedResponsePayload.content;
         } catch (error) {
             // If this was an intentional cancellation, emit a recoverable error event and return empty string
             const aborted =
