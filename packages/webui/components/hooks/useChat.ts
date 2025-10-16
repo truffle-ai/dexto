@@ -487,11 +487,30 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
 
                     // Otherwise, set an error banner (separate from messages)
                     const errorMessage = toError(payload).message;
+
+                    // Serialize context if it's an object (e.g., from DextoRuntimeError)
+                    let contextStr: string | undefined;
+                    if (payload.context) {
+                        if (typeof payload.context === 'string') {
+                            contextStr = payload.context;
+                        } else if (typeof payload.context === 'object') {
+                            // Extract meaningful context (e.g., plugin name or scope)
+                            const ctx = payload.context as Record<string, unknown>;
+                            if (ctx.plugin) {
+                                contextStr = `plugin:${ctx.plugin}`;
+                            } else if (payload.scope) {
+                                contextStr = String(payload.scope);
+                            } else {
+                                contextStr = 'error';
+                            }
+                        }
+                    }
+
                     setActiveError({
                         id: generateUniqueId(),
                         message: errorMessage,
                         timestamp: Date.now(),
-                        context: payload.context,
+                        context: contextStr,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,

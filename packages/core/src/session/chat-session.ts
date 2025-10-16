@@ -18,6 +18,9 @@ import {
     SessionEventName,
 } from '../events/index.js';
 import { logger } from '../logger/index.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
+import { PluginErrorCode } from '../plugins/error-codes.js';
+import type { InternalMessage } from '../context/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -209,6 +212,42 @@ export class ChatSession {
     }
 
     /**
+     * Saves a blocked interaction to history when a plugin blocks execution.
+     * This ensures that even when a plugin blocks execution (e.g., due to abusive language),
+     * the user's message and the error response are preserved in the conversation history.
+     *
+     * @param userInput - The user's text input that was blocked
+     * @param errorMessage - The error message explaining why execution was blocked
+     * @param imageData - Optional image data that was part of the blocked message
+     * @param fileData - Optional file data that was part of the blocked message
+     * @private
+     */
+    private async saveBlockedInteraction(
+        userInput: string,
+        errorMessage: string,
+        imageData?: { image: string; mimeType: string },
+        fileData?: { data: string; mimeType: string; filename?: string }
+    ): Promise<void> {
+        // Create user message
+        const userMessage: InternalMessage = {
+            role: 'user',
+            content: userInput,
+            ...(imageData && { imageData }),
+            ...(fileData && { fileData }),
+        };
+
+        // Create assistant error message
+        const assistantMessage: InternalMessage = {
+            role: 'assistant',
+            content: `Error: ${errorMessage}`,
+        };
+
+        // Add both messages to history
+        await this.historyProvider.saveMessage(userMessage);
+        await this.historyProvider.saveMessage(assistantMessage);
+    }
+
+    /**
      * Processes user input through the session's LLM service and returns the response.
      *
      * This method:
@@ -321,6 +360,36 @@ export class ChatSession {
                 });
                 return '';
             }
+
+            // Check if this is a plugin blocking error
+            if (
+                error instanceof DextoRuntimeError &&
+                error.code === PluginErrorCode.PLUGIN_BLOCKED_EXECUTION &&
+                error.scope === ErrorScope.PLUGIN &&
+                error.type === ErrorType.FORBIDDEN
+            ) {
+                // Save the blocked interaction to history so users can see what they tried
+                try {
+                    await this.saveBlockedInteraction(
+                        input,
+                        error.message,
+                        imageDataInput,
+                        fileDataInput
+                    );
+                    logger.debug(`ChatSession ${this.id}: Saved blocked interaction to history`);
+                } catch (saveError) {
+                    logger.warn(
+                        `Failed to save blocked interaction to history: ${
+                            saveError instanceof Error ? saveError.message : String(saveError)
+                        }`
+                    );
+                }
+
+                // Return the error message as a normal response instead of throwing
+                // This creates a consistent UX whether viewing for the first time or reopening the session
+                return error.message;
+            }
+
             // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
             // We should remove this error handling when we handle partial responses properly in all services.
             throw error;
