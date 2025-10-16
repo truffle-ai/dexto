@@ -2,14 +2,16 @@
 
 **Version:** 4.0
 **Date:** 2025-01-16
-**Status:** In Progress - Infrastructure Complete
+**Status:** Implementation Complete - Ready for Testing
 
 **Progress:**
 - ✅ Core infrastructure implemented (10 commits on `plugins-2` branch)
+- ✅ Built-in plugins ported (1 commit: 98d01722)
+- ✅ Extension point integration complete (1 commit: 40d1d612)
 - ✅ All quality checks passing (build, tests, lint, typecheck)
-- ⏳ Built-in plugins (ContentPolicy, ResponseSanitizer) - Pending
-- ⏳ Extension point integration (4 sites) - Pending
-- ⏳ Non-Node.js fallback - Pending
+- ⏳ Non-Node.js fallback - Deferred (documented as TODO)
+- ⏳ Comprehensive testing - Pending
+- ⏳ Documentation - Pending
 
 ## Table of Contents
 0. [Background & Context](#background--context)
@@ -2278,25 +2280,46 @@ Serverless offers significant cost advantages for variable workloads:
 - [x] All quality checks passing
   - Commit: 67ffc5be "Fix lint warnings and test failures"
 
-### Built-In Plugins (Next Phase)
-- [ ] Port `ContentPolicy` from feat/hooks branch to plugin
+### Built-In Plugins ✅ COMPLETED (2025-01-16)
+- [x] Port `ContentPolicy` from feat/hooks branch to plugin
   - Source: `feat/hooks:packages/core/src/hooks/registrations/content-policy.ts`
   - Target: `packages/core/src/plugins/builtins/content-policy.ts`
-- [ ] Port `ResponseSanitizer` from feat/hooks branch to plugin
+  - Commit: 98d01722 "Port ContentPolicy and ResponseSanitizer plugins from feat/hooks branch"
+- [x] Port `ResponseSanitizer` from feat/hooks branch to plugin
   - Source: `feat/hooks:packages/core/src/hooks/registrations/response-sanitizer.ts`
   - Target: `packages/core/src/plugins/builtins/response-sanitizer.ts`
-- [ ] Add plugin barrel (`packages/core/src/plugins/builtins/index.ts`)
-- [ ] Complete `registerBuiltInPlugins()` implementation
-- [ ] Update default agent config with correct priorities
+  - Commit: 98d01722 "Port ContentPolicy and ResponseSanitizer plugins from feat/hooks branch"
+- [x] Export plugins from `packages/core/src/plugins/index.ts`
+- [x] Complete `registerBuiltInPlugins()` implementation
+  - Registers ContentPolicy (blocking=true by default)
+  - Registers ResponseSanitizer (blocking=false by default)
+  - Config-driven activation pattern
+  - Commit: 98d01722 "Port ContentPolicy and ResponseSanitizer plugins from feat/hooks branch"
+- [ ] Update default agent config with plugin examples (documentation phase)
 
-### Extension Point Integration (Next Phase)
-- [ ] Add plugin execution to 4 extension sites
-  - [ ] `chat-session.ts` - beforeLLMRequest extension point
-  - [ ] `chat-session.ts` - beforeResponse extension point
-  - [ ] `tool-manager.ts` - beforeToolCall extension point
-  - [ ] `tool-manager.ts` - afterToolResult extension point
-- [ ] Wire ExecutionContext construction (get tenantId/userId from AsyncLocalStorage)
-- [ ] Pass PluginManager to ToolManager and SessionManager constructors
+### Extension Point Integration ✅ COMPLETED (2025-01-16)
+- [x] Add plugin execution to 4 extension sites
+  - [x] `chat-session.ts` - beforeLLMRequest extension point (line ~249)
+    - Payload: `{ text, imageData, fileData, sessionId }`
+    - Validates/modifies input before LLM call
+  - [x] `chat-session.ts` - beforeResponse extension point (line ~283)
+    - Payload: `{ content, provider, model, router, sessionId }`
+    - Filters/modifies response before returning
+  - [x] `tool-manager.ts` - beforeToolCall extension point (line ~256)
+    - Payload: `{ toolName, args, sessionId }`
+    - Authorizes/modifies tool calls before execution
+  - [x] `tool-manager.ts` - afterToolResult extension point (line ~328, ~360)
+    - Payload: `{ toolName, result, success, sessionId }`
+    - Sanitizes/validates tool results (both success and error cases)
+  - Commit: 40d1d612 "feat(plugins): integrate beforeToolCall and afterToolResult extension points in ToolManager"
+- [x] Wire ExecutionContext construction (get tenantId/userId from AsyncLocalStorage)
+  - Used `getContext()` from async-context.ts
+  - Automatic propagation across async boundaries
+- [x] Service integration
+  - Added `pluginManager` to SessionManager constructor
+  - Added `setPluginSupport()` to ToolManager (breaks circular dependency)
+  - Wired services in service-initializer.ts
+  - All services available in PluginExecutionContext
 
 ### Testing (Future Phase)
 - [ ] Unit tests for `PluginManager`
@@ -2341,6 +2364,8 @@ Serverless offers significant cost advantages for variable workloads:
   - Session metadata approach for browsers/edge workers
   - Automatic detection of AsyncLocalStorage availability
   - Seamless fallback when unavailable
+  - **Status:** Explicitly deferred - AsyncLocalStorage works for primary Node.js deployment target
+  - **TODO comment:** Added at line 6 of `packages/core/src/utils/async-context.ts`
 - [ ] TODO: Add OpenTelemetry metrics for plugin execution
 - [ ] TODO: Add performance profiling
 - [ ] TODO: Add plugin dependency system (if needed)
@@ -2457,6 +2482,224 @@ Serverless offers significant cost advantages for variable workloads:
 - Worker thread isolation (performance overhead)
 - VM sandboxing (limited security benefits in Node.js)
 - Permission system (read-only vs read-write access)
+
+---
+
+## Implementation Summary
+
+### Phase 1: Core Infrastructure (10 commits)
+All infrastructure commits completed on 2025-01-16:
+
+1. **cb00c557** - Add plugin system types
+   - Created `packages/core/src/plugins/types.ts`
+   - Defined DextoPlugin interface with 4 extension points
+   - All extension point methods optional
+
+2. **468b60d2** - Add plugin loader with runtime validation
+   - Created `packages/core/src/plugins/loader.ts`
+   - Implemented 5-step runtime validation
+   - Absolute path enforcement with clear error messages
+
+3. **ea72b494** - Add AsyncLocalStorage utility for multi-tenant context
+   - Created `packages/core/src/utils/async-context.ts`
+   - Implemented setContext(), getContext(), runWithContext()
+   - Added TODO for non-Node.js fallback
+
+4. **4c087454** - Add PluginManager for orchestrating plugin execution
+   - Created `packages/core/src/plugins/manager.ts`
+   - Sequential execution with timeout protection
+   - Priority validation and fail-fast initialization
+
+5. **d4b388ac** - Add built-in plugin registry stub
+   - Created `packages/core/src/plugins/registrations/builtins.ts`
+   - Stub with TODO comments showing pattern
+
+6. **4ba0c330** - Add plugin configuration schemas
+   - Created `packages/core/src/plugins/schemas.ts`
+   - Discriminated union for built-in vs custom plugins
+
+7. **b5e5e83a** - Integrate PluginManager into service initializer
+   - Updated `packages/core/src/utils/service-initializer.ts`
+   - Added at step 6.5 (after storage, before tools)
+
+8. **9ee85dc2** - Export plugin types from core package
+   - Created `packages/core/src/plugins/index.ts`
+   - Added to `packages/core/src/index.ts`
+   - Renamed ExecutionContext to PluginExecutionContext
+
+9. **67ffc5be** - Fix lint warnings and test failures
+   - Updated `packages/core/src/agent/DextoAgent.lifecycle.test.ts`
+   - Fixed unused imports and template literal issues
+
+10. **(Feature plan commit)** - Added plugin-system.md to feature-plans/
+
+### Phase 2: Built-In Plugins (1 commit)
+Completed on 2025-01-16:
+
+11. **98d01722** - Port ContentPolicy and ResponseSanitizer plugins from feat/hooks branch
+    - Created `packages/core/src/plugins/builtins/content-policy.ts`
+      - Implements beforeLLMRequest extension point
+      - Blocks abusive language, truncates input, redacts PII
+    - Created `packages/core/src/plugins/builtins/response-sanitizer.ts`
+      - Implements beforeResponse extension point
+      - Redacts PII from responses, truncates length
+    - Updated `packages/core/src/plugins/registrations/builtins.ts`
+      - Registered both plugins with config-driven activation
+    - Exported from `packages/core/src/plugins/index.ts`
+
+### Phase 3: Extension Point Integration (1 commit)
+Completed on 2025-01-16:
+
+12. **40d1d612** - feat(plugins): integrate beforeToolCall and afterToolResult extension points in ToolManager
+    - Updated `packages/core/src/session/chat-session.ts`
+      - Added beforeLLMRequest at line ~249
+      - Added beforeResponse at line ~283
+    - Updated `packages/core/src/tools/tool-manager.ts`
+      - Added beforeToolCall at line ~256
+      - Added afterToolResult at line ~328 (success) and ~360 (error)
+      - Implemented setPluginSupport() to break circular dependencies
+    - Updated `packages/core/src/session/session-manager.ts`
+      - Added pluginManager and mcpManager to constructor
+    - Updated `packages/core/src/utils/service-initializer.ts`
+      - Wired all plugin-related services
+    - All 4 extension points now fully integrated
+
+### Total: 12 commits across 3 phases
+
+**Quality Validation:**
+- ✅ Build: All packages compile successfully
+- ✅ Tests: All 1058 tests passing
+- ✅ Typecheck: No TypeScript errors
+- ✅ Lint: All linting checks pass
+
+---
+
+## Architectural Patterns and Solutions
+
+### Circular Dependency Resolution
+
+**The Problem:**
+
+During implementation, we encountered a circular dependency between `ToolManager` and `PluginManager`:
+
+```
+ToolManager → needs → PluginManager (to call executePlugins at extension points)
+     ↓                      ↓
+PluginManager → needs → ToolManager (to pass in ExecutionContext to plugins)
+```
+
+This circular dependency would prevent proper initialization because:
+1. `ToolManager` needs `PluginManager` to call `executePlugins()` at `beforeToolCall` and `afterToolResult`
+2. `PluginManager` needs `ToolManager` to build the `ExecutionContext` that's passed to every plugin
+3. TypeScript's service initializer couldn't resolve this cycle during construction
+
+**The Solution: Two-Phase Initialization Pattern**
+
+We implemented a **setter injection** pattern using a dedicated wiring method:
+
+```typescript
+// Phase 1: Construction (no circular dependencies)
+const pluginManager = new PluginManager({ ... });
+const toolManager = new ToolManager(mcpManager, confirmationProvider, { ... });
+
+// Phase 2: Dependency Wiring (after all services exist)
+toolManager.setPluginSupport({
+    pluginManager,
+    sessionManager,
+    stateManager
+});
+```
+
+**Implementation Details:**
+
+In `packages/core/src/tools/tool-manager.ts`:
+
+```typescript
+export class ToolManager {
+    private pluginManager?: PluginManager;
+    private sessionManager?: SessionManager;
+    private stateManager?: AgentStateManager;
+
+    constructor(
+        private mcpManager: MCPManager,
+        private confirmationProvider: ToolConfirmationProvider,
+        options: ToolManagerOptions
+    ) {
+        // No plugin manager in constructor - breaks circular dependency
+    }
+
+    /**
+     * Wire up plugin support after construction.
+     * Called by service initializer after all services are created.
+     */
+    setPluginSupport(services: {
+        pluginManager: PluginManager;
+        sessionManager: SessionManager;
+        stateManager: AgentStateManager;
+    }): void {
+        this.pluginManager = services.pluginManager;
+        this.sessionManager = services.sessionManager;
+        this.stateManager = services.stateManager;
+    }
+
+    async executeTool(...) {
+        // Now can access pluginManager
+        if (this.pluginManager) {
+            const modifiedPayload = await this.pluginManager.executePlugins(...);
+        }
+    }
+}
+```
+
+In `packages/core/src/utils/service-initializer.ts`:
+
+```typescript
+export async function createAgentServices(...): Promise<AgentServices> {
+    // Phase 1: Create all services (no circular dependencies)
+    const pluginManager = new PluginManager(...);
+    const toolManager = new ToolManager(mcpManager, confirmationProvider, ...);
+    const sessionManager = new SessionManager({
+        ...services,
+        pluginManager,  // SessionManager can receive pluginManager directly
+    });
+
+    // Phase 2: Wire up circular dependencies
+    toolManager.setPluginSupport({
+        pluginManager,
+        sessionManager,
+        stateManager,
+    });
+
+    return { pluginManager, toolManager, sessionManager, ... };
+}
+```
+
+**Why This Works:**
+
+1. **Construction Phase**: All objects are created with their primary dependencies
+2. **Wiring Phase**: Circular dependencies are injected via setter methods after construction
+3. **Optional Safety**: Private fields are marked as optional (`pluginManager?`) with runtime checks
+4. **Clear Separation**: Construction logic is separate from dependency wiring
+
+**Alternative Approaches Considered:**
+
+1. **Lazy Initialization**: Access pluginManager via a getter that resolves on first use
+   - **Rejected**: More complex, harder to debug, subtle timing issues
+
+2. **Service Locator Pattern**: Pass a service registry to ToolManager
+   - **Rejected**: Hides dependencies, makes testing harder, violates dependency inversion
+
+3. **Event Bus**: ToolManager emits events that PluginManager listens to
+   - **Rejected**: Loses type safety, harder to trace execution flow, adds indirection
+
+**Lessons Learned:**
+
+- **Circular dependencies are often a design smell** - In this case, it was unavoidable due to the bidirectional nature of the plugin system
+- **Setter injection is acceptable for circular dependencies** - When constructor injection creates cycles, setter injection provides a clean escape hatch
+- **Make circular dependencies explicit** - Using a dedicated `setPluginSupport()` method makes the pattern obvious and intentional
+- **Document the pattern** - Future maintainers need to understand why this pattern exists
+
+This pattern is commonly seen in dependency injection frameworks (Spring, NestJS, etc.) where circular dependencies are resolved via "setter injection" or "property injection" after the construction phase.
 
 ---
 

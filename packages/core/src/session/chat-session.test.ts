@@ -168,6 +168,13 @@ describe('ChatSession', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
+            pluginManager: {
+                executePlugins: vi.fn().mockImplementation(async (_point, payload) => payload),
+                cleanup: vi.fn(),
+            },
+            sessionManager: {
+                // Add sessionManager mock if needed
+            },
         };
 
         // Set up factory mocks
