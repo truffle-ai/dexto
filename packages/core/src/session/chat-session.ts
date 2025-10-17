@@ -225,15 +225,15 @@ export class ChatSession {
     private async saveBlockedInteraction(
         userInput: string,
         errorMessage: string,
-        imageData?: { image: string; mimeType: string },
-        fileData?: { data: string; mimeType: string; filename?: string }
+        _imageData?: { image: string; mimeType: string },
+        _fileData?: { data: string; mimeType: string; filename?: string }
     ): Promise<void> {
-        // Create user message
+        // Create redacted user message (do not persist sensitive content or attachments)
+        // When content is blocked by policy (abusive language, inappropriate content, etc.),
+        // we shouldn't store the original content to comply with data minimization principles
         const userMessage: InternalMessage = {
             role: 'user',
-            content: userInput,
-            ...(imageData && { imageData }),
-            ...(fileData && { fileData }),
+            content: '[Blocked by content policy: input redacted]',
         };
 
         // Create assistant error message
