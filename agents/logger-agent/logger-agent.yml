@@ -1,0 +1,144 @@
+# Request Logger Agent Configuration
+# Demonstrates custom plugin integration with complete lifecycle testing
+# Logs all user requests, tool calls, and assistant responses to ~/.dexto/logs/request-logger.log
+
+# MCP Servers - basic filesystem and browser tools
+mcpServers:
+  filesystem:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
+  playwright:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@playwright/mcp@latest"
+
+# System prompt configuration
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a helpful AI assistant with comprehensive logging enabled.
+        All your interactions (requests, tool calls, and responses) are being logged to help understand your behavior.
+
+        Use tools when appropriate to answer user queries. You can use multiple tools in sequence to solve complex problems.
+        After each tool result, determine if you need more information or can provide a final answer.
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+    - id: memories
+      type: memory
+      priority: 40
+      enabled: true
+      options:
+        includeTimestamps: false
+        includeTags: true
+        limit: 10
+        pinnedOnly: false
+
+# Optional greeting shown at chat start
+greeting: "Hi! I'm the Logger Agent — all interactions are being logged for analysis. How can I help?"
+
+# LLM configuration
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
+
+# Storage configuration
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: local
+    maxBlobSize: 52428800
+    maxTotalSize: 1073741824
+    cleanupAfterDays: 30
+
+# Tool confirmation settings
+toolConfirmation:
+  mode: event-based
+  timeout: 120000
+  allowedToolsStorage: memory
+
+# Internal tools
+internalTools:
+  - ask_user
+
+# Internal resources configuration
+internalResources:
+  enabled: true
+  resources:
+    - type: filesystem
+      paths: ["."]
+      maxFiles: 50
+      maxDepth: 3
+      includeHidden: false
+      includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
+    - type: blob
+
+# Plugin system configuration
+plugins:
+  # Built-in plugins
+  contentPolicy:
+    priority: 10
+    blocking: true
+    maxInputChars: 50000
+    redactEmails: true
+    redactApiKeys: true
+    enabled: true
+
+  responseSanitizer:
+    priority: 900
+    blocking: false
+    redactEmails: true
+    redactApiKeys: true
+    maxResponseLength: 100000
+    enabled: true
+
+  # Custom Request Logger Plugin
+  custom:
+    - name: request-logger
+      module: "${{dexto.agent_dir}}/plugins/request-logger.ts"
+      enabled: true
+      blocking: false  # Non-blocking - we just want to observe, not interfere
+      priority: 5      # Run early to capture original data before other plugins modify it
+      config: {}       # Empty config uses defaults: ~/.dexto/logs/request-logger.log
+
+# Starter prompts for the WebUI
+starterPrompts:
+  - id: simple-question
+    title: "🤔 Ask a Simple Question"
+    description: "Test basic request/response logging"
+    prompt: "What is the capital of France?"
+    category: learning
+    priority: 9
+  - id: tool-usage
+    title: "🔧 Use a Tool"
+    description: "Test tool call and result logging"
+    prompt: "List the files in the current directory"
+    category: tools
+    priority: 8
+  - id: multi-step
+    title: "🎯 Multi-Step Task"
+    description: "Test logging across multiple tool calls"
+    prompt: "Create a new file called test.txt with the content 'Hello from Logger Agent' and then read it back to me"
+    category: tools
+    priority: 7
+  - id: check-logs
+    title: "📋 Check the Logs"
+    description: "View the request logger output"
+    prompt: "Can you read the file at ~/.dexto/logs/request-logger.log and show me the last 50 lines?"
+    category: tools
+    priority: 6
