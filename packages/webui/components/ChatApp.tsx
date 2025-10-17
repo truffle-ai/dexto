@@ -16,6 +16,7 @@ import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
 import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
 import { cn } from '@/lib/utils';
+import { usePriorityOverflow } from './hooks/usePriorityOverflow';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
@@ -50,6 +51,11 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const router = useRouter();
   const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
+
+  // Priority+ pattern for responsive header buttons
+  const { containerRef, isButtonHidden } = usePriorityOverflow({
+    priority: ['customize', 'tools', 'memories', 'theme', 'settings']
+  });
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -631,7 +637,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         className={cn(
           "shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
           !isFirstRenderRef.current && "transition-all duration-300 ease-in-out",
-          isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
+          isSessionsPanelOpen ? "w-full sm:w-80" : "w-0 overflow-hidden"
         )}
         suppressHydrationWarning
       >
@@ -663,15 +669,15 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         })()}
         {/* Clean Header */}
         <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-          <div className="grid grid-cols-3 items-center px-4 py-3">
+          <div className="flex items-center justify-between px-4 py-3 gap-2 sm:gap-4">
             {/* Left Section */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
               {/* Chat History Toggle */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setSessionsPanelOpen(!isSessionsPanelOpen)}
                     className={cn(
                       "h-8 w-8 p-0 transition-colors",
@@ -685,112 +691,134 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   Chat History (⌘H)
                 </TooltipContent>
               </Tooltip>
-              
+
               {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
                 <NewChatButton onClick={handleReturnToWelcome} />
               )}
-              
+
               {/* TODO: improve the non text part of logo */}
-              <a 
-                href="https://dexto.ai" 
-                target="_blank" 
+              <a
+                href="https://dexto.ai"
+                target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+                className="hidden md:flex items-center space-x-3 hover:opacity-80 transition-opacity"
               >
                 <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
                 <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
-              
+
             </div>
 
             {/* Center Section - Agent Selector */}
-            <div className="flex justify-center flex-1 max-w-2xl mx-auto">
+            <div className="flex justify-center flex-1 min-w-0">
               <AgentSelector mode="badge" />
             </div>
 
-            {/* Right Section */}
-            <div className="flex items-center justify-end">
-              <div className="mr-4">
-                <ThemeSwitch />
-              </div>
+            {/* Right Section - Priority+ Overflow */}
+            <div ref={containerRef} className="flex items-center justify-end shrink-0">
               <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      isCustomizePanelOpen && "bg-muted"
-                    )}
-                    aria-label="Customize agent"
-                  >
-                    <FileEditIcon className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Customize Agent (⌘E)</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSettingsOpen(true)}
-                    className="h-8 w-8 p-0"
-                    aria-label="Open settings"
-                  >
-                    <Settings className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Settings</TooltipContent>
-              </Tooltip>
+              {/* Customize Agent */}
+              {!isButtonHidden('customize') && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      data-button-id="customize"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}
+                      className={cn(
+                        "h-8 w-8 p-0",
+                        isCustomizePanelOpen && "bg-muted"
+                      )}
+                      aria-label="Customize agent"
+                    >
+                      <FileEditIcon className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Customize Agent (⌘E)</TooltipContent>
+                </Tooltip>
+              )}
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
-                    className={cn(
-                      "h-8 px-2 text-sm transition-colors",
-                      isMemoryPanelOpen && "bg-muted"
-                    )}
-                  >
-                    <Brain className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline ml-1.5">Memories</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Toggle memories panel (⌘M)
-                </TooltipContent>
-              </Tooltip>
+              {/* Tools */}
+              {!isButtonHidden('tools') && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      data-button-id="tools"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setServersPanelOpen(!isServersPanelOpen)}
+                      className={cn(
+                        "h-8 w-8 p-0 transition-colors",
+                        isServersPanelOpen && "bg-muted"
+                      )}
+                      aria-label="Toggle tools panel"
+                    >
+                      <Wrench className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Toggle tools panel (⌘J)
+                  </TooltipContent>
+                </Tooltip>
+              )}
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setServersPanelOpen(!isServersPanelOpen)}
-                    className={cn(
-                      "h-8 px-2 text-sm transition-colors",
-                      isServersPanelOpen && "bg-muted"
-                    )}
-                  >
-                    <Wrench className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline ml-1.5">Tools</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Toggle tools panel (⌘J)
-                </TooltipContent>
-              </Tooltip>
+              {/* Memories */}
+              {!isButtonHidden('memories') && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      data-button-id="memories"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
+                      className={cn(
+                        "h-8 w-8 p-0 transition-colors",
+                        isMemoryPanelOpen && "bg-muted"
+                      )}
+                      aria-label="Toggle memories panel"
+                    >
+                      <Brain className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Toggle memories panel (⌘M)
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Theme */}
+              {!isButtonHidden('theme') && (
+                <div data-button-id="theme">
+                  <ThemeSwitch />
+                </div>
+              )}
+
+              {/* Settings */}
+              {!isButtonHidden('settings') && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      data-button-id="settings"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSettingsOpen(true)}
+                      className="h-8 w-8 p-0"
+                      aria-label="Open settings"
+                    >
+                      <Settings className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Settings</TooltipContent>
+                </Tooltip>
+              )}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
+                    data-overflow-menu
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0"
@@ -798,11 +826,62 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
-                      <Server className="h-4 w-4 mr-2" />
-                      Connect MCPs
+                <DropdownMenuContent align="end">
+                  {/* Priority+ overflow items */}
+                  {isButtonHidden('customize') && (
+                    <DropdownMenuItem onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}>
+                      <FileEditIcon className="h-4 w-4 mr-2" />
+                      Customize Agent
                     </DropdownMenuItem>
+                  )}
+
+                  {isButtonHidden('tools') && (
+                    <DropdownMenuItem onClick={() => setServersPanelOpen(!isServersPanelOpen)}>
+                      <Wrench className="h-4 w-4 mr-2" />
+                      Tools
+                    </DropdownMenuItem>
+                  )}
+
+                  {isButtonHidden('memories') && (
+                    <DropdownMenuItem onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}>
+                      <Brain className="h-4 w-4 mr-2" />
+                      Memories
+                    </DropdownMenuItem>
+                  )}
+
+                  {isButtonHidden('theme') && (
+                    <DropdownMenuItem onClick={() => {
+                      const isDark = document.documentElement.classList.contains('dark');
+                      if (isDark) {
+                        document.documentElement.classList.remove('dark');
+                        localStorage.setItem('theme', 'light');
+                      } else {
+                        document.documentElement.classList.add('dark');
+                        localStorage.setItem('theme', 'dark');
+                      }
+                    }}>
+                      <span className="h-4 w-4 mr-2">🌙</span>
+                      Toggle Theme
+                    </DropdownMenuItem>
+                  )}
+
+                  {isButtonHidden('settings') && (
+                    <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* Separator if any items were hidden */}
+                  {(isButtonHidden('customize') || isButtonHidden('tools') || isButtonHidden('memories') || isButtonHidden('theme') || isButtonHidden('settings')) && (
+                    <DropdownMenuSeparator />
+                  )}
+
+                  {/* Always visible items */}
+                  <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
+                    <Server className="h-4 w-4 mr-2" />
+                    Connect MCPs
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => window.open('/playground', '_blank')}>
                     <FlaskConical className="h-4 w-4 mr-2" />
                     MCP Playground
@@ -819,7 +898,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   {currentSessionId && !isWelcomeState && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => setDeleteDialogOpen(true)}
                         className="text-destructive focus:text-destructive"
                       >
@@ -975,7 +1054,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           {/* Servers Panel - Slide Animation */}
           <div className={cn(
             "shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
-            isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
+            isServersPanelOpen ? "w-full sm:w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
           <ServersPanel

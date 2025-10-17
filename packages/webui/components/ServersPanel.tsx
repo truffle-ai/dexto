@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
-import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package, RotateCw } from 'lucide-react';
+import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package, RotateCw, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
@@ -388,13 +388,22 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
 
       {/* Add Server Actions */}
       <div className="px-4 py-3 space-y-2 border-b border-border/30">
-        <Button 
-          onClick={() => setIsRegistryModalOpen(true)} 
+        <Button
+          onClick={() => setIsRegistryModalOpen(true)}
           className="w-full h-9 text-sm font-medium"
           size="sm"
         >
           <Package className="mr-2 h-4 w-4" />
           Connect MCPs
+        </Button>
+        <Button
+          onClick={() => window.open('/playground', '_blank')}
+          className="w-full h-9 text-sm font-medium"
+          size="sm"
+          variant="outline"
+        >
+          <FlaskConical className="mr-2 h-4 w-4" />
+          MCP Playground
         </Button>
       </div>
 

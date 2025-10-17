@@ -10,6 +10,7 @@ module.exports = {
     extend: {}
   },
   plugins: [
-    animate
+    animate,
+    require('@tailwindcss/container-queries')
   ]
 }; 

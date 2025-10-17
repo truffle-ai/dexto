@@ -339,10 +339,10 @@ export default function ModelPickerModal() {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="hidden lg:flex items-center gap-2 cursor-pointer" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-2 cursor-pointer"
             title="Choose model"
           >
             {/* Provider logo (or fallback icon) */}
