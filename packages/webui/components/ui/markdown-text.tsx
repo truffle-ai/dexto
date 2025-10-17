@@ -201,13 +201,16 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
               return <span className="text-xs text-muted-foreground">No media source provided</span>;
             }
 
+            // Handle Blob sources - convert to string URL
+            const srcString = typeof src === 'string' ? src : URL.createObjectURL(src);
+
             // Check if this is a video URL - render video player
-            if (isVideoUrl(src) && isSafeMediaUrl(src, 'video')) {
+            if (isVideoUrl(srcString) && isSafeMediaUrl(srcString, 'video')) {
               return (
                 <div className="my-4 max-w-full overflow-hidden">
                   <video
                     controls
-                    src={src}
+                    src={srcString}
                     className="w-full max-h-[360px] rounded-lg bg-black"
                     preload="metadata"
                   >
@@ -219,11 +222,11 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
             }
 
             // Check if this is an audio URL - render audio player
-            if (isAudioUrl(src) && isSafeMediaUrl(src, 'audio')) {
+            if (isAudioUrl(srcString) && isSafeMediaUrl(srcString, 'audio')) {
               return (
                 <div className="my-4 max-w-full overflow-hidden">
                   <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                    <audio controls src={src} className="flex-1 min-w-0 h-10">
+                    <audio controls src={srcString} className="flex-1 min-w-0 h-10">
                       Your browser does not support the audio tag.
                     </audio>
                   </div>
@@ -233,12 +236,12 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
             }
 
             // Default to image rendering
-            if (!isSafeMediaUrl(src, 'image')) {
+            if (!isSafeMediaUrl(srcString, 'image')) {
               return <span className="text-xs text-muted-foreground">Invalid or unsafe media source</span>;
             }
             return (
               <img
-                src={src}
+                src={srcString}
                 alt={alt || 'Image'}
                 className="max-w-full max-h-[500px] object-contain rounded-lg border border-border my-4"
                 loading="lazy"
