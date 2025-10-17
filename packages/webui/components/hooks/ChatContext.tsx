@@ -98,39 +98,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}), // Let server generate random UUID
-      });
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}), // Let server generate random UUID
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to create session');
-      }
-
-      const responseText = await response.text();
-      if (!responseText.trim()) {
-        throw new Error('Empty response from session creation');
-      }
-
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse session creation response:', parseError);
-        throw new Error('Invalid response from session creation');
-      }
-
-      return data.session.id;
-    } catch (error) {
-      console.error('Error creating auto session:', error);
-      // Fallback to client-generated session ID
-      // Note: Server will auto-create this session on first message (lazy creation in DextoAgent.run)
-      const fallbackId = `chat-${Date.now()}`;
-      console.warn(`Using client-generated session ID as fallback: ${fallbackId}`);
-      return fallbackId;
+    if (!response.ok) {
+      throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
     }
+
+    const responseText = await response.text();
+    if (!responseText.trim()) {
+      throw new Error('Empty response from session creation');
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse session creation response:', parseError);
+      throw new Error('Invalid response from session creation');
+    }
+
+    if (!data.session?.id) {
+      throw new Error('Session ID not found in server response');
+    }
+
+    return data.session.id;
   }, []);
 
   // Enhanced sendMessage with auto-session creation

@@ -138,12 +138,12 @@ export default function SessionPanel({
   // Listen for message events to refresh session counts
   // Update sessions list regardless of panel open/closed state
   useEffect(() => {
-    const handleMessage = () => {
+    const handleMessage: EventListener = (_event: Event) => {
       // Debounced refresh - prevents excessive API calls during rapid messaging
       debouncedFetchSessions();
     };
 
-    const handleResponse = () => {
+    const handleResponse: EventListener = (_event: Event) => {
       // Debounced refresh - prevents excessive API calls during rapid messaging
       debouncedFetchSessions();
     };
