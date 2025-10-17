@@ -422,9 +422,9 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 
 agent.agentEventBus.on('llmservice:toolResult', (data) => {
   if (data.success) {
-    console.log(`[${data.sessionId}] ✅ ${data.toolName} completed`);
+    console.log(`[${data.sessionId}] ✅ ${data.toolName} completed`, data.sanitized);
   } else {
-    console.error(`[${data.sessionId}] ❌ ${data.toolName} failed:`, data.result);
+    console.error(`[${data.sessionId}] ❌ ${data.toolName} failed:`, data.rawResult ?? data.sanitized);
   }
 });
 ```

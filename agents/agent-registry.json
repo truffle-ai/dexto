@@ -82,6 +82,15 @@
       "source": "podcast-agent/",
       "main": "podcast-agent.yml"
     },
+    "sora-video-agent": {
+      "id": "sora-video-agent",
+      "name": "Sora Video Agent",
+      "description": "AI agent for video generation using OpenAI's Sora technology with comprehensive video creation and management capabilities",
+      "author": "Truffle AI",
+      "tags": ["video", "generation", "sora", "openai", "ai", "media", "creation"],
+      "source": "sora-video-agent/",
+      "main": "sora-video-agent.yml"
+    },
     "default-agent": {
       "id": "default-agent",
       "name": "Default",

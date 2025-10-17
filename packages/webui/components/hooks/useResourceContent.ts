@@ -21,6 +21,12 @@ type NormalizedResourceItem =
           filename?: string;
       }
     | {
+          kind: 'video';
+          src: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
           kind: 'file';
           src?: string;
           mimeType?: string;
@@ -86,6 +92,13 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
             } else if (mimeType.startsWith('audio/')) {
                 items.push({
                     kind: 'audio',
+                    src,
+                    mimeType,
+                    filename: filename || name,
+                });
+            } else if (mimeType.startsWith('video/')) {
+                items.push({
+                    kind: 'video',
                     src,
                     mimeType,
                     filename: filename || name,

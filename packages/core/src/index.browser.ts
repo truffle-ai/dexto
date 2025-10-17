@@ -13,6 +13,9 @@ export type { Issue, Severity, DextoErrorCode } from './errors/types.js';
 export type { InternalMessage, TextPart, FilePart, ImageData, FileData } from './context/types.js';
 // Note: ImagePart not exported - only used internally in core package
 
+// Context utilities (used by webui package for media kind detection)
+export { getFileMediaKind, getResourceKind } from './context/media-helpers.js';
+
 // LLM types (used by client packages)
 export type { LLMProvider, LLMRouter } from './llm/types.js';
 export { LLM_PROVIDERS, LLM_ROUTERS } from './llm/types.js';

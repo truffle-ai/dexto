@@ -1,10 +1,11 @@
-import { InternalMessage, TextPart, ImagePart, FilePart } from './types.js';
+import { InternalMessage, TextPart, ImagePart, FilePart, SanitizedToolResult } from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import { logger } from '@core/logger/index.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
+import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 
 // Tunable heuristics and shared constants
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
@@ -15,6 +16,35 @@ type ToolBlobNamingOptions = {
     toolName?: string;
     toolCallId?: string;
 };
+
+const MIN_TOOL_INLINE_MEDIA_BYTES = 1024;
+
+type InlineMediaKind = 'image' | 'file';
+
+type InlineMediaHint = {
+    index: number;
+    kind: InlineMediaKind;
+    mimeType: string;
+    approxBytes: number;
+    data: string | Buffer;
+    filename?: string | undefined;
+};
+
+export interface NormalizedToolResult {
+    parts: Array<TextPart | ImagePart | FilePart>;
+    inlineMedia: InlineMediaHint[];
+}
+
+interface PersistToolMediaOptions {
+    blobStore?: import('../storage/blob/types.js').BlobStore;
+    toolName?: string;
+    toolCallId?: string;
+}
+
+interface PersistToolMediaResult {
+    parts: Array<TextPart | ImagePart | FilePart>;
+    resources?: SanitizedToolResult['resources'];
+}
 
 function slugifyForFilename(value: string, maxLength = 48): string | null {
     if (!value) return null;
@@ -40,6 +70,220 @@ function sanitizeExistingFilename(filename: string): string {
 
 function generateUniqueSuffix(): string {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function clonePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart | FilePart {
+    if (part.type === 'text') {
+        return { type: 'text', text: part.text };
+    }
+
+    if (part.type === 'image') {
+        const cloned: ImagePart = {
+            type: 'image',
+            image: part.image,
+        };
+        if (part.mimeType) {
+            cloned.mimeType = part.mimeType;
+        }
+        return cloned;
+    }
+
+    const cloned: FilePart = {
+        type: 'file',
+        data: part.data,
+        mimeType: part.mimeType,
+    };
+    if (part.filename) {
+        cloned.filename = part.filename;
+    }
+    return cloned;
+}
+
+function coerceContentToParts(
+    content: InternalMessage['content']
+): Array<TextPart | ImagePart | FilePart> {
+    if (Array.isArray(content)) {
+        const normalized: Array<TextPart | ImagePart | FilePart> = [];
+        for (const item of content) {
+            if (item == null) continue;
+            if (typeof item === 'string') {
+                normalized.push({ type: 'text', text: item });
+                continue;
+            }
+            if (typeof item === 'object' && 'type' in item) {
+                const type = (item as { type: string }).type;
+                if (type === 'text') {
+                    const textPart = item as TextPart;
+                    normalized.push({ type: 'text', text: textPart.text });
+                    continue;
+                }
+                if (type === 'image') {
+                    const imagePart = item as ImagePart;
+                    const cloned: ImagePart = {
+                        type: 'image',
+                        image: imagePart.image,
+                    };
+                    if (imagePart.mimeType) {
+                        cloned.mimeType = imagePart.mimeType;
+                    }
+                    normalized.push(cloned);
+                    continue;
+                }
+                if (type === 'file') {
+                    const filePart = item as FilePart;
+                    const cloned: FilePart = {
+                        type: 'file',
+                        data: filePart.data,
+                        mimeType: filePart.mimeType ?? 'application/octet-stream',
+                    };
+                    if (filePart.filename) {
+                        cloned.filename = filePart.filename;
+                    }
+                    normalized.push(cloned);
+                    continue;
+                }
+            }
+        }
+        return normalized;
+    }
+
+    if (typeof content === 'string') {
+        if (content.length === 0) {
+            return [];
+        }
+        return [{ type: 'text', text: content }];
+    }
+
+    if (content == null) {
+        return [];
+    }
+
+    return [{ type: 'text', text: safeStringify(content) }];
+}
+
+function detectInlineMedia(
+    part: TextPart | ImagePart | FilePart,
+    index: number
+): InlineMediaHint | null {
+    if (part.type === 'text') {
+        return null;
+    }
+
+    if (part.type === 'image') {
+        const value = part.image;
+        const mimeType = part.mimeType ?? 'image/jpeg';
+        if (typeof value === 'string') {
+            if (value.startsWith('@blob:')) return null;
+            if (
+                value.startsWith('http://') ||
+                value.startsWith('https://') ||
+                value.startsWith('blob:')
+            ) {
+                return null;
+            }
+            if (isLikelyBase64String(value, 128)) {
+                return {
+                    index,
+                    kind: 'image',
+                    mimeType,
+                    approxBytes: base64LengthToBytes(value.length),
+                    data: value,
+                };
+            }
+        } else if (value instanceof Buffer) {
+            return {
+                index,
+                kind: 'image',
+                mimeType,
+                approxBytes: value.length,
+                data: value,
+            };
+        } else if (value instanceof Uint8Array) {
+            const buffer = Buffer.from(value);
+            return {
+                index,
+                kind: 'image',
+                mimeType,
+                approxBytes: buffer.length,
+                data: buffer,
+            };
+        } else if (value instanceof ArrayBuffer) {
+            const buffer = Buffer.from(new Uint8Array(value));
+            return {
+                index,
+                kind: 'image',
+                mimeType,
+                approxBytes: buffer.length,
+                data: buffer,
+            };
+        }
+        return null;
+    }
+
+    const data = part.data;
+    const mimeType = part.mimeType ?? 'application/octet-stream';
+    const filename = part.filename;
+
+    if (typeof data === 'string') {
+        if (data.startsWith('@blob:')) return null;
+        if (data.startsWith('http://') || data.startsWith('https://') || data.startsWith('blob:')) {
+            return null;
+        }
+        if (data.startsWith('data:')) {
+            const parsed = parseDataUri(data);
+            if (parsed) {
+                return {
+                    index,
+                    kind: 'file',
+                    mimeType: parsed.mediaType,
+                    approxBytes: base64LengthToBytes(parsed.base64.length),
+                    data: parsed.base64,
+                    filename,
+                };
+            }
+        }
+        if (isLikelyBase64String(data, 128)) {
+            return {
+                index,
+                kind: 'file',
+                mimeType,
+                approxBytes: base64LengthToBytes(data.length),
+                data,
+                filename,
+            };
+        }
+    } else if (data instanceof Buffer) {
+        return {
+            index,
+            kind: 'file',
+            mimeType,
+            approxBytes: data.length,
+            data,
+            filename,
+        };
+    } else if (data instanceof Uint8Array) {
+        const buffer = Buffer.from(data);
+        return {
+            index,
+            kind: 'file',
+            mimeType,
+            approxBytes: buffer.length,
+            data: buffer,
+            filename,
+        };
+    } else if (data instanceof ArrayBuffer) {
+        const buffer = Buffer.from(new Uint8Array(data));
+        return {
+            index,
+            kind: 'file',
+            mimeType,
+            approxBytes: buffer.length,
+            data: buffer,
+            filename,
+        };
+    }
+
+    return null;
 }
 
 function buildToolBlobName(
@@ -591,6 +835,9 @@ export function parseDataUri(value: string): { mediaType: string; base64: string
     return { mediaType, base64 };
 }
 
+// Re-export browser-safe helpers for convenience (already imported above)
+export { getFileMediaKind, getResourceKind };
+
 /**
  * Recursively sanitize objects by replacing suspiciously-large base64 strings
  * with placeholders to avoid blowing up the context window.
@@ -617,6 +864,92 @@ function sanitizeDeepObject(obj: unknown): unknown {
         return out;
     }
     return obj;
+}
+
+export async function normalizeToolResult(result: unknown): Promise<NormalizedToolResult> {
+    const content = await sanitizeToolResultToContentWithBlobs(result);
+    const parts = coerceContentToParts(content);
+    const inlineMedia: InlineMediaHint[] = [];
+
+    parts.forEach((part, index) => {
+        const hint = detectInlineMedia(part, index);
+        if (hint) {
+            inlineMedia.push(hint);
+        }
+    });
+
+    return {
+        parts,
+        inlineMedia,
+    };
+}
+
+function shouldPersistInlineMedia(hint: InlineMediaHint): boolean {
+    const kind = getFileMediaKind(hint.mimeType);
+    if (kind === 'audio' || kind === 'video') {
+        return true;
+    }
+    return hint.approxBytes >= MIN_TOOL_INLINE_MEDIA_BYTES;
+}
+
+export async function persistToolMedia(
+    normalized: NormalizedToolResult,
+    options: PersistToolMediaOptions
+): Promise<PersistToolMediaResult> {
+    const parts = normalized.parts.map((part) => clonePart(part));
+    const blobStore = options.blobStore;
+    const namingOptions: ToolBlobNamingOptions | undefined =
+        options.toolName || options.toolCallId
+            ? {
+                  ...(options.toolName ? { toolName: options.toolName } : {}),
+                  ...(options.toolCallId ? { toolCallId: options.toolCallId } : {}),
+              }
+            : undefined;
+
+    if (blobStore) {
+        for (const hint of normalized.inlineMedia) {
+            if (!shouldPersistInlineMedia(hint)) {
+                continue;
+            }
+
+            try {
+                const originalName =
+                    hint.filename ??
+                    buildToolBlobName(
+                        hint.kind === 'image' ? 'image' : 'file',
+                        hint.mimeType,
+                        namingOptions
+                    );
+
+                const blobRef = await blobStore.store(hint.data, {
+                    mimeType: hint.mimeType,
+                    originalName,
+                    source: 'tool',
+                });
+
+                const resourceUri = blobRef.uri;
+
+                if (hint.kind === 'image') {
+                    parts[hint.index] = createBlobImagePart(resourceUri, blobRef.metadata.mimeType);
+                } else {
+                    const resolvedMimeType = blobRef.metadata.mimeType || hint.mimeType;
+                    const filename = blobRef.metadata.originalName ?? hint.filename;
+                    parts[hint.index] = createBlobFilePart(resourceUri, resolvedMimeType, filename);
+                }
+            } catch (error) {
+                logger.warn(
+                    `Failed to persist tool media: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+    }
+
+    const resources = extractResourceDescriptors(parts);
+
+    return {
+        parts,
+        ...(resources ? { resources } : {}),
+    };
 }
 
 /**
@@ -658,8 +991,10 @@ export async function sanitizeToolResultToContentWithBlobs(
                         });
                         logger.debug(`Stored blob: ${blobRef.uri} (${approxSize} bytes)`);
 
-                        // Return a text reference that can be resolved later
-                        return `@${blobRef.uri}`;
+                        if (mediaType.startsWith('image/')) {
+                            return [createBlobImagePart(blobRef.uri, mediaType)];
+                        }
+                        return [createBlobFilePart(blobRef.uri, mediaType, undefined)];
                     } catch (error) {
                         logger.warn(
                             `Failed to store blob, falling back to inline: ${String(error)}`
@@ -672,7 +1007,13 @@ export async function sanitizeToolResultToContentWithBlobs(
                 if (mediaType.startsWith('image/')) {
                     return [{ type: 'image', image: dataUri.base64, mimeType: mediaType }];
                 }
-                return [{ type: 'file', data: dataUri.base64, mimeType: mediaType }];
+                return [
+                    {
+                        type: 'file',
+                        data: dataUri.base64,
+                        mimeType: mediaType,
+                    },
+                ];
             }
 
             // Raw base64-like blob
@@ -693,7 +1034,13 @@ export async function sanitizeToolResultToContentWithBlobs(
                         logger.debug(
                             `Stored tool result as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
-                        return `@${blobRef.uri}`;
+                        return [
+                            createBlobFilePart(
+                                blobRef.uri,
+                                'application/octet-stream',
+                                'tool-output.bin'
+                            ),
+                        ];
                     } catch (error) {
                         logger.warn(
                             `Failed to store blob, falling back to inline: ${String(error)}`
@@ -758,63 +1105,154 @@ export async function sanitizeToolResultToContentWithBlobs(
                 const processedContent = [];
 
                 for (const item of anyObj.content) {
-                    if (item && typeof item === 'object' && 'data' in item && item.mimeType) {
-                        const fileData = getFileData({ data: item.data });
-                        const mimeType = item.mimeType;
+                    if (item && typeof item === 'object') {
+                        // Handle MCP resource type (embedded resources)
+                        if (item.type === 'resource' && item.resource) {
+                            const resource = item.resource;
+                            if (resource.text && resource.mimeType) {
+                                const fileData = resource.text;
+                                const mimeType = resource.mimeType;
 
-                        // Check if we should store as blob
-                        const approxSize =
-                            typeof fileData === 'string'
-                                ? Math.floor((fileData.length * 3) / 4)
-                                : 0;
-                        const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                                // Check if we should store as blob
+                                const approxSize =
+                                    typeof fileData === 'string'
+                                        ? Math.floor((fileData.length * 3) / 4)
+                                        : 0;
+                                const shouldStoreAsBlob = blobStore && approxSize > 1024;
 
-                        if (shouldStoreAsBlob) {
-                            try {
-                                logger.debug(
-                                    `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
-                                );
-                                const blobRef = await blobStore.store(fileData, {
-                                    mimeType,
-                                    source: 'tool',
-                                    originalName: buildToolBlobName(
-                                        item.type === 'image' ? 'image' : 'file',
+                                if (shouldStoreAsBlob) {
+                                    try {
+                                        logger.debug(
+                                            `Storing MCP resource as blob (${approxSize} bytes, ${mimeType})`
+                                        );
+                                        const blobRef = await blobStore.store(fileData, {
+                                            mimeType,
+                                            source: 'tool',
+                                            originalName: buildToolBlobName(
+                                                mimeType.startsWith('image/') ? 'image' : 'file',
+                                                mimeType,
+                                                namingOptions,
+                                                resource.title
+                                            ),
+                                        });
+                                        logger.debug(
+                                            `Stored MCP resource blob: ${blobRef.uri} (${approxSize} bytes)`
+                                        );
+                                        if (mimeType.startsWith('image/')) {
+                                            processedContent.push(
+                                                createBlobImagePart(blobRef.uri, mimeType)
+                                            );
+                                        } else {
+                                            processedContent.push(
+                                                createBlobFilePart(
+                                                    blobRef.uri,
+                                                    mimeType,
+                                                    resource.title
+                                                )
+                                            );
+                                        }
+                                        continue;
+                                    } catch (error) {
+                                        logger.warn(
+                                            `Failed to store MCP resource blob, falling back to inline: ${String(error)}`
+                                        );
+                                    }
+                                }
+
+                                // Fall back to original structure based on MIME type
+                                if (mimeType.startsWith('image/')) {
+                                    processedContent.push({
+                                        type: 'image',
+                                        image: fileData,
                                         mimeType,
-                                        namingOptions,
-                                        item.filename
-                                    ),
-                                });
-                                logger.debug(
-                                    `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
-                                );
-                                processedContent.push(`@${blobRef.uri}`);
+                                    });
+                                } else if (mimeType.startsWith('video/')) {
+                                    processedContent.push({
+                                        type: 'file',
+                                        data: fileData,
+                                        mimeType,
+                                        filename: resource.title,
+                                    });
+                                } else {
+                                    processedContent.push({
+                                        type: 'file',
+                                        data: fileData,
+                                        mimeType,
+                                        filename: resource.title,
+                                    });
+                                }
                                 continue;
-                            } catch (error) {
-                                logger.warn(
-                                    `Failed to store MCP blob, falling back to inline: ${String(error)}`
-                                );
                             }
                         }
 
-                        // Fall back to original structure
-                        if (item.type === 'image') {
-                            processedContent.push({
-                                type: 'image',
-                                image: fileData,
-                                mimeType,
-                            });
-                        } else {
-                            processedContent.push({
-                                type: 'file',
-                                data: fileData,
-                                mimeType,
-                                filename: item.filename,
-                            });
+                        // Handle legacy data field (for backwards compatibility)
+                        if ('data' in item && item.mimeType) {
+                            const fileData = getFileData({ data: item.data });
+                            const mimeType = item.mimeType;
+
+                            // Check if we should store as blob
+                            const approxSize =
+                                typeof fileData === 'string'
+                                    ? Math.floor((fileData.length * 3) / 4)
+                                    : 0;
+                            const shouldStoreAsBlob = blobStore && approxSize > 1024;
+
+                            if (shouldStoreAsBlob) {
+                                try {
+                                    logger.debug(
+                                        `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
+                                    );
+                                    const blobRef = await blobStore.store(fileData, {
+                                        mimeType,
+                                        source: 'tool',
+                                        originalName: buildToolBlobName(
+                                            item.type === 'image' ? 'image' : 'file',
+                                            mimeType,
+                                            namingOptions,
+                                            item.filename
+                                        ),
+                                    });
+                                    logger.debug(
+                                        `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
+                                    );
+                                    if (item.type === 'image') {
+                                        processedContent.push(
+                                            createBlobImagePart(blobRef.uri, mimeType)
+                                        );
+                                    } else {
+                                        processedContent.push(
+                                            createBlobFilePart(blobRef.uri, mimeType, item.filename)
+                                        );
+                                    }
+                                    continue;
+                                } catch (error) {
+                                    logger.warn(
+                                        `Failed to store MCP blob, falling back to inline: ${String(error)}`
+                                    );
+                                }
+                            }
+
+                            // Fall back to original structure
+                            if (item.type === 'image') {
+                                processedContent.push({
+                                    type: 'image',
+                                    image: fileData,
+                                    mimeType,
+                                });
+                            } else {
+                                processedContent.push({
+                                    type: 'file',
+                                    data: fileData,
+                                    mimeType,
+                                    filename: item.filename,
+                                });
+                            }
+                            continue;
                         }
-                    } else {
-                        // Non-media content, keep as-is
-                        processedContent.push(item);
                     }
+
+                    // Non-media content, keep as-is
+                    processedContent.push(item);
                 }
 
                 return processedContent;
@@ -840,7 +1278,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         logger.debug(
                             `Stored tool image as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
-                        return `@${blobRef.uri}`;
+                        return [createBlobImagePart(blobRef.uri, mimeType)];
                     } catch (error) {
                         logger.warn(
                             `Failed to store image blob, falling back to inline: ${String(error)}`
@@ -881,7 +1319,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                         logger.debug(
                             `Stored tool file as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
-                        return `@${blobRef.uri}`;
+                        return [createBlobFilePart(blobRef.uri, mimeType, anyObj.filename)];
                     } catch (error) {
                         logger.warn(
                             `Failed to store file blob, falling back to inline: ${String(error)}`
@@ -916,6 +1354,93 @@ export async function sanitizeToolResultToContentWithBlobs(
             return String(result ?? '');
         }
     }
+}
+
+// Deprecated: Use getResourceKind instead. Kept for internal backwards compatibility during migration.
+function inferResourceKind(mimeType: string | undefined): 'image' | 'audio' | 'video' | 'binary' {
+    return getResourceKind(mimeType);
+}
+
+function createBlobImagePart(uri: string, mimeType?: string): ImagePart {
+    return {
+        type: 'image',
+        image: `@${uri}`,
+        ...(mimeType ? { mimeType } : {}),
+    };
+}
+
+function createBlobFilePart(uri: string, mimeType: string, filename?: string): FilePart {
+    return {
+        type: 'file',
+        data: `@${uri}`,
+        mimeType,
+        ...(filename ? { filename } : {}),
+    };
+}
+
+function extractResourceDescriptors(
+    parts: Array<TextPart | ImagePart | FilePart>
+): SanitizedToolResult['resources'] {
+    const resources: NonNullable<SanitizedToolResult['resources']> = [];
+
+    for (const part of parts) {
+        if (
+            part.type === 'image' &&
+            typeof part.image === 'string' &&
+            part.image.startsWith('@blob:')
+        ) {
+            resources.push({
+                uri: part.image.substring(1),
+                kind: 'image',
+                mimeType: part.mimeType ?? 'image/jpeg',
+            });
+        }
+
+        if (
+            part.type === 'file' &&
+            typeof part.data === 'string' &&
+            part.data.startsWith('@blob:')
+        ) {
+            resources.push({
+                uri: part.data.substring(1),
+                kind: inferResourceKind(part.mimeType),
+                mimeType: part.mimeType,
+                ...(part.filename ? { filename: part.filename } : {}),
+            });
+        }
+    }
+
+    return resources.length > 0 ? resources : undefined;
+}
+
+export async function sanitizeToolResult(
+    result: unknown,
+    options: {
+        blobStore?: import('../storage/blob/types.js').BlobStore;
+        toolName: string;
+        toolCallId: string;
+        success?: boolean;
+    }
+): Promise<SanitizedToolResult> {
+    const normalized = await normalizeToolResult(result);
+    const persisted = await persistToolMedia(normalized, {
+        ...(options.blobStore ? { blobStore: options.blobStore } : {}),
+        toolName: options.toolName,
+        toolCallId: options.toolCallId,
+    });
+
+    const fallbackContent: TextPart[] = [{ type: 'text', text: '' }];
+    const content = persisted.parts.length > 0 ? persisted.parts : fallbackContent;
+
+    return {
+        content,
+        ...(persisted.resources ? { resources: persisted.resources } : {}),
+        meta: {
+            toolName: options.toolName,
+            toolCallId: options.toolCallId,
+            ...(typeof options.success === 'boolean' ? { success: options.success } : {}),
+        },
+    };
 }
 
 /**

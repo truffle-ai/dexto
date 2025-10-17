@@ -9,10 +9,11 @@ import { logger } from '../logger/index.js';
 import { eventBus } from '../events/index.js';
 import {
     countMessagesTokens,
-    sanitizeToolResultToContentWithBlobs,
+    sanitizeToolResult,
     expandBlobReferences,
     isLikelyBase64String,
 } from './utils.js';
+import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
@@ -568,41 +569,51 @@ export class ContextManager<TMessage = unknown> {
      * @param result The result returned by the tool
      * @throws Error if required parameters are missing
      */
-    async addToolResult(toolCallId: string, name: string, result: unknown): Promise<void> {
+    async addToolResult(
+        toolCallId: string,
+        name: string,
+        result: unknown,
+        options?: { success?: boolean }
+    ): Promise<SanitizedToolResult> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
-        // Sanitize tool result to avoid adding non-text data as raw text
-        // and to convert media/data-uris/base64 to structured parts.
-        // Automatically store large media as blobs using the blob service.
         const blobService = this.resourceManager.getBlobStore();
-        const content = await sanitizeToolResultToContentWithBlobs(result, blobService, {
+        const sanitizeOptions: {
+            blobStore?: import('../storage/blob/types.js').BlobStore;
+            toolName: string;
+            toolCallId: string;
+            success?: boolean;
+        } = {
+            blobStore: blobService,
             toolName: name,
             toolCallId,
-        });
-
-        // Log what we are storing (brief)
-        if (typeof content === 'string') {
-            const preview = content.slice(0, 200);
-            logger.debug(
-                `ContextManager: Storing tool result (text) for ${name} (len=${content.length}): ${preview}${
-                    content.length > 200 ? '...' : ''
-                }`
-            );
-        } else if (Array.isArray(content)) {
-            const summary = content
-                .map((p) =>
-                    p.type === 'text'
-                        ? `text(${p.text.length})`
-                        : p.type === 'image'
-                          ? `image(${p.mimeType || 'image'})`
-                          : `file(${p.mimeType || 'file'})`
-                )
-                .join(', ');
-            logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
+        };
+        if (options?.success !== undefined) {
+            sanitizeOptions.success = options.success;
         }
 
-        await this.addMessage({ role: 'tool', content, toolCallId, name });
+        const sanitized = await sanitizeToolResult(result, sanitizeOptions);
+
+        const summary = sanitized.content
+            .map((p) =>
+                p.type === 'text'
+                    ? `text(${p.text.length})`
+                    : p.type === 'image'
+                      ? `image(${p.mimeType || 'image'})`
+                      : `file(${p.mimeType || 'file'})`
+            )
+            .join(', ');
+        logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
+
+        await this.addMessage({
+            role: 'tool',
+            content: sanitized.content,
+            toolCallId,
+            name,
+        });
+
+        return sanitized;
     }
 
     /**

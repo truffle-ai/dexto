@@ -12,10 +12,8 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import {
-    sanitizeToolResultToContentWithBlobs,
-    summarizeToolContentForText,
-} from '../../context/utils.js';
+import { summarizeToolContentForText, normalizeToolResult } from '../../context/utils.js';
+import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -117,22 +115,11 @@ export class VercelLLMService implements ILLMService {
                             queue.push(rawResult);
                             this.rawResultsByCallId.set(callId, queue);
 
-                            // Sanitize tool result to prevent large/base64 media from exploding context
-                            // Convert arbitrary result -> InternalMessage content (media as structured parts)
-                            // then summarize to concise text suitable for Vercel tool output.
-                            // Use blob-aware sanitization with blob store
-                            const resourceManager = this.contextManager.getResourceManager();
-                            const blobService = resourceManager.getBlobStore();
-
-                            const safeContent = await sanitizeToolResultToContentWithBlobs(
-                                rawResult,
-                                blobService,
-                                {
-                                    toolName,
-                                    toolCallId: options.toolCallId,
-                                }
-                            );
-                            const summaryText = summarizeToolContentForText(safeContent);
+                            // Normalize tool result for summary generation WITHOUT persisting blobs yet
+                            // Blobs will be persisted once in contextManager.addToolResult later
+                            // This avoids double sanitization/persistence (see context/utils.ts)
+                            const normalized = await normalizeToolResult(rawResult);
+                            const summaryText = summarizeToolContentForText(normalized.parts);
                             return summaryText;
                         } catch (err: unknown) {
                             // Return structured error to SDK so a toolResult step is produced
@@ -322,7 +309,7 @@ export class VercelLLMService implements ILLMService {
                 messages,
                 tools: effectiveTools,
                 ...(signal ? { abortSignal: signal } : {}),
-                onStepFinish: (step) => {
+                onStepFinish: async (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
                     logger.debug(`Step finished, text: ${step.text}`);
@@ -347,7 +334,7 @@ export class VercelLLMService implements ILLMService {
                     if (step.toolResults && step.toolResults.length > 0) {
                         for (const toolResult of step.toolResults) {
                             const callId = toolResult.toolCallId;
-                            const sanitized = toolResult.output;
+                            const sanitizedFromSdk = toolResult.output;
                             let raw: unknown | undefined;
                             if (callId) {
                                 const q = this.rawResultsByCallId.get(callId) ?? [];
@@ -355,12 +342,31 @@ export class VercelLLMService implements ILLMService {
                                 if (q.length > 0) this.rawResultsByCallId.set(callId, q);
                                 else this.rawResultsByCallId.delete(callId);
                             }
-                            this.sessionEventBus.emit('llmservice:toolResult', {
-                                toolName: toolResult.toolName,
-                                result: raw ?? sanitized,
-                                callId,
-                                success: true,
-                            });
+
+                            try {
+                                const effectiveCallId =
+                                    callId ?? `${toolResult.toolName}-${Date.now()}`;
+                                const persisted = await this.contextManager.addToolResult(
+                                    effectiveCallId,
+                                    toolResult.toolName,
+                                    raw ?? sanitizedFromSdk,
+                                    { success: true }
+                                );
+
+                                this.sessionEventBus.emit('llmservice:toolResult', {
+                                    toolName: toolResult.toolName,
+                                    callId: effectiveCallId,
+                                    success: true,
+                                    sanitized: persisted,
+                                    ...(shouldIncludeRawToolResult()
+                                        ? { rawResult: raw ?? sanitizedFromSdk }
+                                        : {}),
+                                });
+                            } catch (err) {
+                                logger.error(
+                                    `Failed to persist tool result for ${toolResult.toolName}: ${String(err)}`
+                                );
+                            }
                         }
                     }
                 },
@@ -526,7 +532,7 @@ export class VercelLLMService implements ILLMService {
                 });
                 streamErr = error;
             },
-            onStepFinish: (step) => {
+            onStepFinish: async (step) => {
                 logger.debug(`Step iteration: ${stepIteration}`);
                 stepIteration++;
                 logger.debug(`Step finished, text: ${step.text}`);
@@ -553,7 +559,7 @@ export class VercelLLMService implements ILLMService {
                 if (step.toolResults && step.toolResults.length > 0) {
                     for (const toolResult of step.toolResults) {
                         const callId = toolResult.toolCallId;
-                        const sanitized = toolResult.output;
+                        const sanitizedFromSdk = toolResult.output;
                         let raw: unknown | undefined;
                         if (callId) {
                             const q = this.rawResultsByCallId.get(callId) ?? [];
@@ -561,12 +567,31 @@ export class VercelLLMService implements ILLMService {
                             if (q.length > 0) this.rawResultsByCallId.set(callId, q);
                             else this.rawResultsByCallId.delete(callId);
                         }
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName: toolResult.toolName,
-                            result: raw ?? sanitized,
-                            callId,
-                            success: true,
-                        });
+
+                        try {
+                            const effectiveCallId =
+                                callId ?? `${toolResult.toolName}-${Date.now()}`;
+                            const persisted = await this.contextManager.addToolResult(
+                                effectiveCallId,
+                                toolResult.toolName,
+                                raw ?? sanitizedFromSdk,
+                                { success: true }
+                            );
+
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName: toolResult.toolName,
+                                callId: effectiveCallId,
+                                success: true,
+                                sanitized: persisted,
+                                ...(shouldIncludeRawToolResult()
+                                    ? { rawResult: raw ?? sanitizedFromSdk }
+                                    : {}),
+                            });
+                        } catch (err) {
+                            logger.error(
+                                `Failed to persist tool result for ${toolResult.toolName}: ${String(err)}`
+                            );
+                        }
                     }
                 }
             },

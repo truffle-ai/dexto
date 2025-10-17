@@ -314,7 +314,8 @@ interface AgentEventMap {
   
   'llmservice:toolResult': {
     toolName: string;
-    result: any;
+    sanitized: SanitizedToolResult;
+    rawResult?: unknown;
     callId?: string;
     success: boolean;
     sessionId: string;
@@ -363,7 +364,8 @@ interface SessionEventMap {
   
   'llmservice:toolResult': {
     toolName: string;
-    result: any;
+    sanitized: SanitizedToolResult;
+    rawResult?: unknown;
     callId?: string;
     success: boolean;
   };

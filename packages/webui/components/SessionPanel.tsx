@@ -55,6 +55,7 @@ export default function SessionPanel({
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const isDeletingRef = React.useRef(false);
   const requestIdRef = React.useRef(0);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -121,21 +122,34 @@ export default function SessionPanel({
     }
   }, [isOpen, fetchSessions]);
 
+  // Debounced session refresh to prevent excessive API calls
+  const debouncedFetchSessions = useCallback(() => {
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new timer - wait 500ms after last event before fetching
+    debounceTimerRef.current = setTimeout(() => {
+      void fetchSessions();
+    }, 500);
+  }, [fetchSessions]);
+
   // Listen for message events to refresh session counts
   // Update sessions list regardless of panel open/closed state
   useEffect(() => {
-    const handleMessage = () => {
-      // Refresh sessions when a message is sent to update message counts
-      void fetchSessions();
+    const handleMessage: EventListener = (_event: Event) => {
+      // Debounced refresh - prevents excessive API calls during rapid messaging
+      debouncedFetchSessions();
     };
 
-    const handleResponse = () => {
-      // Refresh sessions when a response is received to update message counts
-      void fetchSessions();
+    const handleResponse: EventListener = (_event: Event) => {
+      // Debounced refresh - prevents excessive API calls during rapid messaging
+      debouncedFetchSessions();
     };
 
-    const handleTitleUpdated: EventListener = () => {
-      // Refresh sessions when title is updated, even if panel is closed
+    const handleTitleUpdated: EventListener = (_event: Event) => {
+      // Immediate refresh for title updates (less frequent)
       void fetchSessions();
     };
 
@@ -148,9 +162,14 @@ export default function SessionPanel({
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
         window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+
+        // Clean up debounce timer on unmount
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
       };
     }
-  }, [fetchSessions]);
+  }, [fetchSessions, debouncedFetchSessions]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation

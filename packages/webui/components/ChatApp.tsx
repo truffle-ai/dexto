@@ -330,12 +330,18 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   }, []);
 
   const handleSessionChange = useCallback((sessionId: string) => {
+    // Reset scroll state when changing sessions
+    setFollowStreaming(false);
+    setShowScrollHint(false);
     // Navigate to the session URL instead of just switching in context
     router.push(`/chat/${sessionId}`);
     // Keep the sessions panel open when switching sessions
   }, [router]);
 
   const handleReturnToWelcome = useCallback(() => {
+    // Reset scroll state when returning to welcome
+    setFollowStreaming(false);
+    setShowScrollHint(false);
     // Clear the context state first, then navigate to home page
     returnToWelcome();
     router.push('/');
@@ -365,6 +371,9 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   // Handle sessionId prop from URL - for loading specific sessions
   useEffect(() => {
     if (sessionId && sessionId !== currentSessionId) {
+      // Reset scroll state when switching sessions
+      setFollowStreaming(false);
+      setShowScrollHint(false);
       switchSession(sessionId);
     }
   }, [sessionId, currentSessionId, switchSession]);
@@ -376,28 +385,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       returnToWelcome();
     }
   }, [sessionId, isWelcomeState, returnToWelcome]);
-
-  // Navigate to new session URL after first message from welcome state
-  const prevSessionIdRef = React.useRef<string | null>(currentSessionId);
-  const prevWelcomeStateRef = React.useRef<boolean>(isWelcomeState);
-
-  useEffect(() => {
-    // Check if we just transitioned from welcome state to a session (first message sent)
-    const wasInWelcomeState = prevWelcomeStateRef.current;
-    const hadNoSession = prevSessionIdRef.current === null;
-    const nowHaveSession = currentSessionId !== null;
-    const notInWelcomeState = !isWelcomeState;
-    const onHomePage = !sessionId && typeof window !== 'undefined' && window.location.pathname === '/';
-
-    if (wasInWelcomeState && hadNoSession && nowHaveSession && notInWelcomeState && onHomePage) {
-      // User just sent their first message from welcome state, navigate to the new session
-      router.push(`/chat/${currentSessionId}`);
-    }
-
-    // Update refs for next render
-    prevSessionIdRef.current = currentSessionId;
-    prevWelcomeStateRef.current = isWelcomeState;
-  }, [currentSessionId, isWelcomeState, sessionId, router]);
 
   type InstallableRegistryEntry = ServerRegistryEntry & {
     onCloseRegistryModal?: () => void;
@@ -866,7 +853,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           
           {/* Chat Content */}
           <div className="flex-1 flex flex-col min-h-0">
-            {isWelcomeState || messages.length === 0 ? (
+            {isWelcomeState ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex items-center justify-center p-6 -mt-20">
                 <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">

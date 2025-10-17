@@ -1,8 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
+import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
+import { getResourceKind } from '@dexto/core';
 
 interface ChatContextType {
   messages: Message[];
@@ -36,6 +39,8 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+
   // Determine WebSocket URL; replace localhost for network access
   let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
   if (typeof window !== 'undefined') {
@@ -54,6 +59,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
+  const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
+  const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
   const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl, () => currentSessionId);
   const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
@@ -92,36 +99,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}), // Let server generate random UUID
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create session');
-      }
-      
-      const responseText = await response.text();
-      if (!responseText.trim()) {
-        throw new Error('Empty response from session creation');
-      }
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse session creation response:', parseError);
-        throw new Error('Invalid response from session creation');
-      }
-      
-      return data.session.id;
-    } catch (error) {
-      console.error('Error creating auto session:', error);
-      // Fallback to a simple timestamp-based session ID
-      return `chat-${Date.now()}`;
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}), // Let server generate random UUID
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
     }
+
+    const responseText = await response.text();
+    if (!responseText.trim()) {
+      throw new Error('Empty response from session creation');
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse session creation response:', parseError);
+      throw new Error('Invalid response from session creation');
+    }
+
+    if (!data.session?.id) {
+      throw new Error('Session ID not found in server response');
+    }
+
+    return data.session.id;
   }, []);
 
   // Enhanced sendMessage with auto-session creation
@@ -131,24 +136,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fileData?: { base64: string; mimeType: string; filename?: string }
   ) => {
     let sessionId = currentSessionId;
-    
-    // Auto-create session on first message
-    if (!sessionId && isWelcomeState) {
-      sessionId = await createAutoSession();
-      
-      setCurrentSessionId(sessionId);
-      setIsWelcomeState(false);
 
-      // Prime currentLLM for this session to avoid UI flicker
-      await fetchCurrentLLM(sessionId);
+    // Auto-create session on first message and wait for it to complete
+    if (!sessionId && isWelcomeState) {
+      if (isCreatingSession) return; // Another send in-flight; drop duplicate request
+      try {
+        setIsCreatingSession(true);
+        sessionId = await createAutoSession();
+
+        // Update state before sending message
+        setCurrentSessionId(sessionId);
+        setIsWelcomeState(false);
+
+        // Navigate using Next.js router to properly handle client-side routing
+        router.replace(`/chat/${sessionId}`);
+
+        // Prime currentLLM for this session to avoid UI flicker
+        await fetchCurrentLLM(sessionId);
+      } catch (error) {
+        console.error('Failed to create session:', error);
+        return; // Don't send message if session creation fails
+      } finally {
+        setIsCreatingSession(false);
+      }
     }
-    
+
+    // Only send after session is confirmed ready
     if (sessionId) {
       originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
     } else {
       console.error('No session available for sending message');
     }
-  }, [originalSendMessage, currentSessionId, isWelcomeState, createAutoSession, isStreaming]);
+  }, [originalSendMessage, currentSessionId, isWelcomeState, isCreatingSession, createAutoSession, isStreaming, fetchCurrentLLM, router]);
 
   // Enhanced reset with session support
   const reset = useCallback(() => {
@@ -159,6 +178,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load session history when switching sessions
   const loadSessionHistory = useCallback(async (sessionId: string) => {
+
     try {
       const response = await fetch(`/api/sessions/${sessionId}/history`);
       if (!response.ok) {
@@ -181,8 +201,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       const responseText = await response.text();
       if (!responseText.trim()) {
-        // Empty response, treat as no history
-        setMessages([]);
+        // Empty response, keep any in-flight messages for this session
+        setMessages((prev) => {
+          const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
+          return hasSessionMsgs ? prev : [];
+        });
         return;
       }
       
@@ -199,6 +222,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       // Convert API history to UI messages
       const uiMessages: Message[] = [];
+      const pendingToolCalls = new Map<string, number>();
       
       for (let index = 0; index < history.length; index++) {
         const msg: any = history[index];
@@ -216,49 +240,131 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           provider: msg.provider,
         };
 
-        if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
-          // Handle assistant messages with tool calls
-          // First add the assistant message (if it has content)
+        const deriveResources = (
+          content: Array<TextPart | ImagePart | FilePart>
+        ): SanitizedToolResult['resources'] => {
+          const resources: NonNullable<SanitizedToolResult['resources']> = [];
+
+          for (const part of content) {
+            if (part.type === 'image' && typeof part.image === 'string' && part.image.startsWith('@blob:')) {
+              const uri = part.image.substring(1);
+              resources.push({
+                uri,
+                kind: 'image',
+                mimeType: part.mimeType ?? 'image/jpeg',
+              });
+            }
+
+            if (part.type === 'file' && typeof part.data === 'string' && part.data.startsWith('@blob:')) {
+              const uri = part.data.substring(1);
+              const mimeType = part.mimeType ?? 'application/octet-stream';
+              const kind = getResourceKind(mimeType);
+
+              resources.push({
+                uri,
+                kind,
+                mimeType,
+                ...(part.filename ? { filename: part.filename } : {}),
+              });
+            }
+          }
+
+          return resources.length > 0 ? resources : undefined;
+        };
+
+        if (msg.role === 'assistant') {
           if (msg.content) {
             uiMessages.push(baseMessage);
           }
-          
-          // Then add tool call messages for each tool call
-          msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
-            const toolArgs = toolCall.function ? JSON.parse(toolCall.function.arguments || '{}') : {};
-            const toolName = toolCall.function?.name || 'unknown';
-            
-            // Look for corresponding tool result in subsequent messages
-            let toolResult = undefined;
-            for (let j = index + 1; j < history.length; j++) {
-              const nextMsg = history[j];
-              if (nextMsg.role === 'tool' && nextMsg.toolCallId === toolCall.id) {
-                toolResult = nextMsg.content;
-                break;
+
+          if (msg.toolCalls && msg.toolCalls.length > 0) {
+            msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
+              let toolArgs: Record<string, unknown> = {};
+              if (toolCall?.function) {
+                try {
+                  toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+                } catch (e) {
+                  console.warn(`Failed to parse toolCall arguments for ${toolCall.function?.name || 'unknown'}: ${e}`);
+                  toolArgs = {};
+                }
               }
-            }
-            
-            uiMessages.push({
-              id: `session-${sessionId}-${index}-tool-${toolIndex}`,
-              role: 'tool' as const,
-              content: null,
-              createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
-              sessionId: sessionId,
-              toolName: toolName,
-              toolArgs: toolArgs,
-              toolResult: toolResult,
+              const toolName = toolCall.function?.name || 'unknown';
+
+              const toolMessage: Message = {
+                id: `session-${sessionId}-${index}-tool-${toolIndex}`,
+                role: 'tool',
+                content: null,
+                createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
+                sessionId,
+                toolName,
+                toolArgs,
+                toolResult: undefined,
+                toolResultMeta: undefined,
+                toolResultSuccess: undefined,
+              };
+
+              if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
+                pendingToolCalls.set(toolCall.id, uiMessages.length);
+              }
+
+              uiMessages.push(toolMessage);
             });
-          });
-        } else if (msg.role === 'tool') {
-          // Skip standalone tool messages as they're handled above with their corresponding tool calls
+          }
+
           continue;
-        } else {
-          // Handle regular messages (user, system, assistant without tool calls)
-          uiMessages.push(baseMessage);
         }
+
+        if (msg.role === 'tool') {
+          const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
+          const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
+          const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(msg.content)
+            ? (msg.content as Array<TextPart | ImagePart | FilePart>)
+            : typeof msg.content === 'string'
+              ? [{ type: 'text', text: msg.content }]
+              : [];
+
+          const inferredResources = deriveResources(normalizedContent);
+          const sanitizedFromHistory: SanitizedToolResult = {
+            content: normalizedContent,
+            ...(inferredResources ? { resources: inferredResources } : {}),
+            meta: {
+              toolName,
+              toolCallId: toolCallId ?? `tool-${index}`,
+              ...(typeof msg.success === 'boolean' ? { success: msg.success } : {}),
+            },
+          };
+
+          if (toolCallId && pendingToolCalls.has(toolCallId)) {
+            const messageIndex = pendingToolCalls.get(toolCallId)!;
+            uiMessages[messageIndex] = {
+              ...uiMessages[messageIndex],
+              toolResult: sanitizedFromHistory,
+              toolResultMeta: sanitizedFromHistory.meta,
+              toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
+            };
+          } else {
+            uiMessages.push({
+              ...baseMessage,
+              role: 'tool',
+              content: null,
+              toolName,
+              toolArgs: typeof msg.args === 'object' ? msg.args : undefined,
+              toolResult: sanitizedFromHistory,
+              toolResultMeta: sanitizedFromHistory.meta,
+              toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
+            });
+          }
+
+          continue;
+        }
+
+        uiMessages.push(baseMessage);
       }
-      
-      setMessages(uiMessages);
+
+      setMessages((prev) => {
+        const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
+        return hasSessionMsgs ? prev : uiMessages;
+      });
     } catch (error) {
       console.error('Error loading session history:', error);
       // On error, just clear messages and continue
@@ -268,8 +374,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Switch to a different session and load it on the backend
   const switchSession = useCallback(async (sessionId: string) => {
-    if (sessionId === currentSessionId) return;
-    
+    // Guard against switching to same session or rapid successive switches
+    if (sessionId === currentSessionId || isSwitchingSession) {
+      return;
+    }
+    setIsSwitchingSession(true);
     try {
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
@@ -280,8 +389,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error switching session:', error);
       throw error; // Re-throw so UI can handle the error
+    } finally {
+      // Always reset the switching flag, even if error occurs
+      setIsSwitchingSession(false);
     }
-  }, [currentSessionId, loadSessionHistory]);
+  }, [currentSessionId, isSwitchingSession, loadSessionHistory, fetchCurrentLLM]);
 
 
   // Return to welcome state (no active session)

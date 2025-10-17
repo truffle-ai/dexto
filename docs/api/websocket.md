@@ -48,9 +48,55 @@ Listen for these events from the server. All events follow the `{ "event": "EVEN
 | `chunk` | `{ text, isComplete?, sessionId }` | A part of the agent's response when `stream` is `true`. |
 | `response` | `{ text, tokenCount?, model?, sessionId }` | The final, complete response from the agent. |
 | `toolCall` | `{ toolName, args, callId?, sessionId }` | Informs that the agent is about to execute a tool. |
-| `toolResult` | `{ toolName, result, callId?, success, sessionId }` | Provides the result from a tool's execution. |
+| `toolResult` | `{ toolName, sanitized, rawResult?, callId?, success, sessionId }` | Provides the canonical tool result payload (and, when `DEXTO_DEBUG_TOOL_RESULT_RAW` is enabled, the raw result). |
 | `conversationReset` | `{ sessionId }` | Conversation history cleared for session. |
 | `mcpServerConnected` | `{ name, success, error? }` | MCP server connection result. |
 | `availableToolsUpdated` | `{ tools, source }` | Available tools changed. |
 | `toolConfirmationRequest` | `{ ... }` | Request to confirm a tool execution. |
-| `error` | `{ message, context?, recoverable?, sessionId }` | An error occurred during message processing. |
+| `error` | Polymorphic error object with `sessionId` | An error occurred during message processing. See [Error Payloads](#error-payloads) below. |
+
+### Error Payloads
+
+The `error` event returns different payload structures depending on the error type. All error payloads include a `sessionId` field.
+
+#### DextoRuntimeError
+Runtime errors (file operations, API failures, system errors):
+```typescript
+{
+  code: string,           // Error code (e.g., 'file_not_found')
+  message: string,        // Human-readable error message
+  scope: string,          // Error scope (e.g., 'agent', 'system')
+  type: string,           // Error type (e.g., 'user', 'system')
+  context?: object,       // Additional error context
+  recovery?: object,      // Recovery suggestions
+  traceId: string,        // Trace ID for debugging
+  sessionId: string       // Session identifier
+}
+```
+
+#### DextoValidationError
+Validation errors (schema failures, input validation):
+```typescript
+{
+  name: string,           // Error class name
+  message: string,        // Summary error message
+  issues: Issue[],        // Array of validation issues
+  traceId: string,        // Trace ID for debugging
+  errorCount: number,     // Number of blocking errors
+  warningCount: number,   // Number of warnings
+  sessionId: string       // Session identifier
+}
+```
+
+#### Generic Errors
+Unexpected errors not matching the above types:
+```typescript
+{
+  code: 'internal_error', // Generic error code
+  message: string,        // Error message
+  scope: string,          // Error scope
+  type: string,           // Error type
+  severity: 'error',      // Severity level
+  sessionId: string       // Session identifier
+}
+```

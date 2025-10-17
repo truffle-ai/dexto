@@ -1,20 +1,228 @@
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, expect, it, test, beforeEach, vi } from 'vitest';
+import type {
+    BlobStore,
+    BlobInput,
+    BlobMetadata,
+    BlobReference,
+    BlobData,
+    BlobStats,
+    StoredBlobMetadata,
+} from '../storage/blob/types.js';
 import {
+    normalizeToolResult,
+    persistToolMedia,
     filterMessagesByLLMCapabilities,
     parseDataUri,
     isLikelyBase64String,
-    getImageDataWithBlobSupport,
-    getFileDataWithBlobSupport,
-    expandBlobReferences,
+    getFileMediaKind,
+    getResourceKind,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
-import type { ResourceManager } from '../resources/manager.js';
 
 // Mock the registry module
 vi.mock('../llm/registry.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
+
+class FakeBlobStore implements BlobStore {
+    private counter = 0;
+    private connected = true;
+    private readonly storage = new Map<string, Buffer>();
+    private readonly metadata = new Map<string, StoredBlobMetadata>();
+
+    async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
+        const buffer = this.toBuffer(input);
+        const id = `fake-${this.counter++}`;
+        const storedMetadata: StoredBlobMetadata = {
+            id,
+            mimeType: metadata.mimeType ?? 'application/octet-stream',
+            originalName: metadata.originalName,
+            createdAt: metadata.createdAt ?? new Date(),
+            size: buffer.length,
+            hash: id,
+            source: metadata.source,
+        };
+
+        this.storage.set(id, buffer);
+        this.metadata.set(id, storedMetadata);
+
+        return {
+            id,
+            uri: `blob:${id}`,
+            metadata: storedMetadata,
+        };
+    }
+
+    async retrieve(
+        _reference: string,
+        _format?: 'base64' | 'buffer' | 'path' | 'stream' | 'url'
+    ): Promise<BlobData> {
+        throw new Error('Not implemented in FakeBlobStore');
+    }
+
+    async exists(reference: string): Promise<boolean> {
+        return this.storage.has(this.parse(reference));
+    }
+
+    async delete(reference: string): Promise<void> {
+        const id = this.parse(reference);
+        this.storage.delete(id);
+        this.metadata.delete(id);
+    }
+
+    async cleanup(_olderThan?: Date | undefined): Promise<number> {
+        const count = this.storage.size;
+        this.storage.clear();
+        this.metadata.clear();
+        return count;
+    }
+
+    async getStats(): Promise<BlobStats> {
+        let totalSize = 0;
+        for (const buffer of this.storage.values()) {
+            totalSize += buffer.length;
+        }
+        return {
+            count: this.storage.size,
+            totalSize,
+            backendType: 'fake',
+            storePath: 'memory://fake',
+        };
+    }
+
+    async listBlobs(): Promise<BlobReference[]> {
+        return Array.from(this.metadata.values()).map((meta) => ({
+            id: meta.id,
+            uri: `blob:${meta.id}`,
+            metadata: meta,
+        }));
+    }
+
+    getStoragePath(): string | undefined {
+        return undefined;
+    }
+
+    async connect(): Promise<void> {
+        this.connected = true;
+    }
+
+    async disconnect(): Promise<void> {
+        this.connected = false;
+    }
+
+    isConnected(): boolean {
+        return this.connected;
+    }
+
+    getStoreType(): string {
+        return 'fake';
+    }
+
+    private toBuffer(input: BlobInput): Buffer {
+        if (Buffer.isBuffer(input)) {
+            return input;
+        }
+        if (input instanceof Uint8Array) {
+            return Buffer.from(input);
+        }
+        if (input instanceof ArrayBuffer) {
+            return Buffer.from(new Uint8Array(input));
+        }
+        if (typeof input === 'string') {
+            try {
+                return Buffer.from(input, 'base64');
+            } catch {
+                return Buffer.from(input, 'utf-8');
+            }
+        }
+        throw new Error('Unsupported blob input');
+    }
+
+    private parse(reference: string): string {
+        return reference.startsWith('blob:') ? reference.slice(5) : reference;
+    }
+}
+
+describe('tool result normalization pipeline', () => {
+    it('normalizes data URI media into typed parts with inline media hints', async () => {
+        const payload = Buffer.alloc(2048, 1);
+        const dataUri = `data:image/png;base64,${payload.toString('base64')}`;
+
+        const normalized = await normalizeToolResult(dataUri);
+
+        expect(normalized.parts).toHaveLength(1);
+        const part = normalized.parts[0];
+        if (!part) {
+            throw new Error('expected normalized image part');
+        }
+        expect(part.type).toBe('image');
+        expect(normalized.inlineMedia).toHaveLength(1);
+        const hint = normalized.inlineMedia[0];
+        if (!hint) {
+            throw new Error('expected inline media hint for data URI');
+        }
+        expect(hint.mimeType).toBe('image/png');
+    });
+
+    it('persists large inline media to the blob store and produces resource descriptors', async () => {
+        const payload = Buffer.alloc(4096, 7);
+        const dataUri = `data:image/jpeg;base64,${payload.toString('base64')}`;
+
+        const normalized = await normalizeToolResult(dataUri);
+        const store = new FakeBlobStore();
+
+        const persisted = await persistToolMedia(normalized, {
+            blobStore: store,
+            toolName: 'image_tool',
+            toolCallId: 'call-123',
+        });
+
+        expect(persisted.parts).toHaveLength(1);
+        const part = persisted.parts[0];
+        if (!part || part.type !== 'image') {
+            throw new Error('expected image part after persistence');
+        }
+        expect(typeof part.image).toBe('string');
+        expect(part.image).toMatch(/^@blob:/);
+        expect(persisted.resources).toBeDefined();
+        expect(persisted.resources?.[0]?.kind).toBe('image');
+    });
+
+    it('always persists video media regardless of payload size', async () => {
+        const payload = Buffer.alloc(256, 3);
+        const raw = [
+            {
+                type: 'file',
+                data: payload.toString('base64'),
+                mimeType: 'video/mp4',
+            },
+        ];
+
+        const normalized = await normalizeToolResult(raw);
+        const hint = normalized.inlineMedia[0];
+        if (!hint) {
+            throw new Error('expected inline media hint for video payload');
+        }
+        // Video should be persisted regardless of size
+        expect(hint.mimeType).toBe('video/mp4');
+
+        const store = new FakeBlobStore();
+        const persisted = await persistToolMedia(normalized, {
+            blobStore: store,
+            toolName: 'video_tool',
+            toolCallId: 'call-456',
+        });
+
+        const filePart = persisted.parts[0];
+        if (!filePart || filePart.type !== 'file') {
+            throw new Error('expected file part after persistence');
+        }
+        expect(typeof filePart.data).toBe('string');
+        expect(filePart.data).toMatch(/^@blob:/);
+        expect(persisted.resources?.[0]?.kind).toBe('video');
+    });
+});
 
 describe('filterMessagesByLLMCapabilities', () => {
     beforeEach(() => {
@@ -395,366 +603,68 @@ describe('isLikelyBase64String', () => {
     });
 });
 
-describe('getImageDataWithBlobSupport', () => {
-    let mockResourceManager: ResourceManager;
-
-    beforeEach(() => {
-        mockResourceManager = {
-            read: vi.fn(),
-        } as any;
+describe('getFileMediaKind', () => {
+    test('should detect audio from MIME type', () => {
+        expect(getFileMediaKind('audio/mp3')).toBe('audio');
+        expect(getFileMediaKind('audio/mpeg')).toBe('audio');
+        expect(getFileMediaKind('audio/wav')).toBe('audio');
+        expect(getFileMediaKind('audio/ogg')).toBe('audio');
     });
 
-    test('should resolve blob reference and return base64 data', async () => {
-        const mockBlob = 'base64ImageData';
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: mockBlob }],
-        } as any);
-
-        const result = await getImageDataWithBlobSupport(
-            { image: '@blob:abc123' },
-            mockResourceManager
-        );
-
-        expect(result).toBe(mockBlob);
-        expect(mockResourceManager.read).toHaveBeenCalledWith('blob:abc123');
+    test('should detect video from MIME type', () => {
+        expect(getFileMediaKind('video/mp4')).toBe('video');
+        expect(getFileMediaKind('video/webm')).toBe('video');
+        expect(getFileMediaKind('video/quicktime')).toBe('video');
+        expect(getFileMediaKind('video/x-msvideo')).toBe('video');
     });
 
-    test('should handle blob reference with blob: prefix already', async () => {
-        const mockBlob = 'base64Data';
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: mockBlob }],
-        } as any);
-
-        const result = await getImageDataWithBlobSupport(
-            { image: '@blob:xyz789' },
-            mockResourceManager
-        );
-
-        expect(result).toBe(mockBlob);
-        expect(mockResourceManager.read).toHaveBeenCalledWith('blob:xyz789');
+    test('should default to binary for other types', () => {
+        expect(getFileMediaKind('application/pdf')).toBe('binary');
+        expect(getFileMediaKind('text/plain')).toBe('binary');
+        expect(getFileMediaKind('application/json')).toBe('binary');
+        expect(getFileMediaKind('image/png')).toBe('binary');
     });
 
-    test('should fallback to getImageData when blob resolution fails', async () => {
-        vi.mocked(mockResourceManager.read).mockRejectedValue(new Error('Not found'));
-
-        await getImageDataWithBlobSupport({ image: '@blob:notfound' }, mockResourceManager);
-
-        // Should fall back and attempt to process as regular image data
-        // This will fail gracefully in getImageData, but the test verifies fallback occurs
-        expect(mockResourceManager.read).toHaveBeenCalled();
+    test('should handle undefined gracefully', () => {
+        expect(getFileMediaKind(undefined)).toBe('binary');
     });
 
-    test('should fallback when blob content is missing', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ text: 'not a blob' }],
-        } as any);
-
-        await getImageDataWithBlobSupport({ image: '@blob:abc123' }, mockResourceManager);
-
-        // Falls back to getImageData
-        expect(mockResourceManager.read).toHaveBeenCalled();
-    });
-
-    test('should fallback when blob content is not a string', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: 12345 }],
-        } as any);
-
-        await getImageDataWithBlobSupport({ image: '@blob:abc123' }, mockResourceManager);
-
-        expect(mockResourceManager.read).toHaveBeenCalled();
-    });
-
-    test('should pass through non-blob image data to getImageData', async () => {
-        const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ';
-
-        const result = await getImageDataWithBlobSupport(
-            { image: base64Image },
-            mockResourceManager
-        );
-
-        // Should not call resource manager for non-blob references
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-        expect(result).toBe(base64Image);
-    });
-
-    test('should handle Buffer image data', async () => {
-        const buffer = Buffer.from('test image data');
-
-        const result = await getImageDataWithBlobSupport({ image: buffer }, mockResourceManager);
-
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-        expect(result).toBe(buffer.toString('base64'));
-    });
-
-    test('should handle Uint8Array image data', async () => {
-        const uint8Array = new Uint8Array([1, 2, 3, 4]);
-
-        const result = await getImageDataWithBlobSupport(
-            { image: uint8Array },
-            mockResourceManager
-        );
-
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-        expect(result).toBe(Buffer.from(uint8Array).toString('base64'));
+    test('should handle empty string', () => {
+        expect(getFileMediaKind('')).toBe('binary');
     });
 });
 
-describe('getFileDataWithBlobSupport', () => {
-    let mockResourceManager: ResourceManager;
-
-    beforeEach(() => {
-        mockResourceManager = {
-            read: vi.fn(),
-        } as any;
+describe('getResourceKind', () => {
+    test('should detect image from MIME type', () => {
+        expect(getResourceKind('image/png')).toBe('image');
+        expect(getResourceKind('image/jpeg')).toBe('image');
+        expect(getResourceKind('image/gif')).toBe('image');
+        expect(getResourceKind('image/webp')).toBe('image');
     });
 
-    test('should resolve blob reference and return base64 data', async () => {
-        const mockBlob = 'base64FileData';
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: mockBlob }],
-        } as any);
-
-        const result = await getFileDataWithBlobSupport(
-            { data: '@blob:file123' },
-            mockResourceManager
-        );
-
-        expect(result).toBe(mockBlob);
-        expect(mockResourceManager.read).toHaveBeenCalledWith('blob:file123');
+    test('should detect audio from MIME type', () => {
+        expect(getResourceKind('audio/mp3')).toBe('audio');
+        expect(getResourceKind('audio/mpeg')).toBe('audio');
+        expect(getResourceKind('audio/wav')).toBe('audio');
     });
 
-    test('should handle blob reference with blob: prefix', async () => {
-        const mockBlob = 'pdfBase64Data';
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: mockBlob }],
-        } as any);
-
-        const result = await getFileDataWithBlobSupport(
-            { data: '@blob:doc456' },
-            mockResourceManager
-        );
-
-        expect(result).toBe(mockBlob);
+    test('should detect video from MIME type', () => {
+        expect(getResourceKind('video/mp4')).toBe('video');
+        expect(getResourceKind('video/webm')).toBe('video');
+        expect(getResourceKind('video/quicktime')).toBe('video');
     });
 
-    test('should fallback when blob resolution fails', async () => {
-        vi.mocked(mockResourceManager.read).mockRejectedValue(new Error('Blob not found'));
-
-        await getFileDataWithBlobSupport({ data: '@blob:missing' }, mockResourceManager);
-
-        expect(mockResourceManager.read).toHaveBeenCalled();
+    test('should default to binary for other types', () => {
+        expect(getResourceKind('application/pdf')).toBe('binary');
+        expect(getResourceKind('text/plain')).toBe('binary');
+        expect(getResourceKind('application/json')).toBe('binary');
     });
 
-    test('should fallback when blob content is missing', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{}],
-        } as any);
-
-        await getFileDataWithBlobSupport({ data: '@blob:abc123' }, mockResourceManager);
-
-        expect(mockResourceManager.read).toHaveBeenCalled();
+    test('should handle undefined gracefully', () => {
+        expect(getResourceKind(undefined)).toBe('binary');
     });
 
-    test('should pass through non-blob file data to getFileData', async () => {
-        const base64File = 'JVBERi0xLjQKJdPr6eEK'; // PDF header in base64
-
-        const result = await getFileDataWithBlobSupport({ data: base64File }, mockResourceManager);
-
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-        expect(result).toBe(base64File);
-    });
-
-    test('should handle Buffer file data', async () => {
-        const buffer = Buffer.from('file content');
-
-        const result = await getFileDataWithBlobSupport({ data: buffer }, mockResourceManager);
-
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-        expect(result).toBe(buffer.toString('base64'));
-    });
-
-    test('should handle Uint8Array file data', async () => {
-        const uint8Array = new Uint8Array([80, 68, 70, 45]); // PDF signature
-
-        const result = await getFileDataWithBlobSupport({ data: uint8Array }, mockResourceManager);
-
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-        expect(result).toBe(Buffer.from(uint8Array).toString('base64'));
-    });
-});
-
-describe('expandBlobReferences', () => {
-    let mockResourceManager: ResourceManager;
-
-    beforeEach(() => {
-        mockResourceManager = {
-            read: vi.fn(),
-        } as any;
-    });
-
-    test('should expand blob reference in string content', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: 'expandedBlobData', mimeType: 'image/png' }],
-        } as any);
-
-        const result = await expandBlobReferences(
-            'Check this image: @blob:abc123ef',
-            mockResourceManager
-        );
-
-        expect(Array.isArray(result)).toBe(true);
-        if (Array.isArray(result)) {
-            expect(result).toHaveLength(2);
-            expect(result[0]).toEqual({ type: 'text', text: 'Check this image: ' });
-            expect(result[1]).toEqual({
-                type: 'image',
-                image: 'data:image/png;base64,expandedBlobData',
-                mimeType: 'image/png',
-            });
-        }
-    });
-
-    test('should expand multiple blob references in string', async () => {
-        vi.mocked(mockResourceManager.read)
-            .mockResolvedValueOnce({
-                contents: [{ blob: 'blob1Data', mimeType: 'image/png' }],
-            } as any)
-            .mockResolvedValueOnce({
-                contents: [{ blob: 'blob2Data', mimeType: 'image/jpeg' }],
-            } as any);
-
-        const result = await expandBlobReferences(
-            '@blob:abc123 and @blob:def456',
-            mockResourceManager
-        );
-
-        expect(Array.isArray(result)).toBe(true);
-        if (Array.isArray(result)) {
-            expect(result).toHaveLength(3);
-            expect(result[0]).toMatchObject({
-                type: 'image',
-                image: 'data:image/png;base64,blob1Data',
-            });
-            expect(result[1]).toEqual({ type: 'text', text: ' and ' });
-            expect(result[2]).toMatchObject({
-                type: 'image',
-                image: 'data:image/jpeg;base64,blob2Data',
-            });
-        }
-    });
-
-    test('should handle blob references in array content with image parts', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: 'resolvedImageData', mimeType: 'image/png' }],
-        } as any);
-
-        const content = [
-            { type: 'text' as const, text: 'Look at this' },
-            { type: 'image' as const, image: '@blob:abc123ef' },
-        ];
-
-        const result = await expandBlobReferences(content, mockResourceManager);
-
-        expect(Array.isArray(result)).toBe(true);
-        if (Array.isArray(result)) {
-            expect(result).toHaveLength(2);
-            expect(result[0]).toEqual({ type: 'text', text: 'Look at this' });
-            expect(result[1]).toMatchObject({
-                type: 'image',
-                image: 'data:image/png;base64,resolvedImageData',
-            });
-        }
-    });
-
-    test('should handle blob references in file parts', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: 'resolvedFileData', mimeType: 'application/pdf' }],
-        } as any);
-
-        const content = [
-            { type: 'file' as const, data: '@blob:mydoc', mimeType: 'application/pdf' },
-        ];
-
-        const result = await expandBlobReferences(content, mockResourceManager);
-
-        expect(Array.isArray(result)).toBe(true);
-        if (Array.isArray(result)) {
-            expect(result[0]).toMatchObject({
-                type: 'file',
-                data: 'resolvedFileData',
-            });
-        }
-    });
-
-    test('should cache resolved blob references', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: 'cachedData', mimeType: 'image/png' }],
-        } as any);
-
-        await expandBlobReferences('@blob:abcdef @blob:abcdef', mockResourceManager);
-
-        // Should only call read once due to caching
-        expect(mockResourceManager.read).toHaveBeenCalledTimes(1);
-        expect(mockResourceManager.read).toHaveBeenCalledWith('blob:abcdef');
-    });
-
-    test('should handle failed blob resolution gracefully', async () => {
-        vi.mocked(mockResourceManager.read).mockRejectedValue(new Error('Not found'));
-
-        const result = await expandBlobReferences(
-            'Text with @blob:abcdef reference',
-            mockResourceManager
-        );
-
-        expect(Array.isArray(result)).toBe(true);
-        if (Array.isArray(result)) {
-            // Should include placeholder text for unavailable attachment
-            const textParts = result.filter((p: any) => p.type === 'text');
-            expect(textParts.length).toBeGreaterThan(0);
-            const fallbackText = textParts.find((p: any) =>
-                p.text.includes('[Attachment unavailable')
-            );
-            expect(fallbackText).toBeDefined();
-        }
-    });
-
-    test('should return content unchanged when no blob references', async () => {
-        const content = 'Plain text with no blobs';
-
-        const result = await expandBlobReferences(content, mockResourceManager);
-
-        expect(result).toBe(content);
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-    });
-
-    test('should return array unchanged when no blob references in parts', async () => {
-        const content = [
-            { type: 'text' as const, text: 'Hello' },
-            { type: 'text' as const, text: 'World' },
-        ];
-
-        const result = await expandBlobReferences(content, mockResourceManager);
-
-        expect(result).toEqual(content);
-        expect(mockResourceManager.read).not.toHaveBeenCalled();
-    });
-
-    test('should handle nested blob references in text parts', async () => {
-        vi.mocked(mockResourceManager.read).mockResolvedValue({
-            contents: [{ blob: 'nestedBlobData', mimeType: 'image/png' }],
-        } as any);
-
-        const content = [{ type: 'text' as const, text: 'Before @blob:abcdef After' }];
-
-        const result = await expandBlobReferences(content, mockResourceManager);
-
-        expect(Array.isArray(result)).toBe(true);
-        if (Array.isArray(result)) {
-            // Should expand nested blob reference within text part
-            expect(result.length).toBeGreaterThan(1);
-            const imagePart = result.find((p: any) => p.type === 'image');
-            expect(imagePart).toBeDefined();
-        }
+    test('should handle empty string', () => {
+        expect(getResourceKind('')).toBe('binary');
     });
 });

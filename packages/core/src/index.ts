@@ -53,6 +53,7 @@ export * from './tools/index.js';
 
 // Context
 export * from './context/index.js';
+export { getFileMediaKind, getResourceKind } from './context/index.js';
 
 // Prompts
 export * from './prompts/index.js';
