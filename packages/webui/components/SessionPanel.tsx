@@ -55,7 +55,7 @@ export default function SessionPanel({
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const isDeletingRef = React.useRef(false);
   const requestIdRef = React.useRef(0);
-  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -148,7 +148,7 @@ export default function SessionPanel({
       debouncedFetchSessions();
     };
 
-    const handleTitleUpdated: EventListener = () => {
+    const handleTitleUpdated: EventListener = (_event: Event) => {
       // Immediate refresh for title updates (less frequent)
       void fetchSessions();
     };

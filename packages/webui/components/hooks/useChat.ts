@@ -104,6 +104,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     fileData?: FileData;
     toolName?: string;
     toolArgs?: Record<string, unknown>;
+    toolCallId?: string; // Unique identifier for pairing tool calls with results
     toolResult?: ToolResult;
     toolResultMeta?: SanitizedToolResult['meta'];
     toolResultSuccess?: boolean;
@@ -365,6 +366,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const args = payload.args;
+                    const callId = payload.callId;
                     setMessages((ms) => [
                         ...ms,
                         {
@@ -373,6 +375,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             content: null,
                             toolName: name,
                             toolArgs: args,
+                            toolCallId: callId,
                             createdAt: Date.now(),
                         },
                     ]);
@@ -381,6 +384,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 case 'toolResult': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
+                    const callId = payload.callId;
                     const sanitized: SanitizedToolResult | undefined = payload.sanitized;
                     const rawResult = payload.rawResult;
                     const successFlag =
@@ -535,11 +539,12 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
 
                     // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
+                        // Match by callId if available (more reliable for concurrent calls), otherwise fall back to toolName
                         const idx = ms.findIndex(
                             (m) =>
                                 m.role === 'tool' &&
-                                m.toolName === name &&
-                                m.toolResult === undefined
+                                m.toolResult === undefined &&
+                                (callId ? m.toolCallId === callId : m.toolName === name)
                         );
                         if (idx !== -1) {
                             const updatedMsg = {
@@ -550,7 +555,9 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             };
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
-                        console.warn(`No matching tool call found for result of ${name}`);
+                        console.warn(
+                            `No matching tool call found for result of ${name}${callId ? ` (callId: ${callId})` : ''}`
+                        );
                         // No matching toolCall found; do not append a new message
                         return ms;
                     });

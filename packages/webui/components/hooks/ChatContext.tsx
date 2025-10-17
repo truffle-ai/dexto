@@ -104,16 +104,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}), // Let server generate random UUID
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to create session');
       }
-      
+
       const responseText = await response.text();
       if (!responseText.trim()) {
         throw new Error('Empty response from session creation');
       }
-      
+
       let data;
       try {
         data = JSON.parse(responseText);
@@ -121,12 +121,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         console.error('Failed to parse session creation response:', parseError);
         throw new Error('Invalid response from session creation');
       }
-      
+
       return data.session.id;
     } catch (error) {
       console.error('Error creating auto session:', error);
-      // Fallback to a simple timestamp-based session ID
-      return `chat-${Date.now()}`;
+      // Fallback to client-generated session ID
+      // Note: Server will auto-create this session on first message (lazy creation in DextoAgent.run)
+      const fallbackId = `chat-${Date.now()}`;
+      console.warn(`Using client-generated session ID as fallback: ${fallbackId}`);
+      return fallbackId;
     }
   }, []);
 
@@ -198,8 +201,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       const responseText = await response.text();
       if (!responseText.trim()) {
-        // Empty response, treat as no history
-        setMessages([]);
+        // Empty response, keep any in-flight messages for this session
+        setMessages((prev) => {
+          const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
+          return hasSessionMsgs ? prev : [];
+        });
         return;
       }
       
@@ -346,8 +352,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         uiMessages.push(baseMessage);
       }
-      
-      setMessages(uiMessages);
+
+      setMessages((prev) => {
+        const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
+        return hasSessionMsgs ? prev : uiMessages;
+      });
     } catch (error) {
       console.error('Error loading session history:', error);
       // On error, just clear messages and continue
