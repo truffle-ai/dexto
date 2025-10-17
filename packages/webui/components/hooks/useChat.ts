@@ -634,8 +634,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             const ctx = payload.context as Record<string, unknown>;
                             if (ctx.plugin) {
                                 contextStr = `plugin:${ctx.plugin}`;
-                            } else if (payload.scope) {
-                                contextStr = String(payload.scope);
+                            } else if (ctx.scope) {
+                                contextStr = String(ctx.scope);
                             } else {
                                 contextStr = 'error';
                             }
