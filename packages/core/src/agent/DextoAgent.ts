@@ -10,6 +10,7 @@ import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
+import { Telemetry } from '../telemetry/telemetry.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -148,6 +149,9 @@ export class DextoAgent {
     // Event subscribers (e.g., WebSocket, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
 
+    // Telemetry instance for distributed tracing
+    private telemetry?: Telemetry;
+
     constructor(
         config: AgentConfig,
         private configPath?: string
@@ -213,6 +217,12 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Initialize telemetry if configured
+            if (this.config.telemetry) {
+                this.telemetry = await Telemetry.init(this.config.telemetry);
+                logger.debug('Telemetry initialized successfully');
+            }
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -297,6 +307,17 @@ export class DextoAgent {
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
+            }
+
+            // 5. Shutdown telemetry
+            try {
+                if (this.telemetry) {
+                    await this.telemetry.shutdown();
+                    logger.debug('Telemetry shutdown successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`Telemetry shutdown failed: ${err.message}`));
             }
 
             this._isStopped = true;
