@@ -1,5 +1,25 @@
 # @dexto/client-sdk
 
+## 1.1.11
+
+### Patch Changes
+
+- 01167a2: Refactors
+- Updated dependencies [c40b675]
+- Updated dependencies [015100c]
+- Updated dependencies [0760f8a]
+- Updated dependencies [5cc6933]
+- Updated dependencies [40f89f5]
+- Updated dependencies [3a24d08]
+- Updated dependencies [01167a2]
+- Updated dependencies [a53b87a]
+- Updated dependencies [24e5093]
+- Updated dependencies [c695e57]
+- Updated dependencies [0700f6f]
+- Updated dependencies [0a5636c]
+- Updated dependencies [35d48c5]
+    - @dexto/core@1.1.11
+
 ## 1.1.10
 
 ### Patch Changes
