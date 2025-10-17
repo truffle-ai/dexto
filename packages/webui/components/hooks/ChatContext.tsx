@@ -60,6 +60,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
   const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
+  const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
   const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl, () => currentSessionId);
   const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
@@ -138,7 +139,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Auto-create session on first message and wait for it to complete
     if (!sessionId && isWelcomeState) {
+      if (isCreatingSession) return; // Another send in-flight; drop duplicate request
       try {
+        setIsCreatingSession(true);
         sessionId = await createAutoSession();
 
         // Update state before sending message
@@ -153,6 +156,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Failed to create session:', error);
         return; // Don't send message if session creation fails
+      } finally {
+        setIsCreatingSession(false);
       }
     }
 
@@ -162,7 +167,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } else {
       console.error('No session available for sending message');
     }
-  }, [originalSendMessage, currentSessionId, isWelcomeState, createAutoSession, isStreaming, fetchCurrentLLM, router]);
+  }, [originalSendMessage, currentSessionId, isWelcomeState, isCreatingSession, createAutoSession, isStreaming, fetchCurrentLLM, router]);
 
   // Enhanced reset with session support
   const reset = useCallback(() => {
@@ -274,7 +279,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
           if (msg.toolCalls && msg.toolCalls.length > 0) {
             msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
-              const toolArgs = toolCall.function ? JSON.parse(toolCall.function.arguments || '{}') : {};
+              let toolArgs: Record<string, unknown> = {};
+              if (toolCall?.function) {
+                try {
+                  toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+                } catch (e) {
+                  console.warn(`Failed to parse toolCall arguments for ${toolCall.function?.name || 'unknown'}: ${e}`);
+                  toolArgs = {};
+                }
+              }
               const toolName = toolCall.function?.name || 'unknown';
 
               const toolMessage: Message = {

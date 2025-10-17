@@ -395,8 +395,16 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                 case 'toolResult': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
-                    const callId = payload.callId;
                     const sanitized: SanitizedToolResult | undefined = payload.sanitized;
+                    const callId =
+                        sanitized?.meta?.toolCallId ??
+                        (typeof (payload as any).toolCallId === 'string'
+                            ? (payload as any).toolCallId
+                            : undefined) ??
+                        (typeof (payload as any).callId === 'string'
+                            ? (payload as any).callId
+                            : undefined) ??
+                        (typeof (payload as any).id === 'string' ? (payload as any).id : undefined);
                     const rawResult = payload.rawResult;
                     const successFlag =
                         typeof payload.success === 'boolean' ? payload.success : undefined;
