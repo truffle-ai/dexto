@@ -1162,6 +1162,44 @@ export class DextoAgent {
     }
 
     /**
+     * Restarts an MCP server by disconnecting and reconnecting with its original configuration.
+     * This is useful for recovering from server errors or applying configuration changes.
+     * @param name The name of the server to restart.
+     * @throws MCPError if server is not found or restart fails
+     */
+    public async restartMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        try {
+            logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
+
+            // Restart the server using MCPManager
+            await this.mcpManager.restartServer(name);
+
+            // Refresh tool cache after restart so the LLM sees updated toolset
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('dexto:mcpServerRestarted', {
+                serverName: name,
+            });
+            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            logger.info(`DextoAgent: Successfully restarted MCP server '${name}'.`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`DextoAgent: Failed to restart MCP server '${name}': ${errorMessage}`);
+
+            // Note: No event emitted on failure since the error is thrown
+            // The calling layer (API) will handle error reporting
+
+            throw error;
+        }
+    }
+
+    /**
      * Executes a tool from any source (MCP servers, custom tools, or internal tools).
      * This is the unified interface for tool execution that can handle all tool types.
      * @param toolName The name of the tool to execute
