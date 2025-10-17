@@ -697,15 +697,18 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 <NewChatButton onClick={handleReturnToWelcome} />
               )}
 
-              {/* TODO: improve the non text part of logo */}
+              {/* Dexto Logo - Icon only on small screens, full logo on medium+ */}
               <a
                 href="https://dexto.ai"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden md:flex items-center space-x-3 hover:opacity-80 transition-opacity"
+                className="flex items-center hover:opacity-80 transition-opacity"
               >
-                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
-                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
+                {/* Icon only - visible on mobile */}
+                <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-8 w-auto md:hidden" />
+                {/* Full logo - visible on md+ screens */}
+                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto hidden md:block dark:md:hidden" />
+                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden md:dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
 
