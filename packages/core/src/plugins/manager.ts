@@ -299,10 +299,11 @@ export class PluginManager {
             try {
                 // Execute with timeout
                 // Use type assertion since we validated the method exists and has correct signature
-                const result = await Promise.race<PluginResult>([
+                const result = await this.executeWithTimeout<PluginResult>(
                     (method as any).call(plugin, currentPayload, context),
-                    this.createTimeout(config.name, PluginManager.DEFAULT_TIMEOUT),
-                ]);
+                    config.name,
+                    PluginManager.DEFAULT_TIMEOUT
+                );
 
                 const duration = Date.now() - startTime;
 
@@ -413,11 +414,17 @@ export class PluginManager {
     }
 
     /**
-     * Create a timeout promise that rejects after the specified duration
+     * Execute a promise with timeout, properly clearing timer on completion
+     * Prevents timer leaks and unhandled rejections from Promise.race
      */
-    private createTimeout(pluginName: string, ms: number): Promise<never> {
-        return new Promise((_, reject) => {
-            setTimeout(() => {
+    private async executeWithTimeout<T>(
+        promise: Promise<T>,
+        pluginName: string,
+        ms: number
+    ): Promise<T> {
+        let timer: NodeJS.Timeout | undefined;
+        return await new Promise<T>((resolve, reject) => {
+            timer = setTimeout(() => {
                 reject(
                     new DextoRuntimeError(
                         PluginErrorCode.PLUGIN_EXECUTION_TIMEOUT,
@@ -427,6 +434,16 @@ export class PluginManager {
                     )
                 );
             }, ms);
+            promise.then(
+                (val) => {
+                    if (timer) clearTimeout(timer);
+                    resolve(val);
+                },
+                (err) => {
+                    if (timer) clearTimeout(timer);
+                    reject(err);
+                }
+            );
         });
     }
 

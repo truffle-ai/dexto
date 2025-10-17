@@ -130,7 +130,7 @@ export const AgentConfigSchema = z
         // Plugin configuration
         plugins: PluginsConfigSchema.describe(
             'Plugin system configuration for built-in and custom plugins'
-        ),
+        ).default({}),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
