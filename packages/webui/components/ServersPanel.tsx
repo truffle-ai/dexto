@@ -469,11 +469,13 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                 <div className="flex items-center gap-1">
                   {/* Restart button */}
                   {isRestartingServer === server.id ? (
-                    <RefreshCw
-                      className="h-4 w-4 animate-spin text-muted-foreground"
-                      role="status"
-                      aria-label={`Restarting ${server.name}…`}
-                    />
+                    <div className="h-8 w-8 flex items-center justify-center">
+                      <RefreshCw
+                        className="h-4 w-4 animate-spin text-muted-foreground"
+                        role="status"
+                        aria-label={`Restarting ${server.name}…`}
+                      />
+                    </div>
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -497,11 +499,13 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
 
                   {/* Delete button */}
                   {isDeletingServer === server.id ? (
-                    <RefreshCw
-                      className="h-4 w-4 animate-spin text-muted-foreground"
-                      role="status"
-                      aria-label={`Removing ${server.name}…`}
-                    />
+                    <div className="h-8 w-8 flex items-center justify-center">
+                      <RefreshCw
+                        className="h-4 w-4 animate-spin text-muted-foreground"
+                        role="status"
+                        aria-label={`Removing ${server.name}…`}
+                      />
+                    </div>
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
