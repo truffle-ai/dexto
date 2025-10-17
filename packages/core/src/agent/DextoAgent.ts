@@ -265,7 +265,19 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
             }
 
-            // 2. Disconnect all MCP clients
+            // 2. Clean up plugins (close file handles, connections, etc.)
+            // Do this before storage disconnect so plugins can flush state if needed
+            try {
+                if (this.services?.pluginManager) {
+                    await this.services.pluginManager.cleanup();
+                    logger.debug('PluginManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+            }
+
+            // 3. Disconnect all MCP clients
             try {
                 if (this.mcpManager) {
                     await this.mcpManager.disconnectAll();
@@ -276,7 +288,7 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`MCPManager disconnect failed: ${err.message}`));
             }
 
-            // 3. Close storage backends
+            // 4. Close storage backends
             try {
                 if (this.services?.storageManager) {
                     await this.services.storageManager.disconnect();

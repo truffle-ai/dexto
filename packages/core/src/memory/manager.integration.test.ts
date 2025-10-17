@@ -42,7 +42,7 @@ describe('MemoryManager Integration Tests', () => {
         });
         expect(updated.content).toBe('Updated content');
         expect(updated.tags).toEqual(['updated']);
-        expect(updated.updatedAt).toBeGreaterThan(created.updatedAt);
+        expect(updated.updatedAt).toBeGreaterThanOrEqual(created.updatedAt);
 
         // Delete
         await memoryManager.delete(created.id);

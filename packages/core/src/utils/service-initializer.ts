@@ -36,6 +36,8 @@ import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
+import { PluginManager } from '../plugins/manager.js';
+import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -52,6 +54,7 @@ export type AgentServices = {
     resourceManager: ResourceManager;
     approvalManager: ApprovalManager;
     memoryManager: MemoryManager;
+    pluginManager: PluginManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -102,6 +105,22 @@ export async function createAgentServices(
     const memoryManager = new MemoryManager(storageManager.getDatabase());
     logger.debug('Memory manager initialized');
 
+    // 6.5 Initialize plugin manager
+    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
+    const pluginManager = new PluginManager({
+        agentEventBus,
+        storageManager,
+        configDir,
+    });
+
+    // Register built-in plugins from registry
+    registerBuiltInPlugins({ pluginManager, config });
+    logger.debug('Built-in plugins registered');
+
+    // Initialize plugin manager (loads custom plugins, validates, calls initialize())
+    await pluginManager.initialize(config.plugins.custom);
+    logger.info('Plugin manager initialized');
+
     // 7. Initialize tool manager with internal tools options
     // 7.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
@@ -136,8 +155,7 @@ export async function createAgentServices(
         logger.info(`Internal tools enabled: ${config.internalTools.join(', ')}`);
     }
 
-    // 7. Initialize prompt manager
-    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
+    // 8. Initialize prompt manager
     logger.debug(
         `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
@@ -147,18 +165,18 @@ export async function createAgentServices(
         memoryManager
     );
 
-    // 8. Initialize state manager for runtime state tracking
+    // 9. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
-    // 9. Initialize resource manager (MCP + internal resources)
+    // 10. Initialize resource manager (MCP + internal resources)
     const resourceManager = new ResourceManager(mcpManager, {
         internalResourcesConfig: config.internalResources,
         blobStore: storageManager.getBlobStore(),
     });
     await resourceManager.initialize();
 
-    // 10. Initialize session manager
+    // 11. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,
@@ -167,6 +185,8 @@ export async function createAgentServices(
             agentEventBus,
             storageManager, // Add storage manager to session services
             resourceManager, // Add resource manager for blob storage
+            pluginManager, // Add plugin manager for plugin execution
+            mcpManager, // Add MCP manager for ChatSession
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -179,7 +199,11 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 11. Return the core services
+    // 11.5 Wire up plugin support to ToolManager (after SessionManager is created)
+    toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
+    logger.debug('Plugin support connected to ToolManager');
+
+    // 12. Return the core services
     return {
         mcpManager,
         toolManager,
@@ -192,5 +216,6 @@ export async function createAgentServices(
         resourceManager,
         approvalManager,
         memoryManager,
+        pluginManager,
     };
 }
