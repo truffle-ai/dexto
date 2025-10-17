@@ -715,7 +715,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             </div>
 
             {/* Center Section - Agent Selector */}
-            <div className="flex justify-center flex-1 min-w-0">
+            <div className="flex justify-center flex-1 min-w-0 px-3">
               <AgentSelector mode="badge" />
             </div>
 
