@@ -8,7 +8,6 @@ import type {
     PluginExecutionContext,
 } from '@core/plugins/types.js';
 import { promises as fs } from 'fs';
-import { mkdir } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
 
@@ -39,7 +38,7 @@ export class RequestLoggerPlugin implements DextoPlugin {
         this.logFilePath = join(logDir, logFileName);
 
         // Ensure log directory exists
-        await mkdir(logDir, { recursive: true });
+        await fs.mkdir(logDir, { recursive: true });
 
         // Open log file in append mode
         this.logFileHandle = await fs.open(this.logFilePath, 'a');
