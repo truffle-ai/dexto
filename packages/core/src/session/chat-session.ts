@@ -237,14 +237,26 @@ export class ChatSession {
         };
 
         // Create assistant error message
+        const errorContent = `Error: ${errorMessage}`;
         const assistantMessage: InternalMessage = {
             role: 'assistant',
-            content: `Error: ${errorMessage}`,
+            content: errorContent,
         };
 
         // Add both messages to history
         await this.historyProvider.saveMessage(userMessage);
         await this.historyProvider.saveMessage(assistantMessage);
+
+        // Emit response event so UI updates immediately on blocked interactions
+        // This ensures listeners relying on llmservice:response know a response was added
+        // Note: sessionId is automatically added by event forwarding layer
+        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        this.eventBus.emit('llmservice:response', {
+            content: errorContent,
+            provider: llmConfig.provider,
+            model: llmConfig.model,
+            router: llmConfig.router,
+        });
     }
 
     /**
@@ -276,8 +288,9 @@ export class ChatSession {
         fileDataInput?: { data: string; mimeType: string; filename?: string },
         stream?: boolean
     ): Promise<string> {
+        // Log metadata only (no sensitive content) to prevent PII/secret leakage in logs
         logger.debug(
-            `Running session ${this.id} with input: ${input}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}`
+            `Running session ${this.id} | input.len=${input?.length ?? 0} | image=${imageDataInput ? imageDataInput.mimeType : 'none'} | file=${fileDataInput ? `${fileDataInput.mimeType}:${fileDataInput.filename ?? 'unknown'}` : 'none'}`
         );
 
         // Input validation is now handled at DextoAgent.run() level

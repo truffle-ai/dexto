@@ -251,12 +251,12 @@ export class PluginManager {
      * Plugins execute sequentially in priority order
      *
      * @param extensionPoint - Which extension point to execute
-     * @param payload - Payload for this extension point
+     * @param payload - Payload for this extension point (must be an object)
      * @param options - Options for building execution context
      * @returns Modified payload after all plugins execute
-     * @throws {DextoRuntimeError} If a blocking plugin cancels execution
+     * @throws {DextoRuntimeError} If a blocking plugin cancels execution or payload is not an object
      */
-    async executePlugins<T>(
+    async executePlugins<T extends Record<string, any>>(
         extensionPoint: ExtensionPoint,
         payload: T,
         options: ExecutionContextOptions
@@ -266,7 +266,18 @@ export class PluginManager {
             return payload; // No plugins for this extension point
         }
 
-        let currentPayload = { ...payload };
+        // Defensive runtime check: payload must be an object for spread operator
+        if (payload === null || typeof payload !== 'object') {
+            throw new DextoRuntimeError(
+                PluginErrorCode.PLUGIN_INVALID_SHAPE,
+                ErrorScope.PLUGIN,
+                ErrorType.USER,
+                `Payload for ${extensionPoint} must be an object (got ${payload === null ? 'null' : typeof payload})`,
+                { extensionPoint, payloadType: typeof payload }
+            );
+        }
+
+        let currentPayload: T = { ...payload };
 
         // Build execution context
         const asyncCtx = getContext();
