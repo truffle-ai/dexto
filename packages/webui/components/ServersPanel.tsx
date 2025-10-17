@@ -10,6 +10,7 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
 interface ServersPanelProps {
   isOpen: boolean;
@@ -470,36 +471,44 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                   {isRestartingServer === server.id ? (
                     <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
                   ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRestartServer(server.id);
-                      }}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
-                      title="Restart server"
-                    >
-                      <RotateCw className="h-3.5 w-3.5" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRestartServer(server.id);
+                          }}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                        >
+                          <RotateCw className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Restart server</TooltipContent>
+                    </Tooltip>
                   )}
 
                   {/* Delete button */}
                   {isDeletingServer === server.id ? (
                     <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
                   ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteServer(server.id);
-                      }}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      title="Remove server"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteServer(server.id);
+                          }}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Remove server</TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
               </div>
