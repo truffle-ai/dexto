@@ -119,9 +119,41 @@ export function resolvePluginPath(modulePath: string, configDir: string): string
  */
 export async function loadPluginModule(modulePath: string, pluginName: string): Promise<any> {
     try {
-        // Dynamic import supports both .ts and .js
-        // .ts files require tsx loader or pre-compilation
-        const pluginModule = await import(modulePath);
+        // TODO: Replace tsx runtime loader with build-time bundling for production
+        // SHORT-TERM: tsx provides on-the-fly TypeScript loading for development
+        // LONG-TERM: Implement `dexto bundle` CLI command that:
+        //   1. Parses agent config to discover all plugins
+        //   2. Generates static imports: import tenantAuth from './plugins/tenant-auth.js'
+        //   3. Creates plugin registry: { 'tenant-auth': tenantAuth }
+        //   4. Bundles with esbuild/tsup into single artifact
+        //   5. Loads from registry in production (no runtime compilation)
+        // Benefits: Zero runtime overhead, works in serverless, smaller bundle size
+        // See: feature-plans/plugin-system.md lines 2082-2133 for full design
+        let pluginModule: any;
+
+        if (modulePath.endsWith('.ts') || modulePath.endsWith('.tsx')) {
+            // Use tsx for TypeScript files (development mode)
+            // tsx is Node.js-only, so check environment first
+            if (typeof process === 'undefined' || !process.versions?.node) {
+                throw new DextoRuntimeError(
+                    PluginErrorCode.PLUGIN_LOAD_FAILED,
+                    ErrorScope.PLUGIN,
+                    ErrorType.SYSTEM,
+                    `Cannot load TypeScript plugin '${pluginName}' in browser environment. ` +
+                        `Plugins with .ts extension require Node.js runtime.`,
+                    { modulePath, pluginName }
+                );
+            }
+
+            // Use computed string + webpackIgnore to prevent webpack from analyzing/bundling tsx
+            // This tells webpack to skip this import during static analysis
+            const tsxPackage = 'tsx/esm/api';
+            const tsx = await import(/* webpackIgnore: true */ tsxPackage);
+            pluginModule = await tsx.tsImport(modulePath, import.meta.url);
+        } else {
+            // Direct import for JavaScript files (production mode)
+            pluginModule = await import(modulePath);
+        }
 
         // Check for default export
         const PluginClass = pluginModule.default;

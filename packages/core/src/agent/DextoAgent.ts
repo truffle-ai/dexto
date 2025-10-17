@@ -287,6 +287,17 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
             }
 
+            // 4. Clean up plugins (close file handles, connections, etc.)
+            try {
+                if (this.services?.pluginManager) {
+                    await this.services.pluginManager.cleanup();
+                    logger.debug('PluginManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+            }
+
             this._isStopped = true;
             this._isStarted = false;
 
