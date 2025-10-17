@@ -783,13 +783,7 @@ export class MCPManager {
      * @throws Error if server doesn't exist or config is not cached.
      */
     async restartServer(name: string): Promise<void> {
-        // Check if server exists
-        const client = this.clients.get(name);
-        if (!client) {
-            throw MCPError.serverNotFound(name);
-        }
-
-        // Get stored config
+        // Get stored config first (this is the critical check)
         const config = this.configCache.get(name);
         if (!config) {
             throw MCPError.serverNotFound(
@@ -798,15 +792,24 @@ export class MCPManager {
             );
         }
 
+        // Allow restart even if client is not currently registered (enables retries after failed restart)
+        const client = this.clients.get(name);
+
         logger.info(`Restarting MCP server '${name}'...`);
 
-        // Disconnect existing client
-        try {
-            await client.disconnect();
-            logger.info(`Disconnected server '${name}' for restart`);
-        } catch (error) {
-            logger.warn(
-                `Error disconnecting server '${name}' during restart (continuing): ${error instanceof Error ? error.message : String(error)}`
+        // Disconnect existing client if one exists
+        if (client) {
+            try {
+                await client.disconnect();
+                logger.info(`Disconnected server '${name}' for restart`);
+            } catch (error) {
+                logger.warn(
+                    `Error disconnecting server '${name}' during restart (continuing): ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        } else {
+            logger.info(
+                `No active client found for '${name}' during restart; attempting fresh connection`
             );
         }
 

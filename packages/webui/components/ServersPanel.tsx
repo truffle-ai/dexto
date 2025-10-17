@@ -469,7 +469,11 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                 <div className="flex items-center gap-1">
                   {/* Restart button */}
                   {isRestartingServer === server.id ? (
-                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <RefreshCw
+                      className="h-4 w-4 animate-spin text-muted-foreground"
+                      role="status"
+                      aria-label={`Restarting ${server.name}…`}
+                    />
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -481,6 +485,8 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                             handleRestartServer(server.id);
                           }}
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                          aria-label={`Restart server ${server.name}`}
+                          disabled={isDeletingServer === server.id}
                         >
                           <RotateCw className="h-3.5 w-3.5" />
                         </Button>
@@ -491,7 +497,11 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
 
                   {/* Delete button */}
                   {isDeletingServer === server.id ? (
-                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <RefreshCw
+                      className="h-4 w-4 animate-spin text-muted-foreground"
+                      role="status"
+                      aria-label={`Removing ${server.name}…`}
+                    />
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -503,6 +513,8 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                             handleDeleteServer(server.id);
                           }}
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove server ${server.name}`}
+                          disabled={isRestartingServer === server.id}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
