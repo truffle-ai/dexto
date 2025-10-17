@@ -213,23 +213,28 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     if (!text) break;
                     const chunkType = payload.type as 'text' | 'reasoning' | undefined;
 
-                    if (chunkType === 'reasoning') {
-                        // For reasoning chunks, don't remove thinking message yet - keep it visible
-                        // Update reasoning on the last assistant message if present,
-                        // otherwise create a placeholder assistant message to host the reasoning stream.
-                        setMessages((ms) => {
-                            const last = ms[ms.length - 1];
+                    // Remove thinking message on first chunk, regardless of type
+                    setMessages((ms) => {
+                        // Remove any existing 'thinking' system messages when we start receiving any content
+                        const cleaned = ms.filter(
+                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                        );
+
+                        if (chunkType === 'reasoning') {
+                            // Update reasoning on the last assistant message if present,
+                            // otherwise create a placeholder assistant message to host the reasoning stream.
+                            const last = cleaned[cleaned.length - 1];
                             if (last && last.role === 'assistant') {
                                 const updated = {
                                     ...last,
                                     reasoning: (last.reasoning || '') + text,
                                     createdAt: Date.now(),
                                 };
-                                return [...ms.slice(0, -1), updated];
+                                return [...cleaned.slice(0, -1), updated];
                             }
                             // No assistant yet; create one with empty content and initial reasoning
                             return [
-                                ...ms,
+                                ...cleaned,
                                 {
                                     id: generateUniqueId(),
                                     role: 'assistant',
@@ -238,15 +243,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     createdAt: Date.now(),
                                 },
                             ];
-                        });
-                    } else {
-                        // For text chunks, remove thinking message and start showing actual content
-                        setMessages((ms) => {
-                            // Remove any existing 'thinking' system messages when we start receiving actual content
-                            const cleaned = ms.filter(
-                                (m) =>
-                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                            );
+                        } else {
+                            // For text chunks, update content
                             const last = cleaned[cleaned.length - 1];
                             if (last && last.role === 'assistant') {
                                 // Ensure content is always a string for streaming
@@ -269,8 +267,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     createdAt: Date.now(),
                                 },
                             ];
-                        });
-                    }
+                        }
+                    });
                     break;
                 }
                 case 'response': {

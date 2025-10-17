@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
@@ -38,6 +39,8 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+
   // Determine WebSocket URL; replace localhost for network access
   let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
   if (typeof window !== 'undefined') {
@@ -56,6 +59,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isWelcomeState, setIsWelcomeState] = useState(true);
   const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
+  const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
   const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl, () => currentSessionId);
   const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
@@ -133,24 +137,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fileData?: { base64: string; mimeType: string; filename?: string }
   ) => {
     let sessionId = currentSessionId;
-    
-    // Auto-create session on first message
-    if (!sessionId && isWelcomeState) {
-      sessionId = await createAutoSession();
-      
-      setCurrentSessionId(sessionId);
-      setIsWelcomeState(false);
 
-      // Prime currentLLM for this session to avoid UI flicker
-      await fetchCurrentLLM(sessionId);
+    // Auto-create session on first message and wait for it to complete
+    if (!sessionId && isWelcomeState) {
+      try {
+        sessionId = await createAutoSession();
+
+        // Update state before sending message
+        setCurrentSessionId(sessionId);
+        setIsWelcomeState(false);
+
+        // Navigate using Next.js router to properly handle client-side routing
+        router.replace(`/chat/${sessionId}`);
+
+        // Prime currentLLM for this session to avoid UI flicker
+        await fetchCurrentLLM(sessionId);
+      } catch (error) {
+        console.error('Failed to create session:', error);
+        return; // Don't send message if session creation fails
+      }
     }
-    
+
+    // Only send after session is confirmed ready
     if (sessionId) {
       originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
     } else {
       console.error('No session available for sending message');
     }
-  }, [originalSendMessage, currentSessionId, isWelcomeState, createAutoSession, isStreaming]);
+  }, [originalSendMessage, currentSessionId, isWelcomeState, createAutoSession, isStreaming, fetchCurrentLLM, router]);
 
   // Enhanced reset with session support
   const reset = useCallback(() => {
@@ -161,6 +175,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load session history when switching sessions
   const loadSessionHistory = useCallback(async (sessionId: string) => {
+
     try {
       const response = await fetch(`/api/sessions/${sessionId}/history`);
       if (!response.ok) {
@@ -342,8 +357,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Switch to a different session and load it on the backend
   const switchSession = useCallback(async (sessionId: string) => {
-    if (sessionId === currentSessionId) return;
-    
+    // Guard against switching to same session or rapid successive switches
+    if (sessionId === currentSessionId || isSwitchingSession) {
+      return;
+    }
+    setIsSwitchingSession(true);
     try {
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
@@ -354,8 +372,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error switching session:', error);
       throw error; // Re-throw so UI can handle the error
+    } finally {
+      // Always reset the switching flag, even if error occurs
+      setIsSwitchingSession(false);
     }
-  }, [currentSessionId, loadSessionHistory]);
+  }, [currentSessionId, isSwitchingSession, loadSessionHistory, fetchCurrentLLM]);
 
 
   // Return to welcome state (no active session)
