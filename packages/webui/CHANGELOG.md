@@ -1,5 +1,14 @@
 # @dexto/webui
 
+## 0.1.9
+
+### Patch Changes
+
+- 72ef45c: Fix minor spinner bug
+- 930d75a: Add mcp server restart feature and button in webUI
+- Updated dependencies [930d75a]
+    - @dexto/core@1.1.12
+
 ## 0.1.8
 
 ### Patch Changes

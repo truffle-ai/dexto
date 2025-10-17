@@ -1,5 +1,13 @@
 # dexto
 
+## 1.1.12
+
+### Patch Changes
+
+- 930d75a: Add mcp server restart feature and button in webUI
+- Updated dependencies [930d75a]
+    - @dexto/core@1.1.12
+
 ## 1.1.11
 
 ### Patch Changes
