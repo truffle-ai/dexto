@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
-import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package } from 'lucide-react';
+import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
@@ -39,6 +39,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
   const [toolsError, setToolsError] = useState<string | null>(null);
   const [isToolsExpanded, setIsToolsExpanded] = useState(false); // State for tools section collapse
   const [isDeletingServer, setIsDeletingServer] = useState<string | null>(null); // Tracks which server is being deleted
+  const [isRestartingServer, setIsRestartingServer] = useState<string | null>(null); // Tracks which server is being restarted
   const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
   const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
@@ -200,6 +201,40 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       handleError(err.message, 'servers');
     } finally {
       setIsDeletingServer(null);
+    }
+  };
+
+  const handleRestartServer = async (serverId: string) => {
+    const server = servers.find(s => s.id === serverId);
+    if (!server) return;
+
+    if (!window.confirm(`Restart server "${server.name}"?`)) {
+      return;
+    }
+
+    setIsRestartingServer(serverId);
+    setServerError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/mcp/servers/${serverId}/restart`, { method: 'POST' });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to restart server' }));
+        throw new Error(errorData.message || errorData.error || `Server Restart: ${response.statusText}`);
+      }
+
+      await fetchServers(); // Refresh server list
+      clearPromptCache(); // Clear prompt cache since server was restarted
+
+      // Sync registry with updated server status
+      try {
+        await serverRegistry.syncWithServerStatus();
+      } catch (e) {
+        console.warn('Failed to sync registry status after server restart:', e);
+      }
+    } catch (err: any) {
+      handleError(err.message, 'servers');
+    } finally {
+      setIsRestartingServer(null);
     }
   };
 
@@ -429,22 +464,44 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                     {server.status}
                   </p>
                 </div>
-                
-                {isDeletingServer === server.id ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteServer(server.id);
-                    }}
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+
+                <div className="flex items-center gap-1">
+                  {/* Restart button */}
+                  {isRestartingServer === server.id ? (
+                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRestartServer(server.id);
+                      }}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                      title="Restart server"
+                    >
+                      <RotateCw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+
+                  {/* Delete button */}
+                  {isDeletingServer === server.id ? (
+                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteServer(server.id);
+                      }}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      title="Remove server"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

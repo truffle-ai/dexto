@@ -66,6 +66,7 @@ type ToolCacheEntry = {
 export class MCPManager {
     private clients: Map<string, IMCPClient> = new Map();
     private connectionErrors: { [key: string]: string } = {};
+    private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
     private toolConflicts: Set<string> = new Set(); // Track which tool names have conflicts
     private promptCache: Map<string, PromptCacheEntry> = new Map();
@@ -699,6 +700,10 @@ export class MCPManager {
 
             this.registerClient(name, client);
             await this.updateClientCache(name, client);
+
+            // Store config for potential restart
+            this.configCache.set(name, config);
+
             logger.info(`Successfully connected and cached new server '${name}'`);
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -749,20 +754,20 @@ export class MCPManager {
     async removeClient(name: string): Promise<void> {
         const client = this.clients.get(name);
         if (client) {
-            if (typeof client.disconnect === 'function') {
-                try {
-                    await client.disconnect();
-                    logger.info(`Successfully disconnected client: ${name}`);
-                } catch (error) {
-                    logger.error(
-                        `Error disconnecting client '${name}': ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    // Continue with removal even if disconnection fails
-                }
+            try {
+                await client.disconnect();
+                logger.info(`Successfully disconnected client: ${name}`);
+            } catch (error) {
+                logger.error(
+                    `Error disconnecting client '${name}': ${error instanceof Error ? error.message : String(error)}`
+                );
+                // Continue with removal even if disconnection fails
             }
             // Clear cache BEFORE removing from clients map
             this.clearClientCache(name);
             this.clients.delete(name);
+            // Remove stored config
+            this.configCache.delete(name);
             logger.info(`Removed client from manager: ${name}`);
         }
         // Also remove from failed connections if it was registered there before successful connection or if it failed.
@@ -773,26 +778,90 @@ export class MCPManager {
     }
 
     /**
+     * Restart a specific MCP server by disconnecting and reconnecting with original config.
+     * @param name The name of the server to restart.
+     * @throws Error if server doesn't exist or config is not cached.
+     */
+    async restartServer(name: string): Promise<void> {
+        // Check if server exists
+        const client = this.clients.get(name);
+        if (!client) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Get stored config
+        const config = this.configCache.get(name);
+        if (!config) {
+            throw MCPError.serverNotFound(
+                name,
+                'Server config not found - cannot restart dynamically added servers without stored config'
+            );
+        }
+
+        logger.info(`Restarting MCP server '${name}'...`);
+
+        // Disconnect existing client
+        try {
+            await client.disconnect();
+            logger.info(`Disconnected server '${name}' for restart`);
+        } catch (error) {
+            logger.warn(
+                `Error disconnecting server '${name}' during restart (continuing): ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+
+        // Clear caches but keep config
+        this.clearClientCache(name);
+        this.clients.delete(name);
+        delete this.connectionErrors[name];
+
+        // Reconnect with original config
+        try {
+            const newClient = new MCPClient();
+            await newClient.connect(config, name);
+
+            // Set approval manager if available
+            if (this.approvalManager) {
+                newClient.setApprovalManager(this.approvalManager);
+            }
+
+            this.registerClient(name, newClient);
+            await this.updateClientCache(name, newClient);
+
+            // Config is still in cache from original connection
+            logger.info(`Successfully restarted server '${name}'`);
+
+            // Emit event for restart
+            eventBus.emit('dexto:mcpServerRestarted', { serverName: name });
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.connectionErrors[name] = errorMsg;
+            logger.error(`Failed to restart server '${name}': ${errorMsg}`);
+            // Note: Config remains in cache for potential retry
+            throw MCPError.connectionFailed(name, errorMsg);
+        }
+    }
+
+    /**
      * Disconnect all clients and clear caches
      */
     async disconnectAll(): Promise<void> {
         const disconnectPromises: Promise<void>[] = [];
         for (const [name, client] of Array.from(this.clients.entries())) {
-            if (client.disconnect) {
-                disconnectPromises.push(
-                    client
-                        .disconnect()
-                        .then(() => logger.info(`Disconnected client: ${name}`))
-                        .catch((error) =>
-                            logger.error(`Failed to disconnect client '${name}': ${error}`)
-                        )
-                );
-            }
+            disconnectPromises.push(
+                client
+                    .disconnect()
+                    .then(() => logger.info(`Disconnected client: ${name}`))
+                    .catch((error) =>
+                        logger.error(`Failed to disconnect client '${name}': ${error}`)
+                    )
+            );
         }
         await Promise.all(disconnectPromises);
 
         this.clients.clear();
         this.connectionErrors = {};
+        this.configCache.clear();
         this.toolCache.clear();
         this.toolConflicts.clear();
         this.promptCache.clear();
