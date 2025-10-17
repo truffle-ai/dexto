@@ -2,18 +2,20 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from "@/lib/utils";
-import { 
-    Message, 
-    TextPart, 
-    isToolResultError, 
-    isToolResultContent, 
-    isTextPart, 
-    isImagePart, 
+import {
+    Message,
+    TextPart,
+    AudioPart,
+    isToolResultError,
+    isToolResultContent,
+    isTextPart,
+    isImagePart,
     isAudioPart,
-    isFilePart, 
+    isFilePart,
     ErrorMessage,
     ToolResult
 } from './hooks/useChat';
+import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
     User,
@@ -77,6 +79,13 @@ function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio')
   const typePattern = expectedType ? `${expectedType}/` : '[a-z0-9.+-]+/';
   const dataUriRegex = new RegExp(`^data:${typePattern}[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$`, 'i');
   return dataUriRegex.test(src);
+}
+
+function isLikelyBase64(value: string): boolean {
+  if (!value || value.length < 16) return false;
+  if (value.startsWith('http://') || value.startsWith('https://')) return false;
+  if (value.startsWith('data:') || value.startsWith('@blob:')) return false;
+  return /^[A-Za-z0-9+/=\r\n]+$/.test(value);
 }
 
 // Helper to validate safe HTTP/HTTPS URLs for media
@@ -177,18 +186,64 @@ function isSafeAudioUrl(src: string): boolean {
   return isSafeMediaUrl(src, 'audio');
 }
 
-// Helper to resolve media source from different formats
-function resolveMediaSrc(part: any): string {
-  // Check for base64 data with mimeType
-  if (part.base64 && part.mimeType) {
-    return `data:${part.mimeType};base64,${part.base64}`;
+function resolveMediaSrc(
+  part: any,
+  resourceStates?: Record<string, ResourceState | undefined>
+): string {
+  if (!part) return '';
+
+  const mimeType: string | undefined = part?.mimeType;
+  const dataCandidate: unknown =
+    typeof part === 'string'
+      ? part
+      : part?.data ?? part?.base64 ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri ?? part?.url;
+
+  if (typeof dataCandidate === 'string') {
+    if (dataCandidate.startsWith('@blob:')) {
+      const uri = dataCandidate.substring(1);
+      if (resourceStates && uri) {
+        const state = resourceStates[uri];
+        if (state && state.status === 'loaded' && state.data) {
+          const preferKinds: Array<NormalizedResourceItem['kind']> = [];
+          if (part?.type === 'image') preferKinds.push('image');
+          if (part?.type === 'file') {
+            const mediaKind = getFileMediaKind(part.mimeType);
+            if (mediaKind === 'audio') preferKinds.push('audio');
+            else if (mediaKind === 'video') preferKinds.push('video');
+          }
+          if (part?.mimeType?.startsWith('image/')) preferKinds.push('image');
+          if (part?.mimeType?.startsWith('audio/')) preferKinds.push('audio');
+          if (part?.mimeType?.startsWith('video/')) preferKinds.push('video');
+
+          const preferredItem =
+            state.data.items.find((item) => preferKinds.includes(item.kind as any)) ??
+            state.data.items.find((item) => item.kind === 'image') ??
+            state.data.items.find((item) => item.kind === 'video') ??
+            state.data.items.find((item) => item.kind === 'audio') ??
+            state.data.items[0];
+
+          if (preferredItem && 'src' in preferredItem && typeof preferredItem.src === 'string') {
+            return preferredItem.src;
+          }
+        }
+      }
+      return '';
+    }
+
+    if (dataCandidate.startsWith('data:')) {
+      return dataCandidate;
+    }
+
+    if (mimeType && isLikelyBase64(dataCandidate)) {
+      return `data:${mimeType};base64,${dataCandidate}`;
+    }
+
+    if (isSafeMediaUrl(dataCandidate)) {
+      return dataCandidate;
+    }
   }
-  if (part.data && part.mimeType) {
-    return `data:${part.mimeType};base64,${part.data}`;
-  }
-  
-  // Check for URL-based sources
-  const urlSrc = part.url ?? part.image ?? part.audio ?? part.video ?? part.uri;
+
+  const urlSrc = part?.url ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri;
   return typeof urlSrc === 'string' ? urlSrc : '';
 }
 
@@ -198,20 +253,26 @@ interface VideoInfo {
   mimeType?: string;
 }
 
-function getVideoInfo(part: unknown): VideoInfo | null {
+function getVideoInfo(
+  part: unknown,
+  resourceStates?: Record<string, ResourceState | undefined>
+): VideoInfo | null {
   if (!part || typeof part !== 'object') return null;
   
   const anyPart = part as Record<string, any>;
   const mimeType = anyPart.mimeType || anyPart.mediaType;
   const filename = anyPart.filename || anyPart.name;
   
-  const isVideo = mimeType?.startsWith('video/') || 
-                  anyPart.type === 'video' ||
-                  filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
+  const mediaKind = anyPart.type === 'file' ? getFileMediaKind(anyPart.mimeType) : null;
+  const isVideo =
+    mimeType?.startsWith('video/') ||
+    mediaKind === 'video' ||
+    anyPart.type === 'video' ||
+    filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
   
   if (!isVideo) return null;
   
-  const src = resolveMediaSrc(anyPart);
+  const src = resolveMediaSrc(anyPart, resourceStates);
   return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 
@@ -256,6 +317,62 @@ export default function MessageList({ messages, activeError, onDismissError, out
     }
     return map;
   }, [availableResources]);
+
+  const toolResourceUris = useMemo(() => {
+    const uris = new Set<string>();
+
+    const addUri = (value: unknown) => {
+      if (typeof value !== 'string') return;
+      const trimmed = value.startsWith('@') ? value.substring(1) : value;
+      if (trimmed.startsWith('blob:')) {
+        uris.add(trimmed);
+      }
+    };
+
+    const collectFromPart = (part: unknown) => {
+      if (!part) return;
+      if (typeof part === 'string') {
+        addUri(part);
+        return;
+      }
+      if (typeof part !== 'object') return;
+      const anyPart = part as Record<string, unknown>;
+      if (typeof anyPart.image === 'string') {
+        addUri(anyPart.image as string);
+      }
+      if (typeof anyPart.data === 'string') {
+        addUri(anyPart.data as string);
+      }
+      if (typeof anyPart.url === 'string') {
+        addUri(anyPart.url as string);
+      }
+      if (typeof anyPart.audio === 'string') {
+        addUri(anyPart.audio as string);
+      }
+      if (typeof anyPart.video === 'string') {
+        addUri(anyPart.video as string);
+      }
+    };
+
+    for (const msg of messages) {
+      const toolResult = msg.toolResult;
+      if (!toolResult) continue;
+      if (isToolResultContent(toolResult)) {
+        toolResult.resources?.forEach((res) => {
+          if (res?.uri?.startsWith('blob:')) {
+            uris.add(res.uri);
+          }
+        });
+        toolResult.content?.forEach((part) => collectFromPart(part));
+      } else if ((toolResult as any)?.content && Array.isArray((toolResult as any).content)) {
+        (toolResult as any).content.forEach((part: unknown) => collectFromPart(part));
+      }
+    }
+
+    return Array.from(uris);
+  }, [messages]);
+
+  const toolResourceStates = useResourceContent(toolResourceUris);
 
   // Add CSS for audio controls overflow handling
   useEffect(() => {
@@ -346,7 +463,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
         if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
           msg.toolResult.content.forEach((part, index) => {
             if (isImagePart(part)) {
-              const src = resolveMediaSrc(part);
+              const src = resolveMediaSrc(part, toolResourceStates);
               
               if (src && isSafeMediaUrl(src, 'image')) {
                 toolResultImages.push({
@@ -356,8 +473,21 @@ export default function MessageList({ messages, activeError, onDismissError, out
                 });
               }
             } else if (isAudioPart(part)) {
-              const src = resolveMediaSrc(part);
+              const audio = part as AudioPart;
+              const src = resolveMediaSrc(audio, toolResourceStates);
               
+              if (src && isSafeMediaUrl(src, 'audio')) {
+                toolResultAudios.push({
+                  src,
+                  filename: audio.filename,
+                  index
+                });
+              }
+            } else if (
+              isFilePart(part) &&
+              (getFileMediaKind(part.mimeType) === 'audio' || part.mimeType?.startsWith('audio/'))
+            ) {
+              const src = resolveMediaSrc(part, toolResourceStates);
               if (src && isSafeMediaUrl(src, 'audio')) {
                 toolResultAudios.push({
                   src,
@@ -366,7 +496,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                 });
               }
             } else {
-              const videoInfo = getVideoInfo(part);
+              const videoInfo = getVideoInfo(part, toolResourceStates);
               if (videoInfo) {
                 toolResultVideos.push({
                   ...videoInfo,
@@ -541,9 +671,16 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                 </pre>
                               ) : isToolResultContent(msg.toolResult) ? (
                                 msg.toolResult.content.map((part, index) => {
-                                  const videoInfo = getVideoInfo(part);
+                                  const videoInfo = getVideoInfo(part, toolResourceStates);
                                   // Skip media parts (image/audio/video) as they render separately
-                                  if (isImagePart(part) || isAudioPart(part) || videoInfo) {
+                                  if (
+                                    isImagePart(part) ||
+                                    isAudioPart(part) ||
+                                    (isFilePart(part) &&
+                                        (getFileMediaKind(part.mimeType) === 'audio' ||
+                                            part.mimeType?.startsWith('audio/'))) ||
+                                    videoInfo
+                                  ) {
                                     return null;
                                   }
                                   if (isTextPart(part)) {
@@ -558,8 +695,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                                     );
                                   }
                                   if (isFilePart(part)) {
-                                    const isAudioFile = part.mimeType?.startsWith('audio/');
-                                    const isVideoFile = part.mimeType?.startsWith('video/');
+                                    const mediaKind = getFileMediaKind(part.mimeType);
+                                    const isAudioFile =
+                                      mediaKind === 'audio' ||
+                                      part.mimeType?.startsWith('audio/');
+                                    const isVideoFile =
+                                      mediaKind === 'video' ||
+                                      part.mimeType?.startsWith('video/');
                                     return (
                                       <div key={index} className="my-1 flex items-center gap-2 p-2 rounded border border-border bg-muted/50">
                                         {isAudioFile ? (
@@ -682,7 +824,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                         if (isFilePart(part)) {
                           const filePart = part;
                           if (filePart.mimeType.startsWith('audio/')) {
-                            const src = `data:${filePart.mimeType};base64,${filePart.data}`;
+                            const src = resolveMediaSrc(filePart);
                             return (
                               <div key={partKey} className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
                                 <FileAudio className={cn("h-5 w-5", isUser ? undefined : "text-muted-foreground")} />
@@ -1253,6 +1395,34 @@ function renderNormalizedItem({
               {item.filename}
             </span>
           )}
+        </div>
+      );
+    }
+    case 'video': {
+      if (!isSafeMediaUrl(item.src, 'video')) {
+        return (
+          <div key={key} className="text-xs text-muted-foreground">
+            Unsupported video source
+          </div>
+        );
+      }
+      return (
+        <div key={key} className="flex flex-col gap-2 rounded-lg border border-border bg-background/50 p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FileVideo className="h-4 w-4" />
+            <span>Video</span>
+            {item.filename && (
+              <span className="truncate font-medium">{item.filename}</span>
+            )}
+          </div>
+          <video
+            controls
+            src={item.src}
+            className="w-full max-h-[360px] rounded-lg bg-black"
+            preload="metadata"
+          >
+            Your browser does not support the video tag.
+          </video>
         </div>
       );
     }

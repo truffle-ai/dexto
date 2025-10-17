@@ -94,18 +94,20 @@ Dexto comes with pre-built agent recipes for common use cases. Install and use t
 dexto list-agents
 
 # Install specific agents
-dexto install nano-banana-agent podcast-agent
+dexto install nano-banana-agent podcast-agent sora-video-agent
 
 # Use an agent
 dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
 dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
+dexto --agent sora-video-agent "create a video of a sunset over mountains"
 ```
 
 **Available Agents:**
 - **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
 - **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
+- **Sora Video Agent** – AI video generation using OpenAI's Sora with custom settings, remixing, and reference support
 - **Database Agent** – Demo agent for SQL queries and database operations
-- **Image Editor Agent** – Image editing and manipulation  
+- **Image Editor Agent** – Image editing and manipulation
 - **Music Agent** – Music creation and audio processing
 - **PDF Agent** – Document analysis and conversation
 - **Product Researcher** – Product naming and branding research

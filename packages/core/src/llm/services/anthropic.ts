@@ -13,6 +13,7 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -235,14 +236,20 @@ export class AnthropicService implements ILLMService {
                         );
 
                         // Add tool result to message manager
-                        await this.contextManager.addToolResult(toolUseId, toolName, result);
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolUseId,
+                            toolName,
+                            result,
+                            { success: true }
+                        );
 
                         // Notify tool result
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result,
                             callId: toolUseId,
                             success: true,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                         });
                     } catch (error) {
                         // Handle tool execution error
@@ -250,15 +257,21 @@ export class AnthropicService implements ILLMService {
                         logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
 
                         // Add error as tool result
-                        await this.contextManager.addToolResult(toolUseId, toolName, {
-                            error: errorMessage,
-                        });
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolUseId,
+                            toolName,
+                            { error: errorMessage },
+                            { success: false }
+                        );
 
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result: { error: errorMessage },
                             callId: toolUseId,
                             success: false,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult()
+                                ? { rawResult: { error: errorMessage } }
+                                : {}),
                         });
                     }
                 }

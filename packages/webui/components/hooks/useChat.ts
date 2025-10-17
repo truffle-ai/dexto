@@ -1,7 +1,14 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { TextPart as CoreTextPart, InternalMessage, FilePart, Issue } from '@dexto/core';
+import type {
+    TextPart as CoreTextPart,
+    ImagePart as CoreImagePart,
+    InternalMessage,
+    FilePart,
+    Issue,
+    SanitizedToolResult,
+} from '@dexto/core';
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 
@@ -33,11 +40,9 @@ export interface ToolResultError {
     error: string | Record<string, unknown>;
 }
 
-export interface ToolResultContent {
-    content: Array<TextPart | ImagePart | AudioPart | FilePart>;
-}
+export type ToolResultContent = SanitizedToolResult;
 
-export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
+export type ToolResult = ToolResultError | SanitizedToolResult | string | Record<string, unknown>;
 
 // Type guards for tool results
 export function isToolResultError(result: unknown): result is ToolResultError {
@@ -99,7 +104,10 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     fileData?: FileData;
     toolName?: string;
     toolArgs?: Record<string, unknown>;
+    toolCallId?: string; // Unique identifier for pairing tool calls with results
     toolResult?: ToolResult;
+    toolResultMeta?: SanitizedToolResult['meta'];
+    toolResultSuccess?: boolean;
     tokenUsage?: {
         inputTokens?: number;
         outputTokens?: number;
@@ -140,6 +148,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     // Separate error state - not part of message flow
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
     const suppressNextErrorRef = useRef<boolean>(false);
+    // Map callId to message index for O(1) tool result pairing
+    const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
 
     // Track the active session id from the host (ChatContext)
     const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
@@ -206,14 +216,16 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     if (!text) break;
                     const chunkType = payload.type as 'text' | 'reasoning' | undefined;
 
-                    if (chunkType === 'reasoning') {
-                        // Update reasoning on the last assistant message if present,
-                        // otherwise create a placeholder assistant message to host the reasoning stream.
-                        setMessages((ms) => {
-                            const cleaned = ms.filter(
-                                (m) =>
-                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                            );
+                    // Remove thinking message on first chunk, regardless of type
+                    setMessages((ms) => {
+                        // Remove any existing 'thinking' system messages when we start receiving any content
+                        const cleaned = ms.filter(
+                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
+                        );
+
+                        if (chunkType === 'reasoning') {
+                            // Update reasoning on the last assistant message if present,
+                            // otherwise create a placeholder assistant message to host the reasoning stream.
                             const last = cleaned[cleaned.length - 1];
                             if (last && last.role === 'assistant') {
                                 const updated = {
@@ -234,14 +246,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     createdAt: Date.now(),
                                 },
                             ];
-                        });
-                    } else {
-                        setMessages((ms) => {
-                            // Remove any existing 'thinking' system messages
-                            const cleaned = ms.filter(
-                                (m) =>
-                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                            );
+                        } else {
+                            // For text chunks, update content
                             const last = cleaned[cleaned.length - 1];
                             if (last && last.role === 'assistant') {
                                 // Ensure content is always a string for streaming
@@ -264,8 +270,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     createdAt: Date.now(),
                                 },
                             ];
-                        });
-                    }
+                        }
+                    });
                     break;
                 }
                 case 'response': {
@@ -357,100 +363,230 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     setProcessing(false);
                     setMessages([]);
                     lastUserMessageIdRef.current = null;
+                    pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
                     break;
                 case 'toolCall': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const args = payload.args;
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'tool',
-                            content: null,
-                            toolName: name,
-                            toolArgs: args,
-                            createdAt: Date.now(),
-                        },
-                    ]);
+                    const callId = payload.callId;
+                    setMessages((ms) => {
+                        const newIndex = ms.length;
+                        const newMessages: Message[] = [
+                            ...ms,
+                            {
+                                id: generateUniqueId(),
+                                role: 'tool' as const,
+                                content: null,
+                                toolName: name,
+                                toolArgs: args,
+                                toolCallId: callId,
+                                createdAt: Date.now(),
+                            },
+                        ];
+                        // Store callId -> index mapping for O(1) lookup
+                        if (callId) {
+                            pendingToolCallsRef.current.set(callId, newIndex);
+                        }
+                        return newMessages;
+                    });
                     break;
                 }
                 case 'toolResult': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
-                    const result = payload.result;
+                    const sanitized: SanitizedToolResult | undefined = payload.sanitized;
+                    const callId =
+                        sanitized?.meta?.toolCallId ??
+                        (typeof (payload as any).toolCallId === 'string'
+                            ? (payload as any).toolCallId
+                            : undefined) ??
+                        (typeof (payload as any).callId === 'string'
+                            ? (payload as any).callId
+                            : undefined) ??
+                        (typeof (payload as any).id === 'string' ? (payload as any).id : undefined);
+                    const rawResult = payload.rawResult;
+                    const successFlag =
+                        typeof payload.success === 'boolean' ? payload.success : undefined;
+                    const result = sanitized ?? rawResult;
 
                     // Process and normalize the tool result to ensure proper image handling
                     let processedResult = result;
 
-                    if (result && Array.isArray(result.content)) {
-                        // Normalize media parts in tool result content
-                        const normalizedContent = result.content.map((part: unknown) => {
-                            if (
-                                typeof part === 'object' &&
-                                part !== null &&
-                                (part as { type?: unknown }).type === 'image'
-                            ) {
-                                const imgPart = part as any;
-                                // Ensure consistent format for image parts
-                                if (imgPart.data && imgPart.mimeType) {
-                                    return {
-                                        type: 'image',
-                                        base64: imgPart.data,
-                                        mimeType: imgPart.mimeType,
-                                    };
-                                } else if (imgPart.base64 && imgPart.mimeType) {
-                                    return {
-                                        type: 'image',
-                                        base64: imgPart.base64,
-                                        mimeType: imgPart.mimeType,
-                                    };
-                                } else if (imgPart.image || imgPart.url) {
-                                    return part; // Keep original format for URL-based images
-                                }
-                            } else if (
-                                typeof part === 'object' &&
-                                part !== null &&
-                                (part as { type?: unknown }).type === 'audio'
-                            ) {
-                                const audioPart = part as any;
-                                // Ensure consistent format for audio parts
-                                if (audioPart.data && audioPart.mimeType) {
-                                    return {
-                                        type: 'audio',
-                                        base64: audioPart.data,
-                                        mimeType: audioPart.mimeType,
-                                        filename: audioPart.filename,
-                                    };
-                                } else if (audioPart.base64 && audioPart.mimeType) {
-                                    return {
-                                        type: 'audio',
-                                        base64: audioPart.base64,
-                                        mimeType: audioPart.mimeType,
-                                        filename: audioPart.filename,
-                                    };
-                                } else if (audioPart.audio || audioPart.url) {
-                                    return part; // Keep original format for URL-based audio
-                                }
+                    const normalizeContentPart = (
+                        part: unknown
+                    ): CoreTextPart | CoreImagePart | FilePart => {
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'image'
+                        ) {
+                            const imgPart = part as {
+                                data?: string;
+                                base64?: string;
+                                image?: string;
+                                url?: string;
+                                mimeType?: string;
+                            };
+
+                            const payload =
+                                imgPart.data ?? imgPart.base64 ?? imgPart.image ?? imgPart.url;
+                            if (payload) {
+                                return {
+                                    type: 'image',
+                                    image: payload,
+                                    ...(imgPart.mimeType ? { mimeType: imgPart.mimeType } : {}),
+                                } satisfies CoreImagePart;
                             }
-                            return part;
-                        });
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'audio'
+                        ) {
+                            const audioPart = part as {
+                                data?: string;
+                                base64?: string;
+                                audio?: string;
+                                url?: string;
+                                mimeType?: string;
+                                filename?: string;
+                            };
+
+                            const payload =
+                                audioPart.data ??
+                                audioPart.base64 ??
+                                audioPart.audio ??
+                                audioPart.url;
+                            if (payload && audioPart.mimeType) {
+                                return {
+                                    type: 'file',
+                                    data: payload,
+                                    mimeType: audioPart.mimeType,
+                                    ...(audioPart.filename ? { filename: audioPart.filename } : {}),
+                                } satisfies FilePart;
+                            }
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'resource'
+                        ) {
+                            const resourcePart = part as {
+                                resource?: {
+                                    text?: string;
+                                    mimeType?: string;
+                                    title?: string;
+                                };
+                            };
+
+                            const resource = resourcePart.resource;
+                            if (resource?.text && resource.mimeType) {
+                                if (resource.mimeType.startsWith('image/')) {
+                                    return {
+                                        type: 'image',
+                                        image: resource.text,
+                                        mimeType: resource.mimeType,
+                                    } satisfies CoreImagePart;
+                                }
+
+                                return {
+                                    type: 'file',
+                                    data: resource.text,
+                                    mimeType: resource.mimeType,
+                                    ...(resource.title ? { filename: resource.title } : {}),
+                                } satisfies FilePart;
+                            }
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'file'
+                        ) {
+                            const filePart = part as FilePart;
+                            return {
+                                type: 'file',
+                                data: filePart.data,
+                                mimeType: filePart.mimeType,
+                                ...(filePart.filename ? { filename: filePart.filename } : {}),
+                            } satisfies FilePart;
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'text'
+                        ) {
+                            const textPart = part as CoreTextPart;
+                            return {
+                                type: 'text',
+                                text: textPart.text,
+                            } satisfies CoreTextPart;
+                        }
+
+                        if (typeof part === 'string') {
+                            return {
+                                type: 'text',
+                                text: part,
+                            } satisfies CoreTextPart;
+                        }
+
+                        return {
+                            type: 'text',
+                            text: JSON.stringify(part),
+                        } satisfies CoreTextPart;
+                    };
+
+                    if (sanitized && Array.isArray(sanitized.content) && successFlag !== false) {
+                        const normalizedContent = sanitized.content.map(normalizeContentPart);
+                        processedResult = {
+                            ...sanitized,
+                            content: normalizedContent,
+                        } satisfies SanitizedToolResult;
+                    } else if (result && Array.isArray((result as any).content)) {
+                        // Normalize media parts in tool result content
+                        const normalizedContent = result.content.map(normalizeContentPart);
                         processedResult = { ...result, content: normalizedContent };
+                    }
+
+                    if (successFlag === false && rawResult) {
+                        processedResult = rawResult;
                     }
 
                     // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
-                        const idx = ms.findIndex(
-                            (m) =>
-                                m.role === 'tool' &&
-                                m.toolName === name &&
-                                m.toolResult === undefined
-                        );
-                        if (idx !== -1) {
-                            const updatedMsg = { ...ms[idx], toolResult: processedResult };
+                        let idx = -1;
+
+                        // Use O(1) lookup if callId is available and exists in map
+                        if (callId && pendingToolCallsRef.current.has(callId)) {
+                            idx = pendingToolCallsRef.current.get(callId)!;
+                            // Remove from pending map after retrieval
+                            pendingToolCallsRef.current.delete(callId);
+                        } else {
+                            // Fallback to O(n) name-based search (for backwards compatibility or missing callId)
+                            idx = ms.findIndex(
+                                (m) =>
+                                    m.role === 'tool' &&
+                                    m.toolResult === undefined &&
+                                    m.toolName === name
+                            );
+                        }
+
+                        if (idx !== -1 && idx < ms.length) {
+                            const updatedMsg = {
+                                ...ms[idx],
+                                toolResult: processedResult,
+                                toolResultMeta: sanitized?.meta,
+                                toolResultSuccess: successFlag,
+                            };
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
-                        console.warn(`No matching tool call found for result of ${name}`);
+                        console.warn(
+                            `No matching tool call found for result of ${name}${callId ? ` (callId: ${callId})` : ''}`
+                        );
                         // No matching toolCall found; do not append a new message
                         return ms;
                     });
@@ -685,6 +821,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         setMessages([]);
         setActiveError(null); // Clear errors on reset
         lastUserMessageIdRef.current = null;
+        pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
         setProcessing(false);
     }, []);
 
@@ -694,6 +831,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         }
         // Optimistically clear processing state; server will also send events
         setProcessing(false);
+        pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
         // Ensure any ensuing provider stream error from abort does not surface as banner
         suppressNextErrorRef.current = true;
     }, []);

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import { ApprovalStatus } from '../approval/types.js';
+import type { SanitizedToolResult } from '../context/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -122,9 +123,10 @@ export interface AgentEventMap {
     /** LLM service returned a tool result */
     'llmservice:toolResult': {
         toolName: string;
-        result: any;
         callId?: string;
         success: boolean;
+        sanitized: SanitizedToolResult;
+        rawResult?: unknown;
         sessionId: string;
     };
 
@@ -291,9 +293,10 @@ export interface SessionEventMap {
     /** LLM service returned a tool result */
     'llmservice:toolResult': {
         toolName: string;
-        result: any;
         callId?: string;
         success: boolean;
+        sanitized: SanitizedToolResult;
+        rawResult?: unknown;
     };
 
     /** LLM service error */
