@@ -78,7 +78,7 @@ Create a remix of video_123 showing the same character but in a different settin
 
 ### Default Setup (Recommended)
 
-By default, this agent uses the published `@truffle-ai/sora-agent` NPM package via `npx`. No additional installation is required - the package will be automatically fetched and run when the agent starts.
+By default, this agent uses the published `@truffle-ai/sora-video-server` NPM package via `npx`. No additional installation is required - the package will be automatically fetched and run when the agent starts.
 
 ### Local Development Setup (Optional)
 
