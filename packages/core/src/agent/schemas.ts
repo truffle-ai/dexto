@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { StarterPromptsSchema } from '@core/prompts/schemas.js';
 import { PluginsConfigSchema } from '@core/plugins/schemas.js';
+import { OtelConfigurationSchema } from '@core/telemetry/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
@@ -131,6 +132,11 @@ export const AgentConfigSchema = z
         plugins: PluginsConfigSchema.describe(
             'Plugin system configuration for built-in and custom plugins'
         ).default({}),
+
+        // Telemetry configuration
+        telemetry: OtelConfigurationSchema.describe(
+            'OpenTelemetry configuration for distributed tracing and observability'
+        ).optional(),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
