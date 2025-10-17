@@ -1,4 +1,5 @@
 import { isAbsolute } from 'path';
+import { pathToFileURL } from 'url';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from './error-codes.js';
 
@@ -11,8 +12,8 @@ import { PluginErrorCode } from './error-codes.js';
  * @throws {DextoRuntimeError} If validation fails
  */
 export function validatePluginShape(PluginClass: any, pluginName: string): void {
-    // 1. Check it's a class/constructor function
-    if (typeof PluginClass !== 'function') {
+    // 1. Check it's a class/constructor function with a prototype
+    if (typeof PluginClass !== 'function' || !PluginClass.prototype) {
         throw new DextoRuntimeError(
             PluginErrorCode.PLUGIN_INVALID_SHAPE,
             ErrorScope.PLUGIN,
@@ -21,18 +22,8 @@ export function validatePluginShape(PluginClass: any, pluginName: string): void 
         );
     }
 
-    // 2. Try to instantiate to check constructor
-    let instance: any;
-    try {
-        instance = new PluginClass();
-    } catch (error) {
-        throw new DextoRuntimeError(
-            PluginErrorCode.PLUGIN_INSTANTIATION_FAILED,
-            ErrorScope.PLUGIN,
-            ErrorType.USER,
-            `Failed to instantiate plugin '${pluginName}': ${error instanceof Error ? error.message : String(error)}`
-        );
-    }
+    // 2. Use prototype for shape validation (avoid constructor side effects)
+    const proto = PluginClass.prototype;
 
     // 3. Check it has at least one extension point method
     const extensionPoints = [
@@ -42,9 +33,7 @@ export function validatePluginShape(PluginClass: any, pluginName: string): void 
         'beforeResponse',
     ];
 
-    const hasExtensionPoint = extensionPoints.some(
-        (point) => typeof instance[point] === 'function'
-    );
+    const hasExtensionPoint = extensionPoints.some((point) => typeof proto[point] === 'function');
 
     if (!hasExtensionPoint) {
         throw new DextoRuntimeError(
@@ -57,22 +46,22 @@ export function validatePluginShape(PluginClass: any, pluginName: string): void 
     }
 
     // 4. Validate initialize if present
-    if (instance.initialize !== undefined && typeof instance.initialize !== 'function') {
+    if ('initialize' in proto && typeof proto.initialize !== 'function') {
         throw new DextoRuntimeError(
             PluginErrorCode.PLUGIN_INVALID_SHAPE,
             ErrorScope.PLUGIN,
             ErrorType.USER,
-            `Plugin '${pluginName}' initialize property must be a function (found ${typeof instance.initialize})`
+            `Plugin '${pluginName}' initialize property must be a function (found ${typeof proto.initialize})`
         );
     }
 
     // 5. Validate cleanup if present
-    if (instance.cleanup !== undefined && typeof instance.cleanup !== 'function') {
+    if ('cleanup' in proto && typeof proto.cleanup !== 'function') {
         throw new DextoRuntimeError(
             PluginErrorCode.PLUGIN_INVALID_SHAPE,
             ErrorScope.PLUGIN,
             ErrorType.USER,
-            `Plugin '${pluginName}' cleanup property must be a function (found ${typeof instance.cleanup})`
+            `Plugin '${pluginName}' cleanup property must be a function (found ${typeof proto.cleanup})`
         );
     }
 }
@@ -149,10 +138,14 @@ export async function loadPluginModule(modulePath: string, pluginName: string): 
             // This tells webpack to skip this import during static analysis
             const tsxPackage = 'tsx/esm/api';
             const tsx = await import(/* webpackIgnore: true */ tsxPackage);
-            pluginModule = await tsx.tsImport(modulePath, import.meta.url);
+            // Convert absolute path to file:// URL for cross-platform ESM compatibility
+            const moduleUrl = pathToFileURL(modulePath).href;
+            pluginModule = await tsx.tsImport(moduleUrl, import.meta.url);
         } else {
             // Direct import for JavaScript files (production mode)
-            pluginModule = await import(modulePath);
+            // Convert absolute path to file:// URL for cross-platform ESM compatibility
+            const moduleUrl = pathToFileURL(modulePath).href;
+            pluginModule = await import(/* webpackIgnore: true */ moduleUrl);
         }
 
         // Check for default export
