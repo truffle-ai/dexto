@@ -179,8 +179,12 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
         skipHtml={true}
         components={{
           a: ({ href, children, ...props }) => {
-            const url = href as string | undefined;
-
+            const url = (href as string | undefined) ?? '';
+            const isHttp = /^https?:\/\//i.test(url);
+            const isAllowed = isHttp; // extend if you want: || url.startsWith('mailto:') || url.startsWith('tel:')
+            if (!isAllowed || !isSafeHttpUrl(url)) {
+              return <span className="text-muted-foreground underline decoration-dotted" {...props}>{children}</span>;
+            }
             // Regular link rendering with better overflow handling (no truncation)
             return (
               <a

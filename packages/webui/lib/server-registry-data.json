@@ -314,7 +314,7 @@
     "isInstalled": false,
     "requirements": { "platform": "all", "python": ">=3.10" },
     "author": "HeyGen",
-    "homepage": "github.com/heygen-com/heygen-mcp?tab=readme-ov-file#installation",
+    "homepage": "https://github.com/heygen-com/heygen-mcp?tab=readme-ov-file#installation",
     "matchIds": ["heygen"]
   },
   {
@@ -330,7 +330,7 @@
         "mcp-remote",
         "https://mcp.runway.team",
         "--header",
-        "Authorization: Bearer <YOUR_API_KEY>"
+        "Authorization: Bearer ${RUNWAY_API_KEY}"
       ],
       "env": {
         "RUNWAY_API_KEY": ""
@@ -355,7 +355,7 @@
       "type": "http",
       "url": "https://your-opensearch-cluster.com/_plugins/_ml/mcp",
       "headers": {
-        "Authorization": "Basic <base64-encoded-credentials>",
+        "Authorization": "Basic ${OPENSEARCH_CREDENTIALS}",
         "Content-Type": "application/json"
       },
       "timeout": 30000
@@ -443,5 +443,24 @@
     "author": "ChartJS",
     "homepage": "https://github.com/ax-crew/chartjs-mcp-server",
     "matchIds": ["chartjs"]
+  },
+  {
+    "id": "rag-lite-ts",
+    "name": "Rag-lite TS",
+    "description": " local-first TypeScript retrieval engine for semantic search over static documents.",
+    "category": "data",
+    "icon": "🔍",
+    "config": {
+      "type": "stdio",
+      "command": "raglite-mcp",
+      "args": []
+    },
+    "tags": ["rag", "data", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "FrugalX",
+    "homepage": "https://github.com/raglite/rag-lite-ts",
+    "matchIds": ["rag-lite-ts"]
   }
 ]
