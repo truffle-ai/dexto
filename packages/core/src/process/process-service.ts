@@ -1,0 +1,463 @@
+/**
+ * Process Service
+ *
+ * Secure command execution and process management for Dexto internal tools
+ */
+
+import { spawn, ChildProcess } from 'node:child_process';
+import * as crypto from 'node:crypto';
+import {
+    ProcessConfig,
+    ExecuteOptions,
+    ProcessResult,
+    ProcessHandle,
+    ProcessOutput,
+    ProcessInfo,
+    OutputBuffer,
+} from './types.js';
+import { CommandValidator } from './command-validator.js';
+import { ProcessError } from './errors.js';
+import { logger } from '../logger/index.js';
+
+const DEFAULT_TIMEOUT = 120000; // 2 minutes
+const DEFAULT_MAX_TIMEOUT = 600000; // 10 minutes
+const DEFAULT_MAX_CONCURRENT_PROCESSES = 5;
+const DEFAULT_MAX_OUTPUT_BUFFER = 1024 * 1024; // 1MB
+
+/**
+ * Background process tracking
+ */
+interface BackgroundProcess {
+    processId: string;
+    command: string;
+    child: ChildProcess;
+    startedAt: Date;
+    completedAt?: Date | undefined;
+    status: 'running' | 'completed' | 'failed';
+    exitCode?: number | undefined;
+    outputBuffer: OutputBuffer;
+    description?: string | undefined;
+}
+
+/**
+ * ProcessService - Handles command execution and process management
+ */
+export class ProcessService {
+    private config: ProcessConfig;
+    private commandValidator: CommandValidator;
+    private initialized: boolean = false;
+    private backgroundProcesses: Map<string, BackgroundProcess> = new Map();
+
+    constructor(config: Partial<ProcessConfig> = {}) {
+        // Set defaults
+        this.config = {
+            securityLevel: config.securityLevel || 'moderate',
+            maxTimeout: config.maxTimeout || DEFAULT_MAX_TIMEOUT,
+            maxConcurrentProcesses:
+                config.maxConcurrentProcesses || DEFAULT_MAX_CONCURRENT_PROCESSES,
+            maxOutputBuffer: config.maxOutputBuffer || DEFAULT_MAX_OUTPUT_BUFFER,
+            allowedCommands: config.allowedCommands || [],
+            blockedCommands: config.blockedCommands || [],
+            environment: config.environment || {},
+            workingDirectory: config.workingDirectory,
+        };
+
+        this.commandValidator = new CommandValidator(this.config);
+    }
+
+    /**
+     * Initialize the service
+     */
+    async initialize(): Promise<void> {
+        if (this.initialized) {
+            logger.debug('ProcessService already initialized');
+            return;
+        }
+
+        // Clean up any stale processes on startup
+        this.backgroundProcesses.clear();
+
+        this.initialized = true;
+        logger.info('ProcessService initialized successfully');
+    }
+
+    /**
+     * Execute a command
+     */
+    async executeCommand(command: string, options: ExecuteOptions = {}): Promise<ProcessResult> {
+        if (!this.initialized) {
+            throw ProcessError.notInitialized();
+        }
+
+        // Validate command
+        const validation = this.commandValidator.validateCommand(command);
+        if (!validation.isValid || !validation.normalizedCommand) {
+            throw ProcessError.invalidCommand(command, validation.error || 'Unknown error');
+        }
+
+        const normalizedCommand = validation.normalizedCommand;
+
+        // Handle timeout
+        const timeout = Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout);
+
+        // Setup working directory
+        const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
+
+        // Setup environment - filter out undefined values
+        const env: Record<string, string> = {};
+        for (const [key, value] of Object.entries({
+            ...process.env,
+            ...this.config.environment,
+            ...options.env,
+        })) {
+            if (value !== undefined) {
+                env[key] = value;
+            }
+        }
+
+        // If running in background, delegate to background execution
+        if (options.runInBackground) {
+            const handle = await this.executeInBackground(normalizedCommand, options);
+            return {
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+                duration: 0,
+                processId: handle.processId,
+            };
+        }
+
+        // Execute command in foreground
+        return await this.executeForeground(normalizedCommand, {
+            cwd,
+            timeout,
+            env,
+            ...(options.description !== undefined && { description: options.description }),
+        });
+    }
+
+    /**
+     * Execute command in foreground with timeout
+     */
+    private executeForeground(
+        command: string,
+        options: { cwd: string; timeout: number; env: Record<string, string>; description?: string }
+    ): Promise<ProcessResult> {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            let stdout = '';
+            let stderr = '';
+            let killed = false;
+
+            logger.debug(`Executing command: ${command}`);
+
+            // Spawn process with shell
+            const child = spawn(command, {
+                cwd: options.cwd,
+                env: options.env,
+                shell: true,
+                timeout: options.timeout,
+            });
+
+            // Setup timeout
+            const timeoutHandle = setTimeout(() => {
+                killed = true;
+                child.kill('SIGTERM');
+                setTimeout(() => {
+                    if (!child.killed) {
+                        child.kill('SIGKILL');
+                    }
+                }, 5000); // Force kill after 5 seconds
+            }, options.timeout);
+
+            // Collect stdout
+            child.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+
+            // Collect stderr
+            child.stderr?.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            // Handle completion
+            child.on('close', (code, _signal) => {
+                clearTimeout(timeoutHandle);
+                const duration = Date.now() - startTime;
+
+                if (killed) {
+                    reject(ProcessError.timeout(command, options.timeout));
+                    return;
+                }
+
+                const exitCode = code ?? 0;
+
+                logger.debug(
+                    `Command completed with exit code ${exitCode} in ${duration}ms: ${command}`
+                );
+
+                resolve({
+                    stdout,
+                    stderr,
+                    exitCode,
+                    duration,
+                });
+            });
+
+            // Handle errors
+            child.on('error', (error) => {
+                clearTimeout(timeoutHandle);
+
+                // Check for specific error types
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                    reject(ProcessError.commandNotFound(command));
+                } else if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+                    reject(ProcessError.permissionDenied(command));
+                } else {
+                    reject(ProcessError.executionFailed(command, error.message));
+                }
+            });
+        });
+    }
+
+    /**
+     * Execute command in background
+     */
+    private async executeInBackground(
+        command: string,
+        options: ExecuteOptions
+    ): Promise<ProcessHandle> {
+        // Check concurrent process limit
+        const runningCount = Array.from(this.backgroundProcesses.values()).filter(
+            (p) => p.status === 'running'
+        ).length;
+
+        if (runningCount >= this.config.maxConcurrentProcesses) {
+            throw ProcessError.tooManyProcesses(runningCount, this.config.maxConcurrentProcesses);
+        }
+
+        // Generate unique process ID
+        const processId = crypto.randomBytes(4).toString('hex');
+
+        // Setup working directory
+        const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
+
+        // Setup environment - filter out undefined values
+        const env: Record<string, string> = {};
+        for (const [key, value] of Object.entries({
+            ...process.env,
+            ...this.config.environment,
+            ...options.env,
+        })) {
+            if (value !== undefined) {
+                env[key] = value;
+            }
+        }
+
+        logger.debug(`Starting background process ${processId}: ${command}`);
+
+        // Spawn process
+        const child = spawn(command, {
+            cwd,
+            env,
+            shell: true,
+            detached: false,
+        });
+
+        // Create output buffer
+        const outputBuffer: OutputBuffer = {
+            stdout: [],
+            stderr: [],
+            complete: false,
+            lastRead: Date.now(),
+        };
+
+        // Track background process
+        const bgProcess: BackgroundProcess = {
+            processId,
+            command,
+            child,
+            startedAt: new Date(),
+            status: 'running',
+            outputBuffer,
+            description: options.description,
+        };
+
+        this.backgroundProcesses.set(processId, bgProcess);
+
+        // Setup output collection with buffer limit
+        child.stdout?.on('data', (data) => {
+            const line = data.toString();
+            if (this.getBufferSize(outputBuffer) + line.length <= this.config.maxOutputBuffer) {
+                outputBuffer.stdout.push(line);
+            } else {
+                logger.warn(`Output buffer full for process ${processId}`);
+            }
+        });
+
+        child.stderr?.on('data', (data) => {
+            const line = data.toString();
+            if (this.getBufferSize(outputBuffer) + line.length <= this.config.maxOutputBuffer) {
+                outputBuffer.stderr.push(line);
+            } else {
+                logger.warn(`Error buffer full for process ${processId}`);
+            }
+        });
+
+        // Handle completion
+        child.on('close', (code) => {
+            bgProcess.status = code === 0 ? 'completed' : 'failed';
+            bgProcess.exitCode = code ?? undefined;
+            bgProcess.completedAt = new Date();
+            bgProcess.outputBuffer.complete = true;
+
+            logger.debug(`Background process ${processId} completed with exit code ${code}`);
+        });
+
+        // Handle errors
+        child.on('error', (error) => {
+            bgProcess.status = 'failed';
+            bgProcess.completedAt = new Date();
+            bgProcess.outputBuffer.complete = true;
+            bgProcess.outputBuffer.stderr.push(`Error: ${error.message}`);
+
+            logger.error(`Background process ${processId} failed: ${error.message}`);
+        });
+
+        return {
+            processId,
+            command,
+            pid: child.pid,
+            startedAt: bgProcess.startedAt,
+            description: options.description,
+        };
+    }
+
+    /**
+     * Get output from a background process
+     */
+    async getProcessOutput(processId: string): Promise<ProcessOutput> {
+        if (!this.initialized) {
+            throw ProcessError.notInitialized();
+        }
+
+        const bgProcess = this.backgroundProcesses.get(processId);
+        if (!bgProcess) {
+            throw ProcessError.processNotFound(processId);
+        }
+
+        // Get new output since last read
+        const stdout = bgProcess.outputBuffer.stdout.join('');
+        const stderr = bgProcess.outputBuffer.stderr.join('');
+
+        // Clear the buffer (data has been read)
+        bgProcess.outputBuffer.stdout = [];
+        bgProcess.outputBuffer.stderr = [];
+        bgProcess.outputBuffer.lastRead = Date.now();
+
+        return {
+            stdout,
+            stderr,
+            status: bgProcess.status,
+            exitCode: bgProcess.exitCode,
+            duration: bgProcess.completedAt
+                ? bgProcess.completedAt.getTime() - bgProcess.startedAt.getTime()
+                : undefined,
+        };
+    }
+
+    /**
+     * Kill a background process
+     */
+    async killProcess(processId: string): Promise<void> {
+        if (!this.initialized) {
+            throw ProcessError.notInitialized();
+        }
+
+        const bgProcess = this.backgroundProcesses.get(processId);
+        if (!bgProcess) {
+            throw ProcessError.processNotFound(processId);
+        }
+
+        if (bgProcess.status !== 'running') {
+            logger.debug(`Process ${processId} is not running (status: ${bgProcess.status})`);
+            return; // Already completed
+        }
+
+        try {
+            bgProcess.child.kill('SIGTERM');
+
+            // Force kill after timeout
+            setTimeout(() => {
+                if (bgProcess.status === 'running') {
+                    bgProcess.child.kill('SIGKILL');
+                }
+            }, 5000);
+
+            bgProcess.status = 'failed';
+            bgProcess.completedAt = new Date();
+            bgProcess.outputBuffer.complete = true;
+
+            logger.debug(`Process ${processId} killed`);
+        } catch (error) {
+            throw ProcessError.killFailed(
+                processId,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
+    /**
+     * List all background processes
+     */
+    async listProcesses(): Promise<ProcessInfo[]> {
+        if (!this.initialized) {
+            throw ProcessError.notInitialized();
+        }
+
+        return Array.from(this.backgroundProcesses.values()).map((bgProcess) => ({
+            processId: bgProcess.processId,
+            command: bgProcess.command,
+            pid: bgProcess.child.pid,
+            status: bgProcess.status,
+            startedAt: bgProcess.startedAt,
+            completedAt: bgProcess.completedAt,
+            exitCode: bgProcess.exitCode,
+            description: bgProcess.description,
+        }));
+    }
+
+    /**
+     * Get buffer size in bytes
+     */
+    private getBufferSize(buffer: OutputBuffer): number {
+        const stdoutSize = buffer.stdout.reduce((sum, line) => sum + line.length, 0);
+        const stderrSize = buffer.stderr.reduce((sum, line) => sum + line.length, 0);
+        return stdoutSize + stderrSize;
+    }
+
+    /**
+     * Get service configuration
+     */
+    getConfig(): Readonly<ProcessConfig> {
+        return { ...this.config };
+    }
+
+    /**
+     * Cleanup completed processes
+     */
+    async cleanup(): Promise<void> {
+        const now = Date.now();
+        const CLEANUP_AGE = 3600000; // 1 hour
+
+        for (const [processId, bgProcess] of this.backgroundProcesses.entries()) {
+            if (bgProcess.status !== 'running' && bgProcess.completedAt) {
+                const age = now - bgProcess.completedAt.getTime();
+                if (age > CLEANUP_AGE) {
+                    this.backgroundProcesses.delete(processId);
+                    logger.debug(`Cleaned up old process ${processId}`);
+                }
+            }
+        }
+    }
+}
