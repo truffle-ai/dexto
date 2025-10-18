@@ -293,5 +293,155 @@
     "author": "Truffle AI",
     "homepage": "https://github.com/truffle-ai/mcp-servers",
     "matchIds": ["nano-banana", "nano_banana"]
+  },
+  {
+    "id": "heygen",
+    "name": "HeyGen",
+    "description": "Generate realistic human-like audio using HeyGen",
+    "category": "creative",
+    "icon": "🎤",
+    "config": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["heygen-mcp"],
+      "env": {
+        "HEYGEN_API_KEY": ""
+      },
+      "timeout": 30000
+    },
+    "tags": ["audio", "voice", "synthesis", "heygen"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "python": ">=3.10" },
+    "author": "HeyGen",
+    "homepage": "github.com/heygen-com/heygen-mcp?tab=readme-ov-file#installation",
+    "matchIds": ["heygen"]
+  },
+  {
+    "id": "runway",
+    "name": "Runway",
+    "description": "AI-powered creative suite for video and image generation",
+    "category": "creative",
+    "icon": "🎬",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.runway.team",
+        "--header",
+        "Authorization: Bearer <YOUR_API_KEY>"
+      ],
+      "env": {
+        "RUNWAY_API_KEY": ""
+      },
+      "timeout": 60000
+    },
+    "tags": ["runway", "video", "generation", "ai", "creative"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Runway",
+    "homepage": "https://docs.runway.team/api/runway-mcp-server",
+    "matchIds": ["runway"]
+  },
+  {
+    "id": "opensearch",
+    "name": "OpenSearch",
+    "description": "Enterprise search and analytics platform with ML Commons MCP server for data operations",
+    "category": "data",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://your-opensearch-cluster.com/_plugins/_ml/mcp",
+      "headers": {
+        "Authorization": "Basic <base64-encoded-credentials>",
+        "Content-Type": "application/json"
+      },
+      "timeout": 30000
+    },
+    "tags": ["search", "analytics", "data", "ml", "enterprise", "opensearch"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all" },
+    "author": "OpenSearch",
+    "homepage": "https://docs.opensearch.org/latest/ml-commons-plugin/api/mcp-server-apis/",
+    "matchIds": ["opensearch", "elasticsearch"],
+    "capabilities": [
+      "search",
+      "analytics", 
+      "ml_inference",
+      "vector_search",
+      "anomaly_detection",
+      "forecasting"
+    ],
+    "transport": "streamable_http"
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity",
+    "description": "AI-powered search engine for real-time web search and research",
+    "category": "research",
+    "icon": "🔍",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@perplexity-ai/mcp-server"],
+      "env": {
+        "PERPLEXITY_API_KEY": "",
+        "PERPLEXITY_TIMEOUT_MS": "600000"
+      },
+      "timeout": 600000
+    },
+    "tags": ["search", "web", "research", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Perplexity AI",
+    "homepage": "https://github.com/perplexityai/modelcontextprotocol/tree/main",
+    "matchIds": ["perplexity"]
+  },
+  {
+    "id": "sora",
+    "name": "Sora",
+    "description": "AI-powered video generation using OpenAI's Sora technology",
+    "category": "creative",
+    "icon": "🎬",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@truffle-ai/sora-video-server"],
+      "env": {
+        "OPENAI_API_KEY": ""
+      },
+      "timeout": 60000
+    },
+    "tags": ["video", "generation", "ai", "creative"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "OpenAI",
+    "homepage": "https://github.com/truffle-ai/mcp-servers",
+    "matchIds": ["sora", "sora_video"]
+  },
+  {
+    "id": "chartjs",
+    "name": "ChartJS",
+    "description": "Charting and visualization tool using ChartJS",
+    "category": "data",
+    "icon": "📊",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@ax-crew/chartjs-mcp-server"],
+      "timeout": 30000
+    },
+    "tags": ["chart", "visualization", "data", "chartjs"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "ChartJS",
+    "homepage": "https://github.com/ax-crew/chartjs-mcp-server",
+    "matchIds": ["chartjs"]
   }
 ]
