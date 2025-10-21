@@ -646,7 +646,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen, handleOpenSessionsPanel, handleOpenServersPanel, handleReturnToWelcome, handleDeleteConversation, processing, cancel, currentSessionId]);
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background supports-[height:100dvh]:h-[100dvh]">
       {/* Left Sidebar - Chat History (Desktop only - inline) */}
       <div
         className={cn(
@@ -1096,7 +1096,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                       />
                     </div>
                     {/* Sticky input dock inside scroll viewport */}
-                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] bg-background relative">
+                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] bg-background relative">
                       {showScrollHint && (
                         <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
                           <button

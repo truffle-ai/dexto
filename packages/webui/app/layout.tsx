@@ -67,7 +67,7 @@ export default async function RootLayout({
       >
         <ChatProvider>
           <SpeechReset />
-          <div className="flex h-screen w-screen flex-col">{children}</div>
+          <div className="flex h-screen w-screen flex-col supports-[height:100dvh]:h-[100dvh]">{children}</div>
         </ChatProvider>
       </body>
     </html>
