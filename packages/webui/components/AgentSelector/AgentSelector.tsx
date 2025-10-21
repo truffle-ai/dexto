@@ -207,7 +207,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
     switch (mode) {
       case 'badge':
-        return `h-9 px-3 sm:px-4 text-xs border border-teal-500 bg-teal-500/20 text-teal-600 hover:bg-teal-500/40 hover:border-teal-500 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 dark:border-teal-400 dark:hover:border-teal-300 min-w-[100px] sm:min-w-[120px] lg:min-w-[160px] max-w-[200px] ${baseClasses}`;
+        return `h-9 px-4 text-xs border border-teal-500 bg-teal-500/20 text-teal-600 hover:bg-teal-500/40 hover:border-teal-500 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 dark:border-teal-400 dark:hover:border-teal-300 min-w-[140px] lg:min-w-[160px] max-w-[200px] ${baseClasses}`;
       case 'title':
         return `h-11 px-4 text-lg font-bold bg-gradient-to-r from-teal-500/30 to-teal-500/40 text-teal-600 hover:from-teal-500/50 hover:to-teal-500/60 hover:text-teal-700 focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2 border border-teal-500/40 dark:text-teal-400 dark:hover:text-teal-300 dark:border-teal-400 ${baseClasses}`;
       default:
@@ -226,11 +226,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
           disabled={switching}
         >
           <div className="flex items-center justify-between w-full min-w-0">
-            <Sparkles className="w-4 h-4 mr-2 sm:mr-3 flex-shrink-0" />
+            <Sparkles className="w-4 h-4 mr-2 flex-shrink-0" />
             <span className="flex-1 text-center truncate min-w-0 px-1">
               {switching ? 'Switching...' : mode === 'title' ? `Agent: ${currentLabel}` : currentLabel}
             </span>
-            <ChevronDown className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0" />
+            <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
           </div>
         </Button>
       </DropdownMenuTrigger>

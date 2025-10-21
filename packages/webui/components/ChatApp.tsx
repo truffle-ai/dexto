@@ -698,9 +698,9 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         })()}
         {/* Clean Header */}
         <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 gap-2 sm:gap-4">
+          <div className="flex items-center justify-between px-4 py-3 gap-3">
             {/* Left Section */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 shrink-0">
               {/* Chat History Toggle */}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -728,28 +728,22 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 </div>
               )}
 
-              {/* Dexto Logo */}
+              {/* Dexto Logo - Always show full logo */}
               <a
                 href="https://dexto.ai"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center hover:opacity-80 transition-opacity shrink-0"
               >
-                <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-8 w-auto md:hidden" />
-                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto hidden md:block dark:md:hidden" />
-                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden md:dark:block" />
+                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-11 w-auto block dark:hidden" />
+                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-11 w-auto hidden dark:block" />
                 <span className="sr-only">Dexto</span>
               </a>
-
-              {/* Agent Selector - visible on narrow screens (left side) */}
-              <div className="flex md:hidden flex-1">
-                <AgentSelector mode="badge" />
-              </div>
             </div>
 
-            {/* Center Section - Agent Selector on desktop only */}
-            <div className="hidden md:flex justify-center flex-1 min-w-0 px-3">
-              <div className="w-full max-w-[280px]">
+            {/* Center Section - Agent Selector always centered */}
+            <div className="flex justify-center flex-1 min-w-0 px-3">
+              <div className="w-full max-w-[260px]">
                 <AgentSelector mode="badge" />
               </div>
             </div>
