@@ -1107,7 +1107,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
                   <div className="min-h-full grid grid-rows-[1fr_auto]">
-                    <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto">
+                    <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto overflow-x-hidden">
                       <MessageList
                         messages={messages}
                         activeError={activeError}
@@ -1140,7 +1140,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                           </button>
                         </div>
                       )}
-                      <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto">
+                      <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto overflow-x-hidden">
                         <InputArea
                           onSend={handleSend}
                           isSending={isSendingMessage}
