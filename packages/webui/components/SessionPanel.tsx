@@ -57,7 +57,6 @@ export default function SessionPanel({
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const isDeletingRef = React.useRef(false);
   const requestIdRef = React.useRef(0);
-  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -124,62 +123,22 @@ export default function SessionPanel({
     }
   }, [isOpen, fetchSessions]);
 
-  // Debounced session refresh to prevent excessive API calls
-  const debouncedFetchSessions = useCallback(() => {
-    // Clear existing timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Set new timer - wait 500ms after last event before fetching
-    debounceTimerRef.current = setTimeout(() => {
-      void fetchSessions();
-    }, 500);
-  }, [fetchSessions]);
-
-  // Listen for message events to refresh session counts
-  // Only refresh if the event is for the current session (to update message count)
+  // Listen only for title update events - not message events
+  // Message counts don't need real-time updates in the sidebar
   useEffect(() => {
-    const handleMessage: EventListener = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const eventSessionId = customEvent.detail?.sessionId;
-      // Only refresh if message is for the current session
-      if (eventSessionId && eventSessionId === currentSessionId) {
-        debouncedFetchSessions();
-      }
-    };
-
-    const handleResponse: EventListener = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const eventSessionId = customEvent.detail?.sessionId;
-      // Only refresh if response is for the current session
-      if (eventSessionId && eventSessionId === currentSessionId) {
-        debouncedFetchSessions();
-      }
-    };
-
     const handleTitleUpdated: EventListener = (_event: Event) => {
       // Immediate refresh for title updates (less frequent)
       void fetchSessions();
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('dexto:message', handleMessage);
-      window.addEventListener('dexto:response', handleResponse);
       window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
 
       return () => {
-        window.removeEventListener('dexto:message', handleMessage);
-        window.removeEventListener('dexto:response', handleResponse);
         window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
-
-        // Clean up debounce timer on unmount
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current);
-        }
       };
     }
-  }, [fetchSessions, debouncedFetchSessions, currentSessionId]);
+  }, [fetchSessions]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
