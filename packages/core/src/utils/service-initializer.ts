@@ -135,6 +135,7 @@ export async function createAgentServices(
         allowedToolsProvider,
         config.toolConfirmation.mode,
         agentEventBus,
+        config.toolConfirmation.toolPolicies,
         {
             internalToolsServices: { searchService },
             internalToolsConfig: config.internalTools,

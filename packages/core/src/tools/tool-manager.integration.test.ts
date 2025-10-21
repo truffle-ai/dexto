@@ -99,7 +99,8 @@ describe('ToolManager Integration Tests', () => {
                 approvalManager,
                 allowedToolsProvider,
                 'auto-approve',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
             await toolManager.initialize();
 
@@ -118,6 +119,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices,
                     internalToolsConfig,
@@ -167,6 +169,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices,
                     internalToolsConfig,
@@ -289,6 +292,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices,
                     internalToolsConfig,
@@ -317,6 +321,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices: failingServices,
                     internalToolsConfig,
@@ -354,7 +359,8 @@ describe('ToolManager Integration Tests', () => {
                 approvalManager,
                 allowedToolsProvider,
                 'auto-approve',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             await expect(toolManager.executeTool('mcp--failing_tool', {})).rejects.toThrow(Error);
@@ -377,6 +383,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices: failingServices,
                     internalToolsConfig,
@@ -422,6 +429,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices,
                     internalToolsConfig,
@@ -464,7 +472,8 @@ describe('ToolManager Integration Tests', () => {
                 approvalManager,
                 allowedToolsProvider,
                 'auto-approve',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             // First call uses MCPManager's cache (no client call)
@@ -508,6 +517,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
+                undefined,
                 {
                     internalToolsServices,
                     internalToolsConfig,
