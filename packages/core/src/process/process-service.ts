@@ -97,6 +97,29 @@ export class ProcessService {
 
         const normalizedCommand = validation.normalizedCommand;
 
+        // Check if command requires approval (e.g., dangerous commands like rm, git push)
+        if (validation.requiresApproval) {
+            if (!options.approvalFunction) {
+                // No approval mechanism provided - fail safe
+                throw ProcessError.approvalRequired(
+                    normalizedCommand,
+                    'Command requires approval but no approval mechanism provided'
+                );
+            }
+
+            logger.info(
+                `Command requires approval: ${normalizedCommand} - requesting user confirmation`
+            );
+            const approved = await options.approvalFunction(normalizedCommand);
+
+            if (!approved) {
+                logger.info(`Command approval denied: ${normalizedCommand}`);
+                throw ProcessError.approvalDenied(normalizedCommand);
+            }
+
+            logger.info(`Command approved: ${normalizedCommand}`);
+        }
+
         // Handle timeout
         const timeout = Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout);
 

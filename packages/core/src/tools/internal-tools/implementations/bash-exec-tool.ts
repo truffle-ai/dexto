@@ -7,6 +7,8 @@
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { ProcessService } from '../../../process/index.js';
+import type { ApprovalManager } from '../../../approval/manager.js';
+import { ApprovalStatus } from '../../../approval/types.js';
 
 const BashExecInputSchema = z
     .object({
@@ -39,23 +41,47 @@ type BashExecInput = z.input<typeof BashExecInputSchema>;
 /**
  * Create the bash_exec internal tool
  */
-export function createBashExecTool(processService: ProcessService): InternalTool {
+export function createBashExecTool(
+    processService: ProcessService,
+    approvalManager: ApprovalManager
+): InternalTool {
     return {
         id: 'bash_exec',
         description:
-            'Execute a shell command. Returns stdout, stderr, exit code, and duration. Use run_in_background=true for long-running commands (use bash_output to retrieve results later). Requires approval for all commands. Always quote file paths with spaces. Set timeout to prevent hanging commands. Security: dangerous commands are blocked, injection attempts are detected.',
+            'Execute a shell command. Returns stdout, stderr, exit code, and duration. Use run_in_background=true for long-running commands (use bash_output to retrieve results later). Requires approval for all commands. Dangerous commands (rm, git push, etc.) require additional per-command approval. Always quote file paths with spaces. Set timeout to prevent hanging commands. Security: dangerous commands are blocked, injection attempts are detected.',
         inputSchema: BashExecInputSchema,
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { command, description, timeout, run_in_background, cwd } =
                 input as BashExecInput;
 
-            // Execute command using ProcessService
+            // Execute command using ProcessService with approval function for dangerous commands
             const result = await processService.executeCommand(command, {
                 description,
                 timeout,
                 runInBackground: run_in_background,
                 cwd,
+                // Provide approval function for dangerous commands
+                approvalFunction: async (normalizedCommand: string) => {
+                    // Build metadata conditionally to avoid passing undefined (exactOptionalPropertyTypes)
+                    const metadata: {
+                        toolName: string;
+                        command: string;
+                        originalCommand: string;
+                        sessionId?: string;
+                    } = {
+                        toolName: 'bash_exec',
+                        command: normalizedCommand,
+                        originalCommand: command,
+                    };
+
+                    if (context?.sessionId) {
+                        metadata.sessionId = context.sessionId;
+                    }
+
+                    const response = await approvalManager.requestCommandConfirmation(metadata);
+                    return response.status === ApprovalStatus.APPROVED;
+                },
             });
 
             if (run_in_background) {

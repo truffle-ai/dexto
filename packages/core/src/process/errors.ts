@@ -76,6 +76,33 @@ export class ProcessError {
     }
 
     /**
+     * Command approval required error
+     */
+    static approvalRequired(command: string, reason?: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            ProcessErrorCode.APPROVAL_REQUIRED,
+            ErrorScope.PROCESS,
+            ErrorType.FORBIDDEN,
+            `Command requires approval: ${command}${reason ? `. ${reason}` : ''}`,
+            { command, reason },
+            'Provide an approval function to execute dangerous commands'
+        );
+    }
+
+    /**
+     * Command approval denied error
+     */
+    static approvalDenied(command: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            ProcessErrorCode.APPROVAL_DENIED,
+            ErrorScope.PROCESS,
+            ErrorType.FORBIDDEN,
+            `Command approval denied by user: ${command}`,
+            { command }
+        );
+    }
+
+    /**
      * Command execution failed error
      */
     static executionFailed(command: string, cause: string): DextoRuntimeError {

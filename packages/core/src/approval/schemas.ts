@@ -28,6 +28,21 @@ export const ToolConfirmationMetadataSchema = z
     .describe('Tool confirmation metadata');
 
 /**
+ * Command confirmation metadata schema
+ */
+export const CommandConfirmationMetadataSchema = z
+    .object({
+        toolName: z.string().describe('Name of the tool executing the command'),
+        command: z.string().describe('The normalized command to execute'),
+        originalCommand: z
+            .string()
+            .optional()
+            .describe('The original command before normalization'),
+    })
+    .strict()
+    .describe('Command confirmation metadata');
+
+/**
  * Elicitation metadata schema
  */
 export const ElicitationMetadataSchema = z
@@ -67,6 +82,14 @@ export const ToolConfirmationRequestSchema = BaseApprovalRequestSchema.extend({
 }).strict();
 
 /**
+ * Command confirmation request schema
+ */
+export const CommandConfirmationRequestSchema = BaseApprovalRequestSchema.extend({
+    type: z.literal(ApprovalType.COMMAND_CONFIRMATION),
+    metadata: CommandConfirmationMetadataSchema,
+}).strict();
+
+/**
  * Elicitation request schema
  */
 export const ElicitationRequestSchema = BaseApprovalRequestSchema.extend({
@@ -87,6 +110,7 @@ export const CustomApprovalRequestSchema = BaseApprovalRequestSchema.extend({
  */
 export const ApprovalRequestSchema = z.discriminatedUnion('type', [
     ToolConfirmationRequestSchema,
+    CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
 ]);
@@ -100,6 +124,17 @@ export const ToolConfirmationResponseDataSchema = z
     })
     .strict()
     .describe('Tool confirmation response data');
+
+/**
+ * Command confirmation response data schema
+ */
+export const CommandConfirmationResponseDataSchema = z
+    .object({
+        // Command confirmations don't have remember choice - they're per-command
+        // Could add command pattern remembering in future (e.g., "remember git push *")
+    })
+    .strict()
+    .describe('Command confirmation response data');
 
 /**
  * Elicitation response data schema
@@ -137,6 +172,13 @@ export const ToolConfirmationResponseSchema = BaseApprovalResponseSchema.extend(
 }).strict();
 
 /**
+ * Command confirmation response schema
+ */
+export const CommandConfirmationResponseSchema = BaseApprovalResponseSchema.extend({
+    data: CommandConfirmationResponseDataSchema.optional(),
+}).strict();
+
+/**
  * Elicitation response schema
  */
 export const ElicitationResponseSchema = BaseApprovalResponseSchema.extend({
@@ -155,6 +197,7 @@ export const CustomApprovalResponseSchema = BaseApprovalResponseSchema.extend({
  */
 export const ApprovalResponseSchema = z.union([
     ToolConfirmationResponseSchema,
+    CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
 ]);
@@ -169,6 +212,7 @@ export const ApprovalRequestDetailsSchema = z
         timeout: z.number().int().positive(),
         metadata: z.union([
             ToolConfirmationMetadataSchema,
+            CommandConfirmationMetadataSchema,
             ElicitationMetadataSchema,
             CustomApprovalMetadataSchema,
         ]),
@@ -182,6 +226,16 @@ export const ApprovalRequestDetailsSchema = z
                     code: z.ZodIssueCode.custom,
                     message:
                         'Metadata must match ToolConfirmationMetadataSchema for TOOL_CONFIRMATION type',
+                    path: ['metadata'],
+                });
+            }
+        } else if (data.type === ApprovalType.COMMAND_CONFIRMATION) {
+            const result = CommandConfirmationMetadataSchema.safeParse(data.metadata);
+            if (!result.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message:
+                        'Metadata must match CommandConfirmationMetadataSchema for COMMAND_CONFIRMATION type',
                     path: ['metadata'],
                 });
             }
