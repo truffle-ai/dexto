@@ -217,6 +217,9 @@ importers:
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
+      glob:
+        specifier: ^11.0.3
+        version: 11.0.3
       ioredis:
         specifier: ^5.7.0
         version: 5.7.0

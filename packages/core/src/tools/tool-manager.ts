@@ -618,9 +618,12 @@ export class ToolManager {
                     : false;
 
             if (response.status === ApprovalStatus.APPROVED && rememberChoice) {
-                await this.allowedToolsProvider.allowTool(toolName, response.sessionId);
+                // Use the request's sessionId to ensure permission is stored for the correct session
+                // Fall back to response.sessionId only if request didn't specify one
+                const allowSessionId = sessionId ?? response.sessionId;
+                await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
                 logger.info(
-                    `Tool '${toolName}' added to allowed tools for session '${response.sessionId ?? 'global'}' (remember choice selected)`
+                    `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
                 );
             }
 
