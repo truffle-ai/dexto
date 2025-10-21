@@ -57,6 +57,7 @@ export default function SessionPanel({
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const isDeletingRef = React.useRef(false);
   const requestIdRef = React.useRef(0);
+  const hasLoadedOnceRef = React.useRef(false);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -71,7 +72,10 @@ export default function SessionPanel({
     requestIdRef.current += 1;
     const currentRequestId = requestIdRef.current;
 
-    setLoading(true);
+    // Only show loading spinner on first load
+    if (!hasLoadedOnceRef.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await fetch('/api/sessions');
@@ -104,6 +108,7 @@ export default function SessionPanel({
 
       if (currentRequestId === requestIdRef.current) {
         setSessions(sortedSessions);
+        hasLoadedOnceRef.current = true;
       }
     } catch (err) {
       if (currentRequestId === requestIdRef.current) {
@@ -113,6 +118,7 @@ export default function SessionPanel({
     } finally {
       if (currentRequestId === requestIdRef.current) {
         setLoading(false);
+        hasLoadedOnceRef.current = true;
       }
     }
   }, []);
@@ -123,22 +129,79 @@ export default function SessionPanel({
     }
   }, [isOpen, fetchSessions]);
 
-  // Listen only for title update events - not message events
-  // Message counts don't need real-time updates in the sidebar
+  // Listen for events and update state locally (no API calls)
   useEffect(() => {
-    const handleTitleUpdated: EventListener = (_event: Event) => {
-      // Immediate refresh for title updates (less frequent)
-      void fetchSessions();
+    const handleMessage: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      if (eventSessionId) {
+        setSessions(prev => {
+          const sessionExists = prev.some(s => s.id === eventSessionId);
+          if (sessionExists) {
+            // Update existing session
+            return prev.map(session =>
+              session.id === eventSessionId
+                ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
+                : session
+            );
+          } else {
+            // New session created (first message from welcome state)
+            const newSession: Session = {
+              id: eventSessionId,
+              createdAt: new Date().toISOString(),
+              lastActivity: new Date().toISOString(),
+              messageCount: 1,
+              title: null
+            };
+            return [newSession, ...prev];
+          }
+        });
+      }
+    };
+
+    const handleResponse: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      if (eventSessionId) {
+        // Update message count and last activity locally
+        setSessions(prev =>
+          prev.map(session =>
+            session.id === eventSessionId
+              ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
+              : session
+          )
+        );
+      }
+    };
+
+    const handleTitleUpdated: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      const title = customEvent.detail?.title;
+      if (eventSessionId && title) {
+        // Update title locally
+        setSessions(prev =>
+          prev.map(session =>
+            session.id === eventSessionId
+              ? { ...session, title }
+              : session
+          )
+        );
+      }
     };
 
     if (typeof window !== 'undefined') {
+      window.addEventListener('dexto:message', handleMessage);
+      window.addEventListener('dexto:response', handleResponse);
       window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
 
       return () => {
+        window.removeEventListener('dexto:message', handleMessage);
+        window.removeEventListener('dexto:response', handleResponse);
         window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
       };
     }
-  }, [fetchSessions]);
+  }, []);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
