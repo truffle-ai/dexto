@@ -460,7 +460,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
   // Helper to check if viewport is narrow (for panel exclusivity)
   const isNarrowViewport = () => {
-    return typeof window !== 'undefined' && window.innerWidth < 1024;
+    return typeof window !== 'undefined' && window.innerWidth < 768;
   };
 
   // Smart panel handlers with exclusivity on narrow screens
@@ -650,7 +650,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       {/* Left Sidebar - Chat History (Desktop only - inline) */}
       <div
         className={cn(
-          "hidden lg:block shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
+          "hidden md:block shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
           !isFirstRenderRef.current && "transition-all duration-300 ease-in-out",
           isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
         )}
@@ -671,7 +671,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       </div>
 
       {/* Chat History Panel - Mobile/Narrow (overlay) */}
-      <div className="lg:hidden">
+      <div className="md:hidden">
         <SessionPanel
           isOpen={isSessionsPanelOpen}
           onClose={() => setSessionsPanelOpen(false)}
@@ -723,7 +723,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
               {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <div className="hidden lg:block">
+                <div className="hidden md:block">
                   <NewChatButton onClick={handleReturnToWelcome} />
                 </div>
               )}
@@ -742,20 +742,20 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
               </a>
 
               {/* Agent Selector - visible on narrow screens (left side) */}
-              <div className="flex lg:hidden flex-1">
+              <div className="flex md:hidden flex-1">
                 <AgentSelector mode="badge" />
               </div>
             </div>
 
             {/* Center Section - Agent Selector on desktop only */}
-            <div className="hidden lg:flex justify-center flex-1 min-w-0 px-3">
+            <div className="hidden md:flex justify-center flex-1 min-w-0 px-3">
               <div className="w-full max-w-[280px]">
                 <AgentSelector mode="badge" />
               </div>
             </div>
 
             {/* Right Section - Desktop buttons */}
-            <div className="hidden lg:flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               {/* Customize Agent */}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -883,7 +883,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             </div>
 
             {/* Right Section - Narrow screens (hamburger menu) */}
-            <div className="flex lg:hidden">
+            <div className="flex md:hidden">
               <DropdownMenu open={isMobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1136,7 +1136,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           {/* Servers Panel - Responsive: inline on desktop, overlay on narrow */}
           {/* Desktop: inline panel */}
           <div className={cn(
-            "hidden lg:block shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
+            "hidden md:block shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
             isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
@@ -1160,7 +1160,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           </div>
 
           {/* Narrow screens: overlay panel */}
-          <div className="lg:hidden">
+          <div className="md:hidden">
             <ServersPanel
               isOpen={isServersPanelOpen}
               onClose={() => setServersPanelOpen(false)}
