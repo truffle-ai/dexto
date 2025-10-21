@@ -67,6 +67,21 @@ toolConfirmation:
   timeout: 120000          # Time to wait for approval (ms)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
+  # Optional: Static tool policies for fine-grained allow/deny control
+  toolPolicies:
+    # Tools that never require approval (low-risk, common operations)
+    alwaysAllow:
+      - internal--ask_user
+      - mcp--read_file
+      - mcp--list_directory
+      - mcp--list_allowed_directories
+  #
+  #   # Tools that are always denied (high-risk, destructive operations)
+  #   # Deny list takes precedence over allow list
+  #   alwaysDeny:
+  #     - mcp--filesystem--delete_file
+  #     - mcp--playwright--execute_script
+
 # Internal tools - built-in Dexto capabilities
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input

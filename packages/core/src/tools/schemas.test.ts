@@ -3,9 +3,11 @@ import { z } from 'zod';
 import {
     InternalToolsSchema,
     ToolConfirmationConfigSchema,
+    ToolPoliciesSchema,
     type InternalToolsConfig,
     type ToolConfirmationConfig,
     type ValidatedToolConfirmationConfig,
+    type ToolPolicies,
 } from './schemas.js';
 
 // safeParse for invalid test cases to check exact error codes
@@ -268,6 +270,212 @@ describe('ToolConfirmationConfigSchema', () => {
 
             const result = ToolConfirmationConfigSchema.parse(strictConfig);
             expect(result).toEqual(strictConfig);
+        });
+
+        it('should handle configuration with tool policies', () => {
+            const configWithPolicies = {
+                mode: 'event-based' as const,
+                timeout: 30000,
+                allowedToolsStorage: 'storage' as const,
+                toolPolicies: {
+                    alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                    alwaysDeny: ['mcp--filesystem--delete_file'],
+                },
+            };
+
+            const result = ToolConfirmationConfigSchema.parse(configWithPolicies);
+            expect(result).toEqual(configWithPolicies);
+            expect(result.toolPolicies?.alwaysAllow).toHaveLength(2);
+            expect(result.toolPolicies?.alwaysDeny).toHaveLength(1);
+        });
+    });
+});
+
+describe('ToolPoliciesSchema', () => {
+    describe('Field Validation', () => {
+        it('should accept empty arrays for both fields', () => {
+            const result = ToolPoliciesSchema.parse({
+                alwaysAllow: [],
+                alwaysDeny: [],
+            });
+            expect(result).toEqual({
+                alwaysAllow: [],
+                alwaysDeny: [],
+            });
+        });
+
+        it('should accept valid tool names in alwaysAllow', () => {
+            const result = ToolPoliciesSchema.parse({
+                alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                alwaysDeny: [],
+            });
+            expect(result.alwaysAllow).toEqual([
+                'internal--ask_user',
+                'mcp--filesystem--read_file',
+            ]);
+        });
+
+        it('should accept valid tool names in alwaysDeny', () => {
+            const result = ToolPoliciesSchema.parse({
+                alwaysAllow: [],
+                alwaysDeny: ['mcp--filesystem--delete_file', 'mcp--playwright--execute_script'],
+            });
+            expect(result.alwaysDeny).toEqual([
+                'mcp--filesystem--delete_file',
+                'mcp--playwright--execute_script',
+            ]);
+        });
+
+        it('should accept both lists populated', () => {
+            const result = ToolPoliciesSchema.parse({
+                alwaysAllow: ['internal--ask_user'],
+                alwaysDeny: ['mcp--filesystem--delete_file'],
+            });
+            expect(result.alwaysAllow).toHaveLength(1);
+            expect(result.alwaysDeny).toHaveLength(1);
+        });
+
+        it('should reject non-array values for alwaysAllow', () => {
+            const result = ToolPoliciesSchema.safeParse({
+                alwaysAllow: 'not-an-array',
+                alwaysDeny: [],
+            });
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
+            expect(result.error?.issues[0]?.path).toEqual(['alwaysAllow']);
+        });
+
+        it('should reject non-array values for alwaysDeny', () => {
+            const result = ToolPoliciesSchema.safeParse({
+                alwaysAllow: [],
+                alwaysDeny: 'not-an-array',
+            });
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
+            expect(result.error?.issues[0]?.path).toEqual(['alwaysDeny']);
+        });
+
+        it('should reject non-string elements in arrays', () => {
+            const result = ToolPoliciesSchema.safeParse({
+                alwaysAllow: [123, 456],
+                alwaysDeny: [],
+            });
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
+        });
+    });
+
+    describe('Default Values', () => {
+        it('should apply default empty arrays when undefined', () => {
+            const result = ToolPoliciesSchema.parse(undefined);
+            expect(result).toEqual({
+                alwaysAllow: [],
+                alwaysDeny: [],
+            });
+        });
+
+        it('should apply defaults for missing fields', () => {
+            const result = ToolPoliciesSchema.parse({});
+            expect(result).toEqual({
+                alwaysAllow: [],
+                alwaysDeny: [],
+            });
+        });
+    });
+
+    describe('Edge Cases', () => {
+        it('should allow duplicate tool names in the same list', () => {
+            // Schema doesn't enforce uniqueness - that's application logic
+            const result = ToolPoliciesSchema.parse({
+                alwaysAllow: ['tool1', 'tool1'],
+                alwaysDeny: [],
+            });
+            expect(result.alwaysAllow).toEqual(['tool1', 'tool1']);
+        });
+
+        it('should allow same tool name in both lists', () => {
+            // Schema validation allows this - precedence is handled by application logic
+            const result = ToolPoliciesSchema.parse({
+                alwaysAllow: ['tool1'],
+                alwaysDeny: ['tool1'],
+            });
+            expect(result.alwaysAllow).toContain('tool1');
+            expect(result.alwaysDeny).toContain('tool1');
+        });
+
+        it('should reject extra fields with strict validation', () => {
+            const policiesWithExtra = {
+                alwaysAllow: [],
+                alwaysDeny: [],
+                extraField: 'should fail',
+            };
+
+            const result = ToolPoliciesSchema.safeParse(policiesWithExtra);
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.unrecognized_keys);
+        });
+    });
+
+    describe('Type Safety', () => {
+        it('should have correct type inference', () => {
+            const result: ToolPolicies = ToolPoliciesSchema.parse({
+                alwaysAllow: ['tool1'],
+                alwaysDeny: ['tool2'],
+            });
+            expect(Array.isArray(result.alwaysAllow)).toBe(true);
+            expect(Array.isArray(result.alwaysDeny)).toBe(true);
+        });
+    });
+
+    describe('Real-world Scenarios', () => {
+        it('should handle safe development configuration', () => {
+            const devPolicies = {
+                alwaysAllow: [
+                    'internal--ask_user',
+                    'mcp--filesystem--read_file',
+                    'mcp--filesystem--list_directory',
+                ],
+                alwaysDeny: ['mcp--filesystem--write_file', 'mcp--filesystem--delete_file'],
+            };
+
+            const result = ToolPoliciesSchema.parse(devPolicies);
+            expect(result).toEqual(devPolicies);
+        });
+
+        it('should handle production security configuration', () => {
+            const prodPolicies = {
+                alwaysAllow: ['internal--ask_user'],
+                alwaysDeny: [
+                    'mcp--filesystem--delete_file',
+                    'mcp--playwright--execute_script',
+                    'mcp--shell--execute',
+                ],
+            };
+
+            const result = ToolPoliciesSchema.parse(prodPolicies);
+            expect(result).toEqual(prodPolicies);
+        });
+
+        it('should handle minimal allow-only policy', () => {
+            const allowOnlyPolicy = {
+                alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                alwaysDeny: [],
+            };
+
+            const result = ToolPoliciesSchema.parse(allowOnlyPolicy);
+            expect(result.alwaysAllow).toHaveLength(2);
+            expect(result.alwaysDeny).toHaveLength(0);
+        });
+
+        it('should handle strict deny-only policy', () => {
+            const denyOnlyPolicy = {
+                alwaysAllow: [],
+                alwaysDeny: ['mcp--filesystem--delete_file', 'mcp--shell--execute'],
+            };
+
+            const result = ToolPoliciesSchema.parse(denyOnlyPolicy);
+            expect(result.alwaysAllow).toHaveLength(0);
+            expect(result.alwaysDeny).toHaveLength(2);
         });
     });
 });
