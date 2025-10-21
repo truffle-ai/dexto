@@ -5,6 +5,7 @@
  */
 
 import * as path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { FileSystemConfig, PathValidation } from './types.js';
 import { logger } from '../logger/index.js';
 
@@ -22,6 +23,7 @@ export class PathValidator {
     private config: FileSystemConfig;
     private normalizedAllowedPaths: string[];
     private normalizedBlockedPaths: string[];
+    private normalizedBlockedExtensions: string[];
 
     constructor(config: FileSystemConfig) {
         this.config = config;
@@ -32,6 +34,12 @@ export class PathValidator {
 
         // Normalize blocked paths
         this.normalizedBlockedPaths = config.blockedPaths.map((p) => path.normalize(p));
+
+        // Normalize blocked extensions: ensure leading dot and lowercase
+        this.normalizedBlockedExtensions = (config.blockedExtensions || []).map((ext) => {
+            const e = ext.startsWith('.') ? ext : `.${ext}`;
+            return e.toLowerCase();
+        });
 
         logger.debug(
             `PathValidator initialized with ${this.normalizedAllowedPaths.length} allowed paths`
@@ -59,6 +67,15 @@ export class PathValidator {
             normalizedPath = path.isAbsolute(filePath)
                 ? path.resolve(filePath)
                 : path.resolve(workingDir, filePath);
+
+            // Canonicalize to handle symlinks and resolve real paths
+            try {
+                // native variant preserves casing on Windows
+                normalizedPath = realpathSync.native(normalizedPath);
+            } catch {
+                // If the path doesn't exist yet (e.g., writes), fallback to the resolved path
+                // Policy checks continue to use normalizedPath
+            }
         } catch (error) {
             return {
                 isValid: false,
@@ -92,8 +109,8 @@ export class PathValidator {
         }
 
         // 6. Check file extension if applicable
-        const ext = path.extname(normalizedPath);
-        if (ext && this.config.blockedExtensions.includes(ext)) {
+        const ext = path.extname(normalizedPath).toLowerCase();
+        if (ext && this.normalizedBlockedExtensions.includes(ext)) {
             return {
                 isValid: false,
                 error: `File extension ${ext} is not allowed`,
@@ -143,22 +160,24 @@ export class PathValidator {
      * Check if path matches blocked patterns (blacklist check)
      */
     private isPathBlocked(normalizedPath: string): string | null {
-        for (const blockedPath of this.normalizedBlockedPaths) {
-            // Check if path contains blocked segment
-            if (normalizedPath.includes(blockedPath)) {
-                return `Matches blocked path pattern: ${blockedPath}`;
-            }
+        const roots =
+            this.normalizedAllowedPaths.length > 0
+                ? this.normalizedAllowedPaths
+                : [this.config.workingDirectory || process.cwd()];
 
-            // Check for exact directory match
-            const blockedFull = path.resolve(
-                this.config.workingDirectory || process.cwd(),
-                blockedPath
-            );
-            if (
-                normalizedPath === blockedFull ||
-                normalizedPath.startsWith(blockedFull + path.sep)
-            ) {
-                return `Within blocked directory: ${blockedPath}`;
+        for (const blocked of this.normalizedBlockedPaths) {
+            for (const root of roots) {
+                // Resolve blocked relative to each allowed root unless already absolute
+                const blockedFull = path.isAbsolute(blocked)
+                    ? path.normalize(blocked)
+                    : path.resolve(root, blocked);
+                // Segment-aware prefix check
+                if (
+                    normalizedPath === blockedFull ||
+                    normalizedPath.startsWith(blockedFull + path.sep)
+                ) {
+                    return `Within blocked directory: ${blocked}`;
+                }
             }
         }
 

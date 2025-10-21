@@ -32,10 +32,11 @@ export function createKillProcessTool(processService: ProcessService): InternalT
             // Kill process using ProcessService
             await processService.killProcess(process_id);
 
+            // Note: killProcess returns void and doesn't throw if process already stopped
             return {
                 success: true,
                 process_id,
-                message: `Process ${process_id} has been terminated`,
+                message: `Termination signal sent to process ${process_id}`,
             };
         },
     };

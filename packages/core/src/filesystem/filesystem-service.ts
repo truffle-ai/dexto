@@ -133,15 +133,15 @@ export class FileSystemService {
             const content = await fs.readFile(normalizedPath, encoding);
             const lines = content.split('\n');
 
-            // Handle offset and limit
-            const offset = options.offset || 0;
+            // Handle offset (1-based per types) and limit
             const limit = options.limit;
+            const offset1 = options.offset; // 1-based if provided
 
             let selectedLines: string[];
             let truncated = false;
 
-            if (offset > 0 || limit !== undefined) {
-                const start = Math.max(0, offset);
+            if ((offset1 && offset1 > 0) || limit !== undefined) {
+                const start = offset1 && offset1 > 0 ? Math.max(0, offset1 - 1) : 0;
                 const end = limit !== undefined ? start + limit : lines.length;
                 selectedLines = lines.slice(start, end);
                 truncated = end < lines.length;
@@ -225,10 +225,11 @@ export class FileSystemService {
                 }
             }
 
+            const limited = validFiles.length >= maxResults;
             return {
                 files: validFiles,
-                truncated: files.length > validFiles.length,
-                totalFound: files.length,
+                truncated: limited,
+                totalFound: validFiles.length,
             };
         } catch (error) {
             throw FileSystemError.globFailed(
@@ -253,7 +254,7 @@ export class FileSystemService {
 
         try {
             // Create regex from pattern
-            const flags = options.caseInsensitive ? 'gi' : 'g';
+            const flags = options.caseInsensitive ? 'i' : '';
             const regex = new RegExp(pattern, flags);
 
             // Find files to search

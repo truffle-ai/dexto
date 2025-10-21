@@ -141,7 +141,7 @@ export class CommandValidator {
         // In strict mode, be more aggressive
         if (this.config.securityLevel === 'strict') {
             // Check for multiple commands chained together (except safe ones)
-            const hasMultipleCommands = /;|\|\||&&/.test(command);
+            const hasMultipleCommands = /;|\|{1,2}|&&/.test(command);
             if (hasMultipleCommands) {
                 // Allow safe patterns like "cd dir && ls" or "command | grep pattern"
                 const safePatterns = [
@@ -183,7 +183,7 @@ export class CommandValidator {
             /^chmod\s+/, // chmod
             /^chown\s+/, // chown
             /^mv\s+/, // move files
-            /^cp\s+.*>/, // copy with overwrite
+            /^cp\s+/, // copy files
         ];
 
         for (const pattern of requiresApprovalPatterns) {
