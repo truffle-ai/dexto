@@ -1010,8 +1010,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           <div className="flex-1 flex flex-col min-h-0">
             {isWelcomeState ? (
               /* Modern Welcome Screen with Central Search */
-              <div className="flex-1 flex items-center justify-center p-6 -mt-20">
-                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
+              <div className="flex-1 flex flex-col justify-end sm:justify-center p-6 sm:-mt-20">
+                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6 pb-safe">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
