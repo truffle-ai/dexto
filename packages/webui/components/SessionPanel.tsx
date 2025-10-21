@@ -516,22 +516,32 @@ export default function SessionPanel({
     </div>
   );
 
-  // For overlay variant, unmount if not open. Inline variant handles visibility via parent.
-  if (variant === 'overlay' && !isOpen) {
-    return null;
+  // For inline variant, just return the content wrapped
+  if (variant === 'inline') {
+    return <div className="h-full w-full flex flex-col bg-card">{content}</div>;
   }
 
-  // Determine wrapper classes based on variant
-  const overlayClass = cn(
-    "fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform transform flex flex-col",
-    isOpen ? "translate-x-0" : "-translate-x-full"
-  );
-  // Simplified for inline: parent div in ChatApp will handle width, border, shadow transitions.
-  const inlineClass = cn("h-full w-full flex flex-col bg-card");
-
+  // Overlay variant with slide animation
   return (
-    <aside className={variant === 'overlay' ? overlayClass : inlineClass}>
-      {content}
-    </aside>
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/50 z-30 transition-opacity duration-300",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <aside
+        className={cn(
+          "fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {content}
+      </aside>
+    </>
   );
 } 
