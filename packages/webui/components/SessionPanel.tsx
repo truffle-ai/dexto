@@ -138,16 +138,24 @@ export default function SessionPanel({
   }, [fetchSessions]);
 
   // Listen for message events to refresh session counts
-  // Update sessions list regardless of panel open/closed state
+  // Only refresh if the event is for the current session (to update message count)
   useEffect(() => {
-    const handleMessage: EventListener = (_event: Event) => {
-      // Debounced refresh - prevents excessive API calls during rapid messaging
-      debouncedFetchSessions();
+    const handleMessage: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      // Only refresh if message is for the current session
+      if (eventSessionId && eventSessionId === currentSessionId) {
+        debouncedFetchSessions();
+      }
     };
 
-    const handleResponse: EventListener = (_event: Event) => {
-      // Debounced refresh - prevents excessive API calls during rapid messaging
-      debouncedFetchSessions();
+    const handleResponse: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      // Only refresh if response is for the current session
+      if (eventSessionId && eventSessionId === currentSessionId) {
+        debouncedFetchSessions();
+      }
     };
 
     const handleTitleUpdated: EventListener = (_event: Event) => {
@@ -171,7 +179,7 @@ export default function SessionPanel({
         }
       };
     }
-  }, [fetchSessions, debouncedFetchSessions]);
+  }, [fetchSessions, debouncedFetchSessions, currentSessionId]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
