@@ -124,13 +124,21 @@ export default function SessionPanel({
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    // Only fetch sessions on initial mount when panel opens
+    // hasLoadedOnceRef ensures we don't refetch unnecessarily
+    if (isOpen && !hasLoadedOnceRef.current) {
       fetchSessions();
     }
   }, [isOpen, fetchSessions]);
 
   // Listen for events and update state locally (no API calls)
   useEffect(() => {
+    // Also listen for agent switches - this is when we DO want to refresh
+    const handleAgentSwitched = () => {
+      // Force a fresh fetch when agent is switched
+      hasLoadedOnceRef.current = false;
+      fetchSessions();
+    };
     const handleMessage: EventListener = (event: Event) => {
       const customEvent = event as CustomEvent;
       const eventSessionId = customEvent.detail?.sessionId;
@@ -194,14 +202,16 @@ export default function SessionPanel({
       window.addEventListener('dexto:message', handleMessage);
       window.addEventListener('dexto:response', handleResponse);
       window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+      window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
       return () => {
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
         window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+        window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
       };
     }
-  }, []);
+  }, [fetchSessions]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation

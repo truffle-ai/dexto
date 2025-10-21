@@ -393,7 +393,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentSessionId(null);
     setIsWelcomeState(true);
     setMessages([]);
-    setCurrentLLM(null);
+    // Don't reset currentLLM here - it causes unnecessary refreshes in AgentSelector
+    // The LLM config will be updated when needed via fetchCurrentLLM
   }, [setMessages]);
 
   // Listen for config-related WebSocket events via DOM events
