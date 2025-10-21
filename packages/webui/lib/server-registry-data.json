@@ -433,27 +433,27 @@
     "config": {
       "type": "stdio",
       "command": "npx",
-      "args": ["@ax-crew/chartjs-mcp-server"],
+      "args": ["-y", "@ax-crew/chartjs-mcp-server"],
       "timeout": 30000
     },
     "tags": ["chart", "visualization", "data", "chartjs"],
     "isOfficial": true,
     "isInstalled": false,
     "requirements": { "platform": "all", "node": ">=18.0.0" },
-    "author": "ChartJS",
+    "author": "ax-crew",
     "homepage": "https://github.com/ax-crew/chartjs-mcp-server",
     "matchIds": ["chartjs"]
   },
   {
     "id": "rag-lite-ts",
     "name": "Rag-lite TS",
-    "description": " local-first TypeScript retrieval engine for semantic search over static documents.",
+    "description": "A local-first TypeScript retrieval engine for semantic search over static documents.",
     "category": "data",
     "icon": "🔍",
     "config": {
       "type": "stdio",
-      "command": "raglite-mcp",
-      "args": []
+      "command": "npx",
+      "args": ["-y", "raglite-mcp"]
     },
     "tags": ["rag", "data", "ai"],
     "isOfficial": true,
@@ -466,7 +466,7 @@
   {
     "id": "exa",
     "name": "Exa",
-    "description": "Exa is a local-first TypeScript retrieval engine for semantic search over static documents.",
+    "description": "AI-powered web search and research API with semantic search capabilities.",
     "category": "data",
     "icon": "🔍",
     "config": {

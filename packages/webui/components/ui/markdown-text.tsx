@@ -150,6 +150,18 @@ function linkifyText(text: string): React.ReactNode {
 
   return parts.map((part, index) => {
     if (part.match(urlRegex)) {
+      // Validate URL safety before rendering as link
+      if (!isSafeHttpUrl(part)) {
+        return (
+          <span
+            key={index}
+            className="text-muted-foreground underline decoration-dotted"
+            title="Unsafe URL"
+          >
+            {part}
+          </span>
+        );
+      }
       return (
         <a
           key={index}
