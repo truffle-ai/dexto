@@ -67,6 +67,21 @@ toolConfirmation:
   timeout: 120000          # Time to wait for approval (ms)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
+  # Optional: Static tool policies for fine-grained allow/deny control
+  toolPolicies:
+    # Tools that never require approval (low-risk, common operations)
+    alwaysAllow:
+      - internal--ask_user
+      - mcp--read_file
+      - mcp--list_directory
+      - mcp--list_allowed_directories
+  #
+  #   # Tools that are always denied (high-risk, destructive operations)
+  #   # Deny list takes precedence over allow list
+  #   alwaysDeny:
+  #     - mcp--filesystem--delete_file
+  #     - mcp--playwright--execute_script
+
 # Internal tools - built-in Dexto capabilities
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input
@@ -86,6 +101,36 @@ internalResources:
 
     # Blob resource - enables large file upload/storage (settings in storage.blob section above)
     - type: blob
+
+# Plugin system - built-in plugins for content policy and response sanitization
+# plugins:
+#   # ContentPolicy - validates and sanitizes input before sending to LLM
+#   contentPolicy:
+#     priority: 10              # Lower priority = runs first
+#     blocking: true            # Blocks execution if validation fails
+#     maxInputChars: 50000      # Maximum input length (characters)
+#     redactEmails: true        # Redact email addresses from input
+#     redactApiKeys: true       # Redact potential API keys from input
+#     enabled: true             # Enable this plugin
+
+#   # ResponseSanitizer - sanitizes LLM responses before returning to user
+#   responseSanitizer:
+#     priority: 900             # Higher priority = runs near the end
+#     blocking: false           # Non-blocking (logs warnings but doesn't stop)
+#     redactEmails: true        # Redact email addresses from responses
+#     redactApiKeys: true       # Redact potential API keys from responses
+#     maxResponseLength: 100000 # Maximum response length (characters)
+#     enabled: true             # Enable this plugin
+
+#   # Custom plugins can be added here (see documentation)
+#   # custom:
+#   #   - name: tenant-auth
+#   #     module: "${{dexto.agent_dir}}/plugins/tenant-auth.ts"
+#   #     enabled: true
+#   #     blocking: true
+#   #     priority: 100
+#   #     config:
+#   #       enforceQuota: true
 
 # Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
 # TODO: (355) Have to update docs for this starterPrompts and internalResources section and blob section

@@ -265,7 +265,19 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
             }
 
-            // 2. Disconnect all MCP clients
+            // 2. Clean up plugins (close file handles, connections, etc.)
+            // Do this before storage disconnect so plugins can flush state if needed
+            try {
+                if (this.services?.pluginManager) {
+                    await this.services.pluginManager.cleanup();
+                    logger.debug('PluginManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+            }
+
+            // 3. Disconnect all MCP clients
             try {
                 if (this.mcpManager) {
                     await this.mcpManager.disconnectAll();
@@ -276,7 +288,7 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`MCPManager disconnect failed: ${err.message}`));
             }
 
-            // 3. Close storage backends
+            // 4. Close storage backends
             try {
                 if (this.services?.storageManager) {
                     await this.services.storageManager.disconnect();
@@ -1147,6 +1159,44 @@ export class DextoAgent {
 
         // Refresh tool cache after server removal so the LLM sees updated set
         await this.toolManager.refresh();
+    }
+
+    /**
+     * Restarts an MCP server by disconnecting and reconnecting with its original configuration.
+     * This is useful for recovering from server errors or applying configuration changes.
+     * @param name The name of the server to restart.
+     * @throws MCPError if server is not found or restart fails
+     */
+    public async restartMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        try {
+            logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
+
+            // Restart the server using MCPManager
+            await this.mcpManager.restartServer(name);
+
+            // Refresh tool cache after restart so the LLM sees updated toolset
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('dexto:mcpServerRestarted', {
+                serverName: name,
+            });
+            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            logger.info(`DextoAgent: Successfully restarted MCP server '${name}'.`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`DextoAgent: Failed to restart MCP server '${name}': ${errorMessage}`);
+
+            // Note: No event emitted on failure since the error is thrown
+            // The calling layer (API) will handle error reporting
+
+            throw error;
+        }
     }
 
     /**

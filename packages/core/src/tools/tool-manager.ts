@@ -1,7 +1,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { InternalToolsProvider } from './internal-tools/provider.js';
 import { InternalToolsServices } from './internal-tools/registry.js';
-import type { InternalToolsConfig } from './schemas.js';
+import type { InternalToolsConfig, ToolPolicies } from './schemas.js';
 import { ToolSet } from './types.js';
 import { ToolError } from './errors.js';
 import { logger } from '../logger/index.js';
@@ -9,6 +9,10 @@ import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus } from '../approval/types.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { PluginManager } from '../plugins/manager.js';
+import type { SessionManager } from '../session/index.js';
+import type { AgentStateManager } from '../agent/state-manager.js';
+import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -44,6 +48,12 @@ export class ToolManager {
     private allowedToolsProvider: IAllowedToolsProvider;
     private approvalMode: 'event-based' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
+    private toolPolicies: ToolPolicies | undefined;
+
+    // Plugin support - set after construction to avoid circular dependencies
+    private pluginManager?: PluginManager;
+    private sessionManager?: SessionManager;
+    private stateManager?: AgentStateManager;
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -59,6 +69,7 @@ export class ToolManager {
         allowedToolsProvider: IAllowedToolsProvider,
         approvalMode: 'event-based' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
+        toolPolicies?: ToolPolicies,
         options?: InternalToolsOptions
     ) {
         this.mcpManager = mcpManager;
@@ -66,6 +77,7 @@ export class ToolManager {
         this.allowedToolsProvider = allowedToolsProvider;
         this.approvalMode = approvalMode;
         this.agentEventBus = agentEventBus;
+        this.toolPolicies = toolPolicies;
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
@@ -90,6 +102,20 @@ export class ToolManager {
             await this.internalToolsProvider.initialize();
         }
         logger.debug('ToolManager initialization complete');
+    }
+
+    /**
+     * Set plugin support services (called after construction to avoid circular dependencies)
+     */
+    setPluginSupport(
+        pluginManager: PluginManager,
+        sessionManager: SessionManager,
+        stateManager: AgentStateManager
+    ): void {
+        this.pluginManager = pluginManager;
+        this.sessionManager = sessionManager;
+        this.stateManager = stateManager;
+        logger.debug('Plugin support configured for ToolManager');
     }
 
     /**
@@ -133,6 +159,16 @@ export class ToolManager {
     /**
      * Build all tools from sources with universal prefixing
      * ALL tools get prefixed by their source - no exceptions
+     *
+     * TODO: Rethink tool naming convention for more consistency
+     * Current issue: MCP tools have dynamic naming based on conflicts:
+     * - No conflict: mcp--toolName
+     * - With conflict: mcp--serverName--toolName
+     * This makes policy configuration fragile. Consider:
+     * 1. Always including server name: mcp--serverName--toolName (breaking change)
+     * 2. Using a different delimiter pattern that's more predictable
+     * 3. Providing a tool discovery command to help users find exact names
+     * Related: Tool policies now support dual matching (exact + suffix) as a workaround
      */
     private async buildAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
@@ -227,6 +263,30 @@ export class ToolManager {
 
         const startTime = Date.now();
 
+        // Execute beforeToolCall plugins if available
+        if (this.pluginManager && this.sessionManager && this.stateManager) {
+            const beforePayload: BeforeToolCallPayload = {
+                toolName,
+                args,
+                ...(sessionId !== undefined && { sessionId }),
+            };
+
+            const modifiedPayload = await this.pluginManager.executePlugins(
+                'beforeToolCall',
+                beforePayload,
+                {
+                    sessionManager: this.sessionManager,
+                    mcpManager: this.mcpManager,
+                    toolManager: this,
+                    stateManager: this.stateManager,
+                    ...(sessionId !== undefined && { sessionId }),
+                }
+            );
+
+            // Use modified payload for execution
+            args = modifiedPayload.args;
+        }
+
         try {
             let result: unknown;
 
@@ -274,12 +334,59 @@ export class ToolManager {
             logger.info(
                 `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
+
+            // Execute afterToolResult plugins if available
+            if (this.pluginManager && this.sessionManager && this.stateManager) {
+                const afterPayload: AfterToolResultPayload = {
+                    toolName,
+                    result,
+                    success: true,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                const modifiedPayload = await this.pluginManager.executePlugins(
+                    'afterToolResult',
+                    afterPayload,
+                    {
+                        sessionManager: this.sessionManager,
+                        mcpManager: this.mcpManager,
+                        toolManager: this,
+                        stateManager: this.stateManager,
+                        ...(sessionId !== undefined && { sessionId }),
+                    }
+                );
+
+                // Use modified result
+                result = modifiedPayload.result;
+            }
+
             return result;
         } catch (error) {
             const duration = Date.now() - startTime;
             logger.error(
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
+
+            // Execute afterToolResult plugins for error case if available
+            if (this.pluginManager && this.sessionManager && this.stateManager) {
+                const afterPayload: AfterToolResultPayload = {
+                    toolName,
+                    result: error instanceof Error ? error.message : String(error),
+                    success: false,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                // Note: We still execute plugins even on error, but we don't use the modified result
+                // Plugins can log, track metrics, etc. but cannot suppress the error
+                await this.pluginManager.executePlugins('afterToolResult', afterPayload, {
+                    sessionManager: this.sessionManager,
+                    mcpManager: this.mcpManager,
+                    toolManager: this,
+                    stateManager: this.stateManager,
+                    ...(sessionId !== undefined && { sessionId }),
+                });
+            }
+
             throw error;
         }
     }
@@ -365,6 +472,75 @@ export class ToolManager {
     }
 
     /**
+     * Check if a tool matches a policy pattern
+     * Supports both exact matching and suffix matching for MCP tools with server prefixes
+     *
+     * Examples:
+     * - Policy "mcp--read_file" matches "mcp--read_file" (exact)
+     * - Policy "mcp--read_file" matches "mcp--filesystem--read_file" (suffix)
+     * - Policy "internal--ask_user" matches "internal--ask_user" (exact only)
+     *
+     * @param toolName The fully qualified tool name (e.g., "mcp--filesystem--read_file")
+     * @param policyPattern The policy pattern to match against (e.g., "mcp--read_file")
+     * @returns true if the tool matches the policy pattern
+     */
+    private matchesToolPolicy(toolName: string, policyPattern: string): boolean {
+        // Exact match
+        if (toolName === policyPattern) {
+            return true;
+        }
+
+        // Suffix match for MCP tools with server conflicts
+        // Policy "mcp--read_file" should match "mcp--filesystem--read_file"
+        // Note: MCP server delimiter is '--' (defined in MCPManager.SERVER_DELIMITER)
+        if (policyPattern.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            // Extract the base tool name without mcp-- prefix
+            const baseName = policyPattern.substring(ToolManager.MCP_TOOL_PREFIX.length);
+
+            // Check if the tool name ends with --{baseName} and starts with mcp--
+            // This handles: mcp--filesystem--read_file matching policy mcp--read_file
+            if (
+                toolName.endsWith(`--${baseName}`) &&
+                toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a tool is in the static alwaysDeny list
+     * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
+     * @param toolName The fully qualified tool name to check
+     * @returns true if the tool is in the deny list
+     */
+    private isInAlwaysDenyList(toolName: string): boolean {
+        if (!this.toolPolicies?.alwaysDeny) {
+            return false;
+        }
+        return this.toolPolicies.alwaysDeny.some((pattern) =>
+            this.matchesToolPolicy(toolName, pattern)
+        );
+    }
+
+    /**
+     * Check if a tool is in the static alwaysAllow list
+     * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
+     * @param toolName The fully qualified tool name to check
+     * @returns true if the tool is in the allow list
+     */
+    private isInAlwaysAllowList(toolName: string): boolean {
+        if (!this.toolPolicies?.alwaysAllow) {
+            return false;
+        }
+        return this.toolPolicies.alwaysAllow.some((pattern) =>
+            this.matchesToolPolicy(toolName, pattern)
+        );
+    }
+
+    /**
      * Handle tool approval/confirmation flow
      * Checks allowed list, manages approval modes (event-based, auto-approve, auto-deny),
      * and handles remember choice logic
@@ -374,7 +550,24 @@ export class ToolManager {
         args: Record<string, unknown>,
         sessionId?: string
     ): Promise<void> {
-        // Check if tool is in allowed list first
+        // PRECEDENCE 1: Check static alwaysDeny list (highest priority - security-first)
+        if (this.isInAlwaysDenyList(toolName)) {
+            logger.info(
+                `Tool '${toolName}' is in static deny list – blocking execution (session: ${sessionId ?? 'global'})`
+            );
+            logger.debug(`🚫 Tool execution blocked by policy: ${toolName}`);
+            throw ToolError.executionDenied(toolName, sessionId);
+        }
+
+        // PRECEDENCE 2: Check static alwaysAllow list
+        if (this.isInAlwaysAllowList(toolName)) {
+            logger.info(
+                `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
+            );
+            return;
+        }
+
+        // PRECEDENCE 3: Check dynamic "remembered" allowed list
         const isAllowed = await this.allowedToolsProvider.isToolAllowed(toolName, sessionId);
 
         if (isAllowed) {
@@ -384,6 +577,7 @@ export class ToolManager {
             return;
         }
 
+        // PRECEDENCE 4: Fall back to approval mode
         // Handle different approval modes
         if (this.approvalMode === 'auto-approve') {
             logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
@@ -424,9 +618,12 @@ export class ToolManager {
                     : false;
 
             if (response.status === ApprovalStatus.APPROVED && rememberChoice) {
-                await this.allowedToolsProvider.allowTool(toolName, response.sessionId);
+                // Use the request's sessionId to ensure permission is stored for the correct session
+                // Fall back to response.sessionId only if request didn't specify one
+                const allowSessionId = sessionId ?? response.sessionId;
+                await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
                 logger.info(
-                    `Tool '${toolName}' added to allowed tools for session '${response.sessionId ?? 'global'}' (remember choice selected)`
+                    `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
                 );
             }
 

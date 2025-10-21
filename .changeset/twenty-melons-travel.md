@@ -1,8 +1,7 @@
 ---
-'@dexto/client-sdk': patch
 '@dexto/webui': patch
 '@dexto/core': patch
 'dexto': patch
 ---
 
-Refactors
+Add mcp server restart feature and button in webUI

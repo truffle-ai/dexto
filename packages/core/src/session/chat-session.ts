@@ -8,6 +8,9 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
+import type { PluginManager } from '../plugins/manager.js';
+import type { MCPManager } from '../mcp/manager.js';
+import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../plugins/types.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -15,6 +18,9 @@ import {
     SessionEventName,
 } from '../events/index.js';
 import { logger } from '../logger/index.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
+import { PluginErrorCode } from '../plugins/error-codes.js';
+import type { InternalMessage } from '../context/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -119,6 +125,9 @@ export class ChatSession {
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
+            pluginManager: PluginManager;
+            mcpManager: MCPManager;
+            sessionManager: import('./session-manager.js').SessionManager;
         },
         public readonly id: string
     ) {
@@ -203,6 +212,54 @@ export class ChatSession {
     }
 
     /**
+     * Saves a blocked interaction to history when a plugin blocks execution.
+     * This ensures that even when a plugin blocks execution (e.g., due to abusive language),
+     * the user's message and the error response are preserved in the conversation history.
+     *
+     * @param userInput - The user's text input that was blocked
+     * @param errorMessage - The error message explaining why execution was blocked
+     * @param imageData - Optional image data that was part of the blocked message
+     * @param fileData - Optional file data that was part of the blocked message
+     * @private
+     */
+    private async saveBlockedInteraction(
+        userInput: string,
+        errorMessage: string,
+        _imageData?: { image: string; mimeType: string },
+        _fileData?: { data: string; mimeType: string; filename?: string }
+    ): Promise<void> {
+        // Create redacted user message (do not persist sensitive content or attachments)
+        // When content is blocked by policy (abusive language, inappropriate content, etc.),
+        // we shouldn't store the original content to comply with data minimization principles
+        const userMessage: InternalMessage = {
+            role: 'user',
+            content: '[Blocked by content policy: input redacted]',
+        };
+
+        // Create assistant error message
+        const errorContent = `Error: ${errorMessage}`;
+        const assistantMessage: InternalMessage = {
+            role: 'assistant',
+            content: errorContent,
+        };
+
+        // Add both messages to history
+        await this.historyProvider.saveMessage(userMessage);
+        await this.historyProvider.saveMessage(assistantMessage);
+
+        // Emit response event so UI updates immediately on blocked interactions
+        // This ensures listeners relying on llmservice:response know a response was added
+        // Note: sessionId is automatically added by event forwarding layer
+        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        this.eventBus.emit('llmservice:response', {
+            content: errorContent,
+            provider: llmConfig.provider,
+            model: llmConfig.model,
+            router: llmConfig.router,
+        });
+    }
+
+    /**
      * Processes user input through the session's LLM service and returns the response.
      *
      * This method:
@@ -231,8 +288,9 @@ export class ChatSession {
         fileDataInput?: { data: string; mimeType: string; filename?: string },
         stream?: boolean
     ): Promise<string> {
+        // Log metadata only (no sensitive content) to prevent PII/secret leakage in logs
         logger.debug(
-            `Running session ${this.id} with input: ${input}, imageDataInput: ${imageDataInput}, fileDataInput: ${fileDataInput}`
+            `Running session ${this.id} | input.len=${input?.length ?? 0} | image=${imageDataInput ? imageDataInput.mimeType : 'none'} | file=${fileDataInput ? `${fileDataInput.mimeType}:${fileDataInput.filename ?? 'unknown'}` : 'none'}`
         );
 
         // Input validation is now handled at DextoAgent.run() level
@@ -240,14 +298,65 @@ export class ChatSession {
         this.currentRunController = new AbortController();
         const signal = this.currentRunController.signal;
         try {
+            // Execute beforeLLMRequest plugins
+            const beforeLLMPayload: BeforeLLMRequestPayload = {
+                text: input,
+                ...(imageDataInput !== undefined && { imageData: imageDataInput }),
+                ...(fileDataInput !== undefined && { fileData: fileDataInput }),
+                sessionId: this.id,
+            };
+
+            const modifiedBeforePayload = await this.services.pluginManager.executePlugins(
+                'beforeLLMRequest',
+                beforeLLMPayload,
+                {
+                    sessionManager: this.services.sessionManager,
+                    mcpManager: this.services.mcpManager,
+                    toolManager: this.services.toolManager,
+                    stateManager: this.services.stateManager,
+                    sessionId: this.id,
+                    abortSignal: signal,
+                }
+            );
+
+            // Use modified input from plugins
+            const finalInput = modifiedBeforePayload.text;
+            const finalImageData = modifiedBeforePayload.imageData;
+            const finalFileData = modifiedBeforePayload.fileData;
+
             const response = await this.llmService.completeTask(
-                input,
+                finalInput,
                 { signal },
-                imageDataInput,
-                fileDataInput,
+                finalImageData,
+                finalFileData,
                 stream
             );
-            return response;
+
+            // Execute beforeResponse plugins
+            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+            const beforeResponsePayload: BeforeResponsePayload = {
+                content: response,
+                provider: llmConfig.provider,
+                model: llmConfig.model,
+                router: llmConfig.router,
+                sessionId: this.id,
+            };
+
+            const modifiedResponsePayload = await this.services.pluginManager.executePlugins(
+                'beforeResponse',
+                beforeResponsePayload,
+                {
+                    sessionManager: this.services.sessionManager,
+                    mcpManager: this.services.mcpManager,
+                    toolManager: this.services.toolManager,
+                    stateManager: this.services.stateManager,
+                    sessionId: this.id,
+                    abortSignal: signal,
+                }
+            );
+
+            // Return modified response from plugins
+            return modifiedResponsePayload.content;
         } catch (error) {
             // If this was an intentional cancellation, emit a recoverable error event and return empty string
             const aborted =
@@ -264,6 +373,36 @@ export class ChatSession {
                 });
                 return '';
             }
+
+            // Check if this is a plugin blocking error
+            if (
+                error instanceof DextoRuntimeError &&
+                error.code === PluginErrorCode.PLUGIN_BLOCKED_EXECUTION &&
+                error.scope === ErrorScope.PLUGIN &&
+                error.type === ErrorType.FORBIDDEN
+            ) {
+                // Save the blocked interaction to history so users can see what they tried
+                try {
+                    await this.saveBlockedInteraction(
+                        input,
+                        error.message,
+                        imageDataInput,
+                        fileDataInput
+                    );
+                    logger.debug(`ChatSession ${this.id}: Saved blocked interaction to history`);
+                } catch (saveError) {
+                    logger.warn(
+                        `Failed to save blocked interaction to history: ${
+                            saveError instanceof Error ? saveError.message : String(saveError)
+                        }`
+                    );
+                }
+
+                // Return the error message as a normal response instead of throwing
+                // This creates a consistent UX whether viewing for the first time or reopening the session
+                return error.message;
+            }
+
             // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
             // We should remove this error handling when we handle partial responses properly in all services.
             throw error;

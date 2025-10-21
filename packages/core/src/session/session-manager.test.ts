@@ -109,6 +109,18 @@ describe('SessionManager', () => {
                 emit: vi.fn(),
             },
             storageManager: mockStorageManager,
+            resourceManager: {
+                getBlobStore: vi.fn(),
+                readResource: vi.fn(),
+                listResources: vi.fn(),
+            },
+            toolManager: {
+                getAllTools: vi.fn().mockReturnValue([]),
+            },
+            pluginManager: {
+                executePlugins: vi.fn().mockImplementation(async (_point, payload) => payload),
+                cleanup: vi.fn(),
+            },
         };
 
         // Parse LLM config now that mocks are set up
@@ -233,7 +245,10 @@ describe('SessionManager', () => {
 
             expect(session).toBeDefined();
             expect(session.id).toBe('mock-uuid-123');
-            expect(MockChatSession).toHaveBeenCalledWith(mockServices, 'mock-uuid-123');
+            expect(MockChatSession).toHaveBeenCalledWith(
+                expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
+                'mock-uuid-123'
+            );
         });
 
         test('should create sessions with custom IDs when provided', async () => {
@@ -241,7 +256,10 @@ describe('SessionManager', () => {
             const session = await sessionManager.createSession(customId);
 
             expect(session.id).toBe(customId);
-            expect(MockChatSession).toHaveBeenCalledWith(mockServices, customId);
+            expect(MockChatSession).toHaveBeenCalledWith(
+                expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
+                customId
+            );
         });
 
         test('should return existing session instance for duplicate creation requests', async () => {
@@ -271,7 +289,10 @@ describe('SessionManager', () => {
             const session = await sessionManager.getDefaultSession();
 
             expect(session.id).toBe('default');
-            expect(MockChatSession).toHaveBeenCalledWith(mockServices, 'default');
+            expect(MockChatSession).toHaveBeenCalledWith(
+                expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
+                'default'
+            );
         });
     });
 
@@ -894,7 +915,10 @@ describe('SessionManager', () => {
 
             expect(restoredSession).toBeDefined();
             expect(restoredSession!.id).toBe(sessionId);
-            expect(MockChatSession).toHaveBeenCalledWith(mockServices, sessionId);
+            expect(MockChatSession).toHaveBeenCalledWith(
+                expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
+                sessionId
+            );
 
             // Session should now be in memory
             expect(sessionManager['sessions'].has(sessionId)).toBe(true);

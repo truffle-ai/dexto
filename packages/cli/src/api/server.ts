@@ -704,6 +704,30 @@ export async function initializeApi(
         }
     });
 
+    // Endpoint to restart an MCP server
+    const RestartMcpServerParamsSchema = z.object({
+        serverId: z.string().min(1, 'Server ID is required'),
+    });
+    app.post('/api/mcp/servers/:serverId/restart', async (req, res, next) => {
+        try {
+            ensureAgentAvailable();
+            const { serverId } = parseQuery(RestartMcpServerParamsSchema, req.params);
+            logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
+
+            // Check if server exists before attempting to restart
+            const clientExists = activeAgent.getMcpClients().has(serverId);
+            if (!clientExists) {
+                logger.warn(`Attempted to restart non-existent server: ${serverId}`);
+                return res.status(404).json({ error: `Server '${serverId}' not found.` });
+            }
+
+            await activeAgent.restartMcpServer(serverId);
+            return res.status(200).json({ status: 'restarted', id: serverId });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     // Execute an MCP tool via REST wrapper
     const ExecuteMcpToolParamsSchema = z.object({
         serverId: z.string().min(1, 'Server ID is required'),

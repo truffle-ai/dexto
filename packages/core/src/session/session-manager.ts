@@ -7,6 +7,7 @@ import { logger } from '../logger/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
+import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 
 export interface SessionMetadata {
@@ -59,6 +60,8 @@ export class SessionManager {
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
+            pluginManager: PluginManager;
+            mcpManager: import('../mcp/manager.js').MCPManager;
         },
         config: SessionManagerConfig = {}
     ) {
@@ -198,7 +201,7 @@ export class SessionManager {
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
-            const session = new ChatSession(this.services, id);
+            const session = new ChatSession({ ...this.services, sessionManager: this }, id);
             await session.init();
             this.sessions.set(id, session);
             logger.info(`Restored session from storage: ${id}`, null, 'cyan');
@@ -233,7 +236,7 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession(this.services, id);
+            session = new ChatSession({ ...this.services, sessionManager: this }, id);
             await session.init();
             this.sessions.set(id, session);
 
@@ -298,7 +301,10 @@ export class SessionManager {
                 .get<SessionData>(sessionKey);
             if (sessionData) {
                 // Restore session to memory
-                const session = new ChatSession(this.services, sessionId);
+                const session = new ChatSession(
+                    { ...this.services, sessionManager: this },
+                    sessionId
+                );
                 await session.init();
                 this.sessions.set(sessionId, session);
                 return session;

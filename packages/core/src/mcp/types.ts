@@ -23,7 +23,7 @@ export interface MCPResolvedResource {
 export interface IMCPClient extends ToolProvider, EventEmitter {
     // Connection Management
     connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client>;
-    disconnect?(): Promise<void>;
+    disconnect(): Promise<void>;
 
     // Prompt Management
     listPrompts(): Promise<Prompt[]>;

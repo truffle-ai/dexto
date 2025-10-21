@@ -20,6 +20,7 @@ export const AGENT_EVENT_NAMES = [
     'dexto:sessionOverrideCleared',
     'dexto:mcpServerAdded',
     'dexto:mcpServerRemoved',
+    'dexto:mcpServerRestarted',
     'dexto:mcpServerUpdated',
     'dexto:mcpResourceUpdated',
     'dexto:mcpPromptsListChanged',
@@ -194,6 +195,11 @@ export interface AgentEventMap {
 
     /** Fired when MCP server is removed from runtime state */
     'dexto:mcpServerRemoved': {
+        serverName: string;
+    };
+
+    /** Fired when MCP server is restarted */
+    'dexto:mcpServerRestarted': {
         serverName: string;
     };
 
