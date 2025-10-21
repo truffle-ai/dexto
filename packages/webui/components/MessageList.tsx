@@ -440,7 +440,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
   };
 
   return (
-    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-3 sm:px-4 py-2 overflow-x-hidden">
+    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 py-2 overflow-x-hidden w-full box-border">
       {messages.map((msg, idx) => {
         const msgKey = msg.id ?? `msg-${idx}`;
         const isUser = msg.role === 'user';

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import MessageList from './MessageList';
@@ -662,12 +662,18 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen, handleOpenSessionsPanel, handleOpenServersPanel, handleReturnToWelcome, handleDeleteConversation, processing, cancel, currentSessionId]);
 
+  const clampedWidthStyle = useMemo(() => ({
+    maxWidth: 'min(var(--thread-max-width, 54rem), 100vw)',
+    width: '100%',
+  }), []);
+
   return (
     <div
-      className="flex w-full bg-background"
+      className="flex w-screen bg-background"
       style={{
         height: 'var(--app-viewport-height, 100vh)',
         minHeight: 'var(--app-viewport-height, 100vh)',
+        maxWidth: '100vw',
       }}
     >
       {/* Left Sidebar - Chat History (Desktop only - inline) */}
@@ -1034,7 +1040,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             {isWelcomeState ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex flex-col justify-end sm:justify-center p-6 sm:-mt-20">
-                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6 pb-safe">
+                <div
+                  className="w-full box-border mx-auto space-y-6 pb-safe px-3 sm:px-4 md:px-0"
+                  style={clampedWidthStyle}
+                >
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
@@ -1048,7 +1057,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </div>
 
                   {/* Quick Actions Grid - Compact */}
-                  <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
+                  <div
+                    className="flex flex-wrap justify-center gap-2 w-full box-border mx-auto px-3 sm:px-4 md:px-0"
+                    style={clampedWidthStyle}
+                  >
                     {dynamicQuickActions.map((action, index) => {
                       const button = (
                         <button
@@ -1080,7 +1092,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </div>
 
                   {/* Central Search Bar with Full Features */}
-                  <div className="max-w-[var(--thread-max-width)] mx-auto">
+                  <div
+                    className="w-full box-border mx-auto px-3 sm:px-4 md:px-0"
+                    style={clampedWidthStyle}
+                  >
                     <InputArea
                       onSend={handleSend}
                       isSending={isSendingMessage}
@@ -1106,46 +1121,51 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
               <div className="flex-1 min-h-0 overflow-hidden">
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
-                  <div className="min-h-full grid grid-rows-[1fr_auto]">
-                    <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto overflow-x-hidden">
-                      <MessageList
-                        messages={messages}
-                        activeError={activeError}
-                        onDismissError={clearError}
-                        outerRef={listContentRef}
-                        pendingApproval={pendingApproval}
-                        onApprovalApprove={approvalHandlers?.onApprove}
-                        onApprovalDeny={approvalHandlers?.onDeny}
-                      />
-                    </div>
-                    {/* Sticky input dock inside scroll viewport */}
+                  <div className="min-h-full">
                     <div
-                      className="sticky bottom-0 z-10 px-0 sm:px-4 pt-2 pb-2 bg-background relative"
-                      style={{
-                        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)',
-                        marginBottom: 'calc(env(safe-area-inset-bottom, 0px) * -1)',
-                      }}
+                      className="grid min-h-full grid-rows-[1fr_auto] w-full box-border mx-auto px-3 sm:px-4 md:px-0"
+                      style={clampedWidthStyle}
                     >
-                      {showScrollHint && (
-                        <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
-                          <button
-                            onClick={() => {
-                              setShowScrollHint(false);
-                              scrollToBottom('smooth');
-                            }}
-                            className="pointer-events-auto px-3 py-1.5 rounded-full shadow-sm bg-background/95 border border-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <span>Scroll to bottom</span>
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
-                      <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto overflow-x-hidden">
-                        <InputArea
-                          onSend={handleSend}
-                          isSending={isSendingMessage}
-                          variant="chat"
+                      <div className="w-full overflow-x-hidden">
+                        <MessageList
+                          messages={messages}
+                          activeError={activeError}
+                          onDismissError={clearError}
+                          outerRef={listContentRef}
+                          pendingApproval={pendingApproval}
+                          onApprovalApprove={approvalHandlers?.onApprove}
+                          onApprovalDeny={approvalHandlers?.onDeny}
                         />
+                      </div>
+                      {/* Sticky input dock inside scroll viewport */}
+                      <div
+                        className="sticky bottom-0 z-10 pt-2 pb-2 bg-background relative box-border"
+                        style={{
+                          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)',
+                          marginBottom: 'calc(env(safe-area-inset-bottom, 0px) * -1)',
+                        }}
+                      >
+                        {showScrollHint && (
+                          <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
+                            <button
+                              onClick={() => {
+                                setShowScrollHint(false);
+                                scrollToBottom('smooth');
+                              }}
+                              className="pointer-events-auto px-3 py-1.5 rounded-full shadow-sm bg-background/95 border border-border/60 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+                            >
+                              <span>Scroll to bottom</span>
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                        <div className="w-full pointer-events-auto overflow-x-hidden">
+                          <InputArea
+                            onSend={handleSend}
+                            isSending={isSendingMessage}
+                            variant="chat"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
