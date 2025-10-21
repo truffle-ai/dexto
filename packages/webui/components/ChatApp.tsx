@@ -140,6 +140,23 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
       setIsMac(true);
     }
+
+    const updateViewportHeight = () => {
+      if (typeof document === 'undefined') return;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty('--app-viewport-height', `${viewportHeight}px`);
+    };
+
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    window.visualViewport?.addEventListener('resize', updateViewportHeight);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      window.visualViewport?.removeEventListener('resize', updateViewportHeight);
+    };
   }, []);
 
   const recomputeIsAtBottom = useCallback(() => {
@@ -646,7 +663,13 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen, handleOpenSessionsPanel, handleOpenServersPanel, handleReturnToWelcome, handleDeleteConversation, processing, cancel, currentSessionId]);
 
   return (
-    <div className="flex h-screen bg-background supports-[height:100dvh]:h-[100dvh]">
+    <div
+      className="flex w-full bg-background"
+      style={{
+        height: 'var(--app-viewport-height, 100vh)',
+        minHeight: 'var(--app-viewport-height, 100vh)',
+      }}
+    >
       {/* Left Sidebar - Chat History (Desktop only - inline) */}
       <div
         className={cn(
@@ -1084,7 +1107,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
                   <div className="min-h-full grid grid-rows-[1fr_auto]">
-                    <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
+                    <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto">
                       <MessageList
                         messages={messages}
                         activeError={activeError}
@@ -1096,7 +1119,13 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                       />
                     </div>
                     {/* Sticky input dock inside scroll viewport */}
-                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] bg-background relative">
+                    <div
+                      className="sticky bottom-0 z-10 px-0 sm:px-4 pt-2 pb-2 bg-background relative"
+                      style={{
+                        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)',
+                        marginBottom: 'calc(env(safe-area-inset-bottom, 0px) * -1)',
+                      }}
+                    >
                       {showScrollHint && (
                         <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
                           <button
@@ -1111,7 +1140,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                           </button>
                         </div>
                       )}
-                      <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
+                      <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto">
                         <InputArea
                           onSend={handleSend}
                           isSending={isSendingMessage}
