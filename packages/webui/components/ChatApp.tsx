@@ -637,7 +637,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         className={cn(
           "shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
           !isFirstRenderRef.current && "transition-all duration-300 ease-in-out",
-          isSessionsPanelOpen ? "w-full sm:w-80" : "w-0 overflow-hidden"
+          isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
         )}
         suppressHydrationWarning
       >
@@ -714,13 +714,15 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
             </div>
 
-            {/* Center Section - Agent Selector */}
-            <div className="flex justify-center flex-1 min-w-0 px-3">
-              <AgentSelector mode="badge" />
+            {/* Center Section - Agent Selector (hidden on narrow screens < xl) */}
+            <div className="hidden xl:flex justify-center flex-1 min-w-0 px-3">
+              <div className="w-full max-w-[280px]">
+                <AgentSelector mode="badge" />
+              </div>
             </div>
 
             {/* Right Section - Priority+ Overflow */}
-            <div ref={containerRef} className="flex items-center justify-end shrink-0">
+            <div ref={containerRef} className="flex items-center justify-end shrink-0 min-w-fit">
               <div className="flex items-center gap-2">
               {/* Customize Agent */}
               {!isButtonHidden('customize') && (
@@ -830,6 +832,14 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {/* Agent Selector for narrow screens - only show on < xl */}
+                  <div className="xl:hidden px-2 py-2">
+                    <AgentSelector mode="badge" />
+                  </div>
+                  <div className="xl:hidden">
+                    <DropdownMenuSeparator />
+                  </div>
+
                   {/* Priority+ overflow items */}
                   {isButtonHidden('customize') && (
                     <DropdownMenuItem onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}>
@@ -1057,7 +1067,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           {/* Servers Panel - Slide Animation */}
           <div className={cn(
             "shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
-            isServersPanelOpen ? "w-full sm:w-80" : "w-0 overflow-hidden"
+            isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
           <ServersPanel
