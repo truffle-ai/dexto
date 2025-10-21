@@ -314,7 +314,7 @@
     "isInstalled": false,
     "requirements": { "platform": "all", "python": ">=3.10" },
     "author": "HeyGen",
-    "homepage": "https://github.com/heygen-com/heygen-mcp?tab=readme-ov-file#installation",
+    "homepage": "https://github.com/heygen-com/heygen-mcp",
     "matchIds": ["heygen"]
   },
   {
@@ -462,5 +462,24 @@
     "author": "FrugalX",
     "homepage": "https://github.com/raglite/rag-lite-ts",
     "matchIds": ["rag-lite-ts"]
+  },
+  {
+    "id": "exa",
+    "name": "Exa",
+    "description": "Exa is a local-first TypeScript retrieval engine for semantic search over static documents.",
+    "category": "data",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.exa.ai/mcp",
+      "headers": {}
+    },
+    "tags": ["rag", "data", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Exa",
+    "homepage": "https://docs.exa.ai/reference/exa-mcp",
+    "matchIds": ["exa"]
   }
 ]
