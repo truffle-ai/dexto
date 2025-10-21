@@ -14,7 +14,7 @@ import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationH
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Menu, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -67,6 +67,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const [exportContent, setExportContent] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Enhanced features
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -457,6 +458,26 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       setIsRegistryBusy,
     ]);
 
+  // Helper to check if viewport is narrow (for panel exclusivity)
+  const isNarrowViewport = () => {
+    return typeof window !== 'undefined' && window.innerWidth < 1024;
+  };
+
+  // Smart panel handlers with exclusivity on narrow screens
+  const handleOpenSessionsPanel = useCallback(() => {
+    if (isNarrowViewport() && isServersPanelOpen) {
+      setServersPanelOpen(false); // Close tools panel if open
+    }
+    setSessionsPanelOpen(!isSessionsPanelOpen);
+  }, [isSessionsPanelOpen, isServersPanelOpen]);
+
+  const handleOpenServersPanel = useCallback(() => {
+    if (isNarrowViewport() && isSessionsPanelOpen) {
+      setSessionsPanelOpen(false); // Close sessions panel if open
+    }
+    setServersPanelOpen(!isServersPanelOpen);
+  }, [isServersPanelOpen, isSessionsPanelOpen]);
+
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
     
@@ -562,7 +583,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       // Ctrl/Cmd + H to toggle sessions panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'h') {
         e.preventDefault();
-        setSessionsPanelOpen(prev => !prev);
+        handleOpenSessionsPanel();
       }
       // Ctrl/Cmd + K to create new chat (return to welcome)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
@@ -572,7 +593,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       // Ctrl/Cmd + J to toggle tools/servers panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
         e.preventDefault();
-        setServersPanelOpen(prev => !prev);
+        handleOpenServersPanel();
       }
       // Ctrl/Cmd + M to toggle memory panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'm') {
@@ -622,14 +643,14 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen]);
+  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen, handleOpenSessionsPanel, handleOpenServersPanel, handleReturnToWelcome, handleDeleteConversation, processing, cancel, currentSessionId]);
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Left Sidebar - Chat History */}
+      {/* Left Sidebar - Chat History (Desktop only - inline) */}
       <div
         className={cn(
-          "shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
+          "hidden lg:block shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
           !isFirstRenderRef.current && "transition-all duration-300 ease-in-out",
           isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
         )}
@@ -647,6 +668,20 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             onNewChat={handleReturnToWelcome}
           />
         )}
+      </div>
+
+      {/* Chat History Panel - Mobile/Narrow (overlay) */}
+      <div className="lg:hidden">
+        <SessionPanel
+          isOpen={isSessionsPanelOpen}
+          onClose={() => setSessionsPanelOpen(false)}
+          currentSessionId={currentSessionId}
+          onSessionChange={handleSessionChange}
+          returnToWelcome={handleReturnToWelcome}
+          variant="overlay"
+          onSearchOpen={() => setSearchOpen(true)}
+          onNewChat={handleReturnToWelcome}
+        />
       </div>
 
       <main
@@ -672,7 +707,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSessionsPanelOpen(!isSessionsPanelOpen)}
+                    onClick={handleOpenSessionsPanel}
                     className={cn(
                       "h-8 w-8 p-0 transition-colors",
                       isSessionsPanelOpen && "bg-muted"
@@ -746,7 +781,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setServersPanelOpen(!isServersPanelOpen)}
+                    onClick={handleOpenServersPanel}
                     className={cn(
                       "h-8 w-8 p-0 transition-colors",
                       isServersPanelOpen && "bg-muted"
@@ -847,31 +882,40 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
               </DropdownMenu>
             </div>
 
-            {/* Right Section - Narrow screens (only overflow menu) */}
+            {/* Right Section - Narrow screens (hamburger menu) */}
             <div className="flex lg:hidden">
-              <DropdownMenu>
+              <DropdownMenu open={isMobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <Menu className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {/* All action buttons for narrow screens */}
-                  <DropdownMenuItem onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}>
+                  <DropdownMenuItem onClick={() => {
+                    setCustomizePanelOpen(!isCustomizePanelOpen);
+                    setMobileMenuOpen(false);
+                  }}>
                     <FileEditIcon className="h-4 w-4 mr-2" />
                     Customize Agent
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem onClick={() => setServersPanelOpen(!isServersPanelOpen)}>
+                  <DropdownMenuItem onClick={() => {
+                    handleOpenServersPanel();
+                    setMobileMenuOpen(false);
+                  }}>
                     <Wrench className="h-4 w-4 mr-2" />
                     Tools
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}>
+                  <DropdownMenuItem onClick={() => {
+                    setMemoryPanelOpen(!isMemoryPanelOpen);
+                    setMobileMenuOpen(false);
+                  }}>
                     <Brain className="h-4 w-4 mr-2" />
                     Memories
                   </DropdownMenuItem>
@@ -885,12 +929,16 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                       document.documentElement.classList.add('dark');
                       localStorage.setItem('theme', 'dark');
                     }
+                    setMobileMenuOpen(false);
                   }}>
                     <span className="h-4 w-4 mr-2">🌙</span>
                     Toggle Theme
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <DropdownMenuItem onClick={() => {
+                    setSettingsOpen(true);
+                    setMobileMenuOpen(false);
+                  }}>
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                   </DropdownMenuItem>
@@ -898,19 +946,31 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   <DropdownMenuSeparator />
 
                   {/* Always visible items */}
-                  <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
+                  <DropdownMenuItem onClick={() => {
+                    setServerRegistryOpen(true);
+                    setMobileMenuOpen(false);
+                  }}>
                     <Server className="h-4 w-4 mr-2" />
                     Connect MCPs
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/playground', '_blank')}>
+                  <DropdownMenuItem onClick={() => {
+                    window.open('/playground', '_blank');
+                    setMobileMenuOpen(false);
+                  }}>
                     <FlaskConical className="h-4 w-4 mr-2" />
                     MCP Playground
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setExportOpen(true)}>
+                  <DropdownMenuItem onClick={() => {
+                    setExportOpen(true);
+                    setMobileMenuOpen(false);
+                  }}>
                     <Download className="h-4 w-4 mr-2" />
                     Export Config
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowShortcuts(true)}>
+                  <DropdownMenuItem onClick={() => {
+                    setShowShortcuts(true);
+                    setMobileMenuOpen(false);
+                  }}>
                     <Keyboard className="h-4 w-4 mr-2" />
                     Shortcuts
                   </DropdownMenuItem>
@@ -919,7 +979,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() => setDeleteDialogOpen(true)}
+                        onClick={() => {
+                          setDeleteDialogOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
                         className="text-destructive focus:text-destructive"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />

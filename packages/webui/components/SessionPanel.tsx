@@ -11,10 +11,12 @@ import {
   AlertTriangle,
   RefreshCw,
   History,
-  Search
+  Search,
+  X
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface Session {
   id: string;
@@ -30,20 +32,20 @@ interface SessionPanelProps {
   currentSessionId?: string | null;
   onSessionChange: (sessionId: string) => void;
   returnToWelcome: () => void;
-  variant?: 'inline' | 'modal';
+  variant?: 'inline' | 'overlay';
   onSearchOpen?: () => void;
   onNewChat?: () => void;
 }
 
 import NewChatButton from './NewChatButton';
 
-export default function SessionPanel({ 
-  isOpen, 
-  onClose, 
+export default function SessionPanel({
+  isOpen,
+  onClose,
   currentSessionId,
   onSessionChange,
   returnToWelcome,
-  variant = 'modal',
+  variant = 'overlay',
   onSearchOpen,
   onNewChat,
 }: SessionPanelProps) {
@@ -335,6 +337,16 @@ export default function SessionPanel({
           {onNewChat && (
             <NewChatButton onClick={onNewChat} variant="outline" />
           )}
+          {variant === 'overlay' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-7 w-7 p-0"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -504,15 +516,22 @@ export default function SessionPanel({
     </div>
   );
 
-  if (variant === 'inline') {
-    return <div className="h-full">{content}</div>;
+  // For overlay variant, unmount if not open. Inline variant handles visibility via parent.
+  if (variant === 'overlay' && !isOpen) {
+    return null;
   }
 
+  // Determine wrapper classes based on variant
+  const overlayClass = cn(
+    "fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform transform flex flex-col",
+    isOpen ? "translate-x-0" : "-translate-x-full"
+  );
+  // Simplified for inline: parent div in ChatApp will handle width, border, shadow transitions.
+  const inlineClass = cn("h-full w-full flex flex-col bg-card");
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
-        {content}
-      </DialogContent>
-    </Dialog>
+    <aside className={variant === 'overlay' ? overlayClass : inlineClass}>
+      {content}
+    </aside>
   );
 } 
