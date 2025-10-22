@@ -523,12 +523,12 @@ export default function MessageList({ messages, processing = false, activeError,
             : "grid w-full grid-cols-[auto_1fr] gap-x-2 items-start",
         );
 
-        // Bubble styling: users and AI are speech bubbles; tools are full-width transient blocks
+        // Bubble styling: users and AI are speech bubbles; tools match AI width
         const bubbleSpecificClass = cn(
           msg.role === 'tool'
-            ? "w-full text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base"
+            ? "w-fit max-w-[90%] text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base overflow-hidden"
             : isUser
-            ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-words overflow-wrap-anywhere overflow-hidden"
             : isAi
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
@@ -566,8 +566,8 @@ export default function MessageList({ messages, processing = false, activeError,
                     : "col-start-2 justify-self-start items-start",
                 )}
               >
-                <div className={bubbleSpecificClass}>
-                  <div className={contentWrapperClass}>
+                <div className={cn(bubbleSpecificClass, "min-w-0")}>
+                  <div className={cn(contentWrapperClass, "min-w-0")}>
                   {/* Reasoning panel (assistant only) - display at top */}
                   {isAi && typeof msg.reasoning === 'string' && msg.reasoning.trim().length > 0 && (
                     <div className="mb-3 border border-orange-200/50 dark:border-orange-400/20 rounded-lg bg-gradient-to-br from-orange-50/30 to-amber-50/20 dark:from-orange-900/20 dark:to-amber-900/10">
@@ -616,7 +616,7 @@ export default function MessageList({ messages, processing = false, activeError,
                   )}
                   
                   {msg.toolName ? (
-                    <div className="p-2 rounded border border-border bg-muted/30 hover:bg-muted/60 cursor-pointer w-full" onClick={toggleManualExpansion}>
+                    <div className="p-2 rounded border border-border bg-muted/30 hover:bg-muted/60 cursor-pointer" onClick={toggleManualExpansion}>
                       <div className="flex items-center justify-between text-xs font-medium">
                         <span className="flex items-center">
                           {isExpanded ? (
@@ -1244,9 +1244,9 @@ function MessageContentWithResources({
   return (
     <div className="space-y-3">
       {hasText && (
-        <div className="relative">
+        <div className="relative min-w-0 overflow-hidden">
           {isUser ? (
-            <p className="text-base whitespace-pre-line break-normal">{cleanedText}</p>
+            <p className="text-base whitespace-pre-line break-words overflow-wrap-anywhere">{cleanedText}</p>
           ) : (
             <MarkdownText>{cleanedText}</MarkdownText>
           )}
