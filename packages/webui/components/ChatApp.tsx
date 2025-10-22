@@ -1060,7 +1060,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
-                      <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                      <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text">
                         {greeting || 'Welcome to Dexto'}
                       </h2>
                     </div>
