@@ -111,19 +111,23 @@ export function createBashExecTool(
                 },
             });
 
-            if (run_in_background) {
+            // Type guard: if result has 'stdout', it's a ProcessResult (foreground)
+            // Otherwise it's a ProcessHandle (background)
+            if ('stdout' in result) {
+                // Foreground execution result
+                return {
+                    stdout: result.stdout,
+                    stderr: result.stderr,
+                    exit_code: result.exitCode,
+                    duration: result.duration,
+                };
+            } else {
+                // Background execution handle
                 return {
                     process_id: result.processId,
                     message: `Command started in background with ID: ${result.processId}. Use bash_output to retrieve output.`,
                 };
             }
-
-            return {
-                stdout: result.stdout,
-                stderr: result.stderr,
-                exit_code: result.exitCode,
-                duration: result.duration,
-            };
         },
     };
 }

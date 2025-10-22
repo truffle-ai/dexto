@@ -23,14 +23,14 @@ export interface ExecuteOptions {
 }
 
 /**
- * Process execution result
+ * Process execution result (foreground execution only)
+ * For background execution, see ProcessHandle
  */
 export interface ProcessResult {
     stdout: string;
     stderr: string;
     exitCode: number;
     duration: number;
-    processId?: string; // Present if run in background
 }
 
 /**

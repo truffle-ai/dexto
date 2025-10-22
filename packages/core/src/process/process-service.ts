@@ -84,7 +84,10 @@ export class ProcessService {
     /**
      * Execute a command
      */
-    async executeCommand(command: string, options: ExecuteOptions = {}): Promise<ProcessResult> {
+    async executeCommand(
+        command: string,
+        options: ExecuteOptions = {}
+    ): Promise<ProcessResult | ProcessHandle> {
         if (!this.initialized) {
             throw ProcessError.notInitialized();
         }
@@ -120,8 +123,12 @@ export class ProcessService {
             logger.info(`Command approved: ${normalizedCommand}`);
         }
 
-        // Handle timeout
-        const timeout = Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout);
+        // Handle timeout - clamp to valid range to prevent negative/NaN/invalid values
+        const rawTimeout =
+            options.timeout !== undefined && Number.isFinite(options.timeout)
+                ? options.timeout
+                : DEFAULT_TIMEOUT;
+        const timeout = Math.max(1, Math.min(rawTimeout, this.config.maxTimeout));
 
         // Setup working directory
         const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
@@ -138,16 +145,9 @@ export class ProcessService {
             }
         }
 
-        // If running in background, delegate to background execution
+        // If running in background, return the process handle directly
         if (options.runInBackground) {
-            const handle = await this.executeInBackground(normalizedCommand, options);
-            return {
-                stdout: '',
-                stderr: '',
-                exitCode: 0,
-                duration: 0,
-                processId: handle.processId,
-            };
+            return await this.executeInBackground(normalizedCommand, options);
         }
 
         // Execute command in foreground
@@ -290,6 +290,29 @@ export class ProcessService {
             detached: false,
         });
 
+        // Enforce background timeout
+        const bgTimeout = Math.max(
+            1,
+            Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout)
+        );
+        const killTimer = setTimeout(() => {
+            if (bgProcess.status === 'running') {
+                logger.warn(
+                    `Background process ${processId} timed out after ${bgTimeout}ms, sending SIGTERM`
+                );
+                child.kill('SIGTERM');
+                // Escalate to SIGKILL if process doesn't terminate
+                setTimeout(() => {
+                    if (bgProcess.status === 'running') {
+                        logger.warn(
+                            `Background process ${processId} did not respond to SIGTERM, sending SIGKILL`
+                        );
+                        child.kill('SIGKILL');
+                    }
+                }, 5000);
+            }
+        }, bgTimeout);
+
         // Create output buffer
         const outputBuffer: OutputBuffer = {
             stdout: [],
@@ -311,11 +334,17 @@ export class ProcessService {
 
         this.backgroundProcesses.set(processId, bgProcess);
 
+        // Track buffer size in bytes for O(1) checks (avoids O(n²) from repeated getBufferSize calls)
+        let bufferBytes = 0;
+
         // Setup output collection with buffer limit
         child.stdout?.on('data', (data) => {
             const line = data.toString();
-            if (this.getBufferSize(outputBuffer) + line.length <= this.config.maxOutputBuffer) {
+            const chunkBytes = Buffer.byteLength(line, 'utf8');
+
+            if (bufferBytes + chunkBytes <= this.config.maxOutputBuffer) {
                 outputBuffer.stdout.push(line);
+                bufferBytes += chunkBytes;
             } else {
                 logger.warn(`Output buffer full for process ${processId}`);
             }
@@ -323,8 +352,11 @@ export class ProcessService {
 
         child.stderr?.on('data', (data) => {
             const line = data.toString();
-            if (this.getBufferSize(outputBuffer) + line.length <= this.config.maxOutputBuffer) {
+            const chunkBytes = Buffer.byteLength(line, 'utf8');
+
+            if (bufferBytes + chunkBytes <= this.config.maxOutputBuffer) {
                 outputBuffer.stderr.push(line);
+                bufferBytes += chunkBytes;
             } else {
                 logger.warn(`Error buffer full for process ${processId}`);
             }
@@ -332,6 +364,7 @@ export class ProcessService {
 
         // Handle completion
         child.on('close', (code) => {
+            clearTimeout(killTimer);
             bgProcess.status = code === 0 ? 'completed' : 'failed';
             bgProcess.exitCode = code ?? undefined;
             bgProcess.completedAt = new Date();
@@ -342,6 +375,7 @@ export class ProcessService {
 
         // Handle errors
         child.on('error', (error) => {
+            clearTimeout(killTimer);
             bgProcess.status = 'failed';
             bgProcess.completedAt = new Date();
             bgProcess.outputBuffer.complete = true;
