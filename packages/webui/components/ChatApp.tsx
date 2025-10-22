@@ -14,7 +14,7 @@ import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationH
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Menu, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Menu, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain, Zap } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -22,6 +22,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
+import { Switch } from './ui/switch';
 import Link from 'next/link';
 import { 
   DropdownMenu,
@@ -49,7 +50,7 @@ interface ChatAppProps {
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const router = useRouter();
   const [isMac, setIsMac] = useState(false);
-  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
+  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting, isStreaming, setStreaming } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -961,6 +962,24 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   }}>
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setStreaming(!isStreaming);
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <Zap className="h-4 w-4 mr-2" />
+                      Streaming
+                    </div>
+                    <Switch
+                      checked={isStreaming}
+                      onCheckedChange={setStreaming}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
