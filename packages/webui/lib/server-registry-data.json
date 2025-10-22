@@ -346,38 +346,6 @@
     "matchIds": ["runway"]
   },
   {
-    "id": "opensearch",
-    "name": "OpenSearch",
-    "description": "Enterprise search and analytics platform with ML Commons MCP server for data operations",
-    "category": "data",
-    "icon": "🔍",
-    "config": {
-      "type": "http",
-      "url": "https://your-opensearch-cluster.com/_plugins/_ml/mcp",
-      "headers": {
-        "Authorization": "Basic ${OPENSEARCH_CREDENTIALS}",
-        "Content-Type": "application/json"
-      },
-      "timeout": 30000
-    },
-    "tags": ["search", "analytics", "data", "ml", "enterprise", "opensearch"],
-    "isOfficial": true,
-    "isInstalled": false,
-    "requirements": { "platform": "all" },
-    "author": "OpenSearch",
-    "homepage": "https://docs.opensearch.org/latest/ml-commons-plugin/api/mcp-server-apis/",
-    "matchIds": ["opensearch", "elasticsearch"],
-    "capabilities": [
-      "search",
-      "analytics", 
-      "ml_inference",
-      "vector_search",
-      "anomaly_detection",
-      "forecasting"
-    ],
-    "transport": "streamable_http"
-  },
-  {
     "id": "perplexity",
     "name": "Perplexity",
     "description": "AI-powered search engine for real-time web search and research",
@@ -420,7 +388,7 @@
     "isOfficial": true,
     "isInstalled": false,
     "requirements": { "platform": "all", "node": ">=18.0.0" },
-    "author": "OpenAI",
+    "author": "Truffle AI",
     "homepage": "https://github.com/truffle-ai/mcp-servers",
     "matchIds": ["sora", "sora_video"]
   },
