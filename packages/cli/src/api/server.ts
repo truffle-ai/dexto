@@ -15,7 +15,7 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, Dexto, DextoAgent, getDexto } from '@dexto/core';
+import { createAgentCard, Dexto, DextoAgent } from '@dexto/core';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -151,8 +151,8 @@ export async function initializeApi(
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Use orchestrator to create new agent
-            newAgent = await getDexto().createAgent(agentId);
+            // Create new agent
+            newAgent = await Dexto.createAgent(agentId);
 
             // Register event subscribers with new agent before starting
             logger.info('Registering event subscribers with new agent...');
