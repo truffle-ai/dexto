@@ -4,11 +4,13 @@
  * Internal tool for executing shell commands (requires approval)
  */
 
+import * as path from 'node:path';
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { ProcessService } from '../../../process/index.js';
 import type { ApprovalManager } from '../../../approval/manager.js';
 import { ApprovalStatus } from '../../../approval/types.js';
+import { ProcessError } from '../../../process/errors.js';
 
 const BashExecInputSchema = z
     .object({
@@ -55,12 +57,37 @@ export function createBashExecTool(
             const { command, description, timeout, run_in_background, cwd } =
                 input as BashExecInput;
 
+            // Validate cwd to prevent path traversal
+            let validatedCwd: string | undefined = cwd;
+            if (cwd) {
+                const baseDir = processService.getConfig().workingDirectory || process.cwd();
+
+                // Resolve cwd to absolute path
+                const candidatePath = path.isAbsolute(cwd)
+                    ? path.resolve(cwd)
+                    : path.resolve(baseDir, cwd);
+
+                // Check if cwd is within the base directory
+                const relativePath = path.relative(baseDir, candidatePath);
+                const isOutsideBase =
+                    relativePath.startsWith('..') || path.isAbsolute(relativePath);
+
+                if (isOutsideBase) {
+                    throw ProcessError.invalidWorkingDirectory(
+                        cwd,
+                        `Working directory must be within ${baseDir}`
+                    );
+                }
+
+                validatedCwd = candidatePath;
+            }
+
             // Execute command using ProcessService with approval function for dangerous commands
             const result = await processService.executeCommand(command, {
                 description,
                 timeout,
                 runInBackground: run_in_background,
-                cwd,
+                cwd: validatedCwd,
                 // Provide approval function for dangerous commands
                 approvalFunction: async (normalizedCommand: string) => {
                     // Build metadata conditionally to avoid passing undefined (exactOptionalPropertyTypes)

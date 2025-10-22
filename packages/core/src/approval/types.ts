@@ -39,7 +39,8 @@ export enum ApprovalType {
 
     /**
      * Binary approval for dangerous commands within an already-approved tool
-     * Metadata contains: toolName, command, originalCommand, sessionId
+     * Metadata contains: toolName, command, originalCommand
+     * (sessionId is provided at the request level, not in metadata)
      */
     COMMAND_CONFIRMATION = 'command_confirmation',
 

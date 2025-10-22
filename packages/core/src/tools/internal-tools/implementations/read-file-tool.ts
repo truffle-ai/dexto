@@ -20,9 +20,9 @@ const ReadFileInputSchema = z
         offset: z
             .number()
             .int()
-            .min(0)
+            .min(1)
             .optional()
-            .describe('Starting line number (0-based, optional)'),
+            .describe('Starting line number (1-based, optional)'),
     })
     .strict();
 

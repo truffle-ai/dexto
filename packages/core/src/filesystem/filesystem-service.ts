@@ -124,7 +124,10 @@ export class FileSystemService {
             if ((error as NodeJS.ErrnoException).code === 'EACCES') {
                 throw FileSystemError.permissionDenied(normalizedPath, 'read');
             }
-            throw error;
+            throw FileSystemError.readFailed(
+                normalizedPath,
+                error instanceof Error ? error.message : String(error)
+            );
         }
 
         // Read file

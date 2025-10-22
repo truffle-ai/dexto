@@ -171,6 +171,7 @@ export class ProcessService {
             let stdout = '';
             let stderr = '';
             let killed = false;
+            let closed = false;
 
             logger.debug(`Executing command: ${command}`);
 
@@ -187,7 +188,8 @@ export class ProcessService {
                 killed = true;
                 child.kill('SIGTERM');
                 setTimeout(() => {
-                    if (!child.killed) {
+                    // If still not closed, force kill
+                    if (!closed && child.exitCode === null) {
                         child.kill('SIGKILL');
                     }
                 }, 5000); // Force kill after 5 seconds
@@ -205,6 +207,7 @@ export class ProcessService {
 
             // Handle completion
             child.on('close', (code, _signal) => {
+                closed = true;
                 clearTimeout(timeoutHandle);
                 const duration = Date.now() - startTime;
 
