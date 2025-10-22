@@ -442,9 +442,6 @@ export default function MessageList({ messages, processing = false, activeError,
 
   return (
     <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-3 sm:px-4 py-2 min-w-0 w-full">
-      {/* Render thinking indicator before messages when processing */}
-      {processing && <ThinkingIndicator />}
-
       {messages.map((msg, idx) => {
         const msgKey = msg.id ?? `msg-${idx}`;
         const isUser = msg.role === 'user';
@@ -544,10 +541,13 @@ export default function MessageList({ messages, processing = false, activeError,
 
         const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
 
-        // (Provider not available on Message type)
+        // Check if this is the last user message and we should show thinking after it
+        const isLastUserMessage = isUser && isLastMessage;
+        const showThinkingAfterThis = processing && isLastUserMessage;
 
         return (
-          <div key={msgKey} className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
+          <React.Fragment key={msgKey}>
+          <div className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
             <div className={messageContainerClass}>
               {isAi && (
                 <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-1" />
@@ -1121,6 +1121,9 @@ export default function MessageList({ messages, processing = false, activeError,
               </div>
             )}
           </div>
+          {/* Show thinking indicator right after last user message */}
+          {showThinkingAfterThis && <ThinkingIndicator />}
+          </React.Fragment>
         );
       })}
 
