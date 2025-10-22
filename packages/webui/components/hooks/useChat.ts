@@ -197,6 +197,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
             switch (msg.event) {
                 case 'chunk': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(true);
                     // All chunk types use payload.content
                     const text = typeof payload.content === 'string' ? payload.content : '';
                     if (!text) break;
