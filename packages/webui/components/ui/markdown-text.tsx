@@ -195,7 +195,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
         }
       });
     };
-  }, [blobUrls]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div

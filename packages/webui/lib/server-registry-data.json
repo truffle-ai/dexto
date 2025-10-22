@@ -421,7 +421,8 @@
     "config": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "raglite-mcp"]
+      "args": ["-y", "raglite-mcp"],
+      "timeout": 30000
     },
     "tags": ["rag", "data", "ai"],
     "isOfficial": true,
