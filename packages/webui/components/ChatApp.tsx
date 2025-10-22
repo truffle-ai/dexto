@@ -1017,7 +1017,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         </header>
         
         {/* Main Content Area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden min-w-0">
           {/* Toasts */}
           {successMessage && (
             <div className="fixed bottom-4 right-4 z-50 border border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-foreground px-3 py-2 rounded-md shadow-md inline-flex items-center gap-2">
@@ -1033,7 +1033,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           )}
           
           {/* Chat Content */}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 min-w-0">
             {isWelcomeState ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex flex-col justify-end sm:justify-center p-6 sm:-mt-20">
@@ -1106,10 +1106,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
               </div>
             ) : (
               /* Messages Area */
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <div ref={scrollContainerRef} className="h-full overflow-y-auto overflow-x-hidden overscroll-contain relative">
+              <div className="flex-1 min-h-0 overflow-hidden min-w-0">
+                <div ref={scrollContainerRef} className="h-full overflow-y-auto overflow-x-hidden overscroll-contain relative min-w-0">
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
-                  <div className="min-h-full grid grid-rows-[1fr_auto] min-w-0">
+                  <div className="min-h-full grid grid-cols-1 grid-rows-[1fr_auto] min-w-0">
                     <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-0 sm:mx-auto min-w-0">
                       <MessageList
                         messages={messages}
