@@ -46,6 +46,7 @@ export enum ErrorType {
     NOT_FOUND = 'not_found', // 404 - resource doesn't exist (session, file, etc.)
     FORBIDDEN = 'forbidden', // 403 - permission denied, unauthorized
     TIMEOUT = 'timeout', // 408 - operation timed out
+    CONFLICT = 'conflict', // 409 - resource conflict, concurrent operation
     RATE_LIMIT = 'rate_limit', // 429 - too many requests
     SYSTEM = 'system', // 500 - bugs, internal failures, unexpected states
     THIRD_PARTY = 'third_party', // 502 - upstream provider failures, API errors

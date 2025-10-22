@@ -7,6 +7,7 @@ await applyLayeredEnvironmentLoading();
 
 import { existsSync } from 'fs';
 import { createRequire } from 'module';
+import path from 'path';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
@@ -723,6 +724,7 @@ program
 
                 // ——— CREATE AGENT ———
                 let agent: DextoAgent;
+                let derivedAgentId: string;
                 try {
                     console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
 
@@ -744,6 +746,12 @@ program
 
                     // Start the agent (initialize async services)
                     await agent.start();
+
+                    // Derive a concise agent ID for display purposes (used by API/UI)
+                    // Prefer agentCard.name, otherwise extract from filename
+                    derivedAgentId =
+                        validatedConfig.agentCard?.name ||
+                        path.basename(resolvedPath, path.extname(resolvedPath));
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
@@ -848,7 +856,7 @@ program
                             agent,
                             apiPort,
                             agent.getEffectiveConfig().agentCard || {},
-                            opts.agent
+                            derivedAgentId
                         );
 
                         // Start Next.js web server
@@ -885,7 +893,7 @@ program
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                        await startApiServer(agent, apiPort, agentCard, opts.agent);
+                        await startApiServer(agent, apiPort, agentCard, derivedAgentId);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
                         console.log('  POST /api/message - Send async message');

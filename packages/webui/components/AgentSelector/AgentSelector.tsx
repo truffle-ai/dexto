@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -50,6 +51,7 @@ const RECENT_AGENTS_KEY = 'dexto:recentAgents';
 const MAX_RECENT_AGENTS = 5;
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
+  const router = useRouter();
   const { returnToWelcome } = useChatContext();
 
   const [installed, setInstalled] = useState<AgentItem[]>([]);
@@ -161,6 +163,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       }
       setCurrentId(agentId);
       setOpen(false); // Close dropdown after successful switch
+
+      // Refresh agent list and current path to reflect the switch
+      await loadAgents();
+
       try {
         window.dispatchEvent(
           new CustomEvent('dexto:agentSwitched', {
@@ -168,7 +174,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
           })
         );
       } catch {}
+
+      // Navigate back to home after switching agents
       returnToWelcome();
+      router.push('/');
     } catch (err) {
       console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to switch agent';
@@ -176,7 +185,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, installed]);
+  }, [returnToWelcome, installed, loadAgents, router]);
 
   const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
     try {
@@ -185,7 +194,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       const res = await fetch('/api/agents/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: agent.id }),
+        body: JSON.stringify({ id: agent.id, path: agent.path }),
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -194,6 +203,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       }
       setCurrentId(agent.id);
       setOpen(false); // Close dropdown after successful switch
+
+      // Refresh agent list and current path to reflect the switch
+      await loadAgents();
 
       // Add to recent agents
       addToRecentAgents(agent);
@@ -205,7 +217,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
           })
         );
       } catch {}
+
+      // Navigate back to home after switching agents
       returnToWelcome();
+      router.push('/');
     } catch (err) {
       console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to switch agent';
@@ -213,7 +228,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, addToRecentAgents]);
+  }, [returnToWelcome, addToRecentAgents, loadAgents, router]);
 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
