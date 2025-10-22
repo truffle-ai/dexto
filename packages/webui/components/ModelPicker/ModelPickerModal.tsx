@@ -601,6 +601,7 @@ export default function ModelPickerModal() {
                               variant="ghost"
                               onClick={() => deleteCustomModel(cm.name)}
                               className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              aria-label={`Delete custom model ${cm.name}`}
                             >
                               ×
                             </Button>
