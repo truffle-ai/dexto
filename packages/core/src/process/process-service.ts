@@ -6,6 +6,7 @@
 
 import { spawn, ChildProcess } from 'node:child_process';
 import * as crypto from 'node:crypto';
+import * as path from 'node:path';
 import {
     ProcessConfig,
     ExecuteOptions,
@@ -131,7 +132,7 @@ export class ProcessService {
         const timeout = Math.max(1, Math.min(rawTimeout, this.config.maxTimeout));
 
         // Setup working directory
-        const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
+        const cwd: string = this.resolveSafeCwd(options.cwd);
 
         // Setup environment - filter out undefined values
         const env: Record<string, string> = {};
@@ -180,7 +181,6 @@ export class ProcessService {
                 cwd: options.cwd,
                 env: options.env,
                 shell: true,
-                timeout: options.timeout,
             });
 
             // Setup timeout
@@ -266,7 +266,7 @@ export class ProcessService {
         const processId = crypto.randomBytes(4).toString('hex');
 
         // Setup working directory
-        const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
+        const cwd: string = this.resolveSafeCwd(options.cwd);
 
         // Setup environment - filter out undefined values
         const env: Record<string, string> = {};
@@ -319,6 +319,8 @@ export class ProcessService {
             stderr: [],
             complete: false,
             lastRead: Date.now(),
+            bytesUsed: 0,
+            truncated: false,
         };
 
         // Track background process
@@ -334,31 +336,36 @@ export class ProcessService {
 
         this.backgroundProcesses.set(processId, bgProcess);
 
-        // Track buffer size in bytes for O(1) checks (avoids O(n²) from repeated getBufferSize calls)
-        let bufferBytes = 0;
+        // bytesUsed is kept on outputBuffer for correct accounting across reads
 
         // Setup output collection with buffer limit
         child.stdout?.on('data', (data) => {
-            const line = data.toString();
-            const chunkBytes = Buffer.byteLength(line, 'utf8');
+            const chunk = data.toString();
+            const chunkBytes = Buffer.byteLength(chunk, 'utf8');
 
-            if (bufferBytes + chunkBytes <= this.config.maxOutputBuffer) {
-                outputBuffer.stdout.push(line);
-                bufferBytes += chunkBytes;
+            if (outputBuffer.bytesUsed + chunkBytes <= this.config.maxOutputBuffer) {
+                outputBuffer.stdout.push(chunk);
+                outputBuffer.bytesUsed += chunkBytes;
             } else {
-                logger.warn(`Output buffer full for process ${processId}`);
+                if (!outputBuffer.truncated) {
+                    outputBuffer.truncated = true;
+                    logger.warn(`Output buffer full for process ${processId}`);
+                }
             }
         });
 
         child.stderr?.on('data', (data) => {
-            const line = data.toString();
-            const chunkBytes = Buffer.byteLength(line, 'utf8');
+            const chunk = data.toString();
+            const chunkBytes = Buffer.byteLength(chunk, 'utf8');
 
-            if (bufferBytes + chunkBytes <= this.config.maxOutputBuffer) {
-                outputBuffer.stderr.push(line);
-                bufferBytes += chunkBytes;
+            if (outputBuffer.bytesUsed + chunkBytes <= this.config.maxOutputBuffer) {
+                outputBuffer.stderr.push(chunk);
+                outputBuffer.bytesUsed += chunkBytes;
             } else {
-                logger.warn(`Error buffer full for process ${processId}`);
+                if (!outputBuffer.truncated) {
+                    outputBuffer.truncated = true;
+                    logger.warn(`Error buffer full for process ${processId}`);
+                }
             }
         });
 
@@ -410,10 +417,11 @@ export class ProcessService {
         const stdout = bgProcess.outputBuffer.stdout.join('');
         const stderr = bgProcess.outputBuffer.stderr.join('');
 
-        // Clear the buffer (data has been read)
+        // Clear the buffer (data has been read) and reset byte counter
         bgProcess.outputBuffer.stdout = [];
         bgProcess.outputBuffer.stderr = [];
         bgProcess.outputBuffer.lastRead = Date.now();
+        bgProcess.outputBuffer.bytesUsed = 0;
 
         return {
             stdout,
@@ -501,6 +509,24 @@ export class ProcessService {
      */
     getConfig(): Readonly<ProcessConfig> {
         return { ...this.config };
+    }
+
+    /**
+     * Resolve and confine cwd to the configured working directory
+     */
+    private resolveSafeCwd(cwd?: string): string {
+        const baseDir = this.config.workingDirectory || process.cwd();
+        if (!cwd) return baseDir;
+        const candidate = path.isAbsolute(cwd) ? path.resolve(cwd) : path.resolve(baseDir, cwd);
+        const rel = path.relative(baseDir, candidate);
+        const outside = rel.startsWith('..') || path.isAbsolute(rel);
+        if (outside) {
+            throw ProcessError.invalidWorkingDirectory(
+                cwd,
+                `Working directory must be within ${baseDir}`
+            );
+        }
+        return candidate;
     }
 
     /**

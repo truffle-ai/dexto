@@ -109,4 +109,6 @@ export interface OutputBuffer {
     stderr: string[];
     complete: boolean;
     lastRead: number; // Timestamp of last read
+    bytesUsed: number; // Running byte count for O(1) limit checks
+    truncated?: boolean; // True if content was dropped due to limits
 }
