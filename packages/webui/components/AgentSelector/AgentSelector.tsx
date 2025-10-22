@@ -28,9 +28,26 @@ type AgentsResponse = {
   current: { id: string | null; name: string | null };
 };
 
+type AgentPath = {
+  path: string;
+  name: string;
+  relativePath: string;
+  isDefault: boolean;
+};
+
+type RecentAgent = {
+  id: string;
+  name: string;
+  path: string;
+  lastUsed: number;
+};
+
 type AgentSelectorProps = {
   mode?: 'default' | 'badge' | 'title';
 };
+
+const RECENT_AGENTS_KEY = 'dexto:recentAgents';
+const MAX_RECENT_AGENTS = 5;
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
   const { returnToWelcome } = useChatContext();
@@ -38,30 +55,89 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const [installed, setInstalled] = useState<AgentItem[]>([]);
   const [available, setAvailable] = useState<AgentItem[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [currentAgentPath, setCurrentAgentPath] = useState<AgentPath | null>(null);
+  const [recentAgents, setRecentAgents] = useState<RecentAgent[]>([]);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
+  // Load recent agents from localStorage
+  const loadRecentAgents = useCallback((): RecentAgent[] => {
+    try {
+      const stored = localStorage.getItem(RECENT_AGENTS_KEY);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored) as RecentAgent[];
+      // Sort by lastUsed descending
+      return parsed.sort((a, b) => b.lastUsed - a.lastUsed).slice(0, MAX_RECENT_AGENTS);
+    } catch (err) {
+      console.error('Failed to load recent agents:', err);
+      return [];
+    }
+  }, []);
+
+  // Save agent to recent list
+  const addToRecentAgents = useCallback((agent: { id: string; name: string; path: string }) => {
+    try {
+      const recent = loadRecentAgents();
+      // Remove existing entry if present
+      const filtered = recent.filter(a => a.path !== agent.path);
+      // Add to front
+      const updated: RecentAgent[] = [
+        { ...agent, lastUsed: Date.now() },
+        ...filtered
+      ].slice(0, MAX_RECENT_AGENTS);
+
+      localStorage.setItem(RECENT_AGENTS_KEY, JSON.stringify(updated));
+      setRecentAgents(updated);
+    } catch (err) {
+      console.error('Failed to save recent agent:', err);
+    }
+  }, [loadRecentAgents]);
+
   const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
     try {
+      // Fetch agents list
       const res = await fetch('/api/agents');
       if (!res.ok) throw new Error('Failed to fetch agents');
       const data: AgentsResponse = await res.json();
       setInstalled(data.installed || []);
       setAvailable(data.available || []);
       setCurrentId(data.current.id);
+
+      // Fetch current agent path
+      try {
+        const pathRes = await fetch('/api/agent/path');
+        if (pathRes.ok) {
+          const pathData: AgentPath = await pathRes.json();
+          setCurrentAgentPath(pathData);
+          // Add current agent to recent list
+          if (pathData.path && pathData.name) {
+            addToRecentAgents({
+              id: pathData.name,
+              name: pathData.name,
+              path: pathData.path
+            });
+          }
+        }
+      } catch (pathErr) {
+        console.error('Failed to fetch agent path:', pathErr);
+      }
+
       return data;
     } catch (err) {
       console.error(`AgentSelector load error: ${err}`);
       return null;
     }
-  }, []);
+  }, [addToRecentAgents]);
 
   useEffect(() => {
     setLoading(true);
+    // Load recent agents from localStorage
+    setRecentAgents(loadRecentAgents());
+    // Load agents from API
     loadAgents().finally(() => setLoading(false));
-  }, [loadAgents]);
+  }, [loadAgents, loadRecentAgents]);
 
   const handleSwitch = useCallback(async (agentId: string) => {
     try {
@@ -101,6 +177,43 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       setSwitching(false);
     }
   }, [returnToWelcome, installed]);
+
+  const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
+    try {
+      setSwitching(true);
+
+      const res = await fetch('/api/agents/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: agent.id }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
+        throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
+      }
+      setCurrentId(agent.id);
+      setOpen(false); // Close dropdown after successful switch
+
+      // Add to recent agents
+      addToRecentAgents(agent);
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('dexto:agentSwitched', {
+            detail: { id: agent.id, name: agent.name },
+          })
+        );
+      } catch {}
+      returnToWelcome();
+    } catch (err) {
+      console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to switch agent';
+      alert(`Failed to switch agent: ${errorMessage}`);
+    } finally {
+      setSwitching(false);
+    }
+  }, [returnToWelcome, addToRecentAgents]);
 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
@@ -256,6 +369,74 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 <span className="font-semibold text-purple-600 dark:text-purple-400">New Agent</span>
               </div>
             </DropdownMenuItem>
+
+            {/* Current Agent (if loaded from file and not in installed list) */}
+            {currentAgentPath && !installed.some(a => a.id === currentAgentPath.name) && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
+                  Currently Active
+                </div>
+                <DropdownMenuItem
+                  onClick={() => handleSwitchToPath({
+                    id: currentAgentPath.name,
+                    name: currentAgentPath.name,
+                    path: currentAgentPath.path
+                  })}
+                  disabled={switching || currentId === currentAgentPath.name}
+                  className="cursor-pointer py-3"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm truncate">{currentAgentPath.name}</span>
+                        {currentId === currentAgentPath.name && (
+                          <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        Loaded from file
+                      </p>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+
+            {/* Recent Agents */}
+            {recentAgents.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Recent
+                </div>
+                {recentAgents
+                  .filter(ra => !installed.some(a => a.id === ra.id) && ra.id !== currentAgentPath?.name)
+                  .slice(0, 3)
+                  .map((agent) => (
+                    <DropdownMenuItem
+                      key={agent.path}
+                      onClick={() => handleSwitchToPath(agent)}
+                      disabled={switching || agent.id === currentId}
+                      className="cursor-pointer py-3"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{agent.name}</span>
+                            {agent.id === currentId && (
+                              <Check className="w-4 h-4 text-green-600 flex-shrink-0 animate-in fade-in duration-200" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate" title={agent.path}>
+                            {agent.path}
+                          </p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
 
             {/* Installed Custom Agents */}
             {installed.filter((a) => a.type === 'custom').length > 0 && (
