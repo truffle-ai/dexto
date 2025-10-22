@@ -446,7 +446,7 @@ export default function ModelPickerModal() {
           <DialogHeader className="pb-4 flex-shrink-0">
             <DialogTitle className="text-xl">Select Model</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Choose from your favorite models or explore all available options
+              Choose your favorite model, check all models, or add your own model
             </DialogDescription>
           </DialogHeader>
 
