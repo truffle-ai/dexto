@@ -943,13 +943,11 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
                   <DropdownMenuItem onClick={() => {
                     const isDark = document.documentElement.classList.contains('dark');
-                    if (isDark) {
-                      document.documentElement.classList.remove('dark');
-                      localStorage.setItem('theme', 'light');
-                    } else {
-                      document.documentElement.classList.add('dark');
-                      localStorage.setItem('theme', 'dark');
-                    }
+                    const next = isDark ? 'light' : 'dark';
+                    document.documentElement.classList.toggle('dark', next === 'dark');
+                    localStorage.setItem('theme', next);
+                    // Keep SSR in sync with client theme to avoid hydration mismatch
+                    document.cookie = `theme=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
                     setMobileMenuOpen(false);
                   }}>
                     <span className="h-4 w-4 mr-2">🌙</span>

@@ -353,7 +353,7 @@ export default function SessionPanel({
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-border/50">
         <div className="flex items-center space-x-2">
-          <h2 className="text-base font-semibold">Chat History</h2>
+          <h2 id="sessionpanel-title" className="text-base font-semibold">Chat History</h2>
         </div>
         <div className="flex items-center space-x-1">
           {onSearchOpen && (
@@ -383,6 +383,7 @@ export default function SessionPanel({
               size="sm"
               onClick={onClose}
               className="h-7 w-7 p-0"
+              aria-label="Close panel"
             >
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -575,6 +576,10 @@ export default function SessionPanel({
 
       {/* Panel */}
       <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sessionpanel-title"
+        tabIndex={-1}
         className={cn(
           "fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col",
           isOpen ? "translate-x-0" : "-translate-x-full"

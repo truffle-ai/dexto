@@ -258,8 +258,14 @@ export default function ModelPickerModal() {
     const newModel: CustomModelStorage = {
       name: name.trim(),
       baseURL: baseURL.trim(),
-      maxInputTokens: maxInputTokens ? parseInt(maxInputTokens, 10) : undefined,
-      maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens, 10) : undefined,
+      maxInputTokens: maxInputTokens ? (() => {
+        const parsed = parseInt(maxInputTokens, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })() : undefined,
+      maxOutputTokens: maxOutputTokens ? (() => {
+        const parsed = parseInt(maxOutputTokens, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })() : undefined,
     };
 
     const updated = [...customModels, newModel];
