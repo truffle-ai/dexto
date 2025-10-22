@@ -55,6 +55,7 @@ import { InlineApprovalCard } from './InlineApprovalCard';
 
 interface MessageListProps {
   messages: Message[];
+  processing?: boolean;
   activeError?: ErrorMessage | null;
   onDismissError?: () => void;
   pendingApproval?: ApprovalEvent | null;
@@ -296,7 +297,7 @@ function ThinkingIndicator() {
   );
 }
 
-export default function MessageList({ messages, activeError, onDismissError, outerRef, pendingApproval, onApprovalApprove, onApprovalDeny }: MessageListProps) {
+export default function MessageList({ messages, processing = false, activeError, onDismissError, outerRef, pendingApproval, onApprovalApprove, onApprovalDeny }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
@@ -446,8 +447,6 @@ export default function MessageList({ messages, activeError, onDismissError, out
         const isUser = msg.role === 'user';
         const isAi = msg.role === 'assistant';
         const isSystem = msg.role === 'system';
-        const isThinkingMessage =
-          isSystem && typeof msg.content === 'string' && msg.content.trim().toLowerCase().startsWith('dexto is thinking');
 
         const isLastMessage = idx === messages.length - 1;
         const isToolCall = !!(msg.toolName && msg.toolArgs);
@@ -533,9 +532,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
             : isAi
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
-            ? isThinkingMessage
-              ? "p-1.5 shadow-none w-full bg-transparent text-xs text-muted-foreground text-center border-none"
-              : "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
+            ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
         );
 
@@ -739,17 +736,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
                         <div className="relative">
-                          {isThinkingMessage ? (
-                            <ThinkingIndicator />
-                          ) : (
-                            <MessageContentWithResources
-                              key={`${msgKey}-text-content`}
-                              text={msg.content}
-                              isUser={isUser}
-                              onOpenImage={openImageModal}
-                              resourceSet={resourceSet}
-                            />
-                          )}
+                          <MessageContentWithResources
+                            key={`${msgKey}-text-content`}
+                            text={msg.content}
+                            isUser={isUser}
+                            onOpenImage={openImageModal}
+                            resourceSet={resourceSet}
+                          />
                         </div>
                       )}
 
@@ -1127,6 +1120,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
           </div>
         );
       })}
+
+      {/* Render thinking indicator when processing */}
+      {processing && <ThinkingIndicator />}
 
       {/* Render pending approval as inline message */}
       {pendingApproval && onApprovalApprove && onApprovalDeny && (

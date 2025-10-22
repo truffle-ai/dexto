@@ -30,7 +30,8 @@ interface ServersPanelProps {
 
 const API_BASE_URL = '/api'; // Assuming Next.js API routes
 
-export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant = 'overlay', refreshTrigger }: ServersPanelProps) {
+export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant: variantProp, refreshTrigger }: ServersPanelProps) {
+  const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -362,16 +363,6 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isLoadingServers && "animate-spin")} />
           </Button>
-          {variant === 'overlay' && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onClose} 
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          )}
         </div>
       </div>
 

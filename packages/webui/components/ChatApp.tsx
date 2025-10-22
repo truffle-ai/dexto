@@ -1132,6 +1132,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-0 sm:mx-auto min-w-0">
                       <MessageList
                         messages={messages}
+                        processing={processing}
                         activeError={activeError}
                         onDismissError={clearError}
                         outerRef={listContentRef}
