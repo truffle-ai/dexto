@@ -1,4 +1,18 @@
 # describes the mcp servers to use
+mcpServers:
+  filesystem:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
+  playwright:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@playwright/mcp@latest"
 
 # System prompt configuration - defines the agent's behavior and instructions
 systemPrompt:
@@ -27,7 +41,7 @@ systemPrompt:
         pinnedOnly: false
 
 # Optional greeting shown at chat start (UI can consume this)
-greeting: "Hi! I’m Dexto — how can I help today?"
+greeting: "Hi! I'm Dexto — how can I help today?"
 
 # LLM configuration - describes the language model to use
 llm:
@@ -70,15 +84,7 @@ toolConfirmation:
 
 # Internal tools - built-in Dexto capabilities
 internalTools:
-  - ask_user       # Allows the agent to ask you questions and collect structured input
-  - read_file      # Read file contents with pagination support
-  - glob_files     # Find files using glob patterns (e.g., "**/*.ts")
-  - grep_content   # Search file contents using regex patterns
-  - write_file     # Write content to files (requires approval)
-  - edit_file      # Edit files by replacing text (requires approval)
-  - bash_exec      # Execute shell commands (requires approval)
-  - bash_output    # Retrieve output from background processes
-  - kill_process   # Terminate background processes
+  - ask_user  # Allows the agent to ask you questions and collect structured input
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above
