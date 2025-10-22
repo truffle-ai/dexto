@@ -293,29 +293,6 @@ export class ProcessService {
             detached: false,
         });
 
-        // Enforce background timeout
-        const bgTimeout = Math.max(
-            1,
-            Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout)
-        );
-        const killTimer = setTimeout(() => {
-            if (bgProcess.status === 'running') {
-                logger.warn(
-                    `Background process ${processId} timed out after ${bgTimeout}ms, sending SIGTERM`
-                );
-                child.kill('SIGTERM');
-                // Escalate to SIGKILL if process doesn't terminate
-                setTimeout(() => {
-                    if (bgProcess.status === 'running') {
-                        logger.warn(
-                            `Background process ${processId} did not respond to SIGTERM, sending SIGKILL`
-                        );
-                        child.kill('SIGKILL');
-                    }
-                }, 5000);
-            }
-        }, bgTimeout);
-
         // Create output buffer
         const outputBuffer: OutputBuffer = {
             stdout: [],
@@ -338,6 +315,29 @@ export class ProcessService {
         };
 
         this.backgroundProcesses.set(processId, bgProcess);
+
+        // Enforce background timeout
+        const bgTimeout = Math.max(
+            1,
+            Math.min(options.timeout || DEFAULT_TIMEOUT, this.config.maxTimeout)
+        );
+        const killTimer = setTimeout(() => {
+            if (bgProcess.status === 'running') {
+                logger.warn(
+                    `Background process ${processId} timed out after ${bgTimeout}ms, sending SIGTERM`
+                );
+                child.kill('SIGTERM');
+                // Escalate to SIGKILL if process doesn't terminate
+                setTimeout(() => {
+                    if (bgProcess.status === 'running') {
+                        logger.warn(
+                            `Background process ${processId} did not respond to SIGTERM, sending SIGKILL`
+                        );
+                        child.kill('SIGKILL');
+                    }
+                }, 5000);
+            }
+        }, bgTimeout);
 
         // bytesUsed is kept on outputBuffer for correct accounting across reads
 
@@ -476,11 +476,7 @@ export class ProcessService {
                 }
             }, 5000);
 
-            bgProcess.status = 'failed';
-            bgProcess.completedAt = new Date();
-            bgProcess.outputBuffer.complete = true;
-
-            logger.debug(`Process ${processId} killed`);
+            logger.debug(`Process ${processId} sent SIGTERM`);
         } catch (error) {
             throw ProcessError.killFailed(
                 processId,
