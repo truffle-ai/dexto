@@ -442,6 +442,9 @@ export default function MessageList({ messages, processing = false, activeError,
 
   return (
     <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-3 sm:px-4 py-2 min-w-0 w-full">
+      {/* Render thinking indicator before messages when processing */}
+      {processing && <ThinkingIndicator />}
+
       {messages.map((msg, idx) => {
         const msgKey = msg.id ?? `msg-${idx}`;
         const isUser = msg.role === 'user';
@@ -1120,9 +1123,6 @@ export default function MessageList({ messages, processing = false, activeError,
           </div>
         );
       })}
-
-      {/* Render thinking indicator when processing */}
-      {processing && <ThinkingIndicator />}
 
       {/* Render pending approval as inline message */}
       {pendingApproval && onApprovalApprove && onApprovalDeny && (
