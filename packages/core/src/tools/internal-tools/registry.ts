@@ -13,6 +13,7 @@ import { createEditFileTool } from './implementations/edit-file-tool.js';
 import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
+import type { KnownInternalTool } from './constants.js';
 
 /**
  * Services available to internal tools
@@ -33,28 +34,6 @@ export interface InternalToolsServices {
  * Internal tool factory function type
  */
 type InternalToolFactory = (services: InternalToolsServices) => InternalTool;
-
-/**
- * Internal tool names - Manual array preserves literal types for z.enum()
- * Add new tool names here first, then implement in registry below
- */
-export const INTERNAL_TOOL_NAMES = [
-    'search_history',
-    'ask_user',
-    'read_file',
-    'glob_files',
-    'grep_content',
-    'write_file',
-    'edit_file',
-    'bash_exec',
-    'bash_output',
-    'kill_process',
-] as const;
-
-/**
- * Derive type from names array - preserves literal union
- */
-export type KnownInternalTool = (typeof INTERNAL_TOOL_NAMES)[number];
 
 /**
  * Internal tool registry - Must match names array exactly (TypeScript enforces this)

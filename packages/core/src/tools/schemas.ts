@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { INTERNAL_TOOL_NAMES } from './internal-tools/registry.js';
+import { INTERNAL_TOOL_NAMES } from './internal-tools/constants.js';
 
 export const TOOL_CONFIRMATION_MODES = ['event-based', 'auto-approve', 'auto-deny'] as const;
 export type ToolConfirmationMode = (typeof TOOL_CONFIRMATION_MODES)[number];
