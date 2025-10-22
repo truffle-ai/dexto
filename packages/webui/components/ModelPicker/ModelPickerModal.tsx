@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ApiKeyModal } from "../ApiKeyModal";
 import { useChatContext } from "../hooks/ChatContext";
-import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle, Plus } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
 import { FAVORITES_STORAGE_KEY, CUSTOM_MODELS_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, CustomModelStorage, favKey, validateBaseURL } from "./types";
@@ -496,7 +496,7 @@ export default function ModelPickerModal() {
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   )}
                 >
-                  <Bot className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   Custom
                   {customModels.length > 0 && (
                     <span className="text-xs opacity-70">({customModels.length})</span>
@@ -563,54 +563,135 @@ export default function ModelPickerModal() {
                 )
               ) : activeTab === 'custom' ? (
                 // Custom Models tab
-                customModels.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-                    <Bot className="h-12 w-12 text-muted-foreground/40" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">No custom models yet</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Add your local LLMs or custom endpoints below
-                      </p>
+                <div className="space-y-4 pb-2">
+                  {/* Custom models list */}
+                  {customModels.length > 0 && (
+                    <div className="space-y-2">
+                      {customModels.map((cm) => (
+                        <div
+                          key={cm.name}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{cm.name}</span>
+                              <span className="text-xs text-muted-foreground">openai-compatible</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate mt-0.5">
+                              {cm.baseURL}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onPickCustomModel(cm)}
+                              className="h-8 px-3"
+                            >
+                              Use
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteCustomModel(cm.name)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2 pb-2">
-                    {customModels.map((cm) => (
-                      <div
-                        key={cm.name}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{cm.name}</span>
-                            <span className="text-xs text-muted-foreground">openai-compatible</span>
+                  )}
+
+                  {/* Add Custom Model Form */}
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowCustomModelForm(!showCustomModelForm)}
+                      className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
+                    >
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {customModels.length === 0 ? 'Add your first custom model' : 'Add another model'}
+                      </span>
+                      {showCustomModelForm ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                    {showCustomModelForm && (
+                      <div className="space-y-4 pl-4 border-l-2 border-muted">
+                        <div className="space-y-2">
+                          <LabelWithTooltip
+                            htmlFor="custom-model-name"
+                            tooltip="Model identifier (e.g., llama3, mixtral, gpt-4)"
+                          >
+                            Model Name *
+                          </LabelWithTooltip>
+                          <Input
+                            id="custom-model-name"
+                            value={customModelForm.name}
+                            onChange={(e) => setCustomModelForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="e.g., llama3"
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <LabelWithTooltip
+                            htmlFor="custom-base-url"
+                            tooltip="OpenAI-compatible endpoint URL. Must include /v1 path (e.g., http://localhost:1234/v1)"
+                          >
+                            Base URL *
+                          </LabelWithTooltip>
+                          <Input
+                            id="custom-base-url"
+                            value={customModelForm.baseURL}
+                            onChange={(e) => setCustomModelForm(prev => ({ ...prev, baseURL: e.target.value }))}
+                            placeholder="http://localhost:1234/v1"
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <LabelWithTooltip
+                              htmlFor="custom-max-input"
+                              tooltip="Maximum input tokens to send to the model. Defaults to 128,000 if not specified"
+                            >
+                              Max Input Tokens
+                            </LabelWithTooltip>
+                            <Input
+                              id="custom-max-input"
+                              type="number"
+                              value={customModelForm.maxInputTokens}
+                              onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxInputTokens: e.target.value }))}
+                              placeholder="128000"
+                              className="text-sm"
+                              min="1"
+                            />
                           </div>
-                          <div className="text-xs text-muted-foreground truncate mt-0.5">
-                            {cm.baseURL}
+                          <div className="space-y-2">
+                            <LabelWithTooltip
+                              htmlFor="custom-max-output"
+                              tooltip="Maximum output tokens the model can generate. Uses provider's default if not specified"
+                            >
+                              Max Output Tokens
+                            </LabelWithTooltip>
+                            <Input
+                              id="custom-max-output"
+                              type="number"
+                              value={customModelForm.maxOutputTokens}
+                              onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxOutputTokens: e.target.value }))}
+                              placeholder="Auto"
+                              className="text-sm"
+                              min="1"
+                            />
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onPickCustomModel(cm)}
-                            className="h-8 px-3"
-                          >
-                            Use
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteCustomModel(cm.name)}
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          >
-                            ×
-                          </Button>
-                        </div>
+                        <Button onClick={addCustomModel} size="sm" className="w-full">
+                          Add Model
+                        </Button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )
+                </div>
               ) : (
                 // All Models tab
                 <div className="space-y-6 pb-2">
@@ -635,92 +716,6 @@ export default function ModelPickerModal() {
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* Add Custom Model */}
-          <div className="flex-shrink-0 space-y-3 border-t pt-4 mt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCustomModelForm(!showCustomModelForm)}
-              className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
-            >
-              <span className="text-sm font-medium text-muted-foreground">Add Custom Model</span>
-              {showCustomModelForm ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            {showCustomModelForm && (
-              <div className="space-y-4 pl-4 border-l-2 border-muted">
-                <div className="space-y-2">
-                  <LabelWithTooltip
-                    htmlFor="custom-model-name"
-                    tooltip="Model identifier (e.g., llama3, mixtral, gpt-4)"
-                  >
-                    Model Name *
-                  </LabelWithTooltip>
-                  <Input
-                    id="custom-model-name"
-                    value={customModelForm.name}
-                    onChange={(e) => setCustomModelForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., llama3"
-                    className="text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <LabelWithTooltip
-                    htmlFor="custom-base-url"
-                    tooltip="OpenAI-compatible endpoint URL. Must include /v1 path (e.g., http://localhost:1234/v1)"
-                  >
-                    Base URL *
-                  </LabelWithTooltip>
-                  <Input
-                    id="custom-base-url"
-                    value={customModelForm.baseURL}
-                    onChange={(e) => setCustomModelForm(prev => ({ ...prev, baseURL: e.target.value }))}
-                    placeholder="http://localhost:1234/v1"
-                    className="text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <LabelWithTooltip
-                      htmlFor="custom-max-input"
-                      tooltip="Maximum input tokens to send to the model. Defaults to 128,000 if not specified"
-                    >
-                      Max Input Tokens
-                    </LabelWithTooltip>
-                    <Input
-                      id="custom-max-input"
-                      type="number"
-                      value={customModelForm.maxInputTokens}
-                      onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxInputTokens: e.target.value }))}
-                      placeholder="128000"
-                      className="text-sm"
-                      min="1"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <LabelWithTooltip
-                      htmlFor="custom-max-output"
-                      tooltip="Maximum output tokens the model can generate. Uses provider's default if not specified"
-                    >
-                      Max Output Tokens
-                    </LabelWithTooltip>
-                    <Input
-                      id="custom-max-output"
-                      type="number"
-                      value={customModelForm.maxOutputTokens}
-                      onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxOutputTokens: e.target.value }))}
-                      placeholder="Auto"
-                      className="text-sm"
-                      min="1"
-                    />
-                  </div>
-                </div>
-                <Button onClick={addCustomModel} size="sm" className="w-full">
-                  Add Model
-                </Button>
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>
