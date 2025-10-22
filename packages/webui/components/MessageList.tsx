@@ -440,7 +440,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
   };
 
   return (
-    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-3 sm:px-4 py-2">
+    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-3 sm:px-4 py-2 min-w-0 w-full">
       {messages.map((msg, idx) => {
         const msgKey = msg.id ?? `msg-${idx}`;
         const isUser = msg.role === 'user';
@@ -531,7 +531,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
             : isUser
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-normal hyphens-none"
             : isAi
-            ? "p-3 rounded-xl shadow-sm w-fit max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
+            ? "p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
             ? isThinkingMessage
               ? "p-1.5 shadow-none w-full bg-transparent text-xs text-muted-foreground text-center border-none"
@@ -558,7 +558,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
 
               <div
                 className={cn(
-                  "flex flex-col group w-full",
+                  "flex flex-col group w-full min-w-0",
                   isSystem
                     ? "col-span-2 items-center"
                     : isUser
@@ -935,8 +935,8 @@ export default function MessageList({ messages, activeError, onDismissError, out
                 </div>
               </div>
               {!isSystem && !isToolRelated && (
-                <div className="text-xs text-muted-foreground mt-1 px-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="text-xs text-muted-foreground mt-1 px-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span>{timestampStr}</span>
                   {isAi && msg.tokenUsage?.totalTokens !== undefined && (
                     <Tooltip>
@@ -990,7 +990,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   </div>
                   {/* Speak + Copy controls for user and AI messages */}
                   {(isAi || isUser) && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <CopyButton
                         value={getPlainTextFromMessage(msg)}
                         tooltip="Copy message"

@@ -708,7 +708,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
       </div>
 
       <main
-        className="flex-1 flex flex-col relative"
+        className="flex-1 flex flex-col relative min-w-0"
         style={{ '--thread-max-width': '54rem' } as React.CSSProperties & { '--thread-max-width': string }}
       >
         {/** Shared centered content width for welcome, messages, and composer */}
@@ -751,22 +751,25 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 </div>
               )}
 
-              {/* Dexto Logo - Always show full logo */}
+              {/* Dexto Logo - Icon on mobile, full logo on desktop */}
               <a
                 href="https://dexto.ai"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center hover:opacity-80 transition-opacity shrink-0"
               >
-                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-11 w-auto block dark:hidden" />
-                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-11 w-auto hidden dark:block" />
+                {/* Mobile: Icon only */}
+                <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-9 w-9 md:hidden" />
+                {/* Desktop: Full logo */}
+                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-11 w-auto hidden md:block dark:md:hidden" />
+                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-11 w-auto hidden dark:md:block" />
                 <span className="sr-only">Dexto</span>
               </a>
             </div>
 
             {/* Center Section - Agent Selector always centered */}
-            <div className="flex justify-center flex-1 min-w-0 px-3">
-              <div className="w-full max-w-[260px]">
+            <div className="flex justify-center flex-1 min-w-0 px-3 max-w-[216px] md:max-w-none">
+              <div className="w-full max-w-[180px] md:max-w-[260px]">
                 <AgentSelector mode="badge" />
               </div>
             </div>
@@ -1034,7 +1037,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             {isWelcomeState ? (
               /* Modern Welcome Screen with Central Search */
               <div className="flex-1 flex flex-col justify-end sm:justify-center p-6 sm:-mt-20">
-                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6 pb-safe">
+                <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-auto space-y-6 pb-safe">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
@@ -1048,7 +1051,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </div>
 
                   {/* Quick Actions Grid - Compact */}
-                  <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
+                  <div className="flex flex-wrap justify-center gap-2 max-w-full sm:max-w-[var(--thread-max-width)] mx-auto">
                     {dynamicQuickActions.map((action, index) => {
                       const button = (
                         <button
@@ -1080,7 +1083,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </div>
 
                   {/* Central Search Bar with Full Features */}
-                  <div className="max-w-[var(--thread-max-width)] mx-auto">
+                  <div className="max-w-full sm:max-w-[var(--thread-max-width)] mx-auto">
                     <InputArea
                       onSend={handleSend}
                       isSending={isSendingMessage}
@@ -1104,10 +1107,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             ) : (
               /* Messages Area */
               <div className="flex-1 min-h-0 overflow-hidden">
-                <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
+                <div ref={scrollContainerRef} className="h-full overflow-y-auto overflow-x-hidden overscroll-contain relative">
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
-                  <div className="min-h-full grid grid-rows-[1fr_auto]">
-                    <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto">
+                  <div className="min-h-full grid grid-rows-[1fr_auto] min-w-0">
+                    <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-0 sm:mx-auto min-w-0">
                       <MessageList
                         messages={messages}
                         activeError={activeError}
@@ -1140,7 +1143,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                           </button>
                         </div>
                       )}
-                      <div className="w-full max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto">
+                      <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto">
                         <InputArea
                           onSend={handleSend}
                           isSending={isSendingMessage}
