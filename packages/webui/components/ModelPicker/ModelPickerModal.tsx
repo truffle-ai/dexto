@@ -145,8 +145,7 @@ export default function ModelPickerModal() {
   const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | "">("");
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showAll, setShowAll] = useState(false);
-  const [favoritesCollapsed, setFavoritesCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'favorites' | 'all'>('favorites');
   
   // API key modal
   const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -191,14 +190,18 @@ export default function ModelPickerModal() {
 
   const [favorites, setFavorites] = useState<string[]>([]);
   
-  // Load favorites from localStorage
+  // Load favorites from localStorage and set initial tab
   useEffect(() => {
     if (open) {
       try {
         const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-        setFavorites(raw ? (JSON.parse(raw) as string[]) : []);
+        const loadedFavorites = raw ? (JSON.parse(raw) as string[]) : [];
+        setFavorites(loadedFavorites);
+        // Default to favorites if user has any, otherwise show all models
+        setActiveTab(loadedFavorites.length > 0 ? 'favorites' : 'all');
       } catch {
         setFavorites([]);
+        setActiveTab('all');
       }
     }
   }, [open]);
@@ -373,82 +376,58 @@ export default function ModelPickerModal() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col min-h-0 flex-1 space-y-6">
+          <div className="flex flex-col min-h-0 flex-1 space-y-4">
+            {/* Search and Error */}
             <div className="flex-shrink-0 space-y-4">
               {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
               <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
             </div>
 
-          {/* Favorites Section - Always visible when there are favorites */}
-          {favoriteModels.length > 0 && !search && (
-            <div className="space-y-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setFavoritesCollapsed(!favoritesCollapsed)}
-                className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
-              >
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                  <span className="text-sm font-medium">Favorites</span>
-                  <span className="text-xs text-muted-foreground">({favoriteModels.length})</span>
-                </div>
-                {favoritesCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </Button>
-              
-              {!favoritesCollapsed && (
-                <div className="space-y-1">
-                  <div className="max-h-[280px] overflow-y-auto px-1 py-1 space-y-1">
-                    {favoriteModels.map(({ providerId, provider, model }) => (
-                      <CompactModelCard
-                        key={favKey(providerId, model.name)}
-                        provider={providerId as LLMProvider}
-                        model={model}
-                        providerInfo={provider}
-                        isFavorite={true}
-                        isActive={isCurrentModel(providerId, model.name)}
-                        onClick={() => onPickModel(providerId, model)}
-                        onToggleFavorite={() => toggleFavorite(providerId, model.name)}
-                      />
-                    ))}
-                  </div>
-                  {favoriteModels.length > 6 && (
-                    <div className="text-xs text-muted-foreground text-center">
-                      Scroll to see all {favoriteModels.length} favorites
-                    </div>
+            {/* Tabs */}
+            {!search && (
+              <div className="flex gap-2 border-b border-border pb-2">
+                <button
+                  onClick={() => setActiveTab('favorites')}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
+                    activeTab === 'favorites'
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   )}
+                >
+                  <Star className={cn("h-4 w-4", activeTab === 'favorites' && "fill-current")} />
+                  Favorites
+                  {favoriteModels.length > 0 && (
+                    <span className="text-xs opacity-70">({favoriteModels.length})</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
+                    activeTab === 'all'
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <Bot className="h-4 w-4" />
+                  All Models
+                </button>
+              </div>
+            )}
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-auto px-1 min-h-0">
+              {loading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center py-8">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Show All / Collapse Toggle */}
-          {!search && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAll(!showAll)}
-              className="w-full justify-center gap-2"
-            >
-              {showAll ? (
-                <>Hide All Models <ChevronUp className="h-4 w-4" /></>
-              ) : (
-                <>Show All Models <ChevronDown className="h-4 w-4" /></>
-              )}
-            </Button>
-          )}
-
-            {/* All Models Section - Show when searching or "Show All" is clicked */}
-            {(showAll || search) && (
-              <div className="flex-1 overflow-auto px-1 min-h-0">
+              ) : search ? (
+                // Search results across all models
                 <div className="space-y-6 pb-2">
-                  {loading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
-                    </div>
-                  ) : Object.keys(filteredProviders).length === 0 ? (
+                  {Object.keys(filteredProviders).length === 0 ? (
                     <div className="text-sm text-muted-foreground text-center py-8">
-                      {search ? 'No models found matching your search' : 'No providers available'}
+                      No models found matching your search
                     </div>
                   ) : (
                     Object.entries(filteredProviders).map(([providerId, provider]) => (
@@ -465,9 +444,58 @@ export default function ModelPickerModal() {
                     ))
                   )}
                 </div>
-              </div>
-            )}
-
+              ) : activeTab === 'favorites' ? (
+                // Favorites tab
+                favoriteModels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                    <Star className="h-12 w-12 text-muted-foreground/40" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">No favorites yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Star models to add them to your favorites
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 pb-2">
+                    {favoriteModels.map(({ providerId, provider, model }) => (
+                      <CompactModelCard
+                        key={favKey(providerId, model.name)}
+                        provider={providerId as LLMProvider}
+                        model={model}
+                        providerInfo={provider}
+                        isFavorite={true}
+                        isActive={isCurrentModel(providerId, model.name)}
+                        onClick={() => onPickModel(providerId, model)}
+                        onToggleFavorite={() => toggleFavorite(providerId, model.name)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : (
+                // All Models tab
+                <div className="space-y-6 pb-2">
+                  {Object.keys(providers).length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      No providers available
+                    </div>
+                  ) : (
+                    Object.entries(providers).map(([providerId, provider]) => (
+                      <ProviderSection
+                        key={providerId}
+                        providerId={providerId}
+                        provider={provider}
+                        models={provider.models}
+                        favorites={favorites}
+                        currentModel={currentLLM || undefined}
+                        onToggleFavorite={toggleFavorite}
+                        onUse={onPickModel}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Advanced Options */}
