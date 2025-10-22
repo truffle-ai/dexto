@@ -55,6 +55,7 @@ import { InlineApprovalCard } from './InlineApprovalCard';
 
 interface MessageListProps {
   messages: Message[];
+  processing?: boolean;
   activeError?: ErrorMessage | null;
   onDismissError?: () => void;
   pendingApproval?: ApprovalEvent | null;
@@ -296,7 +297,7 @@ function ThinkingIndicator() {
   );
 }
 
-export default function MessageList({ messages, activeError, onDismissError, outerRef, pendingApproval, onApprovalApprove, onApprovalDeny }: MessageListProps) {
+export default function MessageList({ messages, processing = false, activeError, onDismissError, outerRef, pendingApproval, onApprovalApprove, onApprovalDeny }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
   const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
@@ -440,14 +441,12 @@ export default function MessageList({ messages, activeError, onDismissError, out
   };
 
   return (
-    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-4 py-2 min-w-0 overflow-hidden">
+    <div id="message-list-container" ref={outerRef} className="flex flex-col space-y-3 px-3 sm:px-4 py-2 min-w-0 w-full">
       {messages.map((msg, idx) => {
         const msgKey = msg.id ?? `msg-${idx}`;
         const isUser = msg.role === 'user';
         const isAi = msg.role === 'assistant';
         const isSystem = msg.role === 'system';
-        const isThinkingMessage =
-          isSystem && typeof msg.content === 'string' && msg.content.trim().toLowerCase().startsWith('dexto is thinking');
 
         const isLastMessage = idx === messages.length - 1;
         const isToolCall = !!(msg.toolName && msg.toolArgs);
@@ -531,11 +530,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
             : isUser
             ? "p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-words overflow-wrap-anywhere overflow-hidden"
             : isAi
-            ? "p-3 rounded-xl shadow-sm w-fit max-w-[90%] bg-card text-card-foreground border border-border rounded-bl-none text-base break-words overflow-wrap-anywhere overflow-hidden"
+            ? "p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none"
             : isSystem
-            ? isThinkingMessage
-              ? "p-1.5 shadow-none w-full bg-transparent text-xs text-muted-foreground text-center border-none"
-              : "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
+            ? "p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none"
             : "",
         );
 
@@ -544,11 +541,14 @@ export default function MessageList({ messages, activeError, onDismissError, out
 
         const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
 
-        // (Provider not available on Message type)
+        // Check if this is the last user message and we should show thinking after it
+        const isLastUserMessage = isUser && isLastMessage;
+        const showThinkingAfterThis = processing && isLastUserMessage;
 
         return (
-          <div key={msgKey} className="w-full min-w-0 overflow-hidden" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
-            <div className={cn(messageContainerClass, "min-w-0")}>
+          <React.Fragment key={msgKey}>
+          <div className="w-full" data-role={msg.role} id={msg.id ? `message-${msg.id}` : undefined}>
+            <div className={messageContainerClass}>
               {isAi && (
                 <AvatarComponent className="h-7 w-7 mt-1 text-muted-foreground col-start-1" />
               )}
@@ -739,17 +739,13 @@ export default function MessageList({ messages, activeError, onDismissError, out
                     <>
                       {typeof msg.content === 'string' && msg.content.trim() !== '' && (
                         <div className="relative">
-                          {isThinkingMessage ? (
-                            <ThinkingIndicator />
-                          ) : (
-                            <MessageContentWithResources
-                              key={`${msgKey}-text-content`}
-                              text={msg.content}
-                              isUser={isUser}
-                              onOpenImage={openImageModal}
-                              resourceSet={resourceSet}
-                            />
-                          )}
+                          <MessageContentWithResources
+                            key={`${msgKey}-text-content`}
+                            text={msg.content}
+                            isUser={isUser}
+                            onOpenImage={openImageModal}
+                            resourceSet={resourceSet}
+                          />
                         </div>
                       )}
 
@@ -935,8 +931,8 @@ export default function MessageList({ messages, activeError, onDismissError, out
                 </div>
               </div>
               {!isSystem && !isToolRelated && (
-                <div className="text-xs text-muted-foreground mt-1 px-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="text-xs text-muted-foreground mt-1 px-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span>{timestampStr}</span>
                   {isAi && msg.tokenUsage?.totalTokens !== undefined && (
                     <Tooltip>
@@ -990,7 +986,7 @@ export default function MessageList({ messages, activeError, onDismissError, out
                   </div>
                   {/* Speak + Copy controls for user and AI messages */}
                   {(isAi || isUser) && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <CopyButton
                         value={getPlainTextFromMessage(msg)}
                         tooltip="Copy message"
@@ -1125,6 +1121,9 @@ export default function MessageList({ messages, activeError, onDismissError, out
               </div>
             )}
           </div>
+          {/* Show thinking indicator right after last user message */}
+          {showThinkingAfterThis && <ThinkingIndicator />}
+          </React.Fragment>
         );
       })}
 

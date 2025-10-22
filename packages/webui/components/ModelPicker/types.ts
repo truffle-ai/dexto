@@ -62,3 +62,12 @@ export function validateBaseURL(url: string): { isValid: boolean; error?: string
 }
 
 export const FAVORITES_STORAGE_KEY = 'dexto:modelFavorites';
+export const CUSTOM_MODELS_STORAGE_KEY = 'dexto:customModels';
+
+// Minimal storage for custom models - other fields are inferred
+export interface CustomModelStorage {
+    name: string; // Model identifier
+    baseURL: string; // OpenAI-compatible endpoint
+    maxInputTokens?: number; // Optional, defaults to 128k
+    maxOutputTokens?: number; // Optional, provider decides
+}

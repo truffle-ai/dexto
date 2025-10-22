@@ -888,11 +888,13 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               }
               rightButtons={
                 <div className="flex items-center gap-2">
-                  <StreamToggle 
-                    isStreaming={isStreaming}
-                    onStreamingChange={setStreaming}
-                  />
-                  
+                  <div className="hidden md:block">
+                    <StreamToggle
+                      isStreaming={isStreaming}
+                      onStreamingChange={setStreaming}
+                    />
+                  </div>
+
                   <ModelPickerModal />
 
                   {/* Stop/Cancel button shown when a run is in progress */}

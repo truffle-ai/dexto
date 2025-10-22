@@ -9,10 +9,11 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ApiKeyModal } from "../ApiKeyModal";
 import { useChatContext } from "../hooks/ChatContext";
-import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle, Plus } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
-import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL } from "./types";
+import { FAVORITES_STORAGE_KEY, CUSTOM_MODELS_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, CustomModelStorage, favKey, validateBaseURL } from "./types";
+import { LabelWithTooltip } from "../ui/label-with-tooltip";
 import type { LLMRouter as SupportedRouter } from "@dexto/core";
 import { Input } from "../ui/input";
 import { cn } from "../../lib/utils";
@@ -145,8 +146,17 @@ export default function ModelPickerModal() {
   const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | "">("");
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showAll, setShowAll] = useState(false);
-  const [favoritesCollapsed, setFavoritesCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'favorites' | 'all' | 'custom'>('favorites');
+
+  // Custom models state
+  const [customModels, setCustomModels] = useState<CustomModelStorage[]>([]);
+  const [customModelForm, setCustomModelForm] = useState({
+    name: '',
+    baseURL: '',
+    maxInputTokens: '',
+    maxOutputTokens: '',
+  });
+  const [showCustomModelForm, setShowCustomModelForm] = useState(false);
   
   // API key modal
   const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -191,14 +201,30 @@ export default function ModelPickerModal() {
 
   const [favorites, setFavorites] = useState<string[]>([]);
   
-  // Load favorites from localStorage
+  // Load favorites and custom models from localStorage
   useEffect(() => {
     if (open) {
       try {
-        const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-        setFavorites(raw ? (JSON.parse(raw) as string[]) : []);
+        const favRaw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+        const loadedFavorites = favRaw ? (JSON.parse(favRaw) as string[]) : [];
+        setFavorites(loadedFavorites);
+
+        const customRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
+        const loadedCustom = customRaw ? (JSON.parse(customRaw) as CustomModelStorage[]) : [];
+        setCustomModels(loadedCustom);
+
+        // Default to favorites if user has any, otherwise custom if they have custom models, otherwise all
+        if (loadedFavorites.length > 0) {
+          setActiveTab('favorites');
+        } else if (loadedCustom.length > 0) {
+          setActiveTab('custom');
+        } else {
+          setActiveTab('all');
+        }
       } catch {
         setFavorites([]);
+        setCustomModels([]);
+        setActiveTab('all');
       }
     }
   }, [open]);
@@ -206,13 +232,57 @@ export default function ModelPickerModal() {
   const toggleFavorite = useCallback((providerId: string, modelName: string) => {
     const key = favKey(providerId, modelName);
     setFavorites(prev => {
-      const newFavs = prev.includes(key) 
+      const newFavs = prev.includes(key)
         ? prev.filter(f => f !== key)
         : [...prev, key];
       localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(newFavs));
       return newFavs;
     });
   }, []);
+
+  const addCustomModel = useCallback(() => {
+    const { name, baseURL, maxInputTokens, maxOutputTokens } = customModelForm;
+
+    // Validation
+    if (!name.trim() || !baseURL.trim()) {
+      setError('Model name and Base URL are required');
+      return;
+    }
+
+    const urlValidation = validateBaseURL(baseURL);
+    if (!urlValidation.isValid) {
+      setError(urlValidation.error || 'Invalid Base URL');
+      return;
+    }
+
+    const newModel: CustomModelStorage = {
+      name: name.trim(),
+      baseURL: baseURL.trim(),
+      maxInputTokens: maxInputTokens ? (() => {
+        const parsed = parseInt(maxInputTokens, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })() : undefined,
+      maxOutputTokens: maxOutputTokens ? (() => {
+        const parsed = parseInt(maxOutputTokens, 10);
+        return isNaN(parsed) ? undefined : parsed;
+      })() : undefined,
+    };
+
+    const updated = [...customModels, newModel];
+    setCustomModels(updated);
+    localStorage.setItem(CUSTOM_MODELS_STORAGE_KEY, JSON.stringify(updated));
+
+    // Reset form
+    setCustomModelForm({ name: '', baseURL: '', maxInputTokens: '', maxOutputTokens: '' });
+    setShowCustomModelForm(false);
+    setError(null);
+  }, [customModelForm, customModels]);
+
+  const deleteCustomModel = useCallback((name: string) => {
+    const updated = customModels.filter(m => m.name !== name);
+    setCustomModels(updated);
+    localStorage.setItem(CUSTOM_MODELS_STORAGE_KEY, JSON.stringify(updated));
+  }, [customModels]);
 
   function modelMatchesSearch(providerId: string, model: ModelInfo): boolean {
     const q = search.trim().toLowerCase();
@@ -265,11 +335,12 @@ export default function ModelPickerModal() {
     }
   }
 
-  function onPickModel(providerId: string, model: ModelInfo) {
+  function onPickModel(providerId: string, model: ModelInfo, customBaseURL?: string) {
     const provider = providers[providerId];
     if (!provider) return;
-    if (provider.supportsBaseURL && baseURL) {
-      const v = validateBaseURL(baseURL);
+    const effectiveBaseURL = customBaseURL || baseURL;
+    if (provider.supportsBaseURL && effectiveBaseURL) {
+      const v = validateBaseURL(effectiveBaseURL);
       if (!v.isValid) {
         setError(v.error || 'Invalid base URL');
         return;
@@ -281,7 +352,19 @@ export default function ModelPickerModal() {
       setKeyModalOpen(true);
       return;
     }
-    performSwitch(providerId, model, baseURL);
+    performSwitch(providerId, model, effectiveBaseURL);
+  }
+
+  function onPickCustomModel(customModel: CustomModelStorage) {
+    // Convert CustomModelStorage to ModelInfo for openai-compatible provider
+    const modelInfo: ModelInfo = {
+      name: customModel.name,
+      displayName: customModel.name,
+      maxInputTokens: customModel.maxInputTokens || 128000,
+      supportedFileTypes: ['pdf', 'image', 'audio'], // openai-compatible defaults
+      supportedRouters: ['vercel', 'in-built'],
+    };
+    onPickModel('openai-compatible', modelInfo, customModel.baseURL);
   }
 
   function onApiKeySaved(meta: { provider: string; envVar: string }) {
@@ -339,10 +422,10 @@ export default function ModelPickerModal() {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="hidden lg:flex items-center gap-2 cursor-pointer" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-2 cursor-pointer"
             title="Choose model"
           >
             {/* Provider logo (or fallback icon) */}
@@ -369,86 +452,77 @@ export default function ModelPickerModal() {
           <DialogHeader className="pb-4 flex-shrink-0">
             <DialogTitle className="text-xl">Select Model</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Choose from your favorite models or explore all available options
+              Choose your favorite model, check all models, or add your own model
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col min-h-0 flex-1 space-y-6">
+          <div className="flex flex-col min-h-0 flex-1 space-y-4">
+            {/* Search and Error */}
             <div className="flex-shrink-0 space-y-4">
               {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
               <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
             </div>
 
-          {/* Favorites Section - Always visible when there are favorites */}
-          {favoriteModels.length > 0 && !search && (
-            <div className="space-y-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setFavoritesCollapsed(!favoritesCollapsed)}
-                className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
-              >
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                  <span className="text-sm font-medium">Favorites</span>
-                  <span className="text-xs text-muted-foreground">({favoriteModels.length})</span>
-                </div>
-                {favoritesCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </Button>
-              
-              {!favoritesCollapsed && (
-                <div className="space-y-1">
-                  <div className="max-h-[280px] overflow-y-auto px-1 py-1 space-y-1">
-                    {favoriteModels.map(({ providerId, provider, model }) => (
-                      <CompactModelCard
-                        key={favKey(providerId, model.name)}
-                        provider={providerId as LLMProvider}
-                        model={model}
-                        providerInfo={provider}
-                        isFavorite={true}
-                        isActive={isCurrentModel(providerId, model.name)}
-                        onClick={() => onPickModel(providerId, model)}
-                        onToggleFavorite={() => toggleFavorite(providerId, model.name)}
-                      />
-                    ))}
-                  </div>
-                  {favoriteModels.length > 6 && (
-                    <div className="text-xs text-muted-foreground text-center">
-                      Scroll to see all {favoriteModels.length} favorites
-                    </div>
+            {/* Tabs */}
+            {!search && (
+              <div className="flex gap-2 border-b border-border pb-2">
+                <button
+                  onClick={() => setActiveTab('favorites')}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
+                    activeTab === 'favorites'
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   )}
+                >
+                  <Star className={cn("h-4 w-4", activeTab === 'favorites' && "fill-current")} />
+                  Favorites
+                  {favoriteModels.length > 0 && (
+                    <span className="text-xs opacity-70">({favoriteModels.length})</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
+                    activeTab === 'all'
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <Bot className="h-4 w-4" />
+                  All Models
+                </button>
+                <button
+                  onClick={() => setActiveTab('custom')}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
+                    activeTab === 'custom'
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <Plus className="h-4 w-4" />
+                  Custom
+                  {customModels.length > 0 && (
+                    <span className="text-xs opacity-70">({customModels.length})</span>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-auto px-1 min-h-0">
+              {loading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center py-8">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Show All / Collapse Toggle */}
-          {!search && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAll(!showAll)}
-              className="w-full justify-center gap-2"
-            >
-              {showAll ? (
-                <>Hide All Models <ChevronUp className="h-4 w-4" /></>
-              ) : (
-                <>Show All Models <ChevronDown className="h-4 w-4" /></>
-              )}
-            </Button>
-          )}
-
-            {/* All Models Section - Show when searching or "Show All" is clicked */}
-            {(showAll || search) && (
-              <div className="flex-1 overflow-auto px-1 min-h-0">
+              ) : search ? (
+                // Search results across all models
                 <div className="space-y-6 pb-2">
-                  {loading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading models...
-                    </div>
-                  ) : Object.keys(filteredProviders).length === 0 ? (
+                  {Object.keys(filteredProviders).length === 0 ? (
                     <div className="text-sm text-muted-foreground text-center py-8">
-                      {search ? 'No models found matching your search' : 'No providers available'}
+                      No models found matching your search
                     </div>
                   ) : (
                     Object.entries(filteredProviders).map(([providerId, provider]) => (
@@ -465,49 +539,190 @@ export default function ModelPickerModal() {
                     ))
                   )}
                 </div>
-              </div>
-            )}
-
-          </div>
-          
-          {/* Advanced Options */}
-          <div className="flex-shrink-0 space-y-3 border-t pt-4 mt-4">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setAdvancedOpen(!advancedOpen)} 
-              className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
-            >
-              <span className="text-sm font-medium text-muted-foreground">Advanced Options</span>
-              {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            {advancedOpen && (
-              <div className="space-y-4 pl-4 border-l-2 border-muted">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Router</Label>
-                  <Select value={selectedRouter} onValueChange={(v) => setSelectedRouter(v as SupportedRouter)}>
-                    <SelectTrigger><SelectValue placeholder="Select router" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(providerIds.flatMap((id) => providers[id].supportedRouters))).map((router) => (
-                        <SelectItem key={router} value={router}>
-                          <span className="capitalize">{router}</span>
-                        </SelectItem>
+              ) : activeTab === 'favorites' ? (
+                // Favorites tab
+                favoriteModels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                    <Star className="h-12 w-12 text-muted-foreground/40" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">No favorites yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Star models to add them to your favorites
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 pb-2">
+                    {favoriteModels.map(({ providerId, provider, model }) => (
+                      <CompactModelCard
+                        key={favKey(providerId, model.name)}
+                        provider={providerId as LLMProvider}
+                        model={model}
+                        providerInfo={provider}
+                        isFavorite={true}
+                        isActive={isCurrentModel(providerId, model.name)}
+                        onClick={() => onPickModel(providerId, model)}
+                        onToggleFavorite={() => toggleFavorite(providerId, model.name)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : activeTab === 'custom' ? (
+                // Custom Models tab
+                <div className="space-y-4 pb-2">
+                  {/* Custom models list */}
+                  {customModels.length > 0 && (
+                    <div className="space-y-2">
+                      {customModels.map((cm) => (
+                        <div
+                          key={cm.name}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{cm.name}</span>
+                              <span className="text-xs text-muted-foreground">openai-compatible</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate mt-0.5">
+                              {cm.baseURL}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onPickCustomModel(cm)}
+                              className="h-8 px-3"
+                            >
+                              Use
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteCustomModel(cm.name)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              aria-label={`Delete custom model ${cm.name}`}
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  )}
+
+                  {/* Add Custom Model Form */}
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowCustomModelForm(!showCustomModelForm)}
+                      className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
+                    >
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {customModels.length === 0 ? 'Add your first custom model' : 'Add another model'}
+                      </span>
+                      {showCustomModelForm ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                    {showCustomModelForm && (
+                      <div className="space-y-4 pl-4 border-l-2 border-muted">
+                        <div className="space-y-2">
+                          <LabelWithTooltip
+                            htmlFor="custom-model-name"
+                            tooltip="Model identifier (e.g., llama3, mixtral, gpt-4)"
+                          >
+                            Model Name *
+                          </LabelWithTooltip>
+                          <Input
+                            id="custom-model-name"
+                            value={customModelForm.name}
+                            onChange={(e) => setCustomModelForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="e.g., llama3"
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <LabelWithTooltip
+                            htmlFor="custom-base-url"
+                            tooltip="OpenAI-compatible endpoint URL. Must include /v1 path (e.g., http://localhost:1234/v1)"
+                          >
+                            Base URL *
+                          </LabelWithTooltip>
+                          <Input
+                            id="custom-base-url"
+                            value={customModelForm.baseURL}
+                            onChange={(e) => setCustomModelForm(prev => ({ ...prev, baseURL: e.target.value }))}
+                            placeholder="http://localhost:1234/v1"
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <LabelWithTooltip
+                              htmlFor="custom-max-input"
+                              tooltip="Maximum input tokens to send to the model. Defaults to 128,000 if not specified"
+                            >
+                              Max Input Tokens
+                            </LabelWithTooltip>
+                            <Input
+                              id="custom-max-input"
+                              type="number"
+                              value={customModelForm.maxInputTokens}
+                              onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxInputTokens: e.target.value }))}
+                              placeholder="128000"
+                              className="text-sm"
+                              min="1"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <LabelWithTooltip
+                              htmlFor="custom-max-output"
+                              tooltip="Maximum output tokens the model can generate. Uses provider's default if not specified"
+                            >
+                              Max Output Tokens
+                            </LabelWithTooltip>
+                            <Input
+                              id="custom-max-output"
+                              type="number"
+                              value={customModelForm.maxOutputTokens}
+                              onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxOutputTokens: e.target.value }))}
+                              placeholder="Auto"
+                              className="text-sm"
+                              min="1"
+                            />
+                          </div>
+                        </div>
+                        <Button onClick={addCustomModel} size="sm" className="w-full">
+                          Add Model
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Custom Base URL</Label>
-                  <Input 
-                    value={baseURL} 
-                    onChange={(e) => setBaseURL(e.target.value)} 
-                    placeholder="https://api.openai.com/v1" 
-                    className="text-sm"
-                  />
-                  <div className="text-xs text-muted-foreground">Only used for providers that support baseURL.</div>
+              ) : (
+                // All Models tab
+                <div className="space-y-6 pb-2">
+                  {Object.keys(providers).length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      No providers available
+                    </div>
+                  ) : (
+                    Object.entries(providers).map(([providerId, provider]) => (
+                      <ProviderSection
+                        key={providerId}
+                        providerId={providerId}
+                        provider={provider}
+                        models={provider.models}
+                        favorites={favorites}
+                        currentModel={currentLLM || undefined}
+                        onToggleFavorite={toggleFavorite}
+                        onUse={onPickModel}
+                      />
+                    ))
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

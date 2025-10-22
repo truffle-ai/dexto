@@ -334,6 +334,9 @@ export default function MemoryPanel({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Memories</DialogTitle>
+        </DialogHeader>
         {content}
       </DialogContent>
     </Dialog>

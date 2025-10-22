@@ -1,5 +1,4 @@
 # Dexto Agent Configuration for Sora Video Generation MCP Server
-# Generated on 2025-01-27T00:00:00.000Z
 
 # Optional greeting shown at chat start (UI can consume this)
 greeting: "🎬 Hello! I'm your Sora Video Agent. Let's create some amazing videos together!"
