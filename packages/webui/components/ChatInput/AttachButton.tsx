@@ -40,11 +40,11 @@ export function AttachButton({
         <Button
           variant="ghost"
           size="sm"
-          className={`h-8 px-3 text-sm text-muted-foreground hover:text-foreground rounded-full ${className || ''}`}
+          className={`h-8 px-2 md:px-3 text-sm text-muted-foreground hover:text-foreground rounded-full ${className || ''}`}
           aria-label="Attach File"
         >
-          <Paperclip className="h-3 w-3 mr-1.5" />
-          Attach
+          <Paperclip className="h-3 w-3 md:mr-1.5" />
+          <span className="hidden md:inline">Attach</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start">
