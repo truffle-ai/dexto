@@ -182,12 +182,12 @@ function linkifyText(text: string): React.ReactNode {
 
 // Enhanced markdown component with proper emoji support and spacing
 const MarkdownTextImpl = ({ children }: { children: string }) => {
-  const [blobUrls, setBlobUrls] = React.useState<Set<string>>(new Set());
+  const blobUrlsRef = React.useRef<Set<string>>(new Set());
   
   React.useEffect(() => {
     return () => {
       // Clean up any created blob URLs on unmount
-      blobUrls.forEach(url => {
+      blobUrlsRef.current.forEach(url => {
         try {
           URL.revokeObjectURL(url);
         } catch {
@@ -195,7 +195,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
         }
       });
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
@@ -243,7 +243,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
                 const objectUrl = URL.createObjectURL(src as Blob | File);
                 srcString = objectUrl;
                 // Track the URL for cleanup
-                setBlobUrls(prev => new Set([...prev, objectUrl]));
+                blobUrlsRef.current.add(objectUrl);
               } catch (error) {
                 // URL.createObjectURL failed, treat as invalid
                 srcString = null;
@@ -254,7 +254,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
                 const objectUrl = URL.createObjectURL(src as unknown as MediaSource);
                 srcString = objectUrl;
                 // Track the URL for cleanup
-                setBlobUrls(prev => new Set([...prev, objectUrl]));
+                blobUrlsRef.current.add(objectUrl);
               } catch (error) {
                 // URL.createObjectURL failed, treat as invalid
                 srcString = null;
