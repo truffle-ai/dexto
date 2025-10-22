@@ -12,7 +12,8 @@ import { useChatContext } from "../hooks/ChatContext";
 import { Bot, ChevronDown, ChevronUp, Loader2, Star, Lock, HelpCircle } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { ProviderSection } from "./ProviderSection";
-import { FAVORITES_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, favKey, validateBaseURL } from "./types";
+import { FAVORITES_STORAGE_KEY, CUSTOM_MODELS_STORAGE_KEY, CatalogResponse, ProviderCatalog, ModelInfo, CustomModelStorage, favKey, validateBaseURL } from "./types";
+import { LabelWithTooltip } from "../ui/label-with-tooltip";
 import type { LLMRouter as SupportedRouter } from "@dexto/core";
 import { Input } from "../ui/input";
 import { cn } from "../../lib/utils";
@@ -146,6 +147,16 @@ export default function ModelPickerModal() {
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'favorites' | 'all'>('favorites');
+
+  // Custom models state
+  const [customModels, setCustomModels] = useState<CustomModelStorage[]>([]);
+  const [customModelForm, setCustomModelForm] = useState({
+    name: '',
+    baseURL: '',
+    maxInputTokens: '',
+    maxOutputTokens: '',
+  });
+  const [showCustomModelForm, setShowCustomModelForm] = useState(false);
   
   // API key modal
   const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -190,17 +201,23 @@ export default function ModelPickerModal() {
 
   const [favorites, setFavorites] = useState<string[]>([]);
   
-  // Load favorites from localStorage and set initial tab
+  // Load favorites and custom models from localStorage
   useEffect(() => {
     if (open) {
       try {
-        const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-        const loadedFavorites = raw ? (JSON.parse(raw) as string[]) : [];
+        const favRaw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+        const loadedFavorites = favRaw ? (JSON.parse(favRaw) as string[]) : [];
         setFavorites(loadedFavorites);
+
+        const customRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
+        const loadedCustom = customRaw ? (JSON.parse(customRaw) as CustomModelStorage[]) : [];
+        setCustomModels(loadedCustom);
+
         // Default to favorites if user has any, otherwise show all models
         setActiveTab(loadedFavorites.length > 0 ? 'favorites' : 'all');
       } catch {
         setFavorites([]);
+        setCustomModels([]);
         setActiveTab('all');
       }
     }
@@ -209,13 +226,51 @@ export default function ModelPickerModal() {
   const toggleFavorite = useCallback((providerId: string, modelName: string) => {
     const key = favKey(providerId, modelName);
     setFavorites(prev => {
-      const newFavs = prev.includes(key) 
+      const newFavs = prev.includes(key)
         ? prev.filter(f => f !== key)
         : [...prev, key];
       localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(newFavs));
       return newFavs;
     });
   }, []);
+
+  const addCustomModel = useCallback(() => {
+    const { name, baseURL, maxInputTokens, maxOutputTokens } = customModelForm;
+
+    // Validation
+    if (!name.trim() || !baseURL.trim()) {
+      setError('Model name and Base URL are required');
+      return;
+    }
+
+    const urlValidation = validateBaseURL(baseURL);
+    if (!urlValidation.isValid) {
+      setError(urlValidation.error || 'Invalid Base URL');
+      return;
+    }
+
+    const newModel: CustomModelStorage = {
+      name: name.trim(),
+      baseURL: baseURL.trim(),
+      maxInputTokens: maxInputTokens ? parseInt(maxInputTokens, 10) : undefined,
+      maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens, 10) : undefined,
+    };
+
+    const updated = [...customModels, newModel];
+    setCustomModels(updated);
+    localStorage.setItem(CUSTOM_MODELS_STORAGE_KEY, JSON.stringify(updated));
+
+    // Reset form
+    setCustomModelForm({ name: '', baseURL: '', maxInputTokens: '', maxOutputTokens: '' });
+    setShowCustomModelForm(false);
+    setError(null);
+  }, [customModelForm, customModels]);
+
+  const deleteCustomModel = useCallback((name: string) => {
+    const updated = customModels.filter(m => m.name !== name);
+    setCustomModels(updated);
+    localStorage.setItem(CUSTOM_MODELS_STORAGE_KEY, JSON.stringify(updated));
+  }, [customModels]);
 
   function modelMatchesSearch(providerId: string, model: ModelInfo): boolean {
     const q = search.trim().toLowerCase();
@@ -268,11 +323,12 @@ export default function ModelPickerModal() {
     }
   }
 
-  function onPickModel(providerId: string, model: ModelInfo) {
+  function onPickModel(providerId: string, model: ModelInfo, customBaseURL?: string) {
     const provider = providers[providerId];
     if (!provider) return;
-    if (provider.supportsBaseURL && baseURL) {
-      const v = validateBaseURL(baseURL);
+    const effectiveBaseURL = customBaseURL || baseURL;
+    if (provider.supportsBaseURL && effectiveBaseURL) {
+      const v = validateBaseURL(effectiveBaseURL);
       if (!v.isValid) {
         setError(v.error || 'Invalid base URL');
         return;
@@ -284,7 +340,19 @@ export default function ModelPickerModal() {
       setKeyModalOpen(true);
       return;
     }
-    performSwitch(providerId, model, baseURL);
+    performSwitch(providerId, model, effectiveBaseURL);
+  }
+
+  function onPickCustomModel(customModel: CustomModelStorage) {
+    // Convert CustomModelStorage to ModelInfo for openai-compatible provider
+    const modelInfo: ModelInfo = {
+      name: customModel.name,
+      displayName: customModel.name,
+      maxInputTokens: customModel.maxInputTokens || 128000,
+      supportedFileTypes: ['pdf', 'image', 'audio'], // openai-compatible defaults
+      supportedRouters: ['vercel', 'in-built'],
+    };
+    onPickModel('openai-compatible', modelInfo, customModel.baseURL);
   }
 
   function onApiKeySaved(meta: { provider: string; envVar: string }) {
@@ -475,6 +543,54 @@ export default function ModelPickerModal() {
               ) : (
                 // All Models tab
                 <div className="space-y-6 pb-2">
+                  {/* Custom Models Section */}
+                  {customModels.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Bot className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-semibold">Custom Models</h3>
+                        <span className="text-xs text-muted-foreground">({customModels.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {customModels.map((cm) => (
+                          <div
+                            key={cm.name}
+                            className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{cm.name}</span>
+                                <span className="text-xs text-muted-foreground">openai-compatible</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate mt-0.5">
+                                {cm.baseURL}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 ml-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => onPickCustomModel(cm)}
+                                className="h-8 px-3"
+                              >
+                                Use
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteCustomModel(cm.name)}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Regular Providers */}
                   {Object.keys(providers).length === 0 ? (
                     <div className="text-sm text-muted-foreground text-center py-8">
                       No providers available
@@ -498,42 +614,88 @@ export default function ModelPickerModal() {
             </div>
           </div>
           
-          {/* Advanced Options */}
+          {/* Add Custom Model */}
           <div className="flex-shrink-0 space-y-3 border-t pt-4 mt-4">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
-              onClick={() => setAdvancedOpen(!advancedOpen)} 
+              onClick={() => setShowCustomModelForm(!showCustomModelForm)}
               className="flex items-center justify-between w-full p-0 h-auto hover:bg-transparent"
             >
-              <span className="text-sm font-medium text-muted-foreground">Advanced Options</span>
-              {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <span className="text-sm font-medium text-muted-foreground">Add Custom Model</span>
+              {showCustomModelForm ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
-            {advancedOpen && (
+            {showCustomModelForm && (
               <div className="space-y-4 pl-4 border-l-2 border-muted">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Router</Label>
-                  <Select value={selectedRouter} onValueChange={(v) => setSelectedRouter(v as SupportedRouter)}>
-                    <SelectTrigger><SelectValue placeholder="Select router" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(providerIds.flatMap((id) => providers[id].supportedRouters))).map((router) => (
-                        <SelectItem key={router} value={router}>
-                          <span className="capitalize">{router}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Custom Base URL</Label>
-                  <Input 
-                    value={baseURL} 
-                    onChange={(e) => setBaseURL(e.target.value)} 
-                    placeholder="https://api.openai.com/v1" 
+                  <LabelWithTooltip
+                    htmlFor="custom-model-name"
+                    tooltip="Model identifier (e.g., llama3, mixtral, gpt-4)"
+                  >
+                    Model Name *
+                  </LabelWithTooltip>
+                  <Input
+                    id="custom-model-name"
+                    value={customModelForm.name}
+                    onChange={(e) => setCustomModelForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., llama3"
                     className="text-sm"
                   />
-                  <div className="text-xs text-muted-foreground">Only used for providers that support baseURL.</div>
                 </div>
+                <div className="space-y-2">
+                  <LabelWithTooltip
+                    htmlFor="custom-base-url"
+                    tooltip="OpenAI-compatible endpoint URL. Must include /v1 path (e.g., http://localhost:1234/v1)"
+                  >
+                    Base URL *
+                  </LabelWithTooltip>
+                  <Input
+                    id="custom-base-url"
+                    value={customModelForm.baseURL}
+                    onChange={(e) => setCustomModelForm(prev => ({ ...prev, baseURL: e.target.value }))}
+                    placeholder="http://localhost:1234/v1"
+                    className="text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <LabelWithTooltip
+                      htmlFor="custom-max-input"
+                      tooltip="Maximum input tokens to send to the model. Defaults to 128,000 if not specified"
+                    >
+                      Max Input Tokens
+                    </LabelWithTooltip>
+                    <Input
+                      id="custom-max-input"
+                      type="number"
+                      value={customModelForm.maxInputTokens}
+                      onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxInputTokens: e.target.value }))}
+                      placeholder="128000"
+                      className="text-sm"
+                      min="1"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <LabelWithTooltip
+                      htmlFor="custom-max-output"
+                      tooltip="Maximum output tokens the model can generate. Uses provider's default if not specified"
+                    >
+                      Max Output Tokens
+                    </LabelWithTooltip>
+                    <Input
+                      id="custom-max-output"
+                      type="number"
+                      value={customModelForm.maxOutputTokens}
+                      onChange={(e) => setCustomModelForm(prev => ({ ...prev, maxOutputTokens: e.target.value }))}
+                      placeholder="Auto"
+                      className="text-sm"
+                      min="1"
+                    />
+                  </div>
+                </div>
+                <Button onClick={addCustomModel} size="sm" className="w-full">
+                  Add Model
+                </Button>
               </div>
             )}
           </div>
