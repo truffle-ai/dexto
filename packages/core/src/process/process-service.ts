@@ -206,7 +206,7 @@ export class ProcessService {
             });
 
             // Handle completion
-            child.on('close', (code, _signal) => {
+            child.on('close', (code, signal) => {
                 closed = true;
                 clearTimeout(timeoutHandle);
                 const duration = Date.now() - startTime;
@@ -216,7 +216,10 @@ export class ProcessService {
                     return;
                 }
 
-                const exitCode = code ?? 0;
+                let exitCode = typeof code === 'number' ? code : 1;
+                if (code === null) {
+                    stderr += `\nProcess terminated by signal ${signal ?? 'UNKNOWN'}`;
+                }
 
                 logger.debug(
                     `Command completed with exit code ${exitCode} in ${duration}ms: ${command}`
@@ -386,7 +389,17 @@ export class ProcessService {
             bgProcess.status = 'failed';
             bgProcess.completedAt = new Date();
             bgProcess.outputBuffer.complete = true;
-            bgProcess.outputBuffer.stderr.push(`Error: ${error.message}`);
+            const chunk = `Error: ${error.message}`;
+            const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+            if (bgProcess.outputBuffer.bytesUsed + chunkBytes <= this.config.maxOutputBuffer) {
+                bgProcess.outputBuffer.stderr.push(chunk);
+                bgProcess.outputBuffer.bytesUsed += chunkBytes;
+            } else {
+                if (!bgProcess.outputBuffer.truncated) {
+                    bgProcess.outputBuffer.truncated = true;
+                    logger.warn(`Error buffer full for process ${processId}`);
+                }
+            }
 
             logger.error(`Background process ${processId} failed: ${error.message}`);
         });
@@ -457,7 +470,8 @@ export class ProcessService {
 
             // Force kill after timeout
             setTimeout(() => {
-                if (bgProcess.status === 'running') {
+                // Escalate based on actual process state, not our status flag
+                if (bgProcess.child.exitCode === null) {
                     bgProcess.child.kill('SIGKILL');
                 }
             }, 5000);
