@@ -530,7 +530,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
                 className="flex items-center justify-between w-full text-left"
               >
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Available Tools
+                  Available Tools {tools.length > 0 && `(${tools.length})`}
                 </h3>
                 <ChevronDown 
                   className={cn(
