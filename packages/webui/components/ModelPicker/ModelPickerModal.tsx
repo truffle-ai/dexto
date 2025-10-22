@@ -146,7 +146,7 @@ export default function ModelPickerModal() {
   const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | "">("");
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'favorites' | 'all'>('favorites');
+  const [activeTab, setActiveTab] = useState<'favorites' | 'all' | 'custom'>('favorites');
 
   // Custom models state
   const [customModels, setCustomModels] = useState<CustomModelStorage[]>([]);
@@ -213,8 +213,14 @@ export default function ModelPickerModal() {
         const loadedCustom = customRaw ? (JSON.parse(customRaw) as CustomModelStorage[]) : [];
         setCustomModels(loadedCustom);
 
-        // Default to favorites if user has any, otherwise show all models
-        setActiveTab(loadedFavorites.length > 0 ? 'favorites' : 'all');
+        // Default to favorites if user has any, otherwise custom if they have custom models, otherwise all
+        if (loadedFavorites.length > 0) {
+          setActiveTab('favorites');
+        } else if (loadedCustom.length > 0) {
+          setActiveTab('custom');
+        } else {
+          setActiveTab('all');
+        }
       } catch {
         setFavorites([]);
         setCustomModels([]);
@@ -481,6 +487,21 @@ export default function ModelPickerModal() {
                   <Bot className="h-4 w-4" />
                   All Models
                 </button>
+                <button
+                  onClick={() => setActiveTab('custom')}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
+                    activeTab === 'custom'
+                      ? "bg-primary/10 text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <Bot className="h-4 w-4" />
+                  Custom
+                  {customModels.length > 0 && (
+                    <span className="text-xs opacity-70">({customModels.length})</span>
+                  )}
+                </button>
               </div>
             )}
 
@@ -540,57 +561,59 @@ export default function ModelPickerModal() {
                     ))}
                   </div>
                 )
+              ) : activeTab === 'custom' ? (
+                // Custom Models tab
+                customModels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                    <Bot className="h-12 w-12 text-muted-foreground/40" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">No custom models yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Add your local LLMs or custom endpoints below
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 pb-2">
+                    {customModels.map((cm) => (
+                      <div
+                        key={cm.name}
+                        className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{cm.name}</span>
+                            <span className="text-xs text-muted-foreground">openai-compatible</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate mt-0.5">
+                            {cm.baseURL}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onPickCustomModel(cm)}
+                            className="h-8 px-3"
+                          >
+                            Use
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteCustomModel(cm.name)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : (
                 // All Models tab
                 <div className="space-y-6 pb-2">
-                  {/* Custom Models Section */}
-                  {customModels.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Bot className="h-4 w-4 text-primary" />
-                        <h3 className="text-sm font-semibold">Custom Models</h3>
-                        <span className="text-xs text-muted-foreground">({customModels.length})</span>
-                      </div>
-                      <div className="space-y-2">
-                        {customModels.map((cm) => (
-                          <div
-                            key={cm.name}
-                            className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">{cm.name}</span>
-                                <span className="text-xs text-muted-foreground">openai-compatible</span>
-                              </div>
-                              <div className="text-xs text-muted-foreground truncate mt-0.5">
-                                {cm.baseURL}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 ml-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => onPickCustomModel(cm)}
-                                className="h-8 px-3"
-                              >
-                                Use
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => deleteCustomModel(cm.name)}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              >
-                                ×
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Regular Providers */}
                   {Object.keys(providers).length === 0 ? (
                     <div className="text-sm text-muted-foreground text-center py-8">
                       No providers available
