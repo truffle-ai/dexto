@@ -243,7 +243,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Dexto Agents as MCP Servers](./dexto-as-mcp-server.md) to understand more about MCP servers.
+Check [Dexto Agents as MCP Servers](../mcp/dexto-as-mcp-server.md) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash
@@ -257,7 +257,7 @@ To use a specific config file:
 dexto mcp --group-servers -a ./dexto-tools.yml
 ```
 
-Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
+Check [Using Dexto to group MCP servers](../mcp/dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
 
 
 ## Environment variables

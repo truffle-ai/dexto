@@ -12,7 +12,7 @@ This means you can even connect one Dexto agent to another Dexto agent!
 
 You can use any of our pre-installed Dexto Agents (music-agent, database-agent, podcast-agent, etc.), or use your own yml config file as well
 
-Check out our [Configuration guide](./configuring-dexto/overview.md) to configure your own agent
+Check out our [Configuration guide](../guides/configuring-dexto/overview.md) to configure your own agent
 
 ## Prerequisites
 
@@ -77,7 +77,7 @@ Need debug logs? Add `DEXTO_LOG_LEVEL` env variable
 
 Logs will be stored in `~/.dexto/logs/dexto.log`
 
-> Looking for Cursor-specific instructions? See [Using Dexto Agents in Cursor](./dexto-in-cursor.md).
+> Looking for Cursor-specific instructions? See [Using Dexto Agents in Cursor](../guides/dexto-in-cursor.md).
 
 Once connected, clients gain access to the agent tools defined in your configuration (filesystem, web browsing, custom MCP servers, etc.).
 

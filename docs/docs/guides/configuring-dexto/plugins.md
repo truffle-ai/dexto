@@ -400,5 +400,5 @@ plugins:
 ## Next Steps
 
 - **Explore system prompts**: Configure agent behavior with [System Prompt Configuration](./systemPrompt.md)
-- **Connect tools**: Add MCP servers with [MCP Configuration](./mcp.md)
+- **Connect tools**: Add MCP servers with [MCP Configuration](../../mcp/configuration.md)
 - **Storage options**: Configure message persistence with [Storage Configuration](./storage.md)
