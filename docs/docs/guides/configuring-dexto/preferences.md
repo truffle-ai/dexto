@@ -41,7 +41,7 @@ export type GlobalPreferences = {
 ```yaml
 llm:
   provider: anthropic
-  model: claude-3-5-sonnet-20240620
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 
 defaults:
@@ -86,7 +86,7 @@ llm:
 # Anthropic Configuration
 llm:
   provider: anthropic
-  model: claude-3-5-sonnet-20240620
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 ```
 
@@ -179,7 +179,7 @@ This will guide you through:
 ### Non-Interactive Setup
 
 ```bash
-dexto setup --provider anthropic --model claude-3-5-sonnet-20240620
+dexto setup --provider anthropic --model claude-sonnet-4-5-20250929
 ```
 
 **Options:**
@@ -256,7 +256,7 @@ When conflicts occur, settings are resolved with the following precedence (highe
 # Global preferences
 llm:
   provider: anthropic
-  model: claude-3-5-sonnet-20240620
+  model: claude-sonnet-4-5-20250929
 ```
 
 ```yaml

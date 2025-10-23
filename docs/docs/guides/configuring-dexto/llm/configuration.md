@@ -101,7 +101,7 @@ llm:
 ```yaml
 llm:
   provider: anthropic
-  model: claude-3-5-sonnet-20240620
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
   temperature: 0.7
   maxOutputTokens: 8000
