@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from './button';
 import { Input } from './input';
 import { Label } from './label';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 
 interface KeyValuePair {
   key: string;
@@ -24,7 +24,21 @@ interface KeyValueEditorProps {
   className?: string;
   keyLabel?: string;
   valueLabel?: string;
+  maskSensitiveValues?: boolean;
 }
+
+const SENSITIVE_KEY_PATTERNS = [
+  'api_key',
+  'apikey',
+  'secret',
+  'token',
+  'password',
+  'key',
+  'authorization',
+  'auth',
+  'bearer',
+  'credential',
+];
 
 export function KeyValueEditor({
   label = 'Key-Value Pairs',
@@ -34,8 +48,28 @@ export function KeyValueEditor({
   disabled = false,
   className = '',
   keyLabel = 'Key',
-  valueLabel = 'Value'
+  valueLabel = 'Value',
+  maskSensitiveValues = true,
 }: KeyValueEditorProps) {
+  const [visibleValues, setVisibleValues] = useState<Set<string>>(new Set());
+
+  const isSensitiveKey = (key: string): boolean => {
+    if (!maskSensitiveValues || !key) return false;
+    const lowerKey = key.toLowerCase();
+    return SENSITIVE_KEY_PATTERNS.some((pattern) => lowerKey.includes(pattern));
+  };
+
+  const toggleValueVisibility = (id: string) => {
+    setVisibleValues((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
 
   const addPair = () => {
     const newPair: KeyValuePair = {
@@ -75,34 +109,59 @@ export function KeyValueEditor({
         )}
 
         {/* Key-value pair rows */}
-        {pairs.map((pair) => (
-          <div key={pair.id} className="grid grid-cols-12 gap-2 items-center">
-            <Input
-              placeholder={placeholder.key}
-              value={pair.key}
-              onChange={(e) => updatePair(pair.id, 'key', e.target.value)}
-              disabled={disabled}
-              className="col-span-5"
-            />
-            <Input
-              placeholder={placeholder.value}
-              value={pair.value}
-              onChange={(e) => updatePair(pair.id, 'value', e.target.value)}
-              disabled={disabled}
-              className="col-span-6"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removePair(pair.id)}
-              disabled={disabled}
-              className="col-span-1 h-8 w-8 p-0"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
+        {pairs.map((pair) => {
+          const isSensitive = isSensitiveKey(pair.key);
+          const isVisible = visibleValues.has(pair.id);
+
+          return (
+            <div key={pair.id} className="grid grid-cols-12 gap-2 items-center">
+              <Input
+                placeholder={placeholder.key}
+                value={pair.key}
+                onChange={(e) => updatePair(pair.id, 'key', e.target.value)}
+                disabled={disabled}
+                className="col-span-5"
+              />
+              <div className="col-span-6 relative">
+                <Input
+                  type={isSensitive && !isVisible ? 'password' : 'text'}
+                  placeholder={placeholder.value}
+                  value={pair.value}
+                  onChange={(e) => updatePair(pair.id, 'value', e.target.value)}
+                  disabled={disabled}
+                  className="pr-10"
+                />
+                {isSensitive && pair.value && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleValueVisibility(pair.id)}
+                    disabled={disabled}
+                    className="absolute right-0 top-0 h-full w-10 p-0 hover:bg-transparent"
+                    tabIndex={-1}
+                  >
+                    {isVisible ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removePair(pair.id)}
+                disabled={disabled}
+                className="col-span-1 h-8 w-8 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Add button */}
