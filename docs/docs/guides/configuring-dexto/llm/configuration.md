@@ -58,7 +58,7 @@ Control the creativity/randomness of AI responses:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   temperature: 0.7  # 0 = deterministic, 1 = very creative
 ```
@@ -78,7 +78,7 @@ llm:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   maxInputTokens: 100000   # Compress history when exceeding this
   maxOutputTokens: 4000    # Limit response length
@@ -91,7 +91,7 @@ llm:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   temperature: 0.7
   maxOutputTokens: 4000
@@ -155,7 +155,7 @@ Dexto offers two router options. The `vercel` router is used by default if no ro
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   router: vercel  # Optional - this is the default
 ```
@@ -169,7 +169,7 @@ llm:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   router: in-built
 ```
@@ -188,7 +188,7 @@ llm:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   temperature: 0.3
   maxOutputTokens: 4000

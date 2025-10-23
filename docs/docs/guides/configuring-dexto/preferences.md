@@ -78,7 +78,7 @@ The `llm` section defines your global AI provider configuration. These settings 
 # OpenAI Configuration
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -201,7 +201,7 @@ If you already have preferences configured:
 dexto setup
 
 # Force overwrite
-dexto setup --provider openai --model gpt-4.1-mini --force
+dexto setup --provider openai --model gpt-5-mini --force
 ```
 
 ## How Preferences Work
@@ -263,7 +263,7 @@ llm:
 # Agent configuration (takes precedence)
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
 ```
 
 ```bash
@@ -299,7 +299,7 @@ import { updateGlobalPreferences } from '@dexto/core';
 await updateGlobalPreferences({
     llm: {
         provider: 'openai',
-        model: 'gpt-4.1-mini',
+        model: 'gpt-5-mini',
         apiKey: '$OPENAI_API_KEY'
     }
 });

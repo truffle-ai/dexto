@@ -237,7 +237,7 @@ llm:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4-turbo
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
   maxIterations: 50
   router: vercel
@@ -953,7 +953,7 @@ systemPrompt:
 # LLM Configuration
 llm:
   provider: openai
-  model: gpt-4-turbo
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
   maxIterations: 50
   router: vercel

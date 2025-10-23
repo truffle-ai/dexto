@@ -35,7 +35,7 @@ import { PromptTemplate } from '@langchain/core/prompts';
 
 class LangChainAgent {
     constructor() {
-        this.llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+        this.llm = new ChatOpenAI({ model: 'gpt-5-mini' });
         this.tools = {
             summarize: this.summarize.bind(this),
             translate: this.translate.bind(this),

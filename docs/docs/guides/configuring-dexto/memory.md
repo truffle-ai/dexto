@@ -285,7 +285,7 @@ The memory contributor formats memories as a bulleted list in the system prompt:
 # LLM configuration
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   temperature: 0.7
 

@@ -61,7 +61,7 @@ systemPrompt: |
 
 llm:
   provider: openai
-  model: gpt-4.1
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 
 mcpServers:

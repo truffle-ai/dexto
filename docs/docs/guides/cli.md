@@ -119,7 +119,7 @@ Once in interactive mode (`dexto`), use these slash commands:
 | `/history` | Show current session history | `/history` |
 | `/search <query>` | Search conversation history | `/search "code review"` |
 | `/model list` | List available models | `/model list` |
-| `/model switch <model>` | Switch LLM model | `/model switch gpt-4o` |
+| `/model switch <model>` | Switch LLM model | `/model switch gpt-5` |
 | `/model current` | Show current model | `/model current` |
 | `/mcp list` | List MCP servers | `/mcp list` |
 | `/mcp add stdio <name> <cmd> [args...]` | Add stdio MCP server | `/mcp add stdio fs npx -y @modelcontextprotocol/server-filesystem` |

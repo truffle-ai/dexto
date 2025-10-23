@@ -83,7 +83,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -100,7 +100,7 @@ console.log(response);
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   },
   mcpServers: {
@@ -176,7 +176,7 @@ class ChatApplication {
 
   async initialize() {
     this.agent = new DextoAgent({
-      llm: { provider: 'openai', model: 'gpt-4o', apiKey: process.env.OPENAI_API_KEY },
+      llm: { provider: 'openai', model: 'gpt-5', apiKey: process.env.OPENAI_API_KEY },
       mcpServers: { /* your tools */ }
     });
     await this.agent.start();
@@ -282,7 +282,7 @@ class PersistentChatBot {
 // OpenAI
 const openaiConfig = {
   provider: 'openai',
-  model: 'gpt-4o',
+  model: 'gpt-5',
   apiKey: process.env.OPENAI_API_KEY,
   temperature: 0.7,
   maxOutputTokens: 4000
