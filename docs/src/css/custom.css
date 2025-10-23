@@ -351,8 +351,9 @@ button[title="Collapse sidebar"] {
   background: rgba(78, 201, 176, 0.08);
 }
 
-/* Add spacing between top-level categories */
-.theme-doc-sidebar-item-category-level-1 {
+/* Add spacing between top-level items (both categories and docs) */
+.theme-doc-sidebar-item-category-level-1,
+.theme-doc-sidebar-item-link-level-1 {
   margin-bottom: 1rem;
 }
 
