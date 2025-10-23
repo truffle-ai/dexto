@@ -69,11 +69,11 @@ Switch between models and providers dynamically.
 const currentLLM = agent.getCurrentLLMConfig();
 
 // Switch models (provider inferred automatically)
-await agent.switchLLM({ model: 'gpt-4.1-mini' });
-await agent.switchLLM({ model: 'claude-4-sonnet-20250514' });
+await agent.switchLLM({ model: 'gpt-5-mini' });
+await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
 // Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-4.1-mini' }, '1234')
+await agent.switchLLM({ model: 'gpt-5-mini' }, '1234')
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
