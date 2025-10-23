@@ -1,0 +1,9 @@
+{
+  "label": "Dexto SDK",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "title": "Dexto SDK API Reference",
+    "description": "Complete technical API reference for the Dexto SDK for TypeScript/JavaScript."
+  }
+}
