@@ -82,6 +82,13 @@ body::after {
   margin-right: 4rem;
 }
 
+/* Announcement bar styling */
+div[class^="announcementBar_"],
+div[class*="announcementBar"] {
+  font-weight: 600 !important;
+  font-size: 15px !important;
+}
+
 /* Enhanced typography with improved contrast */
 h1 {
   font-size: 2.5rem;
