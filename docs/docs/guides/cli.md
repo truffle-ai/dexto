@@ -39,7 +39,7 @@ Some of the cool things you can do with Dexto CLI:
 |------|-------------|---------|
 | `-v, --version` | Show version | `dexto --version` |
 | `-a, --agent <path>` | Use custom agent config | `dexto -a ./my-agent.yml` |
-| `-m, --model <model>` | Specify LLM model | `dexto -m claude-4-sonnet-20250514` |
+| `-m, --model <model>` | Specify LLM model | `dexto -m claude-sonnet-4-5-20250929` |
 | `--router <router>` | Specify router (vercel/in-built) | `dexto --router in-built` |
 | `-c, --continue` | Continue the last session | `dexto --continue` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |

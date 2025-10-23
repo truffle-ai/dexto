@@ -124,14 +124,14 @@ Access 100+ models through one API:
 ```yaml
 llm:
   provider: openai-compatible
-  model: anthropic/claude-3.5-sonnet
+  model: anthropic/claude-sonnet-4-5-20250929
   apiKey: $OPENROUTER_API_KEY
   baseURL: https://openrouter.ai/api/v1
   maxInputTokens: 200000
 ```
 
 **Popular OpenRouter models:**
-- `anthropic/claude-3.5-sonnet`
+- `anthropic/claude-sonnet-4-5-20250929`
 - `meta-llama/llama-3.1-405b-instruct`
 - `google/gemini-pro-1.5`
 - `mistralai/mistral-large`

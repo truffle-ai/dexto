@@ -239,7 +239,7 @@ async switchLLM(
 ```typescript
 const config = await agent.switchLLM({ 
   provider: 'anthropic', 
-  model: 'claude-4-sonnet-20250514' 
+  model: 'claude-sonnet-4-5-20250929' 
 });
 console.log(config.model);
 ```

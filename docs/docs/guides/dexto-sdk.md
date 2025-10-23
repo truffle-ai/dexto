@@ -291,7 +291,7 @@ const openaiConfig = {
 // Anthropic
 const anthropicConfig = {
   provider: 'anthropic', 
-  model: 'claude-3-opus-20240229',
+  model: 'claude-sonnet-4-5-20250929',
   apiKey: process.env.ANTHROPIC_API_KEY,
   maxIterations: 5
 };
