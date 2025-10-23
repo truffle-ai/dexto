@@ -40,6 +40,9 @@
   --ifm-color-warning: #f59e0b;
   --ifm-color-danger: #ef4444;
 
+  /* Sidebar menu colors */
+  --ifm-menu-color: #747680;
+
   /* Typography - Geist fonts (matching your website/webui) */
   --ifm-font-family-base: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, Oxygen, sans-serif;
