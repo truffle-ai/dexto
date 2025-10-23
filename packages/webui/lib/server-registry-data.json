@@ -450,5 +450,47 @@
     "author": "Exa",
     "homepage": "https://docs.exa.ai/reference/exa-mcp",
     "matchIds": ["exa"]
+  },
+  {
+    "id": "firecrawl",
+    "name": "Firecrawl",
+    "description": "AI-powered web search and research API with semantic search capabilities.",
+    "category": "data",
+    "icon": "🔍",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": ""
+      },
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Firecrawl",
+    "homepage": "https://docs.firecrawl.dev/mcp-server",
+    "matchIds": ["firecrawl"]
+  },
+  {
+    "id": "shadcn",
+    "name": "Shadcn",
+    "description": "Shadcn UI components for MCP servers",
+    "category": "development",
+    "icon": "🖌️",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"]  
+    },
+    "tags": ["shadcn", "ui", "components", "mcp"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Shadcn",
+    "homepage": "https://ui.shadcn.com/docs/mcp#configuration",
+    "matchIds": ["shadcn"]
   }
 ]
