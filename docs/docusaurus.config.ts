@@ -85,7 +85,7 @@ const config: Config = {
                 src: 'img/dexto/dexto_logo_light.svg',
                 srcDark: 'img/dexto/dexto_logo.svg',
             },
-            hideOnScroll: true,
+            hideOnScroll: false,
             items: [
                 {
                     to: '/docs/getting-started/intro',
