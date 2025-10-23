@@ -4,13 +4,13 @@ sidebar_position: 1
 
 # Conversation
 
-### Send Message (sync)
+## Send Message (sync)
 Sends a message and waits for the full response.
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/message-sync</code></p>
 
-#### Request Body
-- `message` (string, required): The user's message.
+### Request Body
+- `message` (string, optional): The user's message. At least one of `message`, `imageData`, or `fileData` must be provided.
 - `sessionId` (string, optional): The session to use for this message.
 - `imageData` (object, optional):
     - `base64` (string): Base64-encoded image.
@@ -20,9 +20,9 @@ Sends a message and waits for the full response.
     - `mimeType` (string): The MIME type of the file (e.g., `application/pdf`).
     - `filename` (string, optional): The filename.
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "response": "Agent's complete response here",
@@ -30,20 +30,20 @@ Sends a message and waits for the full response.
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
-  "error": "Missing message content"
+  "error": "Must provide either message text, image data, or file data"
 }
 ```
 
-### Send Message (async)
+## Send Message (async)
 Sends a message and returns immediately. The full response will be sent over WebSocket.
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/message</code></p>
 
-#### Request Body
-- `message` (string, required): The user's message.
+### Request Body
+- `message` (string, optional): The user's message. At least one of `message`, `imageData`, or `fileData` must be provided.
 - `sessionId` (string, optional): The session to use for this message.
 - `imageData` (object, optional):
     - `base64` (string): Base64-encoded image.
@@ -54,27 +54,27 @@ Sends a message and returns immediately. The full response will be sent over Web
     - `filename` (string, optional): The filename.
 - `stream` (boolean, optional): Set to `true` to receive streaming chunks over WebSocket.
 
-#### Responses
+### Responses
 
-**Accepted (202)**
+#### Accepted (202)
 ```json
 {
-  "status": "processing",
+  "response": "Agent's complete response here",
   "sessionId": "b4a2a3e8-72b1-4d00-a5c3-1a2c3d4e5f6a"
 }
 ```
 
-### Reset Conversation
-*Resets the conversation history for a given session.*
+## Reset Conversation
+Resets the conversation history for a given session.
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/reset</code></p>
 
-#### Request Body
+### Request Body
 - `sessionId` (string, optional): The ID of the session to reset.
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "status": "reset initiated",

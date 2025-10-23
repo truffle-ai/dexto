@@ -4,14 +4,14 @@ sidebar_position: 11
 
 # Webhook Management
 
-### List Webhooks
+## List Webhooks
 *Retrieves a list of all registered webhooks.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/webhooks</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "webhooks": [
@@ -25,19 +25,19 @@ sidebar_position: 11
 }
 ```
 
-### Register Webhook
+## Register Webhook
 *Registers a new webhook endpoint to receive agent events.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/webhooks</code></p>
 
-#### Request Body
+### Request Body
 - `url` (string, required): The URL to send webhook events to. Must be a valid HTTP/HTTPS URL.
 - `secret` (string, optional): A secret key for HMAC signature verification. When provided, webhook payloads will include an `X-Dexto-Signature-256` header.
 - `description` (string, optional): A description of the webhook for reference.
 
-#### Responses
+### Responses
 
-**Success (201)**
+#### Success (201)
 ```json
 {
   "webhook": {
@@ -49,21 +49,21 @@ sidebar_position: 11
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "error": "Invalid URL format"
 }
 ```
 
-### Get Webhook Details
+## Get Webhook Details
 *Fetches details for a specific webhook.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/webhooks/:webhookId</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "webhook": {
@@ -75,34 +75,33 @@ sidebar_position: 11
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Webhook not found"
 }
 ```
 
-### Test Webhook
+## Test Webhook
 *Sends a sample event to test webhook connectivity and configuration.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/webhooks/:webhookId/test</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "test": "completed",
   "result": {
     "success": true,
     "statusCode": 200,
-    "responseTime": 145,
-    "error": null
+    "responseTime": 145
   }
 }
 ```
 
-**Success with Error (200)**
+#### Success with Failure (200)
 ```json
 {
   "test": "completed",
@@ -115,21 +114,21 @@ sidebar_position: 11
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Webhook not found"
 }
 ```
 
-### Delete Webhook
+## Delete Webhook
 *Permanently removes a webhook endpoint. This action cannot be undone.*
 
 <p class="api-endpoint-header"><span class="api-method delete">DELETE</span><code>/api/webhooks/:webhookId</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "status": "removed",
@@ -137,7 +136,7 @@ sidebar_position: 11
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Webhook not found"

@@ -6,14 +6,14 @@ sidebar_position: 8
 
 Manage and execute custom prompts with optional resource attachments.
 
-### List Prompts
+## List Prompts
 *Retrieves all available prompts, including both built-in and custom prompts.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/prompts</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "prompts": [
@@ -26,20 +26,21 @@ Manage and execute custom prompts with optional resource attachments.
           "description": "Programming language",
           "required": true
         }
-      ]
+      ],
+      "source": "custom"
     }
   ]
 }
 ```
 
-### Get Prompt Definition
+## Get Prompt Definition
 *Fetches the definition for a specific prompt.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/prompts/:name</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "definition": {
@@ -51,62 +52,57 @@ Manage and execute custom prompts with optional resource attachments.
         "description": "Programming language",
         "required": true
       }
-    ],
-    "content": "Analyze this {{language}} code..."
+    ]
   }
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Prompt not found"
 }
 ```
 
-### Resolve Prompt
+## Resolve Prompt
 *Resolves a prompt template with provided arguments and returns the final text with resources.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/prompts/:name/resolve</code></p>
 
-#### Query Parameters
+### Query Parameters
 - `context` (string, optional): Additional context for prompt resolution.
 - `args` (object, optional): Arguments to substitute in the prompt template. Pass as a JSON string.
 
-#### Example Request
+### Example Request
 ```
 GET /api/prompts/analyze-code/resolve?args={"language":"TypeScript"}
 ```
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "text": "Analyze this TypeScript code...",
   "resources": [
-    {
-      "uri": "fs:///path/to/code.ts",
-      "name": "code.ts",
-      "mimeType": "text/plain"
-    }
+    "mcp:server-name:resource-uri"
   ]
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "error": "Missing required argument: language"
 }
 ```
 
-### Create Custom Prompt
+## Create Custom Prompt
 *Creates a new custom prompt with optional resource attachment. Maximum request size: 10MB.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/prompts/custom</code></p>
 
-#### Request Body
+### Request Body
 - `name` (string, required): Unique name for the custom prompt.
 - `title` (string, optional): Display title for the prompt.
 - `description` (string, optional): Description of what the prompt does.
@@ -120,7 +116,7 @@ GET /api/prompts/analyze-code/resolve?args={"language":"TypeScript"}
   - `mimeType` (string, required): MIME type of the resource (e.g., `text/plain`, `application/pdf`).
   - `filename` (string, optional): Resource filename.
 
-#### Example Request
+### Example Request
 ```json
 {
   "name": "review-pr",
@@ -141,9 +137,9 @@ GET /api/prompts/analyze-code/resolve?args={"language":"TypeScript"}
 }
 ```
 
-#### Responses
+### Responses
 
-**Success (201)**
+#### Success (201)
 ```json
 {
   "prompt": {
@@ -155,43 +151,44 @@ GET /api/prompts/analyze-code/resolve?args={"language":"TypeScript"}
         "description": "Programming language",
         "required": true
       }
-    ]
+    ],
+    "source": "custom"
   }
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "error": "Prompt name already exists"
 }
 ```
 
-**Error (413)**
+#### Error (413)
 ```json
 {
   "error": "Request body too large. Maximum size: 10MB"
 }
 ```
 
-### Delete Custom Prompt
+## Delete Custom Prompt
 *Permanently deletes a custom prompt. Built-in prompts cannot be deleted.*
 
 <p class="api-endpoint-header"><span class="api-method delete">DELETE</span><code>/api/prompts/custom/:name</code></p>
 
-#### Responses
+### Responses
 
-**Success (204)**
+#### Success (204)
 *No content returned.*
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Prompt not found"
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "error": "Cannot delete built-in prompt"

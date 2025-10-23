@@ -4,14 +4,14 @@ sidebar_position: 10
 
 # Agent Management
 
-### List Agents
+## List Agents
 *Retrieves all agents (installed, available, and current active agent).*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/agents</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "installed": [
@@ -26,11 +26,11 @@ sidebar_position: 10
   ],
   "available": [
     {
-      "id": "productivity",
-      "name": "Productivity",
-      "description": "Optimized for task management and productivity",
-      "author": "Dexto",
-      "tags": ["productivity", "tasks"],
+      "id": "music-agent",
+      "name": "Music Agent",
+      "description": "AI agent for music creation and audio processing",
+      "author": "Truffle AI",
+      "tags": ["music", "audio", "creation", "sound"],
       "type": "builtin"
     }
   ],
@@ -41,14 +41,14 @@ sidebar_position: 10
 }
 ```
 
-### Get Current Agent
+## Get Current Agent
 *Retrieves the currently active agent.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/agents/current</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "id": "default",
@@ -64,19 +64,19 @@ When no agent is active:
 }
 ```
 
-### Install Agent
+## Install Agent
 *Installs an agent from the registry or from a custom source.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/agents/install</code></p>
 
-#### Request Body (Registry Agent)
+### Request Body (Registry Agent)
 ```json
 {
-  "id": "productivity"
+  "id": "music-agent"
 }
 ```
 
-#### Request Body (Custom Agent)
+### Request Body (Custom Agent)
 ```json
 {
   "id": "my-custom-agent",
@@ -103,14 +103,14 @@ When no agent is active:
   - `main` (string, optional): Main configuration file name within source directory
 - `injectPreferences` (boolean, default: true): Whether to inject user preferences into agent config
 
-#### Responses
+### Responses
 
-**Success (201) - Registry Agent**
+#### Success (201) - Registry Agent
 ```json
 {
   "installed": true,
-  "id": "productivity",
-  "name": "Productivity",
+  "id": "music-agent",
+  "name": "Music Agent",
   "type": "builtin"
 }
 ```
@@ -125,22 +125,22 @@ When no agent is active:
 }
 ```
 
-### Switch Agent
+## Switch Agent
 *Switches to a different agent by ID or file path.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/agents/switch</code></p>
 
-#### Request Body
+### Request Body
 ```json
 {
-  "id": "productivity"
+  "id": "database-agent"
 }
 ```
 
 Or for file-based agents:
 ```json
 {
-  "id": "my-custom-agent",
+  "id": "my-coding-assistant",
   "path": "/absolute/path/to/agent.yml"
 }
 ```
@@ -149,32 +149,32 @@ Or for file-based agents:
 - `id` (string, required): Unique agent identifier
 - `path` (string, optional): Absolute file path for file-based agents
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "switched": true,
-  "id": "productivity",
-  "name": "Productivity"
+  "id": "database-agent",
+  "name": "Database Agent"
 }
 ```
 
-### Validate Agent Name
+## Validate Agent Name
 *Checks if an agent ID conflicts with existing agents.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/agents/validate-name</code></p>
 
-#### Request Body
+### Request Body
 ```json
 {
   "id": "my-new-agent"
 }
 ```
 
-#### Responses
+### Responses
 
-**Success (200) - Valid**
+#### Success (200) - Valid
 ```json
 {
   "valid": true
@@ -186,16 +186,16 @@ Or for file-based agents:
 {
   "valid": false,
   "conflict": "builtin",
-  "message": "Agent id 'productivity' already exists (builtin)"
+  "message": "Agent id 'music-agent' already exists (builtin)"
 }
 ```
 
-### Uninstall Agent
+## Uninstall Agent
 *Removes an agent from the system. Custom agents are removed from registry; builtin agents can be reinstalled.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/agents/uninstall</code></p>
 
-#### Request Body
+### Request Body
 ```json
 {
   "id": "my-custom-agent",
@@ -207,9 +207,9 @@ Or for file-based agents:
 - `id` (string, required): Unique agent identifier to uninstall
 - `force` (boolean, default: false): Force uninstall even if agent is currently active
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "uninstalled": true,
@@ -217,7 +217,7 @@ Or for file-based agents:
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "ok": false,
@@ -231,12 +231,12 @@ Or for file-based agents:
 }
 ```
 
-### Create Custom Agent
+## Create Custom Agent
 *Creates a new custom agent from scratch via the UI/API.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/agents/custom/create</code></p>
 
-#### Request Body
+### Request Body
 ```json
 {
   "id": "coding-assistant",
@@ -265,9 +265,9 @@ Or for file-based agents:
   - `apiKey` (string, optional): Environment variable reference (e.g., `$OPENAI_API_KEY`) or raw API key
 - `systemPrompt` (string, required): System prompt for the agent
 
-#### Responses
+### Responses
 
-**Success (201)**
+#### Success (201)
 ```json
 {
   "created": true,
@@ -276,7 +276,7 @@ Or for file-based agents:
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "ok": false,

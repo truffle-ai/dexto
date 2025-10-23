@@ -4,14 +4,14 @@ sidebar_position: 9
 
 # Resource Management
 
-### List All Resources
+## List All Resources
 *Retrieves a list of all available resources from all sources (MCP servers and internal providers).*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/resources</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "ok": true,
@@ -37,17 +37,17 @@ sidebar_position: 9
 }
 ```
 
-### Read Resource Content
+## Read Resource Content
 *Reads the content of a specific resource by its URI. The resource ID in the URL must be URI-encoded.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/resources/:resourceId/content</code></p>
 
-#### URL Parameters
+### URL Parameters
 - `resourceId` (string, required): The URI-encoded resource identifier (e.g., `fs%3A%2F%2F%2Fpath%2Fto%2Ffile.txt` for `fs:///path/to/file.txt`)
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "ok": true,
@@ -66,7 +66,7 @@ sidebar_position: 9
 }
 ```
 
-**Binary File Response (200)**
+#### Binary File Response (200)
 ```json
 {
   "ok": true,
@@ -74,7 +74,7 @@ sidebar_position: 9
     "contents": [
       {
         "uri": "fs:///path/to/image.png",
-        "mimeType": "text/plain",
+        "mimeType": "image/png",
         "text": "[Binary file: image.png (15234 bytes)]"
       }
     ],
@@ -87,40 +87,40 @@ sidebar_position: 9
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Resource not found"
 }
 ```
 
-### Check Resource Exists
+## Check Resource Exists
 *Checks if a resource exists by its URI without retrieving its content.*
 
 <p class="api-endpoint-header"><span class="api-method head">HEAD</span><code>/api/resources/:resourceId</code></p>
 
-#### URL Parameters
+### URL Parameters
 - `resourceId` (string, required): The URI-encoded resource identifier
 
-#### Responses
+### Responses
 
-**Resource Exists (200)**
+#### Resource Exists (200)
 - Empty response body
 
-**Resource Not Found (404)**
+#### Resource Not Found (404)
 - Empty response body
 
-### List Server Resources
+## List Server Resources
 *Retrieves all resources available from a specific MCP server.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/mcp/servers/:serverId/resources</code></p>
 
-#### URL Parameters
+### URL Parameters
 - `serverId` (string, required): The ID of the MCP server
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "success": true,
@@ -141,25 +141,25 @@ sidebar_position: 9
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Server not found"
 }
 ```
 
-### Read Server Resource Content
+## Read Server Resource Content
 *Reads content from a specific resource on an MCP server. This endpoint automatically constructs the qualified URI format (`mcp:serverId:resourceId`).*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/mcp/servers/:serverId/resources/:resourceId/content</code></p>
 
-#### URL Parameters
+### URL Parameters
 - `serverId` (string, required): The ID of the MCP server
 - `resourceId` (string, required): The URI-encoded resource identifier on that server
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "success": true,
@@ -177,7 +177,7 @@ sidebar_position: 9
 }
 ```
 
-**Error (404)**
+#### Error (404)
 ```json
 {
   "error": "Resource not found"
