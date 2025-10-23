@@ -87,6 +87,16 @@ Some of the cool things you can do with Dexto CLI:
 - `--available` - Show only available agents from registry
 
 | `which <agent>` | Show path to agent | `dexto which nano-banana-agent` |
+| `session list` | List all sessions | `dexto session list` |
+| `session history [sessionId]` | Show session history | `dexto session history my-session` |
+| `session delete <sessionId>` | Delete a session | `dexto session delete old-session` |
+| `search <query>` | Search session history | `dexto search "code review"` |
+
+**Options for `search`:**
+- `--session <sessionId>` - Search in specific session
+- `--role <role>` - Filter by role (user, assistant, system, tool)
+- `--limit <number>` - Limit number of results (default: 10)
+
 | `mcp --group-servers` | Start MCP server aggregator | `dexto mcp --group-servers` |
 
 **Options:**
@@ -104,23 +114,25 @@ Once in interactive mode (`dexto`), use these slash commands:
 | `/exit, /quit, /q` | Exit CLI | `/exit` |
 | `/clear, /reset` | Clear conversation history | `/clear` |
 | `/session list` | List all sessions | `/session list` |
-| `/session create [id]` | Create new session | `/session create work-session` |
-| `/session load <id>` | Load session | `/session load work-session` |
-| `/session delete <id>` | Delete session | `/session delete old-session` |
-| `/session export <id>` | Export session data | `/session export work-session` |
-| `/history [limit]` | Show conversation history | `/history 10` |
+| `/session history [sessionId]` | Show session history | `/session history` |
+| `/session delete <sessionId>` | Delete a session | `/session delete old-session` |
+| `/history` | Show current session history | `/history` |
 | `/search <query>` | Search conversation history | `/search "code review"` |
 | `/model list` | List available models | `/model list` |
 | `/model switch <model>` | Switch LLM model | `/model switch gpt-4o` |
 | `/model current` | Show current model | `/model current` |
 | `/mcp list` | List MCP servers | `/mcp list` |
-| `/mcp connect <name>` | Connect MCP server | `/mcp connect filesystem` |
-| `/mcp disconnect <name>` | Disconnect MCP server | `/mcp disconnect web` |
-| `/mcp status` | Show connection status | `/mcp status` |
+| `/mcp add stdio <name> <cmd> [args...]` | Add stdio MCP server | `/mcp add stdio fs npx -y @modelcontextprotocol/server-filesystem` |
+| `/mcp add http <name> <url>` | Add HTTP MCP server | `/mcp add http myserver http://localhost:3000` |
+| `/mcp add sse <name> <url>` | Add SSE MCP server | `/mcp add sse events http://localhost:3000/events` |
+| `/mcp remove <name>` | Remove MCP server | `/mcp remove filesystem` |
 | `/tools list` | List available tools | `/tools list` |
 | `/tools search <query>` | Search tools | `/tools search file` |
-| `/prompt show` | Show current system prompt | `/prompt show` |
-| `/prompt reload` | Reload system prompt | `/prompt reload` |
+| `/sysprompt` | Display current system prompt | `/sysprompt` |
+| `/prompts` | List all available prompts | `/prompts` |
+| `/use <prompt> [args]` | Use a specific prompt | `/use code-review language=js` |
+| `/<prompt-name> [args]` | Direct prompt execution | `/code-review some-file.js` |
+| `/docs, /doc` | Open Dexto documentation | `/docs` |
 | `/log level <level>` | Set log level | `/log level debug` |
 | `/log tail [lines]` | Show recent logs | `/log tail 50` |
 | `/config validate` | Validate configuration | `/config validate` |
