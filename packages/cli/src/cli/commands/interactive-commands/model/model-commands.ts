@@ -169,8 +169,8 @@ export const modelCommands: CommandDefinition = {
                     `  ${chalk.yellow('/model switch')} ${chalk.blue('<model>')} - Switch to a different AI model (provider auto-detected)`
                 );
                 console.log(`        Examples:`);
-                console.log(`          ${chalk.dim('/model switch gpt-4o')}`);
-                console.log(`          ${chalk.dim('/model switch claude-4-sonnet-20250514')}`);
+                console.log(`          ${chalk.dim('/model switch gpt-5')}`);
+                console.log(`          ${chalk.dim('/model switch claude-sonnet-4-5-20250929')}`);
                 console.log(`          ${chalk.dim('/model switch gemini-2.5-pro')}`);
                 console.log(`  ${chalk.yellow('/model help')} - Show this help message`);
 

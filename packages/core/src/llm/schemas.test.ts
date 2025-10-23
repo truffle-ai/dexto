@@ -101,7 +101,7 @@ describe('LLMConfigSchema', () => {
         it('should preserve explicit optional values', () => {
             const config: LLMConfig = {
                 provider: 'openai',
-                model: 'gpt-4o',
+                model: 'gpt-5',
                 apiKey: 'test-key',
                 maxIterations: 25,
                 temperature: 0.7,
@@ -120,7 +120,7 @@ describe('LLMConfigSchema', () => {
     describe('Required Fields Validation', () => {
         it('should require provider field', () => {
             const config = {
-                model: 'gpt-4o',
+                model: 'gpt-5',
                 apiKey: 'test-key',
             };
 
@@ -143,7 +143,7 @@ describe('LLMConfigSchema', () => {
         it('should require apiKey field', () => {
             const config = {
                 provider: 'openai',
-                model: 'gpt-4o',
+                model: 'gpt-5',
             };
 
             const result = LLMConfigSchema.safeParse(config);
@@ -180,7 +180,7 @@ describe('LLMConfigSchema', () => {
         it('should be case sensitive for providers', () => {
             const config = {
                 provider: 'OpenAI', // Should be 'openai'
-                model: 'gpt-4o',
+                model: 'gpt-5',
                 apiKey: 'test-key',
             };
 
@@ -456,9 +456,9 @@ describe('LLMConfigSchema', () => {
     describe('Edge Cases', () => {
         it('should reject empty string values', () => {
             const testCases = [
-                { provider: '', model: 'gpt-4o', apiKey: 'key' },
+                { provider: '', model: 'gpt-5', apiKey: 'key' },
                 { provider: 'openai', model: '', apiKey: 'key' },
-                { provider: 'openai', model: 'gpt-4o', apiKey: '' },
+                { provider: 'openai', model: 'gpt-5', apiKey: '' },
             ];
 
             for (const config of testCases) {
@@ -469,9 +469,9 @@ describe('LLMConfigSchema', () => {
 
         it('should reject whitespace-only values', () => {
             const testCases = [
-                { provider: '   ', model: 'gpt-4o', apiKey: 'key' },
+                { provider: '   ', model: 'gpt-5', apiKey: 'key' },
                 { provider: 'openai', model: '   ', apiKey: 'key' },
-                { provider: 'openai', model: 'gpt-4o', apiKey: '   ' },
+                { provider: 'openai', model: 'gpt-5', apiKey: '   ' },
             ];
 
             for (const config of testCases) {
@@ -553,7 +553,7 @@ describe('LLMConfigSchema', () => {
     describe('LLMUpdatesSchema', () => {
         describe('Update Requirements', () => {
             it('should pass validation when model is provided', () => {
-                const updates = { model: 'gpt-4o' };
+                const updates = { model: 'gpt-5' };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
 
@@ -563,7 +563,7 @@ describe('LLMConfigSchema', () => {
             });
 
             it('should pass validation when both model and provider are provided', () => {
-                const updates = { model: 'gpt-4o', provider: 'openai' };
+                const updates = { model: 'gpt-5', provider: 'openai' };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
 
@@ -583,7 +583,7 @@ describe('LLMConfigSchema', () => {
             });
 
             it('should pass validation when model/provider with other fields', () => {
-                const updates = { model: 'gpt-4o', maxIterations: 10, router: 'vercel' };
+                const updates = { model: 'gpt-5', maxIterations: 10, router: 'vercel' };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
         });

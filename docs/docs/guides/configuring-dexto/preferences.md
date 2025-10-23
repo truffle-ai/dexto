@@ -336,7 +336,7 @@ API key must be environment variable reference (e.g., $OPENAI_API_KEY)
 
 **Incompatible Model:**
 ```text
-Model 'gpt-4' is not supported by provider 'anthropic'
+Model 'gpt-5' is not supported by provider 'anthropic'
 ```
 **Solution**: Check [Providers Guide](./llm/providers.md) for valid model combinations
 

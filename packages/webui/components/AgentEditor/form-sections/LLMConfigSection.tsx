@@ -68,14 +68,14 @@ export function LLMConfigSection({
 
         {/* Model */}
         <div>
-          <LabelWithTooltip htmlFor="model" tooltip="The specific model identifier (e.g., gpt-4, claude-3-opus)">
+          <LabelWithTooltip htmlFor="model" tooltip="The specific model identifier (e.g., gpt-5, claude-sonnet-4-5-20250929)">
             Model *
           </LabelWithTooltip>
           <Input
             id="model"
             value={value.model || ''}
             onChange={(e) => handleChange('model', e.target.value)}
-            placeholder="e.g., gpt-4, claude-3-opus-20240229"
+            placeholder="e.g., gpt-5, claude-sonnet-4-5-20250929"
             aria-invalid={!!errors['llm.model']}
           />
           {errors['llm.model'] && <p className="text-xs text-destructive mt-1">{errors['llm.model']}</p>}

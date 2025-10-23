@@ -761,7 +761,7 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
  * Matches the model name (case-insensitive) against all registered models.
  * Returns the provider name if found, or 'unknown' if not found.
  *
- * @param model The model name (e.g., 'gpt-4o-mini', 'claude-3-7-sonnet-20250219')
+ * @param model The model name (e.g., 'gpt-5-mini', 'claude-sonnet-4-5-20250929')
  * @returns The inferred provider name ('openai', 'anthropic', etc.), or 'unknown' if no match is found.
  */
 export function getProviderFromModel(model: string): LLMProvider {
