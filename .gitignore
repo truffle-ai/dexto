@@ -67,3 +67,6 @@ test-temp/
 
 # Temporarily ignore module READMEs in core package
 packages/core/src/*/README.md
+
+# Temporary handoff documentation (do not commit)
+INSTRUCTIONS.md

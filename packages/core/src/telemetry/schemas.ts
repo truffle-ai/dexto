@@ -45,4 +45,4 @@ export const OtelConfigurationSchema = z.object({
         .optional(),
 });
 
-export type OtelConfiguration = z.infer<typeof OtelConfigurationSchema>;
+export type OtelConfiguration = z.output<typeof OtelConfigurationSchema>;
