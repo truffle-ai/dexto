@@ -76,9 +76,9 @@ Listen for these events from the server. All events follow the `{ "event": "EVEN
 | `mcpServerConnected` | `{ name, success, error? }` | MCP server connection result. |
 | `availableToolsUpdated` | `{ tools, source }` | Available tools changed. |
 | `approvalRequest` | `{ ... }` | Request for user approval or input (tool confirmations, elicitations, custom). |
-| `mcpResourceUpdated` | `{ resourceUri?, serverName, action }` | Resource from MCP server updated |
-| `mcpPromptsListChanged` | `{ serverName }` | Available prompts changed |
-| `mcpToolsListChanged` | `{ serverName }` | Available tools changed |
+| `mcpResourceUpdated` | `{ serverName, resourceUri }` | Resource from MCP server updated |
+| `mcpPromptsListChanged` | `{ serverName, prompts }` | Available prompts changed |
+| `mcpToolsListChanged` | `{ serverName, tools }` | Available tools changed |
 | `sessionTitleUpdated` | `{ sessionId, title }` | Session title was updated |
 | `resourceCacheInvalidated` | `{ resourceUri?, serverName, action }` | Resource cache invalidated |
 | `error` | Polymorphic error object with `sessionId` | An error occurred during message processing. See [Error Payloads](#error-payloads) below. |

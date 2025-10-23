@@ -108,6 +108,7 @@ GET /api/prompts/analyze-code/resolve?args={"language":"TypeScript"}
 
 #### Request Body
 - `name` (string, required): Unique name for the custom prompt.
+- `title` (string, optional): Display title for the prompt.
 - `description` (string, optional): Description of what the prompt does.
 - `content` (string, required): The prompt content text. Can include `{{argumentName}}` placeholders.
 - `arguments` (array, optional): Array of argument definitions.
