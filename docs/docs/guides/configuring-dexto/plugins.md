@@ -6,6 +6,22 @@ sidebar_position: 3
 
 Dexto's plugin system allows you to extend agent behavior with custom logic that runs at specific points in the request/response lifecycle. Plugins can validate, modify, or monitor data as it flows through your agent.
 
+## Hook Points
+
+Plugins can inject custom logic at four key points in the agent lifecycle:
+
+- **beforeLLMRequest** - Before user input reaches the LLM (validate input, block inappropriate requests, log incoming messages)
+- **beforeToolCall** - Before a tool executes (validate arguments, enforce permissions, audit tool usage)
+- **afterToolResult** - After a tool completes (process results, handle errors, transform outputs)
+- **beforeResponse** - Before sending the response to the user (redact sensitive data, format output, log responses)
+
+## Common Use Cases
+
+- **Security & Compliance**: Content filtering, PII redaction, input validation, rate limiting
+- **Observability**: Request/response logging, performance monitoring, usage analytics
+- **Data Transformation**: Input preprocessing, output formatting, multi-language translation
+- **Business Logic**: Custom validation rules, workflow enforcement, cost tracking
+
 ## Type Definition
 
 ```typescript
