@@ -96,18 +96,18 @@ The `connectionMode` field controls how Dexto handles connection failures:
 
 - **`strict`**: If the server fails to connect, Dexto throws an error and stops initialization. Use this for critical servers that must be available for your agent to function properly.
 
-See: [MCP › Configure Connections](../../mcp/connecting-servers.md)
+See: [MCP › Configure Connections](./connecting-servers.md)
 
 ## Runtime changes
 
 - Add/update/remove servers dynamically via the SDK or REST APIs
 - Events: `dexto:mcpServerAdded`, `dexto:mcpServerUpdated`, `dexto:mcpServerRemoved`
 
-See: [MCP Manager](../mcp-manager.md)
+See: [MCP Manager](./mcp-manager.md)
 
 ## Next steps
 
-- [MCP › Overview](../../mcp/overview.md)
-- [MCP › Configure Connections](../../mcp/connecting-servers.md)
-- [Dexto as an MCP Server](../dexto-as-mcp-server.md)
+- [MCP › Overview](./overview.md)
+- [MCP › Configure Connections](./connecting-servers.md)
+- [Dexto as an MCP Server](./dexto-as-mcp-server.md)
 
