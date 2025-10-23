@@ -302,23 +302,29 @@ h3 {
 }
 
 /* Top-Level Category Headers (Getting Started, Guides, etc.) */
-.menu__list-item:not(.menu__list-item--collapsed) > .menu__link {
-  font-size: 0.9rem;
+.menu__list-item > .menu__link {
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--ifm-color-primary);
+  color: var(--vscode-text-secondary);
   margin: 0.5rem 0 0.125rem 0;
   padding: 0.25rem 0.75rem;
   border-radius: 0.25rem;
   transition: color var(--ifm-transition-fast);
 }
 
-.menu__list-item:not(.menu__list-item--collapsed) > .menu__link:hover {
+.menu__list-item > .menu__link:hover {
   color: var(--ifm-color-primary-light);
+}
+
+/* Active state for top-level category headers */
+.menu__list-item > .menu__link--active {
+  color: var(--ifm-color-primary);
+  font-weight: 700;
 }
 
 /* Document Links (under categories) - Subtle color difference */
 .menu__link {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 400;
   color: var(--vscode-text-secondary);
   border-radius: 0.25rem;

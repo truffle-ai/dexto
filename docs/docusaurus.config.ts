@@ -14,6 +14,9 @@ const config: Config = {
     // Set the /<baseUrl>/ pathname under which your site is served
     baseUrl: '/',
 
+    // Normalize URLs with trailing slashes for consistent routing
+    trailingSlash: true,
+
     // GitHub pages deployment config.
     // If you aren't using GitHub pages, you don't need these.
     organizationName: 'truffle-ai', // Usually your GitHub org/user name.
