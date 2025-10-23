@@ -25,7 +25,7 @@ dexto --agent path/to/your-config.yml
 
 ## Complete Configuration Reference
 
-For a comprehensive reference of all configuration options, see the [Complete agent.yml Configuration Reference](./agent-yml).
+For a comprehensive reference of all configuration options, see the [Complete agent.yml Configuration Reference](./agent-yml.md).
 
 ## Common Configuration Patterns
 

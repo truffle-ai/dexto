@@ -61,7 +61,7 @@ The `llm` section defines your global AI provider configuration. These settings 
 
 - **provider** (string): The LLM provider to use
   - Supported values: `openai`, `anthropic`, `google`, `groq`, `cohere`
-  - See [Providers Guide](./llm/providers) for full list
+  - See [Providers Guide](./llm/providers.md) for full list
 
 - **model** (string): The model name for the selected provider
   - Must be a valid model for the chosen provider
@@ -338,7 +338,7 @@ API key must be environment variable reference (e.g., $OPENAI_API_KEY)
 ```
 Model 'gpt-4' is not supported by provider 'anthropic'
 ```
-**Solution**: Check [Providers Guide](./llm/providers) for valid model combinations
+**Solution**: Check [Providers Guide](./llm/providers.md) for valid model combinations
 
 **Missing Required Fields:**
 ```
@@ -370,11 +370,11 @@ Global preferences and agent configurations work together:
 - **Global preferences**: User-level defaults (stored in `~/.dexto/`)
 - **Agent configurations**: Agent-specific settings (stored in `~/.dexto/agents/` or project directories)
 
-When a new agent is installed, it **inherits** global preferences but can **override** them in its own configuration file. See [Agent Configuration](./agent-yml) for agent-level settings.
+When a new agent is installed, it **inherits** global preferences but can **override** them in its own configuration file. See [Agent Configuration](./agent-yml.md) for agent-level settings.
 
 ## Next Steps
 
-- **Learn about agent configuration**: See [Agent YAML Configuration](./agent-yml)
-- **Explore LLM providers**: Check the [Providers Guide](./llm/providers)
+- **Learn about agent configuration**: See [Agent YAML Configuration](./agent-yml.md)
+- **Explore LLM providers**: Check the [Providers Guide](./llm/providers.md)
 - **Install agents**: Use `dexto install <agent-name>` to add new agents
-- **Configure system prompts**: Learn about [System Prompt Configuration](./systemPrompt)
+- **Configure system prompts**: Learn about [System Prompt Configuration](./systemPrompt.md)

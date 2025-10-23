@@ -383,6 +383,6 @@ plugins:
 
 ## Next Steps
 
-- **Explore system prompts**: Configure agent behavior with [System Prompt Configuration](./systemPrompt)
-- **Connect tools**: Add MCP servers with [MCP Configuration](./mcp)
-- **Storage options**: Configure message persistence with [Storage Configuration](./storage)
+- **Explore system prompts**: Configure agent behavior with [System Prompt Configuration](./systemPrompt.md)
+- **Connect tools**: Add MCP servers with [MCP Configuration](./mcp.md)
+- **Storage options**: Configure message persistence with [Storage Configuration](./storage.md)

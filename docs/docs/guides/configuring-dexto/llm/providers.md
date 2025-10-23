@@ -281,6 +281,6 @@ apiKey: $OPENAI_API_KEY  # Not: OPENAI_API_KEY
 
 ## Next Steps
 
-- **Configure your chosen provider**: Use the [Configuration Reference](./configuration) for detailed setup
+- **Configure your chosen provider**: Use the [Configuration Reference](./configuration.md) for detailed setup
 - **Start building**: Head to [Building with Dexto](../../../tutorials/index.md) to create your first agent
-- **Add tools**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers) to give your agent capabilities
+- **Add tools**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers.md) to give your agent capabilities

@@ -298,4 +298,4 @@ toolConfirmation:
   timeout: 30000
 ```
 
-See [Configuration Guide](../guides/configuring-dexto/overview) for complete config options.
+See [Configuration Guide](../guides/configuring-dexto/overview.md) for complete config options.

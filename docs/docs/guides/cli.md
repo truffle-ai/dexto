@@ -160,7 +160,7 @@ This allows you to configure dexto CLI to use a different AI agent
 dexto --agent <path_to_agent_config_file>
 ```
 
-Check [Configuration Guide](./configuring-dexto/overview) to understand more about dexto config files
+Check [Configuration Guide](./configuring-dexto/overview.md) to understand more about dexto config files
 
 #### **Require all MCP servers to connect successfully**
 
@@ -170,7 +170,7 @@ By default, Dexto uses "lenient" mode where individual servers can fail to conne
 dexto --strict
 ```
 
-This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers) for more details on connection modes.
+This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers.md) for more details on connection modes.
 
 #### **Skip tool confirmation prompts during development**
 
@@ -231,7 +231,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Dexto Agents as MCP Servers](./dexto-as-mcp-server) to understand more about MCP servers.
+Check [Dexto Agents as MCP Servers](./dexto-as-mcp-server.md) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash
@@ -245,7 +245,7 @@ To use a specific config file:
 dexto mcp --group-servers -a ./dexto-tools.yml
 ```
 
-Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers) to understand more about MCP server aggregation.
+Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
 
 
 ## Environment variables

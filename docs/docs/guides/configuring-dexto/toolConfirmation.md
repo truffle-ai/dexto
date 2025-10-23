@@ -655,6 +655,6 @@ These implementations serve as reference examples for building your own custom U
 ## Related Configuration
 
 Tool confirmation works with these other configuration sections:
-- **[Storage](./storage)** - Required for persistent approval storage
-- **[MCP Servers](../../mcp/connecting-servers)** - Defines which tools are available for confirmation
-- **[Sessions](./sessions)** - Affects session-scoped approval behavior
+- **[Storage](./storage.md)** - Required for persistent approval storage
+- **[MCP Servers](../../mcp/connecting-servers.md)** - Defines which tools are available for confirmation
+- **[Sessions](./sessions.md)** - Affects session-scoped approval behavior

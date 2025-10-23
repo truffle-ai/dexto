@@ -32,7 +32,7 @@ export type AgentConfig = {
 ### Required Fields
 
 - **provider** (string): The LLM provider to use (e.g., `openai`, `anthropic`, `google`, `groq`, `cohere`)
-- **model** (string): The model name (see [Providers Guide](./providers) for full list)
+- **model** (string): The model name (see [Providers Guide](./providers.md) for full list)
 - **apiKey** (string): API key or environment variable (e.g., `$OPENAI_API_KEY`)
 
 ### Optional Fields
@@ -48,7 +48,7 @@ export type AgentConfig = {
 
 ⚠️ **Important**: The `systemPrompt` field is configured at the agent level, not within the LLM configuration.
 
-For detailed system prompt configuration, including simple strings and advanced contributor patterns, see the dedicated [System Prompt Configuration](../systemPrompt) guide.
+For detailed system prompt configuration, including simple strings and advanced contributor patterns, see the dedicated [System Prompt Configuration](../systemPrompt.md) guide.
 
 ## LLM Response Control
 
@@ -209,6 +209,6 @@ llm:
 
 ## Next Steps
 
-- **Learn about providers**: Check the [Providers Guide](./providers) for specific setup instructions
+- **Learn about providers**: Check the [Providers Guide](./providers.md) for specific setup instructions
 - **Start building**: Head to [Building with Dexto](../../../tutorials/index.md) to put this configuration to use
-- **Explore MCP**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers) to add tools to your agents
+- **Explore MCP**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers.md) to add tools to your agents
