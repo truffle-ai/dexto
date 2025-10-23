@@ -41,7 +41,7 @@ systemPrompt:
         pinnedOnly: false
 
 # Optional greeting shown at chat start (UI can consume this)
-greeting: "Hi! I’m Dexto — how can I help today?"
+greeting: "Hi! I'm Dexto — how can I help today?"
 
 # LLM configuration - describes the language model to use
 llm:
