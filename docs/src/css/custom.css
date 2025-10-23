@@ -393,13 +393,13 @@ button[title="Collapse sidebar"] {
 
 /* Vertical lines for nested items - creates visual tree structure */
 .menu__list .menu__list {
-  margin-left: 18px !important;
+  margin-left: 24px !important;
   padding-left: 3px !important;
-  border-left: 1px solid var(--ifm-color-gray-300);
+  border-left: 1px solid var(--ifm-color-primary);
 }
 
 [data-theme='dark'] .menu__list .menu__list {
-  border-left-color: rgba(255, 255, 255, 0.15);
+  border-left-color: var(--ifm-color-primary);
 }
 
 /* Keep consistent font size for all nested levels - let Docusaurus handle indentation */
