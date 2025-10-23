@@ -178,7 +178,7 @@ systemPrompt:
 
 **Output Format:**
 The memory contributor formats memories as a bulleted list:
-```
+```text
 ## User Memories
 - User prefers concise responses [Tags: preference, communication] (Updated: 1/15/2025)
 - Project uses TypeScript with strict mode [Tags: technical, configuration]

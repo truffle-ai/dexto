@@ -201,7 +201,6 @@ Tool policies provide fine-grained control over which tools can be executed with
 
 ```yaml
 toolConfirmation:
-  enabled: true
   toolPolicies:
     alwaysAllow:
       - "internal--ask_user"

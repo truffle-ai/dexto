@@ -357,11 +357,6 @@ button[title="Collapse sidebar"] {
   margin-bottom: 1rem;
 }
 
-/* Remove top margin from first category */
-/* .theme-doc-sidebar-item-category-level-1:first-child > .menu__list-item-collapsible > .menu__link {
-  margin-top: 0;
-} */
-
 /* All menu links - consistent font size for readability */
 .menu__link {
   font-size: 15px;

@@ -274,7 +274,7 @@ dexto --provider google --model gemini-2.0-flash
 ## File Location
 
 Global preferences are always stored at:
-```
+```text
 ~/.dexto/preferences.yml
 ```
 
@@ -329,19 +329,19 @@ Preferences are validated using Zod schemas with strict validation:
 ### Common Validation Errors
 
 **Invalid API Key Format:**
-```
+```text
 API key must be environment variable reference (e.g., $OPENAI_API_KEY)
 ```
 **Solution**: Use `$VARIABLE_NAME` format instead of literal keys
 
 **Incompatible Model:**
-```
+```text
 Model 'gpt-4' is not supported by provider 'anthropic'
 ```
 **Solution**: Check [Providers Guide](./llm/providers.md) for valid model combinations
 
 **Missing Required Fields:**
-```
+```text
 defaults.defaultAgent is required
 ```
 **Solution**: Ensure all required fields are present in the preferences file

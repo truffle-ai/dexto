@@ -84,7 +84,7 @@ Some of the cool things you can do with Dexto CLI:
 **Options:**
 - `--verbose` - Show detailed agent information
 - `--installed` - Show only installed agents
-- `--available` - Show only available agents from registry
+- `--available` - Show only registry agents (not installed locally)
 
 | `which <agent>` | Show path to agent | `dexto which nano-banana-agent` |
 | `session list` | List all sessions | `dexto session list` |
