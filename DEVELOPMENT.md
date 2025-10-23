@@ -168,7 +168,7 @@ dexto "what is the current time"
 dexto "list files in current directory"
 
 # Test other model override in CLI
-dexto -m gpt-4o-mini "what is the current date"
+dexto -m gpt-5-mini "what is the current date"
 
 # Test web mode
 dexto --mode web

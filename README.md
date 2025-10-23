@@ -197,7 +197,7 @@ Dexto treats each configuration as a unique agent allowing you to define and sav
 # agents/my-agent.yml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
 mcpServers:
@@ -251,7 +251,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4.1-mini',
+    model: 'gpt-5-mini',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -304,11 +304,11 @@ Switch between models and providers dynamically.
 const currentLLM = agent.getCurrentLLMConfig();
 
 // Switch models (provider inferred automatically)
-await agent.switchLLM({ model: 'gpt-4.1-mini' });
+await agent.switchLLM({ model: 'gpt-5-mini' });
 await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
 // Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-4.1-mini' }, '1234')
+await agent.switchLLM({ model: 'gpt-5-mini' }, '1234')
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();

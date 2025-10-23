@@ -38,7 +38,7 @@ mcpServers:
       - .
 llm:
   provider: openai
-  model: gpt-4
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -302,6 +302,6 @@ mcpServers:
       API_KEY: your-api-key
 llm:
   provider: openai
-  model: gpt-4
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 ``` 

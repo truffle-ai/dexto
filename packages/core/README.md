@@ -17,7 +17,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4.1-mini',
+    model: 'gpt-5-mini',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
