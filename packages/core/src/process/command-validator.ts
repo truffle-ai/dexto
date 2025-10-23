@@ -10,26 +10,259 @@ import { logger } from '../logger/index.js';
 const MAX_COMMAND_LENGTH = 10000; // 10K characters
 
 // Dangerous command patterns that should be blocked
+// Validated against common security vulnerabilities and dangerous command patterns
 const DANGEROUS_PATTERNS = [
+    // File system destruction
     /rm\s+-rf\s+\//, // rm -rf /
-    /:\(\)\{\s*:\|:&\s*\};:/, // Fork bomb
-    /dd\s+if=.*of=\/dev\//, // dd to disk
-    />\s*\/dev\/sd[a-z]/, // Write to disk
+    /rm\s+-rf\s+\/\s*$/, // rm -rf / (end of line)
+    /rm\s+-rf\s+\/\s*2/, // rm -rf / 2>/dev/null (with error suppression)
+
+    // Fork bomb variations
+    /:\(\)\{\s*:\|:&\s*\};:/, // Classic fork bomb
+    /:\(\)\{\s*:\|:&\s*\};/, // Fork bomb without final colon
+    /:\(\)\{\s*:\|:&\s*\}/, // Fork bomb without semicolon
+
+    // Disk operations
+    /dd\s+if=.*of=\/dev\//, // dd to disk devices
+    /dd\s+if=\/dev\/zero.*of=\/dev\//, // dd zero to disk
+    /dd\s+if=\/dev\/urandom.*of=\/dev\//, // dd random to disk
+    />\s*\/dev\/sd[a-z]/, // Write to disk devices
+    />>\s*\/dev\/sd[a-z]/, // Append to disk devices
+
+    // Filesystem operations
     /mkfs\./, // Format filesystem
-    /wget.*\|\s*sh/, // wget | sh (download and execute)
-    /curl.*\|\s*sh/, // curl | sh (download and execute)
+    /mkfs\s+/, // Format filesystem with space
+    /fdisk\s+\/dev\/sd[a-z]/, // Partition disk
+    /parted\s+\/dev\/sd[a-z]/, // Partition disk with parted
+
+    // Download and execute patterns
+    /wget.*\|\s*sh/, // wget | sh
+    /wget.*\|\s*bash/, // wget | bash
+    /curl.*\|\s*sh/, // curl | sh
+    /curl.*\|\s*bash/, // curl | bash
+    /wget.*\|\s*python/, // wget | python
+    /curl.*\|\s*python/, // curl | python
+
+    // Shell execution
     /\|\s*bash/, // Pipe to bash
+    /\|\s*sh/, // Pipe to sh
+    /\|\s*zsh/, // Pipe to zsh
+    /\|\s*fish/, // Pipe to fish
+
+    // Command evaluation
     /eval\s+\$\(/, // eval $()
+    /eval\s+`/, // eval backticks
+    /eval\s+"/, // eval double quotes
+    /eval\s+'/, // eval single quotes
+
+    // Permission changes
     /chmod\s+777\s+\//, // chmod 777 /
+    /chmod\s+777\s+\/\s*$/, // chmod 777 / (end of line)
+    /chmod\s+-R\s+777\s+\//, // chmod -R 777 /
+    /chown\s+-R\s+root\s+\//, // chown -R root /
+
+    // Network operations
+    /nc\s+-l\s+-p\s+\d+/, // netcat listener
+    /ncat\s+-l\s+-p\s+\d+/, // ncat listener
+    /socat\s+.*LISTEN/, // socat listener
+
+    // Process manipulation
+    /killall\s+-9/, // killall -9
+    /pkill\s+-9/, // pkill -9
+    /kill\s+-9\s+-1/, // kill -9 -1 (kill all processes)
+
+    // System shutdown/reboot
+    /shutdown\s+now/, // shutdown now
+    /reboot/, // reboot
+    /halt/, // halt
+    /poweroff/, // poweroff
+
+    // Memory operations
+    /echo\s+3\s*>\s*\/proc\/sys\/vm\/drop_caches/, // Clear page cache
+    /sync\s*;\s*echo\s+3\s*>\s*\/proc\/sys\/vm\/drop_caches/, // Sync and clear cache
+
+    // Network interface manipulation
+    /ifconfig\s+.*down/, // Bring interface down
+    /ip\s+link\s+set\s+.*down/, // Bring interface down with ip
+
+    // Package manager operations
+    /apt\s+remove\s+--purge\s+.*/, // Remove packages
+    /yum\s+remove\s+.*/, // Remove packages
+    /dnf\s+remove\s+.*/, // Remove packages
+    /pacman\s+-R\s+.*/, // Remove packages
 ];
 
 // Command injection patterns
 const INJECTION_PATTERNS = [
+    // Command chaining with dangerous commands
     /;\s*rm\s+-rf/, // ; rm -rf
     /&&\s*rm\s+-rf/, // && rm -rf
     /\|\s*rm\s+-rf/, // | rm -rf
+    /;\s*chmod\s+777/, // ; chmod 777
+    /&&\s*chmod\s+777/, // && chmod 777
+    /;\s*chown\s+root/, // ; chown root
+    /&&\s*chown\s+root/, // && chown root
+
+    // Command substitution with dangerous commands
     /`.*rm.*`/, // backticks with rm
     /\$\(.*rm.*\)/, // $() with rm
+    /`.*chmod.*`/, // backticks with chmod
+    /\$\(.*chmod.*\)/, // $() with chmod
+    /`.*chown.*`/, // backticks with chown
+    /\$\(.*chown.*\)/, // $() with chown
+
+    // Multiple command separators
+    /;\s*;\s*/, // Multiple semicolons
+    /&&\s*&&\s*/, // Multiple && operators
+    /\|\|\s*\|\|\s*/, // Multiple || operators
+
+    // Redirection with dangerous commands
+    /rm\s+.*>\s*\/dev\/null/, // rm with output redirection
+    /chmod\s+.*>\s*\/dev\/null/, // chmod with output redirection
+    /chown\s+.*>\s*\/dev\/null/, // chown with output redirection
+
+    // Environment variable manipulation
+    /\$[A-Z_]+\s*=\s*.*rm/, // Environment variable with rm
+    /\$[A-Z_]+\s*=\s*.*chmod/, // Environment variable with chmod
+    /\$[A-Z_]+\s*=\s*.*chown/, // Environment variable with chown
+];
+
+// Commands that require approval
+const REQUIRES_APPROVAL_PATTERNS = [
+    // File operations
+    /^rm\s+/, // rm (removal)
+    /^mv\s+/, // move files
+    /^cp\s+/, // copy files
+    /^chmod\s+/, // chmod
+    /^chown\s+/, // chown
+    /^chgrp\s+/, // chgrp
+    /^ln\s+/, // create links
+    /^unlink\s+/, // unlink files
+
+    // Git operations
+    /^git\s+push/, // git push
+    /^git\s+commit/, // git commit
+    /^git\s+reset/, // git reset
+    /^git\s+rebase/, // git rebase
+    /^git\s+merge/, // git merge
+    /^git\s+checkout/, // git checkout
+    /^git\s+branch/, // git branch
+    /^git\s+tag/, // git tag
+
+    // Package management
+    /^npm\s+publish/, // npm publish
+    /^npm\s+uninstall/, // npm uninstall
+    /^yarn\s+publish/, // yarn publish
+    /^yarn\s+remove/, // yarn remove
+    /^pip\s+install/, // pip install
+    /^pip\s+uninstall/, // pip uninstall
+    /^apt\s+install/, // apt install
+    /^apt\s+remove/, // apt remove
+    /^yum\s+install/, // yum install
+    /^yum\s+remove/, // yum remove
+    /^dnf\s+install/, // dnf install
+    /^dnf\s+remove/, // dnf remove
+    /^pacman\s+-S/, // pacman install
+    /^pacman\s+-R/, // pacman remove
+
+    // Container operations
+    /^docker\s+/, // docker commands
+    /^podman\s+/, // podman commands
+    /^kubectl\s+/, // kubectl commands
+
+    // System operations
+    /^sudo\s+/, // sudo commands
+    /^su\s+/, // su commands
+    /^systemctl\s+/, // systemctl commands
+    /^service\s+/, // service commands
+    /^mount\s+/, // mount commands
+    /^umount\s+/, // umount commands
+    /^fdisk\s+/, // fdisk commands
+    /^parted\s+/, // parted commands
+    /^mkfs\s+/, // mkfs commands
+    /^fsck\s+/, // fsck commands
+
+    // Network operations
+    /^iptables\s+/, // iptables commands
+    /^ufw\s+/, // ufw commands
+    /^firewall-cmd\s+/, // firewall-cmd commands
+    /^sshd\s+/, // sshd commands
+    /^ssh\s+/, // ssh commands
+    /^scp\s+/, // scp commands
+    /^rsync\s+/, // rsync commands
+
+    // Process management
+    /^kill\s+/, // kill commands
+    /^killall\s+/, // killall commands
+    /^pkill\s+/, // pkill commands
+    /^nohup\s+/, // nohup commands
+    /^screen\s+/, // screen commands
+    /^tmux\s+/, // tmux commands
+
+    // Database operations
+    /^mysql\s+/, // mysql commands
+    /^psql\s+/, // psql commands
+    /^sqlite3\s+/, // sqlite3 commands
+    /^mongodb\s+/, // mongodb commands
+    /^redis-cli\s+/, // redis-cli commands
+];
+
+// Safe command patterns for strict mode
+const SAFE_PATTERNS = [
+    // Directory navigation with commands
+    /^cd\s+.*&&\s+\w+/, // cd && command
+    /^cd\s+.*;\s+\w+/, // cd ; command
+
+    // Safe pipe operations
+    /\|\s*grep/, // | grep
+    /\|\s*head/, // | head
+    /\|\s*tail/, // | tail
+    /\|\s*sort/, // | sort
+    /\|\s*uniq/, // | uniq
+    /\|\s*wc/, // | wc
+    /\|\s*cat/, // | cat
+    /\|\s*less/, // | less
+    /\|\s*more/, // | more
+    /\|\s*awk/, // | awk
+    /\|\s*sed/, // | sed
+    /\|\s*cut/, // | cut
+    /\|\s*tr/, // | tr
+    /\|\s*xargs/, // | xargs
+
+    // Safe redirection
+    /^ls\s+.*>/, // ls with output redirection
+    /^find\s+.*>/, // find with output redirection
+    /^grep\s+.*>/, // grep with output redirection
+    /^cat\s+.*>/, // cat with output redirection
+];
+
+// Write operation patterns for moderate mode
+const WRITE_PATTERNS = [
+    // Output redirection
+    />/, // output redirection
+    />>/, // append redirection
+    /2>/, // error redirection
+    /2>>/, // error append redirection
+    /&>/, // both output and error redirection
+    /&>>/, // both output and error append redirection
+
+    // File operations
+    /tee\s+/, // tee command
+    /touch\s+/, // touch command
+    /mkdir\s+/, // mkdir command
+    /rmdir\s+/, // rmdir command
+
+    // Text editors
+    /vim\s+/, // vim command
+    /nano\s+/, // nano command
+    /emacs\s+/, // emacs command
+    /code\s+/, // code command (VS Code)
+
+    // File copying and moving
+    /cp\s+/, // cp command
+    /mv\s+/, // mv command
+    /scp\s+/, // scp command
+    /rsync\s+/, // rsync command
 ];
 
 /**
@@ -41,6 +274,7 @@ const INJECTION_PATTERNS = [
  * 3. Command injection detection
  * 4. Allowed/blocked command lists
  * 5. Shell metacharacter analysis
+ * TODO: Add tests for this class
  */
 export class CommandValidator {
     private config: ProcessConfig;
@@ -144,16 +378,7 @@ export class CommandValidator {
             const hasMultipleCommands = /;|\|{1,2}|&&/.test(command);
             if (hasMultipleCommands) {
                 // Allow safe patterns like "cd dir && ls" or "command | grep pattern"
-                const safePatterns = [
-                    /^cd\s+.*&&\s+\w+/, // cd && command
-                    /\|\s*grep/, // | grep
-                    /\|\s*head/, // | head
-                    /\|\s*tail/, // | tail
-                    /\|\s*sort/, // | sort
-                    /\|\s*uniq/, // | uniq
-                ];
-
-                const isSafe = safePatterns.some((pattern) => pattern.test(command));
+                const isSafe = SAFE_PATTERNS.some((pattern) => pattern.test(command));
                 if (!isSafe) {
                     return {
                         isValid: false,
@@ -173,20 +398,7 @@ export class CommandValidator {
      */
     private determineApprovalRequirement(command: string): boolean {
         // Commands that modify system state always require approval
-        const requiresApprovalPatterns = [
-            /^rm\s+/, // rm (removal)
-            /^git\s+push/, // git push
-            /^git\s+commit/, // git commit
-            /^npm\s+publish/, // npm publish
-            /^docker\s+/, // docker commands
-            /^sudo\s+/, // sudo commands
-            /^chmod\s+/, // chmod
-            /^chown\s+/, // chown
-            /^mv\s+/, // move files
-            /^cp\s+/, // copy files
-        ];
-
-        for (const pattern of requiresApprovalPatterns) {
+        for (const pattern of REQUIRES_APPROVAL_PATTERNS) {
             if (pattern.test(command)) {
                 return true;
             }
@@ -199,13 +411,7 @@ export class CommandValidator {
 
         // In moderate mode, write operations require approval
         if (this.config.securityLevel === 'moderate') {
-            const writePatterns = [
-                />/, // output redirection
-                />>/, // append redirection
-                /tee\s+/, // tee command
-            ];
-
-            return writePatterns.some((pattern) => pattern.test(command));
+            return WRITE_PATTERNS.some((pattern) => pattern.test(command));
         }
 
         // Permissive mode - no additional approval required

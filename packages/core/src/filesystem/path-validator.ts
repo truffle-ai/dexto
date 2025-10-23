@@ -18,6 +18,7 @@ import { logger } from '../logger/index.js';
  * 3. Blocked paths detection (blacklist)
  * 4. File extension restrictions
  * 5. Absolute path normalization
+ * TODO: Add tests
  */
 export class PathValidator {
     private config: FileSystemConfig;

@@ -15,7 +15,6 @@ export interface FileSystemErrorContext {
     maxSize?: number;
     encoding?: string;
     operation?: string;
-    [key: string]: unknown;
 }
 
 /**

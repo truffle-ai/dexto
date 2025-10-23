@@ -29,6 +29,7 @@ export const ToolConfirmationMetadataSchema = z
 
 /**
  * Command confirmation metadata schema
+ * TODO: Consider combining this with regular tools schemas for consistency
  */
 export const CommandConfirmationMetadataSchema = z
     .object({

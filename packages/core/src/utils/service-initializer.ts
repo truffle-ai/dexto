@@ -123,6 +123,8 @@ export async function createAgentServices(
     await pluginManager.initialize(config.plugins.custom);
     logger.info('Plugin manager initialized');
 
+    // TODO: Consider lazy initialization of ProcessService and FileSystemService
+    // - Only initialize if they will be used by some tools
     // 7. Initialize FileSystemService and ProcessService for internal tools
     const fileSystemService = new FileSystemService({
         allowedPaths: ['.'],

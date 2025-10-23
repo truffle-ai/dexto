@@ -191,6 +191,8 @@ export interface FileSystemConfig {
     enableBackups: boolean;
     /** Backup directory path */
     backupPath: string;
+    /** Backup retention period in days (default: 7) */
+    backupRetentionDays: number;
     /** Working directory (defaults to process.cwd()) */
     workingDirectory?: string | undefined;
 }

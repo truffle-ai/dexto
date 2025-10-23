@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { glob as globSearch } from 'glob';
+import { glob } from 'glob';
 import {
     FileSystemConfig,
     FileContent,
@@ -35,6 +35,7 @@ const DEFAULT_MAX_SEARCH_RESULTS = 100;
 
 /**
  * FileSystemService - Handles all file system operations with security checks
+ * TODO: Add tests for this class
  */
 export class FileSystemService {
     private config: FileSystemConfig;
@@ -50,6 +51,7 @@ export class FileSystemService {
             maxFileSize: config.maxFileSize || DEFAULT_MAX_FILE_SIZE,
             enableBackups: config.enableBackups ?? true,
             backupPath: config.backupPath || '.dexto/backups',
+            backupRetentionDays: config.backupRetentionDays || 7,
             workingDirectory: config.workingDirectory,
         };
 
@@ -180,7 +182,7 @@ export class FileSystemService {
 
         try {
             // Execute glob search
-            const files = await globSearch(pattern, {
+            const files = await glob(pattern, {
                 cwd,
                 absolute: true,
                 nodir: true, // Only files
@@ -505,12 +507,75 @@ export class FileSystemService {
             await fs.mkdir(backupDir, { recursive: true });
             await fs.copyFile(filePath, backupPath);
             logger.debug(`Backup created: ${backupPath}`);
+
+            // Clean up old backups after creating new one
+            await this.cleanupOldBackups();
+
             return backupPath;
         } catch (error) {
             throw FileSystemError.backupFailed(
                 filePath,
                 error instanceof Error ? error.message : String(error)
             );
+        }
+    }
+
+    /**
+     * Clean up old backup files based on retention policy
+     */
+    async cleanupOldBackups(): Promise<number> {
+        if (!this.config.enableBackups) {
+            return 0;
+        }
+
+        const backupDir = path.resolve(
+            this.config.workingDirectory || process.cwd(),
+            this.config.backupPath
+        );
+
+        try {
+            // Check if backup directory exists
+            await fs.access(backupDir);
+        } catch {
+            // Directory doesn't exist, nothing to clean
+            return 0;
+        }
+
+        const cutoffDate = new Date(
+            Date.now() - this.config.backupRetentionDays * 24 * 60 * 60 * 1000
+        );
+        let deletedCount = 0;
+
+        try {
+            const files = await fs.readdir(backupDir);
+            const backupFiles = files.filter((file) => file.endsWith('.backup'));
+
+            for (const file of backupFiles) {
+                const filePath = path.join(backupDir, file);
+                try {
+                    const stats = await fs.stat(filePath);
+                    if (stats.mtime < cutoffDate) {
+                        await fs.unlink(filePath);
+                        deletedCount++;
+                        logger.debug(`Cleaned up old backup: ${file}`);
+                    }
+                } catch (error) {
+                    logger.warn(
+                        `Failed to process backup file ${file}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+            }
+
+            if (deletedCount > 0) {
+                logger.info(`Backup cleanup: removed ${deletedCount} old backup files`);
+            }
+
+            return deletedCount;
+        } catch (error) {
+            logger.warn(
+                `Failed to cleanup backup directory: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return 0;
         }
     }
 

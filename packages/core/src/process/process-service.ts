@@ -42,6 +42,7 @@ interface BackgroundProcess {
 
 /**
  * ProcessService - Handles command execution and process management
+ * TODO: Add tests for this class
  */
 export class ProcessService {
     private config: ProcessConfig;
