@@ -82,8 +82,6 @@ Fired when an MCP server is restarted.
 ```typescript
 {
   serverName: string;
-  success: boolean;
-  error?: string;
 }
 ```
 
@@ -93,8 +91,8 @@ Fired when an MCP server resource is updated.
 
 ```typescript
 {
-  resourceUri?: string;
   serverName: string;
+  resourceUri: string;
 }
 ```
 
@@ -105,6 +103,7 @@ Fired when available prompts from MCP servers change.
 ```typescript
 {
   serverName: string;
+  prompts: string[];
 }
 ```
 
@@ -115,6 +114,7 @@ Fired when available tools from MCP servers change.
 ```typescript
 {
   serverName: string;
+  tools: string[];
 }
 ```
 
@@ -314,7 +314,7 @@ Fired when the LLM service completes a response.
   provider?: string;
   model?: string;
   router?: string;
-  tokenUsage: {
+  tokenUsage?: {
     inputTokens?: number;
     outputTokens?: number;
     reasoningTokens?: number;  // Additional tokens used for reasoning
