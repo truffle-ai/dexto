@@ -800,12 +800,14 @@ code {
   }
 }
 
-/* On medium screens, keep button at top but allow wrapping */
+/* On medium screens, position button absolutely like large screens */
 @media (max-width: 1199px) and (min-width: 769px) {
   .copy-markdown-header {
-    position: sticky;
+    position: absolute;
     top: 1rem;
-    margin-bottom: 0.5rem;
+    right: 1rem;
+    margin-bottom: 0;
+    width: auto;
   }
 
   /* Reduce margin for medium screens */
@@ -814,22 +816,15 @@ code {
   }
 }
 
-/* On small screens, position button normally in flow */
+/* On small screens, hide copy button */
 @media (max-width: 768px) {
   .copy-markdown-header {
-    position: static;
-    margin-bottom: 1rem;
-    justify-content: center;
+    display: none;
   }
 
   /* Remove margin on small screens */
   .mdx-content-wrapper h1:first-of-type {
     margin-right: 0;
-  }
-
-  /* Make button smaller on mobile */
-  .copy-markdown-header .copy-markdown-container {
-    transform: scale(0.9);
   }
 }
 
