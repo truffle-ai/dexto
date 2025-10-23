@@ -246,7 +246,7 @@ Or for file-based agents:
   "tags": ["coding", "development"],
   "llm": {
     "provider": "openai",
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "apiKey": "$OPENAI_API_KEY"
   },
   "systemPrompt": "You are a specialized coding assistant..."
@@ -261,7 +261,7 @@ Or for file-based agents:
 - `tags` (string[], optional): Tags for discovery and categorization
 - `llm` (object, required):
   - `provider` (enum, required): LLM provider (`openai`, `anthropic`, `google`, `openrouter`, etc.)
-  - `model` (string, required): Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`)
+  - `model` (string, required): Model name (e.g., `gpt-5`, `claude-3-5-sonnet-20241022`)
   - `apiKey` (string, optional): Environment variable reference (e.g., `$OPENAI_API_KEY`) or raw API key
 - `systemPrompt` (string, required): System prompt for the agent
 
