@@ -1,6 +1,7 @@
 ---
+title: Complete agent.yml
 sidebar_position: 9
-sidebar_label: "Annotated agent.yml"
+sidebar_label: "Complete agent.yml"
 ---
 # agent.yml – Comprehensive Configuration Reference
 
