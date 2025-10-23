@@ -171,6 +171,39 @@ dexto --agent ./agents/examples/email_slack.yml
 ```
 <img src="assets/email_slack_demo.gif" alt="Email to Slack Demo" width="600">
 
+### 🎯 Triage Agent: Multi-Agent Customer Support
+
+Create multi-agent systems that can intelligently coordinate delegate tasks amongst themselves based on the user query.
+
+```bash
+dexto --agent triage-agent
+```
+<img src="assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
+
+### 🎮 Playground: Interactive Development Environment
+
+A testing playground to view the tools in your MCP servers before connecting them to LLMs to see the detailed response structures.
+
+<img src="assets/playground_demo.gif" alt="Playground Demo" width="600">
+
+### 🧠 Memory: Persistent Context & Learning
+
+Create and save memories. Your agent automatically uses it when responding to your queries.
+
+<img src="assets/memory_demo.gif" alt="Memory Demo" width="600">
+
+### 🛒 MCP Store: Tool Discovery & Integration
+
+Equip your agents from more than 20+ MCP Servers and start using them via chat - instantly.  
+
+<img src="assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
+
+### 📝 User Forms: Dynamic Form Generation
+
+Agents can generate structured forms when they need additional data to make it easier to collect extra info from users.
+
+<img src="assets/user_form_demo.gif" alt="User Form Demo" width="600">
+
 ---
 
 ## Run Modes
