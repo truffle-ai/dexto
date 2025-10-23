@@ -75,6 +75,72 @@ Fired when an MCP server configuration is updated.
 }
 ```
 
+#### `dexto:mcpServerRestarted`
+
+Fired when an MCP server is restarted.
+
+```typescript
+{
+  serverName: string;
+}
+```
+
+#### `dexto:mcpResourceUpdated`
+
+Fired when an MCP server resource is updated.
+
+```typescript
+{
+  serverName: string;
+  resourceUri: string;
+}
+```
+
+#### `dexto:mcpPromptsListChanged`
+
+Fired when available prompts from MCP servers change.
+
+```typescript
+{
+  serverName: string;
+  prompts: string[];
+}
+```
+
+#### `dexto:mcpToolsListChanged`
+
+Fired when available tools from MCP servers change.
+
+```typescript
+{
+  serverName: string;
+  tools: string[];
+}
+```
+
+#### `dexto:resourceCacheInvalidated`
+
+Fired when resource cache is invalidated.
+
+```typescript
+{
+  resourceUri?: string;
+  serverName: string;
+  action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+}
+```
+
+#### `dexto:sessionTitleUpdated`
+
+Fired when a session title is updated.
+
+```typescript
+{
+  sessionId: string;
+  title: string;
+}
+```
+
 #### `dexto:availableToolsUpdated`
 
 Fired when the available tools list is updated.
@@ -85,22 +151,6 @@ Fired when the available tools list is updated.
   source: 'mcp' | 'builtin';
 }
 ```
-
-### Validation Events
-
-#### `dexto:inputValidationFailed`
-
-Fired when input validation fails for an LLM request.
-
-```typescript
-{
-  sessionId: string;
-  issues: Issue[];
-  provider: LLMProvider;
-  model: string;
-}
-```
-
 
 ### Configuration Events
 
@@ -260,11 +310,21 @@ Fired when the LLM service completes a response.
 ```typescript
 {
   content: string;
-  tokenCount?: number;
+  reasoning?: string;  // Extended thinking output for reasoning models
+  provider?: string;
   model?: string;
+  router?: string;
+  tokenUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    reasoningTokens?: number;  // Additional tokens used for reasoning
+    totalTokens?: number;
+  };
   sessionId: string;
 }
 ```
+
+**Note:** The `reasoning` field contains extended thinking output for models that support reasoning (e.g., o1, o3-mini). This is separate from the main `content` response.
 
 #### `llmservice:chunk`
 
@@ -272,11 +332,14 @@ Fired when a streaming response chunk is received.
 
 ```typescript
 {
+  type: 'text' | 'reasoning';  // Indicates whether chunk is reasoning or main response
   content: string;
   isComplete?: boolean;
   sessionId: string;
 }
 ```
+
+**Note:** The `type` field distinguishes between reasoning output (`reasoning`) and the main response text (`text`). For reasoning models, you'll receive reasoning chunks followed by text chunks.
 
 #### `llmservice:error`
 

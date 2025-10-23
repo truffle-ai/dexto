@@ -14,13 +14,15 @@ const config: Config = {
     // Set the /<baseUrl>/ pathname under which your site is served
     baseUrl: '/',
 
+    // Normalize URLs with trailing slashes for consistent routing
+    trailingSlash: true,
+
     // GitHub pages deployment config.
     // If you aren't using GitHub pages, you don't need these.
     organizationName: 'truffle-ai', // Usually your GitHub org/user name.
     projectName: 'dexto', // Usually your repo name.
 
     onBrokenLinks: 'throw',
-    onBrokenMarkdownLinks: 'warn',
 
     // Even if you don't use internationalization, you can use this field to set
     // useful metadata like html lang. For example, if your site is Chinese, you
@@ -60,6 +62,9 @@ const config: Config = {
 
     markdown: {
         mermaid: true,
+        hooks: {
+            onBrokenMarkdownLinks: 'warn',
+        },
     },
 
     themeConfig: {
@@ -74,7 +79,7 @@ const config: Config = {
         colorMode: {
             defaultMode: 'dark',
             disableSwitch: false,
-            respectPrefersColorScheme: true,
+            respectPrefersColorScheme: false,
         },
         navbar: {
             logo: {
@@ -82,7 +87,7 @@ const config: Config = {
                 src: 'img/dexto/dexto_logo_light.svg',
                 srcDark: 'img/dexto/dexto_logo.svg',
             },
-            hideOnScroll: true,
+            hideOnScroll: false,
             items: [
                 {
                     to: '/docs/getting-started/intro',
@@ -184,6 +189,10 @@ const config: Config = {
                         {
                             label: 'Changelog',
                             href: 'https://github.com/truffle-ai/dexto/releases',
+                        },
+                        {
+                            label: 'llms.txt',
+                            href: 'https://docs.dexto.ai/llms.txt',
                         },
                     ],
                 },

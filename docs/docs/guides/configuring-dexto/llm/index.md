@@ -31,13 +31,13 @@ GROQ_API_KEY=your_groq_key
 
 ## What's in This Section
 
-### [Configuration Reference](./configuration)
+### [Configuration Reference](./configuration.md)
 Complete guide to all LLM configuration options including:
 - Required and optional fields
 - Provider-specific options
 - Advanced settings
 
-### [Supported Providers](./providers)
+### [Supported Providers](./providers.md)
 Detailed guide to all supported LLM providers:
 - **Built-in providers**: OpenAI, Anthropic, Google, Groq, Cohere
 - **Custom providers**: Azure OpenAI, OpenRouter, Together.ai, local models
@@ -51,7 +51,7 @@ Detailed guide to all supported LLM providers:
 - **Model**: The specific AI model to use (e.g., gpt-4.1-mini, claude-3-5-sonnet)
 
 ### System Prompts
-System prompts define how your agent behaves. See the [System Prompt Configuration](../systemPrompt) guide for details on simple strings and advanced contributor configurations.
+System prompts define how your agent behaves. See the [System Prompt Configuration](../systemPrompt.md) guide for details on simple strings and advanced contributor configurations.
 
 ### Routers
 Dexto uses routers to handle LLM requests:
@@ -60,6 +60,6 @@ Dexto uses routers to handle LLM requests:
 
 ## Next Steps
 
-1. **New to LLMs?** Start with the [Configuration Reference](./configuration) to understand the basics
-2. **Looking for a specific provider?** Check the [Providers Guide](./providers) for setup instructions
+1. **New to LLMs?** Start with the [Configuration Reference](./configuration.md) to understand the basics
+2. **Looking for a specific provider?** Check the [Providers Guide](./providers.md) for setup instructions
 3. **Building an agent?** Head to [Building with Dexto](../../../tutorials/index.md) for implementation patterns 

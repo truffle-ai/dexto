@@ -118,7 +118,7 @@ Each provider requires its own API key:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 ```
 

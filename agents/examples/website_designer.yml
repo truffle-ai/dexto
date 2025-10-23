@@ -29,6 +29,6 @@ systemPrompt: |
 # # describes the llm configuration
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5
   # you can update the system prompt to change the behavior of the llm
   apiKey: $OPENAI_API_KEY

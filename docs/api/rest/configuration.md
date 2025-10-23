@@ -31,7 +31,7 @@ API endpoints for managing agent configuration files, including reading, editing
 **Response:**
 ```json
 {
-  "yaml": "greeting: \"My Agent\"\nllm:\n  provider: openai\n  model: gpt-4o\n  apiKey: $OPENAI_API_KEY",
+  "yaml": "greeting: \"My Agent\"\nllm:\n  provider: openai\n  model: gpt-5-mini\n  apiKey: $OPENAI_API_KEY",
   "path": "/absolute/path/to/agent.yml",
   "relativePath": "agent.yml",
   "lastModified": "2025-01-15T10:30:00.000Z",
@@ -50,7 +50,7 @@ API endpoints for managing agent configuration files, including reading, editing
 **Request Body:**
 ```json
 {
-  "yaml": "greeting: \"My Agent\"\nllm:\n  provider: openai\n  model: gpt-4o\n  apiKey: $OPENAI_API_KEY"
+  "yaml": "greeting: \"My Agent\"\nllm:\n  provider: openai\n  model: gpt-5-mini\n  apiKey: $OPENAI_API_KEY"
 }
 ```
 
@@ -98,7 +98,7 @@ API endpoints for managing agent configuration files, including reading, editing
 **Request Body:**
 ```json
 {
-  "yaml": "greeting: \"My Agent\"\nllm:\n  provider: openai\n  model: gpt-4o"
+  "yaml": "greeting: \"My Agent\"\nllm:\n  provider: openai\n  model: gpt-5-mini"
 }
 ```
 
@@ -150,7 +150,7 @@ API endpoints for managing agent configuration files, including reading, editing
 greeting: My Agent
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5-mini
   apiKey: '[REDACTED]'
   router: vercel
   temperature: 0.7

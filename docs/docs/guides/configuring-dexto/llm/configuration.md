@@ -32,7 +32,7 @@ export type AgentConfig = {
 ### Required Fields
 
 - **provider** (string): The LLM provider to use (e.g., `openai`, `anthropic`, `google`, `groq`, `cohere`)
-- **model** (string): The model name (see [Providers Guide](./providers) for full list)
+- **model** (string): The model name (see [Providers Guide](./providers.md) for full list)
 - **apiKey** (string): API key or environment variable (e.g., `$OPENAI_API_KEY`)
 
 ### Optional Fields
@@ -41,14 +41,14 @@ export type AgentConfig = {
 - **maxInputTokens** (number): Maximum tokens for input context (when this is crossed, messages are compressed)
 - **maxOutputTokens** (number): Maximum tokens for AI response generation
 - **temperature** (number): Controls randomness in AI responses (0 = deterministic, 1 = very creative)
-- **router** (string): Choose between `vercel` (default) or `in-built` routers
-- **maxIterations** (number): Maximum number of tool execution iterations before stopping (prevents infinite loops)
+- **router** (string): Choose between `vercel` or `in-built` routers (default: `vercel`)
+- **maxIterations** (number): Maximum number of tool execution iterations before stopping (prevents infinite loops, default: 50)
 
 ## System Prompts
 
 ⚠️ **Important**: The `systemPrompt` field is configured at the agent level, not within the LLM configuration.
 
-For detailed system prompt configuration, including simple strings and advanced contributor patterns, see the dedicated [System Prompt Configuration](../systemPrompt) guide.
+For detailed system prompt configuration, including simple strings and advanced contributor patterns, see the dedicated [System Prompt Configuration](../systemPrompt.md) guide.
 
 ## LLM Response Control
 
@@ -101,7 +101,7 @@ llm:
 ```yaml
 llm:
   provider: anthropic
-  model: claude-3-5-sonnet-20240620
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
   temperature: 0.7
   maxOutputTokens: 8000
@@ -149,7 +149,7 @@ llm:
 
 ## Router Configuration
 
-Dexto offers two router options:
+Dexto offers two router options. The `vercel` router is used by default if no router is specified.
 
 ### Vercel Router (Default)
 ```yaml
@@ -157,7 +157,7 @@ llm:
   provider: openai
   model: gpt-4.1-mini
   apiKey: $OPENAI_API_KEY
-  router: vercel  # This is the default
+  router: vercel  # Optional - this is the default
 ```
 
 **Benefits:**
@@ -209,6 +209,6 @@ llm:
 
 ## Next Steps
 
-- **Learn about providers**: Check the [Providers Guide](./providers) for specific setup instructions
+- **Learn about providers**: Check the [Providers Guide](./providers.md) for specific setup instructions
 - **Start building**: Head to [Building with Dexto](../../../tutorials/index.md) to put this configuration to use
-- **Explore MCP**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers) to add tools to your agents
+- **Explore MCP**: Learn about [MCP Server Configuration](../../../mcp/connecting-servers.md) to add tools to your agents

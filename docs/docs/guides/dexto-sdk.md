@@ -431,7 +431,7 @@ agent.agentEventBus.on('llmservice:toolResult', (data) => {
 
 ## Next Steps
 
-- **[DextoAgent API](/api/dexto-agent)** - Detailed method documentation
+- **[DextoAgent API](/api/sdk/dexto-agent)** - Detailed method documentation
 - **[MCP Guide](/docs/mcp/overview)** - Learn about Model Context Protocol
 - **[Deployment Guide](/docs/guides/deployment)** - Production deployment strategies
 - **[Examples](/docs/category/examples--demos)** - Complete example applications

@@ -97,4 +97,4 @@ Combine this with your own agent configuration to enable domain-specific workflo
 - **Credentials not found:** rerun `dexto setup` to enter provider keys; Dexto persists them inside `~/.dexto`.
 - **Need verbose logs:** start the MCP server yourself with `DEXTO_LOG_LEVEL=debug dexto --mode mcp` before launching Cursor.
 
-For more detail on other MCP transports and remote deployments, see [Using Dexto as an MCP Server](./dexto-as-mcp-server).
+For more detail on other MCP transports and remote deployments, see [Using Dexto as an MCP Server](./dexto-as-mcp-server.md).

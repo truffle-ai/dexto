@@ -52,7 +52,7 @@ mcpServers:
 # Configure the Large Language Model
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY # Reads from environment variable
 
 # Define the agent's persona and instructions
