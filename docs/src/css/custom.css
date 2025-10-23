@@ -869,6 +869,15 @@ code {
     z-index: calc(var(--ifm-z-index-overlay) + 2) !important;
   }
 
+  /* Mobile sidebar header/brand area - needs solid background */
+  .navbar-sidebar__brand {
+    background: rgb(37, 37, 38);
+  }
+
+  [data-theme='light'] .navbar-sidebar__brand {
+    background: rgb(255, 255, 255);
+  }
+
   .navbar-sidebar .menu {
     padding: 0.5rem 1rem;
     height: 100vh !important;
