@@ -41,8 +41,8 @@ export type AgentConfig = {
 - **maxInputTokens** (number): Maximum tokens for input context (when this is crossed, messages are compressed)
 - **maxOutputTokens** (number): Maximum tokens for AI response generation
 - **temperature** (number): Controls randomness in AI responses (0 = deterministic, 1 = very creative)
-- **router** (string): Choose between `vercel` (default) or `in-built` routers
-- **maxIterations** (number): Maximum number of tool execution iterations before stopping (prevents infinite loops)
+- **router** (string): Choose between `vercel` or `in-built` routers (default: `vercel`)
+- **maxIterations** (number): Maximum number of tool execution iterations before stopping (prevents infinite loops, default: 50)
 
 ## System Prompts
 
@@ -149,7 +149,7 @@ llm:
 
 ## Router Configuration
 
-Dexto offers two router options:
+Dexto offers two router options. The `vercel` router is used by default if no router is specified.
 
 ### Vercel Router (Default)
 ```yaml
@@ -157,7 +157,7 @@ llm:
   provider: openai
   model: gpt-4.1-mini
   apiKey: $OPENAI_API_KEY
-  router: vercel  # This is the default
+  router: vercel  # Optional - this is the default
 ```
 
 **Benefits:**

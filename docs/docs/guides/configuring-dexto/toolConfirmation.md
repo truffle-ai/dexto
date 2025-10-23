@@ -13,6 +13,7 @@ The `toolConfirmation` section in your `agent.yml` file configures:
 - **Confirmation mode** - How tools are approved (interactive, auto-approve, auto-deny)
 - **Timeout duration** - How long to wait for user response
 - **Storage type** - Where to remember user approvals (persistent vs session-only)
+- **Tool policies** - Fine-grained allow/deny lists for specific tools
 
 ## Configuration Schema
 
@@ -21,6 +22,11 @@ toolConfirmation:
   mode: "event-based"           # Confirmation mode
   timeout: 30000               # Timeout in milliseconds (30 seconds)
   allowedToolsStorage: "storage" # Storage type for remembered approvals
+  toolPolicies:                # Optional: Fine-grained allow/deny lists
+    alwaysAllow:               # Tools that never require approval
+      - "internal--ask_user"
+    alwaysDeny:                # Tools that are always blocked
+      - "mcp--filesystem--delete_file"
 ```
 
 All fields are optional with sensible defaults.
@@ -187,6 +193,147 @@ toolConfirmation:
 - **Cons:** Need to re-approve tools in each session
 - **Best for:** Security-sensitive environments
 
+## Tool Policies
+
+Tool policies provide fine-grained control over which tools can be executed without user confirmation or which tools should always be blocked. This is configured via the `toolPolicies` field in your `agent.yml` file.
+
+### Configuration Schema
+
+```yaml
+toolConfirmation:
+  enabled: true
+  toolPolicies:
+    alwaysAllow:
+      - "internal--ask_user"
+      - "mcp--filesystem--read_file"
+    alwaysDeny:
+      - "mcp--filesystem--write_file"
+      - "mcp--filesystem--delete_file"
+```
+
+### Tool Policy Fields
+
+**`alwaysAllow`** (array of strings)
+- Tools that never require approval (low-risk operations)
+- These tools will execute immediately without user confirmation
+- Default: empty array `[]`
+- Example use cases: read-only operations, safe utility tools
+
+**`alwaysDeny`** (array of strings)
+- Tools that are always denied (high-risk operations)
+- These tools will never execute, regardless of mode
+- Takes precedence over `alwaysAllow`
+- Default: empty array `[]`
+- Example use cases: destructive operations, sensitive file modifications
+
+### Qualified Tool Name Format
+
+Tool names must be fully qualified using the format:
+
+- **Internal tools**: `internal--<tool_name>`
+  - Example: `internal--ask_user`, `internal--read_file`
+
+- **MCP tools**: `mcp--<server_name>--<tool_name>`
+  - Example: `mcp--filesystem--read_file`, `mcp--git--commit`
+
+The qualified name format ensures precise tool identification across different sources.
+
+### Precedence Rules
+
+Tool policies follow a clear precedence hierarchy:
+
+1. **`alwaysDeny` takes precedence over `alwaysAllow`**
+   - If a tool appears in both lists, it will be denied
+   - This ensures security-critical blocking cannot be overridden
+
+2. **Tool policies take precedence over confirmation mode**
+   - Even in `auto-approve` mode, tools in `alwaysDeny` will be blocked
+   - Even in `event-based` mode, tools in `alwaysAllow` will skip confirmation
+
+3. **Empty defaults**
+   - Both arrays default to empty `[]`
+   - Without explicit policies, the confirmation mode controls behavior
+
+### Example Configurations
+
+**Read-only development environment:**
+```yaml
+toolConfirmation:
+  mode: "event-based"
+  toolPolicies:
+    alwaysAllow:
+      - "internal--ask_user"
+      - "mcp--filesystem--read_file"
+      - "mcp--filesystem--list_directory"
+      - "mcp--git--status"
+    alwaysDeny:
+      - "mcp--filesystem--write_file"
+      - "mcp--filesystem--delete_file"
+      - "mcp--git--commit"
+      - "mcp--git--push"
+```
+
+**Production with safety guardrails:**
+```yaml
+toolConfirmation:
+  mode: "event-based"
+  timeout: 60000
+  allowedToolsStorage: "storage"
+  toolPolicies:
+    alwaysAllow:
+      - "internal--ask_user"
+      - "mcp--filesystem--read_file"
+    alwaysDeny:
+      - "mcp--filesystem--delete_file"
+      - "mcp--git--push"
+      - "mcp--system--shutdown"
+```
+
+**Maximum security:**
+```yaml
+toolConfirmation:
+  mode: "event-based"
+  toolPolicies:
+    alwaysAllow: []  # No automatic approvals
+    alwaysDeny:
+      - "mcp--filesystem--write_file"
+      - "mcp--filesystem--delete_file"
+      - "mcp--git--commit"
+      - "mcp--git--push"
+      - "mcp--system--execute"
+```
+
+### Use Cases
+
+**Use `alwaysAllow` for:**
+- Read-only operations (reading files, listing directories)
+- User interaction tools (ask_user, display_info)
+- Safe utility tools (status checks, information retrieval)
+- Frequently used low-risk tools
+
+**Use `alwaysDeny` for:**
+- Destructive operations (delete, overwrite)
+- Security-sensitive operations (system commands, network access)
+- Production deployment tools (push, publish)
+- Tools that should never run in certain environments
+
+### Finding Tool Names
+
+To determine the correct qualified tool name:
+
+1. **List available tools in CLI:**
+   ```bash
+   dexto --list-tools
+   ```
+
+2. **Check tool execution logs:**
+   - Tool names appear in confirmation requests
+   - Format will be shown as `internal--<name>` or `mcp--<server>--<name>`
+
+3. **MCP server configuration:**
+   - Server name comes from your `mcp.servers` configuration in `agent.yml`
+   - Tool name comes from the MCP server's tool definitions
+
 ## Session-Aware Approvals
 
 Tool approvals can be scoped to specific sessions or applied globally:
@@ -243,6 +390,11 @@ Fast development with minimal interruptions:
 toolConfirmation:
   mode: "auto-approve"
   allowedToolsStorage: "memory"
+  toolPolicies:
+    alwaysAllow:
+      - "internal--ask_user"
+    alwaysDeny:
+      - "mcp--system--shutdown"
 ```
 
 ### Production Environment
@@ -253,6 +405,13 @@ toolConfirmation:
   mode: "event-based"
   timeout: 60000               # 1 minute timeout
   allowedToolsStorage: "storage"
+  toolPolicies:
+    alwaysAllow:
+      - "internal--ask_user"
+      - "mcp--filesystem--read_file"
+    alwaysDeny:
+      - "mcp--filesystem--delete_file"
+      - "mcp--git--push"
 ```
 
 ### High-Security Environment
@@ -290,6 +449,9 @@ toolConfirmation:
   mode: "event-based"           # Interactive confirmation
   timeout: 120000               # 2 minute timeout
   allowedToolsStorage: "storage" # Persistent storage
+  toolPolicies:
+    alwaysAllow: []             # No tools automatically allowed
+    alwaysDeny: []              # No tools automatically denied
 ```
 
 This provides a good balance of security and usability for most use cases.
@@ -305,6 +467,8 @@ When building custom applications with Dexto, you'll need to implement tool conf
 3. **Session Isolation**: Session-scoped approvals don't affect other users
 4. **Audit Trail**: All approval decisions are logged for review
 5. **Granular Control**: Approve specific tools rather than blanket permissions
+6. **Tool Policies**: Use `alwaysDeny` to block high-risk tools regardless of confirmation mode
+7. **Precedence Safety**: Deny lists always take precedence over allow lists
 
 ## Troubleshooting
 
@@ -322,6 +486,13 @@ When building custom applications with Dexto, you'll need to implement tool conf
 - Check if mode is set to `"auto-deny"`
 - Verify timeout isn't too short for your response time
 - Check for session isolation issues if using session-scoped approvals
+- Check if tool is in `toolPolicies.alwaysDeny` list
+
+### Tool Policy Not Working
+- Verify you're using the fully qualified tool name (e.g., `mcp--filesystem--read_file`)
+- Check tool name format matches: `internal--<name>` or `mcp--<server>--<name>`
+- Remember that `alwaysDeny` takes precedence over `alwaysAllow`
+- Use `dexto --list-tools` to verify the exact tool name
 
 ## Custom UI Integration Examples
 
