@@ -315,6 +315,11 @@ h3 {
   padding: 0;
 }
 
+/* Prevent footer from covering collapse button */
+button[title="Collapse sidebar"] {
+  overflow: visible;
+}
+
 /* Top-Level Category Headers (Getting Started, Guides, etc.) - Bold and prominent */
 .theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link {
   font-size: 15px;
