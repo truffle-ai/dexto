@@ -264,6 +264,13 @@ const config: Config = {
 
     headTags: [
         {
+            tagName: 'meta',
+            attributes: {
+                name: 'algolia-site-verification',
+                content: '5AC61F66A1FBFC7D',
+            },
+        },
+        {
             tagName: 'link',
             attributes: {
                 rel: 'preconnect',
