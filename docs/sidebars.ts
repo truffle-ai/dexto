@@ -18,6 +18,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Getting Started',
+            className: 'sidebar-icon-getting-started',
             link: {
                 type: 'generated-index',
                 title: 'Getting Started',
@@ -28,6 +29,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Guides',
+            className: 'sidebar-icon-guides',
             link: {
                 type: 'generated-index',
                 title: 'Guides',
@@ -38,6 +40,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'MCP',
+            className: 'sidebar-icon-mcp',
             link: {
                 type: 'generated-index',
                 title: 'Model Context Protocol',
@@ -66,6 +69,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Tutorials',
+            className: 'sidebar-icon-tutorials',
             link: {
                 type: 'generated-index',
                 title: 'Tutorials',
@@ -76,6 +80,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Examples & Demos',
+            className: 'sidebar-icon-examples',
             link: {
                 type: 'generated-index',
                 title: 'Examples & Demos',
@@ -86,6 +91,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Concepts',
+            className: 'sidebar-icon-concepts',
             link: {
                 type: 'generated-index',
                 title: 'Concepts',
@@ -96,6 +102,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Community',
+            className: 'sidebar-icon-community',
             link: {
                 type: 'generated-index',
                 title: 'Community',
@@ -112,6 +119,7 @@ const sidebars: SidebarsConfig = {
         {
             type: 'category',
             label: 'Architecture',
+            className: 'sidebar-icon-architecture',
             link: {
                 type: 'generated-index',
                 title: 'Architecture',
