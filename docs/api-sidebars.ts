@@ -2,7 +2,11 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
     apiSidebar: [
-        'getting-started',
+        {
+            type: 'doc',
+            id: 'getting-started',
+            label: 'Getting Started',
+        },
         {
             type: 'category',
             label: 'REST API',
@@ -18,7 +22,11 @@ const sidebars: SidebarsConfig = {
                 },
             ],
         },
-        'websocket',
+        {
+            type: 'doc',
+            id: 'websocket',
+            label: 'WebSocket API',
+        },
         {
             type: 'category',
             label: 'Dexto SDK',

@@ -332,8 +332,21 @@ button[title="Collapse sidebar"] {
   color: white;
 }
 
+/* Top-Level Doc Items - Same bold styling as categories */
+.theme-doc-sidebar-item-link-level-1 > .menu__link {
+  font-size: 15px;
+  font-weight: 600;
+  color: black;
+  margin: 0.25rem 0 0.25rem 0;
+}
+
+[data-theme='dark'] .theme-doc-sidebar-item-link-level-1 > .menu__link {
+  color: white;
+}
+
 /* Hover state for top-level headers - green brand color */
-.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link:hover {
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link:hover,
+.theme-doc-sidebar-item-link-level-1 > .menu__link:hover {
   color: var(--ifm-color-primary);
   background: rgba(78, 201, 176, 0.08);
 }
