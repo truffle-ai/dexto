@@ -44,7 +44,7 @@ Some of the cool things you can do with Dexto CLI:
 | `-c, --continue` | Continue the last session | `dexto --continue` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
-| `--strict` | Require all MCP servers to connect | `dexto --strict` |
+| `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
 | `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
