@@ -41,7 +41,9 @@ Some of the cool things you can do with Dexto CLI:
 | `-a, --agent <path>` | Use custom agent config | `dexto -a ./my-agent.yml` |
 | `-m, --model <model>` | Specify LLM model | `dexto -m claude-4-sonnet-20250514` |
 | `-r, --router <router>` | Specify router (vercel/in-built) | `dexto -r in-built` |
-| `--new-session [id]` | Start new session | `dexto --new-session my-session` |
+| `-c, --continue` | Continue the last session | `dexto --continue` |
+| `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
+| `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `--strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
@@ -56,11 +58,41 @@ Some of the cool things you can do with Dexto CLI:
 | `create-app` | Scaffold new Dexto TypeScript app | `dexto create-app` |
 | `init-app` | Add Dexto to existing TypeScript app | `dexto init-app` |
 | `setup` | Configure global preferences | `dexto setup` |
+
+**Options:**
+- `--provider <provider>` - LLM provider to configure
+- `--model <model>` - LLM model to use
+- `--default-agent <agent>` - Set default agent
+- `--force` - Force reconfiguration even if already set up
+- `--no-interactive` - Run in non-interactive mode
+
 | `install [agents...]` | Install agents from registry | `dexto install nano-banana-agent` |
+
+**Options:**
+- `--all` - Install all available agents from registry
+- `--no-inject-preferences` - Skip injecting global preferences into agent config
+- `--force` - Force reinstall even if already installed
+
 | `uninstall [agents...]` | Uninstall local agents | `dexto uninstall nano-banana-agent` |
+
+**Options:**
+- `--all` - Uninstall all agents
+- `--force` - Force uninstall without confirmation
+
 | `list-agents` | List available/installed agents | `dexto list-agents --installed` |
+
+**Options:**
+- `--verbose` - Show detailed agent information
+- `--installed` - Show only installed agents
+- `--available` - Show only available agents from registry
+
 | `which <agent>` | Show path to agent | `dexto which nano-banana-agent` |
 | `mcp --group-servers` | Start MCP server aggregator | `dexto mcp --group-servers` |
+
+**Options:**
+- `-s, --strict` - Run in strict mode
+- `--name <name>` - MCP server name (default: 'dexto-tools')
+- `--version <version>` - MCP server version (default: '1.0.0')
 
 ### Interactive CLI Commands
 
@@ -328,3 +360,5 @@ See the full list with `dexto list-agents` and examples in the [`agents/`](https
 ## Coming soon!
 
 #### Deploy config files as AI agents with dexto CLI
+
+<!-- TODO: Document interactive CLI commands (/help, /session, /model, /mcp, /tools, /sysprompt, /prompts, /log, /config, /stats, /docs, /search, /history, /clear, /exit) -->

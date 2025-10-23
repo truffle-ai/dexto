@@ -121,3 +121,54 @@ sidebar_position: 2
     "currentSession": "b4a2a3e8-72b1-4d00-a5c3-1a2c3d4e5f6a"
 }
 ```
+
+### Get Current Session
+*Retrieves the ID of the currently active session.*
+
+<p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/sessions/current</code></p>
+
+#### Responses
+
+**Success (200)**
+```json
+{
+  "currentSessionId": "b4a2a3e8-72b1-4d00-a5c3-1a2c3d4e5f6a"
+}
+```
+
+**Success (200) - No Active Session**
+```json
+{
+  "currentSessionId": null
+}
+```
+
+### Update Session Title
+*Updates the title of an existing session.*
+
+<p class="api-endpoint-header"><span class="api-method patch">PATCH</span><code>/api/sessions/:sessionId</code></p>
+
+#### Request Body
+- `title` (string, required): New title for the session. Maximum 120 characters.
+
+#### Responses
+
+**Success (200)**
+```json
+{
+  "session": {
+    "id": "b4a2a3e8-72b1-4d00-a5c3-1a2c3d4e5f6a",
+    "title": "My Updated Session Title",
+    "createdAt": "2023-10-27T10:00:00.000Z",
+    "lastActivity": "2023-10-27T10:05:00.000Z",
+    "messageCount": 4
+  }
+}
+```
+
+**Error (400)**
+```json
+{
+  "error": "Title must be 120 characters or less"
+}
+```

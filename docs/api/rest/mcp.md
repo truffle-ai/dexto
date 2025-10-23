@@ -104,6 +104,35 @@ sidebar_position: 3
 }
 ```
 
+### Restart MCP Server
+*Restarts a connected MCP server.*
+
+<p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/mcp/servers/:serverId/restart</code></p>
+
+#### Responses
+
+**Success (200)**
+```json
+{
+  "status": "restarted",
+  "serverId": "filesystem"
+}
+```
+
+**Error (404)**
+```json
+{
+  "error": "Server not found"
+}
+```
+
+**Error (500)**
+```json
+{
+  "error": "Failed to restart server: <error details>"
+}
+```
+
 ### Remove MCP Server
 *Disconnects and removes an MCP server.*
 

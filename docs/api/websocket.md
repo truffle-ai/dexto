@@ -21,7 +21,7 @@ Instructs the agent to process a user prompt.
 {
   "type": "message",
   "content": "Your prompt here",
-  "sessionId": "optional-session-id",
+  "sessionId": "required-session-id",
   "stream": true,
   "imageData": { "base64": "...", "mimeType": "image/jpeg" },
   "fileData": { "base64": "...", "mimeType": "application/pdf", "filename": "doc.pdf" }
@@ -37,6 +37,29 @@ Resets the conversation history for a given session.
 }
 ```
 
+### `cancel`
+Cancels the currently processing message for a session.
+```json
+{
+  "type": "cancel",
+  "sessionId": "required-session-id"
+}
+```
+
+### `approvalResponse`
+Responds to an approval request from the agent.
+```json
+{
+  "type": "approvalResponse",
+  "data": {
+    "approvalId": "approval-id-from-request",
+    "status": "approved" | "denied" | "cancelled",
+    "sessionId": "optional-session-id",
+    "data": {}
+  }
+}
+```
+
 ---
 
 ## Server → Client Events
@@ -45,14 +68,19 @@ Listen for these events from the server. All events follow the `{ "event": "EVEN
 | Event | Data Payload | Description |
 | :--- | :--- | :--- |
 | `thinking` | `{ sessionId }` | The agent has received the prompt and started processing. |
-| `chunk` | `{ text, isComplete?, sessionId }` | A part of the agent's response when `stream` is `true`. |
-| `response` | `{ text, tokenCount?, model?, sessionId }` | The final, complete response from the agent. |
+| `chunk` | `{ type: 'text' \| 'reasoning', content, isComplete?, sessionId }` | A part of the agent's response when `stream` is `true`. `type` indicates whether this is regular text or reasoning output from extended thinking models. |
+| `response` | `{ text, reasoning?, tokenUsage: { inputTokens?, outputTokens?, reasoningTokens?, totalTokens? }, model?, provider?, router?, sessionId }` | The final, complete response from the agent. `reasoning` field contains reasoning output for extended thinking models. |
 | `toolCall` | `{ toolName, args, callId?, sessionId }` | Informs that the agent is about to execute a tool. |
 | `toolResult` | `{ toolName, sanitized, rawResult?, callId?, success, sessionId }` | Provides the canonical tool result payload (and, when `DEXTO_DEBUG_TOOL_RESULT_RAW` is enabled, the raw result). |
 | `conversationReset` | `{ sessionId }` | Conversation history cleared for session. |
 | `mcpServerConnected` | `{ name, success, error? }` | MCP server connection result. |
 | `availableToolsUpdated` | `{ tools, source }` | Available tools changed. |
-| `toolConfirmationRequest` | `{ ... }` | Request to confirm a tool execution. |
+| `approvalRequest` | `{ ... }` | Request for user approval or input (tool confirmations, elicitations, custom). |
+| `mcpResourceUpdated` | `{ resourceUri?, serverName, action }` | Resource from MCP server updated |
+| `mcpPromptsListChanged` | `{ serverName }` | Available prompts changed |
+| `mcpToolsListChanged` | `{ serverName }` | Available tools changed |
+| `sessionTitleUpdated` | `{ sessionId, title }` | Session title was updated |
+| `resourceCacheInvalidated` | `{ resourceUri?, serverName, action }` | Resource cache invalidated |
 | `error` | Polymorphic error object with `sessionId` | An error occurred during message processing. See [Error Payloads](#error-payloads) below. |
 
 ### Error Payloads

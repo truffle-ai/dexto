@@ -22,10 +22,10 @@ Sends a message and waits for the full response.
 
 #### Responses
 
-**Accepted (202)**
+**Success (200)**
 ```json
 {
-  "status": "processing",
+  "response": "Agent's complete response here",
   "sessionId": "b4a2a3e8-72b1-4d00-a5c3-1a2c3d4e5f6a"
 }
 ```
