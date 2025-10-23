@@ -313,6 +313,12 @@ h3 {
   color: white;
 }
 
+/* Hover state for top-level headers - green brand color */
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link:hover {
+  color: var(--ifm-color-primary);
+  background: rgba(78, 201, 176, 0.08);
+}
+
 /* Add spacing between top-level categories */
 .theme-doc-sidebar-item-category-level-1 {
   margin-bottom: 1rem;
@@ -333,9 +339,9 @@ h3 {
   transition: all var(--ifm-transition-fast);
 }
 
-/* Hover state - subtle background */
+/* Hover state - green brand color and subtle background */
 .menu__link:hover {
-  color: var(--vscode-text);
+  color: var(--ifm-color-primary);
   background: rgba(78, 201, 176, 0.08);
 }
 
