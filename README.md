@@ -178,31 +178,31 @@ Create multi-agent systems that can intelligently coordinate delegate tasks amon
 ```bash
 dexto --agent triage-agent
 ```
-<img src="assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
+<img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
 
 ### 🎮 Playground: Interactive Development Environment
 
 A testing playground to view the tools in your MCP servers before connecting them to LLMs to see the detailed response structures.
 
-<img src="assets/playground_demo.gif" alt="Playground Demo" width="600">
+<img src="https://private-user-images.githubusercontent.com/44321453/504768252-6073f9d1-1c65-4f2d-a5ba-eb87b4f182f3.gif?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjEyMjg5MjQsIm5iZiI6MTc2MTIyODYyNCwicGF0aCI6Ii80NDMyMTQ1My81MDQ3NjgyNTItNjA3M2Y5ZDEtMWM2NS00ZjJkLWE1YmEtZWI4N2I0ZjE4MmYzLmdpZj9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTEwMjMlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUxMDIzVDE0MTAyNFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTEyZDhkZTBhZjk5ODUyYzM5NGFlNTM2NmY5ZTNmMzkzNmYxNjI2YmEwZTA5NTFjMWYyZjdhZTM5MWVlMTY5MDkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.GxGO-j3y-uaZ0yBfxeabKDlfS_uCettRvt6kAlX5rPE" alt="Playground Demo" width="600">
 
 ### 🧠 Memory: Persistent Context & Learning
 
 Create and save memories. Your agent automatically uses it when responding to your queries.
 
-<img src="assets/memory_demo.gif" alt="Memory Demo" width="600">
+<img src="https://private-user-images.githubusercontent.com/44321453/504768169-330be411-d384-4b6b-8570-e15f755ddba4.gif?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjEyMjg5MjQsIm5iZiI6MTc2MTIyODYyNCwicGF0aCI6Ii80NDMyMTQ1My81MDQ3NjgxNjktMzMwYmU0MTEtZDM4NC00YjZiLTg1NzAtZTE1Zjc1NWRkYmE0LmdpZj9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTEwMjMlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUxMDIzVDE0MTAyNFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTk1NzViMTA5MWYxZGMwOGM2M2E1NjEzZTY2YTQ4MGEyZDI5NjM5MDA2NDg4ZjE1MjNlMmQ2MDIwZjY0MTJlODcmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.NcNPIfrQvjEGugyl5ZOzPnH2yPbfAXjBz7Y49QECHjs" alt="Memory Demo" width="600">
 
 ### 🛒 MCP Store: Tool Discovery & Integration
 
 Equip your agents from more than 20+ MCP Servers and start using them via chat - instantly.  
 
-<img src="assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
+<img src=".github/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
 
 ### 📝 User Forms: Dynamic Form Generation
 
 Agents can generate structured forms when they need additional data to make it easier to collect extra info from users.
 
-<img src="assets/user_form_demo.gif" alt="User Form Demo" width="600">
+<img src="https://private-user-images.githubusercontent.com/44321453/504768276-2e41e456-d29a-4154-b7f6-1de1ac2c3d2e.gif?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjEyMjg5ODcsIm5iZiI6MTc2MTIyODY4NywicGF0aCI6Ii80NDMyMTQ1My81MDQ3NjgyNzYtMmU0MWU0NTYtZDI5YS00MTU0LWI3ZjYtMWRlMWFjMmMzZDJlLmdpZj9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTEwMjMlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUxMDIzVDE0MTEyN1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWRlOTk0ZTQ1NWY0YWEyYzIzMWUyODkzNDY1MmQxNjEwOGE3MTQwYjhkNGIyZjQ3MGViNzdlYTM0NTQ2MmFjMjcmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.Xv_dmQd9ZkOOVZhelVZ7YCWwhbIgyMw5gFulpyFSYs8" alt="User Form Demo" width="600">
 
 ---
 
