@@ -75,6 +75,13 @@ body::after {
   transition: text-shadow var(--ifm-transition-fast);
 }
 
+/* Larger logo size - increase overall scale */
+.navbar__logo {
+  transform: scale(1.5);
+  transform-origin: left center;
+  margin-right: 4rem;
+}
+
 /* Enhanced typography with improved contrast */
 h1 {
   font-size: 2.5rem;
