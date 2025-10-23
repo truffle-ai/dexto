@@ -321,10 +321,10 @@ storage:
     port: 6379
   database:
     type: sqlite
-    path: ./data/dexto.db
+    path: "${{dexto.agent_dir}}/data/dexto.db"
   blobStore:
     type: local
-    storePath: ./data/blobs
+    storePath: "${{dexto.agent_dir}}/data/blobs"
     cleanupAfterDays: 90
 ```
 

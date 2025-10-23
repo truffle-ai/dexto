@@ -118,7 +118,7 @@ mcpServers:
   langchain:
     type: stdio
     command: node
-    args: ["./langchain-agent/dist/mcp-server.js"]
+    args: ["${{dexto.agent_dir}}/langchain-agent/dist/mcp-server.js"]
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
 ```
@@ -157,17 +157,17 @@ mcpServers:
   langchain:
     type: stdio
     command: node
-    args: ["./langchain-agent/dist/mcp-server.js"]
-    
+    args: ["${{dexto.agent_dir}}/langchain-agent/dist/mcp-server.js"]
+
   # Add more agents
   autogen-research:
     type: stdio
     command: python
-    args: ["./autogen-agent/mcp_server.py"]
-    
+    args: ["${{dexto.agent_dir}}/autogen-agent/mcp_server.py"]
+
   custom-analyzer:
     type: stdio
-    command: "./custom-agent/target/release/mcp-server"
+    command: "${{dexto.agent_dir}}/custom-agent/target/release/mcp-server"
 ```
 
 Each agent runs independently, but Dexto can orchestrate between all of them based on the task at hand.

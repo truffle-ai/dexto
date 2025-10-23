@@ -140,9 +140,9 @@ systemPrompt:
       type: file
       priority: 10
       files:
-        - ./README.md
-        - ./docs/guidelines.md
-        - ./CONTRIBUTING.txt
+        - "${{dexto.agent_dir}}/README.md"
+        - "${{dexto.agent_dir}}/docs/guidelines.md"
+        - "${{dexto.agent_dir}}/CONTRIBUTING.txt"
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"
@@ -357,9 +357,9 @@ systemPrompt:
       type: file
       priority: 5
       files:
-        - ./README.md
-        - ./CONTRIBUTING.md
-        - ./docs/architecture.md
+        - "${{dexto.agent_dir}}/README.md"
+        - "${{dexto.agent_dir}}/CONTRIBUTING.md"
+        - "${{dexto.agent_dir}}/docs/architecture.md"
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"

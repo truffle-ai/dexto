@@ -409,7 +409,7 @@ Memories require persistent storage to work correctly:
 storage:
   database:
     type: sqlite  # Required for persistent memories
-    # path: ./data/dexto.db  # Optional custom path
+    # path: "${{dexto.agent_dir}}/data/dexto.db"  # Optional custom path
 ```
 
 Memory storage uses the following key format:

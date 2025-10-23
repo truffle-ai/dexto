@@ -131,8 +131,8 @@ systemPrompt:
       type: file
       priority: 20
       files:
-        - ./context/domain-knowledge.md
-        - ./context/guidelines.txt
+        - "${{dexto.agent_dir}}/context/domain-knowledge.md"
+        - "${{dexto.agent_dir}}/context/guidelines.txt"
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"
@@ -557,8 +557,8 @@ storage:
 storage:
   database:
     type: sqlite
-    path: ./data/dexto.db       # Optional: custom path (auto-detected if omitted)
-    database: dexto.db          # Optional: database filename
+    path: "${{dexto.agent_dir}}/data/dexto.db"  # Optional: custom path (auto-detected if omitted)
+    database: dexto.db                           # Optional: database filename
     maxConnections: 1
 ```
 
@@ -814,7 +814,7 @@ plugins:
 
   custom:
     - name: custom-auth
-      module: "./plugins/auth.ts"
+      module: "${{dexto.agent_dir}}/plugins/auth.ts"
       enabled: true
       blocking: true
       priority: 50
