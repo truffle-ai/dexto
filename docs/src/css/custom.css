@@ -471,6 +471,10 @@ h3 {
 }
 
 /* Minimal Table of Contents */
+.table-of-contents {
+  border-left-color: var(--ifm-color-primary) !important;
+}
+
 .table-of-contents__title {
   font-size: 0.85rem;
   font-weight: 600;
@@ -479,8 +483,8 @@ h3 {
 }
 
 .table-of-contents__link {
-  font-size: 0.8rem;
-  color: var(--vscode-text-secondary);
+  font-size: 0.9rem;
+  color: var(--ifm-menu-color);
   padding: 0.125rem 0;
   margin: 0.0625rem 0;
 }
