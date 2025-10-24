@@ -30,10 +30,6 @@ const nextConfig: NextConfig = {
     eslint: {
         ignoreDuringBuilds: true,
     },
-    // Disable TypeScript type checking during build
-    typescript: {
-        ignoreBuildErrors: true,
-    },
     // Ensure webpack can resolve ESM-style .js imports to .ts sources
     webpack: (config) => {
         config.resolve = config.resolve || {};
