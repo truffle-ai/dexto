@@ -492,5 +492,23 @@
     "author": "Shadcn",
     "homepage": "https://ui.shadcn.com/docs/mcp#configuration",
     "matchIds": ["shadcn"]
+  },
+  {
+    "id": "kite-trade",
+    "name": "Kite",
+    "description": "Zerodha Kite API MCP server",
+    "category": "data",
+    "icon": "💰",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.kite.trade/mcp"
+    },
+    "tags": ["kite", "trade", "data", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Zerodha",
+    "homepage": "https://github.com/zerodha/kite-mcp-server",
+    "matchIds": ["kite-trade"]
   }
 ]
