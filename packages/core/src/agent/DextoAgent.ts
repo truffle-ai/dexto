@@ -124,7 +124,6 @@ export interface AgentEventSubscriber {
         'registerSubscriber',
         'ensureStarted',
     ],
-    skipIfNoTelemetry: true,
 })
 export class DextoAgent {
     /**

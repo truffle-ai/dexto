@@ -42,7 +42,6 @@ import { InstrumentClass } from '../../telemetry/decorators.js';
 @InstrumentClass({
     prefix: 'llm.vercel',
     excludeMethods: ['getModelId', 'getAllTools', 'formatTools', 'validateToolSupport'],
-    skipIfNoTelemetry: true,
 })
 export class VercelLLMService implements ILLMService {
     private model: LanguageModel;
