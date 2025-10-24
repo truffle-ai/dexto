@@ -4,26 +4,29 @@ export const OtelConfigurationSchema = z.object({
     serviceName: z.string().optional(),
     enabled: z.boolean().optional(),
     tracerName: z.string().optional(),
-    sampling: z
-        .discriminatedUnion('type', [
-            z.object({
-                type: z.literal('ratio'),
-                probability: z.number().min(0).max(1),
-            }),
-            z.object({
-                type: z.literal('always_on'),
-            }),
-            z.object({
-                type: z.literal('always_off'),
-            }),
-            z.object({
-                type: z.literal('parent_based'),
-                root: z.object({
-                    probability: z.number().min(0).max(1),
-                }),
-            }),
-        ])
-        .optional(),
+    // TODO (Telemetry): Implement sampling support in Phase 5
+    // Currently sampling schema is defined but not implemented in telemetry.ts
+    // See feature-plans/telemetry.md Phase 5 for implementation details
+    // sampling: z
+    //     .discriminatedUnion('type', [
+    //         z.object({
+    //             type: z.literal('ratio'),
+    //             probability: z.number().min(0).max(1),
+    //         }),
+    //         z.object({
+    //             type: z.literal('always_on'),
+    //         }),
+    //         z.object({
+    //             type: z.literal('always_off'),
+    //         }),
+    //         z.object({
+    //             type: z.literal('parent_based'),
+    //             root: z.object({
+    //                 probability: z.number().min(0).max(1),
+    //             }),
+    //         }),
+    //     ])
+    //     .optional(),
     disableLocalExport: z.boolean().optional(),
     export: z
         .union([

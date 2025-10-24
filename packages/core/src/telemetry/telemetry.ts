@@ -24,6 +24,15 @@ declare global {
     var __TELEMETRY__: Telemetry | undefined;
 }
 
+/**
+ * TODO (Telemetry): Phase 5 enhancements
+ *   - Implement sampling strategies (ratio-based, parent-based, always-on/off)
+ *   - Add custom span processors for filtering/enrichment
+ *   - Support context propagation across A2A (agent-to-agent) calls
+ *   - Add cost tracking per trace (token costs, API costs)
+ *   - Add static shutdownGlobal() method for agent switching
+ *   See feature-plans/telemetry.md Phase 5 for details
+ */
 export class Telemetry {
     public tracer: Tracer = trace.getTracer('dexto');
     name: string = 'dexto-service';

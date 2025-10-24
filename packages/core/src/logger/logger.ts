@@ -10,7 +10,7 @@
  * Constraints/Goals
  * - Keep file-based logging as the default for Node (excellent DX/UX).
  * - Keep logs visible in the browser (console-based), never a no‑op.
- * - Avoid touching “a lot of files” or changing call sites for consumers.
+ * - Avoid touching "a lot of files" or changing call sites for consumers.
  * - Keep `@dexto/core` ergonomic; browser consumers should not have to learn a separate API.
  *
  * Plan (incremental)
@@ -39,6 +39,28 @@
  * Verification & Guardrails
  * - Add a CI check that building a minimal Next/Vite app that imports root `@dexto/core` types succeeds.
  * - Mark side-effect status appropriately and keep top-level Node-only side effects out of root paths.
+ */
+
+/**
+ * TODO (Telemetry): Integrate OpenTelemetry structured logs with trace correlation (Phase 5)
+ *
+ * Future Enhancement:
+ * - Replace or enhance Winston logger with OpenTelemetry Logs API
+ * - Automatically inject trace_id and span_id into all log messages
+ * - Enable correlation between traces and logs in observability backends
+ * - Support OpenTelemetry log exporters (OTLP, console, etc.)
+ *
+ * Benefits:
+ * - Unified observability: traces, metrics, and logs in one system
+ * - Click on trace in Jaeger → see correlated logs
+ * - Click on log → see full trace context
+ *
+ * Implementation:
+ * - Use @opentelemetry/api-logs package
+ * - Create OTel-aware logger that wraps or replaces Winston
+ * - Maintain existing logger API for backward compatibility
+ *
+ * See feature-plans/telemetry.md Phase 5 for details
  */
 import * as winston from 'winston';
 import chalk from 'chalk';

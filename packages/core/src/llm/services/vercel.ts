@@ -31,6 +31,12 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 /**
  * Vercel AI SDK implementation of LLMService
  * TODO: improve token counting logic across all LLM services - approximation isn't matching vercel actual token count properly
+ * TODO (Telemetry): Add OpenTelemetry metrics collection (Phase 5)
+ *   - LLM call counters (by provider/model)
+ *   - Token usage histograms (input/output/total/reasoning)
+ *   - Request latency histograms
+ *   - Error rate counters
+ *   See feature-plans/telemetry.md Phase 5 for details
  */
 export class VercelLLMService implements ILLMService {
     private model: LanguageModel;
