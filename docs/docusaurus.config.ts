@@ -77,7 +77,10 @@ const config: Config = {
             contextualSearch: true,
             searchParameters: {},
             searchPagePath: 'search',
-            askAi: 'reomyK7JUIYj',
+            // askAi: 'reomyK7JUIYj',
+            askAi: {
+                assistantId: 'reomyK7JUIYj',
+            },
         },
         docs: {
             sidebar: {
