@@ -1,28 +1,40 @@
+# OpenTelemetry Collector Configuration
+# This is a standalone service that receives traces from Dexto and forwards them to backends
+# Flow: Dexto app → Collector (this config) → Jaeger/other backends
+
+# ===== RECEIVERS =====
+# How the collector RECEIVES telemetry data from Dexto
 receivers:
   otlp:
     protocols:
       http:
-        endpoint: "localhost:4318"
+        endpoint: "localhost:4318"  # Dexto sends traces here via OTLPHttpExporter
       grpc:
-        endpoint: "localhost:4317"
+        endpoint: "localhost:4317"  # Alternative: gRPC protocol
 
-
-exporters:
-  debug:
-    verbosity: detailed
-  otlp:
-    endpoint: jaeger:4317 # Default OTLP gRPC collector endpoint for Jaeger
-    tls:
-      insecure: true # Use insecure for local development
-
+# ===== PROCESSORS =====
+# How the collector PROCESSES data before forwarding (optional transformations)
 processors:
   batch:
-    send_batch_size: 1000
-    timeout: 5s
+    send_batch_size: 1000  # Batch up to 1000 spans before sending
+    timeout: 5s            # Or send after 5 seconds, whichever comes first
 
+# ===== EXPORTERS =====
+# Where the collector SENDS processed telemetry data
+exporters:
+  debug:
+    verbosity: detailed    # Print traces to collector's console (for debugging)
+
+  otlp:
+    endpoint: jaeger:4317  # Send to Jaeger backend via OTLP gRPC
+    tls:
+      insecure: true       # Disable TLS for local development (use TLS in production)
+
+# ===== SERVICE PIPELINES =====
+# Wire together: receivers → processors → exporters
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [debug, otlp]
+      receivers: [otlp]              # Accept OTLP traces from Dexto
+      processors: [batch]            # Batch them for efficiency
+      exporters: [debug, otlp]       # Send to console AND Jaeger
