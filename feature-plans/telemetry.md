@@ -55,10 +55,33 @@ Add OpenTelemetry (OTel) distributed tracing to Dexto for observability and debu
 - ✅ `VercelLLMService` - LLM operations
 - ✅ `OpenAILLMService` - LLM operations
 - ✅ `AnthropicLLMService` - LLM operations
-- ⏳ `ToolManager` - Tool execution (future)
-- ⏳ `MCPClient` - MCP operations (future)
+- ✅ `ToolManager` - Tool execution (both MCP and internal)
+- ✅ `MCPManager` - MCP server communication
+- ✅ `SessionManager` - Session lifecycle management
+- ✅ `PluginManager` - Plugin execution
+- ✅ `ResourceManager` - Resource handling
+- ✅ `MemoryManager` - Memory operations
 
-**Example**:
+**Session ID Propagation via Baggage**:
+Session ID is not available in all services (e.g., DextoAgent manages multiple sessions), so we use OpenTelemetry Baggage for propagation:
+
+```typescript
+// In DextoAgent.run() - set session_id in baggage for propagation
+const span = trace.getActiveSpan();
+if (span) {
+    span.setAttribute('session_id', targetSessionId);
+
+    // Propagate via baggage to all child spans
+    const baggageEntries = { session_id: { value: targetSessionId } };
+    const ctx = propagation.setBaggage(
+        context.active(),
+        propagation.createBaggage(baggageEntries)
+    );
+    // Execute in this context - all child spans inherit baggage
+}
+```
+
+**Example Decorated Class**:
 ```typescript
 @InstrumentClass({
   prefix: 'agent',
@@ -68,18 +91,19 @@ Add OpenTelemetry (OTel) distributed tracing to Dexto for observability and debu
 export class DextoAgent {
   async run(textInput: string, ...): Promise<string> {
     // Decorator creates span automatically
-
     // Add extra attributes to existing span
     const span = trace.getActiveSpan();
     if (span) {
-      span.setAttribute('agent.session_id', this.currentDefaultSessionId);
       span.setAttribute('input.length', textInput.length);
+      span.setAttribute('has_image', Boolean(imageDataInput));
     }
 
     return await this.llmService.completeTask(textInput, ...);
   }
 }
 ```
+
+Decorators already support reading baggage values - see `decorators.ts:166-177`.
 
 ### 2. Manual Span Attributes for Token Usage
 
@@ -123,42 +147,65 @@ return finalText;
 - Decorators can still work with our current approach
 - Less refactoring needed
 
-### 3. Global Telemetry Initialization
+### 3. Telemetry Initialization in Service Layer
 
-**Decision**: Initialize telemetry ONCE at application entry points (CLI, Server, SDK), not in `DextoAgent.start()`.
+**Decision**: Initialize telemetry in `createAgentServices()` BEFORE creating any decorated services.
 
 **Rationale**:
-- Telemetry is global infrastructure, not per-agent
-- Multiple agents can share one telemetry instance
-- Cleaner lifecycle management
-- Follows OpenTelemetry best practices
+- Decorators need OpenTelemetry SDK initialized before class instantiation
+- `createAgentServices()` has access to validated agent config
+- Matches Dexto's config-driven architecture
+- Clean lifecycle: telemetry init/shutdown tied to agent lifecycle
+- Supports sequential switching with different telemetry configs per agent
 
-**IMPORTANT**: This is a **CHANGE** from INSTRUCTIONS.md approach, which initialized in `DextoAgent.start()`.
+**IMPORTANT**: This is a **CHANGE** from INSTRUCTIONS.md approach, which initialized in `DextoAgent.start()` AFTER services were created.
 
-**Entry Points**:
-1. **CLI Mode**: `packages/cli/src/index.ts` - Before agent creation
-2. **Server Mode**: `packages/cli/src/api/server.ts` - At server startup
-3. **SDK Mode**: User's application code (documented)
-
-**Migration from INSTRUCTIONS.md**:
-- OLD: `DextoAgent.start()` initializes telemetry
-- NEW: Entry points initialize telemetry before creating agent
-- This requires moving the init code out of DextoAgent
-
-**Example**:
+**Implementation**:
 ```typescript
-// packages/cli/src/index.ts
-const config = await loadAgentConfig(agentPath);
+// packages/core/src/utils/service-initializer.ts
+export async function createAgentServices(
+    config: ValidatedAgentConfig,
+    configPath?: string
+): Promise<AgentServices> {
+    // 0. Initialize telemetry FIRST (before any decorated classes instantiated)
+    if (config.telemetry?.enabled) {
+        await Telemetry.init(config.telemetry);
+        logger.debug('Telemetry initialized');
+    }
 
-// Initialize telemetry globally if enabled
-if (config.telemetry?.enabled) {
-    await Telemetry.init(config.telemetry);
+    // 1. Initialize event bus
+    const agentEventBus: AgentEventBus = new AgentEventBus();
+
+    // 2. Initialize storage
+    const storageManager = await createStorageManager(config.storage);
+
+    // 3-12. ... rest of services (decorators now work)
+
+    return { mcpManager, toolManager, ... };
 }
-
-// Then create agent
-const agent = new DextoAgent(config);
-await agent.start(); // No telemetry init here anymore
 ```
+
+**Agent Switching Support**:
+```typescript
+// Sequential telemetry shutdown/init during agent switching
+async function switchAgentById(agentId: string) {
+    // 1. Shutdown old telemetry FIRST
+    await Telemetry.shutdownGlobal();
+
+    // 2. Create new agent (will init fresh telemetry in createAgentServices)
+    newAgent = await getDexto().createAgent(agentId);
+    await newAgent.start();  // ← Fresh telemetry with new config
+
+    // 3. Stop old agent (telemetry already shut down)
+    await previousAgent.stop();
+}
+```
+
+**Benefits**:
+- ✅ Each agent can have different telemetry config (endpoint, protocol, etc.)
+- ✅ Clean sequential switching - no config conflicts
+- ✅ Brief gap (~100ms) during switching is acceptable
+- ✅ Supports current one-agent-at-a-time architecture
 
 ### 4. Configuration: App Export Only (No Processor Config)
 
@@ -177,11 +224,6 @@ telemetry:
   enabled: true
   serviceName: my-dexto-agent
   tracerName: dexto-tracer
-
-  # Optional: In-app sampling (simple)
-  sampling:
-    type: ratio
-    probability: 0.1  # Sample 10% of traces
 
   # Export configuration
   export:
@@ -260,13 +302,25 @@ Users choose based on their needs. Both are documented.
 
 **Tasks**:
 
-1. **Add decorators to core classes**
+1. **Add decorators to all major services**
    - [ ] Add `@InstrumentClass` to `DextoAgent`
      - Exclude methods: `isStarted`, `isStopped`, `getConfig`, `getEffectiveConfig`, etc.
    - [ ] Add `@InstrumentClass` to `VercelLLMService`
      - Exclude methods: `getConfig`, `getModelId`, `getProviderDisplayName`, etc.
    - [ ] Add `@InstrumentClass` to `OpenAILLMService`
    - [ ] Add `@InstrumentClass` to `AnthropicLLMService`
+   - [ ] Add `@InstrumentClass` to `ToolManager`
+     - Trace both MCP and internal tool executions
+   - [ ] Add `@InstrumentClass` to `MCPManager`
+     - Trace MCP server communication
+   - [ ] Add `@InstrumentClass` to `SessionManager`
+     - Trace session lifecycle operations
+   - [ ] Add `@InstrumentClass` to `PluginManager`
+     - Trace plugin execution
+   - [ ] Add `@InstrumentClass` to `ResourceManager`
+     - Trace resource operations
+   - [ ] Add `@InstrumentClass` to `MemoryManager`
+     - Trace memory operations
 
 2. **Add manual span attributes for key operations**
    - [ ] In `DextoAgent.run()`:
@@ -281,32 +335,28 @@ Users choose based on their needs. Both are documented.
    - [ ] In `VercelLLMService.generateText()`:
      - Same as streamText
 
-3. **Move telemetry initialization to global level**
-   - [ ] Update `packages/cli/src/index.ts` (CLI mode)
-   - [ ] Update `packages/cli/src/api/server.ts` (Server mode)
-   - [ ] Remove init from `DextoAgent.start()`
-   - [ ] Update SDK examples/docs
-
-4. **Add sampling support (optional)**
-   - [ ] Add `sampling` field to `OtelConfigurationSchema`
-   - [ ] Implement ratio-based sampling
-   - [ ] Document in schema descriptions
+3. **Move telemetry initialization to service layer**
+   - [ ] Add telemetry init to TOP of `createAgentServices()`
+   - [ ] Add `Telemetry.shutdownGlobal()` static method
+   - [ ] Update agent switching in `server.ts` to shutdown telemetry first
+   - [ ] Remove telemetry init from `DextoAgent.start()`
+   - [ ] Make `DextoAgent.stop()` idempotent for telemetry
 
 ### Phase 3: Documentation & Examples 📝 PENDING
 
 **Tasks**:
 
 1. **User Documentation**
-   - [ ] Create `docs/observability/telemetry.md`
+   - [ ] Create `docs/docs/observability/telemetry.md`
      - What is telemetry?
      - How to enable it
      - Configuration options
      - Direct export vs collector
-   - [ ] Create `docs/observability/jaeger-setup.md`
+   - [ ] Create `docs/docs/observability/jaeger-setup.md`
      - Installing Jaeger locally
      - Docker compose example
      - Viewing traces
-   - [ ] Create `docs/observability/collector-setup.md`
+   - [ ] Create `docs/docs/observability/collector-setup.md`
      - When to use a collector
      - Setup instructions
      - Example configs
@@ -352,33 +402,37 @@ Users choose based on their needs. Both are documented.
 
 ### Phase 5: Future Enhancements 🔮 FUTURE
 
-**Not in this PR, but planned**:
+**Not in this PR, but will be marked with TODO comments in code**:
 
-1. **Tool & MCP Telemetry**
-   - Add `@InstrumentClass` to `ToolManager`
-   - Add `@InstrumentClass` to `MCPClient`
-   - Trace tool executions
-   - Trace MCP server calls
-
-2. **Metrics Collection**
+1. **Metrics Collection** (TODO in relevant service files)
    - LLM call counters (by provider/model)
    - Token usage histograms
    - Request latency histograms
    - Active session gauges
+   - Mark location: LLM services, ToolManager, SessionManager
 
-3. **Structured Logs**
+2. **Structured Logs** (TODO in logger/)
    - OpenTelemetry logs with trace correlation
    - Replace/enhance current logger
+   - Mark location: `packages/core/src/logger/`
 
-4. **WebUI Integration**
+3. **WebUI Integration** (TODO in WebUI components)
    - Trace visualization in Dexto WebUI
    - Real-time trace streaming
    - Token usage dashboard
+   - Mark location: `packages/webui/src/`
 
-5. **Advanced Features**
+4. **Advanced Sampling** (TODO in telemetry/schemas.ts)
+   - Ratio-based sampling
+   - Always-on/always-off strategies
+   - Tail-based sampling (requires collector)
+   - Mark location: `packages/core/src/telemetry/schemas.ts`, `telemetry.ts`
+
+5. **Advanced Features** (TODO in appropriate modules)
    - Custom span processors
    - Context propagation across A2A calls
-   - Trace sampling strategies (tail-based, etc.)
+   - Cost tracking per trace
+   - Mark location: `packages/core/src/telemetry/`
 
 ---
 
@@ -505,19 +559,12 @@ export const OtelConfigurationSchema = z.object({
   enabled: z.boolean().optional(),
   tracerName: z.string().optional(),
 
-  // NEW: Sampling (Phase 2)
-  sampling: z.discriminatedUnion('type', [
-    z.object({
-      type: z.literal('ratio'),
-      probability: z.number().min(0).max(1),
-    }),
-    z.object({
-      type: z.literal('always_on'),
-    }),
-    z.object({
-      type: z.literal('always_off'),
-    }),
-  ]).optional(),
+  // TODO (Telemetry): Add sampling support
+  // sampling: z.discriminatedUnion('type', [
+  //   z.object({ type: z.literal('ratio'), probability: z.number().min(0).max(1) }),
+  //   z.object({ type: z.literal('always_on') }),
+  //   z.object({ type: z.literal('always_off') }),
+  // ]).optional(),
 
   export: z.union([
     z.object({
@@ -709,7 +756,7 @@ Test cases:
 
 ### User Documentation
 
-**Location**: `docs/observability/`
+**Location**: `docs/docs/observability/`
 
 Files:
 1. **telemetry.md** - Overview and configuration
@@ -742,16 +789,19 @@ Files:
 ## Open Questions
 
 1. **Sampling**: Should we implement sampling in Phase 2 or defer to Phase 5?
-   - **Decision**: Add schema support in Phase 2, defer implementation to Phase 5
+   - **Decision**: DEFERRED to Phase 5. Mark with TODO comments in code.
 
 2. **WebUI Integration**: In-scope for this PR or future work?
-   - **Decision**: Future work (Phase 5)
+   - **Decision**: Future work (Phase 5). Short-term: link out to Jaeger. Long-term: custom UI like Mastra.
 
 3. **Metrics**: When to add metrics collection?
-   - **Decision**: Phase 5 (after traces are solid)
+   - **Decision**: Phase 5 (after traces are solid). Mark with TODO comments.
 
 4. **Context Propagation**: Do we need custom propagation for event bus?
-   - **Decision**: Test with decorators first, add if needed
+   - **Decision**: Use OpenTelemetry Baggage for session_id propagation (already supported in decorators).
+
+5. **Agent Switching**: How to handle different telemetry configs?
+   - **Decision**: Sequential shutdown/init. Brief gap (~100ms) is acceptable.
 
 ---
 
