@@ -721,7 +721,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           return null;
         })()}
         {/* Clean Header */}
-        <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
+        <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm relative">
           <div className="flex items-center justify-between px-4 py-3 gap-3">
             {/* Left Section */}
             <div className="flex items-center gap-2.5 shrink-0">
@@ -766,13 +766,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-11 w-auto hidden dark:md:block" />
                 <span className="sr-only">Dexto</span>
               </a>
-            </div>
-
-            {/* Center Section - Agent Selector always centered */}
-            <div className="flex justify-center flex-1 min-w-0 px-3 max-w-[216px] md:max-w-none">
-              <div className="w-full max-w-[180px] md:max-w-[260px]">
-                <AgentSelector mode="badge" />
-              </div>
             </div>
 
             {/* Right Section - Desktop buttons */}
@@ -1030,6 +1023,13 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Center Section - Agent Selector absolutely centered */}
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="w-full max-w-[180px] md:max-w-[260px]">
+              <AgentSelector mode="badge" />
             </div>
           </div>
         </header>
