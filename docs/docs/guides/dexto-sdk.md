@@ -166,8 +166,6 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 ## Common Patterns
 
 ### Multi-User Chat Application
-
- ### Multi-User Chat Application
  
 ```mermaid
 sequenceDiagram
@@ -257,14 +255,14 @@ class AdaptiveAgent {
 
 ### Session Management with Persistence
 
-+```mermaid
-+flowchart TD
-+    A[resumeConversation called] --> B{Session exists?}
-+    B -->|Yes| C[Load existing session]
-+    B -->|No| D[Create new session]
-+    C --> E[Return history]
-+    D --> F[Return null]
-+```
+```mermaid
+flowchart TD
+    A[resumeConversation called] --> B{Session exists?}
+    B -->|Yes| C[Load existing session]
+    B -->|No| D[Create new session]
+    C --> E[Return history]
+    D --> F[Return null]
+```
 
 ```typescript
 class PersistentChatBot {
