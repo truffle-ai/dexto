@@ -17,9 +17,9 @@
 
 ## What is Dexto?
 
-Dexto is a universal intelligence layer for building agentic apps—software that understands natural language and takes real-world actions. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, copilots, and context-aware apps that think, act and feel alive.
+Dexto is a universal intelligence layer for building collaborative, context-aware AI Agents & agentic apps. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, digital companions & copilots that think, act and feel alive.
 
-Dexto unifies a configuration-driven framework, robust runtime, and seamless developer experience—so you can build, deploy, and iterate with ease.
+Dexto combines a configuration-driven framework, robust runtime, and seamless developer experience so you can build, deploy, and iterate on your agents easily.
 
 - **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
 - **Runtime** – Execution with orchestration, session management, conversation memory, and multimodal support.
@@ -34,7 +34,7 @@ Dexto unifies a configuration-driven framework, robust runtime, and seamless dev
 - **Agent-as-a-Service** – Transform your existing SaaS products and APIs into dynamic, conversational experiences.
 - **Agentic Applications** – Integrate Dexto as a reasoning engine to power interactive, multimodal, AI-native applications.
 
-### What You Get
+#### What You Get
 
 - **Batteries Included** – Session management, tool orchestration, multimodal support, and production-ready observability.
 - **20+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
@@ -42,7 +42,7 @@ Dexto unifies a configuration-driven framework, robust runtime, and seamless dev
 - **Native Multimodal** – Text, images, files, and tools in a single conversation. *Upload screenshots, ask questions, take actions.*
 - **Persistent Sessions** – Conversations, context, and memory are saved and can be exported, imported, or shared across environments.
 - **Flexible Interfaces** – One agent, endless ways to interact: Ready-to-use CLI, WebUI, APIs, or integrate with your own UI.
-- **100+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP).
+- **30+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP).
 - **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, S3 and more for cache, database & blob backends.
 
 ---
@@ -146,12 +146,11 @@ dexto --agent coding-agent "Can you create a snake game in a new folder and open
 <img src=".github/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
 
 
-### 📧 Send Email Summaries to Slack
-**Task:** `Summarize emails and send highlights to Slack`
-```bash
-dexto --agent ./agents/examples/email_slack.yml
-```
-<img src="https://github.com/truffle-ai/dexto/blob/HEAD/assets/email_slack_demo.gif?raw=1" alt="Email to Slack Demo" width="600">
+### 📧 Portable Agents: Use your agents from Cursor
+
+<img src="https://github.com/user-attachments/assets/fd75a63f-4d29-447a-be24-6943e34c387f" alt="Email to Slack Demo" width="600">
+
+
 
 ### 🎯 Triage Agent: Multi-Agent Customer Support
 
@@ -188,7 +187,9 @@ Agents can generate structured forms when they need additional data to make it e
 
 <img src=".github/assets/user_form_demo.gif" alt="User Form Demo" width="600">
 
-#### More:
+
+
+#### More Examples:
 
 <details>
 <summary><strong>🛒 Browser Agent: Amazon Shopping Assistant</strong></summary>
@@ -210,6 +211,17 @@ dexto
 A testing playground to view the tools in your MCP servers before connecting them to LLMs to see the detailed response structures.
 
 <img src=".github/assets/playground_demo.gif" alt="Playground Demo" width="600">
+
+</details>
+
+<details>
+<summary><strong>📧 Email to Slack: Automated Email Summaries</strong></summary>
+
+**Task:** `Summarize emails and send highlights to Slack`
+```bash
+dexto --agent ./agents/examples/email_slack.yml
+```
+<img src="https://github.com/truffle-ai/dexto/blob/HEAD/assets/email_slack_demo.gif?raw=1" alt="Email to Slack Demo" width="600">
 
 </details>
 
