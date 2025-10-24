@@ -169,7 +169,7 @@ dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
 ```bash
 dexto --agent ./agents/examples/email_slack.yml
 ```
-<img src="assets/email_slack_demo.gif" alt="Email to Slack Demo" width="600">
+<img src="https://github.com/truffle-ai/dexto/blob/HEAD/assets/email_slack_demo.gif?raw=1" alt="Email to Slack Demo" width="600">
 
 ### 🎯 Triage Agent: Multi-Agent Customer Support
 
