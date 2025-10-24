@@ -28,6 +28,7 @@ import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -408,6 +409,26 @@ export class VercelLLMService implements ILLMService {
                 },
             });
 
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan) {
+                const attributes: Record<string, number> = {};
+                if (response.totalUsage.inputTokens !== undefined) {
+                    attributes['gen_ai.usage.input_tokens'] = response.totalUsage.inputTokens;
+                }
+                if (response.totalUsage.outputTokens !== undefined) {
+                    attributes['gen_ai.usage.output_tokens'] = response.totalUsage.outputTokens;
+                }
+                if (response.totalUsage.totalTokens !== undefined) {
+                    attributes['gen_ai.usage.total_tokens'] = response.totalUsage.totalTokens;
+                }
+                if (response.totalUsage.reasoningTokens !== undefined) {
+                    attributes['gen_ai.usage.reasoning_tokens'] =
+                        response.totalUsage.reasoningTokens;
+                }
+                activeSpan.setAttributes(attributes);
+            }
+
             // Persist and update token count
             await this.contextManager.processLLMResponse(response);
             if (typeof response.totalUsage.totalTokens === 'number') {
@@ -647,6 +668,25 @@ export class VercelLLMService implements ILLMService {
                 ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
             },
         });
+
+        // Add token usage to active span (if telemetry is enabled)
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            const attributes: Record<string, number> = {};
+            if (usage.inputTokens !== undefined) {
+                attributes['gen_ai.usage.input_tokens'] = usage.inputTokens;
+            }
+            if (usage.outputTokens !== undefined) {
+                attributes['gen_ai.usage.output_tokens'] = usage.outputTokens;
+            }
+            if (usage.totalTokens !== undefined) {
+                attributes['gen_ai.usage.total_tokens'] = usage.totalTokens;
+            }
+            if (usage.reasoningTokens !== undefined) {
+                attributes['gen_ai.usage.reasoning_tokens'] = usage.reasoningTokens;
+            }
+            activeSpan.setAttributes(attributes);
+        }
 
         // Update ContextManager with actual token count
         if (typeof usage.totalTokens === 'number') {

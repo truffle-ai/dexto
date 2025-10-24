@@ -15,6 +15,7 @@ import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * Anthropic implementation of LLMService
@@ -211,6 +212,15 @@ export class AnthropicService implements ILLMService {
                         router: 'in-built',
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     });
+
+                    // Add token usage to active span (if telemetry is enabled)
+                    const activeSpan = trace.getActiveSpan();
+                    if (activeSpan && totalTokens > 0) {
+                        activeSpan.setAttributes({
+                            'gen_ai.usage.total_tokens': totalTokens,
+                        });
+                    }
+
                     return fullResponse;
                 }
 
@@ -305,6 +315,15 @@ export class AnthropicService implements ILLMService {
                 router: 'in-built',
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             });
+
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan && totalTokens > 0) {
+                activeSpan.setAttributes({
+                    'gen_ai.usage.total_tokens': totalTokens,
+                });
+            }
+
             return (
                 fullResponse ||
                 'Reached maximum number of tool call iterations without a final response.'

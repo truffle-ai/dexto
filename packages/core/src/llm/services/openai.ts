@@ -17,6 +17,7 @@ import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * OpenAI implementation of LLMService
@@ -159,6 +160,25 @@ export class OpenAIService implements ILLMService {
                         router: 'in-built',
                         tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                     });
+
+                    // Add token usage to active span (if telemetry is enabled)
+                    const activeSpan = trace.getActiveSpan();
+                    if (activeSpan && totalTokens > 0) {
+                        const attributes: Record<string, number> = {
+                            'gen_ai.usage.total_tokens': totalTokens,
+                        };
+                        if (inputTokens > 0) {
+                            attributes['gen_ai.usage.input_tokens'] = inputTokens;
+                        }
+                        if (outputTokens > 0) {
+                            attributes['gen_ai.usage.output_tokens'] = outputTokens;
+                        }
+                        if (reasoningTokens > 0) {
+                            attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
+                        }
+                        activeSpan.setAttributes(attributes);
+                    }
+
                     return finalContent;
                 }
 
@@ -317,6 +337,25 @@ export class OpenAIService implements ILLMService {
                 router: 'in-built',
                 tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
             });
+
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan && totalTokens > 0) {
+                const attributes: Record<string, number> = {
+                    'gen_ai.usage.total_tokens': totalTokens,
+                };
+                if (inputTokens > 0) {
+                    attributes['gen_ai.usage.input_tokens'] = inputTokens;
+                }
+                if (outputTokens > 0) {
+                    attributes['gen_ai.usage.output_tokens'] = outputTokens;
+                }
+                if (reasoningTokens > 0) {
+                    attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
+                }
+                activeSpan.setAttributes(attributes);
+            }
+
             return finalResponse;
         } catch (error) {
             if (
