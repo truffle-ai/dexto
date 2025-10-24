@@ -2,6 +2,12 @@ import { ExportResultCode } from '@opentelemetry/core';
 import type { ExportResult } from '@opentelemetry/core';
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 
+/**
+ * Normalizes URL paths for consistent comparison
+ * Handles both full URLs and path-only strings
+ * @param url - URL or path to normalize
+ * @returns Normalized lowercase path without trailing slash
+ */
 function normalizeUrlPath(url: string): string {
     try {
         const parsedUrl = new URL(url);
@@ -20,6 +26,25 @@ function normalizeUrlPath(url: string): string {
     }
 }
 
+/**
+ * CompositeExporter wraps multiple span exporters and provides two key features:
+ *
+ * 1. **Multi-exporter support**: Exports spans to multiple destinations in parallel
+ *    (e.g., console for development + OTLP for production monitoring)
+ *
+ * 2. **Recursive telemetry filtering**: Prevents telemetry infinity loops by filtering
+ *    out spans from `/api/telemetry` endpoints. Without this, telemetry API calls would
+ *    generate spans, which would be exported via HTTP to `/api/telemetry`, generating
+ *    more spans, creating an infinite loop.
+ *
+ * @example
+ * ```typescript
+ * const exporter = new CompositeExporter([
+ *   new ConsoleSpanExporter(),
+ *   new OTLPHttpExporter({ url: 'http://localhost:4318/v1/traces' })
+ * ]);
+ * ```
+ */
 export class CompositeExporter implements SpanExporter {
     private exporters: SpanExporter[];
 

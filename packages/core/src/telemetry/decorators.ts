@@ -10,102 +10,6 @@ import type { Span } from '@opentelemetry/api';
 import { logger } from '../logger/index.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 
-// Type interfaces for better type safety
-interface StreamFinishData {
-    text?: string;
-    usage?: {
-        promptTokens?: number;
-        completionTokens?: number;
-        totalTokens?: number;
-    };
-    finishReason?: string;
-    toolCalls?: unknown[];
-    toolResults?: unknown[];
-    warnings?: unknown;
-    object?: unknown; // For structured output
-}
-
-interface StreamOptions {
-    onFinish?: (data: StreamFinishData) => Promise<void> | void;
-    [key: string]: unknown;
-}
-
-interface EnhancedSpan extends Span {
-    __dextoStreamingSpan?: boolean;
-}
-
-function isStreamingResult(result: unknown, methodName: string): boolean {
-    if (methodName === 'stream' || methodName === 'streamVNext') {
-        return true;
-    }
-
-    if (result && typeof result === 'object' && result !== null) {
-        const obj = result as Record<string, unknown>;
-        return (
-            'textStream' in obj ||
-            'objectStream' in obj ||
-            'usagePromise' in obj ||
-            'finishReasonPromise' in obj
-        );
-    }
-
-    return false;
-}
-
-function isStreamingMethod(methodName: string): boolean {
-    return methodName === 'stream' || methodName === 'streamVNext';
-}
-
-function enhanceStreamingArgumentsWithTelemetry(
-    args: unknown[],
-    span: EnhancedSpan,
-    spanName: string,
-    methodName: string
-): unknown[] {
-    if (methodName === 'stream' || methodName === 'streamVNext') {
-        const enhancedArgs = [...args];
-        const streamOptions =
-            (enhancedArgs.length > 1 && (enhancedArgs[1] as StreamOptions)) ||
-            ({} as StreamOptions);
-        const enhancedStreamOptions: StreamOptions = { ...streamOptions };
-        const originalOnFinish = enhancedStreamOptions.onFinish;
-
-        enhancedStreamOptions.onFinish = async (finishData: StreamFinishData) => {
-            try {
-                const telemetryData = {
-                    text: finishData.text,
-                    usage: finishData.usage,
-                    finishReason: finishData.finishReason,
-                    toolCalls: finishData.toolCalls,
-                    toolResults: finishData.toolResults,
-                    warnings: finishData.warnings,
-                    ...(finishData.object !== undefined && { object: finishData.object }),
-                };
-
-                span.setAttribute(`${spanName}.result`, JSON.stringify(telemetryData));
-                span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
-            } catch (error) {
-                logger.warn('Telemetry capture failed:', error);
-                span.setAttribute(`${spanName}.result`, '[Telemetry Capture Error]');
-                span.setStatus({ code: SpanStatusCode.ERROR });
-                span.end();
-            }
-
-            if (originalOnFinish) {
-                return await originalOnFinish(finishData);
-            }
-        };
-
-        enhancedArgs[1] = enhancedStreamOptions;
-        span.__dextoStreamingSpan = true;
-
-        return enhancedArgs;
-    }
-
-    return args;
-}
-
 // Decorator factory that takes optional spanName
 export function withSpan(options: {
     spanName?: string;
@@ -151,7 +55,7 @@ export function withSpan(options: {
             if (spanKind !== undefined) {
                 spanOptions.kind = spanKind;
             }
-            const span = tracer.startSpan(spanName, spanOptions) as EnhancedSpan;
+            const span = tracer.startSpan(spanName, spanOptions);
             let ctx = trace.setSpan(context.active(), span);
 
             // Record input arguments as span attributes
@@ -213,31 +117,22 @@ export function withSpan(options: {
 
             let result: unknown;
             try {
-                // For streaming methods, enhance arguments with telemetry capture before calling
-                const enhancedArgs = isStreamingMethod(methodName)
-                    ? enhanceStreamingArgumentsWithTelemetry(args, span, spanName, methodName)
-                    : args;
-
                 // Call the original method within the context
-                result = context.with(ctx, () => originalMethod.apply(this, enhancedArgs));
+                result = context.with(ctx, () => originalMethod.apply(this, args));
 
                 // Handle promises
                 if (result instanceof Promise) {
                     return result
                         .then((resolvedValue) => {
-                            if (isStreamingResult(resolvedValue, methodName)) {
-                                return resolvedValue;
-                            } else {
-                                try {
-                                    span.setAttribute(
-                                        `${spanName}.result`,
-                                        JSON.stringify(resolvedValue)
-                                    );
-                                } catch {
-                                    span.setAttribute(`${spanName}.result`, '[Not Serializable]');
-                                }
-                                return resolvedValue;
+                            try {
+                                span.setAttribute(
+                                    `${spanName}.result`,
+                                    JSON.stringify(resolvedValue)
+                                );
+                            } catch {
+                                span.setAttribute(`${spanName}.result`, '[Not Serializable]');
                             }
+                            return resolvedValue;
                         })
                         .catch((error) => {
                             span.recordException(error);
@@ -248,19 +143,15 @@ export function withSpan(options: {
                             throw error;
                         })
                         .finally(() => {
-                            if (!span.__dextoStreamingSpan) {
-                                span.end();
-                            }
+                            span.end();
                         });
                 }
 
                 // Record result for non-promise returns
-                if (!isStreamingResult(result, methodName)) {
-                    try {
-                        span.setAttribute(`${spanName}.result`, JSON.stringify(result));
-                    } catch {
-                        span.setAttribute(`${spanName}.result`, '[Not Serializable]');
-                    }
+                try {
+                    span.setAttribute(`${spanName}.result`, JSON.stringify(result));
+                } catch {
+                    span.setAttribute(`${spanName}.result`, '[Not Serializable]');
                 }
                 // Return regular results
                 return result;
@@ -278,7 +169,7 @@ export function withSpan(options: {
                 throw error;
             } finally {
                 // End span for non-promise returns
-                if (!(result instanceof Promise) && !isStreamingResult(result, methodName)) {
+                if (!(result instanceof Promise)) {
                     span.end();
                 }
             }
