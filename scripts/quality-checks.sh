@@ -58,6 +58,12 @@ run_check() {
 CHECK_TYPE="${1:-all}"
 OUTPUT_LINES="${2:-200}"
 
+# Validate OUTPUT_LINES is either "all" or numeric
+if [ "$OUTPUT_LINES" != "all" ] && ! [[ "$OUTPUT_LINES" =~ ^[0-9]+$ ]]; then
+  echo "Error: OUTPUT_LINES must be a number or 'all', got '$OUTPUT_LINES'" >&2
+  exit 1
+fi
+
 case "$CHECK_TYPE" in
   build)
     run_check "pnpm run build" "Build" "$OUTPUT_LINES"

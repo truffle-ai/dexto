@@ -76,7 +76,7 @@ This minimizes unnecessary context while providing sufficient diagnostics on fai
 ## Output Format
 
 **On success** (minimal output):
-```
+```bash
 Running quality checks...
 
 ✅ Build passed
@@ -88,7 +88,7 @@ All quality checks passed! ✨
 ```
 
 **On failure** (full diagnostic output):
-```
+```bash
 Running quality checks...
 
 ✅ Build passed
