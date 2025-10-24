@@ -27,6 +27,7 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import { InstrumentClass } from '../../telemetry/decorators.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -38,6 +39,11 @@ import type { ValidatedLLMConfig } from '../schemas.js';
  *   - Error rate counters
  *   See feature-plans/telemetry.md Phase 5 for details
  */
+@InstrumentClass({
+    prefix: 'llm.vercel',
+    excludeMethods: ['getModelId', 'getAllTools', 'formatTools', 'validateToolSupport'],
+    skipIfNoTelemetry: true,
+})
 export class VercelLLMService implements ILLMService {
     private model: LanguageModel;
     private config: ValidatedLLMConfig;

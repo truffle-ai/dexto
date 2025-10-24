@@ -11,6 +11,7 @@ import type { SessionMetadata } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
 import { Telemetry } from '../telemetry/telemetry.js';
+import { InstrumentClass } from '../telemetry/decorators.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -113,6 +114,18 @@ export interface AgentEventSubscriber {
  * await agent.stop();
  * ```
  */
+@InstrumentClass({
+    prefix: 'agent',
+    excludeMethods: [
+        'isStarted',
+        'isStopped',
+        'getConfig',
+        'getEffectiveConfig',
+        'registerSubscriber',
+        'ensureStarted',
+    ],
+    skipIfNoTelemetry: true,
+})
 export class DextoAgent {
     /**
      * These services are public for use by the outside world
