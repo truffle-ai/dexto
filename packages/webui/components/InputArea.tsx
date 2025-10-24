@@ -113,7 +113,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
-    { name: 'Claude 4 Sonnet', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929' },
+    { name: 'Claude 4.5 Sonnet', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929' },
     { name: 'GPT-5', provider: 'openai', model: 'gpt-5' },
     { name: 'GPT-5 Mini', provider: 'openai', model: 'gpt-5-mini' },
     { name: 'Gemini 2.5 Pro', provider: 'google', model: 'gemini-2.5-pro' },
