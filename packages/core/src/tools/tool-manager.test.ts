@@ -68,7 +68,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             expect(toolManager.getToolSource('mcp--file_read')).toBe('mcp');
@@ -81,7 +82,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             expect(toolManager.getToolSource('internal--search_history')).toBe('internal');
@@ -94,7 +96,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             expect(toolManager.getToolSource('invalid_tool')).toBe('unknown');
@@ -108,7 +111,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
@@ -145,7 +149,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const error = (await toolManager
@@ -163,7 +168,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const mcpError = (await toolManager
@@ -192,7 +198,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             await expect(toolManager.executeTool('internal--search_history', {})).rejects.toThrow(
@@ -210,7 +217,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
@@ -230,7 +238,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -252,7 +261,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const error = (await toolManager
@@ -274,7 +284,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -296,7 +307,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -317,7 +329,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'auto-approve',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -333,7 +346,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'auto-deny',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const error = (await toolManager
@@ -359,7 +373,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             // First call
@@ -381,7 +396,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             // First call
@@ -411,7 +427,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const stats = await toolManager.getToolStats();
@@ -431,7 +448,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const stats = await toolManager.getToolStats();
@@ -451,7 +469,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const stats = await toolManager.getToolStats();
@@ -473,7 +492,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const exists = await toolManager.hasTool('mcp--file_read');
@@ -490,7 +510,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const exists = await toolManager.hasTool('mcp--nonexistent');
@@ -504,7 +525,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             const exists = await toolManager.hasTool('invalid_tool');
@@ -523,7 +545,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             await expect(
@@ -540,12 +563,553 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'event-based',
-                mockAgentEventBus
+                mockAgentEventBus,
+                undefined
             );
 
             await expect(
                 toolManager.executeTool('mcp--file_read', { path: '/test' })
             ).rejects.toThrow('Approval request failed');
+        });
+    });
+
+    describe('Tool Policies (Allow/Deny Lists)', () => {
+        beforeEach(() => {
+            // Reset mocks for policy tests
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
+            mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(false);
+        });
+
+        describe('Precedence Logic', () => {
+            it('should deny tools in alwaysDeny list (highest precedence)', async () => {
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: ['mcp--filesystem--delete_file'],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                await expect(
+                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                ).rejects.toThrow();
+
+                // Should not reach approval manager or execution
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+
+            it('should deny even if tool is in alwaysAllow list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--filesystem--delete_file'],
+                    alwaysDeny: ['mcp--filesystem--delete_file'], // Deny takes precedence
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                await expect(
+                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                ).rejects.toThrow();
+
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+
+            it('should allow tools in alwaysAllow list without confirmation', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--filesystem--read_file'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                    'filesystem--read_file',
+                    {
+                        path: '/test',
+                    },
+                    undefined
+                );
+            });
+
+            it('should check dynamic allowed list after static policies', async () => {
+                mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(true);
+
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
+                    'mcp--filesystem--read_file',
+                    undefined
+                );
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            });
+
+            it('should fall back to approval mode when no policies match', async () => {
+                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                    approvalId: 'test-approval',
+                    status: 'approved',
+                    data: {},
+                });
+
+                const toolPolicies = {
+                    alwaysAllow: ['internal--ask_user'],
+                    alwaysDeny: ['mcp--filesystem--delete_file'],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+        });
+
+        describe('Auto-approve with Deny List', () => {
+            it('should deny tools in alwaysDeny even with auto-approve mode', async () => {
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: ['mcp--filesystem--delete_file'],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'auto-approve',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                await expect(
+                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                ).rejects.toThrow();
+
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+
+            it('should auto-approve tools not in deny list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: ['mcp--filesystem--delete_file'],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'auto-approve',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockMcpManager.executeTool).toHaveBeenCalled();
+            });
+        });
+
+        describe('Auto-deny with Allow List', () => {
+            it('should allow tools in alwaysAllow even with auto-deny mode', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--filesystem--read_file'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'auto-deny',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockMcpManager.executeTool).toHaveBeenCalled();
+            });
+
+            it('should auto-deny tools not in allow list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--filesystem--read_file'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'auto-deny',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                await expect(
+                    toolManager.executeTool('mcp--filesystem--write_file', { path: '/test' })
+                ).rejects.toThrow();
+
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('No Policies Configured', () => {
+            it('should work normally when no policies are provided', async () => {
+                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                    approvalId: 'test-approval',
+                    status: 'approved',
+                    data: {},
+                });
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    undefined // No policies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+
+            it('should work normally when empty policies are provided', async () => {
+                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                    approvalId: 'test-approval',
+                    status: 'approved',
+                    data: {},
+                });
+
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+        });
+
+        describe('Internal Tools with Policies', () => {
+            it('should respect policies for internal tools', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['internal--ask_user'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies,
+                    {
+                        internalToolsServices: {},
+                        internalToolsConfig: ['ask_user'],
+                    }
+                );
+
+                // Should not throw since internal tools provider will be initialized
+                // This tests that the policy check happens before tool routing
+                expect(toolManager).toBeDefined();
+            });
+        });
+
+        describe('Dual Matching (Exact + Suffix)', () => {
+            beforeEach(() => {
+                mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
+                mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(false);
+            });
+
+            it('should match exact tool names in allow list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--read_file'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                const result = await toolManager.executeTool('mcp--read_file', { path: '/test' });
+
+                expect(result).toBe('success');
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            });
+
+            it('should match qualified names with suffix matching in allow list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--read_file'], // Simple policy
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                // Tool with server prefix should match simple policy
+                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
+                    path: '/test',
+                });
+
+                expect(result).toBe('success');
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                    'filesystem--read_file',
+                    {
+                        path: '/test',
+                    },
+                    undefined
+                );
+            });
+
+            it('should match exact tool names in deny list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: ['mcp--delete_file'],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                await expect(
+                    toolManager.executeTool('mcp--delete_file', { path: '/test' })
+                ).rejects.toThrow();
+
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+
+            it('should match qualified names with suffix matching in deny list', async () => {
+                const toolPolicies = {
+                    alwaysAllow: [],
+                    alwaysDeny: ['mcp--delete_file'], // Simple policy
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                // Tool with server prefix should match simple policy
+                await expect(
+                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                ).rejects.toThrow();
+
+                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            });
+
+            it('should not match unrelated tools with similar names', async () => {
+                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                    approvalId: 'test-approval',
+                    status: 'approved',
+                    data: {},
+                });
+
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--read_file'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                // This should NOT match because it doesn't end with --read_file
+                const result = await toolManager.executeTool('mcp--read_file_metadata', {});
+
+                expect(result).toBe('success');
+                // Should require approval since it doesn't match the policy
+                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+            });
+
+            it('should only apply suffix matching to MCP tools, not internal tools', async () => {
+                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                    approvalId: 'test-approval',
+                    status: 'approved',
+                    data: {},
+                });
+
+                const toolPolicies = {
+                    // Policy for a simple tool name
+                    alwaysAllow: ['mcp--read_file'],
+                    alwaysDeny: [],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                // MCP tool with suffix should match (suffix matching works)
+                await toolManager.executeTool('mcp--filesystem--read_file', {});
+                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                    'filesystem--read_file',
+                    {},
+                    undefined
+                );
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+
+                // But if an internal tool had a similar pattern, it shouldn't match via suffix
+                // (This is conceptual - internal tools don't have server prefixes in practice)
+                // The point is that suffix matching logic only applies to mcp-- prefixed patterns
+            });
+
+            it('should handle multiple policies with mixed matching', async () => {
+                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                    approvalId: 'test-approval',
+                    status: 'approved',
+                    data: {},
+                });
+
+                const toolPolicies = {
+                    alwaysAllow: ['mcp--read_file', 'mcp--list_directory', 'internal--ask_user'],
+                    alwaysDeny: ['mcp--delete_file', 'mcp--execute_script'],
+                };
+
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'event-based',
+                    mockAgentEventBus,
+                    toolPolicies
+                );
+
+                // Test various matching scenarios
+                await toolManager.executeTool('mcp--read_file', {});
+                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                    'read_file',
+                    {},
+                    undefined
+                );
+
+                await toolManager.executeTool('mcp--filesystem--read_file', {});
+                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                    'filesystem--read_file',
+                    {},
+                    undefined
+                );
+
+                await toolManager.executeTool('mcp--server2--list_directory', {});
+                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                    'server2--list_directory',
+                    {},
+                    undefined
+                );
+
+                // Deny should still work
+                await expect(
+                    toolManager.executeTool('mcp--filesystem--delete_file', {})
+                ).rejects.toThrow();
+
+                // None of these should have triggered approval
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            });
         });
     });
 });

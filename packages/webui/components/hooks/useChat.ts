@@ -195,49 +195,30 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
             }
             const payload = msg.data || {};
             switch (msg.event) {
-                case 'thinking':
-                    // Only handle events for the active session
-                    if (!isForActiveSession((payload as any).sessionId)) return;
-                    setProcessing(true);
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'system',
-                            content: 'Dexto is thinking...',
-                            createdAt: Date.now(),
-                        },
-                    ]);
-                    break;
                 case 'chunk': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(true);
                     // All chunk types use payload.content
                     const text = typeof payload.content === 'string' ? payload.content : '';
                     if (!text) break;
                     const chunkType = payload.type as 'text' | 'reasoning' | undefined;
 
-                    // Remove thinking message on first chunk, regardless of type
                     setMessages((ms) => {
-                        // Remove any existing 'thinking' system messages when we start receiving any content
-                        const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        );
-
                         if (chunkType === 'reasoning') {
                             // Update reasoning on the last assistant message if present,
                             // otherwise create a placeholder assistant message to host the reasoning stream.
-                            const last = cleaned[cleaned.length - 1];
+                            const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
                                 const updated = {
                                     ...last,
                                     reasoning: (last.reasoning || '') + text,
                                     createdAt: Date.now(),
                                 };
-                                return [...cleaned.slice(0, -1), updated];
+                                return [...ms.slice(0, -1), updated];
                             }
                             // No assistant yet; create one with empty content and initial reasoning
                             return [
-                                ...cleaned,
+                                ...ms,
                                 {
                                     id: generateUniqueId(),
                                     role: 'assistant',
@@ -248,7 +229,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             ];
                         } else {
                             // For text chunks, update content
-                            const last = cleaned[cleaned.length - 1];
+                            const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
                                 // Ensure content is always a string for streaming
                                 const currentContent =
@@ -259,10 +240,10 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     content: newContent,
                                     createdAt: Date.now(),
                                 };
-                                return [...cleaned.slice(0, -1), updated];
+                                return [...ms.slice(0, -1), updated];
                             }
                             return [
-                                ...cleaned,
+                                ...ms,
                                 {
                                     id: generateUniqueId(),
                                     role: 'assistant',
@@ -299,13 +280,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
 
                     setMessages((ms) => {
-                        // Remove 'thinking' placeholders
-                        const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        );
-
                         // Check if this response is updating an existing message
-                        const lastMsg = cleaned[cleaned.length - 1];
+                        const lastMsg = ms[ms.length - 1];
                         if (lastMsg && lastMsg.role === 'assistant') {
                             // Update existing message with final content and metadata
                             // Ensure content is always a string for consistency
@@ -321,7 +297,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
                             };
-                            return [...cleaned.slice(0, -1), updatedMsg];
+                            return [...ms.slice(0, -1), updatedMsg];
                         }
 
                         // Create new message if no existing assistant message
@@ -337,7 +313,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             router,
                             sessionId,
                         };
-                        return [...cleaned, newMsg];
+                        return [...ms, newMsg];
                     });
 
                     // Emit DOM event for other components to listen to
@@ -602,13 +578,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     // TODO: Replace untyped WebSocket payloads with a shared, typed schema
                     // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
                     // use proper type guards instead of manual payload inspection here.
-
-                    // Clean up thinking messages first
-                    setMessages((ms) =>
-                        ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        )
-                    );
 
                     // If we recently triggered cancel locally, suppress the next provider error
                     if (suppressNextErrorRef.current) {

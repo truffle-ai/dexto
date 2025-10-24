@@ -50,6 +50,19 @@ export class MCPError {
     }
 
     /**
+     * MCP server not found
+     */
+    static serverNotFound(serverName: string, reason?: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.SERVER_NOT_FOUND,
+            ErrorScope.MCP,
+            ErrorType.NOT_FOUND,
+            `MCP server '${serverName}' not found${reason ? `: ${reason}` : ''}`,
+            { serverName, reason }
+        );
+    }
+
+    /**
      * MCP tool not found
      */
     static toolNotFound(toolName: string) {

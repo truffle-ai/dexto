@@ -252,7 +252,7 @@ describe('AgentConfigSchema', () => {
         systemPrompt: 'You are a helpful assistant',
         llm: {
             provider: 'openai',
-            model: 'gpt-4o',
+            model: 'gpt-5',
             apiKey: 'test-key',
         },
     };
@@ -263,7 +263,7 @@ describe('AgentConfigSchema', () => {
 
             expect(result.systemPrompt.contributors).toHaveLength(1);
             expect(result.llm.provider).toBe('openai');
-            expect(result.llm.model).toBe('gpt-4o');
+            expect(result.llm.model).toBe('gpt-5');
             expect(result.llm.apiKey).toBe('test-key');
         });
 
@@ -306,7 +306,7 @@ describe('AgentConfigSchema', () => {
                 internalTools: ['search_history'],
                 llm: {
                     provider: 'anthropic',
-                    model: 'claude-3-5-haiku-20241022',
+                    model: 'claude-haiku-4-5-20251001',
                     apiKey: 'test-anthropic-key',
                     router: 'in-built',
                     maxIterations: 25,
@@ -496,7 +496,7 @@ describe('AgentConfigSchema', () => {
                 internalTools: ['search_history'],
                 llm: {
                     provider: 'openai',
-                    model: 'gpt-4o',
+                    model: 'gpt-5',
                     apiKey: 'sk-prod-key-123',
                     router: 'vercel',
                     maxIterations: 30,
@@ -540,7 +540,7 @@ describe('AgentConfigSchema', () => {
                 systemPrompt: 'You are helpful',
                 llm: {
                     provider: 'openai',
-                    model: 'gpt-4o-mini',
+                    model: 'gpt-5-mini',
                     apiKey: 'sk-test',
                 },
             };

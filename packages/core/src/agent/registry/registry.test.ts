@@ -99,7 +99,7 @@ describe('LocalAgentRegistry', () => {
 
         // Mock preferences
         mockLoadGlobalPreferences.mockResolvedValue({
-            llm: { provider: 'openai', model: 'gpt-4o', apiKey: '$OPENAI_API_KEY' },
+            llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
         });
         mockWritePreferencesToAgent.mockResolvedValue(undefined);
 
@@ -232,7 +232,7 @@ describe('LocalAgentRegistry', () => {
             fs.mkdirSync(bundledAgentsPath, { recursive: true });
             fs.writeFileSync(
                 path.join(bundledAgentsPath, 'test-agent.yml'),
-                'llm:\n  provider: anthropic\n  model: claude-3-5-sonnet-20240620'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5-20250929'
             );
 
             // Mock resolveBundledScript to return our test files
@@ -261,7 +261,7 @@ describe('LocalAgentRegistry', () => {
             expect(mockWritePreferencesToAgent).toHaveBeenCalledWith(
                 installedDir,
                 expect.objectContaining({
-                    llm: { provider: 'openai', model: 'gpt-4o', apiKey: '$OPENAI_API_KEY' },
+                    llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
                 })
             );
         });
@@ -272,7 +272,7 @@ describe('LocalAgentRegistry', () => {
             fs.mkdirSync(bundledAgentsPath, { recursive: true });
             fs.writeFileSync(
                 path.join(bundledAgentsPath, 'test-agent.yml'),
-                'llm:\n  provider: anthropic\n  model: claude-3-5-sonnet-20240620'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5-20250929'
             );
 
             // Mock resolveBundledScript
@@ -306,7 +306,7 @@ describe('LocalAgentRegistry', () => {
             fs.mkdirSync(dirAgentPath, { recursive: true });
             fs.writeFileSync(
                 path.join(dirAgentPath, 'main.yml'),
-                'llm:\n  provider: openai\n  model: gpt-4o'
+                'llm:\n  provider: openai\n  model: gpt-5'
             );
             fs.writeFileSync(path.join(dirAgentPath, 'extra.md'), '# Documentation');
 
@@ -356,7 +356,7 @@ describe('LocalAgentRegistry', () => {
             expect(mockWritePreferencesToAgent).toHaveBeenCalledWith(
                 installedDirPath,
                 expect.objectContaining({
-                    llm: { provider: 'openai', model: 'gpt-4o', apiKey: '$OPENAI_API_KEY' },
+                    llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
                 })
             );
         });

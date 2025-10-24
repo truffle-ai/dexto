@@ -68,14 +68,14 @@ export function LLMConfigSection({
 
         {/* Model */}
         <div>
-          <LabelWithTooltip htmlFor="model" tooltip="The specific model identifier (e.g., gpt-4, claude-3-opus)">
+          <LabelWithTooltip htmlFor="model" tooltip="The specific model identifier (e.g., gpt-5, claude-sonnet-4-5-20250929)">
             Model *
           </LabelWithTooltip>
           <Input
             id="model"
             value={value.model || ''}
             onChange={(e) => handleChange('model', e.target.value)}
-            placeholder="e.g., gpt-4, claude-3-opus-20240229"
+            placeholder="e.g., gpt-5, claude-sonnet-4-5-20250929"
             aria-invalid={!!errors['llm.model']}
           />
           {errors['llm.model'] && <p className="text-xs text-destructive mt-1">{errors['llm.model']}</p>}
@@ -199,7 +199,10 @@ export function LLMConfigSection({
         {/* Max Input/Output Tokens */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <LabelWithTooltip htmlFor="maxInputTokens" tooltip="Maximum input tokens to send to the model">
+            <LabelWithTooltip
+              htmlFor="maxInputTokens"
+              tooltip="Maximum input tokens to send to the model. If not specified, defaults to model's limit from registry, or 128,000 tokens for custom endpoints"
+            >
               Max Input Tokens
             </LabelWithTooltip>
             <Input
@@ -210,13 +213,16 @@ export function LLMConfigSection({
                 handleChange('maxInputTokens', e.target.value ? parseInt(e.target.value, 10) : undefined)
               }
               min="1"
-              placeholder="Optional"
+              placeholder="Auto (128k fallback)"
               aria-invalid={!!errors['llm.maxInputTokens']}
             />
             {errors['llm.maxInputTokens'] && <p className="text-xs text-destructive mt-1">{errors['llm.maxInputTokens']}</p>}
           </div>
           <div>
-            <LabelWithTooltip htmlFor="maxOutputTokens" tooltip="Maximum output tokens the model can generate">
+            <LabelWithTooltip
+              htmlFor="maxOutputTokens"
+              tooltip="Maximum output tokens the model can generate. If not specified, uses provider's default (typically 4,096 tokens)"
+            >
               Max Output Tokens
             </LabelWithTooltip>
             <Input
@@ -227,7 +233,7 @@ export function LLMConfigSection({
                 handleChange('maxOutputTokens', e.target.value ? parseInt(e.target.value, 10) : undefined)
               }
               min="1"
-              placeholder="Optional"
+              placeholder="Auto (provider default)"
               aria-invalid={!!errors['llm.maxOutputTokens']}
             />
             {errors['llm.maxOutputTokens'] && <p className="text-xs text-destructive mt-1">{errors['llm.maxOutputTokens']}</p>}

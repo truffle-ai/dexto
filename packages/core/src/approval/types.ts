@@ -5,19 +5,23 @@
 import type { z } from 'zod';
 import type {
     ToolConfirmationMetadataSchema,
+    CommandConfirmationMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,
     BaseApprovalRequestSchema,
     ToolConfirmationRequestSchema,
+    CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
     ApprovalRequestSchema,
     ApprovalRequestDetailsSchema,
     ToolConfirmationResponseDataSchema,
+    CommandConfirmationResponseDataSchema,
     ElicitationResponseDataSchema,
     CustomApprovalResponseDataSchema,
     BaseApprovalResponseSchema,
     ToolConfirmationResponseSchema,
+    CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
     ApprovalResponseSchema,
@@ -32,6 +36,13 @@ export enum ApprovalType {
      * Metadata contains: toolName, args, description
      */
     TOOL_CONFIRMATION = 'tool_confirmation',
+
+    /**
+     * Binary approval for dangerous commands within an already-approved tool
+     * Metadata contains: toolName, command, originalCommand
+     * (sessionId is provided at the request level, not in metadata)
+     */
+    COMMAND_CONFIRMATION = 'command_confirmation',
 
     /**
      * Schema-based form input from MCP servers
@@ -66,6 +77,12 @@ export enum ApprovalStatus {
 export type ToolConfirmationMetadata = z.output<typeof ToolConfirmationMetadataSchema>;
 
 /**
+ * Command confirmation specific metadata
+ * Derived from CommandConfirmationMetadataSchema
+ */
+export type CommandConfirmationMetadata = z.output<typeof CommandConfirmationMetadataSchema>;
+
+/**
  * Elicitation specific metadata (MCP)
  * Derived from ElicitationMetadataSchema
  */
@@ -92,6 +109,12 @@ export type BaseApprovalRequest<_TMetadata = unknown> = z.output<typeof BaseAppr
  * Derived from ToolConfirmationRequestSchema
  */
 export type ToolConfirmationRequest = z.output<typeof ToolConfirmationRequestSchema>;
+
+/**
+ * Command confirmation request
+ * Derived from CommandConfirmationRequestSchema
+ */
+export type CommandConfirmationRequest = z.output<typeof CommandConfirmationRequestSchema>;
 
 /**
  * Elicitation request from MCP server
@@ -122,6 +145,14 @@ export type ApprovalRequest = z.output<typeof ApprovalRequestSchema>;
 export type ToolConfirmationResponseData = z.output<typeof ToolConfirmationResponseDataSchema>;
 
 /**
+ * Command confirmation response data
+ * Derived from CommandConfirmationResponseDataSchema
+ */
+export type CommandConfirmationResponseData = z.output<
+    typeof CommandConfirmationResponseDataSchema
+>;
+
+/**
  * Elicitation response data - validated form inputs
  * Derived from ElicitationResponseDataSchema
  */
@@ -148,6 +179,12 @@ export type BaseApprovalResponse<_TData = unknown> = z.output<typeof BaseApprova
  * Derived from ToolConfirmationResponseSchema
  */
 export type ToolConfirmationResponse = z.output<typeof ToolConfirmationResponseSchema>;
+
+/**
+ * Command confirmation response
+ * Derived from CommandConfirmationResponseSchema
+ */
+export type CommandConfirmationResponse = z.output<typeof CommandConfirmationResponseSchema>;
 
 /**
  * Elicitation response

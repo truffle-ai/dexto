@@ -96,7 +96,7 @@ export interface AgentEventSubscriber {
  * const response = await agent.run("Hello, how are you?");
  *
  * // Switch LLM models (provider inferred automatically)
- * await agent.switchLLM({ model: 'gpt-4o' });
+ * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
  * const session = agent.createSession('user-123');
@@ -911,7 +911,7 @@ export class DextoAgent {
      * @example
      * ```typescript
      * // Switch to a different model (provider will be inferred, API key auto-resolved)
-     * await agent.switchLLM({ model: 'gpt-4o' });
+     * await agent.switchLLM({ model: 'gpt-5' });
      *
      * // Switch to a different provider with explicit API key
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', apiKey: 'sk-ant-...' });
@@ -920,7 +920,7 @@ export class DextoAgent {
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', router: 'in-built' }, 'user-123');
      *
      * // Switch for all sessions
-     * await agent.switchLLM({ model: 'gpt-4o' }, '*');
+     * await agent.switchLLM({ model: 'gpt-5' }, '*');
      * ```
      */
     public async switchLLM(
@@ -1083,7 +1083,7 @@ export class DextoAgent {
      *
      * @example
      * ```typescript
-     * const provider = agent.inferProviderFromModel('gpt-4o');
+     * const provider = agent.inferProviderFromModel('gpt-5');
      * console.log(provider); // 'openai'
      *
      * const provider2 = agent.inferProviderFromModel('claude-4-sonnet-20250514');
@@ -1180,6 +1180,44 @@ export class DextoAgent {
 
         // Refresh tool cache after server removal so the LLM sees updated set
         await this.toolManager.refresh();
+    }
+
+    /**
+     * Restarts an MCP server by disconnecting and reconnecting with its original configuration.
+     * This is useful for recovering from server errors or applying configuration changes.
+     * @param name The name of the server to restart.
+     * @throws MCPError if server is not found or restart fails
+     */
+    public async restartMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        try {
+            logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
+
+            // Restart the server using MCPManager
+            await this.mcpManager.restartServer(name);
+
+            // Refresh tool cache after restart so the LLM sees updated toolset
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('dexto:mcpServerRestarted', {
+                serverName: name,
+            });
+            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            logger.info(`DextoAgent: Successfully restarted MCP server '${name}'.`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`DextoAgent: Failed to restart MCP server '${name}': ${errorMessage}`);
+
+            // Note: No event emitted on failure since the error is thrown
+            // The calling layer (API) will handle error reporting
+
+            throw error;
+        }
     }
 
     /**

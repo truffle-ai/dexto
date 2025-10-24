@@ -11,10 +11,12 @@ import {
   AlertTriangle,
   RefreshCw,
   History,
-  Search
+  Search,
+  X
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface Session {
   id: string;
@@ -30,20 +32,20 @@ interface SessionPanelProps {
   currentSessionId?: string | null;
   onSessionChange: (sessionId: string) => void;
   returnToWelcome: () => void;
-  variant?: 'inline' | 'modal';
+  variant?: 'inline' | 'overlay';
   onSearchOpen?: () => void;
   onNewChat?: () => void;
 }
 
 import NewChatButton from './NewChatButton';
 
-export default function SessionPanel({ 
-  isOpen, 
-  onClose, 
+export default function SessionPanel({
+  isOpen,
+  onClose,
   currentSessionId,
   onSessionChange,
   returnToWelcome,
-  variant = 'modal',
+  variant = 'overlay',
   onSearchOpen,
   onNewChat,
 }: SessionPanelProps) {
@@ -55,7 +57,7 @@ export default function SessionPanel({
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const isDeletingRef = React.useRef(false);
   const requestIdRef = React.useRef(0);
-  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedOnceRef = React.useRef(false);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -70,7 +72,10 @@ export default function SessionPanel({
     requestIdRef.current += 1;
     const currentRequestId = requestIdRef.current;
 
-    setLoading(true);
+    // Only show loading spinner on first load
+    if (!hasLoadedOnceRef.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await fetch('/api/sessions');
@@ -103,6 +108,7 @@ export default function SessionPanel({
 
       if (currentRequestId === requestIdRef.current) {
         setSessions(sortedSessions);
+        hasLoadedOnceRef.current = true;
       }
     } catch (err) {
       if (currentRequestId === requestIdRef.current) {
@@ -112,64 +118,100 @@ export default function SessionPanel({
     } finally {
       if (currentRequestId === requestIdRef.current) {
         setLoading(false);
+        hasLoadedOnceRef.current = true;
       }
     }
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    // Only fetch sessions on initial mount when panel opens
+    // hasLoadedOnceRef ensures we don't refetch unnecessarily
+    if (isOpen && !hasLoadedOnceRef.current) {
       fetchSessions();
     }
   }, [isOpen, fetchSessions]);
 
-  // Debounced session refresh to prevent excessive API calls
-  const debouncedFetchSessions = useCallback(() => {
-    // Clear existing timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Set new timer - wait 500ms after last event before fetching
-    debounceTimerRef.current = setTimeout(() => {
-      void fetchSessions();
-    }, 500);
-  }, [fetchSessions]);
-
-  // Listen for message events to refresh session counts
-  // Update sessions list regardless of panel open/closed state
+  // Listen for events and update state locally (no API calls)
   useEffect(() => {
-    const handleMessage: EventListener = (_event: Event) => {
-      // Debounced refresh - prevents excessive API calls during rapid messaging
-      debouncedFetchSessions();
+    // Also listen for agent switches - this is when we DO want to refresh
+    const handleAgentSwitched = () => {
+      // Force a fresh fetch when agent is switched
+      hasLoadedOnceRef.current = false;
+      fetchSessions();
+    };
+    const handleMessage: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      if (eventSessionId) {
+        setSessions(prev => {
+          const sessionExists = prev.some(s => s.id === eventSessionId);
+          if (sessionExists) {
+            // Update existing session
+            return prev.map(session =>
+              session.id === eventSessionId
+                ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
+                : session
+            );
+          } else {
+            // New session created (first message from welcome state)
+            const newSession: Session = {
+              id: eventSessionId,
+              createdAt: new Date().toISOString(),
+              lastActivity: new Date().toISOString(),
+              messageCount: 1,
+              title: null
+            };
+            return [newSession, ...prev];
+          }
+        });
+      }
     };
 
-    const handleResponse: EventListener = (_event: Event) => {
-      // Debounced refresh - prevents excessive API calls during rapid messaging
-      debouncedFetchSessions();
+    const handleResponse: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      if (eventSessionId) {
+        // Update message count and last activity locally
+        setSessions(prev =>
+          prev.map(session =>
+            session.id === eventSessionId
+              ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
+              : session
+          )
+        );
+      }
     };
 
-    const handleTitleUpdated: EventListener = (_event: Event) => {
-      // Immediate refresh for title updates (less frequent)
-      void fetchSessions();
+    const handleTitleUpdated: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      const title = customEvent.detail?.title;
+      if (eventSessionId && title) {
+        // Update title locally
+        setSessions(prev =>
+          prev.map(session =>
+            session.id === eventSessionId
+              ? { ...session, title }
+              : session
+          )
+        );
+      }
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('dexto:message', handleMessage);
       window.addEventListener('dexto:response', handleResponse);
       window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+      window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
       return () => {
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
         window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
-
-        // Clean up debounce timer on unmount
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current);
-        }
+        window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
       };
     }
-  }, [fetchSessions, debouncedFetchSessions]);
+  }, [fetchSessions]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
@@ -311,7 +353,7 @@ export default function SessionPanel({
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-border/50">
         <div className="flex items-center space-x-2">
-          <h2 className="text-base font-semibold">Chat History</h2>
+          <h2 id="sessionpanel-title" className="text-base font-semibold">Chat History</h2>
         </div>
         <div className="flex items-center space-x-1">
           {onSearchOpen && (
@@ -334,6 +376,17 @@ export default function SessionPanel({
           )}
           {onNewChat && (
             <NewChatButton onClick={onNewChat} variant="outline" />
+          )}
+          {variant === 'overlay' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-7 w-7 p-0"
+              aria-label="Close panel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
           )}
         </div>
       </div>
@@ -504,15 +557,36 @@ export default function SessionPanel({
     </div>
   );
 
+  // For inline variant, just return the content wrapped
   if (variant === 'inline') {
-    return <div className="h-full">{content}</div>;
+    return <div className="h-full w-full flex flex-col bg-card">{content}</div>;
   }
 
+  // Overlay variant with slide animation
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/50 z-30 transition-opacity duration-300",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sessionpanel-title"
+        tabIndex={-1}
+        className={cn(
+          "fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
         {content}
-      </DialogContent>
-    </Dialog>
+      </aside>
+    </>
   );
 } 

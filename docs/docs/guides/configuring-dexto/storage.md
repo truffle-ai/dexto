@@ -173,6 +173,91 @@ storage:
     idleTimeoutMillis: 30000
 ```
 
+---
+
+## Blob Storage
+
+The `blobStore` section configures how your agent stores binary data like images, files, and other large objects. Dexto supports two types of blob storage backends:
+
+### In-Memory Blob Store (`in-memory`)
+
+Stores blobs in memory. Data is lost when the Dexto process terminates. Suitable for development and testing, or when working with small, temporary files.
+
+**TypeScript Interface:**
+```typescript
+export interface InMemoryBlobStoreConfig {
+    type: 'in-memory';
+    maxBlobSize?: number;    // Default: 10MB (10485760 bytes)
+    maxTotalSize?: number;   // Default: 100MB (104857600 bytes)
+}
+```
+
+**Field Explanations:**
+- `type`: Must be `'in-memory'`.
+- `maxBlobSize`: Maximum size per individual blob in bytes. Defaults to 10MB.
+- `maxTotalSize`: Maximum total storage size across all blobs in bytes. Defaults to 100MB.
+
+**Example:**
+```yaml
+storage:
+  blobStore:
+    type: in-memory
+    maxBlobSize: 5242880      # 5MB
+    maxTotalSize: 52428800    # 50MB
+```
+
+---
+
+### Local Blob Store (`local`)
+
+Stores blobs on the local filesystem. Data persists across restarts. Suitable for production use when you need persistent blob storage without external dependencies.
+
+**TypeScript Interface:**
+```typescript
+export interface LocalBlobStoreConfig {
+    type: 'local';
+    storePath?: string;        // Default: ~/.dexto/blobs
+    maxBlobSize?: number;      // Default: 50MB (52428800 bytes)
+    maxTotalSize?: number;     // Default: 1GB (1073741824 bytes)
+    cleanupAfterDays?: number; // Default: 30 days
+}
+```
+
+**Field Explanations:**
+- `type`: Must be `'local'`.
+- `storePath`: Directory path where blobs will be stored. If omitted, Dexto uses a context-aware default path (`~/.dexto/blobs`).
+- `maxBlobSize`: Maximum size per individual blob in bytes. Defaults to 50MB.
+- `maxTotalSize`: Maximum total storage size across all blobs in bytes. Defaults to 1GB.
+- `cleanupAfterDays`: Automatically delete blobs older than this many days. Defaults to 30 days.
+
+**Example:**
+```yaml
+storage:
+  blobStore:
+    type: local
+    storePath: /var/data/dexto/blobs
+    maxBlobSize: 104857600       # 100MB
+    maxTotalSize: 10737418240    # 10GB
+    cleanupAfterDays: 60
+```
+
+---
+
+### When to Use Each Type
+
+| Scenario | Recommended Type | Reason |
+|----------|------------------|--------|
+| **Development & Testing** | `in-memory` | Fast, no cleanup needed, adequate size limits |
+| **Production (persistent)** | `local` | Data survives restarts, larger capacity, automatic cleanup |
+| **Temporary Processing** | `in-memory` | No disk I/O overhead, automatic cleanup on restart |
+| **Long-term Storage** | `local` | Persistent, configurable retention, larger size limits |
+
+**Blob Store Defaults:**
+- If no `blobStore` configuration is provided, Dexto defaults to `in-memory` with standard limits.
+- In-memory storage is faster but limited; local storage provides persistence and higher capacity.
+
+---
+
 ## Configuration Examples
 
 ### Default: In-Memory Only
@@ -205,6 +290,12 @@ storage:
     connectionString: $POSTGRES_CONNECTION_STRING
     maxConnections: 25
     idleTimeoutMillis: 30000
+  blobStore:
+    type: local
+    storePath: /var/data/dexto/blobs
+    maxBlobSize: 104857600    # 100MB
+    maxTotalSize: 10737418240 # 10GB
+    cleanupAfterDays: 60
 ```
 
 ### Simple Persistent: SQLite
@@ -230,7 +321,11 @@ storage:
     port: 6379
   database:
     type: sqlite
-    path: ./data/dexto.db
+    path: "${{dexto.agent_dir}}/data/dexto.db"
+  blobStore:
+    type: local
+    storePath: "${{dexto.agent_dir}}/data/blobs"
+    cleanupAfterDays: 90
 ```
 
 ### Advanced Configuration

@@ -1,5 +1,58 @@
 # @dexto/webui
 
+## 0.1.8
+
+### Patch Changes
+
+- c40b675: - Updated toolResult sanitization flow
+    - Added support for video rendering to WebUI
+- 015100c: Added new memory manager for creating, storing and managing memories.
+    - FileContributor has a new memories contributor for loading memories into SystemPrompt.
+- 2b81734: Updated WebUI for MCP connection flow and other minor updates
+- 5cc6933: Fixes for prompts/resource management, UI improvements, custom slash command support, add support for embedded/linked resources, proper argument handling for prompts
+- 40f89f5: Add New Agent buttons, form editor, new APIs, Dexto class
+- 0558564: Several enhancement have been made to the WebUI to improve UI/UX
+    - Minor fixes to styling for AgentSelector and MCP Registry
+    - Sessions Panel updated UI & list ordering
+    - Sessions Panel updated page routing
+- 01167a2: Refactors
+- a53b87a: feat: Redesign agent registry system with improved agent switching
+    - **@dexto/core**: Enhanced agent registry with better ID-based resolution, improved error handling, and normalized registry entries
+    - **dexto**: Added agent switching capabilities via API with proper state management
+    - **@dexto/webui**: Updated agent selector UI with better UX for switching between agents
+    - Agent resolution now uses `agentId` instead of `agentName` throughout the system
+    - Registry entries now require explicit `id` field matching the registry key
+
+- 1da4398: Added support for video rendering in webui & updated thinking label
+- 24e5093: Add customize agent capabilities
+- c695e57: Add blob storage system for persistent binary data management:
+    - Implement blob storage backend with local filesystem support
+    - Add blob:// URI scheme for referencing stored blobs
+    - Integrate blob storage with resource system for seamless @resource references
+    - Add automatic blob expansion in chat history and message references
+    - Add real-time cache invalidation events for resources and prompts
+    - Fix prompt cache invalidation WebSocket event handling in WebUI
+    - Add robustness improvements: empty text validation after resource expansion and graceful blob expansion error handling
+    - Support image/file uploads with automatic blob storage
+    - Add WebUI components for blob resource display and autocomplete
+- 0700f6f: Support for in-built and custom plugins
+- 0a5636c: Added a new Approval System and support MCP Elicitations
+- 35d48c5: Add chat summary generation
+- Updated dependencies [c40b675]
+- Updated dependencies [015100c]
+- Updated dependencies [0760f8a]
+- Updated dependencies [5cc6933]
+- Updated dependencies [40f89f5]
+- Updated dependencies [3a24d08]
+- Updated dependencies [01167a2]
+- Updated dependencies [a53b87a]
+- Updated dependencies [24e5093]
+- Updated dependencies [c695e57]
+- Updated dependencies [0700f6f]
+- Updated dependencies [0a5636c]
+- Updated dependencies [35d48c5]
+    - @dexto/core@1.1.11
+
 ## 0.1.7
 
 ### Patch Changes

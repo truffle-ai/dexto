@@ -14,6 +14,8 @@ import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 import type { PluginErrorCode } from '@core/plugins/error-codes.js';
+import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
+import type { ProcessErrorCode } from '@core/process/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -35,6 +37,8 @@ export enum ErrorScope {
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
     PLUGIN = 'plugin', // Plugin loading, validation, and execution
+    FILESYSTEM = 'filesystem', // File system operations and path validation
+    PROCESS = 'process', // Process execution and command validation
 }
 
 /**
@@ -72,7 +76,9 @@ export type DextoErrorCode =
     | PromptErrorCode
     | ApprovalErrorCode
     | MemoryErrorCode
-    | PluginErrorCode;
+    | PluginErrorCode
+    | FileSystemErrorCode
+    | ProcessErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

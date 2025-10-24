@@ -64,7 +64,7 @@ await agent.start();
 const response = await agent.run("List files in current directory");
 
 // Switch models
-await agent.switchLLM({ model: "claude-4-sonnet-20250514" });
+await agent.switchLLM({ model: "claude-sonnet-4-5-20250929" });
 
 await agent.stop();
 ```
@@ -298,4 +298,4 @@ toolConfirmation:
   timeout: 30000
 ```
 
-See [Configuration Guide](../guides/configuring-dexto/overview) for complete config options.
+See [Configuration Guide](../guides/configuring-dexto/overview.md) for complete config options.

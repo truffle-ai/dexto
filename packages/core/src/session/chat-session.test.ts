@@ -59,7 +59,7 @@ describe('ChatSession', () => {
     const sessionId = 'test-session-123';
     const mockLLMConfig = LLMConfigSchema.parse({
         provider: 'openai',
-        model: 'gpt-4o',
+        model: 'gpt-5',
         apiKey: 'test-key',
         router: 'in-built',
         maxIterations: 50,

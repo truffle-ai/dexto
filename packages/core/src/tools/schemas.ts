@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { INTERNAL_TOOL_NAMES } from './internal-tools/registry.js';
+import { INTERNAL_TOOL_NAMES } from './internal-tools/constants.js';
 
 export const TOOL_CONFIRMATION_MODES = ['event-based', 'auto-approve', 'auto-deny'] as const;
 export type ToolConfirmationMode = (typeof TOOL_CONFIRMATION_MODES)[number];
@@ -20,6 +20,28 @@ export const InternalToolsSchema = z
     );
 // Derive type from schema
 export type InternalToolsConfig = z.output<typeof InternalToolsSchema>;
+
+// Tool policies schema - static allow/deny lists for fine-grained control
+export const ToolPoliciesSchema = z
+    .object({
+        alwaysAllow: z
+            .array(z.string())
+            .default([])
+            .describe(
+                'Tools that never require approval (low-risk). Use full qualified names (e.g., "internal--ask_user", "mcp--filesystem--read_file")'
+            ),
+        alwaysDeny: z
+            .array(z.string())
+            .default([])
+            .describe(
+                'Tools that are always denied (high-risk). Takes precedence over alwaysAllow. Use full qualified names (e.g., "mcp--filesystem--delete_file")'
+            ),
+    })
+    .strict()
+    .default({ alwaysAllow: [], alwaysDeny: [] })
+    .describe('Static tool policies for allow/deny lists');
+
+export type ToolPolicies = z.output<typeof ToolPoliciesSchema>;
 
 export const ToolConfirmationConfigSchema = z
     .object({
@@ -43,6 +65,9 @@ export const ToolConfirmationConfigSchema = z
             .describe(
                 'Storage type for remembered tool approvals: memory (session-only) or storage (persistent)'
             ),
+        toolPolicies: ToolPoliciesSchema.optional().describe(
+            'Static tool policies for fine-grained allow/deny control. Deny list takes precedence over allow list.'
+        ),
     })
     .strict()
     .describe('Tool confirmation and approval configuration');

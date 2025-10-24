@@ -41,13 +41,22 @@ systemPrompt:
         pinnedOnly: false
 
 # Optional greeting shown at chat start (UI can consume this)
-greeting: "Hi! I’m Dexto — how can I help today?"
+greeting: "Hi! I'm Dexto — how can I help today?"
 
 # LLM configuration - describes the language model to use
 llm:
   provider: openai
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
+
+  # Optional: Control which media types are expanded for LLM consumption
+  # If omitted, uses model capabilities from registry (recommended default)
+  # Supports MIME patterns with wildcards (e.g., "image/*", "video/mp4")
+  # allowedMediaTypes:
+  #   - "image/*"           # All images (png, jpg, gif, etc.)
+  #   - "application/pdf"   # PDF documents
+  #   - "audio/*"           # All audio formats
+  # Note: Unsupported types become descriptive placeholders like: [Video: demo.mp4 (5.2 MB)]
 
 storage:
   cache:
@@ -66,6 +75,21 @@ toolConfirmation:
   mode: event-based
   timeout: 120000          # Time to wait for approval (ms)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
+
+  # Optional: Static tool policies for fine-grained allow/deny control
+  toolPolicies:
+    # Tools that never require approval (low-risk, common operations)
+    alwaysAllow:
+      - internal--ask_user
+      - mcp--read_file
+      - mcp--list_directory
+      - mcp--list_allowed_directories
+  #
+  #   # Tools that are always denied (high-risk, destructive operations)
+  #   # Deny list takes precedence over allow list
+  #   alwaysDeny:
+  #     - mcp--filesystem--delete_file
+  #     - mcp--playwright--execute_script
 
 # Internal tools - built-in Dexto capabilities
 internalTools:

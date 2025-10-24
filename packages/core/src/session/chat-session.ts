@@ -497,10 +497,10 @@ export class ChatSession {
      *
      * @example
      * ```typescript
-     * // Switch from Claude to GPT-4 while keeping conversation history
+     * // Switch from Claude to GPT-5 while keeping conversation history
      * session.switchLLM({
      *   provider: 'openai',
-     *   model: 'gpt-4',
+     *   model: 'gpt-5',
      *   apiKey: process.env.OPENAI_API_KEY,
      *   router: 'in-built'
      * });

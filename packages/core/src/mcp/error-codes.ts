@@ -15,6 +15,7 @@ export enum MCPErrorCode {
     PROTOCOL_ERROR = 'mcp_protocol_error',
 
     // Operations
+    SERVER_NOT_FOUND = 'mcp_server_not_found',
     TOOL_NOT_FOUND = 'mcp_tool_not_found',
     PROMPT_NOT_FOUND = 'mcp_prompt_not_found',
     RESOURCE_NOT_FOUND = 'mcp_resource_not_found',

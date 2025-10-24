@@ -39,10 +39,12 @@ Some of the cool things you can do with Dexto CLI:
 |------|-------------|---------|
 | `-v, --version` | Show version | `dexto --version` |
 | `-a, --agent <path>` | Use custom agent config | `dexto -a ./my-agent.yml` |
-| `-m, --model <model>` | Specify LLM model | `dexto -m claude-4-sonnet-20250514` |
-| `-r, --router <router>` | Specify router (vercel/in-built) | `dexto -r in-built` |
-| `--new-session [id]` | Start new session | `dexto --new-session my-session` |
-| `--strict` | Require all MCP servers to connect | `dexto --strict` |
+| `-m, --model <model>` | Specify LLM model | `dexto -m claude-sonnet-4-5-20250929` |
+| `--router <router>` | Specify router (vercel/in-built) | `dexto --router in-built` |
+| `-c, --continue` | Continue the last session | `dexto --continue` |
+| `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
+| `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
+| `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
 | `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
@@ -56,11 +58,51 @@ Some of the cool things you can do with Dexto CLI:
 | `create-app` | Scaffold new Dexto TypeScript app | `dexto create-app` |
 | `init-app` | Add Dexto to existing TypeScript app | `dexto init-app` |
 | `setup` | Configure global preferences | `dexto setup` |
+
+**Options:**
+- `--provider <provider>` - LLM provider to configure
+- `--model <model>` - LLM model to use
+- `--default-agent <agent>` - Set default agent
+- `--force` - Force reconfiguration even if already set up
+- `--no-interactive` - Run in non-interactive mode
+
 | `install [agents...]` | Install agents from registry | `dexto install nano-banana-agent` |
+
+**Options:**
+- `--all` - Install all available agents from registry
+- `--no-inject-preferences` - Skip injecting global preferences into agent config
+- `--force` - Force reinstall even if already installed
+
 | `uninstall [agents...]` | Uninstall local agents | `dexto uninstall nano-banana-agent` |
+
+**Options:**
+- `--all` - Uninstall all agents
+- `--force` - Force uninstall without confirmation
+
 | `list-agents` | List available/installed agents | `dexto list-agents --installed` |
+
+**Options:**
+- `--verbose` - Show detailed agent information
+- `--installed` - Show only installed agents
+- `--available` - Show only registry agents (not installed locally)
+
 | `which <agent>` | Show path to agent | `dexto which nano-banana-agent` |
+| `session list` | List all sessions | `dexto session list` |
+| `session history [sessionId]` | Show session history | `dexto session history my-session` |
+| `session delete <sessionId>` | Delete a session | `dexto session delete old-session` |
+| `search <query>` | Search session history | `dexto search "code review"` |
+
+**Options for `search`:**
+- `--session <sessionId>` - Search in specific session
+- `--role <role>` - Filter by role (user, assistant, system, tool)
+- `--limit <number>` - Limit number of results (default: 10)
+
 | `mcp --group-servers` | Start MCP server aggregator | `dexto mcp --group-servers` |
+
+**Options:**
+- `-s, --strict` - Run in strict mode
+- `--name <name>` - MCP server name (default: 'dexto-tools')
+- `--version <version>` - MCP server version (default: '1.0.0')
 
 ### Interactive CLI Commands
 
@@ -72,23 +114,25 @@ Once in interactive mode (`dexto`), use these slash commands:
 | `/exit, /quit, /q` | Exit CLI | `/exit` |
 | `/clear, /reset` | Clear conversation history | `/clear` |
 | `/session list` | List all sessions | `/session list` |
-| `/session create [id]` | Create new session | `/session create work-session` |
-| `/session load <id>` | Load session | `/session load work-session` |
-| `/session delete <id>` | Delete session | `/session delete old-session` |
-| `/session export <id>` | Export session data | `/session export work-session` |
-| `/history [limit]` | Show conversation history | `/history 10` |
+| `/session history [sessionId]` | Show session history | `/session history` |
+| `/session delete <sessionId>` | Delete a session | `/session delete old-session` |
+| `/history` | Show current session history | `/history` |
 | `/search <query>` | Search conversation history | `/search "code review"` |
 | `/model list` | List available models | `/model list` |
-| `/model switch <model>` | Switch LLM model | `/model switch gpt-4o` |
+| `/model switch <model>` | Switch LLM model | `/model switch gpt-5` |
 | `/model current` | Show current model | `/model current` |
 | `/mcp list` | List MCP servers | `/mcp list` |
-| `/mcp connect <name>` | Connect MCP server | `/mcp connect filesystem` |
-| `/mcp disconnect <name>` | Disconnect MCP server | `/mcp disconnect web` |
-| `/mcp status` | Show connection status | `/mcp status` |
+| `/mcp add stdio <name> <cmd> [args...]` | Add stdio MCP server | `/mcp add stdio fs npx -y @modelcontextprotocol/server-filesystem` |
+| `/mcp add http <name> <url>` | Add HTTP MCP server | `/mcp add http myserver http://localhost:3000` |
+| `/mcp add sse <name> <url>` | Add SSE MCP server | `/mcp add sse events http://localhost:3000/events` |
+| `/mcp remove <name>` | Remove MCP server | `/mcp remove filesystem` |
 | `/tools list` | List available tools | `/tools list` |
 | `/tools search <query>` | Search tools | `/tools search file` |
-| `/prompt show` | Show current system prompt | `/prompt show` |
-| `/prompt reload` | Reload system prompt | `/prompt reload` |
+| `/sysprompt` | Display current system prompt | `/sysprompt` |
+| `/prompts` | List all available prompts | `/prompts` |
+| `/use <prompt> [args]` | Use a specific prompt | `/use code-review language=js` |
+| `/<prompt-name> [args]` | Direct prompt execution | `/code-review some-file.js` |
+| `/docs, /doc` | Open Dexto documentation | `/docs` |
 | `/log level <level>` | Set log level | `/log level debug` |
 | `/log tail [lines]` | Show recent logs | `/log tail 50` |
 | `/config validate` | Validate configuration | `/config validate` |
@@ -128,7 +172,7 @@ This allows you to configure dexto CLI to use a different AI agent
 dexto --agent <path_to_agent_config_file>
 ```
 
-Check [Configuration Guide](./configuring-dexto/overview) to understand more about dexto config files
+Check [Configuration Guide](./configuring-dexto/overview.md) to understand more about dexto config files
 
 #### **Require all MCP servers to connect successfully**
 
@@ -138,7 +182,7 @@ By default, Dexto uses "lenient" mode where individual servers can fail to conne
 dexto --strict
 ```
 
-This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers) for more details on connection modes.
+This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers.md) for more details on connection modes.
 
 #### **Skip tool confirmation prompts during development**
 
@@ -199,7 +243,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Dexto Agents as MCP Servers](./dexto-as-mcp-server) to understand more about MCP servers.
+Check [Dexto Agents as MCP Servers](../mcp/dexto-as-mcp-server.md) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash
@@ -213,7 +257,7 @@ To use a specific config file:
 dexto mcp --group-servers -a ./dexto-tools.yml
 ```
 
-Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers) to understand more about MCP server aggregation.
+Check [Using Dexto to group MCP servers](../mcp/dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
 
 
 ## Environment variables
@@ -328,3 +372,5 @@ See the full list with `dexto list-agents` and examples in the [`agents/`](https
 ## Coming soon!
 
 #### Deploy config files as AI agents with dexto CLI
+
+<!-- TODO: Document interactive CLI commands (/help, /session, /model, /mcp, /tools, /sysprompt, /prompts, /log, /config, /stats, /docs, /search, /history, /clear, /exit) -->

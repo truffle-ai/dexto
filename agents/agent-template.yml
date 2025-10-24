@@ -35,7 +35,7 @@ systemPrompt:
 # LLM configuration - describes the language model to use
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   
 # Alternative LLM providers (replace the above llm section with one of these):

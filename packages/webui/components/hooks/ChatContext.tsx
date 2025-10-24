@@ -183,16 +183,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`/api/sessions/${sessionId}/history`);
       if (!response.ok) {
         if (response.status === 404) {
-          // Session doesn't exist, create it
-          const createResponse = await fetch('/api/sessions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId }),
-          });
-          if (!createResponse.ok) {
-            throw new Error('Failed to create session');
-          }
-          // New session has no history
+          // Session doesn't exist - don't auto-create, just clear messages
+          // Sessions should only be created when user sends first message
           setMessages([]);
           return;
         }
@@ -401,7 +393,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentSessionId(null);
     setIsWelcomeState(true);
     setMessages([]);
-    setCurrentLLM(null);
+    // Don't reset currentLLM here - it causes unnecessary refreshes in AgentSelector
+    // The LLM config will be updated when needed via fetchCurrentLLM
   }, [setMessages]);
 
   // Listen for config-related WebSocket events via DOM events

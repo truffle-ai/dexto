@@ -98,6 +98,15 @@
       "author": "Truffle AI",
       "tags": ["default", "filesystem", "playwright"],
       "source": "default-agent.yml"
+    },
+    "coding-agent": {
+      "id": "coding-agent",
+      "name": "Coding Agent",
+      "description": "Expert software development assistant with all internal coding tools for building, debugging, and maintaining codebases",
+      "author": "Truffle AI",
+      "tags": ["coding", "development", "software", "internal-tools", "programming"],
+      "source": "coding-agent/",
+      "main": "coding-agent.yml"
     }
   }
 }
