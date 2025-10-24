@@ -92,15 +92,16 @@ Dexto comes with pre-built agent recipes for common use cases. Install and use t
 dexto list-agents
 
 # Install specific agents
-dexto install nano-banana-agent podcast-agent sora-video-agent
+dexto install nano-banana-agent podcast-agent coding-agent
 
 # Use an agent
 dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
 dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
-dexto --agent sora-video-agent "create a video of a sunset over mountains"
+dexto --agent coding-agent "create a landing page for a coffee brand inspired by star wars"
 ```
 
 **Available Agents:**
+- **Coding Agent** – Code generation, refactoring, debugging
 - **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
 - **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
 - **Sora Video Agent** – AI video generation using OpenAI's Sora with custom settings, remixing, and reference support
@@ -139,7 +140,7 @@ Build full-stack applications, websites, and interactive games with AI-powered c
 
 **Task:** `Can you create a snake game in a new folder and open it when done?`
 ```bash
-dexto "Can you create a snake game in a new folder and open it when done?"
+dexto --agent coding-agent "Can you create a snake game in a new folder and open it when done?"
 ```
 
 <img src=".github/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
@@ -186,6 +187,8 @@ Equip your agents from 20+ MCP Servers and start using them via chat - instantly
 Agents can generate structured forms when they need additional data to make it easier to collect extra info from users.
 
 <img src=".github/assets/user_form_demo.gif" alt="User Form Demo" width="600">
+
+#### More:
 
 <details>
 <summary><strong>🛒 Browser Agent: Amazon Shopping Assistant</strong></summary>
