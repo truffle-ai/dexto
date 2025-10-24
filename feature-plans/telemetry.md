@@ -737,18 +737,179 @@ Test cases:
 - Multiple agents share telemetry
 - Telemetry disabled has no overhead
 
+### Manual Testing with Jaeger
+
+#### Step 1: Start Jaeger (Docker)
+
+```bash
+# Start Jaeger all-in-one (includes UI, collector, and storage)
+docker run -d \
+  --name jaeger \
+  -p 16686:16686 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+
+# Verify it's running
+docker ps | grep jaeger
+
+# Open Jaeger UI in browser
+open http://localhost:16686
+```
+
+**Ports:**
+- `16686` - Jaeger UI (web interface)
+- `4318` - OTLP HTTP receiver (where Dexto sends traces)
+
+#### Step 2: Enable Telemetry in Agent Config
+
+Telemetry is already enabled in `agents/default-agent.yml`:
+
+```yaml
+telemetry:
+  serviceName: dexto-default-agent
+  enabled: true
+  tracerName: dexto-tracer
+  export:
+    type: otlp
+    protocol: http
+    endpoint: http://127.0.0.1:4318/v1/traces
+```
+
+To disable for production, set `enabled: false` or comment out the entire section.
+
+#### Step 3: Build and Run Dexto
+
+```bash
+# Build the project
+pnpm run build
+
+# Run in CLI mode
+pnpm run cli
+
+# OR run in server mode (with WebUI)
+pnpm run server:start
+# Then open http://localhost:3000
+```
+
+#### Step 4: Generate Traces
+
+Send some messages through CLI or WebUI:
+```
+> Hello, how are you?
+> What tools do you have?
+> List files in the current directory
+```
+
+#### Step 5: View Traces in Jaeger
+
+1. **Open Jaeger UI**: http://localhost:16686
+2. **Select Service**: In dropdown, choose `dexto-default-agent`
+3. **Click "Find Traces"**
+4. **Select an operation**: Choose `agent.run` to filter main operations
+
+#### Step 6: Verify Trace Structure
+
+Click on a trace to see the span hierarchy. You should see:
+
+```
+agent.run                              (20.95s total)
+  ├─ agent.maybeGenerateTitle          (14.99ms)
+  └─ llm.vercel.completeTask           (20.93s)
+      └─ llm.vercel.streamText         (20.92s)
+          ├─ POST https://api.openai.com/... (10.01s)  ← HTTP auto-instrumentation
+          └─ POST https://api.openai.com/... (10.79s)  ← HTTP auto-instrumentation
+```
+
+**What to verify:**
+- ✅ **Span names** use correct prefixes (`agent.`, `llm.vercel.`)
+- ✅ **Span hierarchy** shows parent-child relationships
+- ✅ **HTTP auto-instrumentation** captures API calls to OpenAI/Anthropic
+- ✅ **Timing information** shows where time is spent
+- ✅ **Tags/Attributes** include baggage values (session_id, etc.)
+- ✅ **No errors** in Dexto console logs
+
+#### Step 7: Test Agent Switching (Optional)
+
+If testing server mode with multiple agents:
+
+```bash
+# Switch agents via API
+curl -X POST http://localhost:3000/api/agents/switch \
+  -H "Content-Type: application/json" \
+  -d '{"agentId": "another-agent"}'
+
+# Check logs - should see:
+# "Shutting down telemetry for agent switch..."
+# "Telemetry initialized"
+
+# Verify new traces appear in Jaeger with new agent config
+```
+
+#### Step 8: Cleanup
+
+```bash
+# Stop and remove Jaeger
+docker stop jaeger
+docker rm jaeger
+
+# Optional: Disable telemetry in agents/default-agent.yml
+# Set enabled: false or comment out telemetry section
+```
+
+#### Troubleshooting
+
+**No traces appearing?**
+1. Verify Jaeger is running: `docker ps | grep jaeger`
+2. Check endpoint: `http://127.0.0.1:4318/v1/traces`
+3. Check Dexto logs for "Telemetry initialized"
+4. Check browser console for errors
+
+**Build errors?**
+- Run `pnpm install` if dependencies are missing
+- Ensure you're on the `telemetry` branch
+
+**Only seeing GET/POST spans?**
+- These are from HTTP auto-instrumentation (expected!)
+- Filter by Operation: `agent.run` to see decorated spans
+- Click into a trace to see the full hierarchy
+
+#### What the Auto-Instrumentation Shows
+
+The GET/POST spans you see are from OpenTelemetry's automatic HTTP instrumentation:
+
+- **GET** spans: Incoming requests from WebUI to API server
+- **POST** spans: Outgoing requests from Dexto to LLM APIs (OpenAI, Anthropic, etc.)
+
+This is **expected behavior** and provides valuable visibility into:
+- Network latency
+- API response times
+- Request/response patterns
+
+To disable auto-instrumentation, modify `telemetry.ts`:
+```typescript
+// Remove this line:
+instrumentations: [getNodeAutoInstrumentations()],
+
+// Replace with:
+instrumentations: [],
+```
+
 ### Manual Testing Checklist
 
-- [ ] Start Jaeger locally
-- [ ] Enable telemetry in agent config
-- [ ] Run: `dexto --agent default`
-- [ ] Send a message that uses tools
-- [ ] Open Jaeger UI (http://localhost:16686)
-- [ ] Verify:
-  - [ ] Service "dexto-service" appears
-  - [ ] Traces show agent.run → llm.completeTask
-  - [ ] Token usage attributes present
-  - [ ] Span hierarchy correct
+- [ ] Start Jaeger in Docker
+- [ ] Verify Jaeger UI accessible at http://localhost:16686
+- [ ] Telemetry enabled in agent config
+- [ ] Build project: `pnpm run build`
+- [ ] Run Dexto (CLI or server mode)
+- [ ] Send messages to generate traces
+- [ ] Open Jaeger UI and select service
+- [ ] Verify span hierarchy:
+  - [ ] `agent.run` appears as root span
+  - [ ] `llm.vercel.streamText` appears as child span
+  - [ ] HTTP POST spans show OpenAI API calls
+- [ ] Check span attributes and timing
+- [ ] Test agent switching (if in server mode)
+- [ ] Cleanup: Stop Jaeger container
 
 ---
 
