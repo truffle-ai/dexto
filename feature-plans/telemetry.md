@@ -40,27 +40,37 @@ Add OpenTelemetry (OTel) distributed tracing to Dexto for observability and debu
 
 ## Architecture Decisions
 
-### 1. Decorator-Based Instrumentation (Hybrid Approach)
+### 1. Decorator-Based Instrumentation (Selective Approach)
 
-**Decision**: Use `@InstrumentClass` decorators for broad coverage + manual span attributes for critical paths.
+**Decision**: Use `@InstrumentClass` decorators ONLY on critical execution paths (orchestration + LLM + tools).
 
-**Rationale**:
-- Mastra uses decorators successfully with Vercel AI SDK
-- Minimal boilerplate (one decorator per class)
-- Automatic tracing of all public methods
-- Can enhance with manual attributes where needed
+**Rationale - Based on Mastra Research**:
+- Mastra only decorates 5 high-level classes (Agent, Mastra orchestrator, Voice, TTS, Auth)
+- LLM and tool operations traced manually in Mastra, but we use decorators for simplicity
+- Storage/Memory/Session layers NOT decorated in Mastra (too low-level, too much noise)
+- Selective approach = better signal-to-noise ratio in traces
+- Lower overhead in production
 
-**Classes to Decorate**:
-- ✅ `DextoAgent` - Top-level orchestrator
-- ✅ `VercelLLMService` - LLM operations
+**Classes to Decorate** (Critical Execution Paths):
+- ✅ `DextoAgent` - Top-level orchestrator (like Mastra's Agent)
+- ✅ `VercelLLMService` - LLM operations (Mastra traces manually, we use decorator for simplicity)
 - ✅ `OpenAILLMService` - LLM operations
 - ✅ `AnthropicLLMService` - LLM operations
-- ✅ `ToolManager` - Tool execution (both MCP and internal)
-- ✅ `MCPManager` - MCP server communication
-- ✅ `SessionManager` - Session lifecycle management
-- ✅ `PluginManager` - Plugin execution
-- ✅ `ResourceManager` - Resource handling
-- ✅ `MemoryManager` - Memory operations
+- ✅ `ToolManager` - Tool execution (Mastra traces manually, we use decorator for simplicity)
+
+**Classes NOT Decorated** (Following Mastra's Pattern):
+- ❌ `MCPManager` - Internal communication layer (too low-level)
+- ❌ `SessionManager` - Lifecycle management (not critical path)
+- ❌ `PluginManager` - Hook execution (internal)
+- ❌ `ResourceManager` - File operations (not critical path)
+- ❌ `MemoryManager` - Storage operations (not critical path)
+
+**Why This Approach**:
+1. **Critical path visibility**: Agent orchestration, LLM calls, tool execution are where issues occur
+2. **Performance**: Fewer decorators = less overhead
+3. **Signal-to-noise**: Focus traces on user-facing operations, not internal plumbing
+4. **Proven pattern**: Mastra uses similar selective approach successfully
+5. **Future extensibility**: Can add manual spans to other areas if needed
 
 **Session ID Propagation via Baggage**:
 Session ID is not available in all services (e.g., DextoAgent manages multiple sessions), so we use OpenTelemetry Baggage for propagation:

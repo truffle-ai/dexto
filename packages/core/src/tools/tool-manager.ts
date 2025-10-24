@@ -13,6 +13,7 @@ import type { PluginManager } from '../plugins/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
+import { InstrumentClass } from '../telemetry/decorators.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -48,6 +49,15 @@ export interface InternalToolsOptions {
  *   - Tool approval/denial counters
  *   See feature-plans/telemetry.md Phase 5 for details
  */
+@InstrumentClass({
+    prefix: 'tool',
+    excludeMethods: [
+        'setPluginManager',
+        'setStateManager',
+        'getApprovalManager',
+        'getAllowedToolsProvider',
+    ],
+})
 export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
