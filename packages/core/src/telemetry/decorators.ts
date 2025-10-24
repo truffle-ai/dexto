@@ -18,7 +18,7 @@ export function withSpan(options: {
     tracerName?: string;
 }): any {
     return function (
-        _target: any,
+        _target: unknown,
         propertyKey: string | symbol,
         descriptor?: PropertyDescriptor | number
     ) {
@@ -187,7 +187,7 @@ export function InstrumentClass(options?: {
     methodFilter?: (methodName: string) => boolean;
     tracerName?: string;
 }) {
-    return function (target: any) {
+    return function <T extends { new (...args: any[]): {} }>(target: T) {
         const methods = Object.getOwnPropertyNames(target.prototype);
         methods.forEach((method) => {
             // Skip excluded methods

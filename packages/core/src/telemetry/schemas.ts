@@ -27,7 +27,6 @@ export const OtelConfigurationSchema = z.object({
     //         }),
     //     ])
     //     .optional(),
-    disableLocalExport: z.boolean().optional(),
     export: z
         .union([
             z.object({
