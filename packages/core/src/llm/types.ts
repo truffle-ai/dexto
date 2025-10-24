@@ -27,7 +27,7 @@ export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
  */
 
 export interface LLMContext {
-    /** LLM provider name (e.g., 'google.generative-ai', 'openai') */
+    /** LLM provider name (e.g., 'google', 'openai') */
     provider: LLMProvider;
 
     /** Specific LLM model name (e.g., 'gemini-2.5-flash', 'gpt-5') */

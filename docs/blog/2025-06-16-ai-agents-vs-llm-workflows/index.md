@@ -92,7 +92,7 @@ This is an extremely basic example, but the key takeaway here is that by giving 
 This is where things get interesting - what if the LLM had a function to book a reservation for you at a restaurant? Or if the LLM had a function to make a payment for you? 
 
 All the LLM would need to do in this case is use the right function based on the request, and you now have AI-powered bookings and payments. 
-There are other complexities like ensuring the LLM uses the corerect function more accurately enough, and adding the appropriate guardrails and authentication, but we won't get into that for now.
+There are other complexities like ensuring the LLM uses the correct function more accurately enough, and adding the appropriate guardrails and authentication, but we won't get into that for now.
 
 
 ## LLM Workflows and AI Agents

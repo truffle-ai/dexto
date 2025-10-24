@@ -167,6 +167,23 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 
 ### Multi-User Chat Application
 
+ ### Multi-User Chat Application
+ 
+```mermaid
+sequenceDiagram
+    participant User1 as User A
+    participant ChatApp as Chat Application
+    participant Agent as DextoAgent
+
+    User1->>ChatApp: handleUserMessage
+    ChatApp->>ChatApp: Get or create session
+    ChatApp->>Agent: createSession (if new)
+    ChatApp->>Agent: run(message, undefined, sessionId)
+    Agent->>Agent: Process message
+    Agent-->>ChatApp: Response
+    ChatApp-->>User1: broadcastToUser
+```
+
 ```typescript
 import { DextoAgent } from '@dexto/core';
 
@@ -239,6 +256,15 @@ class AdaptiveAgent {
 ```
 
 ### Session Management with Persistence
+
++```mermaid
++flowchart TD
++    A[resumeConversation called] --> B{Session exists?}
++    B -->|Yes| C[Load existing session]
++    B -->|No| D[Create new session]
++    C --> E[Return history]
++    D --> F[Return null]
++```
 
 ```typescript
 class PersistentChatBot {
