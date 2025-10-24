@@ -148,6 +148,8 @@ dexto --agent coding-agent "Can you create a snake game in a new folder and open
 
 ### 📧 Portable Agents: Use your agents from Cursor
 
+Dexto agents are designed to be modular, composable and portable, allowing you to run them from anywhere. In this example, we connect to dexto as an MCP server via Cursor to use our podcast agent from above.
+
 <img src="https://github.com/user-attachments/assets/fd75a63f-4d29-447a-be24-6943e34c387f" alt="Email to Slack Demo" width="600">
 
 
