@@ -177,14 +177,14 @@ Create and save memories. Your agent automatically uses it to create personalize
 ### 🛒 MCP Store: Tool Discovery & Integration
 
 Equip your agents from 20+ MCP Servers and start using them via chat - instantly.
-- BYOK
+- Bring your own keys
 - Can't find an MCP? [Contribute here!](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md)  
 
 <img src=".github/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
 
-### 📝 User Forms: Dynamic Form Generation
+### 📝 Human In The Loop: Dynamic Form Generation
 
-Agents can generate structured forms when they need additional data to make it easier to collect extra info from users.
+Agents can generate structured forms when they need additional data to make it easier to collect extra info & approvals from users.
 
 <img src=".github/assets/user_form_demo.gif" alt="User Form Demo" width="600">
 
