@@ -218,11 +218,8 @@ export class DextoAgent {
             await promptManager.initialize();
             Object.assign(this, { promptManager });
 
-            // Initialize telemetry if configured
-            if (this.config.telemetry) {
-                this.telemetry = await Telemetry.init(this.config.telemetry);
-                logger.debug('Telemetry initialized successfully');
-            }
+            // Note: Telemetry is initialized in createAgentServices() before services are created
+            // This ensures decorators work correctly on all services
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -309,16 +306,10 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
             }
 
-            // 5. Shutdown telemetry
-            try {
-                if (this.telemetry) {
-                    await this.telemetry.shutdown();
-                    logger.debug('Telemetry shutdown successfully');
-                }
-            } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                shutdownErrors.push(new Error(`Telemetry shutdown failed: ${err.message}`));
-            }
+            // Note: Telemetry is NOT shut down here
+            // For agent switching: Telemetry.shutdownGlobal() is called explicitly before creating new agent
+            // For process exit: Telemetry shuts down automatically via process exit handlers
+            // This allows telemetry to persist across agent restarts in the same process
 
             this._isStopped = true;
             this._isStarted = false;

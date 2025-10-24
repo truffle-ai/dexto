@@ -142,6 +142,27 @@ export class Telemetry {
     }
 
     /**
+     * Check if global telemetry instance exists
+     * @returns True if telemetry has been initialized, false otherwise
+     */
+    static hasGlobalInstance(): boolean {
+        return globalThis.__TELEMETRY__ !== undefined;
+    }
+
+    /**
+     * Shutdown global telemetry instance
+     * Used during agent switching to cleanly shutdown old agent's telemetry
+     * before initializing new agent's telemetry with potentially different config
+     * @returns Promise that resolves when shutdown is complete
+     */
+    static async shutdownGlobal(): Promise<void> {
+        if (globalThis.__TELEMETRY__) {
+            await globalThis.__TELEMETRY__.shutdown();
+            globalThis.__TELEMETRY__ = undefined;
+        }
+    }
+
+    /**
      * Checks if the Telemetry instance has been successfully initialized.
      * @returns True if the instance is initialized, false otherwise.
      */

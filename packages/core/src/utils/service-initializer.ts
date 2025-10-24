@@ -70,6 +70,14 @@ export async function createAgentServices(
     config: ValidatedAgentConfig,
     configPath?: string
 ): Promise<AgentServices> {
+    // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
+    // This must happen before creating any services that use @InstrumentClass decorator
+    if (config.telemetry?.enabled) {
+        const { Telemetry } = await import('../telemetry/telemetry.js');
+        await Telemetry.init(config.telemetry);
+        logger.debug('Telemetry initialized');
+    }
+
     // 1. Initialize shared event bus
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
