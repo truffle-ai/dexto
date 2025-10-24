@@ -336,7 +336,7 @@ llm:
   apiKey: $OPENAI_API_KEY
 ```
 
-**Production**
+### Production
 ```yaml
 llm:
   provider: openai

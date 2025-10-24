@@ -59,8 +59,8 @@ And many more in the `agents/` directory!
 ## Server Details
 
 Once started, you'll have:
-- **API Server**: http://localhost:3001 (from dist build)
-- **WebUI**: http://localhost:3000 (hot reload enabled)
+- **API Server**: <http://localhost:3001> (from dist build)
+- **WebUI**: <http://localhost:3000> (hot reload enabled)
 
 Press `Ctrl+C` to stop all servers.
 

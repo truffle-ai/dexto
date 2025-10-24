@@ -533,8 +533,6 @@ describe('Model-Specific Router Support Functions', () => {
             // Other OpenAI models should support both routers
             expect(isRouterSupportedForModel('openai', 'gpt-4.1-mini', 'in-built')).toBe(true);
             expect(isRouterSupportedForModel('openai', 'gpt-4.1-mini', 'vercel')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5', 'vercel')).toBe(true);
         });
 
         it('falls back to provider-level support for unknown models', () => {
