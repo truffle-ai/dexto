@@ -17,35 +17,33 @@
 
 ## What is Dexto?
 
-Dexto is a universal agent interface for building agentic apps—software that understands natural language and takes real-world actions. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, copilots, and context-aware apps that think, act and feel alive.
+Dexto is a universal intelligence layer for building agentic apps—software that understands natural language and takes real-world actions. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, copilots, and context-aware apps that think, act and feel alive.
+
+Dexto unifies a configuration-driven framework, robust runtime, and seamless developer experience—so you can build, deploy, and iterate with ease.
+
+- **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
+- **Runtime** – Execution with orchestration, session management, conversation memory, and multimodal support.
+- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK.
 
 #### With Dexto, you can build:
 
 - **Autonomous Agents**  - Agents that plan, execute, and adapt to user goals.
 - **Digital Companions** - AI assistants & copilots that remember context and anticipate needs.
-- **Multi-Agent Systems**  - Architect agents that collaborate, delegate, and solve complex tasks together.
 - **MCP Clients** - Connect multiple tools, files, APIs, and data via MCP Servers.
+- **Multi-Agent Systems**  - Architect agents that collaborate, delegate, and solve complex tasks together.
 - **Agent-as-a-Service** – Transform your existing SaaS products and APIs into dynamic, conversational experiences.
 - **Agentic Applications** – Integrate Dexto as a reasoning engine to power interactive, multimodal, AI-native applications.
 
-<!-- Dexto unifies a configuration-driven framework, robust runtime, and seamless developer experience—so you can build, deploy, and iterate with ease.
-
-- **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
-- **Runtime** – Execution with session management, conversation memory, and multimodal support.
-- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK. Develop, debug, and interact with your agent across any platforms from day one. -->
-
 ### What You Get
 
-- **Batteries Included** – Session management, tool orchestration, multimodal support.
+- **Batteries Included** – Session management, tool orchestration, multimodal support, and production-ready observability.
 - **20+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
 - **Run Anywhere** – Local for privacy, cloud for reach, or hybrid. *Same agent, any deployment.*
 - **Native Multimodal** – Text, images, files, and tools in a single conversation. *Upload screenshots, ask questions, take actions.*
 - **Persistent Sessions** – Conversations, context, and memory are saved and can be exported, imported, or shared across environments.
-- **Flexible Interfaces** – One agent, endless ways to interact: Ready to-use CLI, WebUI, APIs, or integrate with your own UI.
-- **Production Ready** – Observability and error handling built-in.
-- **Tooling & MCP** – Integrate 100+ tools and connect to external servers via the Model Context Protocol (MCP).
-- **Customizable Agents** – Define agent behavior, tools, and prompts in YAML or TypeScript.
-- **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, and more for cache and database backends.
+- **Flexible Interfaces** – One agent, endless ways to interact: Ready-to-use CLI, WebUI, APIs, or integrate with your own UI.
+- **100+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP).
+- **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, S3 and more for cache, database & blob backends.
 
 ---
 
@@ -124,6 +122,9 @@ More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https
 ```bash
 dexto --agent podcast-agent
 ```
+
+<img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
+
 ### 👁️ Computer Vision Agent: Face Detection & Annotation Using OpenCV
 **Task:** `Detect all faces in this image and draw bounding boxes around them.`
 ```bash
@@ -132,22 +133,17 @@ dexto --agent image-editor-agent
 
 <img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600">
 
+### 🎮 Coding Agents: Create apps on demand
 
-<img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
+Build full-stack applications, websites, and interactive games with AI-powered coding agents. Customize them to create your own coding agents.
 
-### 🛠️ Adding Custom MCP Servers
-
-You can add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities with new tools or data sources. Just edit your agent YAML or add it directly in the WebUI.
-
-<img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
-
-### 🎮 Web App Development: Snake Game
-**Task:** `Create a snake game in HTML/CSS/JS, then open it in the browser`
+**Task:** `Can you create a snake game in a new folder and open it when done?`
 ```bash
-dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
+dexto "Can you create a snake game in a new folder and open it when done?"
 ```
 
-<img src="https://github.com/user-attachments/assets/6901ba82-3c2a-4177-baf0-7d44d04a5f27" alt="Snake Game Development Demo" width="600"/>
+<img src=".github/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
+
 
 ### 📧 Send Email Summaries to Slack
 **Task:** `Summarize emails and send highlights to Slack`
@@ -165,15 +161,23 @@ dexto --agent triage-agent
 ```
 <img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
 
+### 🛠️ Adding Custom MCP Servers
+
+You can add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities with new tools or data sources. Just edit your agent YAML or add it directly in the WebUI.
+
+<img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
+
 ### 🧠 Memory: Persistent Context & Learning
 
-Create and save memories. Your agent automatically uses it when responding to your queries.
+Create and save memories. Your agent automatically uses it to create personalized experiences.
 
 <img src=".github/assets/memory_demo.gif" alt="Memory Demo" width="600">
 
 ### 🛒 MCP Store: Tool Discovery & Integration
 
-Equip your agents from 20+ MCP Servers and start using them via chat - instantly.  
+Equip your agents from 20+ MCP Servers and start using them via chat - instantly.
+- BYOK
+- Can't find an MCP? [Contribute here!](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md)  
 
 <img src=".github/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
 
