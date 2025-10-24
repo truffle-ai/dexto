@@ -99,7 +99,7 @@ export default function PlaygroundView() {
   }, []);
 
   const handleError = (message: string, area?: 'servers' | 'tools' | 'execution' | 'input') => {
-    console.error(`Playground Error (${area || 'general'}):`, message);
+    console.error(`Playground Error (${area || 'general'}): ${message}`);
     if (area !== 'input') {
       setCurrentError(message);
     }
@@ -511,7 +511,7 @@ export default function PlaygroundView() {
       });
       // Auto-hide error notification after 5 seconds
       setTimeout(() => setClipboardNotification(null), 5000);
-      console.error('Failed to copy to clipboard:', err);
+      console.error(`Failed to copy to clipboard: ${err}`);
     }
   };
 

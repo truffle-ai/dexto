@@ -28,16 +28,16 @@ interface KeyValueEditorProps {
 }
 
 const SENSITIVE_KEY_PATTERNS = [
-  'api_key',
-  'apikey',
-  'secret',
-  'token',
-  'password',
-  'key',
-  'authorization',
-  'auth',
-  'bearer',
-  'credential',
+  /\bapi[_-]?key\b/i,
+  /\bapikey\b/i,
+  /\bsecret\b/i,
+  /\btoken\b/i,
+  /\bpassword\b/i,
+  /\bauthorization\b/i,
+  /\bauth[_-]?token\b/i,
+  /\bbearer\b/i,
+  /\bcredential\b/i,
+  /\bclient[_-]?secret\b/i,
 ];
 
 export function KeyValueEditor({
@@ -55,8 +55,7 @@ export function KeyValueEditor({
 
   const isSensitiveKey = (key: string): boolean => {
     if (!maskSensitiveValues || !key) return false;
-    const lowerKey = key.toLowerCase();
-    return SENSITIVE_KEY_PATTERNS.some((pattern) => lowerKey.includes(pattern));
+    return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
   };
 
   const toggleValueVisibility = (id: string) => {
