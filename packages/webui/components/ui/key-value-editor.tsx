@@ -138,6 +138,7 @@ export function KeyValueEditor({
                     onClick={() => toggleValueVisibility(pair.id)}
                     disabled={disabled}
                     className="absolute right-0 top-0 h-full w-10 p-0 hover:bg-transparent"
+                    aria-label={isVisible ? 'Hide value' : 'Show value'}
                   >
                     {isVisible ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />
