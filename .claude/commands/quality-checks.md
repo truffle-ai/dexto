@@ -20,87 +20,81 @@ Runs all pre-commit validation checks to ensure code quality before task complet
 /quality-checks
 ```
 
-## Execution Order
+## Implementation
 
-The checks run in this order and stop on first failure:
+Use the `scripts/quality-checks.sh` script to run individual checks or all checks.
 
-### 1. Build Check
+### Script Usage
+
 ```bash
-pnpm run build >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed. Reading turbo logs..."
-  find packages -name "turbo-build.log" -type f -exec sh -c 'echo ""; echo "=== $(dirname {}) ==="; tail -50 {}' \;
-  exit 1
-fi
-echo "✅ Build passed"
-```
-- Suppresses verbose output on success (saves LLM context)
-- On failure, reads turbo's per-package logs automatically
-- Shows last 50 lines from each package's build log
-- **Single build run** - turbo already writes logs to `.turbo/turbo-build.log`
-- **If dev server is running**: Reminds you to restart it after build completes
+# Run individual checks (default: show last 200 lines on failure)
+bash scripts/quality-checks.sh build
+bash scripts/quality-checks.sh test
+bash scripts/quality-checks.sh lint
+bash scripts/quality-checks.sh typecheck
 
-### 2. Test Suite
-```bash
-pnpm test >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-  echo "❌ Tests failed. Running tests with output..."
-  pnpm test
-  exit 1
-fi
-echo "✅ Tests passed"
-```
-- Runs all tests (unit + integration)
-- Suppresses verbose output on success (saves LLM context)
-- On failure, re-runs tests with full output
-- **Single test run on success** - only double-runs on failure for diagnostics
+# Control output on failure (optional second argument)
+bash scripts/quality-checks.sh build 100      # Show last 100 lines
+bash scripts/quality-checks.sh test 50        # Show last 50 lines
+bash scripts/quality-checks.sh typecheck all  # Show all output
 
-### 3. Lint Check
-```bash
-pnpm run lint
+# Run all checks in order
+bash scripts/quality-checks.sh all            # Show last 200 lines on failure
+bash scripts/quality-checks.sh all 100        # Show last 100 lines on failure
+bash scripts/quality-checks.sh all all        # Show all output on failure
 ```
-- Always shows output (to see warnings)
-- Checks code style and best practices
-- May auto-fix some issues
 
-### 4. Type Check
-```bash
-pnpm run typecheck >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-  echo "❌ Typecheck failed. Reading turbo logs..."
-  find packages -name "turbo-typecheck.log" -type f -exec sh -c 'echo ""; echo "=== $(dirname {}) ==="; tail -100 {}' \;
-  exit 1
-fi
-echo "✅ Typecheck passed"
-```
-- Validates TypeScript types across the project
-- Suppresses verbose output on success (saves LLM context)
-- On failure, reads turbo's per-package typecheck logs
-- Shows last 100 lines from each package's typecheck log
-- **Single typecheck run** - turbo already writes logs to `.turbo/turbo-typecheck.log`
+## Instructions for LLM
+
+**Run checks in this order and stop on first failure:**
+
+1. Build check: `bash scripts/quality-checks.sh build`
+2. Test check: `bash scripts/quality-checks.sh test`
+3. Lint check: `bash scripts/quality-checks.sh lint`
+4. Typecheck: `bash scripts/quality-checks.sh typecheck`
+
+**Default behavior:**
+- Shows last 200 lines on failure (usually sufficient)
+- No output on success (saves LLM context)
+- You can request more lines if needed: `bash scripts/quality-checks.sh build 500`
+- You can request all output if needed: `bash scripts/quality-checks.sh build all`
+
+**Flexibility:**
+- Run individual checks as needed (e.g., just build after code changes)
+- Re-run specific failing checks
+- Adjust output lines based on error complexity
+- Use `bash scripts/quality-checks.sh all` for convenience to run all checks
+
+**Output Strategy:**
+- Each command runs **once only** (no double-runs)
+- Output captured to `/tmp/build/dexto-{check}-$$.log`
+- **Success**: No output shown, temp file deleted (minimal context)
+- **Failure**: Last N lines displayed (default 200), temp file deleted, execution stops
+
+This minimizes unnecessary context while providing sufficient diagnostics on failures.
 
 ## Output Format
 
-Provides a clear summary:
-
+**On success** (minimal output):
 ```
-✅ Build: PASSED
-✅ Tests: PASSED (142 tests)
-⚠️  Lint: PASSED (3 warnings)
-✅ Typecheck: PASSED
+Running quality checks...
+
+✅ Build passed
+✅ Tests passed
+✅ Lint passed
+✅ Typecheck passed
 
 All quality checks passed! ✨
 ```
 
-Or on failure:
-
+**On failure** (full diagnostic output):
 ```
-✅ Build: PASSED
-❌ Tests: FAILED
-   - 2 tests failed
-   - See output above for details
+Running quality checks...
 
-Quality checks failed. Please fix the issues before proceeding.
+✅ Build passed
+❌ Tests failed:
+
+[Full test output displayed here]
 ```
 
 ## When to Run
