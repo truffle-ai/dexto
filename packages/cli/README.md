@@ -12,7 +12,7 @@
 **An all-in-one toolkit to build agentic applications that turn natural language into real-world actions.**
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/97a09f5b-6f7d-4d4b-9b3f-3c87fd964cbe" alt="Dexto Demo" width="700" />
+  <img src="https://github.com/user-attachments/assets/89d30349-0cb1-4160-85db-d99a80a71d7a" alt="Dexto Demo" width="700" />
 </div>
 
 ## What is Dexto?
