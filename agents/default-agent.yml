@@ -49,6 +49,15 @@ llm:
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
+  # Optional: Control which media types are expanded for LLM consumption
+  # If omitted, uses model capabilities from registry (recommended default)
+  # Supports MIME patterns with wildcards (e.g., "image/*", "video/mp4")
+  # allowedMediaTypes:
+  #   - "image/*"           # All images (png, jpg, gif, etc.)
+  #   - "application/pdf"   # PDF documents
+  #   - "audio/*"           # All audio formats
+  # Note: Unsupported types become descriptive placeholders like: [Video: demo.mp4 (5.2 MB)]
+
 storage:
   cache:
     type: in-memory

@@ -649,13 +649,43 @@ export class ContextManager<TMessage = unknown> {
         let messageHistory: InternalMessage[] =
             history ?? (await this.historyProvider.getHistory());
 
-        // Resolve blob references using resource manager
+        // Determine allowed media types for expansion
+        // Priority: User-specified config > Model capabilities from registry
+        let allowedMediaTypes: string[] | undefined = this.llmConfig.allowedMediaTypes;
+        if (!allowedMediaTypes) {
+            // Fall back to model capabilities from registry
+            try {
+                const { getSupportedFileTypesForModel } = await import('../llm/registry.js');
+                const { fileTypesToMimePatterns } = await import('./utils.js');
+                const supportedFileTypes = getSupportedFileTypesForModel(
+                    llmContext.provider,
+                    llmContext.model
+                );
+                allowedMediaTypes = fileTypesToMimePatterns(supportedFileTypes);
+                logger.debug(
+                    `Using model capabilities for media filtering: ${allowedMediaTypes.join(', ')}`
+                );
+            } catch (error) {
+                logger.warn(
+                    `Could not determine model capabilities, allowing all media types: ${String(error)}`
+                );
+                // If we can't determine capabilities, allow everything
+                allowedMediaTypes = undefined;
+            }
+        } else {
+            logger.debug(
+                `Using user-configured allowedMediaTypes: ${allowedMediaTypes.join(', ')}`
+            );
+        }
+
+        // Resolve blob references using resource manager with filtering
         logger.debug('Resolving blob references in message history before formatting');
         messageHistory = await Promise.all(
             messageHistory.map(async (message) => {
                 const expandedContent = await expandBlobReferences(
                     message.content,
-                    this.resourceManager
+                    this.resourceManager,
+                    allowedMediaTypes
                 );
                 return { ...message, content: expandedContent };
             })
