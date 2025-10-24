@@ -16,11 +16,22 @@ import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
+import { InstrumentClass } from '../../telemetry/decorators.js';
 
 /**
  * OpenAI implementation of LLMService
  * Not actively maintained, so might be buggy or outdated
+ * TODO (Telemetry): Add OpenTelemetry metrics collection (Phase 5)
+ *   - LLM call counters (by provider/model)
+ *   - Token usage histograms (input/output/total/reasoning)
+ *   - Request latency histograms
+ *   - Error rate counters
+ *   See feature-plans/telemetry.md Phase 5 for details
  */
+@InstrumentClass({
+    prefix: 'llm.openai',
+    excludeMethods: ['getAllTools', 'formatToolsForOpenAI', 'getConfig', 'getContextManager'],
+})
 export class OpenAIService implements ILLMService {
     private openai: OpenAI;
     private config: ValidatedLLMConfig;
