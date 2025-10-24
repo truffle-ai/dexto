@@ -119,17 +119,12 @@ More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https
 
 ## Examples & Demos
 
-### 🛒 Browser Agent: Amazon Shopping Assistant
-**Task:** `Can you go to amazon and add some snacks to my cart? I like trail mix, cheetos and maybe surprise me with something else?`
+### 🎙️ Podcast Agent: Generate AI Podcasts
+**Task:** `Generate an intro for a podcast about the latest in AI.`
 ```bash
-# Default agent has browser tools
-dexto
+dexto --agent podcast-agent
 ```
-<a href="https://youtu.be/C-Z0aVbl4Ik">
-  <img src="https://github.com/user-attachments/assets/3f5be5e2-7a55-4093-a071-8c52f1a83ba3" alt="Dexto: Amazon shopping agent demo" width="600"/>
-</a>
-
-### 👁️ Computer Vision: Face Detection & Annotation
+### 👁️ Computer Vision Agent: Face Detection & Annotation Using OpenCV
 **Task:** `Detect all faces in this image and draw bounding boxes around them.`
 ```bash
 dexto --agent image-editor-agent
@@ -137,18 +132,8 @@ dexto --agent image-editor-agent
 
 <img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600">
 
-### 🎙️ Podcast Agent: Generate AI Podcast Intros
-**Task:** `Generate an intro for a podcast about the latest in AI.`
-```bash
-dexto --agent podcast-agent
-```
 
 <img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
-
-### 🖼️ Hugging Face: Image Generation
-**Task:** `Generate a photo of a baby panda.`
-
-<img src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" width="600"/>
 
 ### 🛠️ Adding Custom MCP Servers
 
@@ -173,18 +158,12 @@ dexto --agent ./agents/examples/email_slack.yml
 
 ### 🎯 Triage Agent: Multi-Agent Customer Support
 
-Create multi-agent systems that can intelligently coordinate delegate tasks amongst themselves based on the user query.
+Create multi-agent systems that can intelligently coordinate and delegate tasks among themselves based on the user query.
 
 ```bash
 dexto --agent triage-agent
 ```
 <img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
-
-### 🎮 Playground: Interactive Development Environment
-
-A testing playground to view the tools in your MCP servers before connecting them to LLMs to see the detailed response structures.
-
-<img src=".github/assets/playground_demo.gif" alt="Playground Demo" width="600">
 
 ### 🧠 Memory: Persistent Context & Learning
 
@@ -194,7 +173,7 @@ Create and save memories. Your agent automatically uses it when responding to yo
 
 ### 🛒 MCP Store: Tool Discovery & Integration
 
-Equip your agents from more than 20+ MCP Servers and start using them via chat - instantly.  
+Equip your agents from 20+ MCP Servers and start using them via chat - instantly.  
 
 <img src=".github/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
 
@@ -203,6 +182,38 @@ Equip your agents from more than 20+ MCP Servers and start using them via chat -
 Agents can generate structured forms when they need additional data to make it easier to collect extra info from users.
 
 <img src=".github/assets/user_form_demo.gif" alt="User Form Demo" width="600">
+
+<details>
+<summary><strong>🛒 Browser Agent: Amazon Shopping Assistant</strong></summary>
+
+**Task:** `Can you go to amazon and add some snacks to my cart? I like trail mix, cheetos and maybe surprise me with something else?`
+```bash
+# Default agent has browser tools
+dexto
+```
+<a href="https://youtu.be/C-Z0aVbl4Ik">
+  <img src="https://github.com/user-attachments/assets/3f5be5e2-7a55-4093-a071-8c52f1a83ba3" alt="Dexto: Amazon shopping agent demo" width="600"/>
+</a>
+
+</details>
+
+<details>
+<summary><strong>🎮 Playground: Interactive Development Environment</strong></summary>
+
+A testing playground to view the tools in your MCP servers before connecting them to LLMs to see the detailed response structures.
+
+<img src=".github/assets/playground_demo.gif" alt="Playground Demo" width="600">
+
+</details>
+
+<details>
+<summary><strong>🖼️ Hugging Face: Image Generation</strong></summary>
+
+**Task:** `Generate a photo of a baby panda.`
+
+<img src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" width="600"/>
+
+</details>
 
 ---
 
