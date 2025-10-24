@@ -10,7 +10,7 @@ sidebar_label: "Dynamic Changes"
 
 ```typescript
 stateManager.updateLLM(
-  { provider: 'openai', model: 'gpt-4o', maxInputTokens: 50_000 },
+  { provider: 'openai', model: 'gpt-5', maxInputTokens: 50_000 },
   'user-123'
 );
 ```

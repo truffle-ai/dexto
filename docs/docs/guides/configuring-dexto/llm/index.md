@@ -16,7 +16,7 @@ Dexto supports multiple LLM providers out-of-the-box via the Vercel AI SDK. You 
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -48,7 +48,7 @@ Detailed guide to all supported LLM providers:
 
 ### Providers vs Models
 - **Provider**: The service hosting the LLM (e.g., OpenAI, Anthropic)
-- **Model**: The specific AI model to use (e.g., gpt-4.1-mini, claude-3-5-sonnet)
+- **Model**: The specific AI model to use (e.g., gpt-5-mini, claude-sonnet-4-5-20250929)
 
 ### System Prompts
 System prompts define how your agent behaves. See the [System Prompt Configuration](../systemPrompt.md) guide for details on simple strings and advanced contributor configurations.

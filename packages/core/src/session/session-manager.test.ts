@@ -126,7 +126,7 @@ describe('SessionManager', () => {
         // Parse LLM config now that mocks are set up
         mockLLMConfig = LLMConfigSchema.parse({
             provider: 'openai',
-            model: 'gpt-4o',
+            model: 'gpt-5',
             apiKey: 'test-key',
             router: 'in-built',
             maxIterations: 50,

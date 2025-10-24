@@ -27,7 +27,7 @@ describe('DextoAgent Lifecycle Management', () => {
             systemPrompt: 'You are a helpful assistant',
             llm: {
                 provider: 'openai',
-                model: 'gpt-4o',
+                model: 'gpt-5',
                 apiKey: 'test-key',
                 router: 'vercel',
                 maxIterations: 50,

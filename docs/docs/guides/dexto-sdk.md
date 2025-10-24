@@ -32,7 +32,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY,
   },
 });
@@ -83,7 +83,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -100,7 +100,7 @@ console.log(response);
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   },
   mcpServers: {
@@ -166,6 +166,21 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 ## Common Patterns
 
 ### Multi-User Chat Application
+ 
+```mermaid
+sequenceDiagram
+    participant User1 as User A
+    participant ChatApp as Chat Application
+    participant Agent as DextoAgent
+
+    User1->>ChatApp: handleUserMessage
+    ChatApp->>ChatApp: Get or create session
+    ChatApp->>Agent: createSession (if new)
+    ChatApp->>Agent: run(message, undefined, sessionId)
+    Agent->>Agent: Process message
+    Agent-->>ChatApp: Response
+    ChatApp-->>User1: broadcastToUser
+```
 
 ```typescript
 import { DextoAgent } from '@dexto/core';
@@ -176,7 +191,7 @@ class ChatApplication {
 
   async initialize() {
     this.agent = new DextoAgent({
-      llm: { provider: 'openai', model: 'gpt-4o', apiKey: process.env.OPENAI_API_KEY },
+      llm: { provider: 'openai', model: 'gpt-5', apiKey: process.env.OPENAI_API_KEY },
       mcpServers: { /* your tools */ }
     });
     await this.agent.start();
@@ -240,6 +255,15 @@ class AdaptiveAgent {
 
 ### Session Management with Persistence
 
+```mermaid
+flowchart TD
+    A[resumeConversation called] --> B{Session exists?}
+    B -->|Yes| C[Load existing session]
+    B -->|No| D[Create new session]
+    C --> E[Return history]
+    D --> F[Return null]
+```
+
 ```typescript
 class PersistentChatBot {
   private agent: DextoAgent;
@@ -282,7 +306,7 @@ class PersistentChatBot {
 // OpenAI
 const openaiConfig = {
   provider: 'openai',
-  model: 'gpt-4o',
+  model: 'gpt-5',
   apiKey: process.env.OPENAI_API_KEY,
   temperature: 0.7,
   maxOutputTokens: 4000
@@ -291,7 +315,7 @@ const openaiConfig = {
 // Anthropic
 const anthropicConfig = {
   provider: 'anthropic', 
-  model: 'claude-3-opus-20240229',
+  model: 'claude-sonnet-4-5-20250929',
   apiKey: process.env.ANTHROPIC_API_KEY,
   maxIterations: 5
 };

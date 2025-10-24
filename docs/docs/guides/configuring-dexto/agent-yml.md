@@ -33,7 +33,7 @@ systemPrompt: |
 
 llm:
   provider: anthropic
-  model: claude-3-opus-20240229
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 ```
 
@@ -237,7 +237,7 @@ llm:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4-turbo
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
   maxIterations: 50
   router: vercel
@@ -249,7 +249,7 @@ llm:
 ```yaml
 llm:
   provider: anthropic
-  model: claude-3-opus-20240229
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
   maxInputTokens: 100000
 ```
@@ -953,7 +953,7 @@ systemPrompt:
 # LLM Configuration
 llm:
   provider: openai
-  model: gpt-4-turbo
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
   maxIterations: 50
   router: vercel

@@ -39,7 +39,7 @@ Some of the cool things you can do with Dexto CLI:
 |------|-------------|---------|
 | `-v, --version` | Show version | `dexto --version` |
 | `-a, --agent <path>` | Use custom agent config | `dexto -a ./my-agent.yml` |
-| `-m, --model <model>` | Specify LLM model | `dexto -m claude-4-sonnet-20250514` |
+| `-m, --model <model>` | Specify LLM model | `dexto -m claude-sonnet-4-5-20250929` |
 | `--router <router>` | Specify router (vercel/in-built) | `dexto --router in-built` |
 | `-c, --continue` | Continue the last session | `dexto --continue` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
@@ -119,7 +119,7 @@ Once in interactive mode (`dexto`), use these slash commands:
 | `/history` | Show current session history | `/history` |
 | `/search <query>` | Search conversation history | `/search "code review"` |
 | `/model list` | List available models | `/model list` |
-| `/model switch <model>` | Switch LLM model | `/model switch gpt-4o` |
+| `/model switch <model>` | Switch LLM model | `/model switch gpt-5` |
 | `/model current` | Show current model | `/model current` |
 | `/mcp list` | List MCP servers | `/mcp list` |
 | `/mcp add stdio <name> <cmd> [args...]` | Add stdio MCP server | `/mcp add stdio fs npx -y @modelcontextprotocol/server-filesystem` |
@@ -243,7 +243,7 @@ dexto --mode mcp
 
 With this, you can now connect this agent to Cursor, claude desktop, or even other Dexto agents!
 
-Check [Dexto Agents as MCP Servers](./dexto-as-mcp-server.md) to understand more about MCP servers.
+Check [Dexto Agents as MCP Servers](../mcp/dexto-as-mcp-server.md) to understand more about MCP servers.
 
 #### **Group MCP servers with dexto**
 ```bash
@@ -257,7 +257,7 @@ To use a specific config file:
 dexto mcp --group-servers -a ./dexto-tools.yml
 ```
 
-Check [Using Dexto to group MCP servers](./dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
+Check [Using Dexto to group MCP servers](../mcp/dexto-group-mcp-servers.md) to understand more about MCP server aggregation.
 
 
 ## Environment variables

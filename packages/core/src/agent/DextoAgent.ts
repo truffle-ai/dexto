@@ -95,7 +95,7 @@ export interface AgentEventSubscriber {
  * const response = await agent.run("Hello, how are you?");
  *
  * // Switch LLM models (provider inferred automatically)
- * await agent.switchLLM({ model: 'gpt-4o' });
+ * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
  * const session = agent.createSession('user-123');
@@ -890,7 +890,7 @@ export class DextoAgent {
      * @example
      * ```typescript
      * // Switch to a different model (provider will be inferred, API key auto-resolved)
-     * await agent.switchLLM({ model: 'gpt-4o' });
+     * await agent.switchLLM({ model: 'gpt-5' });
      *
      * // Switch to a different provider with explicit API key
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', apiKey: 'sk-ant-...' });
@@ -899,7 +899,7 @@ export class DextoAgent {
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', router: 'in-built' }, 'user-123');
      *
      * // Switch for all sessions
-     * await agent.switchLLM({ model: 'gpt-4o' }, '*');
+     * await agent.switchLLM({ model: 'gpt-5' }, '*');
      * ```
      */
     public async switchLLM(
@@ -1062,7 +1062,7 @@ export class DextoAgent {
      *
      * @example
      * ```typescript
-     * const provider = agent.inferProviderFromModel('gpt-4o');
+     * const provider = agent.inferProviderFromModel('gpt-5');
      * console.log(provider); // 'openai'
      *
      * const provider2 = agent.inferProviderFromModel('claude-4-sonnet-20250514');

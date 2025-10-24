@@ -18,8 +18,8 @@ sidebar_position: 4
 {
   "config": {
     "provider": "openai",
-    "model": "gpt-4.1-mini",
-    "displayName": "GPT-4.1 Mini",
+    "model": "gpt-5-mini",
+    "displayName": "GPT-5 Mini",
     "router": "vercel"
   }
 }
@@ -50,7 +50,7 @@ sidebar_position: 4
       "supportedRouters": ["in-built", "vercel"],
       "supportsBaseURL": false,
       "models": [
-        {"name":"gpt-4.1-mini","displayName":"GPT-4.1 Mini","default":true,"maxInputTokens":1048576,"supportedFileTypes":["pdf","image"]}
+        {"name":"gpt-5-mini","displayName":"GPT-5 Mini","default":true,"maxInputTokens":1048576,"supportedFileTypes":["pdf","image"]}
       ]
     }
   }
@@ -63,8 +63,8 @@ When `mode=flat`, response is:
   "models": [
     {
       "provider": "openai",
-      "name": "gpt-4.1-mini",
-      "displayName": "GPT-4.1 Mini",
+      "name": "gpt-5-mini",
+      "displayName": "GPT-5 Mini",
       "default": true,
       "maxInputTokens": 1048576,
       "supportedFileTypes": ["pdf", "image"],
@@ -99,7 +99,7 @@ Note: request body size is limited (4KB).
 
 ### Request Body
 - `provider` (string, optional): LLM provider identifier (e.g., `openai`, `anthropic`)
-- `model` (string, optional): Model name (e.g., `gpt-4.1-mini`, `claude-sonnet-4-5-20250929`)
+- `model` (string, optional): Model name (e.g., `gpt-5-mini`, `claude-sonnet-4-5-20250929`)
 - `router` ("vercel" | "in-built", optional): Router to use for LLM requests
 - `apiKey` (string, optional): API key or environment variable reference
 - `baseURL` (string, optional): Custom base URL for OpenAI-compatible providers
@@ -113,7 +113,7 @@ Note: request body size is limited (4KB).
 {
   "config": {
     "provider": "openai",
-    "model": "gpt-4.1-mini",
+    "model": "gpt-5-mini",
     "router": "vercel"
   },
   "sessionId": "session-123"

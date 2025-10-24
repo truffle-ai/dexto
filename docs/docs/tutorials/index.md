@@ -332,15 +332,15 @@ try {
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini  # Faster, cheaper for dev
+  model: gpt-5-mini  # Faster, cheaper for dev
   apiKey: $OPENAI_API_KEY
 ```
 
-**Production**
+### Production
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1  # More capable for production
+  model: gpt-5  # More capable for production
   apiKey: $OPENAI_API_KEY
   temperature: 0.3  # More consistent responses
 ```

@@ -64,7 +64,7 @@ await agent.start();
 const response = await agent.run("List files in current directory");
 
 // Switch models
-await agent.switchLLM({ model: "claude-4-sonnet-20250514" });
+await agent.switchLLM({ model: "claude-sonnet-4-5-20250929" });
 
 await agent.stop();
 ```

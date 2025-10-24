@@ -125,7 +125,7 @@ describe('Setup Command', () => {
         it('creates preferences with provided options', async () => {
             const options: CLISetupOptionsInput = {
                 provider: 'openai',
-                model: 'gpt-4o',
+                model: 'gpt-5',
                 defaultAgent: 'my-agent',
                 interactive: false,
             };
@@ -134,7 +134,7 @@ describe('Setup Command', () => {
 
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 'openai',
-                'gpt-4o',
+                'gpt-5',
                 'OPENAI_API_KEY',
                 'my-agent'
             );
@@ -392,7 +392,7 @@ describe('Setup Command', () => {
 
             const options = {
                 provider: 'openai' as const,
-                model: 'gpt-4o-mini',
+                model: 'gpt-5-mini',
                 interactive: false,
             };
 
@@ -400,7 +400,7 @@ describe('Setup Command', () => {
 
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 'openai',
-                'gpt-4o-mini', // User-specified model, not default
+                'gpt-5-mini', // User-specified model, not default
                 'OPENAI_API_KEY',
                 'default-agent'
             );

@@ -28,7 +28,7 @@ describe('AgentStateManager Events', () => {
             },
             llm: {
                 provider: 'openai',
-                model: 'gpt-4o',
+                model: 'gpt-5',
                 apiKey: 'test-key',
                 router: 'in-built',
                 maxIterations: 50,
@@ -59,14 +59,14 @@ describe('AgentStateManager Events', () => {
 
         const updatedConfig = LLMConfigSchema.parse({
             ...mockConfig.llm,
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
         });
         stateManager.updateLLM(updatedConfig);
 
         expect(eventSpy).toHaveBeenCalledWith({
             field: 'llm',
-            oldValue: expect.objectContaining({ model: 'gpt-4o' }),
-            newValue: expect.objectContaining({ model: 'gpt-4o-mini' }),
+            oldValue: expect.objectContaining({ model: 'gpt-5' }),
+            newValue: expect.objectContaining({ model: 'gpt-5-mini' }),
             sessionId: undefined,
         });
     });
@@ -109,14 +109,14 @@ describe('AgentStateManager Events', () => {
 
         const sessionConfig = LLMConfigSchema.parse({
             ...mockConfig.llm,
-            model: 'gpt-4o',
+            model: 'gpt-5',
         });
         stateManager.updateLLM(sessionConfig, 'session-123');
 
         expect(eventSpy).toHaveBeenCalledWith({
             sessionId: 'session-123',
             override: expect.objectContaining({
-                llm: expect.objectContaining({ model: 'gpt-4o' }),
+                llm: expect.objectContaining({ model: 'gpt-5' }),
             }),
         });
     });
@@ -128,7 +128,7 @@ describe('AgentStateManager Events', () => {
         // First set an override
         const sessionConfig = LLMConfigSchema.parse({
             ...mockConfig.llm,
-            model: 'gpt-4o',
+            model: 'gpt-5',
         });
         stateManager.updateLLM(sessionConfig, 'session-123');
 

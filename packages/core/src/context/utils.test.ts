@@ -243,7 +243,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -285,7 +285,7 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should keep supported file attachments for models that support them', () => {
-        // Mock validation to accept PDF files for gpt-4o
+        // Mock validation to accept PDF files for gpt-5
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: true,
             fileType: 'pdf',
@@ -306,7 +306,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4o' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -321,7 +321,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         mockValidateModelFileSupport
             .mockReturnValueOnce({
                 isSupported: false,
-                error: 'Model gpt-4 does not support audio files',
+                error: 'Model gpt-5 does not support audio files',
             })
             .mockReturnValueOnce({
                 isSupported: true,
@@ -343,8 +343,8 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        // Test with regular gpt-4 (should filter out audio)
-        const config1: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        // Test with regular gpt-5 (should filter out audio)
+        const config1: LLMContext = { provider: 'openai', model: 'gpt-5' };
         const result1 = filterMessagesByLLMCapabilities(messages, config1);
 
         expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
@@ -442,7 +442,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -460,7 +460,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -476,13 +476,13 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
         // Should add placeholder text for empty content
         expect(result[0]!.content).toEqual([
-            { type: 'text', text: '[File attachment removed - not supported by gpt-4]' },
+            { type: 'text', text: '[File attachment removed - not supported by gpt-5]' },
         ]);
     });
 });

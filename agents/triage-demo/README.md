@@ -48,28 +48,28 @@ The triage agent doesn't just route requests - it **executes the specialized age
 - **Tools**: Filesystem, web research, **chat_with_agent** (connects to all specialists)
 - **Tool Confirmation**: Auto-approve mode for seamless delegation
 
-### 2. **Technical Support Agent** (`technical-support-agent.yml`) 
+### 2. **Technical Support Agent** (`technical-support-agent.yml`)
 - **Specialization**: Bug fixes, troubleshooting, system issues
 - **Tools**: Filesystem, terminal, browser automation
-- **Model**: GPT-4o (higher capability for complex technical issues)
+- **Model**: GPT-5 (higher capability for complex technical issues)
 - **Connection**: Available as MCP server via stdio
 
 ### 3. **Billing Agent** (`billing-agent.yml`)
-- **Specialization**: Payments, subscriptions, financial inquiries  
+- **Specialization**: Payments, subscriptions, financial inquiries
 - **Tools**: Browser automation, filesystem for policy docs
-- **Model**: GPT-4o-mini (efficient for structured billing processes)
+- **Model**: GPT-5 Mini (efficient for structured billing processes)
 - **Connection**: Available as MCP server via stdio
 
 ### 4. **Product Info Agent** (`product-info-agent.yml`)
 - **Specialization**: Features, comparisons, documentation
 - **Tools**: Web research (Tavily), filesystem, browser automation
-- **Model**: GPT-4o-mini (efficient for information retrieval)
+- **Model**: GPT-5 Mini (efficient for information retrieval)
 - **Connection**: Available as MCP server via stdio
 
 ### 5. **Escalation Agent** (`escalation-agent.yml`)
 - **Specialization**: Complex issues, Enterprise customers, management approval
 - **Tools**: Filesystem, web research for compliance/legal info
-- **Model**: GPT-4o (higher capability for sensitive issues)
+- **Model**: GPT-5 (higher capability for sensitive issues)
 - **Connection**: Available as MCP server via stdio
 
 ## 📚 Business Context Documentation

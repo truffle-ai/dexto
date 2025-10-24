@@ -12,7 +12,7 @@ Dexto supports multiple LLM providers out-of-the-box, plus the ability to use an
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini  # Default
+  model: gpt-5-mini  # Default
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -107,9 +107,9 @@ llm:
 ```yaml
 llm:
   provider: openai-compatible
-  model: gpt-4
+  model: gpt-5
   apiKey: $AZURE_OPENAI_API_KEY
-  baseURL: https://your-resource.openai.azure.com/openai/deployments/gpt-4
+  baseURL: https://your-resource.openai.azure.com/openai/deployments/gpt-5
   maxInputTokens: 128000
 ```
 
@@ -124,14 +124,14 @@ Access 100+ models through one API:
 ```yaml
 llm:
   provider: openai-compatible
-  model: anthropic/claude-3.5-sonnet
+  model: anthropic/claude-sonnet-4-5-20250929
   apiKey: $OPENROUTER_API_KEY
   baseURL: https://openrouter.ai/api/v1
   maxInputTokens: 200000
 ```
 
 **Popular OpenRouter models:**
-- `anthropic/claude-3.5-sonnet`
+- `anthropic/claude-sonnet-4-5-20250929`
 - `meta-llama/llama-3.1-405b-instruct`
 - `google/gemini-pro-1.5`
 - `mistralai/mistral-large`

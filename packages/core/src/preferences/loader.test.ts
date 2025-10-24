@@ -284,7 +284,7 @@ setup:
         it('should create preferences with provided values', () => {
             const preferences = createInitialPreferences(
                 'openai',
-                'gpt-4',
+                'gpt-5',
                 'OPENAI_API_KEY',
                 'my-agent'
             );
@@ -292,7 +292,7 @@ setup:
             expect(preferences).toEqual({
                 llm: {
                     provider: 'openai',
-                    model: 'gpt-4',
+                    model: 'gpt-5',
                     apiKey: '$OPENAI_API_KEY',
                 },
                 defaults: {
@@ -331,7 +331,7 @@ setup:
             const updates: Partial<GlobalPreferences> = {
                 llm: {
                     provider: 'openai',
-                    model: 'gpt-4o',
+                    model: 'gpt-5',
                     apiKey: '$OPENAI_API_KEY',
                 },
             };
@@ -340,7 +340,7 @@ setup:
 
             // LLM section should be completely replaced
             expect(updatedPreferences.llm.provider).toBe('openai');
-            expect(updatedPreferences.llm.model).toBe('gpt-4o');
+            expect(updatedPreferences.llm.model).toBe('gpt-5');
             expect(updatedPreferences.llm.apiKey).toBe('$OPENAI_API_KEY');
 
             // Other sections should remain unchanged

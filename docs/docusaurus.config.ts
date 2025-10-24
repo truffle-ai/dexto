@@ -70,6 +70,15 @@ const config: Config = {
     themeConfig: {
         // Replace with your project's social card
         image: 'img/dexto-social-card.jpg',
+        algolia: {
+            appId: 'EHM21LFJ1P',
+            apiKey: 'e8246111c9f80ec60063d2b395b03ecc',
+            indexName: 'Dexto docs',
+            contextualSearch: true,
+            searchParameters: {},
+            searchPagePath: 'search',
+            askAi: 'reomyK7JUIYj',
+        },
         docs: {
             sidebar: {
                 hideable: true,
@@ -105,6 +114,10 @@ const config: Config = {
                     to: '/blog',
                     position: 'left',
                     label: 'Blog',
+                },
+                {
+                    type: 'search',
+                    position: 'left',
                 },
                 {
                     href: 'https://discord.gg/GFzWFAAZcm',

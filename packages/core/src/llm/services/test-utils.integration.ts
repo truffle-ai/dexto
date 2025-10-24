@@ -131,7 +131,7 @@ export const TestConfigs = {
             groq: 'llama-3.1-8b-instant',
             xai: 'grok-beta',
             cohere: 'command-r',
-            'openai-compatible': 'gpt-4o-mini',
+            'openai-compatible': 'gpt-5-mini',
         };
 
         return {

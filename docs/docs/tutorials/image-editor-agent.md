@@ -103,7 +103,7 @@ mcpServers:
 
 llm:
   provider: openai
-  model: gpt-4o-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 ```
 
