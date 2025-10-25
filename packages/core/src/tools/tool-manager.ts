@@ -136,6 +136,16 @@ export class ToolManager {
     }
 
     /**
+     * Set session manager for internal tools that need it (e.g., spawn_task)
+     */
+    setSessionManager(sessionManager: SessionManager): void {
+        this.sessionManager = sessionManager;
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setSessionManager(sessionManager);
+        }
+    }
+
+    /**
      * Invalidate the tools cache when tool sources change
      */
     private invalidateCache(): void {
