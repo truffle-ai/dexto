@@ -48,6 +48,20 @@ export class SessionError {
     }
 
     /**
+     * Maximum sub-agent depth exceeded
+     */
+    static maxDepthExceeded(depth: number, maxDepth: number) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_MAX_DEPTH_EXCEEDED,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Sub-agent nesting depth (${depth}) exceeds maximum allowed depth (${maxDepth})`,
+            { depth, maxDepth },
+            'Reduce sub-agent nesting or increase maxSubAgentDepth limit in configuration'
+        );
+    }
+
+    /**
      * Session storage failed
      */
     static storageFailed(sessionId: string, operation: string, reason: string) {
