@@ -41,6 +41,7 @@ import { PluginManager } from '../plugins/manager.js';
 import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
 import { FileSystemService } from '../filesystem/index.js';
 import { ProcessService } from '../process/index.js';
+import { OrchestrationService } from '../orchestration/orchestration-service.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -166,6 +167,14 @@ export async function createAgentServices(
     await processService.initialize();
     logger.debug('ProcessService initialized');
 
+    // 7.5. Initialize OrchestrationService for task management
+    const orchestrationService = new OrchestrationService(
+        storageManager.getDatabase(),
+        agentEventBus
+    );
+    await orchestrationService.initialize();
+    logger.debug('OrchestrationService initialized');
+
     // 8. Initialize tool manager with internal tools options
     // 8.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider({
@@ -186,6 +195,8 @@ export async function createAgentServices(
                 searchService,
                 fileSystemService,
                 processService,
+                orchestrationService,
+                // sessionManager will be set after SessionManager is created
             },
             internalToolsConfig: config.internalTools,
         }
@@ -252,6 +263,10 @@ export async function createAgentServices(
     // 12.5 Wire up plugin support to ToolManager (after SessionManager is created)
     toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
     logger.debug('Plugin support connected to ToolManager');
+
+    // 12.6 Wire up SessionManager to internal tools (for spawn_task tool)
+    toolManager.setSessionManager(sessionManager);
+    logger.debug('SessionManager connected to internal tools');
 
     // 13. Return the core services
     return {

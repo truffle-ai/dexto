@@ -30,6 +30,12 @@ export const AGENT_EVENT_NAMES = [
     // User approval events (generalized approval system)
     'dexto:approvalRequest',
     'dexto:approvalResponse',
+    // Orchestration events (todo management)
+    'todo:updated',
+    'todo:cleared',
+    // Orchestration events (spawned task management)
+    'task:spawned',
+    'task:updated',
 ] as const;
 
 /**
@@ -258,6 +264,39 @@ export interface AgentEventMap {
     'dexto:sessionTitleUpdated': {
         sessionId: string;
         title: string;
+    };
+
+    /** Fired when todos are updated for a session */
+    'todo:updated': {
+        sessionId: string;
+        todos: any[]; // Todo[] type from orchestration
+        stats: {
+            created: number;
+            updated: number;
+            deleted: number;
+        };
+    };
+
+    /** Fired when todos are cleared for a session */
+    'todo:cleared': {
+        sessionId: string;
+    };
+
+    /** Fired when a spawned task is created */
+    'task:spawned': {
+        sessionId: string;
+        taskId: string;
+        prompt: string;
+        description?: string;
+    };
+
+    /** Fired when a spawned task is updated */
+    'task:updated': {
+        taskId: string;
+        sessionId: string;
+        status: 'pending' | 'in_progress' | 'completed' | 'failed';
+        result?: string;
+        error?: string;
     };
 }
 

@@ -5,6 +5,7 @@ import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
 import type { ApprovalManager } from '../../approval/manager.js';
+import type { SessionManager } from '../../session/index.js';
 
 /**
  * Provider for built-in internal tools that are part of the core system
@@ -61,41 +62,62 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Register all available internal tools based on available services and configuration
+     * Register a single internal tool
      */
-    private registerInternalTools(): void {
+    private registerTool(toolName: (typeof this.config)[number]): void {
+        const toolInfo = getInternalToolInfo(toolName);
+
         // Augment services with approvalManager
         const servicesWithApproval = {
             ...this.services,
             approvalManager: this.approvalManager,
         };
 
-        for (const toolName of this.config) {
-            const toolInfo = getInternalToolInfo(toolName);
+        // Check if all required services are available
+        const missingServices = toolInfo.requiredServices.filter(
+            (serviceKey) => !servicesWithApproval[serviceKey]
+        );
 
-            // Check if all required services are available
-            const missingServices = toolInfo.requiredServices.filter(
-                (serviceKey) => !servicesWithApproval[serviceKey]
+        if (missingServices.length > 0) {
+            logger.debug(
+                `Skipping ${toolName} internal tool - missing services: ${missingServices.join(', ')}`
             );
-
-            if (missingServices.length > 0) {
-                logger.debug(
-                    `Skipping ${toolName} internal tool - missing services: ${missingServices.join(', ')}`
-                );
-                continue;
-            }
-
-            try {
-                // Create the tool using its factory and store directly
-                const tool = toolInfo.factory(servicesWithApproval);
-                this.tools.set(toolName, tool); // ← Store original InternalTool directly
-                logger.debug(`Registered ${toolName} internal tool`);
-            } catch (error) {
-                logger.error(
-                    `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
+            return;
         }
+
+        try {
+            // Create the tool using its factory and store directly
+            const tool = toolInfo.factory(servicesWithApproval);
+            this.tools.set(toolName, tool); // ← Store original InternalTool directly
+            logger.debug(`Registered ${toolName} internal tool`);
+        } catch (error) {
+            logger.error(
+                `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    /**
+     * Register all available internal tools based on available services and configuration
+     */
+    private registerInternalTools(): void {
+        for (const toolName of this.config) {
+            this.registerTool(toolName);
+        }
+    }
+
+    /**
+     * Set session manager for tools that need it (called after SessionManager is created)
+     */
+    setSessionManager(sessionManager: SessionManager): void {
+        this.services.sessionManager = sessionManager;
+
+        // Re-register tools that depend on sessionManager
+        if (this.config.includes('spawn_task')) {
+            this.registerTool('spawn_task');
+        }
+
+        logger.debug('SessionManager configured for internal tools');
     }
 
     /**
