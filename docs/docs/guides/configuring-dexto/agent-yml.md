@@ -396,32 +396,48 @@ mcpServers:
 
 ## Internal Tools
 
-Enable built-in Dexto tools that provide core agent capabilities.
+Enable built-in Dexto tools that provide core agent capabilities like file operations, code search, and command execution.
 
-### Schema
+### Quick Reference
 
 ```yaml
 internalTools:
-  - tool_name_1
-  - tool_name_2
+  - ask_user       # Ask questions and collect user input
+  - read_file      # Read file contents
+  - write_file     # Write content to files
+  - edit_file      # Edit files by replacing text
+  - glob_files     # Find files using glob patterns
+  - grep_content   # Search file contents with regex
+  - bash_exec      # Execute shell commands
+  - bash_output    # Get output from background processes
+  - kill_process   # Terminate background processes
 ```
 
 ### Available Tools
 
-- **`ask_user`**: Allows the agent to ask questions and collect structured input from the user
+Dexto provides **9 built-in internal tools**:
 
-### Example
+1. **`ask_user`** - Ask questions and collect structured input
+2. **`read_file`** - Read file contents with pagination
+3. **`write_file`** - Write content to files
+4. **`edit_file`** - Edit files by replacing exact text
+5. **`glob_files`** - Find files using glob patterns (e.g., `**/*.ts`)
+6. **`grep_content`** - Search file contents using regex
+7. **`bash_exec`** - Execute shell commands
+8. **`bash_output`** - Retrieve output from background processes
+9. **`kill_process`** - Terminate background processes
 
-```yaml
-internalTools:
-  - ask_user
-```
+### Disabling Internal Tools
 
 An empty array or omitted field disables all internal tools:
 
 ```yaml
 internalTools: []
 ```
+
+### Comprehensive Documentation
+
+For detailed documentation on each tool including parameters, use cases, examples, and best practices, see the dedicated **[Internal Tools guide](./internalTools.md)**.
 
 ## Internal Resources
 
