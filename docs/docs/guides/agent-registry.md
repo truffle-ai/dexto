@@ -1,9 +1,9 @@
 ---
-sidebar_position: 4
-title: "Pre-built Agent Registry"
+sidebar_position: 2
+title: "Agent Registry"
 ---
 
-# Pre-built Agent Registry
+# Agent Registry
 
 Dexto comes with a curated collection of pre-built agents ready to use for common tasks. Each agent is optimized with specific tools, system prompts, and LLM configurations for its domain.
 
@@ -129,7 +129,7 @@ dexto --agent nano-banana-agent "Remove the person from this photo"
 
 **Requires:** `GOOGLE_GENERATIVE_AI_API_KEY`
 
-**Demo:** [Image Generation Example](../examples-demos/image-generation.md)
+**Demo:** [Image Generation Example](/examples/image-generation)
 
 ---
 
@@ -184,7 +184,7 @@ dexto --agent image-editor-agent "Detect all faces in this image and draw boundi
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Demo:** [Face Detection Example](../examples-demos/face-detection.md)
+**Demo:** [Face Detection Example](/examples/face-detection)
 
 ---
 
@@ -231,7 +231,7 @@ dexto --agent coding-agent "Create a landing page for a coffee brand"
 
 **File Support:** 50+ programming languages and config formats
 
-**Demo:** [Snake Game Development](../examples-demos/snake-game.md)
+**Demo:** [Snake Game Development](/examples/snake-game)
 
 ---
 

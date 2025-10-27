@@ -108,6 +108,12 @@ const config: Config = {
                     activeBaseRegex: `/docs/`,
                 },
                 {
+                    to: '/examples/intro',
+                    position: 'left',
+                    label: 'Examples',
+                    activeBaseRegex: `/examples/`,
+                },
+                {
                     to: '/api',
                     position: 'left',
                     label: 'API Reference',
@@ -196,7 +202,7 @@ const config: Config = {
                         },
                         {
                             label: 'Examples',
-                            to: '/docs/examples-demos/email-slack',
+                            to: '/examples/intro',
                         },
                         {
                             label: 'Contributing',
@@ -265,6 +271,19 @@ const config: Config = {
                 path: 'docs',
                 routeBasePath: 'docs',
                 sidebarPath: './sidebars.ts',
+                editUrl: 'https://github.com/truffle-ai/dexto/tree/main/docs/',
+                showLastUpdateAuthor: true,
+                showLastUpdateTime: true,
+                breadcrumbs: true,
+            },
+        ],
+        [
+            '@docusaurus/plugin-content-docs',
+            {
+                id: 'examples',
+                path: 'examples',
+                routeBasePath: 'examples',
+                sidebarPath: './examples-sidebars.ts',
                 editUrl: 'https://github.com/truffle-ai/dexto/tree/main/docs/',
                 showLastUpdateAuthor: true,
                 showLastUpdateTime: true,
