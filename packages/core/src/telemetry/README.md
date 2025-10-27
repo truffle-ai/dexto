@@ -80,18 +80,11 @@ docker run -d \
 
 Telemetry is already enabled in `agents/default-agent.yml`. To disable, set `enabled: false`.
 
-### 3. Run Dexto
+### 3. Run Dexto webUI
 
 ```bash
-# Build the project
-pnpm build
-
 # Run in CLI mode
-pnpm run cli
-
-# OR run in server mode (with WebUI)
-pnpm run server:start
-# Then open http://localhost:3000
+pnpm run dev
 ```
 
 ### 4. Generate Traces
