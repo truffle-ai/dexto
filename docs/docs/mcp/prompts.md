@@ -37,7 +37,7 @@ If the server supports prompts, they'll be available immediately.
 
 ### In Web UI
 
-Prompts are discoverable in the Web UI interface. The UI will show available prompts from connected MCP servers that you can invoke with a click.
+Type `/` to discover and invoke prompts from connected MCP servers.
 
 ### In CLI
 
