@@ -183,7 +183,7 @@ By default, Dexto uses "lenient" mode where individual servers can fail to conne
 dexto --strict
 ```
 
-This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Configuration](../mcp/connecting-servers.md) for more details on connection modes.
+This overrides any individual `connectionMode` settings in your MCP server configurations. See [MCP Overview](../mcp/overview.md) for more details on connection modes.
 
 #### **Skip tool confirmation prompts during development**
 
