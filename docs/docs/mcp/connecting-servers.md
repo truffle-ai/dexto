@@ -7,6 +7,10 @@ description: How to connect Dexto to MCP servers via stdio, http, and sse, with 
 
 # Configuring MCP Connections
 
+:::tip Comprehensive Documentation
+For complete MCP server configuration documentation including detailed field references, environment variables, tool aggregation, troubleshooting, and best practices, see the **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration.md)**.
+:::
+
 The `mcpServers` section defines the Model Context Protocol (MCP) servers that your Dexto Agent can use for tool execution.
 
 Dexto supports three types of MCP server connections:
@@ -261,6 +265,8 @@ Want to add your MCP to our WebUI registry so other users can easily discover an
 
 ## Additional Resources
 
+- **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration.md)** - Comprehensive configuration documentation
+- [Agent Configuration Reference](../guides/configuring-dexto/agent-yml.md) - Complete agent.yml reference
 - [Dexto GitHub repository examples](https://github.com/truffle-ai/dexto/tree/main/agents/examples) - More configuration examples
 - [Model Context Protocol specification](https://spec.modelcontextprotocol.io/) - Official MCP documentation
 - [Available MCP servers](https://github.com/modelcontextprotocol/servers) - Community-maintained server list

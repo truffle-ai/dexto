@@ -5,7 +5,7 @@ sidebar_label: "MCP Configuration"
 description: How to configure MCP servers in agent.yml and via runtime updates, with links to the full MCP docs for deeper guidance.
 ---
 
-This page focuses on configuration tasks in `agent.yml` and runtime overrides. For concepts, transports, manager APIs, and advanced patterns, see the MCP section.
+This page provides a quick reference for MCP server configuration. For comprehensive documentation including detailed field references, examples, best practices, and troubleshooting, see the **[MCP Configuration guide](../guides/configuring-dexto/mcpConfiguration.md)**.
 
 ## agent.yml
 
@@ -107,6 +107,7 @@ See: [MCP Manager](./mcp-manager.md)
 
 ## Next steps
 
+- **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration.md)** - Comprehensive configuration documentation
 - [MCP › Overview](./overview.md)
 - [MCP › Configure Connections](./connecting-servers.md)
 - [Dexto as an MCP Server](./dexto-as-mcp-server.md)

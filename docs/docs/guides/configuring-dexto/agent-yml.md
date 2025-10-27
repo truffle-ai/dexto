@@ -300,99 +300,68 @@ llm:
 
 ## MCP Servers
 
-Configure Model Context Protocol (MCP) servers to extend your agent's capabilities with external tools.
+Configure Model Context Protocol (MCP) servers to extend your agent's capabilities with external tools and services.
 
-### Server Types
+MCP servers are external processes or services that provide tools, resources, and APIs your agent can discover and use at runtime. Unlike internal tools, MCP servers follow the standardized Model Context Protocol.
 
-Dexto supports three transport types: `stdio`, `sse`, and `http`.
+### Quick Reference
 
-#### Stdio Servers
-
-Execute local programs that communicate via stdin/stdout.
-
+**Three server types:**
 ```yaml
 mcpServers:
-  filesystem:
-    type: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "."
-    env:                          # Optional environment variables
-      DEBUG: "mcp:*"
-    timeout: 30000                # Optional: default 30000ms
-    connectionMode: lenient       # Optional: strict | lenient (default: lenient)
-```
-
-#### SSE Servers
-
-Connect to servers using Server-Sent Events.
-
-```yaml
-mcpServers:
-  remote-tools:
-    type: sse
-    url: https://mcp.example.com/sse
-    headers:                      # Optional headers
-      Authorization: Bearer $API_TOKEN
-    timeout: 30000
-    connectionMode: lenient
-```
-
-#### HTTP Servers
-
-Connect to standard HTTP/REST servers.
-
-```yaml
-mcpServers:
-  api-service:
-    type: http
-    url: https://api.example.com/mcp
-    headers:
-      X-API-Key: $SERVICE_API_KEY
-    timeout: 30000
-    connectionMode: lenient
-```
-
-### Field Details
-
-**Common Fields:**
-- `type`: Server transport type (required)
-- `timeout`: Connection timeout in milliseconds (default: `30000`)
-- `connectionMode`: Error handling mode (default: `lenient`)
-  - `lenient`: Log errors, continue execution
-  - `strict`: Throw errors, halt execution
-
-**Stdio-Specific:**
-- `command`: Executable command (required, supports `$ENV_VAR`)
-- `args`: Command arguments array (default: `[]`, supports `$ENV_VAR`)
-- `env`: Environment variables for the process (default: `{}`)
-
-**SSE/HTTP-Specific:**
-- `url`: Server endpoint URL (required, supports `$ENV_VAR`)
-- `headers`: HTTP headers dictionary (default: `{}`, supports `$ENV_VAR`)
-
-### Example: Multiple Servers
-
-```yaml
-mcpServers:
+  # Local process (stdio)
   filesystem:
     type: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    timeout: 30000
+    connectionMode: lenient
 
-  playwright:
-    type: stdio
-    command: npx
-    args: ["-y", "@playwright/mcp@latest"]
-
-  remote-api:
-    type: http
-    url: $REMOTE_MCP_URL
+  # Server-Sent Events (deprecated)
+  remote-sse:
+    type: sse
+    url: https://api.example.com/mcp/events
     headers:
-      Authorization: Bearer $REMOTE_API_TOKEN
+      Authorization: Bearer $API_TOKEN
+    timeout: 30000
+    connectionMode: lenient
+
+  # HTTP (recommended for remote)
+  api-service:
+    type: http
+    url: https://api.example.com/mcp
+    headers:
+      Authorization: Bearer $API_TOKEN
+    timeout: 30000
+    connectionMode: strict
 ```
+
+**Connection modes:**
+- `lenient` (default) - Log errors, continue without server
+- `strict` - Require successful connection or fail startup
+
+**Environment variables:**
+- All fields support `$ENV_VAR` or `${ENV_VAR}` expansion
+- Store secrets in `~/.dexto/.env`
+
+### Comprehensive Guide
+
+For detailed documentation including:
+- Complete field references for each server type
+- Environment variable configuration
+- Tool aggregation and naming
+- Connection modes and error handling
+- Common patterns and best practices
+- Troubleshooting guide
+- Example configurations
+
+See the **[MCP Configuration guide](./mcpConfiguration.md)**.
+
+### Related
+
+- [MCP Configuration](./mcpConfiguration.md) - Comprehensive MCP configuration
+- [MCP Overview](../../mcp/overview.md) - What is MCP and why it matters
+- [Tool Confirmation](./toolConfirmation.md) - Control MCP tool execution
 
 ## Internal Tools
 

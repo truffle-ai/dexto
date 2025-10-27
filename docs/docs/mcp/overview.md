@@ -51,6 +51,8 @@ MCP is a key part of what makes Dexto flexible, extensible, and able to automate
 
 ## Next steps
 
+- **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration.md)** - Comprehensive YAML configuration
+- [Agent Configuration Reference](../guides/configuring-dexto/agent-yml.md) - Complete agent.yml reference
 - [Configure Connections](./connecting-servers.md)
 - [MCP Configuration](./configuration.md)
 - [MCP Manager](./mcp-manager.md)
