@@ -107,13 +107,16 @@ dexto --agent coding-agent "create a landing page for a coffee brand inspired by
 - **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
 - **Sora Video Agent** – AI video generation using OpenAI's Sora with custom settings, remixing, and reference support
 - **Database Agent** – Demo agent for SQL queries and database operations
+- **GitHub Agent** – GitHub operations, PR analysis, and repository management
 - **Image Editor Agent** – Image editing and manipulation
 - **Music Agent** – Music creation and audio processing
-- **PDF Agent** – Document analysis and conversation
+- **Talk2PDF Agent** – Document analysis and conversation
 - **Product Researcher** – Product naming and branding research
 - **Triage Agent** – Demo multi-agent customer support routing system
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
+
+**📚 See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry) for detailed information about all agents, their capabilities, use cases, and requirements.**
 
 More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
 
