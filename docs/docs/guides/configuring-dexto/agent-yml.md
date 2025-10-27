@@ -634,6 +634,10 @@ internalTools:
 
 ## Internal Resources
 
+:::info Guide
+For detailed configuration and examples, see **[Internal Resources Guide](./internalResources)**.
+:::
+
 Access to files and blob storage.
 
 ### Schema
