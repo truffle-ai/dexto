@@ -277,120 +277,70 @@ llm:
 
 ## System Prompt Configuration
 
-The system prompt defines your agent's behavior and personality. It supports four types of contributors that are combined in priority order.
+Define your agent's behavior and personality using either a simple string or structured contributors.
 
-### Simple String Format
+### Schema
 
-For basic use cases, provide a simple string:
-
+**Simple string:**
 ```yaml
 systemPrompt: |
-  You are a helpful AI assistant with access to tools.
-  Use these tools when appropriate to answer user queries.
+  You are a helpful AI assistant.
 ```
 
-### Structured Contributors Format
-
-For advanced control, use the contributors format:
-
+**Structured contributors:**
 ```yaml
 systemPrompt:
   contributors:
-    - id: primary
-      type: static
-      priority: 0
-      content: |
-        You are a helpful AI assistant.
-
-    - id: dateTime
-      type: dynamic
-      priority: 10
-      source: dateTime
-      enabled: true
-
-    - id: customContext
-      type: file
-      priority: 20
-      files:
-        - "${{dexto.agent_dir}}/context/domain-knowledge.md"
-        - "${{dexto.agent_dir}}/context/guidelines.txt"
-      options:
-        includeFilenames: true
-        separator: "\n\n---\n\n"
-        errorHandling: skip
-        maxFileSize: 100000
-        includeMetadata: false
-
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        includeTimestamps: false
-        includeTags: true
-        limit: 10
-        pinnedOnly: false
+    - id: string                  # Unique identifier
+      type: static | dynamic | file | memory
+      priority: number            # Execution order (lower first)
+      enabled: boolean            # Optional, default: true
+      # Type-specific fields below
 ```
 
 ### Contributor Types
 
-#### 1. Static Contributors
+**Static** - Fixed text content:
+```yaml
+- id: core
+  type: static
+  priority: 0
+  content: |
+    Your instructions here
+```
 
-Provide fixed text content.
+**Dynamic** - Runtime-generated content:
+```yaml
+- id: timestamp
+  type: dynamic
+  priority: 10
+  source: dateTime | resources
+```
 
-**Fields:**
-- `type`: `"static"` (required)
-- `id`: Unique identifier (required)
-- `priority`: Execution order, lower runs first (required)
-- `content`: The static text content (required)
-- `enabled`: Whether this contributor is active (optional, default: `true`)
+**File** - Load external files:
+```yaml
+- id: docs
+  type: file
+  priority: 20
+  files: ["path/to/file.md"]
+  options:
+    includeFilenames: true
+    separator: "\n\n---\n\n"
+    errorHandling: skip | error
+    maxFileSize: 100000
+```
 
-#### 2. Dynamic Contributors
-
-Generate content dynamically from registered sources.
-
-**Fields:**
-- `type`: `"dynamic"` (required)
-- `id`: Unique identifier (required)
-- `priority`: Execution order (required)
-- `source`: Source identifier (required, e.g., `"dateTime"`, `"resources"`)
-- `enabled`: Whether this contributor is active (optional, default: `true`)
-
-**Available Sources:**
-- `dateTime`: Adds current date and time
-- `resources`: Adds information about available resources
-
-#### 3. File Contributors
-
-Load content from external files.
-
-**Fields:**
-- `type`: `"file"` (required)
-- `id`: Unique identifier (required)
-- `priority`: Execution order (required)
-- `files`: Array of file paths to include (required, minimum 1)
-- `enabled`: Whether this contributor is active (optional, default: `true`)
-- `options`: File loading options (optional)
-  - `includeFilenames`: Include filename as header (default: `true`)
-  - `separator`: Text between files (default: `"\n\n---\n\n"`)
-  - `errorHandling`: `"skip"` or `"error"` (default: `"skip"`)
-  - `maxFileSize`: Max file size in bytes (default: `100000`)
-  - `includeMetadata`: Include file metadata (default: `false`)
-
-#### 4. Memory Contributors
-
-Load user memories from storage.
-
-**Fields:**
-- `type`: `"memory"` (required)
-- `id`: Unique identifier (required)
-- `priority`: Execution order (required)
-- `enabled`: Whether this contributor is active (optional, default: `true`)
-- `options`: Memory loading options (optional)
-  - `includeTimestamps`: Show timestamps (default: `false`)
-  - `includeTags`: Show tags (default: `true`)
-  - `limit`: Maximum number of memories (optional)
-  - `pinnedOnly`: Only load pinned memories (default: `false`)
+**Memory** - Load user memories:
+```yaml
+- id: context
+  type: memory
+  priority: 30
+  options:
+    pinnedOnly: false
+    limit: 20
+    includeTimestamps: true
+    includeTags: true
+```
 
 ### See Also
 
