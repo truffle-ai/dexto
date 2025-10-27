@@ -1,10 +1,8 @@
 ---
 title: "Computer Vision: Face Detection & Annotation"
-hide_title: true
-
 ---
 
-## 👁️ Computer Vision: Face Detection & Annotation
+# Computer Vision: Face Detection & Annotation
 
 ```bash
 dexto --agent image-editor-agent

@@ -1,10 +1,8 @@
 ---
 title: "Web App Development: Snake Game"
-hide_title: true
-
 ---
 
-## 🎮 Web App Development: Snake Game
+# Web App Development: Snake Game
 
 ```bash
 dexto "create a snake game in HTML/CSS/JS, then open it in the browser"

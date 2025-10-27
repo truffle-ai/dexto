@@ -1,10 +1,8 @@
 ---
 title: "Adding Custom MCP Servers"
-hide_title: true
-
 ---
 
-## 🛠️ Adding Custom MCP Servers
+# Adding Custom MCP Servers
 
 Add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities
 

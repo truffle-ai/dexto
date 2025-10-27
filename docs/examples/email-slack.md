@@ -1,11 +1,8 @@
 ---
-
-title: "Email summaries in slack"
-hide_title: true
+title: "Email Summaries in Slack"
 ---
 
-
-## 📧 Email Summaries in Slack
+# Email Summaries in Slack
 
 ```bash
 dexto --agent ./agents/examples/email_slack.yml

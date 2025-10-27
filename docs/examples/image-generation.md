@@ -1,10 +1,8 @@
 ---
 title: "Hugging Face: Image Generation"
-hide_title: true
-
 ---
 
-## 🖼️ Hugging Face: Image Generation
+# Hugging Face: Image Generation
 
 ```bash
 dexto --agent nano-banana-agent

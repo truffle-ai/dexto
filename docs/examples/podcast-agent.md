@@ -1,10 +1,8 @@
 ---
 title: "Podcast Agent: Generate AI Podcast Intros"
-hide_title: true
-
 ---
 
-## 🎙️ Podcast Agent: Generate AI Podcast Intros
+# Podcast Agent: Generate AI Podcast Intros
 
 ```bash
 dexto --agent podcast-agent
