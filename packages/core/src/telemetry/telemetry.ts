@@ -9,6 +9,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { Resource } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { CompositeExporter } from './exporters.js';
+import { logger } from '../logger/logger.js';
 
 // Add type declaration for global namespace
 declare global {
@@ -224,23 +225,41 @@ export class Telemetry {
     /**
      * Shuts down the OpenTelemetry SDK, flushing any pending spans.
      * This should be called before the application exits.
+     *
+     * Uses two-phase shutdown:
+     * 1. Best-effort flush - Try to export pending spans (can fail if backend unavailable)
+     * 2. Force cleanup - Always clear global state to allow re-initialization
+     *
+     * This ensures agent switching works even when telemetry export fails.
      */
     public async shutdown(): Promise<void> {
         if (this._sdk) {
-            await this._sdk.shutdown();
-            this._isInitialized = false;
-            globalThis.__TELEMETRY__ = undefined; // Clear the global instance
+            try {
+                // Phase 1: Best-effort flush pending spans to backend
+                // This can fail if Jaeger/OTLP collector is unreachable
+                await this._sdk.shutdown();
+            } catch (error) {
+                // Don't throw - log warning and continue with cleanup
+                // Telemetry is observability infrastructure, not core functionality
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                logger.warn(`Telemetry shutdown failed to flush spans (non-blocking): ${errorMsg}`);
+            } finally {
+                // Phase 2: Force cleanup - MUST always happen regardless of flush success
+                // This ensures we can reinitialize telemetry for agent switching
+                this._isInitialized = false;
+                globalThis.__TELEMETRY__ = undefined; // Clear the global instance
 
-            // Cleanup signal handlers to prevent leaks
-            if (Telemetry._signalHandlers) {
-                process.off('SIGTERM', Telemetry._signalHandlers.sigterm);
-                process.off('SIGINT', Telemetry._signalHandlers.sigint);
-                Telemetry._signalHandlers = undefined;
+                // Cleanup signal handlers to prevent leaks
+                if (Telemetry._signalHandlers) {
+                    process.off('SIGTERM', Telemetry._signalHandlers.sigterm);
+                    process.off('SIGINT', Telemetry._signalHandlers.sigint);
+                    Telemetry._signalHandlers = undefined;
+                }
+
+                // Clear references for GC and re-initialization
+                this._sdk = undefined;
+                Telemetry._initPromise = undefined;
             }
-
-            // Clear references for GC and re-initialization
-            this._sdk = undefined;
-            Telemetry._initPromise = undefined;
         }
     }
 }

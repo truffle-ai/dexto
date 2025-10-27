@@ -5,11 +5,8 @@ import { AgentError } from './agent/errors.js';
 import { DextoAgent } from './agent/DextoAgent.js';
 import { deriveDisplayName } from './agent/registry/types.js';
 
-// Cached singleton instance
-let cachedDexto: Dexto | null = null;
-
 /**
- * Dexto - Main orchestrator class for managing Dexto agents (Singleton)
+ * Dexto - Main orchestrator class for managing Dexto agents
  *
  * This class serves as the primary entry point for agent lifecycle management,
  * including installation, creation, and coordination of multiple agent instances.
@@ -56,19 +53,18 @@ let cachedDexto: Dexto | null = null;
  *
  * @example
  * ```typescript
- * // List available agents (static)
+ * // List available agents
  * const agents = await Dexto.listAgents();
  * console.log(agents.installed, agents.available);
  *
- * // Install agent (static)
+ * // Install agent
  * await Dexto.installAgent('productivity');
  *
- * // Create orchestrator for agent operations
- * const dexto = new Dexto();
- * const agent = await dexto.createAgent('productivity');
+ * // Create and start agent
+ * const agent = await Dexto.createAgent('productivity');
  * await agent.start();
  *
- * // Install custom agent (static)
+ * // Install custom agent
  * await Dexto.installCustomAgent('my-agent', '/path/to/config.yml', {
  *   description: 'My custom agent',
  *   author: 'John Doe',
@@ -332,12 +328,11 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const dexto = new Dexto();
-     * const newAgent = await dexto.createAgent('productivity');
+     * const newAgent = await Dexto.createAgent('productivity');
      * await newAgent.start();
      * ```
      */
-    public async createAgent(agentName: string): Promise<DextoAgent> {
+    public static async createAgent(agentName: string): Promise<DextoAgent> {
         const agentRegistry = getAgentRegistry();
 
         try {
@@ -362,29 +357,4 @@ export class Dexto {
             throw AgentError.apiValidationError(`Failed to create agent '${agentName}'`, error);
         }
     }
-}
-
-/**
- * Get the singleton Dexto orchestrator instance
- *
- * @returns The global Dexto orchestrator instance
- *
- * @example
- * ```typescript
- * import { getDexto, Dexto } from '@dexto/core';
- *
- * // Use static methods for registry operations
- * const agents = await Dexto.listAgents();
- * await Dexto.installAgent('productivity');
- *
- * // Use instance for agent creation
- * const dexto = getDexto();
- * const agent = await dexto.createAgent('productivity');
- * ```
- */
-export function getDexto(): Dexto {
-    if (cachedDexto === null) {
-        cachedDexto = new Dexto();
-    }
-    return cachedDexto;
 }

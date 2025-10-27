@@ -15,7 +15,7 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, Dexto, DextoAgent, getDexto } from '@dexto/core';
+import { createAgentCard, Dexto, DextoAgent, loadAgentConfig } from '@dexto/core';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -126,7 +126,7 @@ export async function initializeApi(
     function ensureAgentAvailable(): void {
         // Gate requests during agent switching
         if (isSwitchingAgent) {
-            throw AgentError.apiValidationError('Agent switch already in progress');
+            throw AgentError.switchInProgress();
         }
 
         // Fast path: most common case is agent is started and running
@@ -143,9 +143,58 @@ export async function initializeApi(
         }
     }
 
+    /**
+     * Common agent switching logic shared by switchAgentById and switchAgentByPath.
+     * Handles: registering subscribers, starting agent, stopping previous agent, updating global state.
+     *
+     * @param newAgent The new DextoAgent instance to switch to
+     * @param agentId The identifier for the agent (used for logging and state tracking)
+     * @returns Agent info for the newly activated agent
+     */
+    async function performAgentSwitch(newAgent: DextoAgent, agentId: string) {
+        // Register event subscribers with new agent before starting
+        logger.info('Registering event subscribers with new agent...');
+        newAgent.registerSubscriber(webSubscriber);
+        newAgent.registerSubscriber(webhookSubscriber);
+
+        logger.info(`Starting new agent: ${agentId}`);
+        await newAgent.start();
+
+        // Stop previous agent last (only after new one is fully operational)
+        const previousAgent = activeAgent;
+        activeAgent = newAgent;
+        activeAgentId = agentId;
+
+        // Update agent card for A2A and MCP routes
+        agentCardData = createAgentCard(
+            {
+                defaultName: agentId,
+                defaultVersion: overrides.version ?? '1.0.0',
+                defaultBaseUrl: baseApiUrl,
+                webSubscriber,
+            },
+            overrides
+        );
+
+        logger.info(`Successfully switched to agent: ${agentId}`);
+
+        // Now safely stop the previous agent
+        try {
+            if (previousAgent && previousAgent !== newAgent) {
+                logger.info('Stopping previous agent...');
+                await previousAgent.stop();
+            }
+        } catch (err) {
+            logger.warn(`Stopping previous agent failed: ${err}`);
+            // Don't throw here as the switch was successful
+        }
+
+        return await resolveAgentInfo(agentId);
+    }
+
     async function switchAgentById(agentId: string) {
         if (isSwitchingAgent) {
-            throw AgentError.apiValidationError('Agent switch already in progress');
+            throw AgentError.switchInProgress();
         }
         isSwitchingAgent = true;
 
@@ -157,39 +206,63 @@ export async function initializeApi(
             const { Telemetry } = await import('@dexto/core');
             await Telemetry.shutdownGlobal();
 
-            // 2. Create new agent (will initialize fresh telemetry in createAgentServices)
-            newAgent = await getDexto().createAgent(agentId);
+            // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
+            newAgent = await Dexto.createAgent(agentId);
 
-            // Register event subscribers with new agent before starting
-            logger.info('Registering event subscribers with new agent...');
-            newAgent.registerSubscriber(webSubscriber);
-            newAgent.registerSubscriber(webhookSubscriber);
-
-            logger.info(`Starting new agent: ${agentId}`);
-            await newAgent.start(); // Fresh telemetry init happens in createAgentServices()
-
-            // Stop previous agent last (only after new one is fully operational)
-            const previousAgent = activeAgent;
-            activeAgent = newAgent;
-            activeAgentId = agentId;
-
-            logger.info(`Successfully switched to agent: ${agentId}`);
-
-            // 3. Stop previous agent (telemetry already shut down in step 1)
-            try {
-                if (previousAgent && previousAgent !== newAgent) {
-                    logger.info('Stopping previous agent...');
-                    await previousAgent.stop();
-                }
-            } catch (err) {
-                logger.warn(`Stopping previous agent failed: ${err}`);
-                // Don't throw here as the switch was successful
-            }
-
-            return await resolveAgentInfo(agentId);
+            // 3. Use common switch logic (register subscribers, start agent, stop previous)
+            return await performAgentSwitch(newAgent, agentId);
         } catch (error) {
             logger.error(
                 `Failed to switch to agent '${agentId}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+                { error }
+            );
+
+            // Clean up the failed new agent if it was created
+            if (newAgent) {
+                try {
+                    await newAgent.stop();
+                } catch (cleanupErr) {
+                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                }
+            }
+
+            throw error;
+        } finally {
+            isSwitchingAgent = false;
+        }
+    }
+
+    async function switchAgentByPath(filePath: string) {
+        if (isSwitchingAgent) {
+            throw AgentError.switchInProgress();
+        }
+        isSwitchingAgent = true;
+
+        let newAgent: DextoAgent | undefined;
+        try {
+            // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
+            // This allows new agent to have different telemetry config (endpoint, protocol, etc.)
+            logger.info('Shutting down telemetry for agent switch...');
+            const { Telemetry } = await import('@dexto/core');
+            await Telemetry.shutdownGlobal();
+
+            // 2. Load agent configuration from file path
+            const config = await loadAgentConfig(filePath);
+
+            // 3. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
+            newAgent = new DextoAgent(config, filePath);
+
+            // 4. Derive agent ID from config or filename
+            const agentId =
+                config.agentCard?.name || path.basename(filePath, path.extname(filePath));
+
+            // 5. Use common switch logic (register subscribers, start agent, stop previous)
+            return await performAgentSwitch(newAgent, agentId);
+        } catch (error) {
+            logger.error(
+                `Failed to switch to agent from path '${filePath}': ${
                     error instanceof Error ? error.message : String(error)
                 }`,
                 { error }
@@ -1074,7 +1147,7 @@ export async function initializeApi(
     const resolvedPort =
         typeof listenPort === 'number' ? listenPort : Number(process.env.PORT || 3000);
     const baseApiUrl = process.env.DEXTO_BASE_URL || `http://localhost:${resolvedPort}`;
-    const agentCardData = createAgentCard(
+    let agentCardData = createAgentCard(
         {
             defaultName: overrides.name ?? 'dexto',
             defaultVersion: overrides.version ?? '1.0.0',
@@ -1087,10 +1160,13 @@ export async function initializeApi(
     const _agentVersion = agentCardData.version;
 
     // Setup A2A routes
-    setupA2ARoutes(app, agentCardData);
+    setupA2ARoutes(app, () => agentCardData);
 
     // Setup Memory routes
-    app.use('/api/memory', setupMemoryRoutes(activeAgent));
+    app.use(
+        '/api/memory',
+        setupMemoryRoutes(() => activeAgent)
+    );
 
     // --- Initialize and Setup MCP Server and Endpoints ---
     // Get transport type from environment variable or default to http
@@ -1098,12 +1174,9 @@ export async function initializeApi(
         const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
         const mcpTransport = await createMcpTransport(transportType);
 
-        // TODO: MCP server is bound to the initial agent; breaks after agent switch
-        // initializeMcpServer receives the original agent, so MCP endpoints keep talking to the stale instance post-switch.
-        // Make MCP consume the current agent via a getter to stay in sync.
         await initializeMcpServer(
-            agent,
-            agentCardData, // Pass the agent card data for the MCP resource
+            () => activeAgent,
+            () => agentCardData,
             mcpTransport
         );
         await initializeMcpServerApiEndpoints(app, mcpTransport);
@@ -1167,6 +1240,12 @@ export async function initializeApi(
                 .string()
                 .min(1, 'Agent id is required')
                 .describe('Unique agent identifier (e.g., "database-agent")'),
+            path: z
+                .string()
+                .optional()
+                .describe(
+                    'Optional absolute file path for file-based agents (e.g., "/path/to/agent.yml")'
+                ),
         })
         .strict();
 
@@ -1267,17 +1346,13 @@ export async function initializeApi(
 
     app.post('/api/agents/switch', express.json(), async (req, res, next) => {
         try {
-            const { id } = parseBody(AgentIdentifierSchema, req.body);
-            const result = await switchAgentById(id);
+            const { id, path } = parseBody(AgentIdentifierSchema, req.body);
+
+            // Route based on presence of path parameter
+            const result = path ? await switchAgentByPath(path) : await switchAgentById(id);
+
             return sendJsonResponse(res, { switched: true, ...result });
         } catch (error) {
-            if (
-                error instanceof Error &&
-                error.message &&
-                error.message.includes('already in progress')
-            ) {
-                return res.status(409).json({ error: error.message });
-            }
             return next(error);
         }
     });

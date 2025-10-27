@@ -49,6 +49,11 @@ export const metadata: Metadata = {
     description:
       "Interactive playground for testing MCP tools and talking to AI agents",
   },
+  // Tell browsers we explicitly support both light and dark modes
+  // This prevents Chrome's Auto Dark Mode from interfering
+  other: {
+    'color-scheme': 'light dark',
+  },
 };
 
 export default async function RootLayout({

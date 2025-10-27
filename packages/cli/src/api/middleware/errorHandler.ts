@@ -16,6 +16,8 @@ const mapErrorTypeToStatus = (type: ErrorType): number => {
             return 403;
         case ErrorType.TIMEOUT:
             return 408;
+        case ErrorType.CONFLICT:
+            return 409;
         case ErrorType.RATE_LIMIT:
             return 429;
         case ErrorType.SYSTEM:

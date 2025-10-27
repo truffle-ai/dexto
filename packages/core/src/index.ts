@@ -10,7 +10,7 @@
  */
 
 // Core Orchestrator
-export { Dexto, getDexto } from './Dexto.js';
+export { Dexto } from './Dexto.js';
 
 // Core Agent
 export * from './agent/index.js';

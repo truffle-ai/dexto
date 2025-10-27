@@ -51,6 +51,20 @@ export class AgentError {
     }
 
     /**
+     * Agent switch in progress
+     */
+    static switchInProgress() {
+        return new DextoRuntimeError(
+            AgentErrorCode.SWITCH_IN_PROGRESS,
+            ErrorScope.AGENT,
+            ErrorType.CONFLICT,
+            'Agent switch already in progress',
+            undefined,
+            'Wait for the current switch operation to complete before starting a new one'
+        );
+    }
+
+    /**
      * Agent initialization failed
      */
     static initializationFailed(reason: string, details?: unknown) {
