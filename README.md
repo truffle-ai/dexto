@@ -37,13 +37,14 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 #### What You Get
 
 - **Batteries Included** – Session management, tool orchestration, multimodal support, and production-ready observability.
-- **20+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
+- **50+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
 - **Run Anywhere** – Local for privacy, cloud for reach, or hybrid. *Same agent, any deployment.*
 - **Native Multimodal** – Text, images, files, and tools in a single conversation. *Upload screenshots, ask questions, take actions.*
 - **Persistent Sessions** – Conversations, context, and memory are saved and can be exported, imported, or shared across environments.
 - **Flexible Interfaces** – One agent, endless ways to interact: Ready-to-use CLI, WebUI, APIs, or integrate with your own UI.
-- **30+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP).
+- **30+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP) or use our internal tools.
 - **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, S3 and more for cache, database & blob backends.
+- **Observability** – Built-in OpenTelemetry distributed tracing, token usage monitoring, and error handling.
 
 ---
 

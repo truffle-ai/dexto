@@ -151,7 +151,13 @@ export async function initializeApi(
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Use orchestrator to create new agent
+            // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
+            // This allows new agent to have different telemetry config (endpoint, protocol, etc.)
+            logger.info('Shutting down telemetry for agent switch...');
+            const { Telemetry } = await import('@dexto/core');
+            await Telemetry.shutdownGlobal();
+
+            // 2. Create new agent (will initialize fresh telemetry in createAgentServices)
             newAgent = await getDexto().createAgent(agentId);
 
             // Register event subscribers with new agent before starting
@@ -160,7 +166,7 @@ export async function initializeApi(
             newAgent.registerSubscriber(webhookSubscriber);
 
             logger.info(`Starting new agent: ${agentId}`);
-            await newAgent.start();
+            await newAgent.start(); // Fresh telemetry init happens in createAgentServices()
 
             // Stop previous agent last (only after new one is fully operational)
             const previousAgent = activeAgent;
@@ -169,7 +175,7 @@ export async function initializeApi(
 
             logger.info(`Successfully switched to agent: ${agentId}`);
 
-            // Now safely stop the previous agent
+            // 3. Stop previous agent (telemetry already shut down in step 1)
             try {
                 if (previousAgent && previousAgent !== newAgent) {
                     logger.info('Stopping previous agent...');

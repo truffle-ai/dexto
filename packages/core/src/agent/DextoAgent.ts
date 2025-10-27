@@ -10,6 +10,8 @@ import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
+import { Telemetry } from '../telemetry/telemetry.js';
+import { InstrumentClass } from '../telemetry/decorators.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -112,6 +114,17 @@ export interface AgentEventSubscriber {
  * await agent.stop();
  * ```
  */
+@InstrumentClass({
+    prefix: 'agent',
+    excludeMethods: [
+        'isStarted',
+        'isStopped',
+        'getConfig',
+        'getEffectiveConfig',
+        'registerSubscriber',
+        'ensureStarted',
+    ],
+})
 export class DextoAgent {
     /**
      * These services are public for use by the outside world
@@ -147,6 +160,9 @@ export class DextoAgent {
 
     // Event subscribers (e.g., WebSocket, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
+
+    // Telemetry instance for distributed tracing
+    private telemetry?: Telemetry;
 
     constructor(
         config: AgentConfig,
@@ -213,6 +229,9 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Note: Telemetry is initialized in createAgentServices() before services are created
+            // This ensures decorators work correctly on all services
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -298,6 +317,11 @@ export class DextoAgent {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
             }
+
+            // Note: Telemetry is NOT shut down here
+            // For agent switching: Telemetry.shutdownGlobal() is called explicitly before creating new agent
+            // For process exit: Telemetry shuts down automatically via process exit handlers
+            // This allows telemetry to persist across agent restarts in the same process
 
             this._isStopped = true;
             this._isStarted = false;

@@ -170,6 +170,21 @@ starterPrompts:
     category: tools
     priority: 3
 
+# Telemetry configuration (optional) - OpenTelemetry for distributed tracing
+telemetry:
+  serviceName: dexto-default-agent
+  enabled: true
+  tracerName: dexto-tracer
+  export:
+    type: otlp              # 'otlp' for production, 'console' for development
+    protocol: http          # 'http' or 'grpc'
+    endpoint: http://127.0.0.1:4318/v1/traces  # OTLP collector endpoint
+    # headers:              # Optional headers for authentication
+    #   Authorization: Bearer <token>
+  # sampling:               # Optional sampling configuration (not implemented yet)
+  #   type: ratio
+  #   probability: 0.1      # Sample 10% of traces
+
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
 # llm:
