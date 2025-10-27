@@ -1,5 +1,5 @@
 ---
-sidebar_position: 14
+sidebar_position: 2
 ---
 
 # Global Preferences
@@ -7,7 +7,7 @@ sidebar_position: 14
 Configure system-wide settings for Dexto that apply across all agents and sessions.
 
 :::tip Complete Reference
-For complete field documentation, validation rules, and API specifications, see **[agent.yml → Global Preferences](./agent-yml.md#global-preferences)**.
+For complete field documentation, validation rules, and API specifications, see **[agent.yml → Global Preferences](../configuring-dexto/agent-yml.md#global-preferences)**.
 :::
 
 ## Overview
@@ -200,5 +200,6 @@ dexto setup
 
 ## See Also
 
-- [agent.yml Reference → Global Preferences](./agent-yml.md#global-preferences) - Complete field documentation
-- [Agent Configuration](./agent-yml.md) - Agent-level settings
+- [agent.yml Reference → Global Preferences](../configuring-dexto/agent-yml.md#global-preferences) - Complete field documentation
+- [Agent Configuration Guide](../configuring-dexto/agent-yml.md) - Agent-level settings
+- [CLI Overview](./overview.md) - Complete CLI command reference

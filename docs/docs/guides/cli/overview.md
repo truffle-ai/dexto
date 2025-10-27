@@ -1,10 +1,9 @@
 ---
-sidebar_position: 2
-title: "CLI Guide"
-
+sidebar_position: 1
+title: "Overview"
 ---
 
-# CLI Guide
+# CLI Overview
 
 This guide helps you get started with the Dexto CLI and includes a comprehensive list of commands you can run with Dexto CLI.
 
@@ -59,6 +58,8 @@ Some of the cool things you can do with Dexto CLI:
 | `create-app` | Scaffold new Dexto TypeScript app | `dexto create-app` |
 | `init-app` | Add Dexto to existing TypeScript app | `dexto init-app` |
 | `setup` | Configure global preferences | `dexto setup` |
+
+See [Global Preferences](./global-preferences.md) for detailed configuration guide.
 
 **Options:**
 - `--provider <provider>` - LLM provider to configure
@@ -173,7 +174,7 @@ This allows you to configure dexto CLI to use a different AI agent
 dexto --agent <path_to_agent_config_file>
 ```
 
-Check [Configuration Guide](./configuring-dexto/overview.md) to understand more about dexto config files
+Check [Configuration Guide](../configuring-dexto/overview.md) to understand more about dexto config files
 
 #### **Require all MCP servers to connect successfully**
 

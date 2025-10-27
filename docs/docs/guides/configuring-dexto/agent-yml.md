@@ -23,9 +23,9 @@ Complete reference for all agent.yml configuration options.
 12. [Internal Resources](#internal-resources)
 13. [Agent Identity / A2A](#agent-identity--a2a)
 14. [Dynamic Changes](#dynamic-changes)
-15. [Global Preferences](#global-preferences)
-16. [Starter Prompts](#starter-prompts)
-17. [Greeting](#greeting)
+15. [Starter Prompts](#starter-prompts)
+16. [Greeting](#greeting)
+17. [Global Preferences](#global-preferences)
 
 ## Minimal Configuration
 
@@ -178,6 +178,7 @@ greeting: "Hello! I'm ready to help you today."
 
 :::info Guides
 For configuration details and examples, see **[LLM Configuration](./llm.md)**.
+
 For supported providers and models, see **[Supported LLM Providers](../supported-llm-providers.md)**.
 :::
 
@@ -735,14 +736,6 @@ For runtime configuration and overrides, see **[Dynamic Changes Guide](./dynamic
 
 Runtime configuration changes and environment overrides.
 
-## Global Preferences
-
-:::info Guide
-For global preferences setup, see **[Global Preferences Guide](./preferences.md)**.
-:::
-
-User preferences that apply across all agents.
-
 ## Starter Prompts
 
 Clickable prompt buttons for WebUI.
@@ -792,3 +785,8 @@ greeting: string                # Max 500 characters
 greeting: "Hi! I'm Dexto — how can I help today?"
 ```
 
+## Global Preferences
+
+:::tip
+For system-wide CLI preferences (default LLM provider, model, default agent), see the **[Global Preferences Guide](../cli/global-preferences.md)**.
+:::
