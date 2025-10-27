@@ -32,7 +32,7 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [Using Dexto CLI to group MCP servers together](https://docs.dexto.ai/docs/guides/dexto-group-mcp-servers.md): Using Dexto CLI to group MCP servers together
 - [Dexto SDK Guide](https://docs.dexto.ai/docs/guides/dexto-sdk.md): Dexto SDK Guide
 - [MCP Manager](https://docs.dexto.ai/docs/guides/mcp-manager.md): MCP Manager
-- [Web playground](https://docs.dexto.ai/docs/guides/web-playground.md): Web playground
+- [Web playground](https://docs.dexto.ai/docs/guides/web-ui.md): Web playground
 
 ### MCP
 
