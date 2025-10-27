@@ -22,6 +22,7 @@ This guide provides a complete reference for all configuration options available
 11. [Plugins](#plugins)
 12. [Starter Prompts](#starter-prompts)
 13. [Greeting](#greeting)
+14. [Telemetry Configuration](#telemetry-configuration)
 
 ## Basic Example
 
@@ -915,6 +916,107 @@ The greeting is consumed by UI clients and displayed when starting a new convers
 
 ---
 
+## Telemetry Configuration
+
+OpenTelemetry distributed tracing for observability and debugging.
+
+### Schema
+
+```yaml
+telemetry:
+  enabled: boolean              # Enable/disable telemetry (default: false)
+  serviceName: string           # Service name in traces (default: agent name)
+  tracerName: string            # Tracer identifier (default: 'dexto-tracer')
+  export:                       # Export configuration
+    type: 'otlp' | 'console'    # Export type
+    protocol: 'http' | 'grpc'   # OTLP protocol (default: 'http')
+    endpoint: string            # OTLP collector endpoint
+    headers:                    # Optional authentication headers
+      [key: string]: string
+```
+
+### Configuration Options
+
+**enabled** (boolean, default: `false`)
+- Turn telemetry on/off
+- No overhead when disabled
+
+**serviceName** (string, default: agent name)
+- Identifies your agent in trace backends
+- Use different names for different deployments
+
+**tracerName** (string, default: `'dexto-tracer'`)
+- Internal tracer identifier
+- Usually doesn't need customization
+
+**export.type** (`'otlp'` | `'console'`)
+- `otlp` - Export to OTLP-compatible backend (Jaeger, Grafana, etc.)
+- `console` - Print traces to terminal (development only)
+
+**export.protocol** (`'http'` | `'grpc'`, default: `'http'`)
+- OTLP transmission protocol
+- HTTP is easier to set up, gRPC is more efficient
+
+**export.endpoint** (string)
+- URL of OTLP collector/backend
+- HTTP example: `http://localhost:4318/v1/traces`
+- gRPC example: `http://localhost:4317`
+
+**export.headers** (optional)
+- Authentication headers for cloud backends
+- Example: `Authorization: Bearer ${API_TOKEN}`
+
+### Example Configurations
+
+**Local Development with Jaeger:**
+```yaml
+telemetry:
+  enabled: true
+  serviceName: my-development-agent
+  export:
+    type: otlp
+    protocol: http
+    endpoint: http://localhost:4318/v1/traces
+```
+
+**Production with Grafana Cloud:**
+```yaml
+telemetry:
+  enabled: true
+  serviceName: my-production-agent
+  export:
+    type: otlp
+    endpoint: https://otlp-gateway-prod.grafana.net/otlp
+    headers:
+      authorization: "Basic ${GRAFANA_CLOUD_TOKEN}"
+```
+
+**Console Output (Debugging):**
+```yaml
+telemetry:
+  enabled: true
+  export:
+    type: console
+```
+
+**Disabled:**
+```yaml
+telemetry:
+  enabled: false
+  # Or omit the telemetry section entirely
+```
+
+### What Gets Traced
+
+Dexto automatically traces:
+- **Agent operations** - Main orchestration (agent.run, etc.)
+- **LLM calls** - All model invocations with token usage
+- **Tool executions** - Tool calls and results
+
+See [Telemetry Configuration](./telemetry.md) for complete documentation.
+
+---
+
 ## Complete Configuration Example
 
 Here's a comprehensive example combining all sections:
@@ -1028,6 +1130,16 @@ starterPrompts:
     prompt: "Show me what you can do!"
     category: learning
     priority: 9
+
+# Telemetry
+telemetry:
+  enabled: true
+  serviceName: my-dexto-agent
+  tracerName: dexto-tracer
+  export:
+    type: otlp
+    protocol: http
+    endpoint: http://localhost:4318/v1/traces
 ```
 
 ---

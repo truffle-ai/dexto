@@ -108,6 +108,26 @@ const result = await manager.executeTool('readFile', { path: './README.md' });
 await manager.disconnectAll();
 ```
 
+### Telemetry
+
+Built-in OpenTelemetry distributed tracing for observability.
+
+```typescript
+const agent = new DextoAgent({
+  llm: { /* ... */ },
+  telemetry: {
+    enabled: true,
+    serviceName: 'my-agent',
+    export: {
+      type: 'otlp',
+      endpoint: 'http://localhost:4318/v1/traces'
+    }
+  }
+});
+```
+
+Automatically traces agent operations, LLM calls with token usage, and tool executions. See `src/telemetry/README.md` for details.
+
 See the DextoAgent API reference for all methods:
 https://docs.dexto.ai/api/dexto-agent/
 

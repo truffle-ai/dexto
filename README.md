@@ -42,7 +42,7 @@ Dexto is a universal agent interface for building agentic apps—software that u
 - **Native Multimodal** – Text, images, files, and tools in a single conversation. *Upload screenshots, ask questions, take actions.*
 - **Persistent Sessions** – Conversations, context, and memory are saved and can be exported, imported, or shared across environments.
 - **Flexible Interfaces** – One agent, endless ways to interact: Ready to-use CLI, WebUI, APIs, or integrate with your own UI.
-- **Production Ready** – Observability and error handling built-in.
+- **Production Ready** – Built-in OpenTelemetry distributed tracing, token usage monitoring, and error handling.
 - **Tooling & MCP** – Integrate 100+ tools and connect to external servers via the Model Context Protocol (MCP).
 - **Customizable Agents** – Define agent behavior, tools, and prompts in YAML or TypeScript.
 - **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, and more for cache and database backends.
