@@ -34,6 +34,9 @@ const ListMemoriesQuerySchema = z.object({
  * Setup memory API routes
  * Provides CRUD operations for user memories
  *
+ * Uses a getter function to ensure memory operations always use the current agent,
+ * even after agent switches in web/server modes.
+ *
  * Routes:
  * - POST /api/memory - Create a new memory
  * - GET /api/memory - List all memories (with optional filters)
@@ -41,14 +44,14 @@ const ListMemoriesQuerySchema = z.object({
  * - PUT /api/memory/:id - Update a memory
  * - DELETE /api/memory/:id - Delete a memory
  */
-export function setupMemoryRoutes(agent: DextoAgent): Router {
+export function setupMemoryRoutes(getAgent: () => DextoAgent): Router {
     const router = Router();
 
     // Create a new memory
     router.post('/', express.json(), async (req: Request, res: Response, next: NextFunction) => {
         try {
             const input = CreateMemoryInputSchema.parse(req.body) as CreateMemoryInput;
-            const memory = await agent.memoryManager.create(input);
+            const memory = await getAgent().memoryManager.create(input);
             return res.status(201).json({ ok: true, memory });
         } catch (error) {
             return next(error);
@@ -58,6 +61,7 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
     // List all memories with optional filtering
     router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const agent = getAgent();
             const queryOptions = ListMemoriesQuerySchema.parse(req.query);
             // Build options object, removing undefined values
             const options: ListMemoriesOptions = {};
@@ -78,6 +82,7 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
     // NOTE: Must be declared before /:id route to avoid route shadowing
     router.get('/count', async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const agent = getAgent();
             const queryOptions = ListMemoriesQuerySchema.parse(req.query);
             const options: ListMemoriesOptions = {};
             if (queryOptions.tags !== undefined) options.tags = queryOptions.tags;
@@ -94,6 +99,7 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
     // Get a specific memory by ID
     router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const agent = getAgent();
             const { id } = MemoryIdParamsSchema.parse(req.params);
             const memory = await agent.memoryManager.get(id);
             return res.status(200).json({ ok: true, memory });
@@ -105,6 +111,7 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
     // Update a memory
     router.put('/:id', express.json(), async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const agent = getAgent();
             const { id } = MemoryIdParamsSchema.parse(req.params);
             const updates = UpdateMemoryInputSchema.parse(req.body) as UpdateMemoryInput;
             const memory = await agent.memoryManager.update(id, updates);
@@ -117,6 +124,7 @@ export function setupMemoryRoutes(agent: DextoAgent): Router {
     // Delete a memory
     router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const agent = getAgent();
             const { id } = MemoryIdParamsSchema.parse(req.params);
             await agent.memoryManager.delete(id);
             return res.status(200).json({ ok: true, message: 'Memory deleted successfully' });

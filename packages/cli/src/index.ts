@@ -947,7 +947,11 @@ program
                             );
                             // Use stdio transport in mcp mode
                             const mcpTransport = await createMcpTransport('stdio');
-                            await initializeMcpServer(agent, agentCardData, mcpTransport);
+                            await initializeMcpServer(
+                                () => agent,
+                                () => agentCardData,
+                                mcpTransport
+                            );
                         } catch (err) {
                             // Write to stderr instead of stdout to avoid interfering with MCP protocol
                             process.stderr.write(`MCP server startup failed: ${err}\n`);

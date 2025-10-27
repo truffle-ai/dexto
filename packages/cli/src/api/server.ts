@@ -126,7 +126,7 @@ export async function initializeApi(
     function ensureAgentAvailable(): void {
         // Gate requests during agent switching
         if (isSwitchingAgent) {
-            throw AgentError.apiValidationError('Agent switch already in progress');
+            throw AgentError.switchInProgress();
         }
 
         // Fast path: most common case is agent is started and running
@@ -1136,7 +1136,7 @@ export async function initializeApi(
     const resolvedPort =
         typeof listenPort === 'number' ? listenPort : Number(process.env.PORT || 3000);
     const baseApiUrl = process.env.DEXTO_BASE_URL || `http://localhost:${resolvedPort}`;
-    const agentCardData = createAgentCard(
+    let agentCardData = createAgentCard(
         {
             defaultName: overrides.name ?? 'dexto',
             defaultVersion: overrides.version ?? '1.0.0',
@@ -1149,10 +1149,13 @@ export async function initializeApi(
     const _agentVersion = agentCardData.version;
 
     // Setup A2A routes
-    setupA2ARoutes(app, agentCardData);
+    setupA2ARoutes(app, () => agentCardData);
 
     // Setup Memory routes
-    app.use('/api/memory', setupMemoryRoutes(activeAgent));
+    app.use(
+        '/api/memory',
+        setupMemoryRoutes(() => activeAgent)
+    );
 
     // --- Initialize and Setup MCP Server and Endpoints ---
     // Get transport type from environment variable or default to http
@@ -1160,12 +1163,9 @@ export async function initializeApi(
         const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
         const mcpTransport = await createMcpTransport(transportType);
 
-        // TODO: MCP server is bound to the initial agent; breaks after agent switch
-        // initializeMcpServer receives the original agent, so MCP endpoints keep talking to the stale instance post-switch.
-        // Make MCP consume the current agent via a getter to stay in sync.
         await initializeMcpServer(
-            agent,
-            agentCardData, // Pass the agent card data for the MCP resource
+            () => activeAgent,
+            () => agentCardData,
             mcpTransport
         );
         await initializeMcpServerApiEndpoints(app, mcpTransport);
