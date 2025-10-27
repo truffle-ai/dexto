@@ -176,8 +176,9 @@ greeting: "Hello! I'm ready to help you today."
 
 ## LLM Configuration
 
-:::info Guide
-For LLM provider details and model listings, see **[Supported LLM Providers](../supported-llm-providers.md)**.
+:::info Guides
+For configuration details and examples, see **[LLM Configuration](./llm.md)**.
+For supported providers and models, see **[Supported LLM Providers](../supported-llm-providers.md)**.
 :::
 
 Language model provider and settings.

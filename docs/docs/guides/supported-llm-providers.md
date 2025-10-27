@@ -261,9 +261,3 @@ TOGETHER_API_KEY=your_together_key
 AZURE_OPENAI_API_KEY=your_azure_key
 PERPLEXITY_API_KEY=your_perplexity_key
 ```
-
-## See Also
-
-- [agent.yml → LLM Configuration](./configuring-dexto/agent-yml.md#llm-configuration) - Complete YAML reference
-- [Getting Started](../getting-started/quickstart.md) - Set up your first agent
-- [Agent Registry](./agent-registry.md) - Pre-built agents with recommended LLMs
