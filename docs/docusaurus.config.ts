@@ -14,8 +14,8 @@ const config: Config = {
     // Set the /<baseUrl>/ pathname under which your site is served
     baseUrl: '/',
 
-    // Normalize URLs with trailing slashes for consistent routing
-    trailingSlash: true,
+    // Set to false to match Vercel configuration and avoid redirect issues
+    trailingSlash: false,
 
     // GitHub pages deployment config.
     // If you aren't using GitHub pages, you don't need these.
