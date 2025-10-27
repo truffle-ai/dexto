@@ -177,9 +177,9 @@ greeting: "Hello! I'm ready to help you today."
 ## LLM Configuration
 
 :::info Guides
-For configuration details and examples, see **[LLM Configuration](./llm.md)**.
+For configuration details and examples, see **[LLM Configuration](./llm)**.
 
-For supported providers and models, see **[Supported LLM Providers](../supported-llm-providers.md)**.
+For supported providers and models, see **[Supported LLM Providers](../supported-llm-providers)**.
 :::
 
 Language model provider and settings.
@@ -226,7 +226,7 @@ llm:
 ## System Prompt Configuration
 
 :::info Guides
-See **[System Prompt Guide](./systemPrompt.md)** and **[Memory Configuration](./memory.md)** for detailed explanations.
+See **[System Prompt Guide](./systemPrompt)** and **[Memory Configuration](./memory)** for detailed explanations.
 :::
 
 Agent behavior and personality.
@@ -288,7 +288,7 @@ systemPrompt:
 ## MCP Servers
 
 :::info Guide
-For detailed configuration and examples, see **[MCP Configuration](./mcpConfiguration.md)**.
+For detailed configuration and examples, see **[MCP Configuration](./mcpConfiguration)**.
 :::
 
 External tools and services via Model Context Protocol.
@@ -336,7 +336,7 @@ api-service:
 ## Tool Confirmation
 
 :::info Guide
-For detailed policy configuration, see **[Tool Confirmation Guide](./toolConfirmation.md)**.
+For detailed policy configuration, see **[Tool Confirmation Guide](./toolConfirmation)**.
 :::
 
 Tool approval and confirmation behavior.
@@ -374,7 +374,7 @@ toolConfirmation:
 ## Storage Configuration
 
 :::info Guide
-For detailed storage options and examples, see **[Storage Configuration Guide](./storage.md)**.
+For detailed storage options and examples, see **[Storage Configuration Guide](./storage)**.
 :::
 
 Storage backends for cache, database, and blob storage.
@@ -463,7 +463,7 @@ blob:
 ## Session Configuration
 
 :::info Guide
-For detailed session behavior, see **[Session Configuration Guide](./sessions.md)**.
+For detailed session behavior, see **[Session Configuration Guide](./sessions)**.
 :::
 
 Session management limits and timeouts.
@@ -479,7 +479,7 @@ sessions:
 ## Telemetry Configuration
 
 :::info Guide
-For detailed telemetry setup, see **[Telemetry Configuration Guide](./telemetry.md)**.
+For detailed telemetry setup, see **[Telemetry Configuration Guide](./telemetry)**.
 :::
 
 OpenTelemetry distributed tracing.
@@ -529,7 +529,7 @@ telemetry:
 ## Plugins
 
 :::info Guide
-For plugin development and configuration, see **[Plugins Guide](./plugins.md)**.
+For plugin development and configuration, see **[Plugins Guide](./plugins)**.
 :::
 
 Built-in and custom plugins for input/output processing.
@@ -600,7 +600,7 @@ custom:
 ## Internal Tools
 
 :::info Guide
-For tool descriptions and usage patterns, see **[Internal Tools Guide](./internalTools.md)**.
+For tool descriptions and usage patterns, see **[Internal Tools Guide](./internalTools)**.
 :::
 
 Built-in tools for file operations, code search, and command execution.
@@ -674,7 +674,7 @@ internalResources:
 ## Agent Identity / A2A
 
 :::info Guide
-For agent card configuration, see **[Agent Identity Guide](./agentCard.md)**.
+For agent card configuration, see **[Agent Identity Guide](./agentCard)**.
 :::
 
 Agent identity and capabilities for [Agent-to-Agent (A2A)](https://a2a-protocol.org/latest/) communication.
@@ -731,7 +731,7 @@ agentCard:
 ## Dynamic Changes
 
 :::info Guide
-For runtime configuration and overrides, see **[Dynamic Changes Guide](./dynamic-changes.md)**.
+For runtime configuration and overrides, see **[Dynamic Changes Guide](./dynamic-changes)**.
 :::
 
 Runtime configuration changes and environment overrides.
@@ -788,5 +788,5 @@ greeting: "Hi! I'm Dexto — how can I help today?"
 ## Global Preferences
 
 :::tip
-For system-wide CLI preferences (default LLM provider, model, default agent), see the **[Global Preferences Guide](../cli/global-preferences.md)**.
+For system-wide CLI preferences (default LLM provider, model, default agent), see the **[Global Preferences Guide](../cli/global-preferences)**.
 :::
