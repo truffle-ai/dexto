@@ -30,6 +30,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 - **Autonomous Agents**  - Agents that plan, execute, and adapt to user goals.
 - **Digital Companions** - AI assistants & copilots that remember context and anticipate needs.
 - **MCP Clients** - Connect multiple tools, files, APIs, and data via MCP Servers.
+- **MCP Servers** - Dexto Web UI and MCP playground help you to easily test your own MCP servers.
 - **Multi-Agent Systems**  - Architect agents that collaborate, delegate, and solve complex tasks together.
 - **Agent-as-a-Service** – Transform your existing SaaS products and APIs into dynamic, conversational experiences.
 - **Agentic Applications** – Integrate Dexto as a reasoning engine to power interactive, multimodal, AI-native applications.
@@ -44,7 +45,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 - **Flexible Interfaces** – One agent, endless ways to interact: Ready-to-use CLI, WebUI, APIs, or integrate with your own UI.
 - **30+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP) or use our internal tools.
 - **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, S3 and more for cache, database & blob backends.
-- **Human in the loop** - Configure approval policies for tool execution, agents can also remember which tools are safe. 
+- **Human in the loop** - Configure approval policies for tool execution, agents can also remember which tools are safe per session. 
 - **Observability** – Built-in OpenTelemetry distributed tracing, token usage monitoring, and error handling.
 
 ---
