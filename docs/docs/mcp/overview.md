@@ -27,6 +27,7 @@ Dexto agents use MCP to:
 - **Connect to tools:** Dexto agents communicate with MCP servers using a standard protocol (often over stdio, HTTP, or sockets).
 - **Invoke tool actions:** When you give a command, Dexto selects the right tool(s) via MCP and orchestrates their use to fulfill your request.
 - **Read server resources:** Dexto agents can read resources from the server, like files, databases, etc., and use that to reason about what to do next.
+- **Request structured input:** Servers can use elicitation to request specific data from users during workflows.
 
 ## Quick Configuration Reference
 
@@ -128,6 +129,7 @@ MCP is a key part of what makes Dexto flexible, extensible, and able to automate
 - **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration)** - Comprehensive YAML configuration
 - [MCP Resources](./resources) - Expose data and context from MCP servers
 - [MCP Prompts](./prompts) - Discover and use templated prompts
+- [MCP Elicitation](./elicitation) - Request structured user input during workflows
 - [Agent Configuration Reference](../guides/configuring-dexto/agent-yml) - Complete agent.yml reference
 - [MCP Manager](./mcp-manager) - Runtime server management
 - [Aggregate Multiple Servers](./dexto-group-mcp-servers) - Group MCP servers
