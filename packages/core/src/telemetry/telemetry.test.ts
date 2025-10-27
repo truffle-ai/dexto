@@ -1,6 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, test, expect, afterEach } from 'vitest';
 import { Telemetry } from './telemetry.js';
-import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
 import type { OtelConfiguration } from './schemas.js';
 
 describe.sequential('Telemetry Core', () => {
