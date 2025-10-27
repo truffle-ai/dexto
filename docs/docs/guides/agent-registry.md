@@ -26,20 +26,20 @@ For detailed installation instructions, see the [Installing Custom Agents guide]
 
 ## Agent Catalog Overview
 
-| Agent | Category | Best For | LLM | Special Requirements |
-|-------|----------|----------|-----|---------------------|
-| [Podcast Agent](#%EF%B8%8F-podcast-agent) | Content Creation | Multi-speaker audio, podcast intros | OpenAI GPT-5 Mini | GOOGLE_GENERATIVE_AI_API_KEY |
-| [Music Agent](#-music-agent) | Content Creation | Music composition, audio processing | OpenAI GPT-5 Mini | - |
-| [Nano Banana Agent](#%EF%B8%8F-nano-banana-agent) | Content Creation | Image generation & editing | Google Gemini 2.5 Flash | GOOGLE_GENERATIVE_AI_API_KEY (Required) |
-| [Sora Video Agent](#-sora-video-agent) | Content Creation | AI video generation | OpenAI GPT-5 Mini | OPENAI_API_KEY |
-| [Image Editor Agent](#%EF%B8%8F-image-editor-agent) | Content Creation | Image manipulation, face detection | OpenAI GPT-5 Mini | - |
-| [Coding Agent](#-coding-agent) | Development | Software development, debugging | Anthropic Claude Haiku 4.5 | - |
-| [Database Agent](#%EF%B8%8F-database-agent) | Data & Analysis | SQL queries, database operations | OpenAI GPT-5 Mini | - |
-| [Talk2PDF Agent](#-talk2pdf-agent) | Data & Analysis | PDF analysis, document conversation | OpenAI GPT-5 Mini | - |
-| [GitHub Agent](#-github-agent) | DevOps | GitHub operations, PR analysis | OpenAI GPT-5 Mini | GITHUB_TOKEN |
-| [Product Researcher](#-product-researcher) | Research | Product naming, branding research | Anthropic Claude Sonnet 4.5 | - |
-| [Triage Agent](#-triage-agent) | Multi-Agent | Customer support routing | OpenAI GPT-5 | - |
-| [Default Agent](#%EF%B8%8F-default-agent) | General Purpose | General tasks, file operations | Any | Pre-installed |
+| Agent | Category | Best For | LLM |
+|-------|----------|----------|-----|
+| [Podcast Agent](#%EF%B8%8F-podcast-agent) | Content Creation | Multi-speaker audio, podcast intros | OpenAI GPT-5 Mini |
+| [Music Agent](#-music-agent) | Content Creation | Music composition, audio processing | OpenAI GPT-5 Mini |
+| [Nano Banana Agent](#%EF%B8%8F-nano-banana-agent) | Content Creation | Image generation & editing | Google Gemini 2.5 Flash |
+| [Sora Video Agent](#-sora-video-agent) | Content Creation | AI video generation | OpenAI GPT-5 Mini |
+| [Image Editor Agent](#%EF%B8%8F-image-editor-agent) | Content Creation | Image manipulation, face detection | OpenAI GPT-5 Mini |
+| [Coding Agent](#-coding-agent) | Development | Software development, debugging | Anthropic Claude Haiku 4.5 |
+| [Database Agent](#%EF%B8%8F-database-agent) | Data & Analysis | SQL queries, database operations | OpenAI GPT-5 Mini |
+| [Talk2PDF Agent](#-talk2pdf-agent) | Data & Analysis | PDF analysis, document conversation | OpenAI GPT-5 Mini |
+| [GitHub Agent](#-github-agent) | DevOps | GitHub operations, PR analysis | OpenAI GPT-5 Mini |
+| [Product Researcher](#-product-researcher) | Research | Product naming, branding research | Anthropic Claude Sonnet 4.5 |
+| [Triage Agent](#-triage-agent) | Multi-Agent | Customer support routing | OpenAI GPT-5 |
+| [Default Agent](#%EF%B8%8F-default-agent) | General Purpose | General tasks, file operations | Any |
 
 ---
 
