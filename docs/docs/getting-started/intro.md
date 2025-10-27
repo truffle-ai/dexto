@@ -2,6 +2,8 @@
 sidebar_position: 1
 ---
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 # Introduction
 
 Dexto is an **AI Agent Runtime** that orchestrates intelligent, stateful agents capable of reasoning, executing tools, and completing complex tasks. Instead of building agents from scratch—setting up LLM clients, managing state, implementing tool calling, handling sessions—you simply configure them declaratively and let Dexto handle the orchestration.
@@ -19,6 +21,7 @@ Traditional AI applications are stateless and limited to single interactions. Yo
 
 Think of it as the difference between a stateless chatbot vs. a **persistent AI assistant** that grows smarter with each interaction.
 
+<ExpandableMermaid title="Dexto Architecture Overview">
 ```mermaid
 flowchart TD
     subgraph Config ["Configuration Layer"]
@@ -27,29 +30,30 @@ flowchart TD
         C[Storage<br/><i>Cache & Database</i>]
         D[Sessions<br/><i>Limits & TTL</i>]
     end
-    
+
     subgraph Runtime ["Runtime Layer"]
         E[<i>Orchestrates Services<br/>for<br/>Stateful Agent Behavior</i>]
     end
-    
+
     subgraph Interactive ["Interactive Layer"]
         F[CLI]
         G[Web UI]
         H[API Server]
         I[SDK/Library]
     end
-    
+
     Config --> Runtime
     Runtime --> Interactive
 
     classDef configNode fill:#1a202c,stroke:#4fd1c7,stroke-width:2px,color:#f7fafc
     classDef runtimeNode fill:#2d3748,stroke:#68d391,stroke-width:2px,color:#f7fafc
     classDef interactiveNode fill:#2c5282,stroke:#63b3ed,stroke-width:2px,color:#f7fafc
-    
+
     class A,B,C,D configNode
     class E runtimeNode
     class F,G,H,I interactiveNode
 ```
+</ExpandableMermaid>
 
 ## What You Get
 

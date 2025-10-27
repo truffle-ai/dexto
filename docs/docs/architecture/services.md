@@ -1,5 +1,7 @@
 # Core Services
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 Dexto's architecture is built around core services that handle different aspects of agent functionality. Understanding these services helps with debugging, customization, and troubleshooting.
 
 ## Service Overview
@@ -16,6 +18,7 @@ Dexto's architecture is built around core services that handle different aspects
 
 ## Service Relationships
 
+<ExpandableMermaid title="Service Relationships Diagram">
 ```mermaid
 graph TB
     DA[DextoAgent] --> SM[SessionManager]
@@ -24,25 +27,26 @@ graph TB
     DA --> SPM[SystemPromptManager]
     DA --> STM[StorageManager]
     DA --> AEB[AgentEventBus]
-    
+
     MM --> TM
     TM --> STM
     SM --> STM
     SPM --> STM
-    
+
     AEB -.-> SM
     AEB -.-> MM
     AEB -.-> TM
-    
+
     subgraph "Storage Layer"
         STM
         Cache[(Cache)]
         DB[(Database)]
     end
-    
+
     STM --> Cache
     STM --> DB
 ```
+</ExpandableMermaid>
 
 ## DextoAgent
 

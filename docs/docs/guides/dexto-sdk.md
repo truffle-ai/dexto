@@ -3,6 +3,8 @@ sidebar_position: 5
 title: "Dexto SDK Guide"
 ---
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 # Dexto SDK Guide
 
 Welcome to the Dexto SDK guide for TypeScript. This guide provides everything you need to build high-quality AI applications with Dexto.
@@ -166,7 +168,8 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 ## Common Patterns
 
 ### Multi-User Chat Application
- 
+
+<ExpandableMermaid title="Multi-User Chat Flow">
 ```mermaid
 sequenceDiagram
     participant User1 as User A
@@ -181,6 +184,7 @@ sequenceDiagram
     Agent-->>ChatApp: Response
     ChatApp-->>User1: broadcastToUser
 ```
+</ExpandableMermaid>
 
 ```typescript
 import { DextoAgent } from '@dexto/core';
@@ -255,6 +259,7 @@ class AdaptiveAgent {
 
 ### Session Management with Persistence
 
+<ExpandableMermaid title="Session Management Flow">
 ```mermaid
 flowchart TD
     A[resumeConversation called] --> B{Session exists?}
@@ -263,6 +268,7 @@ flowchart TD
     C --> E[Return history]
     D --> F[Return null]
 ```
+</ExpandableMermaid>
 
 ```typescript
 class PersistentChatBot {
