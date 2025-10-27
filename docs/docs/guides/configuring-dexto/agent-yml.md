@@ -7,6 +7,26 @@ sidebar_label: "Complete agent.yml"
 
 Complete reference for all agent.yml configuration options.
 
+## Table of Contents
+
+1. [Minimal Configuration](#minimal-configuration)
+2. [Complete Example](#complete-example)
+3. [LLM Configuration](#llm-configuration)
+4. [System Prompt Configuration](#system-prompt-configuration)
+5. [MCP Servers](#mcp-servers)
+6. [Tool Confirmation](#tool-confirmation)
+7. [Storage Configuration](#storage-configuration)
+8. [Session Configuration](#session-configuration)
+9. [Telemetry Configuration](#telemetry-configuration)
+10. [Plugins](#plugins)
+11. [Internal Tools](#internal-tools)
+12. [Internal Resources](#internal-resources)
+13. [Agent Identity / A2A](#agent-identity--a2a)
+14. [Dynamic Changes](#dynamic-changes)
+15. [Global Preferences](#global-preferences)
+16. [Starter Prompts](#starter-prompts)
+17. [Greeting](#greeting)
+
 ## Minimal Configuration
 
 ```yaml
@@ -156,6 +176,10 @@ greeting: "Hello! I'm ready to help you today."
 
 ## LLM Configuration
 
+:::info Guide
+For LLM provider details and model listings, see **[Supported LLM Providers](../supported-llm-providers.md)**.
+:::
+
 Language model provider and settings.
 
 ### Schema
@@ -196,11 +220,12 @@ llm:
   baseURL: https://api.custom-provider.com/v1
 ```
 
-### See Also
-
-- [Supported LLM Providers](../supported-llm-providers.md)
 
 ## System Prompt Configuration
+
+:::info Guides
+See **[System Prompt Guide](./systemPrompt.md)** and **[Memory Configuration](./memory.md)** for detailed explanations.
+:::
 
 Agent behavior and personality.
 
@@ -258,12 +283,11 @@ systemPrompt:
     includeTags: boolean
 ```
 
-### See Also
-
-- [System Prompt Guide](./systemPrompt.md)
-- [Memory Configuration](./memory.md)
-
 ## MCP Servers
+
+:::info Guide
+For detailed configuration and examples, see **[MCP Configuration](./mcpConfiguration.md)**.
+:::
 
 External tools and services via Model Context Protocol.
 
@@ -307,11 +331,11 @@ api-service:
 - `lenient` (default) - Log errors, continue without server
 - `strict` - Require successful connection or fail startup
 
-### See Also
-
-- [MCP Configuration](./mcpConfiguration.md)
-
 ## Tool Confirmation
+
+:::info Guide
+For detailed policy configuration, see **[Tool Confirmation Guide](./toolConfirmation.md)**.
+:::
 
 Tool approval and confirmation behavior.
 
@@ -345,11 +369,11 @@ toolConfirmation:
       - mcp--filesystem--delete_file
 ```
 
-### See Also
-
-- [Tool Confirmation Guide](./toolConfirmation.md)
-
 ## Storage Configuration
+
+:::info Guide
+For detailed storage options and examples, see **[Storage Configuration Guide](./storage.md)**.
+:::
 
 Storage backends for cache, database, and blob storage.
 
@@ -434,11 +458,11 @@ blob:
   cleanupAfterDays: number      # Default: 30
 ```
 
-### See Also
-
-- [Storage Configuration Guide](./storage.md)
-
 ## Session Configuration
+
+:::info Guide
+For detailed session behavior, see **[Session Configuration Guide](./sessions.md)**.
+:::
 
 Session management limits and timeouts.
 
@@ -450,11 +474,11 @@ sessions:
   sessionTTL: number            # Default: 3600000ms (1 hour)
 ```
 
-### See Also
-
-- [Session Configuration Guide](./sessions.md)
-
 ## Telemetry Configuration
+
+:::info Guide
+For detailed telemetry setup, see **[Telemetry Configuration Guide](./telemetry.md)**.
+:::
 
 OpenTelemetry distributed tracing.
 
@@ -500,11 +524,11 @@ telemetry:
     type: console
 ```
 
-### See Also
-
-- [Telemetry Configuration Guide](./telemetry.md)
-
 ## Plugins
+
+:::info Guide
+For plugin development and configuration, see **[Plugins Guide](./plugins.md)**.
+:::
 
 Built-in and custom plugins for input/output processing.
 
@@ -571,11 +595,11 @@ custom:
       maxRequestsPerHour: 1000
 ```
 
-### See Also
-
-- [Plugins Guide](./plugins.md)
-
 ## Internal Tools
+
+:::info Guide
+For tool descriptions and usage patterns, see **[Internal Tools Guide](./internalTools.md)**.
+:::
 
 Built-in tools for file operations, code search, and command execution.
 
@@ -605,10 +629,6 @@ internalTools:
 - `bash_exec` - Execute shell commands
 - `bash_output` - Get output from background processes
 - `kill_process` - Terminate background processes
-
-### See Also
-
-- [Internal Tools Guide](./internalTools.md)
 
 ## Internal Resources
 
@@ -651,7 +671,11 @@ internalResources:
 
 ## Agent Identity / A2A
 
-Agent identity and capabilities for Agent-to-Agent (A2A) communication.
+:::info Guide
+For agent card configuration, see **[Agent Identity Guide](./agentCard.md)**.
+:::
+
+Agent identity and capabilities for [Agent-to-Agent (A2A)](https://a2a-protocol.org/latest/) communication.
 
 ### Schema
 
@@ -702,25 +726,21 @@ agentCard:
       tags: ["analysis", "data", "statistics"]
 ```
 
-### See Also
-
-- [Agent Identity Guide](./agentCard.md)
-
 ## Dynamic Changes
+
+:::info Guide
+For runtime configuration and overrides, see **[Dynamic Changes Guide](./dynamic-changes.md)**.
+:::
 
 Runtime configuration changes and environment overrides.
 
-### See Also
-
-- [Dynamic Changes Guide](./dynamic-changes.md)
-
 ## Global Preferences
 
+:::info Guide
+For global preferences setup, see **[Global Preferences Guide](./preferences.md)**.
+:::
+
 User preferences that apply across all agents.
-
-### See Also
-
-- [Global Preferences Guide](./preferences.md)
 
 ## Starter Prompts
 

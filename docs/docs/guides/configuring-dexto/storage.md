@@ -5,49 +5,46 @@ sidebar_label: "Storage Configuration"
 
 # Storage Configuration
 
-Configure how your Dexto agent stores data with flexible backend options for caching, database persistence, and blob storage.
+Configure how your Dexto agent stores data: cache, database, and blob storage.
 
 :::tip Complete Reference
-For complete field documentation, backend options, and connection pooling details, see **[agent.yml → Storage](./agent-yml.md#storage-configuration)**.
+For complete field documentation and all storage options, see **[agent.yml → Storage](./agent-yml.md#storage-configuration)**.
 :::
 
 ## Overview
 
-Storage in Dexto consists of three layers:
-- **Cache** - Temporary, high-speed data access
-- **Database** - Persistent, long-term storage
-- **Blob Store** - Binary data (images, files, large objects)
+Dexto storage has three components:
+- **Cache** - Temporary, high-speed data access (in-memory or Redis)
+- **Database** - Persistent storage (in-memory, SQLite, or PostgreSQL)
+- **Blob** - Binary data storage (in-memory or local filesystem)
 
-Each layer can use different backends tailored to your needs, from simple in-memory setups to robust production environments.
+## Storage Types
 
-## Supported Backends
+| Component | Options | Use Case |
+|-----------|---------|----------|
+| **Cache** | in-memory, redis | Temporary data, sessions |
+| **Database** | in-memory, sqlite, postgres | Persistent data, memories |
+| **Blob** | in-memory, local | Files, images, large objects |
 
-| Backend | Type | Use Case |
-|---------|------|----------|
-| **in-memory** | Cache/DB | Development, quick-start, testing |
-| **redis** | Cache | High-performance caching |
-| **sqlite** | Database | Simple file-based persistence |
-| **postgres** | Database | Production, scalable deployments |
+## Cache
 
-## Backend Configuration
+Temporary, high-speed data access.
 
-### In-Memory
+### in-memory
 
-Simplest backend, data lost when process terminates:
+Data lost when process terminates:
 
 ```yaml
 storage:
   cache:
     type: in-memory
-  database:
-    type: in-memory
 ```
 
-**Use for:** Development, testing, no persistence needed
+**Use for:** Development, testing
 
-### Redis
+### redis
 
-High-performance in-memory data store for caching:
+High-performance caching:
 
 ```yaml
 storage:
@@ -58,25 +55,40 @@ storage:
     maxConnections: 50
 ```
 
-**Use for:** Production caching, high-speed access
+**Use for:** Production
 
-### SQLite
+## Database
 
-File-based SQL database for simple persistence:
+Persistent data storage.
+
+### in-memory
+
+Non-persistent:
+
+```yaml
+storage:
+  database:
+    type: in-memory
+```
+
+**Use for:** Testing
+
+### sqlite
+
+File-based persistence:
 
 ```yaml
 storage:
   database:
     type: sqlite
     database: my-agent.db
-    path: "${{dexto.agent_dir}}/data"
 ```
 
-**Use for:** Single-instance deployments, simple persistence
+**Use for:** Single-instance, simple deployments
 
-### PostgreSQL
+### postgres
 
-Production-grade relational database:
+Production-grade database:
 
 ```yaml
 storage:
@@ -85,47 +97,47 @@ storage:
     host: db.example.com
     port: 5432
     database: dexto_prod
-    user: dexto_user
     password: $DB_PASSWORD
-    maxConnections: 20
 ```
 
-**Use for:** Production, scalable deployments, multi-instance
+**Use for:** Production, multi-instance
 
-## Blob Storage
+## Blob
 
-### In-Memory Blob Store
+Binary data storage.
+
+### in-memory
 
 ```yaml
 storage:
-  blobStore:
+  blob:
     type: in-memory
     maxBlobSize: 5242880      # 5MB
-    maxTotalSize: 52428800    # 50MB
 ```
 
-**Use for:** Development, temporary files, small blobs
+**Use for:** Development
 
-### Local Blob Store
+### local
+
+Filesystem storage:
 
 ```yaml
 storage:
-  blobStore:
+  blob:
     type: local
     storePath: "${{dexto.agent_dir}}/blobs"
     maxBlobSize: 104857600     # 100MB
-    maxTotalSize: 10737418240  # 10GB
     cleanupAfterDays: 60
 ```
 
-**Use for:** Production, persistent blob storage, larger files
+**Use for:** Production, persistent files
 
-## Common Configurations
+## Example Configurations
 
-### Default (Development)
+### Development (Default)
 
 ```yaml
-# No storage configuration needed - uses in-memory defaults
+# No storage config needed - uses in-memory defaults
 ```
 
 ### Production (Redis + PostgreSQL)
@@ -135,73 +147,37 @@ storage:
   cache:
     type: redis
     url: $REDIS_URL
-    maxConnections: 100
   database:
     type: postgres
-    connectionString: $POSTGRES_CONNECTION_STRING
-    maxConnections: 25
-  blobStore:
+    url: $POSTGRES_URL
+  blob:
     type: local
-    storePath: /var/data/dexto/blobs
-    cleanupAfterDays: 60
+    storePath: /var/data/blobs
 ```
 
-### Simple Persistent (SQLite)
+### Simple (SQLite)
 
 ```yaml
 storage:
-  cache:
-    type: in-memory
   database:
     type: sqlite
-    database: my-dexto-agent.sqlite
-  blobStore:
+    database: my-agent.db
+  blob:
     type: local
-    storePath: "${{dexto.agent_dir}}/blobs"
 ```
 
-### Hybrid (Redis + SQLite)
+## When to Use
 
-```yaml
-storage:
-  cache:
-    type: redis
-    host: localhost
-    port: 6379
-  database:
-    type: sqlite
-    path: "${{dexto.agent_dir}}/data/dexto.db"
-  blobStore:
-    type: local
-    storePath: "${{dexto.agent_dir}}/data/blobs"
-```
-
-## When to Use Each Backend
-
-| Scenario | Cache | Database | Blob Store |
-|----------|-------|----------|------------|
+| Scenario | Cache | Database | Blob |
+|----------|-------|----------|------|
 | **Development** | in-memory | in-memory | in-memory |
 | **Simple Production** | redis | sqlite | local |
 | **Scalable Production** | redis | postgres | local |
 | **Testing** | in-memory | sqlite | in-memory |
 
-## Configuration Options
-
-Common options available for all backends:
-- `maxConnections` - Maximum connection pool size
-- `idleTimeoutMillis` - Idle connection timeout
-- `connectionTimeoutMillis` - Connection establishment timeout
-- `options` - Backend-specific additional options
-
 ## Best Practices
 
 1. **Use environment variables** - Store passwords and connection strings as `$VAR`
-2. **Match backend to use case** - Redis for caching, Postgres/SQLite for persistence
-3. **Tune connection pools** - Adjust `maxConnections` based on load
-4. **Set blob limits** - Configure appropriate size limits for your use case
-5. **Use local blob store in production** - For persistence and cleanup automation
-
-## See Also
-
-- [agent.yml Reference → Storage](./agent-yml.md#storage-configuration) - Complete field documentation
-- [Memory Configuration](./memory.md) - Requires persistent database
+2. **Match storage to use case** - Redis for caching, Postgres/SQLite for persistence
+3. **Set appropriate limits** - Configure `maxConnections`, `maxBlobSize` based on load
+4. **Use local blob storage in production** - For persistence and automatic cleanup
