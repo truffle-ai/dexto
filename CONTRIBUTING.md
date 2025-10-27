@@ -159,20 +159,107 @@ Brief description of what this agent does and why it's useful.
 - Your API key
 ```
 
-### 3. Requesting Pre-installed Agent Status
+### 3. Adding Agents to the Official Registry
 
-For widely-useful agents, you can request to have them added to our official agent registry.
+Once you've created a comprehensive example agent, you can add it to the official agent registry so users can discover and install it with `dexto install`.
+
+**How to add an agent to the registry:**
+
+1. Create your agent in `agents/your-agent-name/` (following step 2 above)
+2. Edit `agents/agent-registry.json`
+3. Add a new entry following this structure:
+
+```json
+{
+  "your-agent-id": {
+    "id": "your-agent-id",
+    "name": "Your Agent Name",
+    "description": "Brief description of what this agent does and its key capabilities",
+    "author": "Your Name or Organization",
+    "tags": ["category", "use-case", "technology"],
+    "source": "your-agent-name/",
+    "main": "your-agent-name.yml"
+  }
+}
+```
+
+**Field Guidelines:**
+
+- **id**: Lowercase, hyphenated identifier (e.g., `database-agent`, `podcast-agent`)
+- **name**: Human-readable display name (e.g., `Database Agent`, `Podcast Agent`)
+- **description**: Clear, concise description of purpose and capabilities (1-2 sentences)
+- **author**: Your name, organization, or `Truffle AI` for official agents
+- **tags**: 3-6 relevant tags for categorization and search:
+  - **Category tags**: `database`, `images`, `video`, `audio`, `coding`, `documents`, etc.
+  - **Technology tags**: `gemini`, `openai`, `anthropic`, `mcp`, etc.
+  - **Use case tags**: `creation`, `analysis`, `editing`, `generation`, `support`, etc.
+- **source**: Directory path relative to `agents/` folder (ends with `/` for directories)
+- **main**: Main configuration file name (e.g., `agent.yml`, `your-agent-name.yml`)
+
+**Tag Examples:**
+```json
+// Content creation agent
+"tags": ["images", "generation", "editing", "ai", "gemini"]
+
+// Development agent
+"tags": ["coding", "development", "software", "programming"]
+
+// Data analysis agent
+"tags": ["database", "sql", "data", "queries", "analysis"]
+
+// Multi-modal agent
+"tags": ["audio", "tts", "speech", "multi-speaker", "gemini"]
+```
+
+**Complete Example:**
+```json
+{
+  "music-agent": {
+    "id": "music-agent",
+    "name": "Music Agent",
+    "description": "AI agent for music creation and audio processing",
+    "author": "Truffle AI",
+    "tags": ["music", "audio", "creation", "sound"],
+    "source": "music-agent/",
+    "main": "music-agent.yml"
+  }
+}
+```
+
+**Single-File vs Directory Agents:**
+
+- **Directory agent** (with multiple files):
+  ```json
+  {
+    "source": "your-agent-name/",
+    "main": "agent.yml"
+  }
+  ```
+
+- **Single-file agent** (all in one YAML):
+  ```json
+  {
+    "source": "your-agent.yml"
+  }
+  ```
+  Note: `main` field is omitted for single-file agents.
+
+### 4. Requesting Pre-installed Agent Status
+
+For widely-useful agents, you can request to have them added as pre-installed agents in Dexto.
 
 **How to request pre-installed status:**
 
 1. Create a comprehensive example agent (following step 2 above)
-2. Test it thoroughly and document all features
-3. Open an issue with the label `agent-registry-request`
-4. Include:
+2. Add it to the agent registry (following step 3 above)
+3. Test it thoroughly and document all features
+4. Open an issue with the label `agent-registry-request`
+5. Include:
    - Link to your agent directory
    - Description of the agent's purpose and value
    - Screenshots or demos if applicable
    - Why it should be pre-installed
+   - Evidence of community interest or usefulness
 
 **Criteria for pre-installed agents:**
 - Solves a common, well-defined problem
@@ -180,6 +267,8 @@ For widely-useful agents, you can request to have them added to our official age
 - Works reliably across different environments
 - Provides significant value to the Dexto community
 - Follows all coding standards and best practices
+- Has been tested by multiple users
+- Demonstrates unique capabilities or fills a gap
 
 ### Documentation
 - Update relevant documentation in `/docs` folder
