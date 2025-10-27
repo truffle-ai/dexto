@@ -38,7 +38,7 @@ Some of the cool things you can do with Dexto CLI:
 | Flag | Description | Example |
 |------|-------------|---------|
 | `-v, --version` | Show version | `dexto --version` |
-| `-a, --agent <path>` | Use custom agent config | `dexto -a ./my-agent.yml` |
+| `-a, --agent <id\|path>` | Use agent ID or path to config file | `dexto -a nano-banana-agent` or `dexto -a ./my-agent.yml` |
 | `-m, --model <model>` | Specify LLM model | `dexto -m claude-sonnet-4-5-20250929` |
 | `--router <router>` | Specify router (vercel/in-built) | `dexto --router in-built` |
 | `-c, --continue` | Continue the last session | `dexto --continue` |
@@ -167,10 +167,14 @@ dexto -m gemini-2.5-flash
 ```
 
 
-#### **Start dexto with a different config file**
+#### **Start dexto with a different agent**
 
-This allows you to configure dexto CLI to use a different AI agent
+You can specify an agent by ID (from the registry) or by path to a config file:
 ```bash
+# Using agent ID from registry
+dexto --agent nano-banana-agent
+
+# Using path to config file
 dexto --agent <path_to_agent_config_file>
 ```
 
