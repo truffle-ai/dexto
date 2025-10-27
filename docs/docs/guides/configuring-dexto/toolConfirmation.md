@@ -5,655 +5,216 @@ sidebar_label: "Tool Confirmation"
 
 # Tool Confirmation Configuration
 
-Dexto's tool confirmation system controls how and when users are prompted to approve tool execution. This security feature ensures you maintain control over which tools your agent can execute and when.
+Control how and when users are prompted to approve tool execution through Dexto's flexible confirmation system.
+
+:::tip Complete Reference
+For complete field documentation, event specifications, and UI integration details, see **[agent.yml → Tool Confirmation](./agent-yml.md#tool-confirmation)**.
+:::
 
 ## Overview
 
-The `toolConfirmation` section in your `agent.yml` file configures:
+The tool confirmation system provides security and oversight by controlling which tools your agent can execute and when. It supports multiple modes and fine-grained policies for different environments and use cases.
+
+**Configuration controls:**
 - **Confirmation mode** - How tools are approved (interactive, auto-approve, auto-deny)
 - **Timeout duration** - How long to wait for user response
-- **Storage type** - Where to remember user approvals (persistent vs session-only)
-- **Tool policies** - Fine-grained allow/deny lists for specific tools
-
-## Configuration Schema
-
-```yaml
-toolConfirmation:
-  mode: "event-based"           # Confirmation mode
-  timeout: 30000               # Timeout in milliseconds (30 seconds)
-  allowedToolsStorage: "storage" # Storage type for remembered approvals
-  toolPolicies:                # Optional: Fine-grained allow/deny lists
-    alwaysAllow:               # Tools that never require approval
-      - "internal--ask_user"
-    alwaysDeny:                # Tools that are always blocked
-      - "mcp--filesystem--delete_file"
-```
-
-All fields are optional with sensible defaults.
+- **Storage type** - Where to remember approvals (persistent vs session-only)
+- **Tool policies** - Fine-grained allow/deny lists
 
 ## Confirmation Modes
 
-### `event-based` (Default)
-Interactive confirmation via CLI prompts or WebUI dialogs.
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| **event-based** | Interactive prompts via CLI/WebUI | Production with oversight |
+| **auto-approve** | Automatically approve all tools | Development/testing |
+| **auto-deny** | Block all tool execution | Read-only/high-security |
+
+### event-based (Default)
+
+Interactive confirmation via CLI prompts or WebUI dialogs:
 
 ```yaml
 toolConfirmation:
-  mode: "event-based"
-  timeout: 30000               # Wait 30 seconds for user response
-  allowedToolsStorage: "storage" # Remember approvals across sessions
+  mode: event-based
+  timeout: 30000               # 30 seconds
+  allowedToolsStorage: storage # Persist across sessions
 ```
 
 **When to use:**
-- Production environments where you want oversight
-- Development with tool approval oversight
-- Multi-user environments where different users need different permissions
+- Production environments needing oversight
+- Multi-user environments with different permissions
+- Development with tool approval tracking
 
-#### Event Flow for Tool Confirmation
+### auto-approve
 
-In event-based mode, Dexto uses an event-driven architecture where your UI layer must listen for confirmation requests and send back approval responses.
-
-```mermaid
-sequenceDiagram
-    participant User as User
-    participant UI as UI Layer (CLI/WebUI)
-    participant Bus as AgentEventBus
-    participant Provider as ConfirmationProvider
-    participant LLM as LLM Service
-    participant Tool as MCP Tool
-
-    User->>LLM: "Run git status command"
-    LLM->>Provider: requestConfirmation({toolName: "git_status", sessionId: "123"})
-    Provider->>Bus: emit('dexto:toolConfirmationRequest', {executionId, toolName, args, sessionId})
-    Bus->>UI: forward confirmation request
-    
-    UI->>User: Show confirmation dialog/prompt
-    User->>UI: Approve/Deny + Remember choice
-    UI->>Bus: emit('dexto:toolConfirmationResponse', {executionId, approved, rememberChoice, sessionId})
-    Bus->>Provider: forward response
-    
-    alt Tool Approved
-        Provider->>LLM: resolve(true)
-        LLM->>Tool: execute git_status
-        Tool->>LLM: return results
-        LLM->>User: Display results
-    else Tool Denied
-        Provider->>LLM: resolve(false) or throw ToolExecutionDeniedError
-        LLM->>User: "Tool execution was denied"
-    end
-```
-
-#### Backend Event Expectations
-
-When implementing a custom UI layer, your code needs to:
-
-1. **Listen for confirmation requests:**
-```typescript
-agentEventBus.on('dexto:toolConfirmationRequest', (event: ToolConfirmationEvent) => {
-  // event contains: toolName, args, executionId, sessionId, timestamp
-  // Show UI confirmation to user
-});
-```
-
-2. **Send confirmation responses:**
-```typescript
-// User approved - remember globally
-agentEventBus.emit('dexto:toolConfirmationResponse', {
-  executionId: event.executionId,
-  approved: true,
-  rememberChoice: true,    // Store approval for future use
-  sessionId: event.sessionId  // Optional: scope to session
-});
-
-// User denied - don't remember
-agentEventBus.emit('dexto:toolConfirmationResponse', {
-  executionId: event.executionId,
-  approved: false,
-  rememberChoice: false
-});
-```
-
-#### Event Interface Types
-
-```typescript
-interface ToolConfirmationEvent {
-  toolName: string;          // e.g., "git_status"
-  args: any;                // Tool arguments object
-  description?: string;      // Tool description if available
-  executionId: string;       // Unique ID for this request
-  timestamp: Date;          // When request was made
-  sessionId?: string;       // Session scope (optional)
-}
-
-interface ToolConfirmationResponse {
-  executionId: string;       // Must match request executionId
-  approved: boolean;         // true = approve, false = deny
-  rememberChoice?: boolean;  // Store approval for future use
-  sessionId?: string;       // Session scope (optional)
-}
-```
-
-#### Timeout Behavior
-
-- If no response is received within the configured timeout, the tool is automatically **denied**
-- The timeout countdown is visible to users in supported UI layers
-- Default timeout is 30 seconds, configurable via `timeout` field
-
-### `auto-approve`
-Automatically approve all tool executions without prompting.
+Automatically approve all tools without prompting:
 
 ```yaml
 toolConfirmation:
-  mode: "auto-approve"
-  allowedToolsStorage: "memory" # Don't persist approvals
+  mode: auto-approve
 ```
 
 **When to use:**
-- Development environments where speed is important
+- Development where speed is important
 - Trusted automation scripts
-- Testing scenarios where manual approval isn't practical
+- Testing scenarios
 
-> Tip: Running `dexto` from the CLI? Pass `--auto-approve` to override confirmation prompts without editing your `agent.yml`.
+CLI shortcut: `dexto --auto-approve`
 
-### `auto-deny`
-Automatically deny all tool execution attempts.
+### auto-deny
+
+Block all tool execution:
 
 ```yaml
 toolConfirmation:
-  mode: "auto-deny"
+  mode: auto-deny
 ```
 
 **When to use:**
 - High-security environments
-- Read-only agent deployments
-- Environments where tool execution should be completely disabled
-
-## Storage Options
-
-### `storage` (Default)
-Approvals are stored persistently and remembered across sessions.
-
-```yaml
-toolConfirmation:
-  allowedToolsStorage: "storage"
-```
-
-- **Pros:** Convenient - approve once, use across sessions
-- **Cons:** Less secure - approvals persist until manually cleared
-- **Best for:** Development and trusted environments
-
-### `memory`
-Approvals are stored only in memory and cleared when the session ends.
-
-```yaml
-toolConfirmation:
-  allowedToolsStorage: "memory"
-```
-
-- **Pros:** More secure - approvals don't persist
-- **Cons:** Need to re-approve tools in each session
-- **Best for:** Security-sensitive environments
+- Read-only deployments
+- Completely disable tool execution
 
 ## Tool Policies
 
-Tool policies provide fine-grained control over which tools can be executed without user confirmation or which tools should always be blocked. This is configured via the `toolPolicies` field in your `agent.yml` file.
-
-### Configuration Schema
+Fine-grained control over specific tools:
 
 ```yaml
 toolConfirmation:
+  mode: event-based
   toolPolicies:
     alwaysAllow:
-      - "internal--ask_user"
-      - "mcp--filesystem--read_file"
+      - internal--ask_user
+      - internal--read_file
+      - mcp--filesystem--read_file
     alwaysDeny:
-      - "mcp--filesystem--write_file"
-      - "mcp--filesystem--delete_file"
+      - mcp--filesystem--delete_file
+      - mcp--git--push
 ```
 
-### Tool Policy Fields
+**Tool name format:**
+- Internal tools: `internal--<tool_name>`
+- MCP tools: `mcp--<server_name>--<tool_name>`
 
-**`alwaysAllow`** (array of strings)
-- Tools that never require approval (low-risk operations)
-- These tools will execute immediately without user confirmation
-- Default: empty array `[]`
-- Example use cases: read-only operations, safe utility tools
+**Precedence rules:**
+1. `alwaysDeny` takes precedence over `alwaysAllow`
+2. Tool policies override confirmation mode
+3. Empty arrays by default
 
-**`alwaysDeny`** (array of strings)
-- Tools that are always denied (high-risk operations)
-- These tools will never execute, regardless of mode
-- Takes precedence over `alwaysAllow`
-- Default: empty array `[]`
-- Example use cases: destructive operations, sensitive file modifications
+## Storage Options
 
-### Qualified Tool Name Format
+### storage (Default)
+Approvals persisted across sessions:
 
-Tool names must be fully qualified using the format:
-
-- **Internal tools**: `internal--<tool_name>`
-  - Example: `internal--ask_user`, `internal--read_file`
-
-- **MCP tools**: `mcp--<server_name>--<tool_name>`
-  - Example: `mcp--filesystem--read_file`, `mcp--git--commit`
-
-The qualified name format ensures precise tool identification across different sources.
-
-### Precedence Rules
-
-Tool policies follow a clear precedence hierarchy:
-
-1. **`alwaysDeny` takes precedence over `alwaysAllow`**
-   - If a tool appears in both lists, it will be denied
-   - This ensures security-critical blocking cannot be overridden
-
-2. **Tool policies take precedence over confirmation mode**
-   - Even in `auto-approve` mode, tools in `alwaysDeny` will be blocked
-   - Even in `event-based` mode, tools in `alwaysAllow` will skip confirmation
-
-3. **Empty defaults**
-   - Both arrays default to empty `[]`
-   - Without explicit policies, the confirmation mode controls behavior
-
-### Example Configurations
-
-**Read-only development environment:**
 ```yaml
 toolConfirmation:
-  mode: "event-based"
-  toolPolicies:
-    alwaysAllow:
-      - "internal--ask_user"
-      - "mcp--filesystem--read_file"
-      - "mcp--filesystem--list_directory"
-      - "mcp--git--status"
-    alwaysDeny:
-      - "mcp--filesystem--write_file"
-      - "mcp--filesystem--delete_file"
-      - "mcp--git--commit"
-      - "mcp--git--push"
+  allowedToolsStorage: storage
 ```
 
-**Production with safety guardrails:**
+**Pros:** Convenient - approve once, use forever
+
+**Cons:** Less secure - approvals persist until cleared
+
+### memory
+Approvals cleared when session ends:
+
 ```yaml
 toolConfirmation:
-  mode: "event-based"
-  timeout: 60000
-  allowedToolsStorage: "storage"
-  toolPolicies:
-    alwaysAllow:
-      - "internal--ask_user"
-      - "mcp--filesystem--read_file"
-    alwaysDeny:
-      - "mcp--filesystem--delete_file"
-      - "mcp--git--push"
-      - "mcp--system--shutdown"
+  allowedToolsStorage: memory
 ```
 
-**Maximum security:**
-```yaml
-toolConfirmation:
-  mode: "event-based"
-  toolPolicies:
-    alwaysAllow: []  # No automatic approvals
-    alwaysDeny:
-      - "mcp--filesystem--write_file"
-      - "mcp--filesystem--delete_file"
-      - "mcp--git--commit"
-      - "mcp--git--push"
-      - "mcp--system--execute"
-```
+**Pros:** More secure - no persistent approvals
 
-### Use Cases
-
-**Use `alwaysAllow` for:**
-- Read-only operations (reading files, listing directories)
-- User interaction tools (ask_user, display_info)
-- Safe utility tools (status checks, information retrieval)
-- Frequently used low-risk tools
-
-**Use `alwaysDeny` for:**
-- Destructive operations (delete, overwrite)
-- Security-sensitive operations (system commands, network access)
-- Production deployment tools (push, publish)
-- Tools that should never run in certain environments
-
-### Finding Tool Names
-
-To determine the correct qualified tool name:
-
-1. **List available tools in CLI:**
-   ```bash
-   dexto --list-tools
-   ```
-
-2. **Check tool execution logs:**
-   - Tool names appear in confirmation requests
-   - Format will be shown as `internal--<name>` or `mcp--<server>--<name>`
-
-3. **MCP server configuration:**
-   - Server name comes from your `mcp.servers` configuration in `agent.yml`
-   - Tool name comes from the MCP server's tool definitions
+**Cons:** Need to re-approve in each session
 
 ## Session-Aware Approvals
 
-Tool approvals can be scoped to specific sessions or applied globally:
+Approvals can be scoped to specific sessions or applied globally:
 
-### **Session-Scoped Approvals**
-Approvals stored with a specific `sessionId` only apply to that conversation session:
+**Session-scoped:** Only applies to one conversation
 
-```typescript
-// Session-scoped approval - only for session-123
-allowedToolsProvider.allowTool('git_commit', 'session-123');
-```
+**Global:** Applies to all sessions
 
-### **Global Approvals** 
-Approvals stored without a `sessionId` apply to all sessions:
-
-```typescript
-// Global approval - applies everywhere
-allowedToolsProvider.allowTool('git_status');
-```
-
-### **Approval Lookup Logic**
-The system checks approvals in this order:
-1. **Session-specific approvals** - Check if tool is approved for this specific session
-2. **Global approvals** - Check if tool is approved globally
-3. **Deny** - If not found in either scope, deny the tool
-
-### **Implementation in Custom UIs**
-When implementing tool confirmation in your UI, you can control the scope:
-
-```typescript
-// Store approval for current session only
-agentEventBus.emit('dexto:toolConfirmationResponse', {
-  executionId: event.executionId,
-  approved: true,
-  rememberChoice: true,
-  sessionId: event.sessionId  // Scoped to this session
-});
-
-// Store approval globally (all sessions)
-agentEventBus.emit('dexto:toolConfirmationResponse', {
-  executionId: event.executionId,
-  approved: true,
-  rememberChoice: true
-  // No sessionId = global scope
-});
-```
+The system checks: session-specific → global → deny
 
 ## Configuration Examples
 
 ### Development Environment
-Fast development with minimal interruptions:
 
 ```yaml
 toolConfirmation:
-  mode: "auto-approve"
-  allowedToolsStorage: "memory"
+  mode: auto-approve
+  allowedToolsStorage: memory
   toolPolicies:
-    alwaysAllow:
-      - "internal--ask_user"
     alwaysDeny:
-      - "mcp--system--shutdown"
+      - internal--bash_exec--rm -rf*
 ```
 
 ### Production Environment
-Secure with persistent approvals for convenience:
 
 ```yaml
 toolConfirmation:
-  mode: "event-based"
-  timeout: 60000               # 1 minute timeout
-  allowedToolsStorage: "storage"
+  mode: event-based
+  timeout: 60000
+  allowedToolsStorage: storage
   toolPolicies:
     alwaysAllow:
-      - "internal--ask_user"
-      - "mcp--filesystem--read_file"
+      - internal--ask_user
+      - internal--read_file
     alwaysDeny:
-      - "mcp--filesystem--delete_file"
-      - "mcp--git--push"
+      - mcp--filesystem--delete_file
+      - mcp--git--push
 ```
 
 ### High-Security Environment
-No tool execution allowed:
 
 ```yaml
 toolConfirmation:
-  mode: "auto-deny"
-```
-
-### CI/CD Environment
-Deny all tools in automated environments:
-
-```yaml
-toolConfirmation:
-  mode: "auto-deny"
-```
-
-### Custom Timeout
-Longer timeout for complex decisions:
-
-```yaml
-toolConfirmation:
-  mode: "event-based"
-  timeout: 120000              # 2 minute timeout
-  allowedToolsStorage: "storage"
-```
-
-## Default Behavior
-
-If you don't specify a `toolConfirmation` section, Dexto uses these defaults:
-
-```yaml
-toolConfirmation:
-  mode: "event-based"           # Interactive confirmation
-  timeout: 120000               # 2 minute timeout
-  allowedToolsStorage: "storage" # Persistent storage
+  mode: event-based
+  allowedToolsStorage: memory
   toolPolicies:
-    alwaysAllow: []             # No tools automatically allowed
-    alwaysDeny: []              # No tools automatically denied
+    alwaysAllow: []
+    alwaysDeny:
+      - mcp--filesystem--write_file
+      - mcp--filesystem--delete_file
+      - internal--bash_exec
 ```
 
-This provides a good balance of security and usability for most use cases.
+## Event-Based Flow
 
-## Integration for Custom UIs
+In event-based mode, confirmation uses an event-driven architecture:
 
-When building custom applications with Dexto, you'll need to implement tool confirmation handling in your own UI layer. The core system provides the event infrastructure - you provide the user interface.
+1. Agent requests tool execution
+2. System emits `dexto:toolConfirmationRequest` event
+3. UI layer shows confirmation dialog
+4. User approves/denies
+5. UI emits `dexto:toolConfirmationResponse` event
+6. Tool executes or is denied
 
-## Security Considerations
+**Timeout:** Auto-denies if no response within configured timeout.
 
-1. **Default to Secure**: The default mode requires explicit approval
-2. **Timeout Protection**: Requests auto-deny after timeout to prevent hanging
-3. **Session Isolation**: Session-scoped approvals don't affect other users
-4. **Audit Trail**: All approval decisions are logged for review
-5. **Granular Control**: Approve specific tools rather than blanket permissions
-6. **Tool Policies**: Use `alwaysDeny` to block high-risk tools regardless of confirmation mode
-7. **Precedence Safety**: Deny lists always take precedence over allow lists
+## Best Practices
 
-## Troubleshooting
+1. **Use event-based in production** - Maintain oversight and control
+2. **Set reasonable timeouts** - Balance security with user experience
+3. **Enable read-only tools** - Allow safe operations without confirmation
+4. **Block destructive operations** - Use `alwaysDeny` for dangerous tools
+5. **Use memory storage for sensitive environments** - Don't persist approvals
+6. **Test policies** - Verify tool policies work as expected
 
-### Tool Confirmations Not Working
-- Check that your mode is set to `"event-based"`
-- Verify timeout is reasonable (not too short)
-- Ensure you have a UI layer (CLI or WebUI) to handle confirmations
+## Common Use Cases
 
-### Approvals Not Persisting
-- Check `allowedToolsStorage` is set to `"storage"`
-- Verify your storage configuration is working
-- Check that you're using "Remember globally" not "Remember for session"
+| Scenario | Configuration |
+|----------|--------------|
+| **Development** | auto-approve + memory storage |
+| **Production** | event-based + storage + policies |
+| **CI/CD** | auto-deny (no tool execution) |
+| **Read-only** | event-based + alwaysAllow read operations |
+| **High-security** | event-based + memory storage + strict deny list |
 
-### Tools Auto-Denying
-- Check if mode is set to `"auto-deny"`
-- Verify timeout isn't too short for your response time
-- Check for session isolation issues if using session-scoped approvals
-- Check if tool is in `toolPolicies.alwaysDeny` list
+## See Also
 
-### Tool Policy Not Working
-- Verify you're using the fully qualified tool name (e.g., `mcp--filesystem--read_file`)
-- Check tool name format matches: `internal--<name>` or `mcp--<server>--<name>`
-- Remember that `alwaysDeny` takes precedence over `alwaysAllow`
-- Use `dexto --list-tools` to verify the exact tool name
-
-## Custom UI Integration Examples
-
-### Direct AgentEventBus Integration
-For custom applications using Dexto:
-
-```typescript
-import { DextoAgent, AgentEventBus } from '@dexto/core';
-
-class CustomToolConfirmationHandler {
-  constructor(private agentEventBus: AgentEventBus) {
-    this.agentEventBus.on('dexto:toolConfirmationRequest', this.handleRequest.bind(this));
-  }
-
-  private async handleRequest(event: ToolConfirmationEvent) {
-    // Implement your custom UI logic here
-    const approved = await this.showYourCustomConfirmationUI(event);
-    
-    // Send response back to the framework
-    this.agentEventBus.emit('dexto:toolConfirmationResponse', {
-      executionId: event.executionId,
-      approved,
-      rememberChoice: approved, // Your logic for remembering choices
-      sessionId: event.sessionId
-    });
-  }
-  
-  private async showYourCustomConfirmationUI(event: ToolConfirmationEvent): Promise<boolean> {
-    // Your custom UI implementation:
-    // - Mobile app confirmation dialog
-    // - Voice confirmation system  
-    // - Slack bot approval workflow
-    // - Custom web interface
-    // - etc.
-    return true; // placeholder
-  }
-}
-
-// In your application setup:
-const agent = new DextoAgent(config);
-await agent.start();
-
-const confirmationHandler = new CustomToolConfirmationHandler(agent.agentEventBus);
-```
-
-### WebSocket Server Integration
-For remote UIs communicating via WebSocket:
-
-```typescript
-import { WebSocketServer } from 'ws';
-
-class ToolConfirmationWebSocketBridge {
-  constructor(private agentEventBus: AgentEventBus, private wss: WebSocketServer) {
-    // Forward framework events to WebSocket clients
-    this.agentEventBus.on('dexto:toolConfirmationRequest', (event) => {
-      this.broadcastToClients({
-        type: 'toolConfirmationRequest',
-        data: event
-      });
-    });
-
-    // Handle responses from WebSocket clients
-    this.wss.on('connection', (ws) => {
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-        if (message.type === 'toolConfirmationResponse') {
-          this.agentEventBus.emit('dexto:toolConfirmationResponse', message.data);
-        }
-      });
-    });
-  }
-}
-```
-
-### REST API Integration
-For HTTP-based confirmation workflows:
-
-```typescript
-import express from 'express';
-
-class ToolConfirmationAPIHandler {
-  private pendingConfirmations = new Map<string, {resolve: Function, reject: Function}>();
-
-  constructor(private agentEventBus: AgentEventBus, private app: express.Application) {
-    this.agentEventBus.on('dexto:toolConfirmationRequest', this.handleRequest.bind(this));
-    this.setupRoutes();
-  }
-
-  private async handleRequest(event: ToolConfirmationEvent) {
-    // Store pending confirmation
-    const promise = new Promise<boolean>((resolve, reject) => {
-      this.pendingConfirmations.set(event.executionId, { resolve, reject });
-      
-      // Auto-timeout
-      setTimeout(() => {
-        if (this.pendingConfirmations.has(event.executionId)) {
-          this.pendingConfirmations.delete(event.executionId);
-          reject(new Error('Confirmation timeout'));
-        }
-      }, 30000);
-    });
-
-    try {
-      const approved = await promise;
-      this.agentEventBus.emit('dexto:toolConfirmationResponse', {
-        executionId: event.executionId,
-        approved,
-        sessionId: event.sessionId
-      });
-    } catch (error) {
-      // Handle timeout or rejection
-      this.agentEventBus.emit('dexto:toolConfirmationResponse', {
-        executionId: event.executionId,
-        approved: false,
-        sessionId: event.sessionId
-      });
-    }
-  }
-
-  private setupRoutes() {
-    // Endpoint for your custom UI to respond
-    this.app.post('/api/tool-confirmation/:executionId', (req, res) => {
-      const { executionId } = req.params;
-      const { approved } = req.body;
-      
-      const pending = this.pendingConfirmations.get(executionId);
-      if (pending) {
-        this.pendingConfirmations.delete(executionId);
-        pending.resolve(approved);
-        res.json({ success: true });
-      } else {
-        res.status(404).json({ error: 'Confirmation not found or expired' });
-      }
-    });
-  }
-}
-```
-
-## Built-in Dexto UI Implementations
-
-Dexto includes two built-in UI implementations for reference and immediate use:
-
-### Tool Confirmation in Dexto CLI
-The built-in CLI mode provides:
-- Interactive arrow-key navigation (←/→ to select, Enter to confirm)
-- Visual confirmation with colored output
-- Auto-timeout with denial for security
-- Boxed confirmation dialogs with clear tool information
-
-### Tool Confirmation in Dexto WebUI  
-The built-in WebUI mode provides:
-- Modal dialogs with approve/deny buttons
-- "Remember my choice" checkbox with scope selection (session/global)
-- Visual timeout countdown
-- Security warnings for sensitive operations
-- WebSocket-based real-time communication
-
-These implementations serve as reference examples for building your own custom UIs.
-
-## Related Configuration
-
-Tool confirmation works with these other configuration sections:
-- **[Storage](./storage.md)** - Required for persistent approval storage
-- **[MCP Servers](../../mcp/connecting-servers.md)** - Defines which tools are available for confirmation
-- **[Sessions](./sessions.md)** - Affects session-scoped approval behavior
+- [agent.yml Reference → Tool Confirmation](./agent-yml.md#tool-confirmation) - Complete field documentation
+- [Internal Tools](./internalTools.md) - Built-in Dexto tools
+- [MCP Configuration](./mcpConfiguration.md) - External MCP tools
+- [Storage Configuration](./storage.md) - Persistent approval storage

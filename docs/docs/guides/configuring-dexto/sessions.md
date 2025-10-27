@@ -7,6 +7,10 @@ sidebar_label: "Sessions"
 
 Configure session management for your Dexto agent, including maximum concurrent sessions and session timeouts.
 
+:::tip Complete Reference
+For complete field documentation and session management details, see **[agent.yml → Sessions](./agent-yml.md#session-configuration)**.
+:::
+
 ## Overview
 
 Sessions in Dexto represent individual conversation contexts or user interactions. Each session maintains its own message history, tool approvals, and state.
@@ -71,3 +75,8 @@ sessions:
 ```
 
 This provides a good balance for most use cases.
+
+## See Also
+
+- [agent.yml Reference → Sessions](./agent-yml.md#session-configuration) - Complete field documentation
+- [Storage Configuration](./storage.md) - Persistent chat history storage
