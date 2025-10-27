@@ -143,6 +143,7 @@ h3 {
 /* Make sure the main content area is responsive */
 .theme-doc-markdown {
   max-width: 100%;
+  color-scheme: light dark;
 }
 
 /* Enhanced glass morphism cards */
