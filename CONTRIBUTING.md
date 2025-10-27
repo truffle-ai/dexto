@@ -166,8 +166,11 @@ Once you've created a comprehensive example agent, you can add it to the officia
 **How to add an agent to the registry:**
 
 1. Create your agent in `agents/your-agent-name/` (following step 2 above)
-2. Edit `agents/agent-registry.json`
-3. Add a new entry following this structure:
+2. Edit `agents/agent-registry.json` and add your agent entry
+3. Edit `packages/cli/scripts/copy-agents.ts` and add your agent to the `AGENTS_TO_COPY` array
+4. Test the build to ensure your agent is properly copied
+
+**Registry Entry Structure (`agents/agent-registry.json`):**
 
 ```json
 {
@@ -243,6 +246,30 @@ Once you've created a comprehensive example agent, you can add it to the officia
   }
   ```
   Note: `main` field is omitted for single-file agents.
+
+**Build Script Configuration (`packages/cli/scripts/copy-agents.ts`):**
+
+Add your agent to the `AGENTS_TO_COPY` array:
+
+```typescript
+const AGENTS_TO_COPY = [
+    // Core files
+    'agent-registry.json',
+    'agent-template.yml',
+    'default-agent.yml',
+
+    // Agent directories
+    'database-agent/',
+    'your-agent-name/',  // Add your agent here
+    // ... other agents
+];
+```
+
+**Important Notes:**
+- Directory agents should end with `/` (e.g., `'your-agent-name/'`)
+- Single-file agents should NOT have a trailing slash (e.g., `'your-agent.yml'`)
+- The script copies agents to `packages/cli/dist/agents/` during build
+- Run `pnpm run build` to test that your agent is properly copied
 
 ### 4. Requesting Pre-installed Agent Status
 
