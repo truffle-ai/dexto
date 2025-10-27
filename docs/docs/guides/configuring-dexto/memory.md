@@ -85,6 +85,8 @@ systemPrompt:
 
 ## Configuration Examples
 
+Memory is configured under the systemPrompt section.
+
 ### Basic Memory Integration
 
 ```yaml
