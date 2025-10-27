@@ -73,9 +73,13 @@ export class Telemetry {
     /**
      * Initialize telemetry with the given configuration
      * @param config - Optional telemetry configuration object
+     * @param exporter - Optional custom span exporter (overrides config.export, useful for testing)
      * @returns Telemetry instance that can be used for tracing
      */
-    static async init(config: OtelConfiguration = {}): Promise<Telemetry> {
+    static async init(
+        config: OtelConfiguration = {},
+        exporter?: import('@opentelemetry/sdk-trace-base').SpanExporter
+    ): Promise<Telemetry> {
         try {
             // Return existing instance if already initialized
             if (globalThis.__TELEMETRY__) return globalThis.__TELEMETRY__;
@@ -95,11 +99,12 @@ export class Telemetry {
                             [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
                         });
 
-                        const exporter = Telemetry.buildTraceExporter(config);
+                        // Use custom exporter if provided, otherwise build from config
+                        const spanExporter = exporter || Telemetry.buildTraceExporter(config);
                         const traceExporter =
-                            exporter instanceof CompositeExporter
-                                ? exporter
-                                : new CompositeExporter([exporter]);
+                            spanExporter instanceof CompositeExporter
+                                ? spanExporter
+                                : new CompositeExporter([spanExporter]);
 
                         sdk = new NodeSDK({
                             resource,
@@ -172,6 +177,8 @@ export class Telemetry {
             await globalThis.__TELEMETRY__.shutdown();
             globalThis.__TELEMETRY__ = undefined;
         }
+        // Also clear the init promise to allow re-initialization
+        Telemetry._initPromise = undefined;
     }
 
     /**
@@ -198,6 +205,20 @@ export class Telemetry {
 
     static withContext(ctx: Context, fn: () => void) {
         return otlpContext.with(ctx, fn);
+    }
+
+    /**
+     * Forces pending spans to be exported immediately.
+     * Useful for testing to ensure spans are available in exporters.
+     */
+    public async forceFlush(): Promise<void> {
+        if (this._isInitialized) {
+            // Access the global tracer provider and force flush
+            const provider = trace.getTracerProvider() as any;
+            if (provider && typeof provider.forceFlush === 'function') {
+                await provider.forceFlush();
+            }
+        }
     }
 
     /**
