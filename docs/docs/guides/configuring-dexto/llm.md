@@ -7,8 +7,9 @@ sidebar_label: "LLM Configuration"
 
 Configure the language model provider and settings for your Dexto agent.
 
-:::info References
+:::tip Complete Reference
 For supported providers and models, see **[Supported LLM Providers](../supported-llm-providers.md)**.
+
 For complete field documentation, see **[agent.yml → LLM Configuration](./agent-yml.md#llm-configuration)**.
 :::
 
