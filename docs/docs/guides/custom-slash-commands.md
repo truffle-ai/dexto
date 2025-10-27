@@ -46,7 +46,10 @@ $3
 
 ### Using the Command
 
-In the Dexto CLI:
+**In Web UI:**
+Type `/` to discover and invoke your custom commands.
+
+**In CLI:**
 ```bash
 dexto
 > /translate english spanish "Hello world"
@@ -216,8 +219,10 @@ Include:
 
 ## Viewing Available Commands
 
-List all available slash commands:
+**In Web UI:**
+Type `/` to see all available commands.
 
+**In CLI:**
 ```bash
 dexto
 > /prompts
