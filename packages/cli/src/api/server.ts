@@ -165,6 +165,17 @@ export async function initializeApi(
         activeAgent = newAgent;
         activeAgentId = agentId;
 
+        // Update agent card for A2A and MCP routes
+        agentCardData = createAgentCard(
+            {
+                defaultName: agentId,
+                defaultVersion: overrides.version ?? '1.0.0',
+                defaultBaseUrl: baseApiUrl,
+                webSubscriber,
+            },
+            overrides
+        );
+
         logger.info(`Successfully switched to agent: ${agentId}`);
 
         // Now safely stop the previous agent

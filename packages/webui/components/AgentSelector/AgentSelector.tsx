@@ -74,6 +74,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       return parsed.sort((a, b) => b.lastUsed - a.lastUsed).slice(0, MAX_RECENT_AGENTS);
     } catch (err) {
       console.error('Failed to load recent agents:', err);
+      // Clear corrupted data
+      localStorage.removeItem(RECENT_AGENTS_KEY);
       return [];
     }
   }, []);
