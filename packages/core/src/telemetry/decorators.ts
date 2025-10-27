@@ -6,7 +6,6 @@ import {
     propagation,
     SpanOptions,
 } from '@opentelemetry/api';
-import type { Span } from '@opentelemetry/api';
 import { logger } from '../logger/index.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 

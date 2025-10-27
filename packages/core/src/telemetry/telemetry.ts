@@ -1,13 +1,6 @@
-import {
-    context as otlpContext,
-    SpanStatusCode,
-    trace,
-    propagation,
-    context,
-} from '@opentelemetry/api';
-import type { Tracer, SpanOptions, Context, Span, BaggageEntry } from '@opentelemetry/api';
+import { context as otlpContext, trace, propagation } from '@opentelemetry/api';
+import type { Tracer, Context, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
-import { getBaggageValues, hasActiveTelemetry, addBaggageAttributesToSpan } from './utils.js';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node';
 import { OTLPTraceExporter as OTLPHttpExporter } from '@opentelemetry/exporter-trace-otlp-http';
