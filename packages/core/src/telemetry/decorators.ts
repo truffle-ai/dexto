@@ -8,6 +8,7 @@ import {
 } from '@opentelemetry/api';
 import { logger } from '../logger/index.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 
 // Decorator factory that takes optional spanName
 export function withSpan(options: {
@@ -57,13 +58,9 @@ export function withSpan(options: {
             const span = tracer.startSpan(spanName, spanOptions);
             let ctx = trace.setSpan(context.active(), span);
 
-            // Record input arguments as span attributes
+            // Record input arguments as span attributes (sanitized and truncated)
             args.forEach((arg, index) => {
-                try {
-                    span.setAttribute(`${spanName}.argument.${index}`, JSON.stringify(arg));
-                } catch {
-                    span.setAttribute(`${spanName}.argument.${index}`, '[Not Serializable]');
-                }
+                span.setAttribute(`${spanName}.argument.${index}`, safeStringify(arg, 8192));
             });
 
             const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx);
@@ -84,17 +81,25 @@ export function withSpan(options: {
                 if (runId !== undefined) {
                     span.setAttribute('runId', String(runId));
                 }
-            } else if (this && typeof this === 'object' && 'name' in this) {
-                const contextObj = this as { name: string; runId?: string };
-                span.setAttribute('componentName', contextObj.name);
+            } else if (this && typeof this === 'object') {
+                const contextObj = this as {
+                    name?: string;
+                    runId?: string;
+                    constructor?: { name?: string };
+                };
+                // Prefer instance.name, fallback to constructor.name
+                const inferredName = contextObj.name ?? contextObj.constructor?.name;
+                if (inferredName) {
+                    span.setAttribute('componentName', inferredName);
+                }
                 if (contextObj.runId) {
                     span.setAttribute('runId', contextObj.runId);
                 }
 
                 const baggageEntries: Record<string, { value: string }> = {};
 
-                if (contextObj.name !== undefined) {
-                    baggageEntries.componentName = { value: String(contextObj.name) };
+                if (inferredName !== undefined) {
+                    baggageEntries.componentName = { value: String(inferredName) };
                 }
                 if (contextObj.runId !== undefined) {
                     baggageEntries.runId = { value: String(contextObj.runId) };
@@ -123,14 +128,10 @@ export function withSpan(options: {
                 if (result instanceof Promise) {
                     return result
                         .then((resolvedValue) => {
-                            try {
-                                span.setAttribute(
-                                    `${spanName}.result`,
-                                    JSON.stringify(resolvedValue)
-                                );
-                            } catch {
-                                span.setAttribute(`${spanName}.result`, '[Not Serializable]');
-                            }
+                            span.setAttribute(
+                                `${spanName}.result`,
+                                safeStringify(resolvedValue, 8192)
+                            );
                             return resolvedValue;
                         })
                         .catch((error) => {
@@ -146,12 +147,8 @@ export function withSpan(options: {
                         });
                 }
 
-                // Record result for non-promise returns
-                try {
-                    span.setAttribute(`${spanName}.result`, JSON.stringify(result));
-                } catch {
-                    span.setAttribute(`${spanName}.result`, '[Not Serializable]');
-                }
+                // Record result for non-promise returns (sanitized and truncated)
+                span.setAttribute(`${spanName}.result`, safeStringify(result, 8192));
                 // Return regular results
                 return result;
             } catch (error) {

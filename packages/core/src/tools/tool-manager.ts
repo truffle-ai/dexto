@@ -42,12 +42,12 @@ export interface InternalToolsOptions {
  *                ↓
  *          ApprovalManager (for confirmations)
  *
- * TODO (Telemetry): Add OpenTelemetry metrics collection (Phase 5)
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
  *   - Tool execution counters (by tool name, source: MCP/internal)
  *   - Tool execution latency histograms
  *   - Tool success/failure rate counters
  *   - Tool approval/denial counters
- *   See feature-plans/telemetry.md Phase 5 for details
+ *   See feature-plans/telemetry.md for details
  */
 @InstrumentClass({
     prefix: 'tool',

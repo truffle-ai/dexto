@@ -22,12 +22,12 @@ import { trace } from '@opentelemetry/api';
 /**
  * OpenAI implementation of LLMService
  * Not actively maintained, so might be buggy or outdated
- * TODO (Telemetry): Add OpenTelemetry metrics collection (Phase 5)
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
  *   - LLM call counters (by provider/model)
  *   - Token usage histograms (input/output/total/reasoning)
  *   - Request latency histograms
  *   - Error rate counters
- *   See feature-plans/telemetry.md Phase 5 for details
+ *   See feature-plans/telemetry.md for details
  */
 @InstrumentClass({
     prefix: 'llm.openai',

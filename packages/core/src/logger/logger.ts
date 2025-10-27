@@ -42,7 +42,7 @@
  */
 
 /**
- * TODO (Telemetry): Integrate OpenTelemetry structured logs with trace correlation (Phase 5)
+ * TODO (Telemetry): Integrate OpenTelemetry structured logs with trace correlation
  *
  * Future Enhancement:
  * - Replace or enhance Winston logger with OpenTelemetry Logs API
@@ -59,8 +59,7 @@
  * - Use @opentelemetry/api-logs package
  * - Create OTel-aware logger that wraps or replaces Winston
  * - Maintain existing logger API for backward compatibility
- *
- * See feature-plans/telemetry.md Phase 5 for details
+ * See feature-plans/telemetry.md for details
  */
 import * as winston from 'winston';
 import chalk from 'chalk';

@@ -16,19 +16,21 @@ declare global {
 }
 
 /**
- * TODO (Telemetry): Phase 5 enhancements
+ * TODO (Telemetry): enhancements
  *   - Implement sampling strategies (ratio-based, parent-based, always-on/off)
  *   - Add custom span processors for filtering/enrichment
  *   - Support context propagation across A2A (agent-to-agent) calls
  *   - Add cost tracking per trace (token costs, API costs)
  *   - Add static shutdownGlobal() method for agent switching
- *   See feature-plans/telemetry.md Phase 5 for details
+ *   See feature-plans/telemetry.md for details
  */
 export class Telemetry {
     public tracer: Tracer = trace.getTracer('dexto');
     name: string = 'dexto-service';
     private _isInitialized: boolean = false;
-    private _sdk?: NodeSDK;
+    private _sdk?: NodeSDK | undefined;
+    private static _initPromise?: Promise<Telemetry> | undefined;
+    private static _signalHandlers?: { sigterm: () => void; sigint: () => void } | undefined;
 
     private constructor(config: OtelConfiguration, enabled: boolean, sdk?: NodeSDK) {
         const serviceName = config.serviceName ?? 'dexto-service';
@@ -75,42 +77,61 @@ export class Telemetry {
      */
     static async init(config: OtelConfiguration = {}): Promise<Telemetry> {
         try {
-            if (!globalThis.__TELEMETRY__) {
-                // honor enabled=false: skip SDK registration
-                const enabled = config.enabled !== false;
+            // Return existing instance if already initialized
+            if (globalThis.__TELEMETRY__) return globalThis.__TELEMETRY__;
 
-                let sdk: NodeSDK | undefined;
-                if (enabled) {
-                    const resource = new Resource({
-                        [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
-                    });
+            // Return pending promise if initialization is in progress
+            if (Telemetry._initPromise) return Telemetry._initPromise;
 
-                    const exporter = Telemetry.buildTraceExporter(config);
-                    const traceExporter =
-                        exporter instanceof CompositeExporter
-                            ? exporter
-                            : new CompositeExporter([exporter]);
+            // Create and store initialization promise to prevent race conditions
+            Telemetry._initPromise = (async () => {
+                if (!globalThis.__TELEMETRY__) {
+                    // honor enabled=false: skip SDK registration
+                    const enabled = config.enabled !== false;
 
-                    sdk = new NodeSDK({
-                        resource,
-                        traceExporter,
-                        instrumentations: [getNodeAutoInstrumentations()],
-                    });
+                    let sdk: NodeSDK | undefined;
+                    if (enabled) {
+                        const resource = new Resource({
+                            [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
+                        });
 
-                    await sdk.start(); // registers the global provider → no ProxyTracer
-                    // graceful shutdown
-                    process.on('SIGTERM', () => sdk!.shutdown());
-                    process.on('SIGINT', () => sdk!.shutdown());
+                        const exporter = Telemetry.buildTraceExporter(config);
+                        const traceExporter =
+                            exporter instanceof CompositeExporter
+                                ? exporter
+                                : new CompositeExporter([exporter]);
+
+                        sdk = new NodeSDK({
+                            resource,
+                            traceExporter,
+                            instrumentations: [getNodeAutoInstrumentations()],
+                        });
+
+                        await sdk.start(); // registers the global provider → no ProxyTracer
+
+                        // graceful shutdown (one-shot, avoid unhandled rejection)
+                        const sigterm = () => {
+                            void sdk?.shutdown();
+                        };
+                        const sigint = () => {
+                            void sdk?.shutdown();
+                        };
+                        process.once('SIGTERM', sigterm);
+                        process.once('SIGINT', sigint);
+                        Telemetry._signalHandlers = { sigterm, sigint };
+                    }
+
+                    globalThis.__TELEMETRY__ = new Telemetry(config, enabled, sdk);
                 }
+                return globalThis.__TELEMETRY__!;
+            })();
 
-                globalThis.__TELEMETRY__ = new Telemetry(config, enabled, sdk);
-            }
-
-            return globalThis.__TELEMETRY__;
+            return Telemetry._initPromise;
         } catch (error) {
             const wrappedError = new Error(
                 `Failed to initialize telemetry: ${error instanceof Error ? error.message : String(error)}`
             );
+            Telemetry._initPromise = undefined;
             throw wrappedError;
         }
     }
@@ -189,6 +210,17 @@ export class Telemetry {
             await this._sdk.shutdown();
             this._isInitialized = false;
             globalThis.__TELEMETRY__ = undefined; // Clear the global instance
+
+            // Cleanup signal handlers to prevent leaks
+            if (Telemetry._signalHandlers) {
+                process.off('SIGTERM', Telemetry._signalHandlers.sigterm);
+                process.off('SIGINT', Telemetry._signalHandlers.sigint);
+                Telemetry._signalHandlers = undefined;
+            }
+
+            // Clear references for GC and re-initialization
+            this._sdk = undefined;
+            Telemetry._initPromise = undefined;
         }
     }
 }

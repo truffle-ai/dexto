@@ -33,12 +33,12 @@ import { trace } from '@opentelemetry/api';
 /**
  * Vercel AI SDK implementation of LLMService
  * TODO: improve token counting logic across all LLM services - approximation isn't matching vercel actual token count properly
- * TODO (Telemetry): Add OpenTelemetry metrics collection (Phase 5)
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
  *   - LLM call counters (by provider/model)
  *   - Token usage histograms (input/output/total/reasoning)
  *   - Request latency histograms
  *   - Error rate counters
- *   See feature-plans/telemetry.md Phase 5 for details
+ *   See feature-plans/telemetry.md for details
  */
 @InstrumentClass({
     prefix: 'llm.vercel',
