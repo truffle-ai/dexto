@@ -4,36 +4,82 @@ title: "Adding Custom MCP Servers"
 
 # Adding Custom MCP Servers
 
-Add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities
-
-```bash
-# Edit your agent configuration or use the WebUI
-dexto --mode web
-```
-
+Extend Dexto's capabilities by adding your own Model Context Protocol (MCP) servers with new tools and data sources.
 
 <img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
 
-This example demonstrates how to extend Dexto with custom tools and data sources. You can:
+## What it does
 
-- Connect to any MCP-compatible server
-- Add custom tools for your specific use case
-- Integrate with external APIs and services
-- Configure servers through YAML or the WebUI
+Add custom MCP servers to:
+- Connect new tools and APIs
+- Access external data sources
+- Integrate third-party services
+- Build custom functionality
 
-### Configuration Methods
+## How to add MCP servers
 
-**Via YAML:**
-```yaml
-mcpServers:
-  custom_api:
-    type: http
-    url: $CUSTOM_MCP_URL
-    headers:
-      Authorization: "Bearer $CUSTOM_MCP_TOKEN"
+### Option 1: Via Web UI
+
+```bash
+# Launch the Web UI
+dexto --mode web
 ```
 
-**Via WebUI:**
-Use the web interface to add servers interactively with real-time validation and testing.
+1. Click on "MCP Servers" in the sidebar
+2. Click "Add Server"
+3. Enter server configuration
+4. Save and the server tools become available immediately
 
-See [MCP Overview](../mcp/overview.md) for complete setup instructions.
+### Option 2: Via agent.yml
+
+Edit your agent configuration file:
+
+```yaml
+# agents/my-agent.yml
+mcpServers:
+  custom-server:
+    type: stdio
+    command: npx
+    args: ['-y', 'your-mcp-server-package']
+    env:
+      API_KEY: $YOUR_API_KEY
+```
+
+### Option 3: Via CLI
+
+```bash
+# Edit agent config directly
+nano ~/.dexto/agents/your-agent.yml
+
+# Or use the default agent config
+nano ~/.dexto/agents/default-agent.yml
+```
+
+## Example: Adding Brave Search
+
+```yaml
+mcpServers:
+  web-search:
+    type: stdio
+    command: npx
+    args: ['-y', '@modelcontextprotocol/server-brave-search']
+    env:
+      BRAVE_API_KEY: $BRAVE_API_KEY
+```
+
+## Available MCP Servers
+
+Browse 20+ ready-to-use MCP servers in the [MCP Store](#mcp-store) including:
+- **Filesystem** - File operations
+- **Brave Search** - Web search
+- **GitHub** - Repository management
+- **Slack** - Team communication
+- **PostgreSQL** - Database access
+- And many more!
+
+## Learn More
+
+- [MCP Configuration Guide](/docs/guides/configuring-dexto/mcpConfiguration)
+- [MCP Overview](/docs/mcp/overview)
+- [MCP Manager](/docs/mcp/mcp-manager)
+- [Official MCP Servers](https://github.com/modelcontextprotocol/servers)

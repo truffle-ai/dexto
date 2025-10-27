@@ -1,25 +1,58 @@
 ---
-title: "Web App Development: Snake Game"
+title: "Coding Agent: Create Apps on Demand"
 ---
 
-# Web App Development: Snake Game
+# Coding Agent: Create Apps on Demand
+
+Build full-stack applications, websites, and interactive games with AI-powered coding agents.
+
+**Task:** `Can you create a snake game in a new folder and open it when done?`
 
 ```bash
-dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
+dexto --agent coding-agent "Can you create a snake game in a new folder and open it when done?"
 ```
 
-**Task:**
-> Create a snake game in HTML/CSS/JS, then open it in the browser
+<img src="/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
 
-**Output:**
+## What it does
 
-<img src="https://github.com/user-attachments/assets/6901ba82-3c2a-4177-baf0-7d44d04a5f27" alt="Snake Game Development Demo" width="600"/>
+The Coding Agent can:
+- Generate complete applications from natural language descriptions
+- Write HTML, CSS, JavaScript, TypeScript, and more
+- Create interactive games and websites
+- Automatically open finished projects in the browser
+- Refactor and debug existing code
 
-This example showcases Dexto's web development capabilities. The default agent can:
+## Requirements
 
-- Generate complete web applications from natural language
-- Create HTML, CSS, and JavaScript code
-- Automatically open the created application in a browser
-- Handle full-stack development tasks
+- Anthropic Claude Haiku 4.5 (included in agent config)
+- Filesystem and browser tools (included)
 
-The agent uses filesystem tools to create files and browser tools to open and test the application, demonstrating the power of combining multiple MCP servers for complex workflows.
+## Try it
+
+```bash
+# Install the agent
+dexto install coding-agent
+
+# Create a game
+dexto --agent coding-agent "create a snake game in HTML/CSS/JS, then open it in the browser"
+
+# Build a website
+dexto --agent coding-agent "create a landing page for a coffee brand inspired by star wars"
+
+# Or use the default agent
+dexto "create a to-do list app with local storage"
+```
+
+The agent will:
+1. Create project files and folders
+2. Write the code
+3. Open the finished app in your browser
+
+## Supported Languages
+
+50+ programming languages and config formats including:
+- HTML, CSS, JavaScript, TypeScript
+- Python, Go, Rust
+- React, Vue, Svelte
+- And more
