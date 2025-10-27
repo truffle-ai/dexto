@@ -2,6 +2,8 @@
 title: "Triage Agent: Multi-Agent Customer Support"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Triage Agent: Multi-Agent Customer Support
 
 Create multi-agent systems that intelligently coordinate and delegate tasks among themselves based on user queries.
@@ -10,7 +12,7 @@ Create multi-agent systems that intelligently coordinate and delegate tasks amon
 dexto --agent triage-agent
 ```
 
-<img src="/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600"/>
+<ExpandableImage src="/assets/triage_agent_demo.gif" alt="Triage Agent Demo" title="Triage Agent: Multi-Agent Customer Support" width={900} />
 
 ## What it does
 

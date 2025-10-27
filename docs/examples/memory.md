@@ -2,11 +2,13 @@
 title: "Memory: Persistent Context & Learning"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Memory: Persistent Context & Learning
 
 Create and save memories so your agent automatically uses them to create personalized experiences.
 
-<img src="/assets/memory_demo.gif" alt="Memory Demo" width="600"/>
+<ExpandableImage src="/assets/memory_demo.gif" alt="Memory Demo" title="Memory: Persistent Context & Learning" width={900} />
 
 ## What it does
 

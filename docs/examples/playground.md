@@ -2,11 +2,13 @@
 title: "Playground: Interactive Development Environment"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Playground: Interactive Development Environment
 
 A testing playground to view tools in your MCP servers before connecting them to LLMs to see detailed response structures.
 
-<img src="/assets/playground_demo.gif" alt="Playground Demo" width="600"/>
+<ExpandableImage src="/assets/playground_demo.gif" alt="Playground Demo" title="Playground: Interactive Development Environment" width={900} />
 
 ## What it does
 

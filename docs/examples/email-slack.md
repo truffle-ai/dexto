@@ -2,6 +2,8 @@
 title: "Email to Slack: Automated Email Summaries"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Email to Slack: Automated Email Summaries
 
 Automatically summarize emails and send highlights to Slack channels.
@@ -12,7 +14,7 @@ Automatically summarize emails and send highlights to Slack channels.
 dexto --agent ./agents/examples/email_slack.yml
 ```
 
-<img src="/assets/email_slack_demo.gif" alt="Email to Slack Demo" width="600"/>
+<ExpandableImage src="/assets/email_slack_demo.gif" alt="Email to Slack Demo" title="Email to Slack: Automated Email Summaries" width={900} />
 
 ## What it does
 

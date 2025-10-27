@@ -2,6 +2,8 @@
 title: "Hugging Face: Image Generation"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Hugging Face: Image Generation
 
 Generate images using Hugging Face models with simple text prompts.
@@ -12,7 +14,7 @@ Generate images using Hugging Face models with simple text prompts.
 dexto --agent nano-banana-agent
 ```
 
-<img src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" width="600"/>
+<ExpandableImage src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" title="Hugging Face: Image Generation" width={900} />
 
 ## What it does
 

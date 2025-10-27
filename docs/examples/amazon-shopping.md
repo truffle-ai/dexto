@@ -2,6 +2,8 @@
 title: "Browser Agent: Amazon Shopping Assistant"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Browser Agent: Amazon Shopping Assistant
 
 Automate web browsing tasks like shopping, research, and data collection with AI-powered browser control.
@@ -14,7 +16,7 @@ dexto
 ```
 
 <a href="https://youtu.be/C-Z0aVbl4Ik">
-  <img src="https://github.com/user-attachments/assets/3f5be5e2-7a55-4093-a071-8c52f1a83ba3" alt="Dexto: Amazon shopping agent demo" width="600"/>
+  <ExpandableImage src="https://github.com/user-attachments/assets/3f5be5e2-7a55-4093-a071-8c52f1a83ba3" alt="Dexto: Amazon shopping agent demo" title="Browser Agent: Amazon Shopping Assistant" width={900} />
 </a>
 
 ## What it does

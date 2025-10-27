@@ -2,11 +2,13 @@
 title: "Portable Agents: Use Your Agents from Cursor"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Portable Agents: Use Your Agents from Cursor
 
 Dexto agents are modular, composable, and portable - run them from anywhere including Cursor, Claude Desktop, and other MCP clients.
 
-<img src="/img/cursor/dexto-agent-cursor.png" alt="Cursor Integration Demo" width="600"/>
+<ExpandableImage src="/img/cursor/dexto-agent-cursor.png" alt="Cursor Integration Demo" title="Portable Agents: Use Your Agents from Cursor" width={900} />
 
 ## What it does
 

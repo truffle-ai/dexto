@@ -2,6 +2,8 @@
 title: "Coding Agent: Create Apps on Demand"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Coding Agent: Create Apps on Demand
 
 Build full-stack applications, websites, and interactive games with AI-powered coding agents.
@@ -12,7 +14,7 @@ Build full-stack applications, websites, and interactive games with AI-powered c
 dexto --agent coding-agent "Can you create a snake game in a new folder and open it when done?"
 ```
 
-<img src="/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
+<ExpandableImage src="/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" title="Coding Agent: Create Apps on Demand" width={900} />
 
 ## What it does
 

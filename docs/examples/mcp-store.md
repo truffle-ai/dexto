@@ -2,11 +2,13 @@
 title: "MCP Store: Tool Discovery & Integration"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # MCP Store: Tool Discovery & Integration
 
 Equip your agents with 20+ MCP servers and start using them via chat - instantly.
 
-<img src="/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600"/>
+<ExpandableImage src="/assets/mcp_store_demo.gif" alt="MCP Store Demo" title="MCP Store: Tool Discovery & Integration" width={900} />
 
 ## What it does
 

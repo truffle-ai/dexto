@@ -2,11 +2,13 @@
 title: "Human In The Loop: Dynamic Form Generation"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Human In The Loop: Dynamic Form Generation
 
 Agents can generate structured forms when they need additional data, making it easier to collect extra info and approvals from users.
 
-<img src="/assets/user_form_demo.gif" alt="User Form Demo" width="600"/>
+<ExpandableImage src="/assets/user_form_demo.gif" alt="User Form Demo" title="Human In The Loop: Dynamic Form Generation" width={900} />
 
 ## What it does
 

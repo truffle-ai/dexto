@@ -2,6 +2,8 @@
 title: "Computer Vision: Face Detection & Annotation"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Computer Vision: Face Detection & Annotation Using OpenCV
 
 Detect faces in images and annotate them with bounding boxes using computer vision.
@@ -12,7 +14,7 @@ Detect faces in images and annotate them with bounding boxes using computer visi
 dexto --agent image-editor-agent
 ```
 
-<img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600"/>
+<ExpandableImage src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" title="Computer Vision: Face Detection & Annotation" width={900} />
 
 ## What it does
 

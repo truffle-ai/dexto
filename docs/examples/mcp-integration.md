@@ -2,11 +2,13 @@
 title: "Adding Custom MCP Servers"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Adding Custom MCP Servers
 
 Extend Dexto's capabilities by adding your own Model Context Protocol (MCP) servers with new tools and data sources.
 
-<img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
+<ExpandableImage src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" title="Adding Custom MCP Servers" width={900} />
 
 ## What it does
 

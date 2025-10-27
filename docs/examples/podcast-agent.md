@@ -2,6 +2,8 @@
 title: "Podcast Agent: Generate AI Podcasts"
 ---
 
+import ExpandableImage from '@site/src/components/ExpandableImage';
+
 # Podcast Agent: Generate AI Podcasts
 
 Generate engaging podcast content with AI-powered audio generation featuring multiple speakers.
@@ -12,7 +14,7 @@ Generate engaging podcast content with AI-powered audio generation featuring mul
 dexto --agent podcast-agent
 ```
 
-<img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
+<ExpandableImage src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" title="Podcast Agent Demo" width={900} />
 
 ## What it does
 
