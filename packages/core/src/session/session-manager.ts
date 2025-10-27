@@ -42,12 +42,11 @@ export interface SessionData {
  * - Providing session lifecycle management
  * - Persisting session data using the simplified storage backends
  *
- * TODO (Telemetry): Add OpenTelemetry metrics collection (Phase 5)
+ * TODO (Telemetry): Add OpenTelemetry metrics collection later if needed
  *   - Active session gauges (current count)
  *   - Session creation/deletion counters
  *   - Session duration histograms
  *   - Messages per session histograms
- *   See feature-plans/telemetry.md Phase 5 for details
  */
 export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
