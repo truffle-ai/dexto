@@ -264,6 +264,8 @@ Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
 Dexto treats each configuration as a unique agent allowing you to define and save combinations of LLMs, servers, storage options, etc. based on your needs for easy portability. Define agents in version-controlled YAML. Change the file, reload, and chat—state, memory, and tools update automatically.
 
+Example configuration:
+
 ```yaml
 # agents/my-agent.yml
 llm:
@@ -304,7 +306,9 @@ dexto -m claude-sonnet-4-5-20250929
 dexto -m gemini-2.5-pro
 ```
 
-See our [Configuration Guide](https://docs.dexto.ai/docs/category/guides/) for complete setup instructions.
+You can configure things like LLM, system prompt, MCP servers, storage, sessions, human-in-the loop, telemetry and more!
+
+See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) for complete setup instructions.
 
 
 ## Programmatic API
@@ -339,7 +343,7 @@ await agent.run('Make it funnier');
 await agent.stop();
 ```
 
-See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/typescript-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
 
 ---
 
@@ -444,7 +448,7 @@ sessions:
 - **Production**: Redis + PostgreSQL for scale
 - **Simple**: SQLite for single-instance persistence
 
-See the [DextoAgent API Documentation](https://docs.dexto.ai/api/dexto-agent/) for complete method references.
+See the [DextoAgent API Documentation](https://docs.dexto.ai/api/sdk/dexto-agent) for complete method references.
 
 ---
 
