@@ -2,7 +2,7 @@ import { context as otlpContext, trace, propagation } from '@opentelemetry/api';
 import type { Tracer, Context, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node';
+import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter as OTLPHttpExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { OTLPTraceExporter as OTLPGrpcExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
@@ -224,7 +224,6 @@ export class Telemetry {
     /**
      * Shuts down the OpenTelemetry SDK, flushing any pending spans.
      * This should be called before the application exits.
-     * @param force - Whether to force a shutdown, even if there are active spans.
      */
     public async shutdown(): Promise<void> {
         if (this._sdk) {
