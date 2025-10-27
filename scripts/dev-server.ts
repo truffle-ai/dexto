@@ -5,6 +5,7 @@
  * 1. Builds core and CLI
  * 2. Runs the CLI directly from dist/index.js in server mode
  * 3. Starts WebUI in dev mode with hot reload
+ * 4. Opens browser automatically when WebUI is ready
  *
  * No symlinks needed - runs directly from built files!
  *
@@ -15,12 +16,14 @@
 
 import { execSync, spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
+import open from 'open';
 
 const rootDir = process.cwd();
 const cliPath = join(rootDir, 'packages/cli/dist/index.js');
 
 let apiProcess: ChildProcess | null = null;
 let webuiProcess: ChildProcess | null = null;
+let browserOpened = false;
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
@@ -119,12 +122,23 @@ setTimeout(() => {
         },
     });
 
-    // Prefix WebUI output
+    // Prefix WebUI output and detect when ready
     if (webuiProcess.stdout) {
         webuiProcess.stdout.on('data', (data) => {
             const lines = data.toString().split('\n').filter(Boolean);
             lines.forEach((line: string) => {
                 console.log(`[UI]  ${line}`);
+
+                // Open browser when Next.js is ready (looks for "Local:" or "ready" messages)
+                if (!browserOpened && (line.includes('Local:') || line.includes('Ready in'))) {
+                    browserOpened = true;
+                    const webUrl = 'http://localhost:3000';
+                    console.log(`\n🌐 Opening browser at ${webUrl}...`);
+                    open(webUrl, { wait: false }).catch((err) => {
+                        console.log(`   Could not open browser automatically: ${err.message}`);
+                        console.log(`   Please open ${webUrl} manually`);
+                    });
+                }
             });
         });
     }
