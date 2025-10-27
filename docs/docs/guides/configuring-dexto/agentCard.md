@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 12
 sidebar_label: "Agent Card (A2A)"
 ---
 

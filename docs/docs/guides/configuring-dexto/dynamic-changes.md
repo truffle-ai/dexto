@@ -1,5 +1,5 @@
 ---
-sidebar_position: 10
+sidebar_position: 13
 sidebar_label: "Dynamic Changes"
 ---
 # Runtime / Dynamic Configuration Changes
