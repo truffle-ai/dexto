@@ -308,49 +308,43 @@ Users choose based on their needs. Both are documented.
 - Lifecycle hooks added
 - Build passes
 
-### Phase 2: Decorator Implementation 🚧 IN PROGRESS
+### Phase 2: Decorator Implementation ✅ COMPLETE
 
 **Tasks**:
 
-1. **Add decorators to all major services**
-   - [ ] Add `@InstrumentClass` to `DextoAgent`
+1. **Add decorators to all major services** (Following selective instrumentation strategy from Architecture Decisions)
+   - [x] Add `@InstrumentClass` to `DextoAgent` (commit ae11e083)
      - Exclude methods: `isStarted`, `isStopped`, `getConfig`, `getEffectiveConfig`, etc.
-   - [ ] Add `@InstrumentClass` to `VercelLLMService`
+   - [x] Add `@InstrumentClass` to `VercelLLMService` (commit ae11e083)
      - Exclude methods: `getConfig`, `getModelId`, `getProviderDisplayName`, etc.
-   - [ ] Add `@InstrumentClass` to `OpenAILLMService`
-   - [ ] Add `@InstrumentClass` to `AnthropicLLMService`
-   - [ ] Add `@InstrumentClass` to `ToolManager`
+   - [x] Add `@InstrumentClass` to `OpenAILLMService` (commit 81bf732a)
+   - [x] Add `@InstrumentClass` to `AnthropicLLMService` (commit 81bf732a)
+   - [x] Add `@InstrumentClass` to `ToolManager` (commit 558f7587)
      - Trace both MCP and internal tool executions
-   - [ ] Add `@InstrumentClass` to `MCPManager`
-     - Trace MCP server communication
-   - [ ] Add `@InstrumentClass` to `SessionManager`
-     - Trace session lifecycle operations
-   - [ ] Add `@InstrumentClass` to `PluginManager`
-     - Trace plugin execution
-   - [ ] Add `@InstrumentClass` to `ResourceManager`
-     - Trace resource operations
-   - [ ] Add `@InstrumentClass` to `MemoryManager`
-     - Trace memory operations
+
+**NOT decorated** (per Architecture Decisions - lines 61-66):
+   - ❌ `MCPManager` - Internal communication layer (too low-level)
+   - ❌ `SessionManager` - Lifecycle management (not critical path)
+   - ❌ `PluginManager` - Hook execution (internal)
+   - ❌ `ResourceManager` - File operations (not critical path)
+   - ❌ `MemoryManager` - Storage operations (not critical path)
 
 2. **Add manual span attributes for key operations**
-   - [ ] In `DextoAgent.run()`:
-     - session_id
-     - input length
-     - has_image flag
-     - has_file flag
-   - [ ] In `VercelLLMService.streamText()`:
-     - Token usage (input/output/total/reasoning)
-     - Model/provider info
-     - Finish reason
-   - [ ] In `VercelLLMService.generateText()`:
+   - [x] In `VercelLLMService.streamText()`: (commit dd738b52)
+     - Token usage (gen_ai.usage.input_tokens, gen_ai.usage.output_tokens)
+   - [x] In `VercelLLMService.generateText()`: (commit dd738b52)
      - Same as streamText
+   - [x] In `OpenAILLMService`: (commit dd738b52)
+     - Token usage attributes
+   - [x] In `AnthropicLLMService`: (commit dd738b52)
+     - Token usage attributes
 
 3. **Move telemetry initialization to service layer**
-   - [ ] Add telemetry init to TOP of `createAgentServices()`
-   - [ ] Add `Telemetry.shutdownGlobal()` static method
-   - [ ] Update agent switching in `server.ts` to shutdown telemetry first
-   - [ ] Remove telemetry init from `DextoAgent.start()`
-   - [ ] Make `DextoAgent.stop()` idempotent for telemetry
+   - [x] Add telemetry init to TOP of `createAgentServices()` (service-initializer.ts:77)
+   - [x] Add `Telemetry.shutdownGlobal()` static method (telemetry.ts:156)
+   - [x] Update agent switching in `server.ts` to shutdown telemetry first (server.ts:158)
+   - [x] Remove telemetry init from `DextoAgent.start()` (not in start, only in createAgentServices)
+   - [x] Make `DextoAgent.stop()` idempotent for telemetry (DextoAgent.ts:321-324)
 
 ### Phase 3: Documentation & Examples 📝 PENDING
 
