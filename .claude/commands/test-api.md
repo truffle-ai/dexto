@@ -214,7 +214,7 @@ echo "$(yellow '[Integration]') Feature X workflow"
 ## Output Format
 
 ### Gap Analysis Report
-```
+```text
 API Test Coverage Analysis
 ==========================
 
@@ -240,7 +240,7 @@ Generating 15 new test cases...
 ```
 
 ### Test Execution Report
-```
+```text
 Running API tests against http://localhost:3001
 
 [PASS] GET /health
