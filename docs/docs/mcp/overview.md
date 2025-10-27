@@ -51,7 +51,8 @@ MCP is a key part of what makes Dexto flexible, extensible, and able to automate
 
 ## Next steps
 
-- [Configure Connections](./connecting-servers)
-- [MCP Manager](../guides/mcp-manager)
-- [Aggregate Multiple Servers](../guides/dexto-group-mcp-servers)
-- [Expose Dexto as MCP Server](../guides/dexto-as-mcp-server)
+- [Configure Connections](./connecting-servers.md)
+- [MCP Configuration](./configuration.md)
+- [MCP Manager](./mcp-manager.md)
+- [Aggregate Multiple Servers](./dexto-group-mcp-servers.md)
+- [Expose Dexto as MCP Server](./dexto-as-mcp-server.md)

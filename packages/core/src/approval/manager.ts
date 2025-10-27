@@ -3,6 +3,7 @@ import type {
     ApprovalResponse,
     ApprovalRequestDetails,
     ToolConfirmationMetadata,
+    CommandConfirmationMetadata,
     ElicitationMetadata,
 } from './types.js';
 import { ApprovalType, ApprovalStatus } from './types.js';
@@ -111,6 +112,42 @@ export class ApprovalManager {
             type: ApprovalType.TOOL_CONFIRMATION,
             timeout: timeout ?? this.config.timeout,
             metadata: toolMetadata,
+        };
+
+        if (sessionId !== undefined) {
+            details.sessionId = sessionId;
+        }
+
+        return this.requestApproval(details);
+    }
+
+    /**
+     * Request command confirmation approval
+     * Convenience method for dangerous command execution within an already-approved tool
+     *
+     * This is different from tool confirmation - it's for per-command approval
+     * of dangerous operations (like rm, git push) within tools that are already approved.
+     *
+     * @example
+     * ```typescript
+     * // bash_exec tool is approved, but dangerous commands still require approval
+     * const response = await manager.requestCommandConfirmation({
+     *   toolName: 'bash_exec',
+     *   command: 'rm -rf /important',
+     *   originalCommand: 'rm -rf /important',
+     *   sessionId: 'session-123'
+     * });
+     * ```
+     */
+    async requestCommandConfirmation(
+        metadata: CommandConfirmationMetadata & { sessionId?: string; timeout?: number }
+    ): Promise<ApprovalResponse> {
+        const { sessionId, timeout, ...commandMetadata } = metadata;
+
+        const details: ApprovalRequestDetails = {
+            type: ApprovalType.COMMAND_CONFIRMATION,
+            timeout: timeout ?? this.config.timeout,
+            metadata: commandMetadata,
         };
 
         if (sessionId !== undefined) {

@@ -14,11 +14,23 @@ import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
+import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * Anthropic implementation of LLMService
  * Not actively maintained, so might be buggy or outdated
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
+ *   - LLM call counters (by provider/model)
+ *   - Token usage histograms (input/output/total)
+ *   - Request latency histograms
+ *   - Error rate counters
+ *   See feature-plans/telemetry.md for details
  */
+@InstrumentClass({
+    prefix: 'llm.anthropic',
+    excludeMethods: ['getAllTools', 'formatToolsForClaude', 'getConfig', 'getContextManager'],
+})
 export class AnthropicService implements ILLMService {
     private anthropic: Anthropic;
     private config: ValidatedLLMConfig;
@@ -200,6 +212,15 @@ export class AnthropicService implements ILLMService {
                         router: 'in-built',
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     });
+
+                    // Add token usage to active span (if telemetry is enabled)
+                    const activeSpan = trace.getActiveSpan();
+                    if (activeSpan && totalTokens > 0) {
+                        activeSpan.setAttributes({
+                            'gen_ai.usage.total_tokens': totalTokens,
+                        });
+                    }
+
                     return fullResponse;
                 }
 
@@ -294,6 +315,15 @@ export class AnthropicService implements ILLMService {
                 router: 'in-built',
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             });
+
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan && totalTokens > 0) {
+                activeSpan.setAttributes({
+                    'gen_ai.usage.total_tokens': totalTokens,
+                });
+            }
+
             return (
                 fullResponse ||
                 'Reached maximum number of tool call iterations without a final response.'

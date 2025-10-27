@@ -73,4 +73,7 @@ export * from './memory/index.js';
 // Plugins
 export * from './plugins/index.js';
 
+// Telemetry
+export * from './telemetry/index.js';
+
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'

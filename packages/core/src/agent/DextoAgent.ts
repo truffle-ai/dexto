@@ -10,6 +10,8 @@ import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
+import { Telemetry } from '../telemetry/telemetry.js';
+import { InstrumentClass } from '../telemetry/decorators.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -95,7 +97,7 @@ export interface AgentEventSubscriber {
  * const response = await agent.run("Hello, how are you?");
  *
  * // Switch LLM models (provider inferred automatically)
- * await agent.switchLLM({ model: 'gpt-4o' });
+ * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
  * const session = agent.createSession('user-123');
@@ -112,6 +114,17 @@ export interface AgentEventSubscriber {
  * await agent.stop();
  * ```
  */
+@InstrumentClass({
+    prefix: 'agent',
+    excludeMethods: [
+        'isStarted',
+        'isStopped',
+        'getConfig',
+        'getEffectiveConfig',
+        'registerSubscriber',
+        'ensureStarted',
+    ],
+})
 export class DextoAgent {
     /**
      * These services are public for use by the outside world
@@ -147,6 +160,9 @@ export class DextoAgent {
 
     // Event subscribers (e.g., WebSocket, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
+
+    // Telemetry instance for distributed tracing
+    private telemetry?: Telemetry;
 
     constructor(
         config: AgentConfig,
@@ -213,6 +229,9 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Note: Telemetry is initialized in createAgentServices() before services are created
+            // This ensures decorators work correctly on all services
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -298,6 +317,11 @@ export class DextoAgent {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
             }
+
+            // Note: Telemetry is NOT shut down here
+            // For agent switching: Telemetry.shutdownGlobal() is called explicitly before creating new agent
+            // For process exit: Telemetry shuts down automatically via process exit handlers
+            // This allows telemetry to persist across agent restarts in the same process
 
             this._isStopped = true;
             this._isStarted = false;
@@ -890,7 +914,7 @@ export class DextoAgent {
      * @example
      * ```typescript
      * // Switch to a different model (provider will be inferred, API key auto-resolved)
-     * await agent.switchLLM({ model: 'gpt-4o' });
+     * await agent.switchLLM({ model: 'gpt-5' });
      *
      * // Switch to a different provider with explicit API key
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', apiKey: 'sk-ant-...' });
@@ -899,7 +923,7 @@ export class DextoAgent {
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', router: 'in-built' }, 'user-123');
      *
      * // Switch for all sessions
-     * await agent.switchLLM({ model: 'gpt-4o' }, '*');
+     * await agent.switchLLM({ model: 'gpt-5' }, '*');
      * ```
      */
     public async switchLLM(
@@ -1062,7 +1086,7 @@ export class DextoAgent {
      *
      * @example
      * ```typescript
-     * const provider = agent.inferProviderFromModel('gpt-4o');
+     * const provider = agent.inferProviderFromModel('gpt-5');
      * console.log(provider); // 'openai'
      *
      * const provider2 = agent.inferProviderFromModel('claude-4-sonnet-20250514');

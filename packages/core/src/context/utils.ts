@@ -312,10 +312,35 @@ function buildToolBlobName(
 
 async function resolveBlobReferenceToParts(
     resourceUri: string,
-    resourceManager: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager,
+    allowedMediaTypes?: string[]
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     try {
         const result = await resourceManager.read(resourceUri);
+
+        // Check if this blob type is allowed (if filtering is enabled)
+        if (allowedMediaTypes) {
+            const mimeType = result.contents[0]?.mimeType;
+            const metadata = result._meta as { size?: number; originalName?: string } | undefined;
+
+            if (mimeType && !matchesAnyMimePattern(mimeType, allowedMediaTypes)) {
+                // Generate placeholder for filtered media
+                const placeholderMetadata: {
+                    mimeType: string;
+                    size: number;
+                    originalName?: string;
+                } = {
+                    mimeType,
+                    size: metadata?.size ?? 0,
+                };
+                if (metadata?.originalName) {
+                    placeholderMetadata.originalName = metadata.originalName;
+                }
+                const placeholder = generateMediaPlaceholder(placeholderMetadata);
+                return [{ type: 'text', text: placeholder }];
+            }
+        }
+
         const parts: Array<TextPart | ImagePart | FilePart> = [];
 
         for (const item of result.contents ?? []) {
@@ -611,13 +636,19 @@ export async function getFileDataWithBlobSupport(
 /**
  * Resolves blob references in message content to actual data.
  * Expands @blob:id references to their actual base64 content for LLM consumption.
+ * Can optionally filter by MIME type patterns - unsupported types are replaced with descriptive placeholders.
+ *
  * @param content The message content that may contain blob references
  * @param resourceManager Resource manager for resolving blob references
- * @returns Promise<Resolved content with blob references expanded>
+ * @param allowedMediaTypes Optional array of MIME patterns (e.g., ["image/*", "application/pdf"]).
+ *                          If provided, only matching blobs are expanded; others become placeholders.
+ *                          If omitted, all blobs are expanded (legacy behavior).
+ * @returns Promise<Resolved content with blob references expanded or replaced with placeholders>
  */
 export async function expandBlobReferences(
     content: InternalMessage['content'],
-    resourceManager: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager,
+    allowedMediaTypes?: string[]
 ): Promise<InternalMessage['content']> {
     // Handle string content with blob references
     if (typeof content === 'string') {
@@ -648,7 +679,11 @@ export async function expandBlobReferences(
 
             let resolvedParts = resolvedCache.get(resourceUri);
             if (!resolvedParts) {
-                resolvedParts = await resolveBlobReferenceToParts(resourceUri, resourceManager);
+                resolvedParts = await resolveBlobReferenceToParts(
+                    resourceUri,
+                    resourceManager,
+                    allowedMediaTypes
+                );
                 resolvedCache.set(resourceUri, resolvedParts);
             }
 
@@ -689,7 +724,11 @@ export async function expandBlobReferences(
             ) {
                 const uri = part.image.substring(1);
                 const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
+                const resolved = await resolveBlobReferenceToParts(
+                    resourceUri,
+                    resourceManager,
+                    allowedMediaTypes
+                );
                 if (resolved.length > 0) {
                     expandedParts.push(...resolved.map((part) => ({ ...part })));
                 } else {
@@ -705,7 +744,11 @@ export async function expandBlobReferences(
             ) {
                 const uri = part.data.substring(1);
                 const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                const resolved = await resolveBlobReferenceToParts(resourceUri, resourceManager);
+                const resolved = await resolveBlobReferenceToParts(
+                    resourceUri,
+                    resourceManager,
+                    allowedMediaTypes
+                );
                 if (resolved.length > 0) {
                     expandedParts.push(...resolved.map((part) => ({ ...part })));
                 } else {
@@ -724,7 +767,11 @@ export async function expandBlobReferences(
             }
 
             if (part.type === 'text' && part.text.includes('@blob:')) {
-                const expanded = await expandBlobReferences(part.text, resourceManager);
+                const expanded = await expandBlobReferences(
+                    part.text,
+                    resourceManager,
+                    allowedMediaTypes
+                );
                 if (typeof expanded === 'string') {
                     expandedParts.push({ ...part, text: expanded });
                 } else if (Array.isArray(expanded)) {
@@ -837,6 +884,120 @@ export function parseDataUri(value: string): { mediaType: string; base64: string
 
 // Re-export browser-safe helpers for convenience (already imported above)
 export { getFileMediaKind, getResourceKind };
+
+/**
+ * Check if a MIME type matches a pattern with wildcard support.
+ * Supports exact matches and wildcard patterns:
+ * - "image/png" matches "image/png" exactly
+ * - "image/star" (where star is asterisk) matches "image/png", "image/jpeg", etc.
+ * - Single asterisk or "asterisk/asterisk" matches everything
+ *
+ * @param mimeType The MIME type to check (e.g., "image/png")
+ * @param pattern The pattern to match against (e.g., "image/asterisk")
+ * @returns true if the MIME type matches the pattern
+ */
+export function matchesMimePattern(mimeType: string | undefined, pattern: string): boolean {
+    if (!mimeType) return false;
+
+    // Normalize to lowercase for case-insensitive comparison
+    const normalizedMime = mimeType.toLowerCase().trim();
+    const normalizedPattern = pattern.toLowerCase().trim();
+
+    // Match everything
+    if (normalizedPattern === '*' || normalizedPattern === '*/*') {
+        return true;
+    }
+
+    // Exact match
+    if (normalizedMime === normalizedPattern) {
+        return true;
+    }
+
+    // Wildcard pattern (e.g., "image/*")
+    if (normalizedPattern.endsWith('/*')) {
+        const patternType = normalizedPattern.slice(0, -2); // Remove "/*"
+        const mimeType = normalizedMime.split('/')[0]; // Get type part
+        return mimeType === patternType;
+    }
+
+    return false;
+}
+
+/**
+ * Check if a MIME type matches any pattern in an array of patterns.
+ *
+ * @param mimeType The MIME type to check
+ * @param patterns Array of MIME patterns to match against
+ * @returns true if the MIME type matches any pattern
+ */
+export function matchesAnyMimePattern(mimeType: string | undefined, patterns: string[]): boolean {
+    return patterns.some((pattern) => matchesMimePattern(mimeType, pattern));
+}
+
+/**
+ * Convert supported file types to MIME type patterns.
+ * Used to translate LLM registry file types to MIME patterns for filtering.
+ *
+ * @param fileTypes Array of supported file types from LLM registry (e.g., ['image', 'pdf', 'audio'])
+ * @returns Array of MIME type patterns (e.g., ['image/*', 'application/pdf', 'audio/*'])
+ */
+export function fileTypesToMimePatterns(fileTypes: string[]): string[] {
+    const patterns: string[] = [];
+    for (const fileType of fileTypes) {
+        switch (fileType) {
+            case 'image':
+                patterns.push('image/*');
+                break;
+            case 'pdf':
+                patterns.push('application/pdf');
+                break;
+            case 'audio':
+                patterns.push('audio/*');
+                break;
+            case 'video':
+                patterns.push('video/*');
+                break;
+            default:
+                // Unknown file type - skip it
+                logger.warn(`Unknown file type in registry: ${fileType}`);
+        }
+    }
+    return patterns;
+}
+
+/**
+ * Generate a descriptive placeholder for filtered media.
+ * Returns a clean, LLM-readable reference like: [Video: demo.mp4 (5.2 MB)]
+ *
+ * @param metadata Blob metadata containing MIME type, size, and original name
+ * @returns Formatted placeholder string
+ */
+function generateMediaPlaceholder(metadata: {
+    mimeType: string;
+    size: number;
+    originalName?: string;
+}): string {
+    // Determine media type label
+    let typeLabel = 'File';
+    if (metadata.mimeType.startsWith('video/')) typeLabel = 'Video';
+    else if (metadata.mimeType.startsWith('audio/')) typeLabel = 'Audio';
+    else if (metadata.mimeType.startsWith('image/')) typeLabel = 'Image';
+    else if (metadata.mimeType === 'application/pdf') typeLabel = 'PDF';
+
+    // Format size in human-readable format
+    const formatSize = (bytes: number): string => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    const size = formatSize(metadata.size);
+    const name = metadata.originalName || 'unknown';
+
+    return `[${typeLabel}: ${name} (${size})]`;
+}
 
 /**
  * Recursively sanitize objects by replacing suspiciously-large base64 strings

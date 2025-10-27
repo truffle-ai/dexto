@@ -18,7 +18,7 @@ describe('CLI Overrides', () => {
         },
         llm: {
             provider: 'openai',
-            model: 'gpt-4o',
+            model: 'gpt-5',
             apiKey: 'file-api-key',
             router: 'vercel', // Add router field so test expectations work
         },
@@ -31,7 +31,7 @@ describe('CLI Overrides', () => {
 
     test('applies CLI overrides correctly', () => {
         const cliOverrides: CLIConfigOverrides = {
-            model: 'claude-3-5-sonnet-20240620',
+            model: 'claude-sonnet-4-5-20250929',
             provider: 'anthropic',
             router: 'in-built',
             apiKey: 'cli-api-key',
@@ -39,7 +39,7 @@ describe('CLI Overrides', () => {
 
         const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
 
-        expect(result.llm.model).toBe('claude-3-5-sonnet-20240620');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
         expect(result.llm.provider).toBe('anthropic');
         expect(result.llm.router).toBe('in-built');
         expect(result.llm.apiKey).toBe('cli-api-key');
@@ -47,13 +47,13 @@ describe('CLI Overrides', () => {
 
     test('applies partial CLI overrides', () => {
         const cliOverrides: CLIConfigOverrides = {
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             // Only override model, leave others unchanged
         };
 
         const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
 
-        expect(result.llm.model).toBe('gpt-4o-mini'); // Overridden
+        expect(result.llm.model).toBe('gpt-5-mini'); // Overridden
         expect(result.llm.provider).toBe('openai'); // Original
         expect(result.llm.router).toBe('vercel'); // Original (from baseConfig)
         expect(result.llm.apiKey).toBe('file-api-key'); // Original
@@ -76,20 +76,20 @@ describe('CLI Overrides', () => {
     test('does not mutate original config', () => {
         const originalConfig = clone(baseConfig);
         const cliOverrides: CLIConfigOverrides = {
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             provider: 'openai',
         };
 
         applyCLIOverrides(originalConfig, cliOverrides);
 
         // Original should be unchanged
-        expect(originalConfig.llm.model).toBe('gpt-4o');
+        expect(originalConfig.llm.model).toBe('gpt-5');
         expect(originalConfig.llm.provider).toBe('openai');
     });
 
     test('preserves all non-LLM config fields', () => {
         const cliOverrides: CLIConfigOverrides = {
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
         };
 
         const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
@@ -107,13 +107,13 @@ describe('CLI Overrides', () => {
 
     test('handles undefined values in overrides gracefully', () => {
         const cliOverrides: CLIConfigOverrides = {
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             // provider, router, apiKey intentionally omitted to test undefined handling
         };
 
         const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
 
-        expect(result.llm.model).toBe('gpt-4o-mini'); // Applied
+        expect(result.llm.model).toBe('gpt-5-mini'); // Applied
         expect(result.llm.provider).toBe('openai'); // Original (undefined ignored)
         expect(result.llm.router).toBe('vercel'); // Original (undefined ignored)
         expect(result.llm.apiKey).toBe('file-api-key'); // Original (undefined ignored)

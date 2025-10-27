@@ -5,7 +5,7 @@
 # Configure the Large Language Model
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 
 # Define system prompt with file-based context

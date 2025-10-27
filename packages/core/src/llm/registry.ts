@@ -281,6 +281,20 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
+                name: 'claude-sonnet-4-5-20250929',
+                displayName: 'Claude 4.5 Sonnet',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 3.0,
+                    outputPerM: 15.0,
+                    cacheWritePerM: 3.75,
+                    cacheReadPerM: 0.3,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'claude-opus-4-1-20250805',
                 displayName: 'Claude 4.1 Opus',
                 maxInputTokens: 200000,
@@ -304,20 +318,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     outputPerM: 75.0,
                     cacheWritePerM: 18.75,
                     cacheReadPerM: 1.5,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
-            {
-                name: 'claude-sonnet-4-5-20250929',
-                displayName: 'Claude 4.5 Sonnet',
-                maxInputTokens: 200000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 3.0,
-                    outputPerM: 15.0,
-                    cacheWritePerM: 3.75,
-                    cacheReadPerM: 0.3,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },
@@ -761,7 +761,7 @@ export function isValidProviderModel(provider: LLMProvider, model: string): bool
  * Matches the model name (case-insensitive) against all registered models.
  * Returns the provider name if found, or 'unknown' if not found.
  *
- * @param model The model name (e.g., 'gpt-4o-mini', 'claude-3-7-sonnet-20250219')
+ * @param model The model name (e.g., 'gpt-5-mini', 'claude-sonnet-4-5-20250929')
  * @returns The inferred provider name ('openai', 'anthropic', etc.), or 'unknown' if no match is found.
  */
 export function getProviderFromModel(model: string): LLMProvider {

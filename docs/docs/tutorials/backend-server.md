@@ -829,4 +829,4 @@ Start with Layer 1 for your first integration, then add layers as your applicati
 
 ---
 
-**Next Steps**: Try building the basic version first, then gradually add each layer. For production patterns, see [Advanced Patterns](./advanced-patterns). 
+**Next Steps**: Try building the basic version first, then gradually add each layer. For production patterns, see [Advanced Patterns](./advanced-patterns.md). 

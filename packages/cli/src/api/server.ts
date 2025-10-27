@@ -189,9 +189,16 @@ export async function initializeApi(
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Create new agent from registry
+            // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
+            // This allows new agent to have different telemetry config (endpoint, protocol, etc.)
+            logger.info('Shutting down telemetry for agent switch...');
+            const { Telemetry } = await import('@dexto/core');
+            await Telemetry.shutdownGlobal();
+
+            // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
             newAgent = await Dexto.createAgent(agentId);
 
+            // 3. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId);
         } catch (error) {
             logger.error(
@@ -224,16 +231,23 @@ export async function initializeApi(
 
         let newAgent: DextoAgent | undefined;
         try {
-            // Load agent configuration from file path
+            // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
+            // This allows new agent to have different telemetry config (endpoint, protocol, etc.)
+            logger.info('Shutting down telemetry for agent switch...');
+            const { Telemetry } = await import('@dexto/core');
+            await Telemetry.shutdownGlobal();
+
+            // 2. Load agent configuration from file path
             const config = await loadAgentConfig(filePath);
 
-            // Create new agent instance directly
+            // 3. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             newAgent = new DextoAgent(config, filePath);
 
-            // Derive agent ID from config or filename
+            // 4. Derive agent ID from config or filename
             const agentId =
                 config.agentCard?.name || path.basename(filePath, path.extname(filePath));
 
+            // 5. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId);
         } catch (error) {
             logger.error(

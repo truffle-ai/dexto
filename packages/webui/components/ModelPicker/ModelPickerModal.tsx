@@ -629,7 +629,7 @@ export default function ModelPickerModal() {
                         <div className="space-y-2">
                           <LabelWithTooltip
                             htmlFor="custom-model-name"
-                            tooltip="Model identifier (e.g., llama3, mixtral, gpt-4)"
+                            tooltip="Model identifier (e.g., llama3, mixtral, gpt-5)"
                           >
                             Model Name *
                           </LabelWithTooltip>

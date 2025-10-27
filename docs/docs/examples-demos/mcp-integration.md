@@ -38,4 +38,4 @@ mcpServers:
 **Via WebUI:**
 Use the web interface to add servers interactively with real-time validation and testing.
 
-See [MCP Configuration Guide](../mcp/connecting-servers) for complete setup instructions.
+See [MCP Configuration Guide](../mcp/connecting-servers.md) for complete setup instructions.

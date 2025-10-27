@@ -7,7 +7,7 @@ describe('validateInputForLLM', () => {
         test('should pass validation for valid text input', () => {
             const result = validateInputForLLM(
                 { text: 'Hello, world!' },
-                { provider: 'openai', model: 'gpt-4' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(true);
@@ -17,7 +17,7 @@ describe('validateInputForLLM', () => {
         test('should pass validation for empty text when no other input provided', () => {
             const result = validateInputForLLM(
                 { text: '' },
-                { provider: 'openai', model: 'gpt-4' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(true);
@@ -25,7 +25,7 @@ describe('validateInputForLLM', () => {
         });
 
         test('should pass validation for undefined text', () => {
-            const result = validateInputForLLM({}, { provider: 'openai', model: 'gpt-4' });
+            const result = validateInputForLLM({}, { provider: 'openai', model: 'gpt-5' });
 
             expect(result.ok).toBe(true);
             expect(result.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
@@ -43,7 +43,7 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(true);
@@ -83,7 +83,7 @@ describe('validateInputForLLM', () => {
                         filename: 'audio.mp3',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' } // This model doesn't support audio
+                { provider: 'openai', model: 'gpt-5' } // This model doesn't support audio
             );
 
             expect(result.ok).toBe(false);
@@ -103,7 +103,7 @@ describe('validateInputForLLM', () => {
                         filename: 'malware.exe',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(false);
@@ -127,7 +127,7 @@ describe('validateInputForLLM', () => {
                         filename: 'large.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(false);
@@ -146,7 +146,7 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(false);
@@ -184,7 +184,7 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(false);
@@ -222,7 +222,7 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(pdfResult.ok).toBe(true);
@@ -239,7 +239,7 @@ describe('validateInputForLLM', () => {
                         mimeType: 'image/jpeg',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(true);
@@ -258,7 +258,7 @@ describe('validateInputForLLM', () => {
                         image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(true);
@@ -281,7 +281,7 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' }
+                { provider: 'openai', model: 'gpt-5' }
             );
 
             expect(result.ok).toBe(true);
@@ -302,7 +302,7 @@ describe('validateInputForLLM', () => {
                         filename: 'audio.mp3',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o' } // This model doesn't support audio
+                { provider: 'openai', model: 'gpt-5' } // This model doesn't support audio
             );
 
             expect(result.ok).toBe(false);

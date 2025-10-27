@@ -140,9 +140,9 @@ systemPrompt:
       type: file
       priority: 10
       files:
-        - ./README.md
-        - ./docs/guidelines.md
-        - ./CONTRIBUTING.txt
+        - "${{dexto.agent_dir}}/README.md"
+        - "${{dexto.agent_dir}}/docs/guidelines.md"
+        - "${{dexto.agent_dir}}/CONTRIBUTING.txt"
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"
@@ -150,6 +150,49 @@ systemPrompt:
         maxFileSize: 50000
         includeMetadata: false
 ```
+
+### Memory Contributors
+- **Type:** `memory`
+- **Use case:** Include user memories from the memory system in your system prompt
+- **Control:** Enable/disable with `enabled` field
+- **Requirement:** Requires MemoryManager to be initialized
+
+```yaml
+systemPrompt:
+  contributors:
+    - id: user-context
+      type: memory
+      priority: 5
+      options:
+        pinnedOnly: true
+        limit: 10
+        includeTimestamps: true
+        includeTags: true
+```
+
+#### Memory Contributor Options
+- **`options.includeTimestamps`** (boolean): Include the last updated date for each memory (default: `false`)
+- **`options.includeTags`** (boolean): Include associated tags for each memory (default: `true`)
+- **`options.limit`** (number): Maximum number of memories to load into the system prompt (default: unlimited)
+- **`options.pinnedOnly`** (boolean): Only load pinned memories, useful for hybrid approaches where you want only important memories (default: `false`)
+
+**Output Format:**
+The memory contributor formats memories as a bulleted list:
+```text
+## User Memories
+- User prefers concise responses [Tags: preference, communication] (Updated: 1/15/2025)
+- Project uses TypeScript with strict mode [Tags: technical, configuration]
+- User's timezone is PST [Tags: personal]
+```
+
+**How it works:**
+1. Fetches memories from the MemoryManager based on the configured options
+2. Filters by pinned status if `pinnedOnly` is enabled
+3. Limits results if `limit` is specified
+4. Formats each memory with optional tags and timestamps
+5. Returns empty string if no memories match the criteria
+
+**Note:** The Memory contributor requires a MemoryManager instance to be initialized. If MemoryManager is not available, the contributor will throw an error during system prompt building.
 
 #### File Contributor Options
 - **`files`** (array): List of file paths to include (only `.md` and `.txt` files)
@@ -221,16 +264,23 @@ systemPrompt:
 
 **Note:** File contributors only support `.md` and `.txt` files. Other file types will be skipped (or cause an error if `errorHandling: "error"` is set).
 
+#### Memory Contributor Use Cases
+- Provide persistent context about user preferences and behavior
+- Include project-specific information that the user has taught the agent
+- Maintain continuity across sessions with pinned important facts
+- Build personalized agent responses based on accumulated knowledge
+- Support hybrid approaches where only critical memories are always loaded
+
 ### Contributor Fields
 
 - **`id`** (string): Unique identifier for the contributor
-- **`type`** (`static` | `dynamic` | `file`): Type of contributor
+- **`type`** (`static` | `dynamic` | `file` | `memory`): Type of contributor
 - **`priority`** (number): Execution order (lower numbers first)
 - **`enabled`** (boolean, optional): Whether contributor is active (default: true)
 - **`content`** (string): Static content (required for `static` type)
 - **`source`** (string): Dynamic source identifier (required for `dynamic` type)
 - **`files`** (array): List of file paths to include (required for `file` type)
-- **`options`** (object, optional): Configuration options for `file` type contributors
+- **`options`** (object, optional): Configuration options for `file` and `memory` type contributors
 
 ## Examples
 
@@ -292,38 +342,47 @@ systemPrompt:
       content: |
         You are a professional software development assistant.
         You help with coding, documentation, and project management.
-        You have access to project files and MCP resources.
-    
+        You have access to project files, user memories, and MCP resources.
+
+    - id: user-memories
+      type: memory
+      priority: 3
+      options:
+        pinnedOnly: false
+        limit: 20
+        includeTimestamps: true
+        includeTags: true
+
     - id: project-context
       type: file
       priority: 5
       files:
-        - ./README.md
-        - ./CONTRIBUTING.md
-        - ./docs/architecture.md
+        - "${{dexto.agent_dir}}/README.md"
+        - "${{dexto.agent_dir}}/CONTRIBUTING.md"
+        - "${{dexto.agent_dir}}/docs/architecture.md"
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"
         errorHandling: "skip"
         maxFileSize: 50000
-    
+
     - id: current-time
       type: dynamic
       priority: 10
       source: dateTime
-    
+
     - id: mcp-resources
       type: dynamic
       priority: 12
       source: resources
       enabled: true
-    
+
     - id: additional-instructions
       type: static
       priority: 15
       content: |
         Always provide code examples when relevant.
-        Reference the project documentation and available resources when making suggestions.
+        Reference the project documentation, user memories, and available resources when making suggestions.
 ```
 
 ## Best Practices

@@ -38,7 +38,7 @@ mcpServers:
       - .
 llm:
   provider: openai
-  model: gpt-4
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -118,7 +118,7 @@ Each provider requires its own API key:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -126,7 +126,7 @@ llm:
 ```yaml
 llm:
   provider: anthropic
-  model: claude-3-7-sonnet-20250219
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 ```
 
@@ -302,6 +302,6 @@ mcpServers:
       API_KEY: your-api-key
 llm:
   provider: openai
-  model: gpt-4
+  model: gpt-5
   apiKey: $OPENAI_API_KEY
 ``` 

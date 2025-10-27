@@ -1,0 +1,227 @@
+# Coding Agent Configuration
+# Optimized for software development with internal coding tools
+
+# System prompt configuration - defines the agent's behavior as a coding assistant
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are an expert software development assistant with deep knowledge of multiple programming languages,
+        frameworks, and development best practices.
+
+        Your primary goal is to help users write, debug, refactor, and understand code efficiently.
+
+        Key capabilities:
+        - Read and analyze codebases using glob and grep patterns
+        - Write and edit files with precise, well-structured code
+        - Execute shell commands for testing, building, and running code
+        - Debug issues by examining error messages and code structure
+        - Refactor code following best practices and design patterns
+        - Explain complex code concepts clearly
+
+        Guidelines:
+        - Always read relevant code before making changes to understand context
+        - Use glob_files to find files and grep_content to search within files
+        - Test changes when possible using bash_exec
+        - Follow the project's existing code style and conventions
+        - Provide clear explanations for your code decisions
+        - Ask for clarification when requirements are ambiguous
+    - id: memories
+      type: memory
+      priority: 40
+      enabled: true
+      options:
+        includeTimestamps: false
+        includeTags: true
+        limit: 10
+        pinnedOnly: false
+
+# Greeting optimized for coding tasks
+greeting: "👨‍💻 Ready to code! What are we building today?"
+
+# LLM configuration - using a powerful model for coding tasks
+llm:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001  # More powerful model for complex coding tasks
+  apiKey: $ANTHROPIC_API_KEY
+
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30
+
+toolConfirmation:
+  mode: event-based
+  timeout: 120000
+  allowedToolsStorage: storage  # Persist allowed tools across sessions
+
+  # Tool policies optimized for coding workflows
+  toolPolicies:
+    # Tools that never require approval (safe, read-only operations)
+    alwaysAllow:
+      - internal--ask_user
+      - internal--read_file      # Read files without approval
+      - internal--glob_files     # Search for files without approval
+      - internal--grep_content   # Search within files without approval
+      - internal--bash_output    # Check background process output
+      - internal--kill_process   # Kill processes without approval
+
+    # Tools that are always denied (dangerous operations)
+    # Uncomment to restrict certain operations
+    # alwaysDeny:
+    #   - internal--bash_exec--rm -rf*  # Prevent recursive deletion
+
+# Internal tools - all coding tools enabled
+internalTools:
+  - ask_user       # Ask questions and collect input
+  - read_file      # Read file contents with pagination support
+  - glob_files     # Find files using glob patterns (e.g., "**/*.ts")
+  - grep_content   # Search file contents using regex patterns
+  - write_file     # Write content to files (requires approval)
+  - edit_file      # Edit files by replacing text (requires approval)
+  - bash_exec      # Execute shell commands (requires approval)
+  - bash_output    # Retrieve output from background processes
+  - kill_process   # Terminate background processes
+
+# Internal resources configuration - expanded for coding projects
+internalResources:
+  enabled: true
+  resources:
+    # Filesystem resource - comprehensive file access for coding
+    - type: filesystem
+      paths: ["."]
+      maxFiles: 500              # Increased for larger codebases
+      maxDepth: 10               # Deeper traversal for nested projects
+      includeHidden: true        # Include hidden files (.env, .gitignore, etc.)
+      includeExtensions:
+        # Web development
+        - .js
+        - .jsx
+        - .ts
+        - .tsx
+        - .html
+        - .css
+        - .scss
+        - .sass
+        - .less
+        - .vue
+        - .svelte
+        # Backend languages
+        - .py
+        - .java
+        - .go
+        - .rs
+        - .rb
+        - .php
+        - .c
+        - .cpp
+        - .h
+        - .hpp
+        - .cs
+        - .swift
+        - .kt
+        # Shell and config
+        - .sh
+        - .bash
+        - .zsh
+        - .fish
+        # Config and data
+        - .json
+        - .yaml
+        - .yml
+        - .toml
+        - .xml
+        - .ini
+        - .env
+        # Documentation
+        - .md
+        - .mdx
+        - .txt
+        - .rst
+        # Build and package files
+        - .gradle
+        - .maven
+        - .dockerignore
+        - .gitignore
+
+    # Blob resource - for handling build artifacts, images, etc.
+    - type: blob
+
+# Starter prompts - coding-focused examples
+starterPrompts:
+  - id: analyze-codebase
+    title: "🔍 Analyze Codebase"
+    description: "Get an overview of the project structure and technologies"
+    prompt: "Analyze this codebase. Show me the project structure, main technologies used, and provide a high-level overview of how the code is organized."
+    category: analysis
+    priority: 10
+  - id: debug-error
+    title: "🐛 Debug Error"
+    description: "Help identify and fix bugs in your code"
+    prompt: "I'm encountering an error in my code. Let me share the error message and relevant code with you, and help me debug it."
+    category: debugging
+    priority: 9
+  - id: refactor-code
+    title: "♻️ Refactor Code"
+    description: "Improve code quality and structure"
+    prompt: "I have some code that needs refactoring. Help me improve its structure, readability, and maintainability while preserving functionality."
+    category: refactoring
+    priority: 8
+  - id: write-tests
+    title: "🧪 Write Tests"
+    description: "Generate unit tests for your code"
+    prompt: "Help me write comprehensive unit tests for my code. Identify the testing framework being used and create tests that cover edge cases."
+    category: testing
+    priority: 7
+  - id: implement-feature
+    title: "✨ Implement Feature"
+    description: "Build a new feature from scratch"
+    prompt: "I need to implement a new feature. Let me describe what I need, and help me design and implement it following best practices."
+    category: development
+    priority: 6
+  - id: optimize-performance
+    title: "⚡ Optimize Performance"
+    description: "Identify and fix performance bottlenecks"
+    prompt: "Help me identify performance bottlenecks in my code and suggest optimizations to improve speed and efficiency."
+    category: optimization
+    priority: 5
+  - id: setup-project
+    title: "🚀 Setup Project"
+    description: "Initialize a new project with best practices"
+    prompt: "Help me set up a new project. I'll tell you the stack I want to use, and you can create the project structure with configuration files and initial code."
+    category: setup
+    priority: 4
+  - id: code-review
+    title: "👀 Code Review"
+    description: "Review code for issues and improvements"
+    prompt: "Review my recent code changes. Look for bugs, security issues, performance problems, and suggest improvements following best practices."
+    category: review
+    priority: 3
+
+## Alternative LLM configurations for coding
+
+## Claude Sonnet (excellent for coding)
+# llm:
+#   provider: anthropic
+#   model: claude-sonnet-4-20250514
+#   apiKey: $ANTHROPIC_API_KEY
+
+## Google Gemini (strong coding capabilities)
+# llm:
+#   provider: google
+#   model: gemini-2.5-pro
+#   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+
+## OpenAI o1 (for complex reasoning tasks)
+# llm:
+#   provider: openai
+#   model: o1
+#   apiKey: $OPENAI_API_KEY

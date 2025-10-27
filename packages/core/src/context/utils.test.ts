@@ -16,6 +16,9 @@ import {
     isLikelyBase64String,
     getFileMediaKind,
     getResourceKind,
+    matchesMimePattern,
+    matchesAnyMimePattern,
+    fileTypesToMimePatterns,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
@@ -240,7 +243,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -282,7 +285,7 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should keep supported file attachments for models that support them', () => {
-        // Mock validation to accept PDF files for gpt-4o
+        // Mock validation to accept PDF files for gpt-5
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: true,
             fileType: 'pdf',
@@ -303,7 +306,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4o' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -318,7 +321,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         mockValidateModelFileSupport
             .mockReturnValueOnce({
                 isSupported: false,
-                error: 'Model gpt-4 does not support audio files',
+                error: 'Model gpt-5 does not support audio files',
             })
             .mockReturnValueOnce({
                 isSupported: true,
@@ -340,8 +343,8 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        // Test with regular gpt-4 (should filter out audio)
-        const config1: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        // Test with regular gpt-5 (should filter out audio)
+        const config1: LLMContext = { provider: 'openai', model: 'gpt-5' };
         const result1 = filterMessagesByLLMCapabilities(messages, config1);
 
         expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
@@ -439,7 +442,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -457,7 +460,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -473,13 +476,13 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
         // Should add placeholder text for empty content
         expect(result[0]!.content).toEqual([
-            { type: 'text', text: '[File attachment removed - not supported by gpt-4]' },
+            { type: 'text', text: '[File attachment removed - not supported by gpt-5]' },
         ]);
     });
 });
@@ -666,5 +669,107 @@ describe('getResourceKind', () => {
 
     test('should handle empty string', () => {
         expect(getResourceKind('')).toBe('binary');
+    });
+});
+
+describe('matchesMimePattern', () => {
+    test('should match exact MIME types', () => {
+        expect(matchesMimePattern('image/png', 'image/png')).toBe(true);
+        expect(matchesMimePattern('video/mp4', 'video/mp4')).toBe(true);
+        expect(matchesMimePattern('application/pdf', 'application/pdf')).toBe(true);
+    });
+
+    test('should match wildcard patterns', () => {
+        expect(matchesMimePattern('image/png', 'image/*')).toBe(true);
+        expect(matchesMimePattern('image/jpeg', 'image/*')).toBe(true);
+        expect(matchesMimePattern('video/mp4', 'video/*')).toBe(true);
+        expect(matchesMimePattern('audio/mpeg', 'audio/*')).toBe(true);
+    });
+
+    test('should match universal wildcard', () => {
+        expect(matchesMimePattern('image/png', '*')).toBe(true);
+        expect(matchesMimePattern('video/mp4', '*/*')).toBe(true);
+        expect(matchesMimePattern('application/pdf', '*')).toBe(true);
+    });
+
+    test('should not match different types', () => {
+        expect(matchesMimePattern('image/png', 'video/*')).toBe(false);
+        expect(matchesMimePattern('video/mp4', 'image/*')).toBe(false);
+        expect(matchesMimePattern('application/pdf', 'image/*')).toBe(false);
+    });
+
+    test('should be case insensitive', () => {
+        expect(matchesMimePattern('IMAGE/PNG', 'image/*')).toBe(true);
+        expect(matchesMimePattern('image/png', 'IMAGE/*')).toBe(true);
+        expect(matchesMimePattern('Video/MP4', 'video/*')).toBe(true);
+    });
+
+    test('should handle undefined MIME type', () => {
+        expect(matchesMimePattern(undefined, 'image/*')).toBe(false);
+        expect(matchesMimePattern(undefined, '*')).toBe(false);
+    });
+
+    test('should trim whitespace', () => {
+        expect(matchesMimePattern(' image/png ', 'image/*')).toBe(true);
+        expect(matchesMimePattern('image/png', ' image/* ')).toBe(true);
+    });
+});
+
+describe('matchesAnyMimePattern', () => {
+    test('should match if any pattern matches', () => {
+        expect(matchesAnyMimePattern('image/png', ['video/*', 'image/*'])).toBe(true);
+        expect(matchesAnyMimePattern('video/mp4', ['image/*', 'video/*', 'audio/*'])).toBe(true);
+    });
+
+    test('should not match if no patterns match', () => {
+        expect(matchesAnyMimePattern('image/png', ['video/*', 'audio/*'])).toBe(false);
+        expect(matchesAnyMimePattern('application/pdf', ['image/*', 'video/*'])).toBe(false);
+    });
+
+    test('should handle empty pattern array', () => {
+        expect(matchesAnyMimePattern('image/png', [])).toBe(false);
+    });
+
+    test('should handle exact and wildcard mix', () => {
+        expect(matchesAnyMimePattern('image/png', ['video/mp4', 'image/*'])).toBe(true);
+        expect(matchesAnyMimePattern('video/mp4', ['video/mp4', 'audio/*'])).toBe(true);
+    });
+});
+
+describe('fileTypesToMimePatterns', () => {
+    test('should convert image file type', () => {
+        expect(fileTypesToMimePatterns(['image'])).toEqual(['image/*']);
+    });
+
+    test('should convert pdf file type', () => {
+        expect(fileTypesToMimePatterns(['pdf'])).toEqual(['application/pdf']);
+    });
+
+    test('should convert audio file type', () => {
+        expect(fileTypesToMimePatterns(['audio'])).toEqual(['audio/*']);
+    });
+
+    test('should convert video file type', () => {
+        expect(fileTypesToMimePatterns(['video'])).toEqual(['video/*']);
+    });
+
+    test('should convert multiple file types', () => {
+        expect(fileTypesToMimePatterns(['image', 'pdf', 'audio'])).toEqual([
+            'image/*',
+            'application/pdf',
+            'audio/*',
+        ]);
+    });
+
+    test('should handle empty array', () => {
+        expect(fileTypesToMimePatterns([])).toEqual([]);
+    });
+
+    test('should skip unknown file types', () => {
+        // Unknown types are logged as warnings but not added to patterns
+        expect(fileTypesToMimePatterns(['image', 'unknown', 'pdf'])).toEqual([
+            'image/*',
+            'application/pdf',
+        ]);
     });
 });

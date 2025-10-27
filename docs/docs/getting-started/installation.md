@@ -37,4 +37,4 @@ Note: You can re-run the setup at any time with the command `dexto setup`
 ## Next Step: Build Your First Agent
 Now that Dexto is installed, you're ready to create your first custom agent with its own configuration and capabilities.
 
-Continue to the **[Build Your First Agent Tutorial](./build-first-agent-tutorial)** to learn how to build agents using declarative configuration. 
+Continue to the **[Build Your First Agent Tutorial](./build-first-agent-tutorial.mdx)** to learn how to build agents using declarative configuration. 

@@ -41,13 +41,22 @@ systemPrompt:
         pinnedOnly: false
 
 # Optional greeting shown at chat start (UI can consume this)
-greeting: "Hi! I’m Dexto — how can I help today?"
+greeting: "Hi! I'm Dexto — how can I help today?"
 
 # LLM configuration - describes the language model to use
 llm:
   provider: openai
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
+
+  # Optional: Control which media types are expanded for LLM consumption
+  # If omitted, uses model capabilities from registry (recommended default)
+  # Supports MIME patterns with wildcards (e.g., "image/*", "video/mp4")
+  # allowedMediaTypes:
+  #   - "image/*"           # All images (png, jpg, gif, etc.)
+  #   - "application/pdf"   # PDF documents
+  #   - "audio/*"           # All audio formats
+  # Note: Unsupported types become descriptive placeholders like: [Video: demo.mp4 (5.2 MB)]
 
 storage:
   cache:
@@ -160,6 +169,21 @@ starterPrompts:
     prompt: "I want to connect new tools to expand my capabilities. Can you help me understand what MCP servers are available and how to add them?"
     category: tools
     priority: 3
+
+# Telemetry configuration (optional) - OpenTelemetry for distributed tracing
+telemetry:
+  serviceName: dexto-default-agent
+  enabled: true
+  tracerName: dexto-tracer
+  export:
+    type: otlp              # 'otlp' for production, 'console' for development
+    protocol: http          # 'http' or 'grpc'
+    endpoint: http://127.0.0.1:4318/v1/traces  # OTLP collector endpoint
+    # headers:              # Optional headers for authentication
+    #   Authorization: Bearer <token>
+  # sampling:               # Optional sampling configuration (not implemented yet)
+  #   type: ratio
+  #   probability: 0.1      # Sample 10% of traces
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.

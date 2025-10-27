@@ -14,7 +14,7 @@ describe('Session Integration: Chat History Preservation', () => {
         systemPrompt: 'You are a helpful assistant.',
         llm: {
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             apiKey: 'test-key-123',
         },
         mcpServers: {},

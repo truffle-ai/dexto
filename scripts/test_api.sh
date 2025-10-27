@@ -63,8 +63,8 @@ main() {
   run_test "POST /api/llm/switch unknown provider" POST "/api/llm/switch" 400 '{"provider":"unknown_vendor"}' || failures=$((failures+1))
   # Router-only tweak should be allowed
   run_test "POST /api/llm/switch router only" POST "/api/llm/switch" 200 '{"router":"vercel"}' || failures=$((failures+1))
-  run_test "POST /api/llm/switch valid openai" POST "/api/llm/switch" 200 '{"provider":"openai","model":"gpt-4o"}' || failures=$((failures+1))
-  run_test "POST /api/llm/switch session not found" POST "/api/llm/switch" 404 '{"model":"gpt-4o","sessionId":"does-not-exist-123"}' || failures=$((failures+1))
+  run_test "POST /api/llm/switch valid openai" POST "/api/llm/switch" 200 '{"provider":"openai","model":"gpt-5"}' || failures=$((failures+1))
+  run_test "POST /api/llm/switch session not found" POST "/api/llm/switch" 404 '{"model":"gpt-5","sessionId":"does-not-exist-123"}' || failures=$((failures+1))
   # Test missing API key scenario by using empty API key  
   run_test "POST /api/llm/switch missing API key" POST "/api/llm/switch" 400 '{"provider":"cohere","apiKey":""}' || failures=$((failures+1))
 
@@ -199,7 +199,7 @@ main() {
   run_test "POST /api/agent/validate missing yaml" POST "/api/agent/validate" 400 '{}' || failures=$((failures+1))
   run_test "POST /api/agent/validate invalid YAML syntax" POST "/api/agent/validate" 200 '{"yaml":"invalid: yaml: content: ["}' || failures=$((failures+1))
   run_test "POST /api/agent/validate invalid schema" POST "/api/agent/validate" 200 '{"yaml":"greeting: hello\nllm:\n  provider: invalid_provider"}' || failures=$((failures+1))
-  run_test "POST /api/agent/validate valid YAML" POST "/api/agent/validate" 200 '{"yaml":"greeting: \"Test Agent\"\nllm:\n  provider: openai\n  model: gpt-4o\n  apiKey: $OPENAI_API_KEY"}' || failures=$((failures+1))
+  run_test "POST /api/agent/validate valid YAML" POST "/api/agent/validate" 200 '{"yaml":"greeting: \"Test Agent\"\nllm:\n  provider: openai\n  model: gpt-5\n  apiKey: $OPENAI_API_KEY"}' || failures=$((failures+1))
 
   # Agent config save tests (validation only - avoid mutating actual config)
   run_test "POST /api/agent/config missing yaml" POST "/api/agent/config" 400 '{}' || failures=$((failures+1))

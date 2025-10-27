@@ -13,6 +13,7 @@ import type { PluginManager } from '../plugins/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
+import { InstrumentClass } from '../telemetry/decorators.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -40,7 +41,23 @@ export interface InternalToolsOptions {
  * LLMService → ToolManager → [MCPManager, InternalToolsProvider]
  *                ↓
  *          ApprovalManager (for confirmations)
+ *
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
+ *   - Tool execution counters (by tool name, source: MCP/internal)
+ *   - Tool execution latency histograms
+ *   - Tool success/failure rate counters
+ *   - Tool approval/denial counters
+ *   See feature-plans/telemetry.md for details
  */
+@InstrumentClass({
+    prefix: 'tool',
+    excludeMethods: [
+        'setPluginManager',
+        'setStateManager',
+        'getApprovalManager',
+        'getAllowedToolsProvider',
+    ],
+})
 export class ToolManager {
     private mcpManager: MCPManager;
     private internalToolsProvider?: InternalToolsProvider;
