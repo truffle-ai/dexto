@@ -125,8 +125,10 @@ MCP is a key part of what makes Dexto flexible, extensible, and able to automate
 
 ## Next Steps
 
-- **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration.md)** - Comprehensive YAML configuration
-- [Agent Configuration Reference](../guides/configuring-dexto/agent-yml.md) - Complete agent.yml reference
-- [MCP Manager](./mcp-manager.md) - Runtime server management
-- [Aggregate Multiple Servers](./dexto-group-mcp-servers.md) - Group MCP servers
-- [Expose Dexto as MCP Server](./dexto-as-mcp-server.md) - Use Dexto as an MCP server
+- **[MCP Configuration Guide](../guides/configuring-dexto/mcpConfiguration)** - Comprehensive YAML configuration
+- [MCP Resources](./resources) - Expose data and context from MCP servers
+- [MCP Prompts](./prompts) - Discover and use templated prompts
+- [Agent Configuration Reference](../guides/configuring-dexto/agent-yml) - Complete agent.yml reference
+- [MCP Manager](./mcp-manager) - Runtime server management
+- [Aggregate Multiple Servers](./dexto-group-mcp-servers) - Group MCP servers
+- [Expose Dexto as MCP Server](./dexto-as-mcp-server) - Use Dexto as an MCP server
