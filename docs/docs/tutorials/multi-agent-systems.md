@@ -17,7 +17,7 @@ In this guide, you'll learn how to:
 ## What We're Building
 
 We'll create two specialized agents:
-- **Researcher Agent** (Ports 4000/4001): Specializes in gathering and analyzing information
+- **Researcher Agent** (Port 4001): Specializes in gathering and analyzing information, runs in server mode
 - **Writer Agent** (Ports 5000/5001): Specializes in content creation, can call the Researcher for help
 
 The Writer agent will be able to delegate research tasks to the Researcher agent using MCP tool calls.
@@ -238,15 +238,15 @@ This example demonstrates Dexto's core philosophy:
 mcpServers:
   researcher:
     type: http
-    baseUrl: http://localhost:3001/mcp
-  
+    baseUrl: http://localhost:4001/mcp
+
   fact-checker:
     type: http
-    baseUrl: http://localhost:3003/mcp
-  
+    baseUrl: http://localhost:6001/mcp
+
   editor:
     type: http
-    baseUrl: http://localhost:3004/mcp
+    baseUrl: http://localhost:7001/mcp
 ```
 
 Then run:
@@ -419,7 +419,7 @@ server {
 
 **"Connection refused" errors**
 - Ensure the researcher agent is started before the writer
-- Check that ports are not already in use: `netstat -tulpn | grep :3001`
+- Check that ports are not already in use: `netstat -tulpn | grep :4001`
 - Verify the MCP endpoint URLs in configurations
 
 **Timeout errors**
