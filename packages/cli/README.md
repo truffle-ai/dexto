@@ -76,7 +76,11 @@ dexto
 dexto --mode cli
 ```
 
-In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. The interactive CLI (3) allows you to interact with agents in the terminal. See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. 
+
+The interactive CLI (3) allows you to interact with agents in the terminal.
+
+See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 
 ### Skip Tool Prompts While Prototyping
 
@@ -97,10 +101,13 @@ dexto list-agents
 # Install specific agents
 dexto install nano-banana-agent podcast-agent coding-agent
 
-# Use an agent
-dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
-dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
-dexto --agent coding-agent "create a landing page for a coffee brand inspired by star wars"
+# Use an agent with one shot prompt
+dexto --agent nano-banana-agent --mode cli "create a futuristic cityscape with flying cars"
+dexto --agent podcast-agent --mode cli "generate a podcast intro with two hosts discussing AI"
+dexto --agent coding-agent --mode cli "create a landing page for a coffee brand inspired by star wars"
+
+# Alternatively, start the agent in web UI and put in the prompt yourself
+dexto --agent nano-banana-agent
 ```
 
 **Available Agents:**
@@ -120,7 +127,7 @@ Each agent is pre-configured with the right tools, prompts, and LLM settings for
 
 **📚 See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry) for detailed information about all agents, their capabilities, use cases, and requirements.**
 
-More ready-to-run recipes live in [`agents/`](https://github.com/truffle-ai/dexto/tree/HEAD/agents/) and the [docs site](https://docs.dexto.ai/).
+More ready-to-run recipes live in [`agents/`](https://github.com/truffle-ai/dexto/tree/HEAD/agents/).
 
 ## Examples & Demos
 
@@ -146,7 +153,7 @@ Build full-stack applications, websites, and interactive games with AI-powered c
 
 **Task:** `Can you create a snake game in a new folder and open it when done?`
 ```bash
-dexto --agent coding-agent "Can you create a snake game in a new folder and open it when done?"
+dexto --agent coding-agent
 ```
 
 <img src=".github/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
@@ -248,8 +255,8 @@ dexto --agent ./agents/examples/email_slack.yml
 
 | Mode | Command | Best for |
 |------|---------|----------|
-| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
 | **Web UI** | `dexto` | Friendly chat interface w/ image support (default) |
+| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
@@ -393,7 +400,7 @@ const openaiModels = agent.getSupportedModelsForProvider('openai');
 
 ### MCP Manager
 
-For advanced MCP server management, use the MCPManager directly.
+For advanced MCP server management, use the MCPManager directly. See the [MCP Manager SDK docs](https://docs.dexto.ai/api/sdk/mcp-manager) for full details.
 
 ```typescript
 import { MCPManager } from '@dexto/core';
@@ -420,7 +427,7 @@ await manager.disconnectAll();
 
 ### Storage & Persistence
 
-Configure storage backends for production-ready persistence and caching.
+Configure storage backends for production-ready persistence and caching. See the [Storage Configuration guide](https://docs.dexto.ai/docs/guides/configuring-dexto/storage) for full details.
 
 ```yaml
 # agents/production-agent.yml
@@ -478,6 +485,11 @@ Session Management:
 
 Tool Confirmation:
   dexto --auto-approve     Auto-approve all tool executions
+
+Agent Selection:
+  dexto --agent coding-agent       Use installed agent by name
+  dexto --agent ./my-agent.yml     Use agent from file path
+  dexto -a agents/custom.yml       Short form with relative path
 
 Advanced Modes:
   dexto --mode server      Run as API server
@@ -543,6 +555,8 @@ Commands:
                                    agent as an MCP server by default.
 ```
 </details>
+
+See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 
 ---
 
