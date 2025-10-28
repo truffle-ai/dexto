@@ -28,6 +28,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../ui/button';
 import { X, Save, RefreshCw, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getApiUrl } from '@/lib/api-url';
 import YAMLEditorView from './YAMLEditorView';
 import FormEditorView from './FormEditorView';
 import type { editor } from 'monaco-editor';
@@ -49,7 +50,7 @@ interface CustomizePanelProps {
   variant?: 'overlay' | 'inline';
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = `${getApiUrl()}/api`;
 
 interface ValidationError {
   line?: number;

@@ -239,7 +239,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       const originalArgsText = trimmed.slice(1 + name.length).trimStart();
       if (name) {
         try {
-          const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, window.location.origin);
+          const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, getApiUrl());
           // Build structured args from tokens: key=value map + positional array
           if (parsed.argsArray && parsed.argsArray.length > 0) {
             const { keyValues, positional } = splitKeyValueAndPositional(parsed.argsArray);

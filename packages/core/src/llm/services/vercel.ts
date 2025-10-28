@@ -52,8 +52,6 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
-    // Map of toolCallId -> queue of raw results to emit with that callId
-    private rawResultsByCallId: Map<string, unknown[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -114,41 +112,98 @@ export class VercelLLMService implements ILLMService {
                 acc[toolName] = {
                     inputSchema: jsonSchema(tool.parameters),
                     execute: async (args: unknown, options: { toolCallId: string }) => {
+                        const callId = options.toolCallId;
+
                         try {
+                            // Emit toolCall event FIRST before execution
+                            logger.debug(
+                                `[vercel] Emitting toolCall event for ${toolName} with callId ${callId}`
+                            );
+                            this.sessionEventBus.emit('llmservice:toolCall', {
+                                toolName,
+                                args: args as Record<string, unknown>,
+                                callId,
+                            });
+
                             const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
                                 this.sessionId
                             );
 
-                            // Queue raw, unfiltered result under the specific toolCallId
-                            const callId = options.toolCallId;
-                            const queue = this.rawResultsByCallId.get(callId) ?? [];
-                            queue.push(rawResult);
-                            this.rawResultsByCallId.set(callId, queue);
+                            // Persist result and emit event immediately after tool execution
+                            // This sanitizes the result, persists blobs to storage, and returns sanitized parts
+                            const persisted = await this.contextManager.addToolResult(
+                                callId,
+                                toolName,
+                                rawResult,
+                                { success: true }
+                            );
 
-                            // Normalize tool result for summary generation WITHOUT persisting blobs yet
-                            // Blobs will be persisted once in contextManager.addToolResult later
-                            // This avoids double sanitization/persistence (see context/utils.ts)
-                            const normalized = await normalizeToolResult(rawResult);
-                            const summaryText = summarizeToolContentForText(normalized.parts);
+                            logger.debug(
+                                `[vercel] Emitting toolResult event for ${toolName} with callId ${callId}`
+                            );
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId,
+                                success: true,
+                                sanitized: persisted,
+                                ...(shouldIncludeRawToolResult() ? { rawResult } : {}),
+                            });
+
+                            // Generate summary text from the already-sanitized content
+                            // (avoids redundant normalization since addToolResult already did it)
+                            const summaryText = summarizeToolContentForText(persisted.content);
                             return summaryText;
                         } catch (err: unknown) {
-                            // Return structured error to SDK so a toolResult step is produced
+                            // Handle tool execution errors
+                            // Note: toolCall event was already emitted before execution
+                            let errorResult: { error: string; denied?: boolean; timeout?: boolean };
+                            let errorFlags = '';
+
                             if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.EXECUTION_DENIED
                             ) {
-                                return { error: err.message, denied: true };
-                            }
-                            if (
+                                errorResult = { error: err.message, denied: true };
+                                errorFlags = ' (denied)';
+                            } else if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
                             ) {
-                                return { error: err.message, denied: true, timeout: true };
+                                errorResult = { error: err.message, denied: true, timeout: true };
+                                errorFlags = ' (timeout)';
+                            } else {
+                                const message = err instanceof Error ? err.message : String(err);
+                                errorResult = { error: message };
                             }
-                            const message = err instanceof Error ? err.message : String(err);
-                            return { error: message };
+
+                            // Persist error result and emit event immediately
+                            try {
+                                const persisted = await this.contextManager.addToolResult(
+                                    callId,
+                                    toolName,
+                                    errorResult,
+                                    { success: false }
+                                );
+
+                                this.sessionEventBus.emit('llmservice:toolResult', {
+                                    toolName,
+                                    callId,
+                                    success: false,
+                                    sanitized: persisted,
+                                    ...(shouldIncludeRawToolResult()
+                                        ? { rawResult: errorResult }
+                                        : {}),
+                                });
+                            } catch (persistErr) {
+                                logger.error(
+                                    `Failed to persist error result for ${toolName}: ${String(persistErr)}`
+                                );
+                            }
+
+                            // Return a concise error string for consistency with success path
+                            return `Tool ${toolName} failed${errorFlags}: ${errorResult.error}`;
                         }
                     },
                     ...(tool.description && { description: tool.description }),
@@ -333,54 +388,8 @@ export class VercelLLMService implements ILLMService {
                     );
 
                     // Do not emit intermediate llmservice:response; generateText is non-stream so we only emit once after completion.
-                    if (step.toolCalls && step.toolCalls.length > 0) {
-                        for (const toolCall of step.toolCalls) {
-                            this.sessionEventBus.emit('llmservice:toolCall', {
-                                toolName: toolCall.toolName,
-                                args: toolCall.input as Record<string, unknown>,
-                                callId: toolCall.toolCallId,
-                            });
-                        }
-                    }
-                    // Emit tool results: prefer raw mapped by callId; fallback to sanitized output
-                    if (step.toolResults && step.toolResults.length > 0) {
-                        for (const toolResult of step.toolResults) {
-                            const callId = toolResult.toolCallId;
-                            const sanitizedFromSdk = toolResult.output;
-                            let raw: unknown | undefined;
-                            if (callId) {
-                                const q = this.rawResultsByCallId.get(callId) ?? [];
-                                raw = q.shift();
-                                if (q.length > 0) this.rawResultsByCallId.set(callId, q);
-                                else this.rawResultsByCallId.delete(callId);
-                            }
-
-                            try {
-                                const effectiveCallId =
-                                    callId ?? `${toolResult.toolName}-${Date.now()}`;
-                                const persisted = await this.contextManager.addToolResult(
-                                    effectiveCallId,
-                                    toolResult.toolName,
-                                    raw ?? sanitizedFromSdk,
-                                    { success: true }
-                                );
-
-                                this.sessionEventBus.emit('llmservice:toolResult', {
-                                    toolName: toolResult.toolName,
-                                    callId: effectiveCallId,
-                                    success: true,
-                                    sanitized: persisted,
-                                    ...(shouldIncludeRawToolResult()
-                                        ? { rawResult: raw ?? sanitizedFromSdk }
-                                        : {}),
-                                });
-                            } catch (err) {
-                                logger.error(
-                                    `Failed to persist tool result for ${toolResult.toolName}: ${String(err)}`
-                                );
-                            }
-                        }
-                    }
+                    // toolCall and toolResult events are now emitted immediately in execute() function
+                    // Clean up any remaining raw results from the queue
                 },
                 stopWhen: stepCountIs(maxSteps),
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
@@ -576,56 +585,7 @@ export class VercelLLMService implements ILLMService {
                 );
 
                 // Do not emit intermediate llmservice:response; chunks update the UI during streaming.
-
-                // Process tool calls (same as generateText)
-                if (step.toolCalls && step.toolCalls.length > 0) {
-                    for (const toolCall of step.toolCalls) {
-                        this.sessionEventBus.emit('llmservice:toolCall', {
-                            toolName: toolCall.toolName,
-                            args: toolCall.input as Record<string, unknown>,
-                            callId: toolCall.toolCallId,
-                        });
-                    }
-                }
-                // Emit tool results during streaming as well (prefer raw mapped by callId)
-                if (step.toolResults && step.toolResults.length > 0) {
-                    for (const toolResult of step.toolResults) {
-                        const callId = toolResult.toolCallId;
-                        const sanitizedFromSdk = toolResult.output;
-                        let raw: unknown | undefined;
-                        if (callId) {
-                            const q = this.rawResultsByCallId.get(callId) ?? [];
-                            raw = q.shift();
-                            if (q.length > 0) this.rawResultsByCallId.set(callId, q);
-                            else this.rawResultsByCallId.delete(callId);
-                        }
-
-                        try {
-                            const effectiveCallId =
-                                callId ?? `${toolResult.toolName}-${Date.now()}`;
-                            const persisted = await this.contextManager.addToolResult(
-                                effectiveCallId,
-                                toolResult.toolName,
-                                raw ?? sanitizedFromSdk,
-                                { success: true }
-                            );
-
-                            this.sessionEventBus.emit('llmservice:toolResult', {
-                                toolName: toolResult.toolName,
-                                callId: effectiveCallId,
-                                success: true,
-                                sanitized: persisted,
-                                ...(shouldIncludeRawToolResult()
-                                    ? { rawResult: raw ?? sanitizedFromSdk }
-                                    : {}),
-                            });
-                        } catch (err) {
-                            logger.error(
-                                `Failed to persist tool result for ${toolResult.toolName}: ${String(err)}`
-                            );
-                        }
-                    }
-                }
+                // toolCall and toolResult events are now emitted immediately in execute() function
             },
             // No onFinish: we finalize after the stream completes below.
             stopWhen: stepCountIs(maxSteps),

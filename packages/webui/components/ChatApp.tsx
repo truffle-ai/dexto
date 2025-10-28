@@ -41,7 +41,7 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
-import { loadPrompts } from '../lib/promptCache';
+import { loadPrompts, clearPromptCache } from '../lib/promptCache';
 import type { ServerRegistryEntry } from '@/types';
 
 interface ChatAppProps {
@@ -90,8 +90,22 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   // Starter prompts state (from agent config via /api/prompts)
   const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
   const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
+  const [promptsReloadKey, setPromptsReloadKey] = useState(0);
 
-  // Fetch starter prompts when in welcome state
+  // Listen for agent switch events to reload prompts
+  useEffect(() => {
+    const handleAgentSwitch = () => {
+      clearPromptCache(); // Clear cached prompts from previous agent
+      setPromptsReloadKey((key) => key + 1);
+    };
+
+    window.addEventListener('dexto:agentSwitched', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('dexto:agentSwitched', handleAgentSwitch);
+    };
+  }, []);
+
+  // Fetch starter prompts when in welcome state or when agent switches
   useEffect(() => {
     if (!isWelcomeState) return;
 
@@ -113,7 +127,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     return () => {
       cancelled = true;
     };
-  }, [isWelcomeState]);
+  }, [isWelcomeState, promptsReloadKey]);
 
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -254,8 +268,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     if (isExportOpen) {
       // Include current session ID in config export if available
       const exportUrl = currentSessionId
-        ? `/api/agent/config/export?sessionId=${currentSessionId}`
-        : '/api/agent/config/export';
+        ? `${getApiUrl()}/api/agent/config/export?sessionId=${currentSessionId}`
+        : `${getApiUrl()}/api/agent/config/export`;
 
       fetch(exportUrl)
         .then((res) => {
@@ -280,8 +294,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const handleDownload = useCallback(async () => {
     try {
       const exportUrl = currentSessionId
-        ? `/api/agent/config/export?sessionId=${currentSessionId}`
-        : '/api/agent/config/export';
+        ? `${getApiUrl()}/api/agent/config/export?sessionId=${currentSessionId}`
+        : `${getApiUrl()}/api/agent/config/export`;
 
       const res = await fetch(exportUrl);
       if (!res.ok) throw new Error('Failed to fetch configuration');

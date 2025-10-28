@@ -428,7 +428,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                   Recent
                 </div>
                 {recentAgents
-                  .filter(ra => !installed.some(a => a.id === ra.id) && ra.id !== currentAgentPath?.name)
+                  .filter(ra =>
+                    !installed.some(a => a.id === ra.id) &&
+                    ra.id !== currentAgentPath?.name &&
+                    !ra.path.includes('/.dexto/') // Filter out global dexto directory agents
+                  )
                   .slice(0, 3)
                   .map((agent) => (
                     <DropdownMenuItem

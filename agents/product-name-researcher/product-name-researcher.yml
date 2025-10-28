@@ -162,3 +162,36 @@ storage:
 toolConfirmation:
   mode: auto-approve
   allowedToolsStorage: memory
+
+# Starter prompts - product name research examples
+starterPrompts:
+  - id: research-name
+    title: "🔍 Research Product Name"
+    description: "Comprehensive name validation"
+    prompt: "I want to research the name 'CloudSync' for my new file sync product. Check domain availability, trademark conflicts, and competitive landscape."
+    category: research
+    priority: 10
+  - id: compare-names
+    title: "⚖️ Compare Multiple Names"
+    description: "Compare and score name options"
+    prompt: "Help me choose between 'DataFlow', 'InfoStream', and 'SyncHub' for my data management tool. Compare them across all criteria."
+    category: comparison
+    priority: 9
+  - id: check-domains
+    title: "🌐 Check Domain Availability"
+    description: "Verify domain availability across TLDs"
+    prompt: "Check if 'myawesomeapp' is available across .com, .io, .app, and .dev domains."
+    category: domains
+    priority: 8
+  - id: trademark-search
+    title: "™️ Search Trademarks"
+    description: "Find potential trademark conflicts"
+    prompt: "Search for existing trademarks similar to 'TechFlow' in the software industry."
+    category: legal
+    priority: 7
+  - id: dev-collisions
+    title: "💻 Check Developer Platforms"
+    description: "Find conflicts on GitHub, npm, PyPI"
+    prompt: "Check if 'awesome-toolkit' is available on GitHub, npm, and PyPI."
+    category: development
+    priority: 6

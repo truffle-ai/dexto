@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 
 type NormalizedResourceItem =
     | {
@@ -174,7 +175,7 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
             (async () => {
                 try {
                     const response = await fetch(
-                        `/api/resources/${encodeURIComponent(uri)}/content`
+                        `${getApiUrl()}/api/resources/${encodeURIComponent(uri)}/content`
                     );
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}`);

@@ -40,7 +40,7 @@ const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
         .describe(
             'SQLite database file path (optional, will auto-detect using path resolver if not provided)'
         ),
-    database: z.string().optional().describe('Database filename (default: dexto.db)'),
+    database: z.string().optional().describe('Database filename (default: <agent-id>.db)'),
 }).strict();
 
 export type SqliteDatabaseConfig = z.output<typeof SqliteDatabaseSchema>;

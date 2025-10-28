@@ -159,52 +159,28 @@ internalResources:
 starterPrompts:
   - id: analyze-codebase
     title: "🔍 Analyze Codebase"
-    description: "Get an overview of the project structure and technologies"
-    prompt: "Analyze this codebase. Show me the project structure, main technologies used, and provide a high-level overview of how the code is organized."
+    description: "Get an overview of the project structure"
+    prompt: "Analyze this codebase. Show me the project structure, main technologies used, and provide a high-level overview."
     category: analysis
     priority: 10
-  - id: debug-error
-    title: "🐛 Debug Error"
-    description: "Help identify and fix bugs in your code"
-    prompt: "I'm encountering an error in my code. Let me share the error message and relevant code with you, and help me debug it."
-    category: debugging
-    priority: 9
-  - id: refactor-code
-    title: "♻️ Refactor Code"
-    description: "Improve code quality and structure"
-    prompt: "I have some code that needs refactoring. Help me improve its structure, readability, and maintainability while preserving functionality."
-    category: refactoring
-    priority: 8
-  - id: write-tests
-    title: "🧪 Write Tests"
-    description: "Generate unit tests for your code"
-    prompt: "Help me write comprehensive unit tests for my code. Identify the testing framework being used and create tests that cover edge cases."
-    category: testing
-    priority: 7
   - id: implement-feature
     title: "✨ Implement Feature"
     description: "Build a new feature from scratch"
-    prompt: "I need to implement a new feature. Let me describe what I need, and help me design and implement it following best practices."
+    prompt: "Help me implement a new feature. I'll describe what I need, and you can design and implement it following best practices."
     category: development
-    priority: 6
-  - id: optimize-performance
-    title: "⚡ Optimize Performance"
-    description: "Identify and fix performance bottlenecks"
-    prompt: "Help me identify performance bottlenecks in my code and suggest optimizations to improve speed and efficiency."
-    category: optimization
-    priority: 5
-  - id: setup-project
-    title: "🚀 Setup Project"
-    description: "Initialize a new project with best practices"
-    prompt: "Help me set up a new project. I'll tell you the stack I want to use, and you can create the project structure with configuration files and initial code."
-    category: setup
-    priority: 4
-  - id: code-review
-    title: "👀 Code Review"
-    description: "Review code for issues and improvements"
-    prompt: "Review my recent code changes. Look for bugs, security issues, performance problems, and suggest improvements following best practices."
-    category: review
-    priority: 3
+    priority: 9
+  - id: write-tests
+    title: "🧪 Write Tests"
+    description: "Generate unit tests for code"
+    prompt: "Help me write comprehensive unit tests. Identify the testing framework and create tests that cover edge cases."
+    category: testing
+    priority: 8
+  - id: refactor-code
+    title: "♻️ Refactor Code"
+    description: "Improve code quality and structure"
+    prompt: "Help me refactor some code to improve its structure, readability, and maintainability while preserving functionality."
+    category: refactoring
+    priority: 7
 
 ## Alternative LLM configurations for coding
 

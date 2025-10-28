@@ -191,6 +191,7 @@ export class DextoAgent {
             logger.info('Starting DextoAgent...');
 
             // Initialize all services asynchronously
+            // Note: createAgentServices handles agentId derivation internally
             const services = await createAgentServices(this.config, this.configPath);
 
             // Validate all required services are provided

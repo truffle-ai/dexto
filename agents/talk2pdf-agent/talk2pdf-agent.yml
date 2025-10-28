@@ -39,7 +39,19 @@ systemPrompt:
       source: dateTime
       enabled: true
 
+# Storage configuration
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30
+
 llm:
   provider: openai
   model: gpt-5-mini
-  apiKey: $OPENAI_API_KEY 
+  apiKey: $OPENAI_API_KEY
