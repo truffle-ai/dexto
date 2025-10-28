@@ -65,8 +65,21 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const themeCookie = cookieStore.get('theme')?.value;
   const isDark = themeCookie ? themeCookie === 'dark' : true; // default dark
+
+  // Inject API port from server-side env var into client-side global
+  const apiPort = process.env.API_PORT;
+
   return (
     <html lang="en" className={isDark ? 'dark' : ''}>
+      <head>
+        {apiPort && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__DEXTO_API_PORT__ = ${JSON.stringify(apiPort)};`,
+            }}
+          />
+        )}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
