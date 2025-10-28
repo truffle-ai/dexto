@@ -90,6 +90,12 @@ dexto --auto-approve "refactor my project using the filesystem and browser tools
 
 Use the `--auto-approve` flag to bypass confirmation prompts when you trust the tools being invoked—perfect for fast local iteration. Remove the flag when you want explicit approval again.
 
+### Logs
+
+Logs are stored in `~/.dexto/logs` directory by default
+Use `DEXTO_LOG_TO_CONSOLE=true` to log to console when running dexto
+Use `DEXTO_LOG_LEVEL=debug` for debug logs
+
 ## Agent Recipes
 
 Dexto comes with pre-built agent recipes for common use cases. Install and use them instantly:
