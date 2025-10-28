@@ -27,7 +27,7 @@ export class StorageManager {
     private blobStore!: BlobStore;
     private initialized = false;
     private connected = false;
-    private agentId?: string;
+    private agentId: string | undefined;
 
     constructor(config: ValidatedStorageConfig, agentId?: string) {
         this.config = config;

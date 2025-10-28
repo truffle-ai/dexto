@@ -28,6 +28,7 @@ import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
+import * as path from 'path';
 import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';

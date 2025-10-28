@@ -18,7 +18,7 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
-    private agentId?: string;
+    private agentId: string | undefined;
 
     constructor(config: SqliteDatabaseConfig, agentId?: string) {
         this.config = config;
