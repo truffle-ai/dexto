@@ -1,5 +1,12 @@
 # @dexto/webui
 
+## 0.2.1
+
+### Patch Changes
+
+- 9a26447: Fix starter prompts
+    - @dexto/core@1.2.1
+
 ## 0.2.0
 
 ### Minor Changes
