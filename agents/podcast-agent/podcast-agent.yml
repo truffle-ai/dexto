@@ -194,7 +194,7 @@ starterPrompts:
     category: discovery
     priority: 8
   - id: single-speaker
-    title: "🗣️ Generate Announcement"
+    title: "🗣️ Generate Speech"
     description: "Create single-speaker audio"
     prompt: "Generate a cheerful welcome announcement using voice Puck saying 'Welcome to our amazing podcast! We're thrilled to have you here today.'"
     category: speech
