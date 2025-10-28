@@ -64,11 +64,13 @@ export type AgentServices = {
  * Initializes all agent services from a validated configuration.
  * @param config The validated agent configuration object
  * @param configPath Optional path to the config file (for relative path resolution)
+ * @param agentId Optional agent identifier used for database naming (default: derived from config or 'default-agent')
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
     config: ValidatedAgentConfig,
-    configPath?: string
+    configPath?: string,
+    agentId?: string
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -82,9 +84,16 @@ export async function createAgentServices(
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Initialize storage manager
-    logger.debug('Initializing storage manager');
-    const storageManager = await createStorageManager(config.storage);
+    // 2. Derive agent ID for database naming (if not provided)
+    const effectiveAgentId =
+        agentId ||
+        config.agentCard?.name ||
+        (configPath ? path.basename(configPath, path.extname(configPath)) : undefined) ||
+        'default-agent';
+
+    // 3. Initialize storage manager with agent ID
+    logger.debug('Initializing storage manager', { agentId: effectiveAgentId });
+    const storageManager = await createStorageManager(config.storage, effectiveAgentId);
 
     logger.debug('Storage manager initialized', {
         cache: config.storage.cache.type,

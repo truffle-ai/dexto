@@ -68,4 +68,8 @@ storage:
     type: in-memory
   database:
     type: sqlite
-    path: .dexto/database/nano-banana-agent.db
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30

@@ -18,9 +18,11 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
+    private agentId?: string;
 
-    constructor(config: SqliteDatabaseConfig) {
+    constructor(config: SqliteDatabaseConfig, agentId?: string) {
         this.config = config;
+        this.agentId = agentId;
         // Path will be resolved in connect() method
         this.dbPath = '';
     }
@@ -100,7 +102,9 @@ export class SQLiteStore implements Database {
             this.dbPath = this.config.path;
             logger.info(`SQLite using custom path: ${this.dbPath}`);
         } else {
-            this.dbPath = this.resolveDefaultPath(this.config.database || 'dexto.db');
+            // Use agent-specific database filename or fall back to default
+            const defaultFilename = this.agentId ? `${this.agentId}.db` : 'dexto.db';
+            this.dbPath = this.resolveDefaultPath(this.config.database || defaultFilename);
         }
 
         // Ensure directory exists
