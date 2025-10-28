@@ -24,9 +24,17 @@ import {
     getAllSupportedModels,
     DextoAgent,
     loadAgentConfig,
+    globalPreferencesExist,
+    loadGlobalPreferences,
     type LLMProvider,
 } from '@dexto/core';
-import { resolveAgentPath, getAgentRegistry, isPath, resolveApiKeyForProvider } from '@dexto/core';
+import {
+    resolveAgentPath,
+    getAgentRegistry,
+    isPath,
+    resolveApiKeyForProvider,
+    getPrimaryApiKeyEnvVar,
+} from '@dexto/core';
 import type { AgentConfig } from '@dexto/core';
 import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
 import { startApiServer } from './api/server.js';
@@ -96,10 +104,11 @@ program
     .option('-r, --resume <sessionId>', 'Resume session by ID')
     .option(
         '--mode <mode>',
-        'The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp',
-        'cli'
+        'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
+        'web'
     )
-    .option('--web-port <port>', 'optional port for the web UI', '3000')
+    .option('--web-port <port>', 'port for the web UI (default: 3000)', '3000')
+    .option('--api-port <port>', 'port for the API server (default: web-port + 1)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .enablePositionalOptions();
 
@@ -563,25 +572,30 @@ program
     .description(
         'Dexto CLI - AI-powered assistant with session management\n\n' +
             'Basic Usage:\n' +
-            '  dexto                    Start interactive REPL\n' +
-            '  dexto "query"            Start REPL with initial prompt\n' +
-            '  dexto -p "query"         Run query, then exit\n' +
+            '  dexto                    Start web UI (default)\n' +
+            '  dexto "query"            Run one-shot query (auto-uses CLI mode)\n' +
+            '  dexto -p "query"         Run one-shot query, then exit\n' +
             '  cat file | dexto -p "query"  Process piped content\n\n' +
+            'CLI Mode:\n' +
+            '  dexto --mode cli         Start interactive CLI REPL\n\n' +
             'Session Management:\n' +
             '  dexto -c                 Continue most recent conversation\n' +
-            '  dexto -c -p "query"      Continue conversation, then exit\n' +
-            '  dexto -r "<session-id>" "query"  Resume session by ID\n\n' +
+            '  dexto -c -p "query"      Continue with one-shot query, then exit\n' +
+            '  dexto -r "<session-id>" "query"  Resume with one-shot query\n\n' +
             'Tool Confirmation:\n' +
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
+            'Agent Selection:\n' +
+            '  dexto --agent coding-agent       Use installed agent by name\n' +
+            '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
+            '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
             'Advanced Modes:\n' +
-            '  dexto --mode web         Run web UI\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode discord     Run as Discord bot\n' +
             '  dexto --mode telegram    Run as Telegram bot\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
             'Session Commands: dexto session list|history|delete • search\n' +
             'Search: dexto search <query> [--session <id>] [--role <role>]\n\n' +
-            'See https://github.com/truffle-ai/dexto for more examples and documentation'
+            'See https://docs.dexto.ai for documentation and examples'
     )
     .action(
         withAnalytics(
@@ -595,6 +609,28 @@ program
                 }
 
                 const opts = program.opts();
+
+                // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
+                // If --mode was not explicitly provided on CLI, use defaultMode from preferences
+                const modeSource = program.getOptionValueSource('mode');
+                const explicitModeProvided = modeSource === 'cli';
+                if (!explicitModeProvided) {
+                    try {
+                        if (globalPreferencesExist()) {
+                            const preferences = await loadGlobalPreferences();
+                            if (preferences.defaults?.defaultMode) {
+                                opts.mode = preferences.defaults.defaultMode;
+                                logger.debug(`Using default mode from preferences: ${opts.mode}`);
+                            }
+                        }
+                    } catch (error) {
+                        // Silently fall back to hardcoded default if preferences loading fails
+                        logger.debug(
+                            `Failed to load default mode from preferences: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                    }
+                }
+
                 let headlessInput: string | undefined = undefined;
 
                 // Prefer explicit -p/--prompt for headless one-shot
@@ -621,6 +657,16 @@ program
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
 
+                // ——— FORCE CLI MODE FOR HEADLESS PROMPTS ———
+                // If a prompt was provided via -p or positional args, force CLI mode
+                if (headlessInput && opts.mode !== 'cli') {
+                    console.log(
+                        `ℹ️  Prompt detected via -p or positional argument. Forcing CLI mode for one-shot execution.`
+                    );
+                    console.log(`   Original mode: ${opts.mode} → Overridden to: cli`);
+                    opts.mode = 'cli';
+                }
+
                 // ——— Infer provider & API key from model ———
                 if (opts.model) {
                     let provider: LLMProvider;
@@ -634,8 +680,9 @@ program
 
                     const apiKey = resolveApiKeyForProvider(provider);
                     if (!apiKey) {
+                        const envVar = getPrimaryApiKeyEnvVar(provider);
                         console.error(
-                            `❌ Missing API key for provider '${provider}' - please set the appropriate environment variable`
+                            `❌ Missing API key for provider '${provider}' - please set $${envVar}`
                         );
                         safeExit('main', 1, 'missing-api-key');
                     }
@@ -846,7 +893,11 @@ program
                             webPort,
                             'FRONTEND_PORT'
                         );
-                        const apiPort = getPort(process.env.API_PORT, webPort + 1, 'API_PORT');
+                        // Use explicit --api-port if provided, otherwise default to webPort + 1
+                        const defaultApiPort = opts.apiPort
+                            ? parseInt(opts.apiPort, 10)
+                            : webPort + 1;
+                        const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
                         const nextJSserverURL =
                             process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
@@ -889,7 +940,9 @@ program
                     case 'server': {
                         // Start server with REST APIs and WebSockets only
                         const agentCard = agent.getEffectiveConfig().agentCard ?? {};
-                        const apiPort = getPort(process.env.API_PORT, 3001, 'API_PORT');
+                        // Use explicit --api-port if provided, otherwise default to 3001
+                        const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : 3001;
+                        const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');
@@ -962,7 +1015,7 @@ program
 
                     default:
                         console.error(
-                            `❌ Unknown mode '${opts.mode}'. Use cli, web, server, discord, telegram, or mcp.`
+                            `❌ Unknown mode '${opts.mode}'. Use web, cli, server, discord, telegram, or mcp.`
                         );
                         safeExit('main', 1, 'unknown-mode');
                 }

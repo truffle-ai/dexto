@@ -35,10 +35,7 @@ The Image Editor Agent includes computer vision capabilities powered by OpenCV:
 # Install the agent
 dexto install image-editor-agent
 
-# Run it with Web UI for image upload
-dexto --agent image-editor-agent --mode web
-
-# Or run in CLI mode
+# Run it
 dexto --agent image-editor-agent
 ```
 

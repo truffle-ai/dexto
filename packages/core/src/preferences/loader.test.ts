@@ -54,6 +54,7 @@ describe('Preferences Loader', () => {
             },
             defaults: {
                 defaultAgent: 'test-agent',
+                defaultMode: 'web',
             },
             setup: {
                 completed: true,
@@ -297,6 +298,7 @@ setup:
                 },
                 defaults: {
                     defaultAgent: 'my-agent',
+                    defaultMode: 'web',
                 },
                 setup: {
                     completed: true,

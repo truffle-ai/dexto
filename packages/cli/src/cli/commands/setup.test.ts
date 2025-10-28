@@ -343,7 +343,7 @@ describe('Setup Command', () => {
             const testCases = [
                 {
                     provider: 'openai',
-                    expectedModel: 'gpt-4.1-mini',
+                    expectedModel: 'gpt-5-mini',
                     expectedKey: 'OPENAI_API_KEY',
                 },
                 {
@@ -442,7 +442,7 @@ describe('Setup Command', () => {
 
                 expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                     'openai',
-                    'gpt-4.1-mini',
+                    'gpt-5-mini',
                     'OPENAI_API_KEY',
                     'default-agent'
                 );
@@ -494,7 +494,7 @@ describe('Setup Command', () => {
                 );
                 expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                     'openai',
-                    'gpt-4.1-mini',
+                    'gpt-5-mini',
                     'OPENAI_API_KEY',
                     'default-agent'
                 );

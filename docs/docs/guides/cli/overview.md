@@ -22,15 +22,15 @@ Some of the cool things you can do with Dexto CLI:
 ### Basic Usage
 
 ```bash
-# Start interactive CLI
+# Start interactive session (opens Web UI by default)
 dexto
 
-# Run a single prompt
+# Start interactive CLI mode
+dexto --mode cli
+
+# Run a single prompt (auto-uses CLI mode)
 dexto "list files here"
 dexto -p "create a snake game"
-
-# Launch Web UI
-dexto --mode web
 
 # Start as API server
 dexto --mode server
@@ -45,6 +45,10 @@ dexto --mode discord
 dexto --mode telegram
 ```
 
+:::tip Mode Auto-Detection
+`dexto` opens the Web UI by default. When you provide a prompt via `-p` or as a positional argument, Dexto automatically switches to CLI mode for one-shot execution.
+:::
+
 ### Main Command Options
 
 | Flag | Description | Example |
@@ -56,8 +60,9 @@ dexto --mode telegram
 | `--router <router>` | Specify router (vercel/in-built) | `dexto --router vercel` |
 | `-c, --continue` | Continue the last session | `dexto --continue` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
-| `--mode <mode>` | Run mode (cli/web/server/discord/telegram/mcp) | `dexto --mode web` |
-| `--web-port <port>` | Web UI port (default: 3000) | `dexto --mode web --web-port 8080` |
+| `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
+| `--web-port <port>` | Web UI port (default: 3000) | `dexto --web-port 8080` |
+| `--api-port <port>` | API server port (default: web-port + 1) | `dexto --web-port 5000 --api-port 5001` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
@@ -362,35 +367,54 @@ Once in interactive mode (`dexto`), use these slash commands:
 ### Quick Start
 
 ```bash
-# Interactive CLI with default settings
+# Interactive session with default settings (opens Web UI)
 dexto
 
-# Use a specific agent
+# Interactive CLI mode
+dexto --mode cli
+
+# Use a specific agent (opens Web UI)
 dexto --agent nano-banana-agent
 
-# Start with a specific model
+# Start with a specific model (opens Web UI)
 dexto -m claude-sonnet-4-5-20250929
 ```
 
 ### One-Shot Prompts
 
 ```bash
-# Run single task and exit
+# Run single task and exit (auto-uses CLI mode)
 dexto "list all TypeScript files in src/"
 dexto -p "create a README for this project"
 
 # With auto-approve for automation
 dexto --auto-approve "format all JavaScript files"
+
+# With specific agent
+dexto --agent coding-agent "create a landing page for my coffee shop"
+
+# Combine agent, model, and auto-approve
+dexto --agent coding-agent -m gpt-5 --auto-approve "build a todo app with React"
 ```
 
 ### Session Continuation
 
 ```bash
-# Continue last conversation
+# Continue last conversation (opens Web UI)
 dexto --continue
 
-# Resume specific session
+# Continue in CLI mode
+dexto --continue --mode cli
+
+# Continue with a one-shot prompt, then exit
+dexto -c -p "now add error handling"
+
+# Resume specific session (opens Web UI)
+# Get session id from the web UI
 dexto --resume my-project-session
+
+# Resume and run a one-shot prompt
+dexto -r my-project-session "fix the bug we discussed"
 ```
 
 ### Agent Management
@@ -399,34 +423,111 @@ dexto --resume my-project-session
 # Install agents for specific use cases
 dexto install podcast-agent music-agent coding-agent
 
+# Install all available agents
+dexto install --all
+
 # List what's installed
 dexto list-agents --installed
 
 # Find agent config location
 dexto which coding-agent
+
+# Use custom agent file
+dexto --agent ./agents/my-custom-agent.yml
 ```
 
 ### Web UI
 
 ```bash
 # Launch on default port (3000)
-dexto --mode web
+dexto
 
 # Custom port
-dexto --mode web --web-port 8080
+dexto --web-port 8080
+
+# Custom API port (defaults to web-port + 1)
+dexto --web-port 8080 --api-port 9000
 
 # With specific agent
-dexto --mode web --agent database-agent
+dexto --agent database-agent
+
+# Continue previous session
+dexto -c
 ```
 
 ### API Server
 
 ```bash
-# Start REST + WebSocket server
+# Start REST + WebSocket server (default port 3001)
 dexto --mode server
+
+# With custom API port
+dexto --mode server --api-port 8080
 
 # With specific agent and strict mode
 dexto --mode server --agent my-agent --strict
+
+# For production with custom agent
+dexto --mode server --agent ./production-agent.yml --api-port 3001
+```
+
+### Content Generation
+
+```bash
+# Generate podcast content
+dexto --agent podcast-agent "create a 5-minute podcast about space exploration"
+
+# Generate images
+dexto --agent nano-banana-agent "create a futuristic cityscape"
+
+# Create code with specific instructions
+dexto --agent coding-agent "build a REST API with Express and TypeScript"
+
+# Interactive mode for complex tasks
+dexto --agent coding-agent
+# Then in the UI: "Let's build a full-stack app step by step"
+```
+
+### Automation & CI/CD
+
+```bash
+# Automated code review (no confirmation prompts)
+dexto --auto-approve "review all files in src/ and suggest improvements"
+
+# Generate documentation
+dexto --auto-approve "create API documentation from the code in src/api/"
+
+# Run tests and analyze results
+dexto "run the test suite and explain any failures"
+
+# Git commit message generation
+git diff | dexto -p "generate a conventional commit message for these changes"
+```
+
+### Multi-Agent Workflows
+
+```bash
+# Start researcher agent as MCP server (Terminal 1)
+dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher-agent
+
+# Start coordinator agent that uses researcher (Terminal 2)
+dexto --agent coordinator-agent --web-port 5000 --api-port 5001
+```
+
+### Search & History
+
+```bash
+# Search all conversations
+dexto search "database schema"
+
+# Search in specific session
+dexto search "bug fix" --session my-session-id
+
+# Filter by role
+dexto search "error" --role assistant
+
+# View session history
+dexto session history my-session-id
 ```
 
 ## Next Steps

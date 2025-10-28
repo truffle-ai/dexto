@@ -50,6 +50,7 @@ describe('Config Writer', () => {
             },
             defaults: {
                 defaultAgent: 'test-agent',
+                defaultMode: 'web',
             },
             setup: {
                 completed: true,

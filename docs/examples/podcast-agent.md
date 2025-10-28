@@ -37,7 +37,9 @@ dexto install podcast-agent
 
 # Run it
 dexto --agent podcast-agent
+```
 
-# Example prompt
+Try prompts like:
+```
 "Generate a podcast intro with two hosts discussing the future of AI in healthcare"
 ```

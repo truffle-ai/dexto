@@ -122,7 +122,7 @@ The Web UI provides a visual way to create custom agents without writing YAML fi
 
 1. **Open the Web UI:**
    ```bash
-   dexto --mode web
+   dexto
    ```
 
 2. **Click "+New Agent"** in the agent selector (top of the interface)
@@ -178,28 +178,31 @@ All installed agents (both CLI and Web UI) are stored in:
 
 ## Using Installed Agents
 
+### In Web UI (Default)
+
+```bash
+# Use default agent (opens Web UI)
+dexto
+
+# Use specific installed agent (opens Web UI)
+dexto --agent nano-banana-agent
+```
+
+Use the agent selector dropdown (top of web UI) to switch between installed agents.
+
 ### In CLI Mode
 
 ```bash
-# Use default agent
-dexto
+# Use default agent in CLI
+dexto --mode cli
 
-# Use specific installed agent
-dexto --agent nano-banana-agent
+# Use specific installed agent in CLI
+dexto --agent nano-banana-agent --mode cli
 
-# Switch agents during session
-dexto
+# Switch LLM during CLI session
+dexto --mode cli
 > /model switch
-# Select from list of installed agents
 ```
-
-### In Web UI
-
-```bash
-dexto --mode web
-```
-
-Use the agent selector dropdown (top of interface) to switch between installed agents.
 
 ### In Other Modes
 

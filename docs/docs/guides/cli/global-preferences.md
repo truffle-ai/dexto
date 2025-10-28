@@ -30,6 +30,7 @@ llm:
 
 defaults:
   defaultAgent: default-agent
+  defaultMode: web  # web | cli | server | discord | telegram | mcp
 
 setup:
   completed: true
@@ -63,12 +64,23 @@ Invalid: `sk-proj-...`, `openai_key`, `$lowercase`
 
 ### Defaults Section
 
-Default CLI behavior:
+Default CLI behavior and mode selection:
 
 ```yaml
 defaults:
   defaultAgent: default-agent  # Agent to use when none specified
+  defaultMode: web             # Run mode when --mode flag not specified
 ```
+
+**Fields:**
+- **defaultAgent** - Agent name to use when no `--agent` flag is provided
+- **defaultMode** - Run mode when no `--mode` flag is provided (default: `web`)
+  - `cli` - Interactive terminal mode
+  - `web` - Web UI mode (default)
+  - `server` - API server mode
+  - `discord` - Discord bot mode
+  - `telegram` - Telegram bot mode
+  - `mcp` - MCP server mode
 
 ### Setup Section
 
@@ -165,6 +177,7 @@ llm:
 3. **Run setup after changes** - Re-run when switching providers
 4. **Verify after edits** - Run a command to validate changes
 5. **Set reliable default agent** - For predictable CLI behavior
+6. **Configure default mode** - Set `defaultMode: cli` if you prefer terminal interaction, or keep `defaultMode: web` for UI-first workflows
 
 ## File Location
 
@@ -179,18 +192,6 @@ Edit `~/.dexto/preferences.yml` directly, ensuring:
 - API keys are environment variable references
 - Provider and model are compatible
 - All required fields present
-
-### Programmatic Updates
-
-```typescript
-await updateGlobalPreferences({
-    llm: {
-        provider: 'openai',
-        model: 'gpt-5-mini',
-        apiKey: '$OPENAI_API_KEY'
-    }
-});
-```
 
 ### Re-run Setup
 

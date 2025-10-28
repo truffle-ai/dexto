@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -61,7 +62,7 @@ export default function MemoryPanel({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/memory');
+      const response = await fetch(`${getApiUrl()}/api/memory`);
       if (!response.ok) throw new Error('Failed to fetch memories');
       const data = await response.json();
       setMemories(data.memories || []);
@@ -82,7 +83,7 @@ export default function MemoryPanel({
   const handleDeleteMemory = async (memoryId: string) => {
     setDeletingMemoryId(memoryId);
     try {
-      const response = await fetch(`/api/memory/${memoryId}`, {
+      const response = await fetch(`${getApiUrl()}/api/memory/${memoryId}`, {
         method: 'DELETE',
       });
 

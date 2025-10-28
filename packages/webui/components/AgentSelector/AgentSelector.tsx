@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getApiUrl } from '@/lib/api-url';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -102,7 +103,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
     try {
       // Fetch agents list
-      const res = await fetch('/api/agents');
+      const res = await fetch(`${getApiUrl()}/api/agents`);
       if (!res.ok) throw new Error('Failed to fetch agents');
       const data: AgentsResponse = await res.json();
       setInstalled(data.installed || []);
@@ -111,7 +112,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
       // Fetch current agent path
       try {
-        const pathRes = await fetch('/api/agent/path');
+        const pathRes = await fetch(`${getApiUrl()}/api/agent/path`);
         if (pathRes.ok) {
           const pathData: AgentPath = await pathRes.json();
           setCurrentAgentPath(pathData);
@@ -153,7 +154,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         throw new Error(`Agent '${agentId}' not found. Please refresh the agents list.`);
       }
       
-      const res = await fetch('/api/agents/switch', {
+      const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agentId }),
@@ -193,7 +194,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     try {
       setSwitching(true);
 
-      const res = await fetch('/api/agents/switch', {
+      const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agent.id, path: agent.path }),
@@ -235,7 +236,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
       setSwitching(true);
-      const res = await fetch('/api/agents/install', {
+      const res = await fetch(`${getApiUrl()}/api/agents/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agentId }),
@@ -258,7 +259,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       }
 
       // After successful install, switch to the agent
-      const switchRes = await fetch('/api/agents/switch', {
+      const switchRes = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agentId }),
@@ -294,7 +295,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }
     try {
       setSwitching(true);
-      const res = await fetch('/api/agents/uninstall', {
+      const res = await fetch(`${getApiUrl()}/api/agents/uninstall`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agent.id }),

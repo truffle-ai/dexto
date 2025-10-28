@@ -193,23 +193,28 @@ mcpServers:
 
 ## Step 3: Test Your Agent
 
-Run your agent and try a practical market research task:
+Run your agent with a practical market research task:
 
 ```bash
-dexto --agent market-research-assistant.yml "Research the AI coding assistant market. Analyze the top 3 competitors, their pricing strategies, and identify opportunities for a new entrant"
+dexto --agent market-research-assistant.yml
 ```
 
+This opens the web UI. 
+
+Then ask the agent this:
+
+```bash
+"Research the AI coding assistant market. Analyze the top 3 competitors, their pricing strategies, and identify opportunities for a new entrant"
+```
 Your agent will:
 1. 🔍 Use AI-powered search to find relevant companies and data
 2. 📊 Analyze competitor strategies and market positioning
 3. 📝 Generate a comprehensive market analysis report
 4. 💡 Provide actionable recommendations
 
-You can also use the Web UI for interactive research:
-
-```bash
-dexto --agent market-research-assistant.yml --mode web
-```
+:::tip CLI Mode
+For terminal-based interaction, add `--mode cli`: `dexto --agent market-research-assistant.yml --mode cli`
+:::
 
 ## Try These Research Tasks
 

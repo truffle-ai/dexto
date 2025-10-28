@@ -22,12 +22,6 @@ import ExpandableImage from '@site/src/components/ExpandableImage';
   title="Dexto Architecture Overview"
 />
 
-## Quick Start
-
-1. **Install**: `npm install -g dexto`
-2. **Run**: `dexto` (starts interactive setup)
-3. **Try**: `dexto "create a snake game in HTML/CSS/JS, then open it in the browser"`
-
 ## Key Features
 
 - **50+ LLMs** - OpenAI, Anthropic, Google, Groq, local models

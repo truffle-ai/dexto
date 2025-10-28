@@ -44,6 +44,11 @@ export const PreferenceDefaultsSchema = z
             .string()
             .min(1)
             .describe('Default agent name for global CLI usage (required)'),
+
+        defaultMode: z
+            .enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'])
+            .default('web')
+            .describe('Default run mode when --mode flag is not specified (default: web)'),
     })
     .strict();
 

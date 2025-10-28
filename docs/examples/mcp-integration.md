@@ -24,7 +24,7 @@ Add custom MCP servers to:
 
 ```bash
 # Launch the Web UI
-dexto --mode web
+dexto
 ```
 
 1. Click on "MCP Servers" in the sidebar

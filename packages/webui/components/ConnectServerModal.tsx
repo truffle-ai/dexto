@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import type { McpServerConfig, StdioServerConfig, SseServerConfig, HttpServerConfig } from '@dexto/core';
 import {
     Dialog,
@@ -217,7 +218,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
-            const res = await fetch('/api/mcp/servers', {
+            const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),

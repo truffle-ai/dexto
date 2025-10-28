@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import {
   Dialog,
   DialogContent,
@@ -48,7 +49,7 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
         },
       };
 
-      const res = await fetch('/api/memory', {
+      const res = await fetch(`${getApiUrl()}/api/memory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

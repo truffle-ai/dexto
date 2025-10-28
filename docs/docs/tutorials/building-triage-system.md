@@ -235,13 +235,13 @@ For production, run specialists as separate servers:
 
 ```bash
 # Terminal 1: Technical Support
-npx dexto --agent technical-support-agent.yml --mode server --port 3001
+npx dexto --agent technical-support-agent.yml --mode server --api-port 3001
 
-# Terminal 2: Billing Support  
-npx dexto --agent billing-agent.yml --mode server --port 3002
+# Terminal 2: Billing Support
+npx dexto --agent billing-agent.yml --mode server --api-port 3002
 
 # Terminal 3: Triage Coordinator
-npx dexto --agent triage-agent.yml --mode server --port 3000
+npx dexto --agent triage-agent.yml --mode server --api-port 3000
 ```
 
 Update triage agent to use HTTP connections:

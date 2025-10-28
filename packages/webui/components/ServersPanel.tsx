@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
 import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package, RotateCw, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -117,7 +118,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     // Otherwise, connect directly
     try {
       setIsRegistryBusy(true);
-      const res = await fetch('/api/mcp/servers', {
+      const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),

@@ -11,7 +11,7 @@ Generate images using Hugging Face models with simple text prompts.
 **Task:** `Generate a photo of a baby panda.`
 
 ```bash
-dexto --agent nano-banana-agent
+dexto --agent nano-banana-agent 
 ```
 
 <ExpandableImage src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" title="Hugging Face: Image Generation" width={900} />
@@ -36,10 +36,15 @@ The Nano Banana Agent uses Google's Gemini 2.5 Flash Image model (formerly Nano 
 # Install the agent
 dexto install nano-banana-agent
 
-# Generate images
-dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
-dexto --agent nano-banana-agent "generate a watercolor painting of a sunset over mountains"
-dexto --agent nano-banana-agent "create a cute robot mascot for a tech startup"
+# Open the agent in web UI
+dexto --agent nano-banana-agent
+```
+
+Try different Prompts to generate images:
+```
+"create a futuristic cityscape with flying cars"
+"generate a watercolor painting of a sunset over mountains"
+"create a cute robot mascot for a tech startup"
 ```
 
 ## Features

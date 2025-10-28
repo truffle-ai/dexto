@@ -163,8 +163,8 @@ dexto
 
 | Mode       | Command                       | Description                               |
 |------------|-------------------------------|-------------------------------------------|
-| `cli`      | `dexto`                       | Interactive or one-shot terminal commands.|
-| `web`      | `dexto --mode web`            | Starts a web UI (default port: 3000).     |
+| `web`      | `dexto`                       | Starts a web UI (default mode, port: 3000).|
+| `cli`      | `dexto --mode cli`            | Interactive or one-shot terminal commands.|
 | `server`   | `dexto --mode server`         | Starts a REST/WebSocket server (port: 3001).|
 | `mcp`      | `dexto --mode mcp`            | Exposes the agent as a tool via MCP/stdio.|
 | `discord`  | `dexto --mode discord`        | Runs the agent as a Discord bot.          |

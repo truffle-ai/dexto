@@ -36,14 +36,15 @@ The Coding Agent can:
 # Install the agent
 dexto install coding-agent
 
+# Open the agent in web UI
+dexto --agent coding-agent
+
+## One shot prompts in CLI
 # Create a game
 dexto --agent coding-agent "create a snake game in HTML/CSS/JS, then open it in the browser"
 
 # Build a website
 dexto --agent coding-agent "create a landing page for a coffee brand inspired by star wars"
-
-# Or use the default agent
-dexto "create a to-do list app with local storage"
 ```
 
 The agent will:
