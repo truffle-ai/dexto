@@ -643,6 +643,16 @@ program
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
 
+                // ——— FORCE CLI MODE FOR HEADLESS PROMPTS ———
+                // If a prompt was provided via -p or positional args, force CLI mode
+                if (headlessInput && opts.mode !== 'cli') {
+                    console.log(
+                        `ℹ️  Prompt detected via -p or positional argument. Forcing CLI mode for one-shot execution.`
+                    );
+                    console.log(`   Original mode: ${opts.mode} → Overridden to: cli`);
+                    opts.mode = 'cli';
+                }
+
                 // ——— Infer provider & API key from model ———
                 if (opts.model) {
                     let provider: LLMProvider;
