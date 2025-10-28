@@ -4,7 +4,9 @@ sidebar_position: 1
 
 # Introduction
 
-Dexto is a universal agent interface for building collaborative, context-aware AI Agents & agentic apps. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, digital companions & copilots that think, act and feel alive.
+**An all-in-one toolkit to build agentic applications that turn natural language into real-world actions.**
+
+Dexto is a universal agent intelligence layer for building collaborative, context-aware AI Agents & agentic apps. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, digital companions & copilots that think, act and feel alive.
 
 Dexto combines a configuration-driven framework, robust runtime, and seamless developer experience so you can build, deploy, and iterate on your agents easily.
 
@@ -41,4 +43,4 @@ import ExpandableImage from '@site/src/components/ExpandableImage';
 
 ---
 
-*Dexto is built by the team at Truffle AI. Join our community and help shape the future of intelligent agent orchestration!* 
+*Dexto is built by the team at Truffle AI. Join our community and help shape the future of collaborative agent systems!* 
