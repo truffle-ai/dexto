@@ -98,14 +98,41 @@ export async function initializeApi(
 
     // CORS middleware to allow frontend to connect from different ports
     app.use((req, res, next) => {
-        // Allow any origin in development (for dynamic --web-port support)
-        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        const origin = req.headers.origin;
+
+        // Define allowed origins based on environment
+        const allowedOrigins: string[] = [];
+
+        // 1. Always allow localhost/127.0.0.1 on any port (for local development)
+        if (origin) {
+            const originUrl = new URL(origin);
+            const hostname = originUrl.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+                allowedOrigins.push(origin);
+            }
+        }
+
+        // 2. Allow custom origins from environment variable (for production/network deployments)
+        const customOrigins = process.env.DEXTO_ALLOWED_ORIGINS;
+        if (customOrigins) {
+            allowedOrigins.push(...customOrigins.split(',').map((o) => o.trim()));
+        }
+
+        // 3. Set CORS headers
+        if (origin && allowedOrigins.includes(origin)) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        } else if (allowedOrigins.length === 0 && !origin) {
+            // If no origin header (e.g., server-to-server), allow it
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        }
+        // If origin is not allowed, don't set CORS headers (browser will block)
+
         res.setHeader(
             'Access-Control-Allow-Methods',
             'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
         );
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
 
         // Handle preflight requests
         if (req.method === 'OPTIONS') {
