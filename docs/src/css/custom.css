@@ -75,21 +75,42 @@ body::after {
   transition: text-shadow var(--ifm-transition-fast);
 }
 
-/* Optimized logo size for navbar with multiple items */
+/* Larger logo size - increase overall scale */
 .navbar__logo {
-  transform: scale(1.2);
+  transform: scale(1.5);
   transform-origin: left center;
-  margin-right: 1.5rem;
+  margin-right: 4rem;
 }
 
 /* Reduce spacing between navbar items to fit more content */
 .navbar__item {
-  padding: 0 0.75rem;
+  padding: 0 0.5rem;
+}
+
+.navbar__link {
+  padding: 0.5rem 0.5rem;
 }
 
 /* Ensure right-side items stay visible */
 .navbar__items--right {
   flex-shrink: 0;
+}
+
+/* Reduce empty space in navbar */
+.navbar__items {
+  gap: 0;
+}
+
+/* Override default navbar layout to distribute items evenly */
+.navbar__inner {
+  justify-content: flex-start !important;
+  gap: 1rem;
+}
+
+/* Make navbar items distribute more naturally */
+.navbar__items--left {
+  flex-grow: 1;
+  gap: 1rem;
 }
 
 /* Announcement bar styling */
