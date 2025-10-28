@@ -64,11 +64,13 @@ llm:
 ```
 
 **Supported models:**
-- `gemini-2.5-pro`, `gemini-2.5-flash`
-- `gemini-2.0-flash`, `gemini-2.0-flash-lite`
-- `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`
+- `gemini-2.5-pro` (default)
+- `gemini-2.5-flash`
+- `gemini-2.5-flash-lite`
+- `gemini-2.0-flash`
+- `gemini-2.0-flash-lite`
 
-**Features:** Multimodal (text/image/video/audio), large context (2M tokens), fast inference
+**Features:** Multimodal (text/image/video/audio), large context (1M tokens), fast inference
 
 ---
 
@@ -82,8 +84,10 @@ llm:
 ```
 
 **Supported models:**
-- `grok-4`
-- `grok-3`, `grok-3-mini`
+- `grok-4` (default)
+- `grok-3`
+- `grok-3-mini`
+- `grok-code-fast-1`
 
 **Features:** State-of-the-art reasoning, real-time knowledge, strong benchmark performance
 
@@ -99,8 +103,15 @@ llm:
 ```
 
 **Supported models:**
-- `llama-3.3-70b-versatile`
+- `llama-3.3-70b-versatile` (default)
 - `gemma-2-9b-it`
+- `openai/gpt-oss-20b`
+- `openai/gpt-oss-120b`
+- `moonshotai/kimi-k2-instruct`
+- `meta-llama/llama-4-scout-17b-16e-instruct`
+- `meta-llama/llama-4-maverick-17b-128e-instruct`
+- `deepseek-r1-distill-llama-70b`
+- `qwen/qwen3-32b`
 
 **Features:** Ultra-fast inference, cost-effective, open source models
 
@@ -116,9 +127,10 @@ llm:
 ```
 
 **Supported models:**
-- `command-a-03-2025` (256k context window)
-- `command-r-plus`, `command-r`
-- `command`, `command-light`
+- `command-a-03-2025` (default, 256k context window)
+- `command-r-plus`
+- `command-r`
+- `command-r7b`
 
 **Features:** RAG optimization, tool use, multilingual, conversational AI
 
