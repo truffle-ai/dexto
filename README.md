@@ -78,9 +78,9 @@ dexto --mode cli
 
 In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. 
 
-The interactive CLI (3) allows you to interact with agents in the terminal. See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
+The interactive CLI (3) allows you to interact with agents in the terminal.
 
-
+See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 
 ### Skip Tool Prompts While Prototyping
 
@@ -152,7 +152,7 @@ Build full-stack applications, websites, and interactive games with AI-powered c
 
 **Task:** `Can you create a snake game in a new folder and open it when done?`
 ```bash
-dexto --agent coding-agent "Can you create a snake game in a new folder and open it when done?"
+dexto --agent coding-agent
 ```
 
 <img src=".github/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
@@ -399,7 +399,7 @@ const openaiModels = agent.getSupportedModelsForProvider('openai');
 
 ### MCP Manager
 
-For advanced MCP server management, use the MCPManager directly.
+For advanced MCP server management, use the MCPManager directly. See the [MCP Manager SDK docs](https://docs.dexto.ai/api/sdk/mcp-manager) for full details.
 
 ```typescript
 import { MCPManager } from '@dexto/core';
@@ -426,7 +426,7 @@ await manager.disconnectAll();
 
 ### Storage & Persistence
 
-Configure storage backends for production-ready persistence and caching.
+Configure storage backends for production-ready persistence and caching. See the [Storage Configuration guide](https://docs.dexto.ai/docs/guides/configuring-dexto/storage) for full details.
 
 ```yaml
 # agents/production-agent.yml
