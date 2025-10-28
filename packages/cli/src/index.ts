@@ -28,7 +28,13 @@ import {
     loadGlobalPreferences,
     type LLMProvider,
 } from '@dexto/core';
-import { resolveAgentPath, getAgentRegistry, isPath, resolveApiKeyForProvider } from '@dexto/core';
+import {
+    resolveAgentPath,
+    getAgentRegistry,
+    isPath,
+    resolveApiKeyForProvider,
+    getPrimaryApiKeyEnvVar,
+} from '@dexto/core';
 import type { AgentConfig } from '@dexto/core';
 import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
 import { startApiServer } from './api/server.js';
@@ -666,8 +672,9 @@ program
 
                     const apiKey = resolveApiKeyForProvider(provider);
                     if (!apiKey) {
+                        const envVar = getPrimaryApiKeyEnvVar(provider);
                         console.error(
-                            `❌ Missing API key for provider '${provider}' - please set the appropriate environment variable`
+                            `❌ Missing API key for provider '${provider}' - please set $${envVar}`
                         );
                         safeExit('main', 1, 'missing-api-key');
                     }
