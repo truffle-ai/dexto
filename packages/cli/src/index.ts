@@ -591,7 +591,7 @@ program
             '  dexto --mode mcp         Run as MCP server\n\n' +
             'Session Commands: dexto session list|history|delete • search\n' +
             'Search: dexto search <query> [--session <id>] [--role <role>]\n\n' +
-            'See https://github.com/truffle-ai/dexto for more examples and documentation'
+            'See https://docs.dexto.ai for documentation and examples'
     )
     .action(
         withAnalytics(

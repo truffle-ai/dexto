@@ -48,7 +48,7 @@ The agent will use these memories in future conversations:
 
 ### View memories
 ```bash
-dexto --mode web
+dexto
 # Navigate to "Memories" in the sidebar
 ```
 

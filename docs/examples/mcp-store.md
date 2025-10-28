@@ -22,7 +22,7 @@ The MCP Store provides a curated collection of ready-to-use MCP servers:
 
 1. **Launch Web UI:**
 ```bash
-dexto --mode web
+dexto
 ```
 
 2. **Open MCP Store:**

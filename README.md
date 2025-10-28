@@ -248,8 +248,8 @@ dexto --agent ./agents/examples/email_slack.yml
 
 | Mode | Command | Best for |
 |------|---------|----------|
-| **Interactive CLI** | `dexto` | Everyday automation & quick tasks |
-| **Web UI** | `dexto --mode web` | Friendly chat interface w/ image support |
+| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
+| **Web UI** | `dexto` | Friendly chat interface w/ image support (default) |
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
@@ -460,47 +460,87 @@ See the [DextoAgent API Documentation](https://docs.dexto.ai/api/sdk/dexto-agent
 ```
 Usage: dexto [options] [command] [prompt...]
 
-Dexto CLI allows you to talk to Dexto, build custom AI Agents, build complex AI applications like Cursor, and more.
+Dexto CLI - AI-powered assistant with session management
 
-Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto -p "<prompt>"` or `dexto "<prompt>"`
-Start with a new session using `dexto --new-session [sessionId]`
-Run dexto web UI with `dexto --mode web`
-Run dexto as a server (REST APIs + WebSockets) with `dexto --mode server`
-Run dexto as a discord bot with `dexto --mode discord`
-Run dexto as a telegram bot with `dexto --mode telegram`
-Run dexto agent as an MCP server with `dexto --mode mcp`
-Run dexto as an MCP server aggregator with `dexto mcp --group-servers`
+Basic Usage:
+  dexto                    Start web UI (default)
+  dexto "query"            Run one-shot query (auto-uses CLI mode)
+  dexto -p "query"         Run one-shot query, then exit
+  cat file | dexto -p "query"  Process piped content
 
-Check subcommands for more features. Check https://github.com/truffle-ai/dexto for documentation on how to customize dexto and other examples
+CLI Mode:
+  dexto --mode cli         Start interactive CLI REPL
+
+Session Management:
+  dexto -c                 Continue most recent conversation
+  dexto -c -p "query"      Continue with one-shot query, then exit
+  dexto -r "<session-id>" "query"  Resume with one-shot query
+
+Tool Confirmation:
+  dexto --auto-approve     Auto-approve all tool executions
+
+Advanced Modes:
+  dexto --mode server      Run as API server
+  dexto --mode discord     Run as Discord bot
+  dexto --mode telegram    Run as Telegram bot
+  dexto --mode mcp         Run as MCP server
+
+Session Commands: dexto session list|history|delete • search
+Search: dexto search <query> [--session <id>] [--role <role>]
+
+See https://docs.dexto.ai for documentation and examples
 
 Arguments:
-  prompt                           Natural-language prompt to run once. If not passed, dexto will start as an interactive CLI
+  prompt                           Natural-language prompt to run once. If not
+                                   passed, dexto will start as an interactive
+                                   CLI
 
 Options:
   -v, --version                    output the current version
-  -a, --agent <name|path>          Agent name or path to agent config file
-  -p, --prompt <text>              One-shot prompt text. Alternatively provide a single quoted string as positional argument.
+  -a, --agent <id|path>            Agent ID or path to agent config file
+  -p, --prompt <text>              Run prompt and exit. Alternatively provide a
+                                   single quoted string as positional argument.
   -s, --strict                     Require all server connections to succeed
   --no-verbose                     Disable verbose output
-  --no-interactive                 Disable interactive prompts and API key setup
+  --no-interactive                 Disable interactive prompts and API key
+                                   setup
+  --skip-setup                     Skip global setup validation (useful for MCP
+                                   mode, automation)
   -m, --model <model>              Specify the LLM model to use
-  -r, --router <router>            Specify the LLM router to use (vercel or in-built)
-  --new-session [sessionId]        Start with a new session (optionally specify session ID)
-  --mode <mode>                    The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp (default: "web")
-  --web-port <port>                port for the web UI (default: "3000")
-  --api-port <port>                port for the API server (default: web-port + 1)
-  --no-auto-install                Disable automatic installation of missing agents from registry
+  --router <router>                Specify the LLM router to use (vercel or
+                                   in-built)
+  --auto-approve                   Always approve tool executions without
+                                   confirmation prompts
+  -c, --continue                   Continue most recent conversation
+  -r, --resume <sessionId>         Resume session by ID
+  --mode <mode>                    The application in which dexto should talk
+                                   to you - web | cli | server | discord |
+                                   telegram | mcp (default: "web")
+  --web-port <port>                port for the web UI (default: 3000)
+                                   (default: "3000")
+  --api-port <port>                port for the API server (default: web-port +
+                                   1)
+  --no-auto-install                Disable automatic installation of missing
+                                   agents from registry
   -h, --help                       display help for command
 
 Commands:
   create-app                       Scaffold a new Dexto Typescript app
-  init-app                         Initialize an existing Typescript app with Dexto
+  init-app                         Initialize an existing Typescript app with
+                                   Dexto
   setup [options]                  Configure global Dexto preferences
-  install [options] [agents...]    Install agents from the registry
+  install [options] [agents...]    Install agents from registry or custom YAML
+                                   files/directories
   uninstall [options] [agents...]  Uninstall agents from the local installation
   list-agents [options]            List available and installed agents
   which <agent>                    Show the path to an agent
-  mcp [options]                    Start Dexto as an MCP server. Use --group-servers to aggregate and re-expose tools from configured MCP servers.
+  session                          Manage chat sessions
+  search [options] <query>         Search session history
+  mcp [options]                    Start Dexto as an MCP server. Use
+                                   --group-servers to aggregate and re-expose
+                                   tools from configured MCP servers.
+                                   In the future, this command will expose the
+                                   agent as an MCP server by default.
 ```
 </details>
 

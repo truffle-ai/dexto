@@ -42,7 +42,7 @@ systemPrompt:
 # ollama run gemma3n:e2b
 # then run the following command to start the agent:
 # dexto --agent <path_to_ollama.yml>
-# dexto --agent <path_to_ollama.yml> --mode web for web ui
+# dexto --agent <path_to_ollama.yml> for web ui
 llm:
   provider: openai-compatible
   model: gemma3n:e2b

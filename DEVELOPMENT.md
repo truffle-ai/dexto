@@ -171,7 +171,7 @@ dexto "list files in current directory"
 dexto -m gpt-5-mini "what is the current date"
 
 # Test web mode
-dexto --mode web
+dexto
 
 # Test discord bot mode (requires additional setup)
 dexto --mode discord

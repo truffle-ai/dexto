@@ -32,20 +32,6 @@ This triggers the first-time setup, where you will be asked to set up your prefe
 
 Once setup is complete, the **Web UI** will open in your browser, where you can interact with your first dexto agent! Say hi!
 
-:::tip Prefer Terminal?
-`dexto` opens the Web UI by default. 
-For terminal-based interaction, use:
-```bash
-dexto --mode cli
-```
-
-Or configure CLI as your default mode in `~/.dexto/preferences.yml`:
-```yaml
-defaults:
-  defaultMode: cli
-```
-:::
-
 **Note:** You can re-run setup at any time with `dexto setup`
 
 #### Quick Command Reference
@@ -61,6 +47,13 @@ dexto --mode cli
 dexto "say hello"
 dexto -p "list files in this directory"
 ```
+
+
+
+:::tip CLI reference
+For detailed information about all CLI commands, flags, and advanced usage patterns, check out our comprehensive **[CLI Guide](../guides/cli/overview)**.
+:::
+
 
 ## Next Step: Build Your First Agent
 Now that Dexto is installed, you're ready to create your first custom agent with its own configuration and capabilities.

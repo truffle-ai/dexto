@@ -23,7 +23,7 @@ The Playground provides an interactive environment to:
 
 ```bash
 # Launch Web UI
-dexto --mode web
+dexto
 ```
 
 Navigate to "Playground" in the sidebar.
@@ -63,7 +63,7 @@ Test your custom MCP server tools before integrating with agents:
 dexto --mode mcp
 
 # In another terminal, test it in playground
-dexto --mode web
+dexto
 ```
 
 ### Debugging Tool Issues
