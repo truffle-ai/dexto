@@ -129,12 +129,22 @@ export function createInitialPreferences(
         },
         defaults: {
             defaultAgent,
+            defaultMode: 'web', // Default to web mode
         },
         setup: {
             completed: true,
         },
     };
 }
+
+/**
+ * Updates type that allows partial nested objects
+ */
+type GlobalPreferencesUpdates = {
+    llm?: GlobalPreferences['llm'];
+    defaults?: Partial<GlobalPreferences['defaults']>;
+    setup?: Partial<GlobalPreferences['setup']>;
+};
 
 /**
  * Update specific preference sections
@@ -144,7 +154,7 @@ export function createInitialPreferences(
  * @throws DextoValidationError if merged preferences are invalid
  */
 export async function updateGlobalPreferences(
-    updates: Partial<GlobalPreferences>
+    updates: GlobalPreferencesUpdates
 ): Promise<GlobalPreferences> {
     // Load existing preferences
     const existing = await loadGlobalPreferences();

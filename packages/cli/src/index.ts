@@ -24,6 +24,8 @@ import {
     getAllSupportedModels,
     DextoAgent,
     loadAgentConfig,
+    globalPreferencesExist,
+    loadGlobalPreferences,
     type LLMProvider,
 } from '@dexto/core';
 import { resolveAgentPath, getAgentRegistry, isPath, resolveApiKeyForProvider } from '@dexto/core';
@@ -97,7 +99,7 @@ program
     .option(
         '--mode <mode>',
         'The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp',
-        'cli'
+        'web'
     )
     .option('--web-port <port>', 'optional port for the web UI', '3000')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
@@ -595,6 +597,26 @@ program
                 }
 
                 const opts = program.opts();
+
+                // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
+                // If --mode was not explicitly provided, use defaultMode from preferences
+                if (!process.argv.includes('--mode')) {
+                    try {
+                        if (globalPreferencesExist()) {
+                            const preferences = await loadGlobalPreferences();
+                            if (preferences.defaults?.defaultMode) {
+                                opts.mode = preferences.defaults.defaultMode;
+                                logger.debug(`Using default mode from preferences: ${opts.mode}`);
+                            }
+                        }
+                    } catch (error) {
+                        // Silently fall back to hardcoded default if preferences loading fails
+                        logger.debug(
+                            `Failed to load default mode from preferences: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                    }
+                }
+
                 let headlessInput: string | undefined = undefined;
 
                 // Prefer explicit -p/--prompt for headless one-shot
