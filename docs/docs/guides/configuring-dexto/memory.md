@@ -1,138 +1,56 @@
 ---
-sidebar_position: 8
+sidebar_position: 4
 sidebar_label: "Memory"
 ---
 
 # Memory Configuration
 
-Configure the memory system to store and retrieve persistent information about user preferences, context, and important facts.
+Configure the memory system to store and retrieve persistent information about user preferences, context, and important facts across conversations.
+
+:::tip Complete Reference
+For complete field documentation including validation rules and API specifications, see **[agent.yml → System Prompt → Memory Contributors](./agent-yml.md#system-prompt-configuration)**.
+:::
 
 ## Overview
 
-The Memory system allows your Dexto agent to remember information across conversations and sessions. Memories can be created by users, system prompts, or programmatically through the API. They support tagging, metadata, and pinning for auto-loading into the system prompt.
+The Memory system allows your Dexto agent to remember information across conversations and sessions. Memories can be created by users, the system, or programmatically through the API.
 
-## Type Definition
+**Key features:**
+- Persistent storage across sessions
+- Tagging and metadata support
+- Pinned memories for auto-loading
+- Flexible filtering and retrieval
+- Integration with system prompts
 
-```typescript
-export type Memory = {
-    id: string;
-    content: string;
-    createdAt: number;
-    updatedAt: number;
-    tags?: string[];
-    metadata?: {
-        source?: 'user' | 'system';
-        pinned?: boolean;
-        [key: string]: any; // Custom fields allowed
-    };
-};
+Memories are stored in your configured database backend and can be automatically included in the system prompt for context-aware interactions.
 
-export type CreateMemoryInput = {
-    content: string;
-    tags?: string[];
-    metadata?: {
-        source?: 'user' | 'system';
-        pinned?: boolean;
-        [key: string]: any;
-    };
-};
-```
+## Memory Structure
 
-## Memory Fields
-
-### Required Fields
-
-- **id** (string): Unique identifier for the memory (auto-generated)
-- **content** (string): The actual memory content (1-10,000 characters)
-- **createdAt** (number): Creation timestamp in Unix milliseconds (auto-generated)
-- **updatedAt** (number): Last update timestamp in Unix milliseconds (auto-generated)
-
-### Optional Fields
-
-- **tags** (string[]): Optional tags for categorization (max 10 tags, each 1-50 characters)
-- **metadata** (object): Additional metadata for the memory
-  - **source** ('user' | 'system'): Source of the memory
-  - **pinned** (boolean): Whether this memory is pinned for auto-loading
-  - **Custom fields**: Any additional custom fields using passthrough
-
-## Validation Rules
-
-The Memory system enforces strict validation to ensure data quality:
-
-### Content Validation
-- **Minimum length**: 1 character
-- **Maximum length**: 10,000 characters
-- **Type**: Must be a non-empty string
+Each memory contains:
+- **content** - The actual memory text (1-10,000 characters)
+- **tags** - Optional categorization (max 10 tags, 1-50 chars each)
+- **metadata** - Source tracking, pinning, and custom fields
+- **timestamps** - Creation and last update times
 
 ```yaml
-# Valid
+# Example memory structure
 content: "User prefers concise responses"
-
-# Invalid - empty string
-content: ""
-
-# Invalid - exceeds 10,000 characters
-content: "..." # very long text
-```
-
-### Tags Validation
-- **Maximum tags**: 10 tags per memory
-- **Tag length**: 1-50 characters per tag
-- **Type**: Array of strings
-
-```yaml
-# Valid
-tags: ["preference", "communication", "style"]
-
-# Invalid - exceeds 10 tags
-tags: ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11"]
-
-# Invalid - tag exceeds 50 characters
-tags: ["this-is-a-very-long-tag-name-that-exceeds-the-maximum-allowed-length"]
-```
-
-### Metadata Validation
-- **source**: Must be 'user' or 'system' if provided
-- **pinned**: Must be boolean if provided
-- **Custom fields**: Any additional fields are allowed (passthrough)
-
-```yaml
-# Valid
+tags: ["preference", "communication"]
 metadata:
   source: user
   pinned: true
   customField: "any value"
-  customNumber: 42
-
-# Invalid - invalid source value
-metadata:
-  source: "admin"  # Only 'user' or 'system' allowed
 ```
 
 ## Pinned Memories
 
-Pinned memories are automatically loaded into the system prompt, making them available to the agent without explicit retrieval.
+Pinned memories are automatically loaded into the system prompt, making them always available to your agent without explicit retrieval.
 
-### Pinning a Memory
-
-```yaml
-metadata:
-  pinned: true
-```
-
-### Using Pinned Memories in System Prompt
-
-Configure the memory contributor in your system prompt to load pinned memories:
+### Configuring Pinned Memories
 
 ```yaml
 systemPrompt:
   contributors:
-    - id: primary
-      type: static
-      priority: 0
-      content: |
-        You are a helpful AI assistant.
-
     - id: memories
       type: memory
       priority: 40
@@ -144,167 +62,41 @@ systemPrompt:
         includeTags: true
 ```
 
-## Memory Source Types
+### When to Pin Memories
 
-Memories can originate from different sources:
+**Pin these:**
+- Critical user preferences (communication style, constraints)
+- Important project context (tech stack, standards)
+- User-specific requirements (accessibility needs, language)
 
-### User Memories
-- Created by end users through conversation or UI
-- Typically contain preferences, context, or personal information
+**Don't pin these:**
+- Temporary context (current task details)
+- Historical information (past interactions)
+- Optional details (nice-to-have context)
 
-```yaml
-metadata:
-  source: user
-```
+## Use Cases
 
-### System Memories
-- Created automatically by the system or agent
-- Typically contain system-generated context or inferred information
-
-```yaml
-metadata:
-  source: system
-```
+| Scenario | Memory Strategy |
+|----------|----------------|
+| **Personal Assistant** | Pin schedules, preferences, important dates |
+| **Customer Support** | Store customer history, preferences, past issues |
+| **Development Assistant** | Remember tech stack, coding standards, project structure |
+| **Research Agent** | Track research topics, sources, findings |
 
 ## Configuration Examples
 
-### Basic Memory Creation
+Memory is configured under the systemPrompt section.
+
+### Basic Memory Integration
 
 ```yaml
-# Minimal memory
-content: "User prefers concise responses"
-
-# With tags
-content: "Project uses TypeScript with strict mode"
-tags: ["technical", "configuration"]
-
-# With metadata
-content: "User's timezone is PST"
-metadata:
-  source: user
-  pinned: false
-```
-
-### Memory with Custom Metadata
-
-```yaml
-content: "Customer #12345 prefers email communication"
-tags: ["customer", "communication", "preference"]
-metadata:
-  source: user
-  pinned: true
-  customerId: "12345"
-  priority: "high"
-  category: "communication-preference"
-```
-
-### System Prompt Integration
-
-```yaml
-# Complete system prompt with memory integration
 systemPrompt:
   contributors:
     - id: primary
       type: static
       priority: 0
       content: |
-        You are a customer support agent.
-        Use available tools and context to help users effectively.
-
-    - id: dateTime
-      type: dynamic
-      priority: 10
-      source: dateTime
-      enabled: true
-
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        includeTimestamps: false
-        includeTags: true
-        limit: 10
-        pinnedOnly: false  # Load all memories, not just pinned
-```
-
-### Hybrid Approach: Pinned + On-Demand
-
-Use pinned memories for critical context that should always be available, and query other memories on-demand:
-
-```yaml
-# System prompt configuration
-systemPrompt:
-  contributors:
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        pinnedOnly: true    # Only auto-load pinned memories
-        limit: 5            # Keep system prompt compact
-        includeTimestamps: false
-        includeTags: true
-```
-
-Then programmatically query additional memories when needed:
-
-```typescript
-// In your application code
-const memories = await agent.memory.list({
-    tags: ["customer", "billing"],
-    limit: 20
-});
-```
-
-## Memory Contributor Options
-
-When using the memory contributor in system prompts:
-
-- **`includeTimestamps`** (boolean): Include the last updated date for each memory (default: `false`)
-- **`includeTags`** (boolean): Include associated tags for each memory (default: `true`)
-- **`limit`** (number): Maximum number of memories to load (default: unlimited)
-- **`pinnedOnly`** (boolean): Only load pinned memories (default: `false`)
-
-### Output Format
-
-The memory contributor formats memories as a bulleted list in the system prompt:
-
-```
-## User Memories
-- User prefers concise responses [Tags: preference, communication]
-- Project uses TypeScript with strict mode [Tags: technical, configuration]
-- User's timezone is PST [Tags: personal] (Updated: 1/15/2025)
-```
-
-## Complete Configuration Example
-
-### Production Agent with Memories
-
-```yaml
-# LLM configuration
-llm:
-  provider: openai
-  model: gpt-5-mini
-  apiKey: $OPENAI_API_KEY
-  temperature: 0.7
-
-# System prompt with memory integration
-systemPrompt:
-  contributors:
-    - id: core
-      type: static
-      priority: 0
-      content: |
         You are a helpful AI assistant that remembers user preferences.
-        Use the available memories to personalize your responses.
-        When you learn something important about the user, ask if they'd like you to remember it.
-
-    - id: dateTime
-      type: dynamic
-      priority: 10
-      source: dateTime
-      enabled: true
 
     - id: memories
       type: memory
@@ -314,114 +106,75 @@ systemPrompt:
         includeTimestamps: true
         includeTags: true
         limit: 15
-        pinnedOnly: false
-
-# Storage configuration
-storage:
-  cache:
-    type: in-memory
-  database:
-    type: sqlite  # Persistent storage for memories
 ```
 
-## Common Use Cases
-
-### Personal Assistant
-Store user preferences, schedules, and important information:
+### Hybrid Approach: Pinned + On-Demand
 
 ```yaml
-# Example memories
-- content: "User prefers morning meetings between 9-11 AM"
-  tags: ["schedule", "preference"]
-  metadata:
-    source: user
-    pinned: true
-
-- content: "User is allergic to peanuts"
-  tags: ["health", "dietary"]
-  metadata:
-    source: user
-    pinned: true
-    importance: critical
+systemPrompt:
+  contributors:
+    - id: memories
+      type: memory
+      priority: 40
+      options:
+        pinnedOnly: true    # Only auto-load critical context
+        limit: 5            # Keep system prompt compact
 ```
 
-### Customer Support Agent
-Store customer history and preferences:
+Then query additional memories programmatically when needed:
 
-```yaml
-# Example memories
-- content: "Customer #12345 prefers email over phone"
-  tags: ["customer", "communication", "preference"]
-  metadata:
-    source: system
-    pinned: false
-    customerId: "12345"
-
-- content: "Previous issue with billing resolved on 2025-01-15"
-  tags: ["customer", "billing", "history"]
-  metadata:
-    source: system
-    pinned: false
-    customerId: "12345"
-    ticketId: "TK-9876"
+```typescript
+// In your application code
+const memories = await agent.memory.list({
+    tags: ["customer", "billing"],
+    limit: 20
+});
 ```
 
-### Development Assistant
-Store project context and technical preferences:
+## Memory Options
 
-```yaml
-# Example memories
-- content: "Project uses TypeScript with strict mode enabled"
-  tags: ["technical", "configuration", "typescript"]
-  metadata:
-    source: system
-    pinned: true
+When using the memory contributor:
 
-- content: "Team follows Airbnb style guide for code formatting"
-  tags: ["code-style", "standards"]
-  metadata:
-    source: user
-    pinned: true
+- **`pinnedOnly`** (boolean) - Only load pinned memories (default: false)
+- **`limit`** (number) - Maximum memories to load (default: unlimited)
+- **`includeTimestamps`** (boolean) - Show last updated date (default: false)
+- **`includeTags`** (boolean) - Include associated tags (default: true)
 
-- content: "Use Vitest for testing, not Jest"
-  tags: ["testing", "tooling"]
-  metadata:
-    source: user
-    pinned: true
+## Example Output Format
+
+Memories appear in the system prompt as:
+
 ```
-
-## Best Practices
-
-1. **Use pinned memories sparingly**: Only pin critical information that should always be available
-2. **Tag consistently**: Develop a consistent tagging strategy for easy retrieval
-3. **Keep content focused**: Each memory should contain a single, clear piece of information
-4. **Use source field**: Track whether memories came from users or system for better organization
-5. **Leverage custom metadata**: Add application-specific fields for advanced filtering
-6. **Set reasonable limits**: Use the `limit` option in memory contributors to prevent system prompt bloat
-7. **Regular cleanup**: Implement a process to review and remove outdated memories
-8. **Combine approaches**: Use pinned memories for core context, query on-demand for specific needs
+## User Memories
+- User prefers concise responses [Tags: preference, communication]
+- Project uses TypeScript with strict mode [Tags: technical, configuration]
+- User's timezone is PST [Tags: personal] (Updated: 1/15/2025)
+```
 
 ## Storage Requirements
 
-Memories require persistent storage to work correctly:
+Memories require persistent storage:
 
 ```yaml
 storage:
   database:
     type: sqlite  # Required for persistent memories
-    # path: "${{dexto.agent_dir}}/data/dexto.db"  # Optional custom path
 ```
 
-Memory storage uses the following key format:
-- **Key pattern**: `memory:item:{id}`
-- **Storage backend**: Database (not cache)
+Memory data uses the key pattern: `memory:item:{id}`
 
-## Integration with System Prompt
+## Best Practices
 
-The memory system integrates with the system prompt through the memory contributor. See the [System Prompt Configuration](./systemPrompt.md#memory-contributors) guide for detailed information on configuring memory contributors.
+1. **Pin sparingly** - Only pin critical information that should always be available
+2. **Tag consistently** - Develop a tagging strategy for easy filtering
+3. **Keep content focused** - Each memory should contain a single, clear piece of information
+4. **Use source field** - Track whether memories came from users or system
+5. **Set reasonable limits** - Use `limit` option to prevent system prompt bloat
+6. **Regular cleanup** - Review and remove outdated memories periodically
+7. **Combine approaches** - Use pinned for core context, query on-demand for specific needs
 
-## Next Steps
+## See Also
 
-- **Learn about system prompts**: See [System Prompt Configuration](./systemPrompt.md) for detailed contributor configuration
-- **Configure storage**: Check [Storage Configuration](./storage.md) for database setup
-- **Build with memories**: Explore the API documentation for programmatic memory management
+- [agent.yml Reference → System Prompt](./agent-yml.md#system-prompt-configuration) - Complete contributor documentation
+- [System Prompt Configuration](./systemPrompt.md) - How to configure contributors
+- [Storage Configuration](./storage.md) - Database setup for persistent memories

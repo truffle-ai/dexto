@@ -5,7 +5,13 @@ sidebar_label: "Overview"
 
 # Configuring Dexto
 
-Dexto's power comes from its customizability. You can customize every part of your Dexto agent with one `yml` config file. 
+Dexto's power comes from its customizability. You can customize every part of your Dexto agent with one `yml` config file.
+
+:::tip Complete Configuration Reference
+For the comprehensive reference of **all configuration options and field documentation**, see **[Complete agent.yml Configuration Reference](./agent-yml.md)**.
+
+The guides in this section explain **concepts and use cases**. For detailed field specifications, always refer to the canonical reference.
+:::
 
 This guide walks through all the different features you can customize, and the expected format.
 
@@ -22,10 +28,6 @@ You can also specify a custom config path using the CLI:
 ```bash
 dexto --agent path/to/your-config.yml
 ```
-
-## Complete Configuration Reference
-
-For a comprehensive reference of all configuration options, see the [Complete agent.yml Configuration Reference](./agent-yml.md).
 
 ## Common Configuration Patterns
 

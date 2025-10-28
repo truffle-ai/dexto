@@ -3,6 +3,8 @@
 /* Geist fonts loaded via <link> tag in docusaurus.config.ts for better performance */
 
 :root {
+  color-scheme: light dark;
+
   /* Primary brand colors – VS Code inspired teal */
   --ifm-color-primary: #4ec9b0;
   --ifm-color-primary-dark: #14b8a6;
@@ -53,6 +55,10 @@
 
   /* Layout */
   --ifm-container-width-xl: 1400px;
+
+  /* Light mode backgrounds - MUST be explicit since dark mode overrides them */
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #f9fafb;
 
   /* Code blocks */
   --ifm-code-font-size: 0.875rem;

@@ -82,6 +82,37 @@ body::after {
   margin-right: 4rem;
 }
 
+/* Reduce spacing between navbar items to fit more content */
+.navbar__item {
+  padding: 0 0.5rem;
+}
+
+.navbar__link {
+  padding: 0.5rem 0.5rem;
+}
+
+/* Ensure right-side items stay visible */
+.navbar__items--right {
+  flex-shrink: 0;
+}
+
+/* Reduce empty space in navbar */
+.navbar__items {
+  gap: 0;
+}
+
+/* Override default navbar layout to distribute items evenly */
+.navbar__inner {
+  justify-content: flex-start !important;
+  gap: 1rem;
+}
+
+/* Make navbar items distribute more naturally */
+.navbar__items--left {
+  flex-grow: 1;
+  gap: 1rem;
+}
+
 /* Announcement bar styling */
 div[class^="announcementBar_"],
 div[class*="announcementBar"] {
@@ -143,6 +174,7 @@ h3 {
 /* Make sure the main content area is responsive */
 .theme-doc-markdown {
   max-width: 100%;
+  color-scheme: light dark;
 }
 
 /* Enhanced glass morphism cards */

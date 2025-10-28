@@ -14,15 +14,17 @@ const AGENTS_TO_COPY = [
     'default-agent.yml',
 
     // Agent directories
+    'coding-agent/',
     'database-agent/',
-    'talk2pdf-agent/',
+    'github-agent/',
     'image-editor-agent/',
     'music-agent/',
-    'product-name-researcher/',
-    'triage-demo/',
-    'podcast-agent/',
     'nano-banana-agent/',
-    'github-agent/',
+    'podcast-agent/',
+    'product-name-researcher/',
+    'sora-video-agent/',
+    'talk2pdf-agent/',
+    'triage-demo/',
 ];
 
 const SOURCE_DIR = join(__dirname, '../../../agents');

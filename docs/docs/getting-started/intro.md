@@ -27,25 +27,25 @@ flowchart TD
         C[Storage<br/><i>Cache & Database</i>]
         D[Sessions<br/><i>Limits & TTL</i>]
     end
-    
+
     subgraph Runtime ["Runtime Layer"]
         E[<i>Orchestrates Services<br/>for<br/>Stateful Agent Behavior</i>]
     end
-    
+
     subgraph Interactive ["Interactive Layer"]
         F[CLI]
         G[Web UI]
         H[API Server]
         I[SDK/Library]
     end
-    
+
     Config --> Runtime
     Runtime --> Interactive
 
     classDef configNode fill:#1a202c,stroke:#4fd1c7,stroke-width:2px,color:#f7fafc
     classDef runtimeNode fill:#2d3748,stroke:#68d391,stroke-width:2px,color:#f7fafc
     classDef interactiveNode fill:#2c5282,stroke:#63b3ed,stroke-width:2px,color:#f7fafc
-    
+
     class A,B,C,D configNode
     class E runtimeNode
     class F,G,H,I interactiveNode

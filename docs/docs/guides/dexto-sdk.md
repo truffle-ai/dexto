@@ -1,7 +1,9 @@
 ---
-sidebar_position: 1
+sidebar_position: 5
 title: "Dexto SDK Guide"
 ---
+
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
 
 # Dexto SDK Guide
 
@@ -45,7 +47,7 @@ console.log(response);
 await agent.stop();
 ```
 
-For more detailed examples, see the [Examples & Demos](/docs/category/examples--demos) section.
+For more detailed examples, see the [Examples](/examples/intro) section.
 
 ## Overview
 
@@ -166,7 +168,8 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 ## Common Patterns
 
 ### Multi-User Chat Application
- 
+
+<ExpandableMermaid title="Multi-User Chat Flow">
 ```mermaid
 sequenceDiagram
     participant User1 as User A
@@ -181,6 +184,7 @@ sequenceDiagram
     Agent-->>ChatApp: Response
     ChatApp-->>User1: broadcastToUser
 ```
+</ExpandableMermaid>
 
 ```typescript
 import { DextoAgent } from '@dexto/core';
@@ -255,6 +259,7 @@ class AdaptiveAgent {
 
 ### Session Management with Persistence
 
+<ExpandableMermaid title="Session Management Flow">
 ```mermaid
 flowchart TD
     A[resumeConversation called] --> B{Session exists?}
@@ -263,6 +268,7 @@ flowchart TD
     C --> E[Return history]
     D --> F[Return null]
 ```
+</ExpandableMermaid>
 
 ```typescript
 class PersistentChatBot {
@@ -458,4 +464,4 @@ agent.agentEventBus.on('llmservice:toolResult', (data) => {
 - **[DextoAgent API](/api/sdk/dexto-agent)** - Detailed method documentation
 - **[MCP Guide](/docs/mcp/overview)** - Learn about Model Context Protocol
 - **[Deployment Guide](/docs/guides/deployment)** - Production deployment strategies
-- **[Examples](/docs/category/examples--demos)** - Complete example applications
+- **[Examples](/examples/intro)** - Complete example applications

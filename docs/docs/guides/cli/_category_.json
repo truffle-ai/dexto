@@ -1,0 +1,9 @@
+{
+  "label": "CLI Guide",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "title": "Dexto CLI Guide",
+    "description": "Complete guide to using the Dexto command-line interface, including all commands, options, and global preferences."
+  }
+}
