@@ -30,8 +30,29 @@ Deploy Dexto agents using Docker for local or production environments.
 
 Your Dexto server will be available at `http://localhost:3001` with:
 - ✅ SQLite database connected
-- ✅ MCP servers (filesystem & puppeteer) connected  
+- ✅ MCP servers (filesystem & puppeteer) connected
 - ✅ REST API + WebSocket endpoints available
+
+### Port Configuration
+
+By default, Dexto server mode runs on port 3001. Customize the port using the `PORT` environment variable or `--api-port` flag:
+
+```bash
+# Using environment variable
+docker run --env-file .env -e PORT=8080 -p 8080:8080 dexto
+
+# Using CLI flag (requires modifying Dockerfile CMD)
+docker run --env-file .env -p 8080:8080 dexto --api-port 8080
+```
+
+For web mode (with UI), ports work differently:
+- Frontend (Web UI): port 3000 (customize with `--web-port`)
+- API Server: port 3001 (customize with `--api-port` or defaults to `web-port + 1`)
+
+```bash
+# Web mode with custom ports
+docker run --env-file .env -p 3000:3000 -p 3001:3001 dexto --web-port 3000 --api-port 3001
+```
 
 ### Background Mode
 

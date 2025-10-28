@@ -19,6 +19,13 @@ dexto --mode server
 
 By default, the server will run on port `3001`. You should see a confirmation message in your terminal indicating that the server has started successfully.
 
+**Customize the port:**
+```bash
+dexto --mode server --api-port 8080
+```
+
+This starts the API server on port 8080 instead of the default 3001.
+
 ## 2. Choosing Your API
 
 Dexto offers two distinct APIs to suit different use cases. Understanding when to use each is key to building your application effectively.
