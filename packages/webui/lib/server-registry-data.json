@@ -510,5 +510,23 @@
     "author": "Zerodha",
     "homepage": "https://github.com/zerodha/kite-mcp-server",
     "matchIds": ["kite-trade"]
+  },
+  {
+    "id": "coingecko",
+    "name": "CoinGecko",
+    "description": "CoinGecko API MCP server",
+    "category": "data",
+    "icon": "💰",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.api.coingecko.com/mcp"
+    },
+    "tags": ["coingecko", "data", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "CoinGecko",
+    "homepage": "https://docs.coingecko.com/docs/mcp-server",
+    "matchIds": ["coingecko"]
   }
 ]
