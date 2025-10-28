@@ -13,6 +13,7 @@ import { ToolResult } from './ToolResult';
 import { ExecutionHistory, type ExecutionHistoryItem } from './ExecutionHistory';
 import type { JsonSchemaProperty, McpServer, McpTool, ToolResult as ToolResultType } from '@/types';
 import { cn } from '@/lib/utils';
+import { getApiUrl } from '@/lib/api-url';
 
 export default function PlaygroundView() {
   const [servers, setServers] = useState<McpServer[]>([]);
@@ -39,7 +40,7 @@ export default function PlaygroundView() {
   const [showServersSidebar, setShowServersSidebar] = useState(true);
   const [showToolsSidebar, setShowToolsSidebar] = useState(true);
 
-  const API_BASE_URL = '/api';
+  const API_BASE_URL = `${getApiUrl()}/api`;
   const toolsAbortControllerRef = useRef<AbortController | null>(null);
   const executionAbortControllerRef = useRef<AbortController | null>(null);
 

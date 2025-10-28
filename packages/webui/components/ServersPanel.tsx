@@ -29,7 +29,7 @@ interface ServersPanelProps {
   refreshTrigger?: number; // Add a trigger to force refresh
 }
 
-const API_BASE_URL = '/api'; // Assuming Next.js API routes
+const API_BASE_URL = `${getApiUrl()}/api`;
 
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant: variantProp, refreshTrigger }: ServersPanelProps) {
   const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';

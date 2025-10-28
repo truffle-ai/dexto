@@ -268,8 +268,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     if (isExportOpen) {
       // Include current session ID in config export if available
       const exportUrl = currentSessionId
-        ? `/api/agent/config/export?sessionId=${currentSessionId}`
-        : '/api/agent/config/export';
+        ? `${getApiUrl()}/api/agent/config/export?sessionId=${currentSessionId}`
+        : `${getApiUrl()}/api/agent/config/export`;
 
       fetch(exportUrl)
         .then((res) => {
@@ -294,8 +294,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const handleDownload = useCallback(async () => {
     try {
       const exportUrl = currentSessionId
-        ? `/api/agent/config/export?sessionId=${currentSessionId}`
-        : '/api/agent/config/export';
+        ? `${getApiUrl()}/api/agent/config/export?sessionId=${currentSessionId}`
+        : `${getApiUrl()}/api/agent/config/export`;
 
       const res = await fetch(exportUrl);
       if (!res.ok) throw new Error('Failed to fetch configuration');
