@@ -95,6 +95,26 @@ export async function initializeApi(
     let activeAgentId: string | undefined = agentId || 'default-agent';
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
+
+    // CORS middleware to allow frontend to connect from different ports
+    app.use((req, res, next) => {
+        // Allow any origin in development (for dynamic --web-port support)
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.setHeader(
+            'Access-Control-Allow-Methods',
+            'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
+        );
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            return res.status(204).end();
+        }
+
+        return next();
+    });
+
     // this will apply middleware to all /api/llm/* routes
     app.use('/api/llm', expressRedactionMiddleware);
     app.use('/api/config.yaml', expressRedactionMiddleware);
