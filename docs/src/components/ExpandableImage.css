@@ -1,6 +1,8 @@
 /* Container for the thumbnail */
 .image-thumbnail-container {
   margin: 1.5rem 0;
+  display: flex;
+  justify-content: center;
 }
 
 /* Thumbnail view - clickable image */
@@ -64,17 +66,6 @@
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
-<<<<<<< HEAD
-/* Thumbnail image styling */
-.thumbnail-image {
-  width: 100%;
-  height: auto;
-  display: block;
-  border-radius: var(--ifm-card-border-radius);
-}
-
-=======
->>>>>>> main
 /* Full-screen modal */
 .image-modal-backdrop {
   position: fixed;
@@ -89,6 +80,9 @@
   z-index: 9999;
   padding: 2rem;
   animation: fadeIn 0.2s ease;
+  /* Ensure modal centers relative to viewport, not page */
+  height: 100vh;
+  width: 100vw;
 }
 
 @keyframes fadeIn {
