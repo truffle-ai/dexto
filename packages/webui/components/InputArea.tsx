@@ -170,10 +170,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     const fetchCurrentModel = async () => {
       try {
         // Include session ID in the request to get the model for the specific session
-        const url = currentSessionId 
-          ? `/api/llm/current?sessionId=${currentSessionId}` 
-          : '/api/llm/current';
-        
+        const url = currentSessionId
+          ? `${getApiUrl()}/api/llm/current?sessionId=${currentSessionId}`
+          : `${getApiUrl()}/api/llm/current`;
+
         const response = await fetch(url);
         if (response.ok) {
           const config = await response.json();
