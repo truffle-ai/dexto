@@ -41,7 +41,7 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
-import { loadPrompts } from '../lib/promptCache';
+import { loadPrompts, clearPromptCache } from '../lib/promptCache';
 import type { ServerRegistryEntry } from '@/types';
 
 interface ChatAppProps {
@@ -95,6 +95,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   // Listen for agent switch events to reload prompts
   useEffect(() => {
     const handleAgentSwitch = () => {
+      clearPromptCache(); // Clear cached prompts from previous agent
       setPromptsReloadKey((key) => key + 1);
     };
 
