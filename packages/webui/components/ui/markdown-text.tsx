@@ -3,6 +3,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { memo, useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
@@ -201,8 +202,8 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
     <div
       className="prose max-w-none dark:prose-invert min-w-0 overflow-hidden break-words overflow-wrap-anywhere [&>p]:my-5 [&>p]:leading-7 [&>p]:first:mt-0 [&>p]:last:mb-0 [&>p]:break-words [&>p]:overflow-wrap-anywhere [&>h1]:mb-8 [&>h1]:text-4xl [&>h1]:font-extrabold [&>h1]:tracking-tight [&>h1]:last:mb-0 [&>h1]:break-words [&>h2]:mb-4 [&>h2]:mt-8 [&>h2]:text-3xl [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:first:mt-0 [&>h2]:last:mb-0 [&>h2]:break-words [&>h3]:mb-4 [&>h3]:mt-6 [&>h3]:text-2xl [&>h3]:font-semibold [&>h3]:tracking-tight [&>h3]:first:mt-0 [&>h3]:last:mb-0 [&>h3]:break-words [&>h4]:mb-4 [&>h4]:mt-6 [&>h4]:text-xl [&>h4]:font-semibold [&>h4]:tracking-tight [&>h4]:first:mt-0 [&>h4]:last:mb-0 [&>h4]:break-words [&>ul]:my-5 [&>ul]:ml-6 [&>ul]:list-disc [&>ul>li]:mt-2 [&>ol]:my-5 [&>ol]:ml-6 [&>ol]:list-decimal [&>ol>li]:mt-2 [&_ul]:my-5 [&_ul]:ml-6 [&_ul]:list-disc [&_ul>li]:mt-2 [&_ol]:my-5 [&_ol]:ml-6 [&_ol]:list-decimal [&_ol>li]:mt-2 [&>blockquote]:border-l-2 [&>blockquote]:pl-6 [&>blockquote]:italic [&>blockquote]:break-words [&>hr]:my-5 [&>hr]:border-b"
     >
-      <ReactMarkdown 
-        remarkPlugins={[remarkGfm]}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         skipHtml={true}
         components={{
           a: ({ href, children, ...props }) => {

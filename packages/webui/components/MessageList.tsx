@@ -1220,7 +1220,7 @@ function extractResourceData(
   // Clean up extra whitespace and newlines
   cleanedText = cleanedText
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')  // Only collapse spaces/tabs, not newlines
     .trim();
 
   return { cleanedText, uris: resolvedUris };

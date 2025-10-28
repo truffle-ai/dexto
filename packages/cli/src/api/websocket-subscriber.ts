@@ -95,6 +95,14 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:toolResult',
             (payload) => {
+                logger.debug(
+                    `[websocket-subscriber]: llmservice:toolResult: ${JSON.stringify({
+                        toolName: payload.toolName,
+                        callId: payload.callId,
+                        success: payload.success,
+                        sessionId: payload.sessionId,
+                    })}`
+                );
                 const data: Record<string, unknown> = {
                     toolName: payload.toolName,
                     callId: payload.callId,
