@@ -192,8 +192,8 @@ curl -X POST http://localhost:5001/api/message-sync \
 ```
 
 You can also open the web interfaces:
-- **Researcher**: http://localhost:4000 (Web UI on 4000, API on 4001)
-- **Writer**: http://localhost:5000 (Web UI on 5000, API on 5001)
+- **Researcher**: `http://localhost:4000` (Web UI on 4000, API on 4001)
+- **Writer**: `http://localhost:5000` (Web UI on 5000, API on 5001)
 
 ## How It Works
 
