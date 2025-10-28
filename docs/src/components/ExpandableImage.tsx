@@ -5,14 +5,20 @@ interface ExpandableImageProps {
   src: string;
   alt: string;
   title?: string;
+  width?: string | number;
 }
 
-const ExpandableImage: React.FC<ExpandableImageProps> = ({ src, alt, title = "Image" }) => {
+const ExpandableImage: React.FC<ExpandableImageProps> = ({
+  src,
+  alt,
+  title = alt,
+  width = 600
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const openModal = () => {
     setIsModalOpen(true);
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    document.body.style.overflow = 'hidden';
   };
 
   const closeModal = () => {
@@ -46,23 +52,25 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({ src, alt, title = "Im
 
   return (
     <>
-      {/* Regular image with click-to-expand */}
-      <div className="image-thumbnail" onClick={openModal}>
-        <div className="image-overlay">
-          <div className="expand-hint">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-            <span>Click to expand</span>
+      {/* Thumbnail image with click-to-expand */}
+      <div className="image-thumbnail-container">
+        <div className="image-thumbnail" onClick={openModal}>
+          <div className="image-overlay">
+            <div className="expand-hint">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+              </svg>
+              <span>Click to expand</span>
+            </div>
           </div>
+          <img src={src} alt={alt} width={width} />
         </div>
-        <img src={src} alt={alt} className="thumbnail-image" />
       </div>
 
       {/* Full-screen modal */}
       {isModalOpen && (
-        <div 
-          className="image-modal-backdrop" 
+        <div
+          className="image-modal-backdrop"
           onClick={closeModal}
           role="dialog"
           aria-modal="true"
@@ -78,7 +86,7 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({ src, alt, title = "Im
               </button>
             </div>
             <div className="image-modal-body">
-              <img src={src} alt={alt} className="modal-image" />
+              <img src={src} alt={alt} />
             </div>
           </div>
         </div>

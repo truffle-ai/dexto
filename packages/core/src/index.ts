@@ -9,6 +9,9 @@
  * - Node: Routes to this file (full exports)
  */
 
+// Core Orchestrator
+export { Dexto } from './Dexto.js';
+
 // Core Agent
 export * from './agent/index.js';
 
@@ -42,11 +45,35 @@ export * from './session/index.js';
 // Storage
 export * from './storage/index.js';
 
+// System Prompt
+export * from './systemPrompt/index.js';
+
 // Tools
 export * from './tools/index.js';
 
 // Context
 export * from './context/index.js';
+export { getFileMediaKind, getResourceKind } from './context/index.js';
+
+// Prompts
+export * from './prompts/index.js';
 
 // Utils
 export * from './utils/index.js';
+
+// Resources
+export * from './resources/index.js';
+
+// Approval (User Approval System)
+export * from './approval/index.js';
+
+// Memory
+export * from './memory/index.js';
+
+// Plugins
+export * from './plugins/index.js';
+
+// Telemetry
+export * from './telemetry/index.js';
+
+// Note: Blob types, schemas, and errors are exported from './storage/index.js'

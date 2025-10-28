@@ -3,7 +3,7 @@
 
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -46,6 +46,9 @@
 }
 
 :root {
+  /* Tell browsers we handle light/dark modes ourselves */
+  color-scheme: light dark;
+
   --radius: 0.5rem;
   --background: #fafafa;
   --foreground: #0a0a0a;

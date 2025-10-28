@@ -13,11 +13,13 @@ When Dexto runs in web mode, it provides these endpoints:
 - **`POST /api/message-sync`** - Send message and get complete response
 - **`POST /api/message`** - Send message asynchronously (use WebSocket for response)
 - **`POST /api/reset`** - Reset conversation history
-- **`POST /api/connect-server`** - Dynamically add new MCP servers
+- **`POST /api/mcp/servers`** - Dynamically add new MCP servers
 - **`GET /api/mcp/servers`** - List connected servers
-- **`GET /api/mcp/servers/:id/tools`** - List tools for a server
-- **`POST /api/mcp/servers/:id/tools/:tool/execute`** - Execute specific tools
+- **`GET /api/mcp/servers/:serverId/tools`** - List tools for a server
+- **`POST /api/mcp/servers/:serverId/tools/:toolName/execute`** - Execute specific tools
 - **WebSocket at `/`** - Real-time streaming responses
+
+For the complete API reference including sessions, LLM management, webhooks, and more, see the **[REST API Documentation](/api/rest/conversation)**.
 
 Let's start simple and build up our React app layer by layer.
 
@@ -458,7 +460,7 @@ export const ServerManagementChat: React.FC = () => {
     const args = argsInput ? argsInput.split(',').map(s => s.trim()) : [];
 
     try {
-      const response = await fetch('http://localhost:3001/api/connect-server', {
+      const response = await fetch('http://localhost:3001/api/mcp/servers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -799,8 +801,8 @@ We've built up our React app layer by layer:
 
 1. **Layer 1**: Basic synchronous messaging (`/api/message-sync`)
 2. **Layer 2**: Real-time streaming (WebSocket events)
-3. **Layer 3**: Server management (`/api/mcp/servers`, `/api/connect-server`)
-4. **Layer 4**: Direct tool execution (`/api/mcp/servers/:id/tools/:tool/execute`)
+3. **Layer 3**: Server management (`/api/mcp/servers`)
+4. **Layer 4**: Direct tool execution (`/api/mcp/servers/:serverId/tools/:toolName/execute`)
 
 ## Key Takeaways
 
@@ -829,4 +831,4 @@ Start with Layer 1 for your first integration, then add layers as your applicati
 
 ---
 
-**Next Steps**: Try building the basic version first, then gradually add each layer. For production patterns, see [Advanced Patterns](./advanced-patterns). 
+**Next Steps**: Try building the basic version first, then gradually add each layer. For production patterns, see [Advanced Patterns](./advanced-patterns.md). 

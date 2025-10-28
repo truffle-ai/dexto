@@ -49,7 +49,11 @@ function makeMockAgent(): DextoAgent {
         isStopped: () => false,
         start: async () => {},
         // Agent management methods required by server
-        listAgents: async () => ({ installed: [], available: [], current: { name: null } }),
+        listAgents: async () => ({
+            installed: [],
+            available: [],
+            current: { id: null, name: null },
+        }),
         installAgent: async () => {},
         // Methods below are not exercised by these tests but are required by the server
         run: async () => ({}),
@@ -63,13 +67,15 @@ function makeMockAgent(): DextoAgent {
         }),
         getSessionHistory: async () => [],
         getEffectiveConfig: (_sessionId?: string) => ({
-            llm: { provider: 'openai', model: 'gpt-4o', router: 'vercel' },
+            llm: { provider: 'openai', model: 'gpt-5', router: 'vercel' },
         }),
-        getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
+        getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-5', router: 'vercel' }),
         getCurrentSessionId: () => null,
-        switchLLM: async () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
+        switchLLM: async () => ({ provider: 'openai', model: 'gpt-5', router: 'vercel' }),
         searchMessages: async () => ({ results: [] }),
         searchSessions: async () => ({ results: [] }),
+        registerSubscriber: () => {},
+        restart: async () => {},
     } as unknown as DextoAgent;
     return mockAgent;
 }

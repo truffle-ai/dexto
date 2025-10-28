@@ -1,7 +1,9 @@
 ---
-sidebar_position: 1
+sidebar_position: 5
 title: "Dexto SDK Guide"
 ---
+
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
 
 # Dexto SDK Guide
 
@@ -32,7 +34,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY,
   },
 });
@@ -45,7 +47,7 @@ console.log(response);
 await agent.stop();
 ```
 
-For more detailed examples, see the [Examples & Demos](/docs/category/examples--demos) section.
+For more detailed examples, see the [Examples](/examples/intro) section.
 
 ## Overview
 
@@ -83,7 +85,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -100,7 +102,7 @@ console.log(response);
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   },
   mcpServers: {
@@ -167,6 +169,23 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 
 ### Multi-User Chat Application
 
+<ExpandableMermaid title="Multi-User Chat Flow">
+```mermaid
+sequenceDiagram
+    participant User1 as User A
+    participant ChatApp as Chat Application
+    participant Agent as DextoAgent
+
+    User1->>ChatApp: handleUserMessage
+    ChatApp->>ChatApp: Get or create session
+    ChatApp->>Agent: createSession (if new)
+    ChatApp->>Agent: run(message, undefined, sessionId)
+    Agent->>Agent: Process message
+    Agent-->>ChatApp: Response
+    ChatApp-->>User1: broadcastToUser
+```
+</ExpandableMermaid>
+
 ```typescript
 import { DextoAgent } from '@dexto/core';
 
@@ -176,7 +195,7 @@ class ChatApplication {
 
   async initialize() {
     this.agent = new DextoAgent({
-      llm: { provider: 'openai', model: 'gpt-4o', apiKey: process.env.OPENAI_API_KEY },
+      llm: { provider: 'openai', model: 'gpt-5', apiKey: process.env.OPENAI_API_KEY },
       mcpServers: { /* your tools */ }
     });
     await this.agent.start();
@@ -240,6 +259,17 @@ class AdaptiveAgent {
 
 ### Session Management with Persistence
 
+<ExpandableMermaid title="Session Management Flow">
+```mermaid
+flowchart TD
+    A[resumeConversation called] --> B{Session exists?}
+    B -->|Yes| C[Load existing session]
+    B -->|No| D[Create new session]
+    C --> E[Return history]
+    D --> F[Return null]
+```
+</ExpandableMermaid>
+
 ```typescript
 class PersistentChatBot {
   private agent: DextoAgent;
@@ -282,7 +312,7 @@ class PersistentChatBot {
 // OpenAI
 const openaiConfig = {
   provider: 'openai',
-  model: 'gpt-4o',
+  model: 'gpt-5',
   apiKey: process.env.OPENAI_API_KEY,
   temperature: 0.7,
   maxOutputTokens: 4000
@@ -291,7 +321,7 @@ const openaiConfig = {
 // Anthropic
 const anthropicConfig = {
   provider: 'anthropic', 
-  model: 'claude-3-opus-20240229',
+  model: 'claude-sonnet-4-5-20250929',
   apiKey: process.env.ANTHROPIC_API_KEY,
   maxIterations: 5
 };
@@ -422,16 +452,16 @@ agent.agentEventBus.on('llmservice:toolCall', (data) => {
 
 agent.agentEventBus.on('llmservice:toolResult', (data) => {
   if (data.success) {
-    console.log(`[${data.sessionId}] ✅ ${data.toolName} completed`);
+    console.log(`[${data.sessionId}] ✅ ${data.toolName} completed`, data.sanitized);
   } else {
-    console.error(`[${data.sessionId}] ❌ ${data.toolName} failed:`, data.result);
+    console.error(`[${data.sessionId}] ❌ ${data.toolName} failed:`, data.rawResult ?? data.sanitized);
   }
 });
 ```
 
 ## Next Steps
 
-- **[DextoAgent API](/api/dexto-agent)** - Detailed method documentation
+- **[DextoAgent API](/api/sdk/dexto-agent)** - Detailed method documentation
 - **[MCP Guide](/docs/mcp/overview)** - Learn about Model Context Protocol
 - **[Deployment Guide](/docs/guides/deployment)** - Production deployment strategies
-- **[Examples](/docs/category/examples--demos)** - Complete example applications
+- **[Examples](/examples/intro)** - Complete example applications

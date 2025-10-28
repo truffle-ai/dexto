@@ -1,62 +1,45 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 sidebar_label: "System Prompt"
 ---
 
 # System Prompt Configuration
 
-Configure how your Dexto agent behaves and responds to users through system prompts.
+Configure how your Dexto agent behaves and responds through system prompts that define personality, capabilities, and guidelines.
+
+:::tip Complete Reference
+For complete field documentation and all configuration options, see **[agent.yml → System Prompt](./agent-yml.md#system-prompt-configuration)**.
+:::
 
 ## Overview
 
-System prompts define your agent's personality, behavior, and capabilities. They can be simple strings for basic use cases or advanced configurations with multiple contributors for complex scenarios.
+System prompts define your agent's personality, behavior, and capabilities. They serve as the foundational instructions that guide how your agent interprets and responds to user requests.
+
+You can use either a simple string for basic scenarios or an advanced multi-contributor system for complex agents that need dynamic context, file-based instructions, or memory integration.
+
+**Key capabilities:**
+- Static instructions for consistent behavior
+- Dynamic context (date/time, MCP resources)
+- File-based documentation inclusion
+- User memory integration
+- Priority-based content ordering
 
 ## Configuration Types
 
 ### Simple String Prompt
 
-The simplest way to configure a system prompt:
+For straightforward agents, use a single string:
 
 ```yaml
 systemPrompt: |
   You are a helpful AI assistant with access to tools.
   Use these tools when appropriate to answer user queries.
-  You can use multiple tools in sequence to solve complex problems.
   After each tool result, determine if you need more information or can provide a final answer.
 ```
 
-### Advanced SystemPromptConfig
+### Advanced Multi-Contributor System
 
-For more complex scenarios using structured contributors:
-
-```yaml
-systemPrompt:
-  contributors:
-    - id: default
-      type: static
-      priority: 1
-      content: |
-        You are a helpful AI assistant with access to tools.
-        Use these tools when appropriate to answer user queries.
-    - id: date-time
-      type: dynamic
-      priority: 2
-      source: dateTime
-    - id: custom-instructions
-      type: static
-      priority: 3
-      enabled: true
-      content: |
-        Additional custom instructions for this specific agent.
-```
-
-## Contributors
-
-### Static Contributors
-- **Type:** `static`
-- **Required:** `content` field
-- **Use case:** Fixed text and consistent agent behavior instructions
-- **Priority:** Contibutors are concatenated in ascending-piority order. `priority: 1` text appears before `priority:2` in the system prompt
+For complex scenarios requiring multiple content sources:
 
 ```yaml
 systemPrompt:
@@ -65,172 +48,111 @@ systemPrompt:
       type: static
       priority: 1
       content: |
-        You are a professional assistant that provides accurate information.
-        Always be helpful, respectful, and thorough in your responses.
+        You are a professional software development assistant.
+        You help with coding, documentation, and project management.
+
+    - id: current-time
+      type: dynamic
+      priority: 10
+      source: dateTime
+
+    - id: project-docs
+      type: file
+      priority: 20
+      files:
+        - "${{dexto.agent_dir}}/README.md"
+        - "${{dexto.agent_dir}}/CONTRIBUTING.md"
+      options:
+        includeFilenames: true
+        errorHandling: "skip"
+
+    - id: user-context
+      type: memory
+      priority: 30
+      options:
+        pinnedOnly: true
+        limit: 10
+        includeTags: true
+```
+
+## Contributor Types
+
+### Static Contributors
+Fixed text content for consistent instructions.
+
+```yaml
+- id: guidelines
+  type: static
+  priority: 1
+  content: |
+    Always be helpful, respectful, and thorough.
+    Provide step-by-step solutions when possible.
 ```
 
 ### Dynamic Contributors
-- **Type:** `dynamic`  
-- **Required:** `source` field
-- **Use case:** Dynamically generated content
-- **Control:** Enable/disable with `enabled` field
+Runtime-generated content:
+- **`dateTime`** - Current date and time context
+- **`resources`** - MCP server resources (disabled by default)
 
 ```yaml
-systemPrompt:
-  contributors:
-    - id: timestamp
-      type: dynamic
-      priority: 2
-      source: dateTime
-      enabled: true
-```
-
-#### Available Dynamic Sources
-- **`dateTime`:** Automatically adds current date/time context
-- **`resources`:** Automatically includes resources from connected MCP servers (disabled by default)
-
-##### MCP Resources Contributor
-
-The `resources` dynamic contributor automatically fetches and includes resources from all connected MCP servers. This is particularly useful when you have MCP servers that provide contextual information like documentation, database schemas, or configuration files.
-
-**Key Features:**
-- Automatically discovers all available resources from connected MCP servers
-- Fetches and includes resource content in the system prompt
-- Wraps each resource in XML tags with the resource URI for clear identification
-- Handles errors gracefully (shows error message if resource can't be loaded)
-- **Disabled by default** to avoid performance impact
-
-**Example Usage:**
-```yaml
-systemPrompt:
-  contributors:
-    - id: main-prompt
-      type: static
-      priority: 1
-      content: |
-        You are a helpful assistant with access to project resources.
-    
-    - id: resources
-      type: dynamic
-      priority: 10
-      source: resources
-      enabled: true  # Enable MCP resources
-```
-
-**Output Format:**
-The resources contributor wraps all resources in XML tags:
-```xml
-<resources>
-<resource uri="file:///project/schema.sql">CREATE TABLE users...</resource>
-<resource uri="config://app-settings">{"debug": true, ...}</resource>
-</resources>
+- id: timestamp
+  type: dynamic
+  priority: 10
+  source: dateTime
+  enabled: true
 ```
 
 ### File Contributors
-- **Type:** `file`
-- **Required:** `files` field
-- **Use case:** Include content from external files in your system prompt
-- **Supported formats:** Only `.md` and `.txt` files are supported
-- **Control:** Enable/disable with `enabled` field
+Include external documentation files (`.md` and `.txt` only):
 
 ```yaml
-systemPrompt:
-  contributors:
-    - id: project-context
-      type: file
-      priority: 10
-      files:
-        - ./README.md
-        - ./docs/guidelines.md
-        - ./CONTRIBUTING.txt
-      options:
-        includeFilenames: true
-        separator: "\n\n---\n\n"
-        errorHandling: "skip"
-        maxFileSize: 50000
-        includeMetadata: false
+- id: project-context
+  type: file
+  priority: 20
+  files:
+    - "${{dexto.agent_dir}}/docs/guidelines.md"
+    - "../README.md"
+  options:
+    includeFilenames: true
+    separator: "\n\n---\n\n"
+    maxFileSize: 50000
 ```
 
-#### File Contributor Options
-- **`files`** (array): List of file paths to include (only `.md` and `.txt` files)
-- **`options.includeFilenames`** (boolean): Whether to include filename headers (default: `true`)
-- **`options.separator`** (string): Text to separate multiple files (default: `"\n\n---\n\n"`)
-- **`options.errorHandling`** (string): How to handle missing/invalid files - `"skip"`, `"error"` (default: `"skip"`)
-- **`options.maxFileSize`** (number): Maximum file size in bytes (default: `100000`)
-- **`options.includeMetadata`** (boolean): Include file size and modification time (default: `false`)
+**Path resolution:** Relative paths are resolved from the config file location.
 
-**Note:** Files are always read using UTF-8 encoding.
+### Memory Contributors
+Include user memories from the memory system:
 
-#### File Path Resolution
-
-**Important:** File paths in file contributors are resolved **relative to the config filepath**, not the current working directory.
-
-**Examples:**
-
-If your config file is at `/project/agents/billing-agent.yml`:
-- `docs/policies.md` → `/project/agents/docs/policies.md`
-- `./README.md` → `/project/agents/README.md`
-- `../README.md` → `/project/README.md` (parent directory)
-- `/absolute/path/file.md` → `/absolute/path/file.md` (absolute paths unchanged)
-
-**Best Practices:**
-- Use relative paths for files near your config: `docs/guidelines.md`, `./README.md`
-- Use parent directory paths for project root files: `../README.md`
-- Use absolute paths for system-wide files: `/etc/project/config.md`
-- Organize your documentation files in a predictable structure relative to your config file
-
-**Example Directory Structure:**
-```
-project/
-├── README.md
-├── agents/
-│   ├── support-agent.yml
-│   └── docs/
-│       ├── guidelines.md
-│       └── policies.md
-└── shared/
-    └── common-instructions.md
-```
-
-**Config file paths:**
 ```yaml
-# In agents/support-agent.yml
-systemPrompt:
-  contributors:
-    - id: project-readme
-      type: file
-      files:
-        - ../README.md                    # Project root README
-    - id: local-docs
-      type: file
-      files:
-        - docs/guidelines.md              # Local to agent directory
-        - docs/policies.md                # Local to agent directory
-    - id: shared-instructions
-      type: file
-      files:
-        - ../shared/common-instructions.md # Shared across agents
+- id: user-memories
+  type: memory
+  priority: 30
+  options:
+    pinnedOnly: false
+    limit: 20
+    includeTimestamps: true
+    includeTags: true
 ```
 
-#### File Contributor Use Cases
-- Include project documentation and guidelines
-- Add code style guides and best practices
-- Provide domain-specific knowledge from markdown files
-- Include API documentation or specification files
-- Add context-specific instructions for different projects
+## Priority Ordering
 
-**Note:** File contributors only support `.md` and `.txt` files. Other file types will be skipped (or cause an error if `errorHandling: "error"` is set).
+Contributors execute in ascending priority order (1 → 100+). Lower numbers appear first in the final system prompt.
 
-### Contributor Fields
+**Recommended ranges:**
+- **1-10:** Core behavior and role definition
+- **10-50:** Dynamic context (time, resources)
+- **50-100:** User memories and custom instructions
+- **100+:** Additional context and overrides
 
-- **`id`** (string): Unique identifier for the contributor
-- **`type`** (`static` | `dynamic` | `file`): Type of contributor
-- **`priority`** (number): Execution order (lower numbers first)
-- **`enabled`** (boolean, optional): Whether contributor is active (default: true)
-- **`content`** (string): Static content (required for `static` type)
-- **`source`** (string): Dynamic source identifier (required for `dynamic` type)
-- **`files`** (array): List of file paths to include (required for `file` type)
-- **`options`** (object, optional): Configuration options for `file` type contributors
+## Use Cases
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Simple chatbot | Single string prompt |
+| Development assistant | Static + File contributors for guidelines |
+| Customer support | Static + Memory for user preferences |
+| Research agent | Static + Dynamic (resources) for live data |
+| Personal assistant | All types for maximum context |
 
 ## Examples
 
@@ -243,20 +165,11 @@ systemPrompt:
       priority: 1
       content: |
         You are a helpful AI assistant designed to work with tools and data.
-        Always use available tools when they can help answer user questions.
-        Provide clear, accurate, and helpful responses.
+        Provide clear, accurate responses and use available tools effectively.
     - id: timestamp
       type: dynamic
-      priority: 2
+      priority: 10
       source: dateTime
-```
-
-### Development Agent
-```yaml
-systemPrompt: |
-  You are a helpful AI assistant running in development mode.
-  Use the available tools to help users with their tasks.
-  Be verbose in your explanations for debugging purposes.
 ```
 
 ### Customer Support Agent
@@ -267,77 +180,28 @@ systemPrompt:
       type: static
       priority: 1
       content: |
-        You are a customer support assistant for our software platform.
+        You are a customer support assistant.
         Always be polite, professional, and solution-oriented.
-    - id: context
-      type: dynamic
-      priority: 2
-      source: dateTime
-    - id: guidelines
-      type: static
-      priority: 3
-      content: |
-        - Always acknowledge the customer's concern
-        - Provide step-by-step solutions when possible
-        - Escalate complex technical issues to engineering team
-```
-
-### Complete Multi-Contributor Example
-```yaml
-systemPrompt:
-  contributors:
-    - id: core-behavior
-      type: static
-      priority: 1
-      content: |
-        You are a professional software development assistant.
-        You help with coding, documentation, and project management.
-        You have access to project files and MCP resources.
-    
-    - id: project-context
-      type: file
-      priority: 5
-      files:
-        - ./README.md
-        - ./CONTRIBUTING.md
-        - ./docs/architecture.md
+    - id: user-context
+      type: memory
+      priority: 20
       options:
-        includeFilenames: true
-        separator: "\n\n---\n\n"
-        errorHandling: "skip"
-        maxFileSize: 50000
-    
-    - id: current-time
-      type: dynamic
-      priority: 10
-      source: dateTime
-    
-    - id: mcp-resources
-      type: dynamic
-      priority: 12
-      source: resources
-      enabled: true
-    
-    - id: additional-instructions
-      type: static
-      priority: 15
-      content: |
-        Always provide code examples when relevant.
-        Reference the project documentation and available resources when making suggestions.
+        pinnedOnly: true
+        includeTags: true
+        limit: 10
 ```
 
 ## Best Practices
 
-1. **Keep it focused:** Clear, specific instructions work better than lengthy prompts
-2. **Use priority ordering:** Structure contributors logically from general to specific
-3. **Test behavior:** Validate that your prompt produces the desired agent behavior
-4. **Dynamic content:** Use dynamic sources for time-sensitive or contextual information
-5. **Modular approach:** Break complex prompts into separate contributors for easier management
-6. **File contributors:** Use File contributors to include project-specific documentation and guidelines
-7. **File format restrictions:** Remember that File contributors only support `.md` and `.txt` files
-8. **Error handling:** Use `"skip"` error handling for optional files, `"error"` for required files
-9. **File size limits:** Set appropriate `maxFileSize` limits to prevent memory issues with large files
-10. **Path organization:** Organize documentation files relative to your config file for cleaner, more maintainable paths
-11. **MCP resources:** Enable the `resources` contributor when you want to include context from MCP servers
-12. **Performance considerations:** Be mindful that the `resources` contributor fetches all MCP resources on each prompt build
+1. **Keep it focused** - Clear, specific instructions work better than lengthy prompts
+2. **Use priority ordering** - Structure from general (role) to specific (context)
+3. **Test behavior** - Validate that prompts produce desired agent responses
+4. **File contributors for docs** - Keep large documentation in separate files
+5. **Memory for personalization** - Use memory contributors for user-specific context
+6. **Enable resources selectively** - MCP resources can be large; only enable when needed
 
+## See Also
+
+- [agent.yml Reference → System Prompt](./agent-yml.md#system-prompt-configuration) - Complete field documentation
+- [Memory Configuration](./memory.md) - Configure the memory system
+- [MCP Configuration](./mcpConfiguration.md) - Set up resource providers

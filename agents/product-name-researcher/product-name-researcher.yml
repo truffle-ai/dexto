@@ -24,6 +24,9 @@ mcpServers:
     args:
       - "@truffle-ai/product-name-scout-mcp"
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🔍 Hi! I'm your Product Name Researcher. What name shall we explore today?"
+
 systemPrompt:
   contributors:
     - id: primary

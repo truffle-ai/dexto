@@ -1,180 +1,198 @@
-import type { CacheBackend, DatabaseBackend, StorageBackends } from './backend/types.js';
-import type {
-    PostgresBackendConfig,
-    RedisBackendConfig,
-    SqliteBackendConfig,
-    ValidatedStorageConfig,
-} from './schemas.js';
-import { MemoryBackend } from './backend/memory-backend.js';
+import type { Cache } from './cache/types.js';
+import type { Database } from './database/types.js';
+import type { BlobStore } from './blob/types.js';
+import type { ValidatedStorageConfig } from './schemas.js';
+import { createCache } from './cache/factory.js';
+import { createDatabase } from './database/factory.js';
+import { createBlobStore } from './blob/factory.js';
+import { StorageError } from './errors.js';
 import { logger } from '../logger/index.js';
-
-// Lazy imports for optional dependencies
-let SQLiteBackend: any;
-let RedisBackend: any;
-let PostgresBackend: any;
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
 
 /**
  * Storage manager that initializes and manages storage backends.
- * Handles both cache and database backends with automatic fallbacks.
+ * Handles cache, database, and blob backends with automatic fallbacks.
+ *
+ * Lifecycle:
+ * 1. new StorageManager(config) - Creates manager with config
+ * 2. await manager.initialize() - Creates store instances (without connecting)
+ * 3. await manager.connect() - Establishes connections to all stores
+ * 4. await manager.disconnect() - Closes all connections
  */
 export class StorageManager {
     private config: ValidatedStorageConfig;
-    private cache?: CacheBackend;
-    private database?: DatabaseBackend;
+    private cache!: Cache;
+    private database!: Database;
+    private blobStore!: BlobStore;
+    private initialized = false;
     private connected = false;
 
     constructor(config: ValidatedStorageConfig) {
         this.config = config;
     }
 
-    async connect(): Promise<StorageBackends> {
-        if (this.connected) {
-            return {
-                cache: this.cache!,
-                database: this.database!,
-            };
+    /**
+     * Initialize storage instances without connecting.
+     * This allows configuration and inspection before establishing connections.
+     */
+    async initialize(): Promise<void> {
+        if (this.initialized) {
+            return;
         }
 
-        // Initialize cache backend
-        this.cache = await this.createCacheBackend();
-        await this.cache.connect();
+        // Create store instances
+        this.cache = await createCache(this.config.cache);
+        this.database = await createDatabase(this.config.database);
+        this.blobStore = createBlobStore(this.config.blob);
 
-        // Initialize database backend
-        this.database = await this.createDatabaseBackend();
-        await this.database.connect();
+        this.initialized = true;
+    }
 
-        this.connected = true;
+    /**
+     * Connect all storage backends.
+     * Must call initialize() first, or use createStorageManager() helper.
+     */
+    async connect(): Promise<void> {
+        if (!this.initialized) {
+            throw StorageError.managerNotInitialized('connect');
+        }
 
-        return {
-            cache: this.cache,
-            database: this.database,
-        };
+        if (this.connected) {
+            return;
+        }
+
+        // Establish connections with rollback on partial failure
+        const connected: ('cache' | 'database' | 'blob')[] = [];
+        try {
+            await this.cache.connect();
+            connected.push('cache');
+
+            await this.database.connect();
+            connected.push('database');
+
+            await this.blobStore.connect();
+            connected.push('blob');
+
+            this.connected = true;
+        } catch (error) {
+            // Rollback: disconnect any stores that were successfully connected
+            logger.warn(
+                `Storage connection failed, rolling back ${connected.length} connected stores`
+            );
+            for (const store of connected.reverse()) {
+                try {
+                    if (store === 'cache') await this.cache.disconnect();
+                    else if (store === 'database') await this.database.disconnect();
+                    else if (store === 'blob') await this.blobStore.disconnect();
+                } catch (disconnectError) {
+                    logger.error(
+                        `Failed to rollback ${store} during connection failure: ${disconnectError}`
+                    );
+                }
+            }
+            throw error;
+        }
     }
 
     async disconnect(): Promise<void> {
-        if (this.cache) {
-            await this.cache.disconnect();
-            delete this.cache;
-        }
+        if (!this.connected) return;
 
-        if (this.database) {
-            await this.database.disconnect();
-            delete this.database;
-        }
+        // Disconnect all stores concurrently, continue even if some fail
+        const results = await Promise.allSettled([
+            this.cache.disconnect(),
+            this.database.disconnect(),
+            this.blobStore.disconnect(),
+        ]);
+
+        // Track errors from failed disconnections
+        const errors: Error[] = [];
+        const storeNames = ['cache', 'database', 'blob store'];
+
+        results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                const storeName = storeNames[index];
+                const error = result.reason;
+                logger.error(`Failed to disconnect ${storeName}: ${error}`);
+                errors.push(error instanceof Error ? error : new Error(String(error)));
+            }
+        });
 
         this.connected = false;
+
+        // If any disconnections failed, throw an aggregated error
+        if (errors.length > 0) {
+            throw StorageError.connectionFailed(
+                `Failed to disconnect ${errors.length} storage backend(s): ${errors.map((e) => e.message).join(', ')}`
+            );
+        }
     }
 
     isConnected(): boolean {
         return (
             this.connected &&
-            this.cache?.isConnected() === true &&
-            this.database?.isConnected() === true
+            this.cache.isConnected() &&
+            this.database.isConnected() &&
+            this.blobStore.isConnected()
         );
     }
 
-    getBackends(): StorageBackends | null {
-        if (!this.connected) return null;
-
-        return {
-            cache: this.cache!,
-            database: this.database!,
-        };
+    /**
+     * Get the cache store instance.
+     * @throws {DextoRuntimeError} if not connected
+     */
+    getCache(): Cache {
+        if (!this.connected) {
+            throw StorageError.managerNotConnected('getCache');
+        }
+        return this.cache;
     }
 
-    private async createCacheBackend(): Promise<CacheBackend> {
-        const cacheConfig = this.config.cache;
-
-        switch (cacheConfig.type) {
-            case 'redis':
-                return this.createRedisBackend(cacheConfig);
-
-            case 'in-memory':
-            default:
-                logger.info('Using in-memory cache backend');
-                return new MemoryBackend();
+    /**
+     * Get the database store instance.
+     * @throws {DextoRuntimeError} if not connected
+     */
+    getDatabase(): Database {
+        if (!this.connected) {
+            throw StorageError.managerNotConnected('getDatabase');
         }
+        return this.database;
     }
 
-    private async createDatabaseBackend(): Promise<DatabaseBackend> {
-        const dbConfig = this.config.database;
-
-        switch (dbConfig.type) {
-            case 'postgres':
-                return this.createPostgresBackend(dbConfig);
-
-            case 'sqlite':
-                return this.createSQLiteBackend(dbConfig);
-
-            case 'in-memory':
-            default:
-                logger.info('Using in-memory database backend');
-                return new MemoryBackend();
+    /**
+     * Get the blob store instance.
+     * @throws {DextoRuntimeError} if not connected
+     */
+    getBlobStore(): BlobStore {
+        if (!this.connected) {
+            throw StorageError.managerNotConnected('getBlobStore');
         }
-    }
-
-    private async createRedisBackend(config: RedisBackendConfig): Promise<CacheBackend> {
-        try {
-            if (!RedisBackend) {
-                const module = await import('./backend/redis-backend.js');
-                RedisBackend = module.RedisBackend;
-            }
-            logger.info(`Connecting to Redis at ${config.host}:${config.port}`);
-            return new RedisBackend(config);
-        } catch (error) {
-            logger.warn(`Redis not available, falling back to in-memory cache: ${error}`);
-            return new MemoryBackend();
-        }
-    }
-
-    private async createPostgresBackend(config: PostgresBackendConfig): Promise<DatabaseBackend> {
-        try {
-            if (!PostgresBackend) {
-                const module = await import('./backend/postgres-backend.js');
-                PostgresBackend = module.PostgresBackend;
-            }
-            logger.info('Connecting to PostgreSQL database');
-            return new PostgresBackend(config);
-        } catch (error) {
-            logger.warn(`PostgreSQL not available, falling back to in-memory database: ${error}`);
-            return new MemoryBackend();
-        }
-    }
-
-    private async createSQLiteBackend(config: SqliteBackendConfig): Promise<DatabaseBackend> {
-        try {
-            if (!SQLiteBackend) {
-                const module = await import('./backend/sqlite-backend.js');
-                SQLiteBackend = module.SQLiteBackend;
-            }
-            logger.info(`Using SQLite database at ${config.path}`);
-            return new SQLiteBackend(config);
-        } catch (error) {
-            logger.error(
-                `SQLite backend failed to load: ${error instanceof Error ? error.message : String(error)}`
-            );
-            logger.error(`Full error details: ${JSON.stringify(error)}`);
-            logger.warn('Falling back to in-memory database backend');
-            return new MemoryBackend();
-        }
+        return this.blobStore;
     }
 
     // Utility methods
     async getInfo(): Promise<{
         cache: { type: string; connected: boolean };
         database: { type: string; connected: boolean };
+        blob: { type: string; connected: boolean };
         connected: boolean;
     }> {
+        if (!this.connected) {
+            throw StorageError.managerNotConnected('getInfo');
+        }
+
         return {
             cache: {
-                type: this.cache?.getBackendType() || 'none',
-                connected: this.cache?.isConnected() || false,
+                type: this.cache.getStoreType(),
+                connected: this.cache.isConnected(),
             },
             database: {
-                type: this.database?.getBackendType() || 'none',
-                connected: this.database?.isConnected() || false,
+                type: this.database.getStoreType(),
+                connected: this.database.isConnected(),
+            },
+            blob: {
+                type: this.blobStore.getStoreType(),
+                connected: this.blobStore.isConnected(),
             },
             connected: this.connected,
         };
@@ -184,13 +202,19 @@ export class StorageManager {
     async healthCheck(): Promise<{
         cache: boolean;
         database: boolean;
+        blob: boolean;
         overall: boolean;
     }> {
+        if (!this.connected) {
+            throw StorageError.managerNotConnected('healthCheck');
+        }
+
         let cacheHealthy = false;
         let databaseHealthy = false;
+        let blobHealthy = false;
 
         try {
-            if (this.cache?.isConnected()) {
+            if (this.cache.isConnected()) {
                 await this.cache.set(HEALTH_CHECK_KEY, 'ok', 10);
                 const result = await this.cache.get(HEALTH_CHECK_KEY);
                 cacheHealthy = result === 'ok';
@@ -201,7 +225,7 @@ export class StorageManager {
         }
 
         try {
-            if (this.database?.isConnected()) {
+            if (this.database.isConnected()) {
                 await this.database.set(HEALTH_CHECK_KEY, 'ok');
                 const result = await this.database.get(HEALTH_CHECK_KEY);
                 databaseHealthy = result === 'ok';
@@ -211,23 +235,34 @@ export class StorageManager {
             logger.warn(`Database health check failed: ${error}`);
         }
 
+        try {
+            if (this.blobStore.isConnected()) {
+                // For blob store, just check if it's connected (no data operations)
+                blobHealthy = this.blobStore.isConnected();
+            }
+        } catch (error) {
+            logger.warn(`Blob store health check failed: ${error}`);
+        }
+
         return {
             cache: cacheHealthy,
             database: databaseHealthy,
-            overall: cacheHealthy && databaseHealthy,
+            blob: blobHealthy,
+            overall: cacheHealthy && databaseHealthy && blobHealthy,
         };
     }
 }
 
 /**
- * Create storage backends without using singleton pattern
- * This allows multiple agent instances to have independent storage
+ * Create and initialize a storage manager.
+ * This is a convenience helper that combines initialization and connection.
+ * This allows multiple agent instances to have independent storage.
  */
-export async function createStorageBackends(config: ValidatedStorageConfig): Promise<{
-    manager: StorageManager;
-    backends: StorageBackends;
-}> {
+export async function createStorageManager(
+    config: ValidatedStorageConfig
+): Promise<StorageManager> {
     const manager = new StorageManager(config);
-    const backends = await manager.connect();
-    return { manager, backends };
+    await manager.initialize();
+    await manager.connect();
+    return manager;
 }

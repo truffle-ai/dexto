@@ -17,7 +17,7 @@ export class OpenAITokenizer implements ITokenizer {
 
     /**
      * Initializes the tokenizer for a specific OpenAI model or compatible model.
-     * @param model The OpenAI model name (e.g., 'gpt-4o') or a custom model name.
+     * @param model The OpenAI model name (e.g., 'gpt-5') or a custom model name.
      * @throws TokenizationError if tiktoken initialization fails for both specific model and fallback.
      */
     constructor(model: string) {

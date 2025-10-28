@@ -65,7 +65,8 @@ export class WebhookEventSubscriber implements EventSubscriber {
             'dexto:conversationReset',
             'dexto:mcpServerConnected',
             'dexto:availableToolsUpdated',
-            'dexto:toolConfirmationRequest',
+            'dexto:approvalRequest',
+            'dexto:approvalResponse',
             'dexto:llmSwitched',
             'dexto:stateChanged',
         ];

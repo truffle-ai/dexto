@@ -60,6 +60,14 @@ const LLMConfigFields = {
         .max(1)
         .optional()
         .describe('Randomness: 0 deterministic, 1 creative'),
+
+    allowedMediaTypes: z
+        .array(z.string())
+        .optional()
+        .describe(
+            'MIME type patterns for media expansion (e.g., "image/*", "application/pdf"). ' +
+                'If omitted, uses model capabilities from registry. Supports wildcards.'
+        ),
 } as const;
 /** Business rules + compatibility checks */
 
@@ -75,6 +83,7 @@ export const LLMConfigSchema = z
         maxInputTokens: LLMConfigFields.maxInputTokens,
         maxOutputTokens: LLMConfigFields.maxOutputTokens,
         temperature: LLMConfigFields.temperature,
+        allowedMediaTypes: LLMConfigFields.allowedMediaTypes,
     })
     .strict()
     .superRefine((data, ctx) => {

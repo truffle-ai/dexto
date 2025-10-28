@@ -94,7 +94,7 @@ export const TestConfigs = {
             systemPrompt: 'You are a helpful assistant for testing purposes.',
             llm: {
                 provider,
-                model: 'claude-3-5-haiku-20241022', // Use cheapest model for testing
+                model: 'claude-haiku-4-5-20251001', // Use cheapest model for testing
                 apiKey,
                 maxOutputTokens: 100,
                 temperature: 0,
@@ -126,12 +126,12 @@ export const TestConfigs = {
         // Default models for common providers
         const defaultModels: Record<LLMProvider, string> = {
             openai: 'gpt-5-nano',
-            anthropic: 'claude-3-5-haiku-20241022',
+            anthropic: 'claude-haiku-4-5-20251001',
             google: 'gemini-2.0-flash',
             groq: 'llama-3.1-8b-instant',
             xai: 'grok-beta',
             cohere: 'command-r',
-            'openai-compatible': 'gpt-4o-mini',
+            'openai-compatible': 'gpt-5-mini',
         };
 
         return {

@@ -1,12 +1,17 @@
 // src/agent/DextoAgent.ts
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
+import { ResourceManager, expandMessageReferences } from '../resources/index.js';
+import { expandBlobReferences } from '../context/utils.js';
+import { PromptManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
+import { Telemetry } from '../telemetry/telemetry.js';
+import { InstrumentClass } from '../telemetry/decorators.js';
 import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -14,6 +19,7 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -34,18 +40,29 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
-import { getAgentRegistry } from './registry/registry.js';
 import { loadAgentConfig } from '../config/loader.js';
+import { promises as fs } from 'fs';
+import { parseDocument } from 'yaml';
+import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
     'toolManager',
-    'promptManager',
+    'systemPromptManager',
     'agentEventBus',
     'stateManager',
     'sessionManager',
     'searchService',
+    'memoryManager',
 ];
+
+/**
+ * Interface for objects that can subscribe to the agent's event bus.
+ * Typically used by API layer subscribers (WebSocket, Webhooks, etc.)
+ */
+export interface AgentEventSubscriber {
+    subscribe(eventBus: AgentEventBus): void;
+}
 
 /**
  * The main entry point into Dexto's core functionality.
@@ -80,7 +97,7 @@ const requiredServices: (keyof AgentServices)[] = [
  * const response = await agent.run("Hello, how are you?");
  *
  * // Switch LLM models (provider inferred automatically)
- * await agent.switchLLM({ model: 'gpt-4o' });
+ * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
  * const session = agent.createSession('user-123');
@@ -97,6 +114,17 @@ const requiredServices: (keyof AgentServices)[] = [
  * await agent.stop();
  * ```
  */
+@InstrumentClass({
+    prefix: 'agent',
+    excludeMethods: [
+        'isStarted',
+        'isStopped',
+        'getConfig',
+        'getEffectiveConfig',
+        'registerSubscriber',
+        'ensureStarted',
+    ],
+})
 export class DextoAgent {
     /**
      * These services are public for use by the outside world
@@ -104,11 +132,14 @@ export class DextoAgent {
      * But the main recommended entry points/functions would still be the wrapper methods we define below
      */
     public readonly mcpManager!: MCPManager;
-    public readonly promptManager!: PromptManager;
+    public readonly systemPromptManager!: SystemPromptManager;
     public readonly agentEventBus!: AgentEventBus;
+    public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
+    public readonly resourceManager!: ResourceManager;
+    public readonly memoryManager!: import('../memory/index.js').MemoryManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
@@ -126,6 +157,12 @@ export class DextoAgent {
 
     // Store config for async initialization
     private config: ValidatedAgentConfig;
+
+    // Event subscribers (e.g., WebSocket, Webhook handlers)
+    private eventSubscribers: Set<AgentEventSubscriber> = new Set();
+
+    // Telemetry instance for distributed tracing
+    private telemetry?: Telemetry;
 
     constructor(
         config: AgentConfig,
@@ -169,18 +206,41 @@ export class DextoAgent {
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
-                promptManager: services.promptManager,
+                resourceManager: services.resourceManager,
+                systemPromptManager: services.systemPromptManager,
                 agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
+                memoryManager: services.memoryManager,
                 services: services,
             });
 
             // Initialize search service from services
             this.searchService = services.searchService;
 
+            // Initialize prompts manager (aggregates MCP, internal, starter prompts)
+            // File prompts automatically resolve custom slash commands
+            const promptManager = new PromptManager(
+                this.mcpManager,
+                this.resourceManager,
+                this.config,
+                this.agentEventBus,
+                services.storageManager.getDatabase()
+            );
+            await promptManager.initialize();
+            Object.assign(this, { promptManager });
+
+            // Note: Telemetry is initialized in createAgentServices() before services are created
+            // This ensures decorators work correctly on all services
+
             this._isStarted = true;
+            this._isStopped = false; // Reset stopped flag to allow restart
             logger.info('DextoAgent started successfully.');
+
+            // Subscribe all registered event subscribers to the new event bus
+            for (const subscriber of this.eventSubscribers) {
+                subscriber.subscribe(this.agentEventBus);
+            }
 
             // Show log location for SDK users
             const logPath = getDextoPath('logs', 'dexto.log');
@@ -224,7 +284,19 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
             }
 
-            // 2. Disconnect all MCP clients
+            // 2. Clean up plugins (close file handles, connections, etc.)
+            // Do this before storage disconnect so plugins can flush state if needed
+            try {
+                if (this.services?.pluginManager) {
+                    await this.services.pluginManager.cleanup();
+                    logger.debug('PluginManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+            }
+
+            // 3. Disconnect all MCP clients
             try {
                 if (this.mcpManager) {
                     await this.mcpManager.disconnectAll();
@@ -235,7 +307,7 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`MCPManager disconnect failed: ${err.message}`));
             }
 
-            // 3. Close storage backends
+            // 4. Close storage backends
             try {
                 if (this.services?.storageManager) {
                     await this.services.storageManager.disconnect();
@@ -245,6 +317,11 @@ export class DextoAgent {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
             }
+
+            // Note: Telemetry is NOT shut down here
+            // For agent switching: Telemetry.shutdownGlobal() is called explicitly before creating new agent
+            // For process exit: Telemetry shuts down automatically via process exit handlers
+            // This allows telemetry to persist across agent restarts in the same process
 
             this._isStopped = true;
             this._isStarted = false;
@@ -260,6 +337,33 @@ export class DextoAgent {
             logger.error('Failed to stop DextoAgent', error);
             throw error;
         }
+    }
+
+    /**
+     * Register an event subscriber that will be automatically re-subscribed on agent restart.
+     * Subscribers are typically API layer components (WebSocket, Webhook handlers) that need
+     * to receive agent events. If the agent is already started, the subscriber is immediately subscribed.
+     *
+     * @param subscriber - Object implementing AgentEventSubscriber interface
+     */
+    public registerSubscriber(subscriber: AgentEventSubscriber): void {
+        this.eventSubscribers.add(subscriber);
+        if (this._isStarted) {
+            subscriber.subscribe(this.agentEventBus);
+        }
+    }
+
+    /**
+     * Restart the agent by stopping and starting it.
+     * Automatically re-subscribes all registered event subscribers to the new event bus.
+     * This is useful when configuration changes require a full agent restart.
+     *
+     * @throws Error if restart fails during stop or start phases
+     */
+    public async restart(): Promise<void> {
+        await this.stop();
+        await this.start();
+        // Note: start() handles re-subscribing all registered subscribers
     }
 
     /**
@@ -347,7 +451,71 @@ export class DextoAgent {
                     imageDataInput
                 )}, hasFile=${Boolean(fileDataInput)}`
             );
-            const response = await session.run(textInput, imageDataInput, fileDataInput, stream);
+            // Expand @resource mentions into content before sending to the model
+            let finalText = textInput;
+            let finalImageData = imageDataInput;
+            if (textInput && textInput.includes('@')) {
+                try {
+                    const resources = await this.resourceManager.list();
+                    const expansion = await expandMessageReferences(textInput, resources, (uri) =>
+                        this.resourceManager.read(uri)
+                    );
+
+                    // Warn about unresolved references
+                    if (expansion.unresolvedReferences.length > 0) {
+                        const unresolvedNames = expansion.unresolvedReferences
+                            .map((ref) => ref.originalRef)
+                            .join(', ');
+                        logger.warn(
+                            `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+                        );
+                    }
+
+                    // Validate expanded message size (5MB limit)
+                    const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                    const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
+                    if (expandedSize > MAX_EXPANDED_SIZE) {
+                        logger.warn(
+                            `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                        );
+                    }
+
+                    finalText = expansion.expandedMessage;
+
+                    // If we extracted images from resources and don't already have image data, use the first extracted image
+                    if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                        const firstImage = expansion.extractedImages[0];
+                        if (firstImage) {
+                            finalImageData = {
+                                image: firstImage.image,
+                                mimeType: firstImage.mimeType,
+                            };
+                            logger.debug(
+                                `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                            );
+                        }
+                    }
+                } catch (error) {
+                    // Log error but continue with original message to avoid blocking the user
+                    logger.error(
+                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
+                    );
+                    // Continue with original text instead of throwing
+                }
+            }
+
+            // Validate that we have either text or media content after expansion
+            if (!finalText.trim() && !finalImageData && !fileDataInput) {
+                logger.warn(
+                    'Resource expansion resulted in empty content. Using original message.'
+                );
+                finalText = textInput;
+            }
+
+            // Kick off background title generation for first turn if needed
+            void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
+
+            const response = await session.run(finalText, finalImageData, fileDataInput, stream);
 
             // Increment message count for this session (counts each)
             // Fire-and-forget to avoid race conditions during shutdown
@@ -460,6 +628,95 @@ export class DextoAgent {
     }
 
     /**
+     * Sets a human-friendly title for the given session.
+     */
+    public async setSessionTitle(sessionId: string, title: string): Promise<void> {
+        this.ensureStarted();
+        await this.sessionManager.setSessionTitle(sessionId, title);
+    }
+
+    /**
+     * Gets the human-friendly title for the given session, if any.
+     */
+    public async getSessionTitle(sessionId: string): Promise<string | undefined> {
+        this.ensureStarted();
+        return await this.sessionManager.getSessionTitle(sessionId);
+    }
+
+    /**
+     * Background task: generate and persist a session title using the same LLM.
+     * Runs only for the first user message (messageCount === 0 and no existing title).
+     * Never throws; timeboxed in the generator.
+     */
+    private async maybeGenerateTitle(
+        sessionId: string,
+        userText: string,
+        llmConfig: ValidatedLLMConfig
+    ): Promise<void> {
+        try {
+            const metadata = await this.sessionManager.getSessionMetadata(sessionId);
+            if (!metadata) {
+                logger.debug(
+                    `[SessionTitle] No session metadata available for ${sessionId}, skipping title generation`
+                );
+                return;
+            }
+            if (metadata.title) {
+                logger.debug(
+                    `[SessionTitle] Session ${sessionId} already has title '${metadata.title}', skipping`
+                );
+                return;
+            }
+            if (!userText || !userText.trim()) {
+                logger.debug(
+                    `[SessionTitle] User text empty for session ${sessionId}, skipping title generation`
+                );
+                return;
+            }
+
+            logger.debug(
+                `[SessionTitle] Checking title generation preconditions for session ${sessionId}`
+            );
+            const result = await generateSessionTitle(
+                llmConfig,
+                llmConfig.router,
+                this.toolManager,
+                this.systemPromptManager,
+                this.resourceManager,
+                userText
+            );
+            if (result.error) {
+                logger.debug(
+                    `[SessionTitle] LLM title generation failed for ${sessionId}: ${result.error}${
+                        result.timedOut ? ' (timeout)' : ''
+                    }`
+                );
+            }
+
+            let title = result.title;
+            if (!title) {
+                title = deriveHeuristicTitle(userText);
+                if (title) {
+                    logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+                } else {
+                    logger.debug(
+                        `[SessionTitle] No suitable title derived for session ${sessionId}`
+                    );
+                    return;
+                }
+            } else {
+                logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
+            }
+
+            await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
+            this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
+        } catch (err) {
+            // Swallow background errors – never impact main flow
+            logger.silly(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
+        }
+    }
+
+    /**
      * Gets the conversation history for a specific session.
      * @param sessionId The session ID
      * @returns Promise that resolves to the session's conversation history
@@ -471,7 +728,24 @@ export class DextoAgent {
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return await session.getHistory();
+        const history = await session.getHistory();
+        if (!this.resourceManager) {
+            return history;
+        }
+
+        return await Promise.all(
+            history.map(async (message) => ({
+                ...message,
+                content: await expandBlobReferences(message.content, this.resourceManager).catch(
+                    (error) => {
+                        logger.warn(
+                            `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
+                        );
+                        return message.content; // Return original content on error
+                    }
+                ),
+            }))
+        );
     }
 
     /**
@@ -640,7 +914,7 @@ export class DextoAgent {
      * @example
      * ```typescript
      * // Switch to a different model (provider will be inferred, API key auto-resolved)
-     * await agent.switchLLM({ model: 'gpt-4o' });
+     * await agent.switchLLM({ model: 'gpt-5' });
      *
      * // Switch to a different provider with explicit API key
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', apiKey: 'sk-ant-...' });
@@ -649,7 +923,7 @@ export class DextoAgent {
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', router: 'in-built' }, 'user-123');
      *
      * // Switch for all sessions
-     * await agent.switchLLM({ model: 'gpt-4o' }, '*');
+     * await agent.switchLLM({ model: 'gpt-5' }, '*');
      * ```
      */
     public async switchLLM(
@@ -812,7 +1086,7 @@ export class DextoAgent {
      *
      * @example
      * ```typescript
-     * const provider = agent.inferProviderFromModel('gpt-4o');
+     * const provider = agent.inferProviderFromModel('gpt-5');
      * console.log(provider); // 'openai'
      *
      * const provider2 = agent.inferProviderFromModel('claude-4-sonnet-20250514');
@@ -854,6 +1128,9 @@ export class DextoAgent {
         try {
             // Connect the server
             await this.mcpManager.connectServer(name, validatedConfig);
+
+            // Ensure tool cache reflects the newly connected server before notifying listeners
+            await this.toolManager.refresh();
 
             this.agentEventBus.emit('dexto:mcpServerConnected', {
                 name,
@@ -903,6 +1180,47 @@ export class DextoAgent {
 
         // Then remove from runtime state
         this.stateManager.removeMcpServer(name);
+
+        // Refresh tool cache after server removal so the LLM sees updated set
+        await this.toolManager.refresh();
+    }
+
+    /**
+     * Restarts an MCP server by disconnecting and reconnecting with its original configuration.
+     * This is useful for recovering from server errors or applying configuration changes.
+     * @param name The name of the server to restart.
+     * @throws MCPError if server is not found or restart fails
+     */
+    public async restartMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        try {
+            logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
+
+            // Restart the server using MCPManager
+            await this.mcpManager.restartServer(name);
+
+            // Refresh tool cache after restart so the LLM sees updated toolset
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('dexto:mcpServerRestarted', {
+                serverName: name,
+            });
+            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            logger.info(`DextoAgent: Successfully restarted MCP server '${name}'.`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`DextoAgent: Failed to restart MCP server '${name}': ${errorMessage}`);
+
+            // Note: No event emitted on failure since the error is thrown
+            // The calling layer (API) will handle error reporting
+
+            throw error;
+        }
     }
 
     /**
@@ -957,6 +1275,59 @@ export class DextoAgent {
         return this.mcpManager.getFailedConnections();
     }
 
+    // ============= RESOURCE MANAGEMENT =============
+
+    /**
+     * Lists all available resources with their info.
+     * This includes resources from MCP servers and any custom resource providers.
+     */
+    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+        this.ensureStarted();
+        return await this.resourceManager.list();
+    }
+
+    /**
+     * Checks if a resource exists by URI.
+     */
+    public async hasResource(uri: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.resourceManager.has(uri);
+    }
+
+    /**
+     * Reads the content of a specific resource by URI.
+     */
+    public async readResource(
+        uri: string
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+        this.ensureStarted();
+        return await this.resourceManager.read(uri);
+    }
+
+    /**
+     * Lists resources for a specific MCP server.
+     */
+    public async listResourcesForServer(serverId: string): Promise<
+        Array<{
+            uri: string;
+            name: string;
+            originalUri: string;
+            serverName: string;
+        }>
+    > {
+        this.ensureStarted();
+        const allResources = await this.resourceManager.list();
+        const serverResources = Object.values(allResources)
+            .filter((resource) => resource.serverName === serverId)
+            .map((resource) => {
+                const original = (resource.metadata?.originalUri as string) ?? resource.uri;
+                const name = resource.name ?? resource.uri.split('/').pop() ?? resource.uri;
+                const serverName = resource.serverName ?? serverId;
+                return { uri: original, name, originalUri: original, serverName };
+            });
+        return serverResources;
+    }
+
     // ============= PROMPT MANAGEMENT =============
 
     /**
@@ -988,7 +1359,95 @@ export class DextoAgent {
         const context = {
             mcpManager: this.mcpManager,
         };
-        return await this.promptManager.build(context);
+        return await this.systemPromptManager.build(context);
+    }
+
+    /**
+     * Lists all available prompts from all providers (MCP, internal, starter, custom).
+     * @returns Promise resolving to a PromptSet with all available prompts
+     */
+    public async listPrompts(): Promise<import('../prompts/index.js').PromptSet> {
+        this.ensureStarted();
+        return await this.promptManager.list();
+    }
+
+    /**
+     * Gets the definition of a specific prompt by name.
+     * @param name The name of the prompt
+     * @returns Promise resolving to the prompt definition or null if not found
+     */
+    public async getPromptDefinition(
+        name: string
+    ): Promise<import('../prompts/index.js').PromptDefinition | null> {
+        this.ensureStarted();
+        return await this.promptManager.getPromptDefinition(name);
+    }
+
+    /**
+     * Checks if a prompt exists.
+     * @param name The name of the prompt to check
+     * @returns Promise resolving to true if the prompt exists, false otherwise
+     */
+    public async hasPrompt(name: string): Promise<boolean> {
+        this.ensureStarted();
+        return await this.promptManager.has(name);
+    }
+
+    /**
+     * Gets a prompt with its messages.
+     * @param name The name of the prompt
+     * @param args Optional arguments to pass to the prompt
+     * @returns Promise resolving to the prompt result with messages
+     */
+    public async getPrompt(
+        name: string,
+        args?: Record<string, unknown>
+    ): Promise<import('@modelcontextprotocol/sdk/types.js').GetPromptResult> {
+        this.ensureStarted();
+        return await this.promptManager.getPrompt(name, args);
+    }
+
+    /**
+     * Creates a new custom prompt.
+     * @param input The prompt creation input
+     * @returns Promise resolving to the created prompt info
+     */
+    public async createCustomPrompt(
+        input: import('../prompts/index.js').CreateCustomPromptInput
+    ): Promise<import('../prompts/index.js').PromptInfo> {
+        this.ensureStarted();
+        return await this.promptManager.createCustomPrompt(input);
+    }
+
+    /**
+     * Deletes a custom prompt by name.
+     * @param name The name of the custom prompt to delete
+     */
+    public async deleteCustomPrompt(name: string): Promise<void> {
+        this.ensureStarted();
+        return await this.promptManager.deleteCustomPrompt(name);
+    }
+
+    /**
+     * Resolves a prompt to its text content with all arguments applied.
+     * This is a high-level method that handles:
+     * - Prompt key resolution (resolving aliases)
+     * - Argument normalization (including special _context field)
+     * - Prompt execution and flattening
+     *
+     * @param name The prompt name or alias
+     * @param options Optional configuration for prompt resolution
+     * @returns Promise resolving to the resolved text and resource URIs
+     */
+    public async resolvePrompt(
+        name: string,
+        options: {
+            context?: string;
+            args?: Record<string, unknown>;
+        } = {}
+    ): Promise<{ text: string; resources: string[] }> {
+        this.ensureStarted();
+        return await this.promptManager.resolvePrompt(name, options);
     }
 
     // ============= CONFIGURATION ACCESS =============
@@ -1005,168 +1464,200 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig();
     }
 
-    // ============= AGENT MANAGEMENT =============
+    /**
+     * Gets the file path of the agent configuration currently in use.
+     * This returns the source agent file path, not session-specific overrides.
+     * @returns The path to the agent configuration file
+     * @throws AgentError if no config path is available
+     */
+    public getAgentFilePath(): string {
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
+        return this.configPath;
+    }
 
     /**
-     * Lists available and installed agents from the registry.
-     * Returns a structured object containing both installed and available agents,
-     * along with metadata like descriptions, authors, and tags.
+     * Reloads the agent configuration from disk.
+     * This will re-read the config file, validate it, and detect what changed.
+     * Most configuration changes require a full agent restart to take effect.
      *
-     * @returns Promise resolving to object with installed and available agent lists
+     * To apply changes: stop the agent and start it again with the new config.
      *
-     * @example
-     * ```typescript
-     * const agents = await agent.listAgents();
-     * console.log(agents.installed); // ['default', 'my-custom-agent']
-     * console.log(agents.available); // [{ name: 'productivity', description: '...', ... }]
-     * console.log(agents.current?.name); // 'default'
-     * ```
+     * @returns Object containing list of changes that require restart
+     * @throws Error if config file cannot be read or is invalid
+     *
+     * TODO: improve hot reload capabilites so that we don't always require a restart
      */
-    public async listAgents(): Promise<{
-        installed: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        available: Array<{ name: string; description: string; author?: string; tags?: string[] }>;
-        current?: { name?: string | null };
+    public async reloadConfig(): Promise<{
+        restartRequired: string[];
     }> {
-        const agentRegistry = getAgentRegistry();
-        const availableMap = agentRegistry.getAvailableAgents();
-        const installedNames = await agentRegistry.getInstalledAgents();
+        if (!this.configPath) {
+            throw AgentError.noConfigPath();
+        }
 
-        // Build installed agents list with metadata
-        const installed = await Promise.all(
-            installedNames.map(async (name) => {
-                const registryEntry = availableMap[name];
-                if (registryEntry) {
-                    return {
-                        name,
-                        description: registryEntry.description,
-                        author: registryEntry.author,
-                        tags: registryEntry.tags,
-                    };
-                } else {
-                    // Handle locally installed agents not in registry
-                    try {
-                        const config = await loadAgentConfig(name);
-                        const author = config.agentCard?.provider?.organization;
-                        const result: {
-                            name: string;
-                            description: string;
-                            author?: string;
-                            tags?: string[];
-                        } = {
-                            name,
-                            description: config.agentCard?.description || 'Local agent',
-                            tags: [],
-                        };
-                        if (author) {
-                            result.author = author;
-                        }
-                        return result;
-                    } catch {
-                        return {
-                            name,
-                            description: 'Local agent (config unavailable)',
-                            tags: [],
-                        };
-                    }
-                }
-            })
-        );
+        logger.info(`Reloading agent configuration from: ${this.configPath}`);
 
-        // Build available agents list (excluding already installed)
-        const available = Object.entries(availableMap)
-            .filter(([name]) => !installedNames.includes(name))
-            .map(([name, entry]) => ({
-                name,
-                description: entry.description,
-                author: entry.author,
-                tags: entry.tags,
-            }));
+        const oldConfig = this.config;
+        const newConfig = await loadAgentConfig(this.configPath);
+        const validated = AgentConfigSchema.parse(newConfig);
+
+        // Detect what changed
+        const restartRequired = this.detectRestartRequiredChanges(oldConfig, validated);
+
+        // Update the config reference (but services won't pick up changes until restart)
+        this.config = validated;
+
+        if (restartRequired.length > 0) {
+            logger.warn(
+                `Configuration updated. Restart required to apply: ${restartRequired.join(', ')}`
+            );
+        } else {
+            logger.info('Agent configuration reloaded successfully (no changes detected)');
+        }
 
         return {
-            installed,
-            available,
-            current: { name: null }, // TODO: Track current agent name
+            restartRequired,
         };
     }
 
     /**
-     * Installs an agent from the registry.
-     * Downloads and sets up the specified agent, making it available for use.
-     *
-     * @param agentName The name of the agent to install from the registry
-     * @returns Promise that resolves when installation is complete
-     *
-     * @throws {AgentError} When agent is not found in registry or installation fails
-     *
-     * @example
-     * ```typescript
-     * await agent.installAgent('productivity');
-     * console.log('Productivity agent installed successfully');
-     * ```
+     * Updates and saves the agent configuration to disk.
+     * This merges the updates with the raw config from disk, validates, and writes to file.
+     * IMPORTANT: This preserves environment variable placeholders (e.g., $OPENAI_API_KEY)
+     * to avoid leaking secrets into the config file.
+     * @param updates Partial configuration updates to apply
+     * @param targetPath Optional path to save to (defaults to current config path)
+     * @returns Object containing list of changes that require restart
+     * @throws Error if validation fails or file cannot be written
      */
-    public async installAgent(agentName: string): Promise<void> {
-        const agentRegistry = getAgentRegistry();
+    public async updateAndSaveConfig(
+        updates: Partial<AgentConfig>,
+        targetPath?: string
+    ): Promise<{
+        restartRequired: string[];
+    }> {
+        const path = targetPath || this.configPath;
 
-        if (!agentRegistry.hasAgent(agentName)) {
-            throw AgentError.apiValidationError(`Agent '${agentName}' not found in registry`);
+        if (!path) {
+            throw AgentError.noConfigPath();
         }
 
-        try {
-            await agentRegistry.installAgent(agentName, true);
-            logger.info(`Successfully installed agent: ${agentName}`);
-        } catch (error) {
-            logger.error(`Failed to install agent ${agentName}:`, error);
-            throw AgentError.apiValidationError(
-                `Installation failed for agent '${agentName}'`,
-                error
-            );
+        logger.info(`Updating and saving agent configuration to: ${path}`);
+
+        // Read raw YAML from disk (without env var expansion)
+        const rawYaml = await fs.readFile(path, 'utf-8');
+
+        // Use YAML Document API to preserve comments/anchors/formatting
+        const doc = parseDocument(rawYaml);
+        const rawConfig = doc.toJSON() as Record<string, unknown>;
+
+        // Shallow merge top-level updates
+        const updatedRawConfig = { ...rawConfig, ...updates };
+
+        // Validate merged config using Result helpers
+        const parsed = AgentConfigSchema.safeParse(updatedRawConfig);
+        if (!parsed.success) {
+            // Convert Zod errors to DextoValidationError using Result helpers
+            const result = fail(zodToIssues(parsed.error, 'error'));
+            throw new DextoValidationError(result.issues);
         }
+
+        // Apply updates to the YAML document (preserves formatting/comments)
+        for (const [key, value] of Object.entries(updates)) {
+            doc.set(key, value);
+        }
+
+        // Serialize the Document back to YAML
+        const yamlContent = String(doc);
+
+        // Atomic write: write to temp file then rename
+        const tmpPath = `${path}.tmp`;
+        await fs.writeFile(tmpPath, yamlContent, 'utf-8');
+        await fs.rename(tmpPath, path);
+
+        // Reload config with env var expansion for runtime use (this applies hot reload)
+        const reloadResult = await this.reloadConfig();
+
+        logger.info(`Agent configuration saved to: ${path}`);
+
+        return reloadResult;
     }
 
     /**
-     * Creates a new agent instance for the specified agent name.
-     * This method resolves the agent (installing if needed), loads its configuration,
-     * and returns a new DextoAgent instance ready to be started.
+     * Detects configuration changes that require a full agent restart.
+     * Returns an array of change descriptions.
      *
-     * This is a factory method that doesn't affect the current agent instance.
-     * The caller is responsible for managing the lifecycle of the returned agent.
-     *
-     * @param agentName The name of the agent to create
-     * @returns Promise resolving to a new DextoAgent instance (not started)
-     *
-     * @throws {AgentError} When agent is not found or creation fails
-     *
-     * @example
-     * ```typescript
-     * const newAgent = await DextoAgent.createAgent('productivity');
-     * await newAgent.start();
-     * ```
+     * @param oldConfig Previous validated configuration
+     * @param newConfig New validated configuration
+     * @returns Array of restart-required change descriptions
+     * @private
      */
-    public static async createAgent(agentName: string): Promise<DextoAgent> {
-        const agentRegistry = getAgentRegistry();
+    private detectRestartRequiredChanges(
+        oldConfig: ValidatedAgentConfig,
+        newConfig: ValidatedAgentConfig
+    ): string[] {
+        const changes: string[] = [];
 
-        try {
-            // Resolve agent (will install if needed)
-            const agentPath = await agentRegistry.resolveAgent(agentName, true, true);
-
-            // Load agent configuration
-            const config = await loadAgentConfig(agentPath);
-
-            // Create new agent (not started)
-            logger.info(`Creating agent: ${agentName}`);
-            const newAgent = new DextoAgent(config, agentPath);
-
-            logger.info(`Successfully created agent: ${agentName}`);
-            return newAgent;
-        } catch (error) {
-            logger.error(
-                `Failed to create agent '${agentName}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-            throw AgentError.apiValidationError(`Failed to create agent '${agentName}'`, error);
+        // Storage backend changes require restart
+        if (JSON.stringify(oldConfig.storage) !== JSON.stringify(newConfig.storage)) {
+            changes.push('Storage backend');
         }
+
+        // Session config changes require restart (maxSessions, sessionTTL are readonly)
+        if (JSON.stringify(oldConfig.sessions) !== JSON.stringify(newConfig.sessions)) {
+            changes.push('Session configuration');
+        }
+
+        // System prompt changes require restart (PromptManager caches contributors)
+        if (JSON.stringify(oldConfig.systemPrompt) !== JSON.stringify(newConfig.systemPrompt)) {
+            changes.push('System prompt');
+        }
+
+        // Tool confirmation changes require restart (ConfirmationProvider caches config)
+        if (
+            JSON.stringify(oldConfig.toolConfirmation) !==
+            JSON.stringify(newConfig.toolConfirmation)
+        ) {
+            changes.push('Tool confirmation');
+        }
+
+        // Internal tools changes require restart (InternalToolsProvider caches config)
+        if (JSON.stringify(oldConfig.internalTools) !== JSON.stringify(newConfig.internalTools)) {
+            changes.push('Internal tools');
+        }
+
+        // MCP server changes require restart
+        if (JSON.stringify(oldConfig.mcpServers) !== JSON.stringify(newConfig.mcpServers)) {
+            changes.push('MCP servers');
+        }
+
+        // LLM configuration changes require restart
+        if (
+            oldConfig.llm.provider !== newConfig.llm.provider ||
+            oldConfig.llm.model !== newConfig.llm.model ||
+            oldConfig.llm.apiKey !== newConfig.llm.apiKey
+        ) {
+            changes.push('LLM configuration');
+        }
+
+        return changes;
     }
+
+    // ============= AGENT MANAGEMENT =============
+    // Note: Agent management methods have been moved to the Dexto orchestrator class.
+    // See: /packages/core/src/Dexto.ts
+    //
+    // For agent lifecycle operations (list, install, uninstall, create), use:
+    // ```typescript
+    // await Dexto.listAgents();                 // Static
+    // await Dexto.installAgent(name);           // Static
+    // await Dexto.installCustomAgent(name, path, metadata); // Static
+    // await Dexto.uninstallAgent(name);         // Static
+    //
+    // const dexto = new Dexto();
+    // await dexto.createAgent(name);            // Instance method
+    // ```
 
     // Future methods could encapsulate more complex agent behaviors:
     // - Multi-step task execution with progress tracking

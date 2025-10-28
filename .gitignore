@@ -3,6 +3,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+dist-electron/
 
 feature-plans/
 technical-plans/
@@ -38,6 +39,9 @@ build/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Serena MCP server data
+.serena/
+
 # Logs
 logs/
 *.log
@@ -63,3 +67,6 @@ test-temp/
 
 # Temporarily ignore module READMEs in core package
 packages/core/src/*/README.md
+
+# temporarily ignore sports analytics agent
+agents/sports-analytics-agent/

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 3
+sidebar_position: 9
 ---
 
 # Deployment Guide
@@ -119,26 +119,31 @@ Once deployed, your Dexto server provides:
 
 ### REST API
 - `POST /api/message` - Send async message
-- `POST /api/message-sync` - Send sync message  
+- `POST /api/message-sync` - Send sync message
 - `POST /api/reset` - Reset conversation
 - `GET /api/mcp/servers` - List MCP servers
 - `GET /health` - Health check
+- And many more for sessions, LLM management, agents, webhooks, etc.
+
+**See the complete [REST API Documentation](/api/rest/conversation)** for all available endpoints.
 
 ### WebSocket
 - Real-time events and streaming responses
-- Connect to `ws://localhost:3001/ws`
+- Connect to `ws://localhost:3001/`
+
+**See the [WebSocket API Documentation](/api/websocket)** for event types and usage.
 
 
 ## Next Steps
 
-- **[Dexto SDK Guide](./dexto-sdk)** - Integrate Dexto into your application's codebase
+- **[Dexto SDK Guide](./dexto-sdk.md)** - Integrate Dexto into your application's codebase
 - **[API Reference](/api)** - Complete API documentation
 
-For more detailed information on configuring agents, refer to the [Dexto Configuration Guide](./configuring-dexto/overview).
+For more detailed information on configuring agents, refer to the [Dexto Configuration Guide](./configuring-dexto/overview.md).
 
 ### Building with the Dexto SDK for TypeScript
 
-For custom builds and advanced integration, you can use the [Dexto SDK Guide](./dexto-sdk) to bundle Dexto into your own applications.
+For custom builds and advanced integration, you can use the [Dexto SDK Guide](./dexto-sdk.md) to bundle Dexto into your own applications.
 
 For a complete technical reference, see the [API Reference](/api).
 

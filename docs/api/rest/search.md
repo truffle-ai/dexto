@@ -4,21 +4,21 @@ sidebar_position: 6
 
 # Search API
 
-### Search Messages
+## Search Messages
 *Searches for messages across all sessions or within a specific session.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/search/messages</code></p>
 
-#### Query Parameters
+### Query Parameters
 - `q` (string, required): Search query string
 - `sessionId` (string, optional): Limit search to a specific session
 - `role` (string, optional): Filter by message role (`user`, `assistant`, `system`, `tool`)
 - `limit` (number, optional): Maximum number of results to return (default: 20)
 - `offset` (number, optional): Number of results to skip for pagination (default: 0)
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "results": [
@@ -43,24 +43,24 @@ sidebar_position: 6
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "error": "Search query is required"
 }
 ```
 
-### Search Sessions
+## Search Sessions
 *Searches for sessions that contain the specified query.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/search/sessions</code></p>
 
-#### Query Parameters
+### Query Parameters
 - `q` (string, required): Search query string
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "results": [
@@ -90,7 +90,7 @@ sidebar_position: 6
 }
 ```
 
-**Error (400)**
+#### Error (400)
 ```json
 {
   "error": "Search query is required"

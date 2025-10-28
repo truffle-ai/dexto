@@ -1,18 +1,20 @@
 import { randomUUID } from 'crypto';
 import { ChatSession } from './chat-session.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { AgentEventBus } from '../events/index.js';
 import { logger } from '../logger/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
-import type { StorageBackends } from '../storage/index.js';
+import type { StorageManager } from '../storage/index.js';
+import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
+    title?: string;
     // Additional metadata for session management
 }
 
@@ -39,6 +41,12 @@ export interface SessionData {
  * - Cleaning up expired sessions
  * - Providing session lifecycle management
  * - Persisting session data using the simplified storage backends
+ *
+ * TODO (Telemetry): Add OpenTelemetry metrics collection later if needed
+ *   - Active session gauges (current count)
+ *   - Session creation/deletion counters
+ *   - Session duration histograms
+ *   - Messages per session histograms
  */
 export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
@@ -53,10 +61,13 @@ export class SessionManager {
     constructor(
         private services: {
             stateManager: AgentStateManager;
-            promptManager: PromptManager;
+            systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
-            storage: StorageBackends;
+            storageManager: StorageManager;
+            resourceManager: import('../resources/index.js').ResourceManager;
+            pluginManager: PluginManager;
+            mcpManager: import('../mcp/manager.js').MCPManager;
         },
         config: SessionManagerConfig = {}
     ) {
@@ -100,13 +111,14 @@ export class SessionManager {
     private async restoreSessionsFromStorage(): Promise<void> {
         try {
             // Use the database backend to list sessions with the 'session:' prefix
-            const sessionKeys = await this.services.storage.database.list('session:');
+            const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
             logger.debug(`Found ${sessionKeys.length} persisted sessions to restore`);
 
             for (const sessionKey of sessionKeys) {
                 const sessionId = sessionKey.replace('session:', '');
-                const sessionData =
-                    await this.services.storage.database.get<SessionData>(sessionKey);
+                const sessionData = await this.services.storageManager
+                    .getDatabase()
+                    .get<SessionData>(sessionKey);
 
                 if (sessionData) {
                     // Check if session is still valid (not expired)
@@ -118,7 +130,7 @@ export class SessionManager {
                         logger.debug(`Session ${sessionId} restored from storage`);
                     } else {
                         // Session expired, clean it up
-                        await this.services.storage.database.delete(sessionKey);
+                        await this.services.storageManager.getDatabase().delete(sessionKey);
                         logger.debug(`Expired session ${sessionId} cleaned up during restore`);
                     }
                 }
@@ -189,11 +201,13 @@ export class SessionManager {
 
         // Check if session exists in storage (could have been created by another process)
         const sessionKey = `session:${id}`;
-        const existingMetadata = await this.services.storage.database.get<SessionData>(sessionKey);
+        const existingMetadata = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
-            const session = new ChatSession(this.services, id);
+            const session = new ChatSession({ ...this.services, sessionManager: this }, id);
             await session.init();
             this.sessions.set(id, session);
             logger.info(`Restored session from storage: ${id}`, null, 'cyan');
@@ -202,7 +216,7 @@ export class SessionManager {
 
         // Perform atomic session limit check and creation
         // This ensures the limit check and session creation happen as close to atomically as possible
-        const activeSessionKeys = await this.services.storage.database.list('session:');
+        const activeSessionKeys = await this.services.storageManager.getDatabase().list('session:');
         if (activeSessionKeys.length >= this.maxSessions) {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
@@ -217,7 +231,7 @@ export class SessionManager {
 
         // Store session metadata in persistent storage immediately to claim the session
         try {
-            await this.services.storage.database.set(sessionKey, sessionData);
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
         } catch (error) {
             // If storage fails, another concurrent creation might have succeeded
             logger.error(`Failed to store session metadata for ${id}:`, error);
@@ -228,12 +242,14 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession(this.services, id);
+            session = new ChatSession({ ...this.services, sessionManager: this }, id);
             await session.init();
             this.sessions.set(id, session);
 
             // Also store in cache with TTL for faster access
-            await this.services.storage.cache.set(sessionKey, sessionData, this.sessionTTL / 1000);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
             logger.info(`Created new session: ${id}`, null, 'green');
             return session;
@@ -242,8 +258,8 @@ export class SessionManager {
             logger.error(
                 `Failed to initialize session ${id}: ${error instanceof Error ? error.message : String(error)}`
             );
-            await this.services.storage.database.delete(sessionKey);
-            await this.services.storage.cache.delete(sessionKey);
+            await this.services.storageManager.getDatabase().delete(sessionKey);
+            await this.services.storageManager.getCache().delete(sessionKey);
             const reason = error instanceof Error ? error.message : 'unknown error';
             throw SessionError.initializationFailed(id, reason);
         }
@@ -286,10 +302,15 @@ export class SessionManager {
         // Conditionally check storage if restoreFromStorage is true
         if (restoreFromStorage) {
             const sessionKey = `session:${sessionId}`;
-            const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
             if (sessionData) {
                 // Restore session to memory
-                const session = new ChatSession(this.services, sessionId);
+                const session = new ChatSession(
+                    { ...this.services, sessionManager: this },
+                    sessionId
+                );
                 await session.init();
                 this.sessions.set(sessionId, session);
                 return session;
@@ -317,7 +338,7 @@ export class SessionManager {
 
         // Remove from cache but preserve database storage
         const sessionKey = `session:${sessionId}`;
-        await this.services.storage.cache.delete(sessionKey);
+        await this.services.storageManager.getCache().delete(sessionKey);
 
         logger.debug(`Ended session (removed from memory, chat history preserved): ${sessionId}`);
     }
@@ -341,8 +362,8 @@ export class SessionManager {
 
         // Remove session metadata from storage
         const sessionKey = `session:${sessionId}`;
-        await this.services.storage.database.delete(sessionKey);
-        await this.services.storage.cache.delete(sessionKey);
+        await this.services.storageManager.getDatabase().delete(sessionKey);
+        await this.services.storageManager.getCache().delete(sessionKey);
 
         logger.debug(`Deleted session and conversation history: ${sessionId}`);
     }
@@ -365,13 +386,17 @@ export class SessionManager {
 
         // Reset message count in metadata
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
         if (sessionData) {
             sessionData.messageCount = 0;
             sessionData.lastActivity = Date.now();
-            await this.services.storage.database.set(sessionKey, sessionData);
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
             // Update cache as well
-            await this.services.storage.cache.set(sessionKey, sessionData, this.sessionTTL / 1000);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
 
         logger.debug(`Reset session conversation: ${sessionId}`);
@@ -384,7 +409,7 @@ export class SessionManager {
      */
     public async listSessions(): Promise<string[]> {
         await this.ensureInitialized();
-        const sessionKeys = await this.services.storage.database.list('session:');
+        const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
         return sessionKeys.map((key) => key.replace('session:', ''));
     }
 
@@ -397,12 +422,15 @@ export class SessionManager {
     public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
         await this.ensureInitialized();
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
         return sessionData
             ? {
                   createdAt: sessionData.createdAt,
                   lastActivity: sessionData.lastActivity,
                   messageCount: sessionData.messageCount,
+                  title: sessionData.metadata?.title,
               }
             : undefined;
     }
@@ -422,13 +450,17 @@ export class SessionManager {
      */
     private async updateSessionActivity(sessionId: string): Promise<void> {
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
 
         if (sessionData) {
             sessionData.lastActivity = Date.now();
-            await this.services.storage.database.set(sessionKey, sessionData);
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
             // Update cache as well
-            await this.services.storage.cache.set(sessionKey, sessionData, this.sessionTTL / 1000);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
     }
 
@@ -439,15 +471,66 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
 
         if (sessionData) {
             sessionData.messageCount++;
             sessionData.lastActivity = Date.now();
-            await this.services.storage.database.set(sessionKey, sessionData);
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
             // Update cache as well
-            await this.services.storage.cache.set(sessionKey, sessionData, this.sessionTTL / 1000);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
+    }
+
+    /**
+     * Sets the human-friendly title for a session.
+     * Title is stored in session metadata and cached with TTL.
+     */
+    public async setSessionTitle(
+        sessionId: string,
+        title: string,
+        opts: { ifUnsetOnly?: boolean } = {}
+    ): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const normalized = title.trim().slice(0, 80);
+        if (opts.ifUnsetOnly && sessionData.metadata?.title) {
+            return;
+        }
+
+        sessionData.metadata = sessionData.metadata || {};
+        sessionData.metadata.title = normalized;
+        sessionData.lastActivity = Date.now();
+
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+    }
+
+    /**
+     * Gets the stored title for a session, if any.
+     */
+    public async getSessionTitle(sessionId: string): Promise<string | undefined> {
+        await this.ensureInitialized();
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+        return sessionData?.metadata?.title;
     }
 
     /**
@@ -461,7 +544,9 @@ export class SessionManager {
         // Check in-memory sessions for expiry
         for (const [sessionId, _session] of this.sessions.entries()) {
             const sessionKey = `session:${sessionId}`;
-            const sessionData = await this.services.storage.database.get<SessionData>(sessionKey);
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
 
             if (sessionData && now - sessionData.lastActivity > this.sessionTTL) {
                 expiredSessions.push(sessionId);

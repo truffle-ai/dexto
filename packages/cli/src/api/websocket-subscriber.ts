@@ -95,15 +95,19 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:toolResult',
             (payload) => {
+                const data: Record<string, unknown> = {
+                    toolName: payload.toolName,
+                    callId: payload.callId,
+                    success: payload.success,
+                    sanitized: payload.sanitized,
+                    sessionId: payload.sessionId,
+                };
+                if (payload.rawResult !== undefined) {
+                    data.rawResult = payload.rawResult;
+                }
                 this.broadcast({
                     event: 'toolResult',
-                    data: {
-                        toolName: payload.toolName,
-                        result: payload.result,
-                        callId: payload.callId,
-                        success: payload.success,
-                        sessionId: payload.sessionId,
-                    },
+                    data,
                 });
             },
             { signal }
@@ -189,13 +193,85 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             { signal }
         );
 
-        // Forward pre-execution tool confirmation events
+        // Forward approval request events (including tool confirmations)
         eventBus.on(
-            'dexto:toolConfirmationRequest',
+            'dexto:approvalRequest',
             (payload) => {
                 this.broadcast({
-                    event: 'toolConfirmationRequest',
+                    event: 'approvalRequest',
                     data: payload,
+                });
+            },
+            { signal }
+        );
+
+        // Forward MCP notification events
+        eventBus.on(
+            'dexto:mcpResourceUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpResourceUpdated',
+                    data: {
+                        serverName: payload.serverName,
+                        resourceUri: payload.resourceUri,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpPromptsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpPromptsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        prompts: payload.prompts,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpToolsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpToolsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        tools: payload.tools,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:resourceCacheInvalidated',
+            (payload) => {
+                this.broadcast({
+                    event: 'resourceCacheInvalidated',
+                    data: {
+                        resourceUri: payload.resourceUri,
+                        serverName: payload.serverName,
+                        action: payload.action,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:sessionTitleUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'sessionTitleUpdated',
+                    data: {
+                        sessionId: payload.sessionId,
+                        title: payload.title,
+                    },
                 });
             },
             { signal }

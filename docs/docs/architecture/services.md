@@ -1,5 +1,7 @@
 # Core Services
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 Dexto's architecture is built around core services that handle different aspects of agent functionality. Understanding these services helps with debugging, customization, and troubleshooting.
 
 ## Service Overview
@@ -11,38 +13,40 @@ Dexto's architecture is built around core services that handle different aspects
 | **ToolManager** | Tool execution | Executes tools, handles confirmations, manages internal tools |
 | **SessionManager** | Conversation state | Manages chat sessions, conversation history |
 | **StorageManager** | Data persistence | Handles cache and database storage |
-| **PromptManager** | System prompts | Manages system prompt assembly and dynamic content |
+| **SystemPromptManager** | System prompts | Manages system prompt assembly and dynamic content |
 | **AgentEventBus** | Event coordination | Handles inter-service communication |
 
 ## Service Relationships
 
+<ExpandableMermaid title="Service Relationships Diagram">
 ```mermaid
 graph TB
     DA[DextoAgent] --> SM[SessionManager]
     DA --> MM[MCPManager]
     DA --> TM[ToolManager]
-    DA --> PM[PromptManager]
+    DA --> SPM[SystemPromptManager]
     DA --> STM[StorageManager]
     DA --> AEB[AgentEventBus]
-    
+
     MM --> TM
     TM --> STM
     SM --> STM
-    PM --> STM
-    
+    SPM --> STM
+
     AEB -.-> SM
     AEB -.-> MM
     AEB -.-> TM
-    
+
     subgraph "Storage Layer"
         STM
         Cache[(Cache)]
         DB[(Database)]
     end
-    
+
     STM --> Cache
     STM --> DB
 ```
+</ExpandableMermaid>
 
 ## DextoAgent
 
@@ -64,7 +68,7 @@ await agent.start();
 const response = await agent.run("List files in current directory");
 
 // Switch models
-await agent.switchLLM({ model: "claude-4-sonnet-20250514" });
+await agent.switchLLM({ model: "claude-sonnet-4-5-20250929" });
 
 await agent.stop();
 ```
@@ -175,7 +179,7 @@ storage:
     connectionString: $POSTGRES_CONNECTION_STRING
 ```
 
-## PromptManager
+## SystemPromptManager
 
 **System prompt** assembly from multiple contributors.
 
@@ -298,4 +302,4 @@ toolConfirmation:
   timeout: 30000
 ```
 
-See [Configuration Guide](../guides/configuring-dexto/overview) for complete config options.
+See [Configuration Guide](../guides/configuring-dexto/overview.md) for complete config options.

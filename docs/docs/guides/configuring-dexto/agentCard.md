@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 12
 sidebar_label: "Agent Card (A2A)"
 ---
 
@@ -7,11 +7,21 @@ sidebar_label: "Agent Card (A2A)"
 
 Configure your agent's public metadata for Agent-to-Agent (A2A) communication and service discovery.
 
+:::tip Complete Reference
+For complete field documentation and A2A specifications, see **[agent.yml → Agent Card](./agent-yml.md#agent-identity--a2a)**.
+:::
+
 ## Overview
 
-The agent card provides standardized metadata about your agent's capabilities, allowing other agents and services to discover and interact with your agent programmatically.
+The agent card provides standardized metadata about your agent's capabilities, enabling other agents and services to discover and interact with your agent programmatically through the Agent-to-Agent (A2A) protocol.
 
-Learn more about Agent-to-Agent communication: [A2A: A new era of agent interoperability](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
+**Key benefits:**
+- Service discovery by other agents
+- Protocol negotiation (input/output formats)
+- Capability matching for task delegation
+- Standardized authentication setup
+
+Learn more: [A2A: A new era of agent interoperability](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 
 ## Configuration
 
@@ -44,88 +54,25 @@ agentCard:
 
 ## Required Fields
 
-### `name`
-- **Type:** String
-- **Description:** Display name for your agent
-
-### `url`
-- **Type:** String (URL)
-- **Description:** Public endpoint where your agent can be accessed
-
-### `version`
-- **Type:** String
-- **Description:** Version identifier for your agent
+- **name** - Display name for your agent
+- **url** - Public endpoint where your agent can be accessed
+- **version** - Version identifier (semantic versioning recommended)
 
 ## Optional Fields
 
-### `description`
-- **Type:** String
-- **Default:** "Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols."
-- **Description:** Brief description of your agent's capabilities
-
-### `documentationUrl`
-- **Type:** String (URL)
-- **Description:** Link to your agent's documentation
-
-### `provider`
-- **Type:** Object
-- **Description:** Information about the organization providing this agent
-
-```yaml
-provider:
-  organization: "Your Organization Name"
-  url: "https://yourorganization.com"
-```
-
-### `capabilities`
-- **Type:** Object
-- **Description:** Technical capabilities your agent supports
-
-```yaml
-capabilities:
-  streaming: true                    # Supports real-time streaming responses
-  pushNotifications: false           # Can send push notifications
-  stateTransitionHistory: false      # Maintains state transition history
-```
-
-### `authentication`
-- **Type:** Object
-- **Description:** Supported authentication methods
-
-```yaml
-authentication:
-  schemes: ["bearer", "apiKey"]      # Supported auth schemes
-  credentials: "optional"            # Credential requirements
-```
-
-### `defaultInputModes`
-- **Type:** Array of strings
-- **Default:** `["application/json", "text/plain"]`
-- **Description:** Content types your agent accepts
-
-### `defaultOutputModes`
-- **Type:** Array of strings  
-- **Default:** `["application/json", "text/event-stream", "text/plain"]`
-- **Description:** Content types your agent can produce
-
-### `skills`
-- **Type:** Array of skill objects
-- **Description:** Specific capabilities your agent provides
-
-```yaml
-skills:
-  - id: "unique_skill_id"
-    name: "Human-readable skill name"
-    description: "What this skill does"
-    tags: ["category", "keywords"]
-    examples: ["Example usage 1", "Example usage 2"]
-    inputModes: ["text/plain"]        # Optional, defaults to ["text/plain"]
-    outputModes: ["application/json"] # Optional, defaults to ["text/plain"]
-```
+- **description** - Brief capability description
+- **documentationUrl** - Link to documentation
+- **provider** - Organization information (organization, url)
+- **capabilities** - Technical capabilities (streaming, pushNotifications, stateTransitionHistory)
+- **authentication** - Supported auth methods (schemes, credentials)
+- **defaultInputModes** - Accepted content types
+- **defaultOutputModes** - Produced content types
+- **skills** - Specific agent capabilities with examples
 
 ## Examples
 
 ### Basic Agent Card
+
 ```yaml
 agentCard:
   name: "Support Bot"
@@ -135,6 +82,7 @@ agentCard:
 ```
 
 ### Full-Featured Agent Card
+
 ```yaml
 agentCard:
   name: "Analytics Assistant"
@@ -152,7 +100,7 @@ agentCard:
   authentication:
     schemes: ["bearer", "oauth2"]
     credentials: "required"
-  defaultInputModes: ["application/json", "text/csv", "application/xml"]
+  defaultInputModes: ["application/json", "text/csv"]
   defaultOutputModes: ["application/json", "image/png", "text/html"]
   skills:
     - id: "csv_analysis"
@@ -160,27 +108,41 @@ agentCard:
       description: "Parse and analyze CSV data files"
       tags: ["data", "csv", "analysis"]
       examples: ["Analyze sales data CSV", "Generate summary statistics"]
-      inputModes: ["text/csv", "text/plain"]
-      outputModes: ["application/json", "text/html"]
     - id: "chart_generation"
       name: "Chart Generation"
       description: "Create visualizations from data"
-      tags: ["visualization", "charts", "graphs"]
+      tags: ["visualization", "charts"]
       examples: ["Create bar chart", "Generate trend analysis"]
-      inputModes: ["application/json"]
-      outputModes: ["image/png", "image/svg+xml"]
 ```
 
-## Agent-to-Agent Communication
+## Skill Configuration
+
+Skills describe specific capabilities:
+
+```yaml
+skills:
+  - id: "unique_skill_id"
+    name: "Human-readable name"
+    description: "What this skill does"
+    tags: ["category", "keywords"]
+    examples: ["Example 1", "Example 2"]
+    inputModes: ["text/plain"]        # Optional
+    outputModes: ["application/json"] # Optional
+```
+
+## A2A Communication
 
 The agent card enables:
-
-- **Service Discovery:** Other agents can find and understand your agent's capabilities
-- **Protocol Negotiation:** Automatic selection of compatible input/output formats
-- **Capability Matching:** Agents can determine if your agent can help with specific tasks
-- **Authentication:** Proper setup of secure agent-to-agent communication
+- **Service Discovery** - Other agents find your capabilities
+- **Protocol Negotiation** - Compatible format selection
+- **Capability Matching** - Task delegation decisions
+- **Authentication** - Secure agent-to-agent setup
 
 ## Default Behavior
 
-If no agent card is specified, Dexto will generate basic metadata based on your configuration. For A2A communication, it's recommended to configure your agent card explicitly.
+If no agent card is specified, Dexto generates basic metadata from your configuration. For A2A communication, explicit configuration is recommended.
 
+## See Also
+
+- [agent.yml Reference → Agent Card](./agent-yml.md#agent-identity--a2a) - Complete field documentation
+- [A2A Documentation](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/) - Official A2A specification

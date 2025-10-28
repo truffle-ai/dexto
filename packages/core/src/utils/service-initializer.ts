@@ -23,17 +23,23 @@
 
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import { createToolConfirmationProvider } from '../tools/confirmation/factory.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
-import { createStorageBackends, type StorageBackends, StorageManager } from '../storage/index.js';
+import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import { logger } from '../logger/index.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
+import { ResourceManager } from '../resources/manager.js';
+import { ApprovalManager } from '../approval/manager.js';
+import { MemoryManager } from '../memory/index.js';
+import { PluginManager } from '../plugins/manager.js';
+import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
+import { FileSystemService } from '../filesystem/index.js';
+import { ProcessService } from '../process/index.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -41,13 +47,16 @@ import { AgentEventBus } from '../events/index.js';
 export type AgentServices = {
     mcpManager: MCPManager;
     toolManager: ToolManager;
-    promptManager: PromptManager;
+    systemPromptManager: SystemPromptManager;
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
     searchService: SearchService;
-    storage: StorageBackends;
-    storageManager?: StorageManager;
+    storageManager: StorageManager;
+    resourceManager: ResourceManager;
+    approvalManager: ApprovalManager;
+    memoryManager: MemoryManager;
+    pluginManager: PluginManager;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -61,56 +70,110 @@ export async function createAgentServices(
     config: ValidatedAgentConfig,
     configPath?: string
 ): Promise<AgentServices> {
+    // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
+    // This must happen before creating any services that use @InstrumentClass decorator
+    if (config.telemetry?.enabled) {
+        const { Telemetry } = await import('../telemetry/telemetry.js');
+        await Telemetry.init(config.telemetry);
+        logger.debug('Telemetry initialized');
+    }
+
     // 1. Initialize shared event bus
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Initialize storage backends (instance-specific, not singleton)
-    logger.debug('Initializing storage backends');
-    const storageResult = await createStorageBackends(config.storage);
-    const storage = storageResult.backends;
-    const storageManager = storageResult.manager;
+    // 2. Initialize storage manager
+    logger.debug('Initializing storage manager');
+    const storageManager = await createStorageManager(config.storage);
 
-    logger.debug('Storage backends initialized', {
+    logger.debug('Storage manager initialized', {
         cache: config.storage.cache.type,
         database: config.storage.database.type,
     });
 
-    // 3. Initialize client manager with configurable tool confirmation
-    // Create allowed tools provider based on configuration
-    const allowedToolsProvider = createAllowedToolsProvider({
-        type: config.toolConfirmation.allowedToolsStorage,
-        storage,
+    // 3. Initialize approval system (generalized user approval)
+    // Created before MCP manager since MCP manager depends on it for elicitation support
+    logger.debug('Initializing approval manager');
+    const approvalManager = new ApprovalManager(agentEventBus, {
+        mode: config.toolConfirmation.mode,
+        timeout: config.toolConfirmation.timeout,
     });
+    logger.debug('Approval system initialized');
 
-    // Create tool confirmation provider with configured mode and timeout
-    const confirmationProvider = createToolConfirmationProvider(
-        config.toolConfirmation.mode === 'event-based'
-            ? {
-                  mode: config.toolConfirmation.mode,
-                  allowedToolsProvider,
-                  agentEventBus,
-                  confirmationTimeout: config.toolConfirmation.timeout,
-              }
-            : {
-                  mode: config.toolConfirmation.mode,
-                  allowedToolsProvider,
-              }
-    );
-
+    // 4. Initialize MCP manager
     const mcpManager = new MCPManager();
     await mcpManager.initializeFromConfig(config.mcpServers);
 
-    // 4. Initialize search service
-    const searchService = new SearchService(storage.database);
+    // 4.1 - Wire approval manager into MCP manager for elicitation support
+    mcpManager.setApprovalManager(approvalManager);
+    logger.debug('Approval manager connected to MCP manager for elicitation support');
 
-    // 5. Initialize unified tool manager with internal tools options
-    const toolManager = new ToolManager(mcpManager, confirmationProvider, {
-        internalToolsServices: { searchService },
-        internalToolsConfig: config.internalTools,
+    // 5. Initialize search service
+    const searchService = new SearchService(storageManager.getDatabase());
+
+    // 6. Initialize memory manager
+    const memoryManager = new MemoryManager(storageManager.getDatabase());
+    logger.debug('Memory manager initialized');
+
+    // 6.5 Initialize plugin manager
+    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
+    const pluginManager = new PluginManager({
+        agentEventBus,
+        storageManager,
+        configDir,
     });
 
-    // Initialize the tool manager
+    // Register built-in plugins from registry
+    registerBuiltInPlugins({ pluginManager, config });
+    logger.debug('Built-in plugins registered');
+
+    // Initialize plugin manager (loads custom plugins, validates, calls initialize())
+    await pluginManager.initialize(config.plugins.custom);
+    logger.info('Plugin manager initialized');
+
+    // TODO: Consider lazy initialization of ProcessService and FileSystemService
+    // - Only initialize if they will be used by some tools
+    // 7. Initialize FileSystemService and ProcessService for internal tools
+    const fileSystemService = new FileSystemService({
+        allowedPaths: ['.'],
+        blockedPaths: ['.git', 'node_modules/.bin', '.env'],
+        blockedExtensions: ['.exe', '.dll', '.so'],
+        workingDirectory: process.cwd(),
+    });
+    await fileSystemService.initialize();
+    logger.debug('FileSystemService initialized');
+
+    const processService = new ProcessService({
+        securityLevel: 'moderate',
+        workingDirectory: process.cwd(),
+    });
+    await processService.initialize();
+    logger.debug('ProcessService initialized');
+
+    // 8. Initialize tool manager with internal tools options
+    // 8.1 - Create allowed tools provider based on configuration
+    const allowedToolsProvider = createAllowedToolsProvider({
+        type: config.toolConfirmation.allowedToolsStorage,
+        storageManager,
+    });
+
+    // 8.2 - Initialize tool manager with direct ApprovalManager integration
+    const toolManager = new ToolManager(
+        mcpManager,
+        approvalManager,
+        allowedToolsProvider,
+        config.toolConfirmation.mode,
+        agentEventBus,
+        config.toolConfirmation.toolPolicies,
+        {
+            internalToolsServices: {
+                searchService,
+                fileSystemService,
+                processService,
+            },
+            internalToolsConfig: config.internalTools,
+        }
+    );
     await toolManager.initialize();
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
@@ -126,25 +189,38 @@ export async function createAgentServices(
         logger.info(`Internal tools enabled: ${config.internalTools.join(', ')}`);
     }
 
-    // 6. Initialize prompt manager
-    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
+    // 9. Initialize prompt manager
     logger.debug(
-        `[ServiceInitializer] Creating PromptManager with configPath: ${configPath} → configDir: ${configDir}`
+        `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
     );
-    const promptManager = new PromptManager(config.systemPrompt, configDir);
+    const systemPromptManager = new SystemPromptManager(
+        config.systemPrompt,
+        configDir,
+        memoryManager
+    );
 
-    // 7. Initialize state manager for runtime state tracking
+    // 10. Initialize state manager for runtime state tracking
     const stateManager = new AgentStateManager(config, agentEventBus);
     logger.debug('Agent state manager initialized');
 
-    // 8. Initialize session manager
+    // 11. Initialize resource manager (MCP + internal resources)
+    const resourceManager = new ResourceManager(mcpManager, {
+        internalResourcesConfig: config.internalResources,
+        blobStore: storageManager.getBlobStore(),
+    });
+    await resourceManager.initialize();
+
+    // 12. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,
-            promptManager,
+            systemPromptManager,
             toolManager,
             agentEventBus,
-            storage, // Add storage backends to session services
+            storageManager, // Add storage manager to session services
+            resourceManager, // Add resource manager for blob storage
+            pluginManager, // Add plugin manager for plugin execution
+            mcpManager, // Add MCP manager for ChatSession
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -157,16 +233,23 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 9. Return the core services
+    // 12.5 Wire up plugin support to ToolManager (after SessionManager is created)
+    toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
+    logger.debug('Plugin support connected to ToolManager');
+
+    // 13. Return the core services
     return {
         mcpManager,
         toolManager,
-        promptManager,
+        systemPromptManager,
         agentEventBus,
         stateManager,
         sessionManager,
         searchService,
-        storage,
         storageManager,
+        resourceManager,
+        approvalManager,
+        memoryManager,
+        pluginManager,
     };
 }

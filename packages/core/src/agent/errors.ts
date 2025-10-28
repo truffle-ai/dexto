@@ -51,6 +51,20 @@ export class AgentError {
     }
 
     /**
+     * Agent switch in progress
+     */
+    static switchInProgress() {
+        return new DextoRuntimeError(
+            AgentErrorCode.SWITCH_IN_PROGRESS,
+            ErrorScope.AGENT,
+            ErrorType.CONFLICT,
+            'Agent switch already in progress',
+            undefined,
+            'Wait for the current switch operation to complete before starting a new one'
+        );
+    }
+
+    /**
      * Agent initialization failed
      */
     static initializationFailed(reason: string, details?: unknown) {
@@ -61,6 +75,20 @@ export class AgentError {
             `Agent initialization failed: ${reason}`,
             details,
             'Check logs for initialization errors'
+        );
+    }
+
+    /**
+     * No config path available
+     */
+    static noConfigPath() {
+        return new DextoRuntimeError(
+            AgentErrorCode.NO_CONFIG_PATH,
+            ErrorScope.AGENT,
+            ErrorType.SYSTEM,
+            'No configuration file path is available',
+            undefined,
+            'Agent was created without a config file path, cannot perform file operations'
         );
     }
 

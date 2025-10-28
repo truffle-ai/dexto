@@ -2,11 +2,13 @@
 
 ## Code Quality Requirements
 
-**Pre-commit Validation** - Before completing any task, ALWAYS run and ensure ALL commands pass:
-1. `pnpm run build` - Verify compilation
-2. `pnpm test` - Ensure all tests pass  
-3. `pnpm run lint` - Check code style
-4. `pnpm run typecheck` - Validate TypeScript types
+**Pre-commit Validation** - Before completing significant tasks, prompt the user to ask if they want to run quality checks:
+
+```bash
+/quality-checks
+```
+
+This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. Individual checks can be run separately. See `.claude/commands/quality-checks.md` for details.
 
 ## General rules
 - Do NOT focus on pleasing the user. Focus on being CORRECT, use facts and code as your source of truth. Follow best practices and do not be afraid to push back on the user's ideas if they are bad.
@@ -152,7 +154,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ## Code Standards
 
 ### Import Requirements
-- **All imports must end with `.js`** for ES module compatibility
+- **All imports must end with `.js`** in core repository only for ES module compatibility
 
 ### Module Organization
 - **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
@@ -175,6 +177,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
   - yellow: Warnings
   - cyan/cyanBright: Status updates
   - blue: Information, progress
+- **Browser compatibility**: See `packages/core/src/logger/logger.ts` for architecture notes on logger browser safety and future improvements
 
 ### TypeScript Best Practices
 - **Strict null safety** - Handle null/undefined cases explicitly

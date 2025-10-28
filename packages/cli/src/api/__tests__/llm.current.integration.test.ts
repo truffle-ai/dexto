@@ -20,9 +20,13 @@ describe('GET /api/llm/current', () => {
             isStopped: () => false,
             start: async () => {},
             // Agent management methods required by server
-            listAgents: async () => ({ installed: [], available: [], current: { name: null } }),
+            listAgents: async () => ({
+                installed: [],
+                available: [],
+                current: { id: null, name: null },
+            }),
             installAgent: async () => {},
-            getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
+            getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-5', router: 'vercel' }),
             getEffectiveConfig: (sessionId?: string) => ({
                 llm:
                     sessionId === 'abc'
@@ -31,7 +35,7 @@ describe('GET /api/llm/current', () => {
                               model: 'claude-4-sonnet-20250514',
                               router: 'in-built',
                           }
-                        : { provider: 'openai', model: 'gpt-4o', router: 'vercel' },
+                        : { provider: 'openai', model: 'gpt-5', router: 'vercel' },
             }),
             // Stubs for endpoints the server wires (not used by these tests)
             run: async () => ({}),
@@ -45,9 +49,11 @@ describe('GET /api/llm/current', () => {
             }),
             getSessionHistory: async () => [],
             getCurrentSessionId: () => null,
-            switchLLM: async () => ({ provider: 'openai', model: 'gpt-4o', router: 'vercel' }),
+            switchLLM: async () => ({ provider: 'openai', model: 'gpt-5', router: 'vercel' }),
             searchMessages: async () => ({ results: [] }),
             searchSessions: async () => ({ results: [] }),
+            registerSubscriber: () => {},
+            restart: async () => {},
         } as unknown as DextoAgent;
         return mockAgent;
     }
@@ -66,7 +72,7 @@ describe('GET /api/llm/current', () => {
         const res = await request(app).get('/api/llm/current').expect(200);
         const config = res.body.config as { provider: string; model: string; displayName?: string };
         expect(config.provider).toBe('openai');
-        expect(config.model).toBe('gpt-4o');
+        expect(config.model).toBe('gpt-5');
         expect(typeof config.displayName === 'string').toBe(true);
     });
 

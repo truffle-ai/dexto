@@ -231,7 +231,7 @@ async function main() {
         { expectEvents: ['thinking', 'response'], minEvents: 2 }
     ))) failures++;
 
-    // Test with file data (commented out - gpt-4.1-mini doesn't support text files)
+    // Test with file data (commented out - gpt-5-mini doesn't support text files)
     // if (!(await runWebSocketTest(
     //     'Message with file data',
     //     {

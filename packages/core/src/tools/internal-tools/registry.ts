@@ -1,6 +1,19 @@
 import { InternalTool } from '../types.js';
 import { SearchService } from '../../search/index.js';
+import { ApprovalManager } from '../../approval/manager.js';
+import { FileSystemService } from '../../filesystem/index.js';
+import { ProcessService } from '../../process/index.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
+import { createAskUserTool } from './implementations/ask-user-tool.js';
+import { createReadFileTool } from './implementations/read-file-tool.js';
+import { createGlobFilesTool } from './implementations/glob-files-tool.js';
+import { createGrepContentTool } from './implementations/grep-content-tool.js';
+import { createWriteFileTool } from './implementations/write-file-tool.js';
+import { createEditFileTool } from './implementations/edit-file-tool.js';
+import { createBashExecTool } from './implementations/bash-exec-tool.js';
+import { createBashOutputTool } from './implementations/bash-output-tool.js';
+import { createKillProcessTool } from './implementations/kill-process-tool.js';
+import type { KnownInternalTool } from './constants.js';
 
 /**
  * Services available to internal tools
@@ -8,6 +21,9 @@ import { createSearchHistoryTool } from './implementations/search-history-tool.j
  */
 export interface InternalToolsServices {
     searchService?: SearchService;
+    approvalManager?: ApprovalManager;
+    fileSystemService?: FileSystemService;
+    processService?: ProcessService;
     // Future services can be added here:
     // sessionManager?: SessionManager;
     // storageManager?: StorageManager;
@@ -18,17 +34,6 @@ export interface InternalToolsServices {
  * Internal tool factory function type
  */
 type InternalToolFactory = (services: InternalToolsServices) => InternalTool;
-
-/**
- * Internal tool names - Manual array preserves literal types for z.enum()
- * Add new tool names here first, then implement in registry below
- */
-export const INTERNAL_TOOL_NAMES = ['search_history'] as const;
-
-/**
- * Derive type from names array - preserves literal union
- */
-export type KnownInternalTool = (typeof INTERNAL_TOOL_NAMES)[number];
 
 /**
  * Internal tool registry - Must match names array exactly (TypeScript enforces this)
@@ -45,7 +50,50 @@ export const INTERNAL_TOOL_REGISTRY: Record<
             createSearchHistoryTool(services.searchService!),
         requiredServices: ['searchService'] as const,
     },
-    // Add new tools here - must match INTERNAL_TOOL_NAMES array above
+    ask_user: {
+        factory: (services: InternalToolsServices) => createAskUserTool(services.approvalManager!),
+        requiredServices: ['approvalManager'] as const,
+    },
+    read_file: {
+        factory: (services: InternalToolsServices) =>
+            createReadFileTool(services.fileSystemService!),
+        requiredServices: ['fileSystemService'] as const,
+    },
+    glob_files: {
+        factory: (services: InternalToolsServices) =>
+            createGlobFilesTool(services.fileSystemService!),
+        requiredServices: ['fileSystemService'] as const,
+    },
+    grep_content: {
+        factory: (services: InternalToolsServices) =>
+            createGrepContentTool(services.fileSystemService!),
+        requiredServices: ['fileSystemService'] as const,
+    },
+    write_file: {
+        factory: (services: InternalToolsServices) =>
+            createWriteFileTool(services.fileSystemService!),
+        requiredServices: ['fileSystemService'] as const,
+    },
+    edit_file: {
+        factory: (services: InternalToolsServices) =>
+            createEditFileTool(services.fileSystemService!),
+        requiredServices: ['fileSystemService'] as const,
+    },
+    bash_exec: {
+        factory: (services: InternalToolsServices) =>
+            createBashExecTool(services.processService!, services.approvalManager!),
+        requiredServices: ['processService', 'approvalManager'] as const,
+    },
+    bash_output: {
+        factory: (services: InternalToolsServices) =>
+            createBashOutputTool(services.processService!),
+        requiredServices: ['processService'] as const,
+    },
+    kill_process: {
+        factory: (services: InternalToolsServices) =>
+            createKillProcessTool(services.processService!),
+        requiredServices: ['processService'] as const,
+    },
 };
 
 /**

@@ -7,6 +7,7 @@ await applyLayeredEnvironmentLoading();
 
 import { existsSync } from 'fs';
 import { createRequire } from 'module';
+import path from 'path';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
@@ -79,7 +80,7 @@ program
     .name('dexto')
     .description('AI-powered CLI and WebUI for interacting with MCP servers')
     .version(pkg.version, '-v, --version', 'output the current version')
-    .option('-a, --agent <name|path>', 'Agent name or path to agent config file')
+    .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
     .option(
         '-p, --prompt <text>',
         'Run prompt and exit. Alternatively provide a single quoted string as positional argument.'
@@ -221,10 +222,20 @@ program
 // 5) `install` SUB-COMMAND
 program
     .command('install [agents...]')
-    .description('Install agents from the registry')
+    .description('Install agents from registry or custom YAML files/directories')
     .option('--all', 'Install all available agents from registry')
     .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
     .option('--force', 'Force reinstall even if agent is already installed')
+    .addHelpText(
+        'after',
+        `
+Examples:
+  $ dexto install default-agent              Install agent from registry
+  $ dexto install agent1 agent2              Install multiple registry agents
+  $ dexto install --all                      Install all available registry agents
+  $ dexto install ./my-agent.yml             Install custom agent from YAML file
+  $ dexto install ./my-agent-dir/            Install custom agent from directory (interactive)`
+    )
     .action(
         withAnalytics(
             'install',
@@ -310,7 +321,7 @@ async function bootstrapAgentFromGlobalOpts() {
     );
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const agent = new DextoAgent(mergedConfig, globalOpts.agent);
+    const agent = new DextoAgent(mergedConfig, resolvedPath);
     await agent.start();
 
     // Register graceful shutdown
@@ -713,6 +724,7 @@ program
 
                 // ——— CREATE AGENT ———
                 let agent: DextoAgent;
+                let derivedAgentId: string;
                 try {
                     console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
 
@@ -730,54 +742,16 @@ program
                     }
 
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    agent = new DextoAgent(validatedConfig, opts.agent);
+                    agent = new DextoAgent(validatedConfig, resolvedPath);
 
                     // Start the agent (initialize async services)
                     await agent.start();
 
-                    // Handle session options - simplified logic
-                    if (opts.resume) {
-                        try {
-                            // Resume specific session by ID
-                            await agent.loadSessionAsDefault(opts.resume);
-                            logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
-                        } catch (err) {
-                            console.error(
-                                `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
-                            );
-                            console.error('💡 Use `dexto session list` to see available sessions');
-                            safeExit('main', 1, 'resume-failed');
-                        }
-                    } else if (opts.continue) {
-                        try {
-                            // Continue from most recent session
-                            await loadMostRecentSession(agent);
-                            // If no sessions existed, create a new one to honor default-new invariant
-                            const sessionsAfter = await agent.listSessions();
-                            if (sessionsAfter.length === 0) {
-                                const session = await agent.createSession();
-                                await agent.loadSessionAsDefault(session.id);
-                                logger.info(`Created new session: ${session.id}`, null, 'green');
-                            }
-                        } catch (err) {
-                            console.error(
-                                `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                            safeExit('main', 1, 'continue-failed');
-                        }
-                    } else {
-                        // Default behavior: create new session
-                        try {
-                            const session = await agent.createSession();
-                            await agent.loadSessionAsDefault(session.id);
-                            logger.info(`Created new session: ${session.id}`, null, 'green');
-                        } catch (err) {
-                            console.error(
-                                `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                            safeExit('main', 1, 'create-session-failed');
-                        }
-                    }
+                    // Derive a concise agent ID for display purposes (used by API/UI)
+                    // Prefer agentCard.name, otherwise extract from filename
+                    derivedAgentId =
+                        validatedConfig.agentCard?.name ||
+                        path.basename(resolvedPath, path.extname(resolvedPath));
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
@@ -788,6 +762,56 @@ program
                 // ——— Dispatch based on --mode ———
                 switch (opts.mode) {
                     case 'cli': {
+                        // Handle session options - only for CLI mode
+                        if (opts.resume) {
+                            try {
+                                // Resume specific session by ID
+                                await agent.loadSessionAsDefault(opts.resume);
+                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                console.error(
+                                    '💡 Use `dexto session list` to see available sessions'
+                                );
+                                safeExit('main', 1, 'resume-failed');
+                            }
+                        } else if (opts.continue) {
+                            try {
+                                // Continue from most recent session
+                                await loadMostRecentSession(agent);
+                                // If no sessions existed, create a new one to honor default-new invariant
+                                const sessionsAfter = await agent.listSessions();
+                                if (sessionsAfter.length === 0) {
+                                    const session = await agent.createSession();
+                                    await agent.loadSessionAsDefault(session.id);
+                                    logger.info(
+                                        `Created new session: ${session.id}`,
+                                        null,
+                                        'green'
+                                    );
+                                }
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                safeExit('main', 1, 'continue-failed');
+                            }
+                        } else {
+                            // Default behavior: create new session for CLI mode
+                            try {
+                                const session = await agent.createSession();
+                                await agent.loadSessionAsDefault(session.id);
+                                logger.info(`Created new session: ${session.id}`, null, 'green');
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                safeExit('main', 1, 'create-session-failed');
+                            }
+                        }
+
                         const toolConfirmationMode =
                             agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
 
@@ -832,7 +856,7 @@ program
                             agent,
                             apiPort,
                             agent.getEffectiveConfig().agentCard || {},
-                            opts.agent
+                            derivedAgentId
                         );
 
                         // Start Next.js web server
@@ -869,7 +893,7 @@ program
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                        await startApiServer(agent, apiPort, agentCard, opts.agent);
+                        await startApiServer(agent, apiPort, agentCard, derivedAgentId);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
                         console.log('  POST /api/message - Send async message');
@@ -923,7 +947,11 @@ program
                             );
                             // Use stdio transport in mcp mode
                             const mcpTransport = await createMcpTransport('stdio');
-                            await initializeMcpServer(agent, agentCardData, mcpTransport);
+                            await initializeMcpServer(
+                                () => agent,
+                                () => agentCardData,
+                                mcpTransport
+                            );
                         } catch (err) {
                             // Write to stderr instead of stdout to avoid interfering with MCP protocol
                             process.stderr.write(`MCP server startup failed: ${err}\n`);

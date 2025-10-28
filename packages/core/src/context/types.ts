@@ -28,6 +28,26 @@ export interface FilePart extends FileData {
     type: 'file';
 }
 
+export interface SanitizedToolResult {
+    /** Ordered content parts ready for rendering or provider formatting */
+    content: Array<TextPart | ImagePart | FilePart>;
+    /**
+     * Resource references created during sanitization (e.g. blob store URIs).
+     * Consumers can dereference these via ResourceManager APIs.
+     */
+    resources?: Array<{
+        uri: string;
+        kind: 'image' | 'audio' | 'video' | 'binary';
+        mimeType: string;
+        filename?: string;
+    }>;
+    meta: {
+        toolName: string;
+        toolCallId: string;
+        success?: boolean;
+    };
+}
+
 export interface InternalMessage {
     /**
      * The role of the entity sending the message.

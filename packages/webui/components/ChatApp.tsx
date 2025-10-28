@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
@@ -8,10 +9,12 @@ import ConnectServerModal from './ConnectServerModal';
 import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
-import { ToolConfirmationHandler } from './ToolConfirmationHandler';
+import MemoryPanel from './MemoryPanel';
+import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
+import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from "./ui/button";
-import { Server, Download, Wrench, Keyboard, AlertTriangle, Plus, MoreHorizontal, MessageSquare, Trash2, Search, Settings, PanelLeft, ChevronDown, FlaskConical, Check } from "lucide-react";
+import { Server, Download, Wrench, Keyboard, AlertTriangle, MoreHorizontal, Menu, Trash2, Settings, PanelLeft, ChevronDown, FlaskConical, Check, FileEditIcon, Brain, Zap } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Label } from './ui/label';
@@ -19,6 +22,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
+import { Switch } from './ui/switch';
 import Link from 'next/link';
 import { 
   DropdownMenu,
@@ -30,28 +34,41 @@ import {
 import { ThemeSwitch } from './ThemeSwitch';
 import NewChatButton from './NewChatButton';
 import SettingsModal from './SettingsModal';
-import AgentSelector from './AgentSelector';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
+import AgentSelector from './AgentSelector/AgentSelector';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
+import { loadPrompts } from '../lib/promptCache';
+import type { ServerRegistryEntry } from '@/types';
 
-export default function ChatApp() {
+interface ChatAppProps {
+  sessionId?: string;
+}
 
+export default function ChatApp({ sessionId }: ChatAppProps = {}) {
+  const router = useRouter();
   const [isMac, setIsMac] = useState(false);
-  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting } = useChatContext();
+  const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting, isStreaming, setStreaming } = useChatContext();
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
   const [isServersPanelOpen, setServersPanelOpen] = useState(false);
   const [isSessionsPanelOpen, setSessionsPanelOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const isFirstRenderRef = React.useRef(true);
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [isExportOpen, setExportOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
+  const [isCustomizePanelOpen, setCustomizePanelOpen] = useState(false);
+  const [isMemoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [exportName, setExportName] = useState('dexto-config');
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Enhanced features
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -62,8 +79,40 @@ export default function ChatApp() {
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Welcome screen search state
-  const [welcomeSearchQuery, setWelcomeSearchQuery] = useState('');
+  // Approval state (for inline rendering in message stream)
+  const [pendingApproval, setPendingApproval] = useState<ApprovalEvent | null>(null);
+  const [approvalHandlers, setApprovalHandlers] = useState<{
+    onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onDeny: () => void;
+  } | null>(null);
+
+  // Starter prompts state (from agent config via /api/prompts)
+  const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
+  const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
+
+  // Fetch starter prompts when in welcome state
+  useEffect(() => {
+    if (!isWelcomeState) return;
+
+    let cancelled = false;
+    setStarterPromptsLoaded(false);
+    loadPrompts()
+      .then((prompts) => {
+        if (!cancelled) {
+          setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
+          setStarterPromptsLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStarterPromptsLoaded(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isWelcomeState]);
 
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -84,12 +133,31 @@ export default function ChatApp() {
     config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
     lockName?: boolean;
     registryEntryId?: string;
+    onCloseRegistryModal?: () => void;
   } | null>(null);
+  const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
       setIsMac(true);
     }
+
+    const updateViewportHeight = () => {
+      if (typeof document === 'undefined') return;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty('--app-viewport-height', `${viewportHeight}px`);
+    };
+
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    window.visualViewport?.addEventListener('resize', updateViewportHeight);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      window.visualViewport?.removeEventListener('resize', updateViewportHeight);
+    };
   }, []);
 
   const recomputeIsAtBottom = useCallback(() => {
@@ -184,10 +252,10 @@ export default function ChatApp() {
   useEffect(() => {
     if (isExportOpen) {
       // Include current session ID in config export if available
-      const exportUrl = currentSessionId 
-        ? `/api/config.yaml?sessionId=${currentSessionId}`
-        : '/api/config.yaml';
-      
+      const exportUrl = currentSessionId
+        ? `/api/agent/config/export?sessionId=${currentSessionId}`
+        : '/api/agent/config/export';
+
       fetch(exportUrl)
         .then((res) => {
           if (!res.ok) throw new Error('Failed to fetch configuration');
@@ -210,10 +278,10 @@ export default function ChatApp() {
 
   const handleDownload = useCallback(async () => {
     try {
-      const exportUrl = currentSessionId 
-        ? `/api/config.yaml?sessionId=${currentSessionId}`
-        : '/api/config.yaml';
-      
+      const exportUrl = currentSessionId
+        ? `/api/agent/config/export?sessionId=${currentSessionId}`
+        : '/api/agent/config/export';
+
       const res = await fetch(exportUrl);
       if (!res.ok) throw new Error('Failed to fetch configuration');
       const yamlText = await res.text();
@@ -281,25 +349,152 @@ export default function ChatApp() {
   }, []);
 
   const handleSessionChange = useCallback((sessionId: string) => {
-    switchSession(sessionId);
-    setSessionsPanelOpen(false);
-  }, [switchSession]);
+    // Reset scroll state when changing sessions
+    setFollowStreaming(false);
+    setShowScrollHint(false);
+    // Navigate to the session URL instead of just switching in context
+    router.push(`/chat/${sessionId}`);
+    // Keep the sessions panel open when switching sessions
+  }, [router]);
 
-  const handleInstallServer = useCallback(async (entry: any) => {
-    // Open Connect modal with prefilled config
-    const config = {
-      type: entry.config.type,
-      command: entry.config.command,
-      args: entry.config.args || [],
-      url: entry.config.url,
-      env: entry.config.env || {},
-      headers: entry.config.headers || {},
-      timeout: entry.config.timeout || 30000,
-    };
-    setConnectPrefill({ name: entry.name, config, lockName: true, registryEntryId: entry.id });
-    setServerRegistryOpen(false);
-    setModalOpen(true);
+  const handleReturnToWelcome = useCallback(() => {
+    // Reset scroll state when returning to welcome
+    setFollowStreaming(false);
+    setShowScrollHint(false);
+    // Clear the context state first, then navigate to home page
+    returnToWelcome();
+    router.push('/');
+  }, [router, returnToWelcome]);
+
+  // Handle hydration and restore localStorage state
+  useEffect(() => {
+    setIsHydrated(true);
+    // Restore sessions panel state from localStorage after hydration
+    const savedPanelState = localStorage.getItem('sessionsPanelOpen');
+    if (savedPanelState === 'true') {
+      setSessionsPanelOpen(true);
+    }
+    // Mark first render as complete to enable transitions
+    setTimeout(() => {
+      isFirstRenderRef.current = false;
+    }, 0);
   }, []);
+
+  // Persist sessions panel state to localStorage
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('sessionsPanelOpen', isSessionsPanelOpen.toString());
+    }
+  }, [isSessionsPanelOpen, isHydrated]);
+
+  // Handle sessionId prop from URL - for loading specific sessions
+  useEffect(() => {
+    if (sessionId && sessionId !== currentSessionId) {
+      // Reset scroll state when switching sessions
+      setFollowStreaming(false);
+      setShowScrollHint(false);
+      switchSession(sessionId);
+    }
+  }, [sessionId, currentSessionId, switchSession]);
+
+  // Ensure welcome state on home page (when no sessionId prop)
+  useEffect(() => {
+    if (!sessionId && !isWelcomeState) {
+      // We're on the home page but not in welcome state - reset to welcome
+      returnToWelcome();
+    }
+  }, [sessionId, isWelcomeState, returnToWelcome]);
+
+  type InstallableRegistryEntry = ServerRegistryEntry & {
+    onCloseRegistryModal?: () => void;
+  };
+
+  const handleInstallServer = useCallback(
+    async (entry: InstallableRegistryEntry): Promise<'connected' | 'requires-input'> => {
+      const config = buildConfigFromRegistryEntry(entry);
+
+      const needsEnvInput =
+        config.type === 'stdio' &&
+        Object.keys(config.env || {}).length > 0 &&
+        hasEmptyOrPlaceholderValue(config.env || {});
+      const needsHeaderInput =
+        (config.type === 'sse' || config.type === 'http') &&
+        'headers' in config &&
+        Object.keys(config.headers || {}).length > 0 &&
+        hasEmptyOrPlaceholderValue(config.headers || {});
+
+      // If inputs needed, open modal but keep registry open
+      if (needsEnvInput || needsHeaderInput) {
+        setConnectPrefill({
+          name: entry.name,
+          config,
+          lockName: true,
+          registryEntryId: entry.id,
+          onCloseRegistryModal: entry.onCloseRegistryModal ?? (() => setServerRegistryOpen(false)),
+        });
+        setModalOpen(true);
+        return 'requires-input';
+      }
+
+      try {
+        setIsRegistryBusy(true);
+        const res = await fetch('/api/mcp/servers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.error || `Server returned status ${res.status}`);
+        }
+
+        if (entry.id) {
+          try {
+            await serverRegistry.setInstalled(entry.id, true);
+          } catch (e) {
+            console.warn('Failed to mark registry entry installed:', e);
+          }
+        }
+
+        setServersRefreshTrigger(prev => prev + 1);
+        setSuccessMessage(`Added ${entry.name}`);
+        setTimeout(() => setSuccessMessage(null), 4000);
+        setServerRegistryOpen(false);
+        return 'connected';
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to install server';
+        throw new Error(message);
+      } finally {
+        setIsRegistryBusy(false);
+      }
+    }, [
+      setServerRegistryOpen,
+      setModalOpen,
+      setConnectPrefill,
+      setServersRefreshTrigger,
+      setSuccessMessage,
+      setIsRegistryBusy,
+    ]);
+
+  // Helper to check if viewport is narrow (for panel exclusivity)
+  const isNarrowViewport = () => {
+    return typeof window !== 'undefined' && window.innerWidth < 768;
+  };
+
+  // Smart panel handlers with exclusivity on narrow screens
+  const handleOpenSessionsPanel = useCallback(() => {
+    if (isNarrowViewport() && isServersPanelOpen) {
+      setServersPanelOpen(false); // Close tools panel if open
+    }
+    setSessionsPanelOpen(!isSessionsPanelOpen);
+  }, [isSessionsPanelOpen, isServersPanelOpen]);
+
+  const handleOpenServersPanel = useCallback(() => {
+    if (isNarrowViewport() && isSessionsPanelOpen) {
+      setSessionsPanelOpen(false); // Close sessions panel if open
+    }
+    setServersPanelOpen(!isServersPanelOpen);
+  }, [isServersPanelOpen, isSessionsPanelOpen]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
@@ -315,7 +510,7 @@ export default function ChatApp() {
       }
       
       setDeleteDialogOpen(false);
-      returnToWelcome();
+      handleReturnToWelcome();
     } catch (error) {
       console.error('Failed to delete conversation:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to delete conversation');
@@ -323,45 +518,10 @@ export default function ChatApp() {
     } finally {
       setIsDeleting(false);
     }
-  }, [currentSessionId, returnToWelcome]);
+    }, [currentSessionId, handleReturnToWelcome]);
 
-  const handleWelcomeSearch = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (welcomeSearchQuery.trim()) {
-      handleSend(welcomeSearchQuery.trim());
-      setWelcomeSearchQuery('');
-    }
-  }, [welcomeSearchQuery, handleSend]);
-
-  const createAndSwitchSession = useCallback(async () => {
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorBody = await response.json();
-          errorMessage = errorBody.message || errorBody.error || errorMessage;
-        } catch {
-          // If we can't parse the error body, use the status text
-        }
-        throw new Error(errorMessage);
-      }
-      
-      const data = await response.json();
-      handleSessionChange(data.session.id);
-    } catch (error) {
-      console.error('Error creating new session:', error);
-      setErrorMessage('Failed to create new session. Please try again.');
-      setTimeout(() => setErrorMessage(null), 5000);
-    }
-  }, [handleSessionChange]);
-
-  const quickActions = [
+  // Memoize quick actions to prevent unnecessary recomputation
+  const quickActions = React.useMemo(() => [
     {
       title: "Help me get started",
       description: "Show me what you can do",
@@ -386,7 +546,41 @@ export default function ChatApp() {
       action: () => handleSend("Pick one of your most interesting tools and demonstrate it with a practical example. Show me what it can do."),
       icon: "⚡"
     }
-  ];
+  ], [handleSend, setServersPanelOpen]);
+
+  // Merge dynamic quick actions from starter prompts
+  const dynamicQuickActions = React.useMemo(() => {
+    // Show default quick actions while loading
+    if (!starterPromptsLoaded) {
+      return quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
+    }
+
+    // If starter prompts are present, hide the built-in defaults to avoid duplication
+    const actions: Array<{ description: string; tooltip?: string; action: () => void }> =
+      starterPrompts.length > 0 ? [] : quickActions.map(a => ({ description: `${a.icon} ${a.title}`, tooltip: a.description, action: a.action }));
+    starterPrompts.forEach((prompt) => {
+      const description = prompt.title || prompt.description || 'Starter prompt';
+      const tooltip = prompt.description;
+
+      if (prompt?.name === 'starter:connect-tools') {
+        actions.push({
+          description,
+          tooltip,
+          action: () => setServersPanelOpen(true),
+        });
+      } else {
+        // Use the actual prompt text from metadata if available, otherwise fall back to slash command
+        const promptText = prompt.metadata?.prompt as string | undefined;
+        const messageToSend = promptText || `/${prompt.name}`;
+        actions.push({
+          description,
+          tooltip,
+          action: () => handleSend(messageToSend),
+        });
+      }
+    });
+    return actions;
+  }, [starterPrompts, starterPromptsLoaded, quickActions, handleSend, setServersPanelOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -407,17 +601,22 @@ export default function ChatApp() {
       // Ctrl/Cmd + H to toggle sessions panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'h') {
         e.preventDefault();
-        setSessionsPanelOpen(prev => !prev);
+        handleOpenSessionsPanel();
       }
-      // Ctrl/Cmd + K to create new session
+      // Ctrl/Cmd + K to create new chat (return to welcome)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
         e.preventDefault();
-        createAndSwitchSession();
+        handleReturnToWelcome();
       }
       // Ctrl/Cmd + J to toggle tools/servers panel
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
         e.preventDefault();
-        setServersPanelOpen(prev => !prev);
+        handleOpenServersPanel();
+      }
+      // Ctrl/Cmd + M to toggle memory panel
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'm') {
+        e.preventDefault();
+        setMemoryPanelOpen(prev => !prev);
       }
       // Ctrl/Cmd + Shift + S to open search
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 's') {
@@ -429,6 +628,11 @@ export default function ChatApp() {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'l') {
         e.preventDefault();
         window.open('/playground', '_blank');
+      }
+      // Ctrl/Cmd + E to open customize panel
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'e') {
+        e.preventDefault();
+        setCustomizePanelOpen(prev => !prev);
       }
       // Ctrl/Cmd + Shift + E to export config
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'e') {
@@ -442,8 +646,10 @@ export default function ChatApp() {
       }
       // Escape to close panels or cancel run
       if (e.key === 'Escape') {
-        if (isServersPanelOpen) setServersPanelOpen(false);
+        if (isCustomizePanelOpen) setCustomizePanelOpen(false);
+        else if (isServersPanelOpen) setServersPanelOpen(false);
         else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
+        else if (isMemoryPanelOpen) setMemoryPanelOpen(false);
         else if (isServerRegistryOpen) setServerRegistryOpen(false);
         else if (isExportOpen) setExportOpen(false);
         else if (showShortcuts) setShowShortcuts(false);
@@ -455,31 +661,55 @@ export default function ChatApp() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isServersPanelOpen, isSessionsPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen]);
+  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen, handleOpenSessionsPanel, handleOpenServersPanel, handleReturnToWelcome, handleDeleteConversation, processing, cancel, currentSessionId]);
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Left Sidebar - Chat History */}
-      <div className={cn(
-        "shrink-0 transition-all duration-300 ease-in-out border-r border-border/50 bg-card/50 backdrop-blur-sm",
-        isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
-      )}>
+    <div
+      className="flex w-full bg-background"
+      style={{
+        height: 'var(--app-viewport-height, 100vh)',
+        minHeight: 'var(--app-viewport-height, 100vh)',
+      }}
+    >
+      {/* Left Sidebar - Chat History (Desktop only - inline) */}
+      <div
+        className={cn(
+          "hidden md:block shrink-0 border-r border-border/50 bg-card/50 backdrop-blur-sm",
+          !isFirstRenderRef.current && "transition-all duration-300 ease-in-out",
+          isSessionsPanelOpen ? "w-80" : "w-0 overflow-hidden"
+        )}
+        suppressHydrationWarning
+      >
         {isSessionsPanelOpen && (
           <SessionPanel
             isOpen={isSessionsPanelOpen}
             onClose={() => setSessionsPanelOpen(false)}
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
-            returnToWelcome={returnToWelcome}
+            returnToWelcome={handleReturnToWelcome}
             variant="inline"
             onSearchOpen={() => setSearchOpen(true)}
-            onNewChat={createAndSwitchSession}
+            onNewChat={handleReturnToWelcome}
           />
         )}
       </div>
 
+      {/* Chat History Panel - Mobile/Narrow (overlay) */}
+      <div className="md:hidden">
+        <SessionPanel
+          isOpen={isSessionsPanelOpen}
+          onClose={() => setSessionsPanelOpen(false)}
+          currentSessionId={currentSessionId}
+          onSessionChange={handleSessionChange}
+          returnToWelcome={handleReturnToWelcome}
+          variant="overlay"
+          onSearchOpen={() => setSearchOpen(true)}
+          onNewChat={handleReturnToWelcome}
+        />
+      </div>
+
       <main
-        className="flex-1 flex flex-col relative"
+        className="flex-1 flex flex-col relative min-w-0"
         style={{ '--thread-max-width': '54rem' } as React.CSSProperties & { '--thread-max-width': string }}
       >
         {/** Shared centered content width for welcome, messages, and composer */}
@@ -491,17 +721,17 @@ export default function ChatApp() {
           return null;
         })()}
         {/* Clean Header */}
-        <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm">
-          <div className="grid grid-cols-3 items-center px-4 py-3">
+        <header className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-sm relative">
+          <div className="flex items-center justify-between px-4 py-3 gap-3">
             {/* Left Section */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-2.5 shrink-0">
               {/* Chat History Toggle */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setSessionsPanelOpen(!isSessionsPanelOpen)}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleOpenSessionsPanel}
                     className={cn(
                       "h-8 w-8 p-0 transition-colors",
                       isSessionsPanelOpen && "bg-muted"
@@ -514,49 +744,97 @@ export default function ChatApp() {
                   Chat History (⌘H)
                 </TooltipContent>
               </Tooltip>
-              
+
               {/* New Chat Button - visible in header only when sidebar is closed */}
               {!isSessionsPanelOpen && (
-                <NewChatButton onClick={createAndSwitchSession} />
+                <div className="hidden md:block">
+                  <NewChatButton onClick={handleReturnToWelcome} />
+                </div>
               )}
-              
-              {/* TODO: improve the non text part of logo */}
-              <a 
-                href="https://dexto.ai" 
-                target="_blank" 
+
+              {/* Dexto Logo - Icon on mobile, full logo on desktop */}
+              <a
+                href="https://dexto.ai"
+                target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+                className="flex items-center hover:opacity-80 transition-opacity shrink-0"
               >
-                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-12 w-auto dark:hidden" />
-                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-12 w-auto hidden dark:block" />
+                {/* Mobile: Icon only */}
+                <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-9 w-9 md:hidden" />
+                {/* Desktop: Full logo */}
+                <img src="/logos/dexto/dexto_logo_light.svg" alt="Dexto" className="h-11 w-auto hidden md:block dark:md:hidden" />
+                <img src="/logos/dexto/dexto_logo.svg" alt="Dexto" className="h-11 w-auto hidden dark:md:block" />
                 <span className="sr-only">Dexto</span>
               </a>
-              
-              {/* Current Session Indicator - Only show when there's an active session */}
-              {currentSessionId && !isWelcomeState && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="secondary" className="text-xs bg-muted/50 border-border/30 max-w-[120px] cursor-help">
-                      <span className="truncate">
-                        {currentSessionId.length > 12 ? `${currentSessionId.slice(0, 12)}...` : currentSessionId}
-                      </span>
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <span className="font-mono">{currentSessionId}</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
             </div>
 
-            {/* Center Section - Agent Selector */}
-            <div className="flex justify-center">
-              <AgentSelector mode="badge" />
-            </div>
+            {/* Right Section - Desktop buttons */}
+            <div className="hidden md:flex items-center gap-2">
+              {/* Customize Agent */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCustomizePanelOpen(!isCustomizePanelOpen)}
+                    className={cn(
+                      "h-8 w-8 p-0",
+                      isCustomizePanelOpen && "bg-muted"
+                    )}
+                    aria-label="Customize agent"
+                  >
+                    <FileEditIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Customize Agent (⌘E)</TooltipContent>
+              </Tooltip>
 
-            {/* Right Section */}
-            <div className="flex items-center justify-end space-x-2">
+              {/* Tools */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleOpenServersPanel}
+                    className={cn(
+                      "h-8 w-8 p-0 transition-colors",
+                      isServersPanelOpen && "bg-muted"
+                    )}
+                    aria-label="Toggle tools panel"
+                  >
+                    <Wrench className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Toggle tools panel (⌘J)
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Memories */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMemoryPanelOpen(!isMemoryPanelOpen)}
+                    className={cn(
+                      "h-8 w-8 p-0 transition-colors",
+                      isMemoryPanelOpen && "bg-muted"
+                    )}
+                    aria-label="Toggle memories panel"
+                  >
+                    <Brain className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Toggle memories panel (⌘M)
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Theme */}
               <ThemeSwitch />
+
+              {/* Settings */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -571,46 +849,7 @@ export default function ChatApp() {
                 </TooltipTrigger>
                 <TooltipContent>Settings</TooltipContent>
               </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setServersPanelOpen(!isServersPanelOpen)}
-                    className={cn(
-                      "h-8 px-2 text-sm transition-colors",
-                      isServersPanelOpen && "bg-muted"
-                    )}
-                  >
-                    <Wrench className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline ml-1.5">Tools</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Toggle tools panel (⌘J)
-                </TooltipContent>
-              </Tooltip>
-            
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className="h-8 px-2 text-sm"
-                  >
-                    <Link href="/playground" target="_blank" rel="noopener noreferrer">
-                      <FlaskConical className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline ml-1.5">Playground</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Open MCP playground (⌘L)
-                </TooltipContent>
-              </Tooltip>
-            
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -621,11 +860,17 @@ export default function ChatApp() {
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
-                      <Server className="h-4 w-4 mr-2" />
-                      Browse MCP Registry
-                    </DropdownMenuItem>
+                <DropdownMenuContent align="end">
+
+                  {/* Always visible items */}
+                  <DropdownMenuItem onClick={() => setServerRegistryOpen(true)}>
+                    <Server className="h-4 w-4 mr-2" />
+                    Connect MCPs
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('/playground', '_blank')}>
+                    <FlaskConical className="h-4 w-4 mr-2" />
+                    MCP Playground
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="h-4 w-4 mr-2" />
                     Export Config
@@ -638,7 +883,7 @@ export default function ChatApp() {
                   {currentSessionId && !isWelcomeState && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => setDeleteDialogOpen(true)}
                         className="text-destructive focus:text-destructive"
                       >
@@ -650,11 +895,147 @@ export default function ChatApp() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+
+            {/* Right Section - Narrow screens (hamburger menu) */}
+            <div className="flex md:hidden">
+              <DropdownMenu open={isMobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Open menu"
+                  >
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {/* All action buttons for narrow screens */}
+                  <DropdownMenuItem onClick={() => {
+                    setCustomizePanelOpen(!isCustomizePanelOpen);
+                    setMobileMenuOpen(false);
+                  }}>
+                    <FileEditIcon className="h-4 w-4 mr-2" />
+                    Customize Agent
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => {
+                    handleOpenServersPanel();
+                    setMobileMenuOpen(false);
+                  }}>
+                    <Wrench className="h-4 w-4 mr-2" />
+                    Tools
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => {
+                    setMemoryPanelOpen(!isMemoryPanelOpen);
+                    setMobileMenuOpen(false);
+                  }}>
+                    <Brain className="h-4 w-4 mr-2" />
+                    Memories
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => {
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const next = isDark ? 'light' : 'dark';
+                    document.documentElement.classList.toggle('dark', next === 'dark');
+                    localStorage.setItem('theme', next);
+                    // Keep SSR in sync with client theme to avoid hydration mismatch
+                    document.cookie = `theme=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
+                    setMobileMenuOpen(false);
+                  }}>
+                    <span className="h-4 w-4 mr-2">🌙</span>
+                    Toggle Theme
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => {
+                    setSettingsOpen(true);
+                    setMobileMenuOpen(false);
+                  }}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setStreaming(!isStreaming);
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <Zap className="h-4 w-4 mr-2" />
+                      Streaming
+                    </div>
+                    <Switch
+                      checked={isStreaming}
+                      onCheckedChange={setStreaming}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  {/* Always visible items */}
+                  <DropdownMenuItem onClick={() => {
+                    setServerRegistryOpen(true);
+                    setMobileMenuOpen(false);
+                  }}>
+                    <Server className="h-4 w-4 mr-2" />
+                    Connect MCPs
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    window.open('/playground', '_blank');
+                    setMobileMenuOpen(false);
+                  }}>
+                    <FlaskConical className="h-4 w-4 mr-2" />
+                    MCP Playground
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    setExportOpen(true);
+                    setMobileMenuOpen(false);
+                  }}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Config
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    setShowShortcuts(true);
+                    setMobileMenuOpen(false);
+                  }}>
+                    <Keyboard className="h-4 w-4 mr-2" />
+                    Shortcuts
+                  </DropdownMenuItem>
+                  {/* Session Management Actions - Only show when there's an active session */}
+                  {currentSessionId && !isWelcomeState && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setDeleteDialogOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Conversation
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Center Section - Agent Selector absolutely centered */}
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="w-full max-w-[180px] md:max-w-[260px]">
+              <AgentSelector mode="badge" />
+            </div>
           </div>
         </header>
         
         {/* Main Content Area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden min-w-0">
           {/* Toasts */}
           {successMessage && (
             <div className="fixed bottom-4 right-4 z-50 border border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 text-foreground px-3 py-2 rounded-md shadow-md inline-flex items-center gap-2">
@@ -670,16 +1051,16 @@ export default function ChatApp() {
           )}
           
           {/* Chat Content */}
-          <div className="flex-1 flex flex-col min-h-0">
-            {isWelcomeState || messages.length === 0 ? (
+          <div className="flex-1 flex flex-col min-h-0 min-w-0">
+            {isWelcomeState ? (
               /* Modern Welcome Screen with Central Search */
-              <div className="flex-1 flex items-center justify-center p-6 -mt-20">
-                <div className="w-full max-w-[var(--thread-max-width)] mx-auto space-y-6">
+              <div className="flex-1 flex flex-col justify-end sm:justify-center p-6 sm:-mt-20">
+                <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-auto space-y-6 pb-safe">
                   <div className="text-center space-y-3">
                     <div className="flex items-center justify-center gap-3">
                       <img src="/logos/dexto/dexto_logo_icon.svg" alt="Dexto" className="h-12 w-auto" />
-                      <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        {greeting ?? "Welcome to Dexto"}
+                      <h2 className="text-2xl font-bold font-mono tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text">
+                        {greeting || 'Welcome to Dexto'}
                       </h2>
                     </div>
                     <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
@@ -688,25 +1069,39 @@ export default function ChatApp() {
                   </div>
 
                   {/* Quick Actions Grid - Compact */}
-                  <div className="flex flex-wrap justify-center gap-2 max-w-[var(--thread-max-width)] mx-auto">
-                    {quickActions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={action.action}
-                        className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-1.5">
-                          <span className="text-sm">{action.icon}</span>
+                  <div className="flex flex-wrap justify-center gap-2 max-w-full sm:max-w-[var(--thread-max-width)] mx-auto">
+                    {dynamicQuickActions.map((action, index) => {
+                      const button = (
+                        <button
+                          key={index}
+                          onClick={action.action}
+                          className="group px-3 py-2 text-left rounded-full bg-primary/5 hover:bg-primary/10 transition-all duration-200 hover:shadow-sm hover:scale-105"
+                        >
                           <span className="font-medium text-sm text-primary group-hover:text-primary/80 transition-colors">
-                            {action.title}
+                            {action.description}
                           </span>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+
+                      if (action.tooltip) {
+                        return (
+                          <Tooltip key={index}>
+                            <TooltipTrigger asChild>
+                              {button}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {action.tooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+
+                      return button;
+                    })}
                   </div>
 
                   {/* Central Search Bar with Full Features */}
-                  <div className="max-w-[var(--thread-max-width)] mx-auto">
+                  <div className="max-w-full sm:max-w-[var(--thread-max-width)] mx-auto">
                     <InputArea
                       onSend={handleSend}
                       isSending={isSendingMessage}
@@ -729,20 +1124,30 @@ export default function ChatApp() {
               </div>
             ) : (
               /* Messages Area */
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <div ref={scrollContainerRef} className="h-full overflow-y-auto overscroll-contain relative">
+              <div className="flex-1 min-h-0 overflow-hidden min-w-0">
+                <div ref={scrollContainerRef} className="h-full overflow-y-auto overflow-x-hidden overscroll-contain relative min-w-0">
                   {/* Ensure the input dock sits at the very bottom even if content is short */}
-                  <div className="min-h-full grid grid-rows-[1fr_auto]">
-                    <div className="w-full max-w-[var(--thread-max-width)] mx-auto">
-                      <MessageList 
+                  <div className="min-h-full grid grid-cols-1 grid-rows-[1fr_auto] min-w-0">
+                    <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-0 sm:mx-auto min-w-0">
+                      <MessageList
                         messages={messages}
+                        processing={processing}
                         activeError={activeError}
                         onDismissError={clearError}
                         outerRef={listContentRef}
+                        pendingApproval={pendingApproval}
+                        onApprovalApprove={approvalHandlers?.onApprove}
+                        onApprovalDeny={approvalHandlers?.onDeny}
                       />
                     </div>
                     {/* Sticky input dock inside scroll viewport */}
-                    <div className="sticky bottom-0 z-10 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] bg-background relative">
+                    <div
+                      className="sticky bottom-0 z-10 px-0 sm:px-4 pt-2 pb-2 bg-background relative"
+                      style={{
+                        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)',
+                        marginBottom: 'calc(env(safe-area-inset-bottom, 0px) * -1)',
+                      }}
+                    >
                       {showScrollHint && (
                         <div className="absolute left-1/2 -translate-x-1/2 -top-3 z-20 pointer-events-none">
                           <button
@@ -757,7 +1162,7 @@ export default function ChatApp() {
                           </button>
                         </div>
                       )}
-                      <div className="w-full max-w-[var(--thread-max-width)] mx-auto pointer-events-auto">
+                      <div className="w-full max-w-full sm:max-w-[var(--thread-max-width)] mx-0 sm:mx-auto pointer-events-auto">
                         <InputArea
                           onSend={handleSend}
                           isSending={isSendingMessage}
@@ -773,9 +1178,10 @@ export default function ChatApp() {
             )}
           </div>
 
-          {/* Servers Panel - Slide Animation */}
+          {/* Servers Panel - Responsive: inline on desktop, overlay on narrow */}
+          {/* Desktop: inline panel */}
           <div className={cn(
-            "shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
+            "hidden md:block shrink-0 transition-all duration-300 ease-in-out border-l border-border/50 bg-card/50 backdrop-blur-sm",
             isServersPanelOpen ? "w-80" : "w-0 overflow-hidden"
           )}>
             {isServersPanelOpen && (
@@ -787,36 +1193,68 @@ export default function ChatApp() {
                   setConnectPrefill(opts);
                   setModalOpen(true);
                 }}
+                onServerConnected={(name) => {
+                  setServersRefreshTrigger(prev => prev + 1);
+                  setSuccessMessage(`Added ${name}`);
+                  setTimeout(() => setSuccessMessage(null), 4000);
+                }}
                 variant="inline"
                 refreshTrigger={serversRefreshTrigger}
               />
             )}
           </div>
+
+          {/* Narrow screens: overlay panel */}
+          <div className="md:hidden">
+            <ServersPanel
+              isOpen={isServersPanelOpen}
+              onClose={() => setServersPanelOpen(false)}
+              onOpenConnectModal={() => setModalOpen(true)}
+              onOpenConnectWithPrefill={(opts) => {
+                setConnectPrefill(opts);
+                setModalOpen(true);
+              }}
+              onServerConnected={(name) => {
+                setServersRefreshTrigger(prev => prev + 1);
+                setSuccessMessage(`Added ${name}`);
+                setTimeout(() => setSuccessMessage(null), 4000);
+              }}
+              variant="overlay"
+              refreshTrigger={serversRefreshTrigger}
+            />
+          </div>
         </div>
+
+        {/* Customize Panel - Overlay Animation */}
+        <CustomizePanel
+          isOpen={isCustomizePanelOpen}
+          onClose={() => setCustomizePanelOpen(false)}
+          variant="overlay"
+        />
         
         {/* Connect Server Modal */}
-        <ConnectServerModal 
-          isOpen={isModalOpen} 
+        <ConnectServerModal
+          isOpen={isModalOpen}
           onClose={() => {
             setModalOpen(false);
+            setIsRegistryBusy(false);
             setConnectPrefill(null);
-          }} 
+          }}
           onServerConnected={async () => {
-            // Mark the associated registry entry as installed, if applicable
             if (connectPrefill?.registryEntryId) {
               try {
                 await serverRegistry.setInstalled(connectPrefill.registryEntryId, true);
               } catch (e) {
-                // non-fatal; continue
                 console.warn('Failed to mark registry entry installed:', e);
               }
             }
-            // Trigger a refresh of the servers panel
             setServersRefreshTrigger(prev => prev + 1);
-            // Show success toast
             const name = connectPrefill?.name || 'Server';
             setSuccessMessage(`Added ${name}`);
             setTimeout(() => setSuccessMessage(null), 4000);
+            connectPrefill?.onCloseRegistryModal?.();
+            setIsRegistryBusy(false);
+            setConnectPrefill(null);
           }}
           initialName={connectPrefill?.name}
           initialConfig={connectPrefill?.config}
@@ -828,6 +1266,9 @@ export default function ChatApp() {
           isOpen={isServerRegistryOpen}
           onClose={() => setServerRegistryOpen(false)}
           onInstallServer={handleInstallServer}
+          onOpenConnectModal={() => setModalOpen(true)}
+          refreshTrigger={serversRefreshTrigger}
+          disableClose={isRegistryBusy}
         />
 
         {/* Export Configuration Modal */}
@@ -895,6 +1336,12 @@ export default function ChatApp() {
         {/* Settings Modal */}
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
 
+        {/* Memory Panel */}
+        <MemoryPanel
+          isOpen={isMemoryPanelOpen}
+          onClose={() => setMemoryPanelOpen(false)}
+          variant="modal"
+        />
 
         {/* Delete Conversation Confirmation Modal */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -946,6 +1393,8 @@ export default function ChatApp() {
                 { key: '⌘H', desc: 'Toggle chat history panel' },
                 { key: '⌘K', desc: 'Create new chat' },
                 { key: '⌘J', desc: 'Toggle tools panel' },
+                { key: '⌘M', desc: 'Toggle memories panel' },
+                { key: '⌘E', desc: 'Customize agent' },
                 { key: '⌘⇧S', desc: 'Search conversations' },
                 { key: '⌘L', desc: 'Open MCP playground' },
                 { key: '⌘⇧E', desc: 'Export config' },
@@ -976,13 +1425,17 @@ export default function ChatApp() {
         isOpen={isSearchOpen}
         onClose={() => setSearchOpen(false)}
         onNavigateToSession={(sessionId, messageIndex) => {
-          switchSession(sessionId);
+          router.push(`/chat/${sessionId}`);
           setSearchOpen(false);
         }}
       />
       
       {/* Tool Confirmation Handler */}
-      <ToolConfirmationHandler websocket={websocket} />
+      <ToolConfirmationHandler
+        websocket={websocket}
+        onApprovalRequest={setPendingApproval}
+        onHandlersReady={setApprovalHandlers}
+      />
     </div>
   );
 } 

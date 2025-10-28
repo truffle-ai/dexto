@@ -14,7 +14,7 @@ describe('Session Integration: Chat History Preservation', () => {
         systemPrompt: 'You are a helpful assistant.',
         llm: {
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             apiKey: 'test-key-123',
         },
         mcpServers: {},
@@ -49,7 +49,7 @@ describe('Session Integration: Chat History Preservation', () => {
         // Step 2: Simulate adding messages to the session
         // In a real scenario, this would happen through agent.run() calls
         // For testing, we'll access the underlying storage directly
-        const storage = agent.services.storage;
+        const storage = agent.services.storageManager;
         const messagesKey = `messages:${sessionId}`;
         const chatHistory = [
             { role: 'user', content: 'What is 2+2?' },
@@ -60,24 +60,24 @@ describe('Session Integration: Chat History Preservation', () => {
                 content: "You're welcome! Is there anything else I can help you with?",
             },
         ];
-        await storage.database.set(messagesKey, chatHistory);
+        await storage.getDatabase().set(messagesKey, chatHistory);
 
         // Step 3: Verify session exists and has history
         const activeSession = await agent.getSession(sessionId);
         expect(activeSession).toBeDefined();
         expect(activeSession!.id).toBe(sessionId);
 
-        const storedHistory = await storage.database.get(messagesKey);
+        const storedHistory = await storage.getDatabase().get(messagesKey);
         expect(storedHistory).toEqual(chatHistory);
 
         // Step 4: Force session expiry by manipulating lastActivity timestamp
         await new Promise((resolve) => setTimeout(resolve, 150)); // Wait > TTL
 
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await storage.database.get<SessionData>(sessionKey);
+        const sessionData = await storage.getDatabase().get<SessionData>(sessionKey);
         if (sessionData) {
             sessionData.lastActivity = Date.now() - 200; // Mark as expired
-            await storage.database.set(sessionKey, sessionData);
+            await storage.getDatabase().set(sessionKey, sessionData);
         }
 
         // Access private method to manually trigger cleanup for testing session expiry behavior
@@ -89,8 +89,8 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(sessionsMap.has(sessionId)).toBe(false);
 
         // But storage should still have both session metadata and chat history
-        expect(await storage.database.get(sessionKey)).toBeDefined();
-        expect(await storage.database.get(messagesKey)).toEqual(chatHistory);
+        expect(await storage.getDatabase().get(sessionKey)).toBeDefined();
+        expect(await storage.getDatabase().get(messagesKey)).toEqual(chatHistory);
 
         // Step 6: Access session again through DextoAgent - should restore seamlessly
         const restoredSession = await agent.getSession(sessionId);
@@ -101,14 +101,14 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(sessionsMap.has(sessionId)).toBe(true);
 
         // Chat history should still be intact
-        const restoredHistory = await storage.database.get(messagesKey);
+        const restoredHistory = await storage.getDatabase().get(messagesKey);
         expect(restoredHistory).toEqual(chatHistory);
 
         // Step 7: Verify we can continue the conversation
         const newMessage = { role: 'user', content: 'One more question: what is 3+3?' };
-        await storage.database.set(messagesKey, [...chatHistory, newMessage]);
+        await storage.getDatabase().set(messagesKey, [...chatHistory, newMessage]);
 
-        const finalHistory = await storage.database.get<any[]>(messagesKey);
+        const finalHistory = await storage.getDatabase().get<any[]>(messagesKey);
         expect(finalHistory).toBeDefined();
         expect(finalHistory!).toHaveLength(5);
         expect(finalHistory![4]).toEqual(newMessage);
@@ -120,17 +120,17 @@ describe('Session Integration: Chat History Preservation', () => {
         // Create session and add history
         await agent.createSession(sessionId);
 
-        const storage = agent.services.storage;
+        const storage = agent.services.storageManager;
         const messagesKey = `messages:${sessionId}`;
         const sessionKey = `session:${sessionId}`;
         const history = [{ role: 'user', content: 'Hello!' }];
 
-        await storage.database.set(messagesKey, history);
+        await storage.getDatabase().set(messagesKey, history);
 
         // Verify everything exists
         expect(await agent.getSession(sessionId)).toBeDefined();
-        expect(await storage.database.get(sessionKey)).toBeDefined();
-        expect(await storage.database.get(messagesKey)).toEqual(history);
+        expect(await storage.getDatabase().get(sessionKey)).toBeDefined();
+        expect(await storage.getDatabase().get(messagesKey)).toEqual(history);
 
         // Delete session through DextoAgent
         await agent.deleteSession(sessionId);
@@ -138,8 +138,8 @@ describe('Session Integration: Chat History Preservation', () => {
         // Everything should be gone including chat history
         const deletedSession = await agent.getSession(sessionId);
         expect(deletedSession).toBeUndefined();
-        expect(await storage.database.get(sessionKey)).toBeUndefined();
-        expect(await storage.database.get(messagesKey)).toBeUndefined();
+        expect(await storage.getDatabase().get(sessionKey)).toBeUndefined();
+        expect(await storage.getDatabase().get(messagesKey)).toBeUndefined();
     });
 
     test('full integration: multiple concurrent sessions with independent histories', async () => {
@@ -150,10 +150,10 @@ describe('Session Integration: Chat History Preservation', () => {
         ]);
 
         // Create multiple sessions with different histories
-        const storage = agent.services.storage;
+        const storage = agent.services.storageManager;
         for (let i = 0; i < sessionIds.length; i++) {
             await agent.createSession(sessionIds[i]);
-            await storage.database.set(`messages:${sessionIds[i]}`, histories[i]);
+            await storage.getDatabase().set(`messages:${sessionIds[i]}`, histories[i]);
         }
 
         // Verify all sessions exist and have correct histories
@@ -163,17 +163,19 @@ describe('Session Integration: Chat History Preservation', () => {
             expect(session).toBeDefined();
             expect(session!.id).toBe(sessionId);
 
-            const history = await storage.database.get(`messages:${sessionId}`);
+            const history = await storage.getDatabase().get(`messages:${sessionId}`);
             expect(history).toEqual(histories[i]);
         }
 
         // Force expiry and cleanup for all sessions
         await new Promise((resolve) => setTimeout(resolve, 150));
         for (const sessionId of sessionIds) {
-            const sessionData = await storage.database.get<SessionData>(`session:${sessionId}`);
+            const sessionData = await storage
+                .getDatabase()
+                .get<SessionData>(`session:${sessionId}`);
             if (sessionData) {
                 sessionData.lastActivity = Date.now() - 200;
-                await storage.database.set(`session:${sessionId}`, sessionData);
+                await storage.getDatabase().set(`session:${sessionId}`, sessionData);
             }
         }
 
@@ -188,7 +190,7 @@ describe('Session Integration: Chat History Preservation', () => {
 
         // But histories should be preserved in storage
         for (let i = 0; i < sessionIds.length; i++) {
-            const history = await storage.database.get(`messages:${sessionIds[i]}`);
+            const history = await storage.getDatabase().get(`messages:${sessionIds[i]}`);
             expect(history).toEqual(histories[i]);
         }
 
@@ -203,7 +205,7 @@ describe('Session Integration: Chat History Preservation', () => {
             expect(sessionsMap.has(sessionId)).toBe(true);
 
             // Verify history is still intact and independent
-            const history = await storage.database.get(`messages:${sessionId}`);
+            const history = await storage.getDatabase().get(`messages:${sessionId}`);
             expect(history).toEqual(histories[i]);
         }
     });

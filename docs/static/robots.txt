@@ -1,0 +1,16 @@
+# Allow all crawlers access to the site
+User-agent: *
+Allow: /
+
+# Block Google and other search engines from indexing .md and .mdx files
+# These files are for LLMs and AI agents to consume
+User-agent: Googlebot
+Disallow: /*.md$
+Disallow: /*.mdx$
+
+User-agent: Bingbot
+Disallow: /*.md$
+Disallow: /*.mdx$
+
+# Sitemap location
+Sitemap: https://docs.dexto.ai/sitemap.xml

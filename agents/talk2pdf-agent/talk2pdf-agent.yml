@@ -10,6 +10,9 @@ mcpServers:
     timeout: 30000
     connectionMode: strict 
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "📄 Hi! I'm your PDF Agent. Share a document and let's explore it together!"
+
 systemPrompt:
   contributors:
     - id: primary
@@ -38,5 +41,5 @@ systemPrompt:
 
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY 

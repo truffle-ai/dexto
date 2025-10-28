@@ -1,22 +1,26 @@
 # Integrating Existing Agents: Dexto + LangChain
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 This tutorial shows you how to integrate an existing LangChain agent with Dexto to create a multi-agent system. Instead of rebuilding your agent, you'll learn to wrap it with MCP and let Dexto orchestrate between it and other tools.
 
 ## The Integration Pattern
 
 Here's what we're building - a single system where Dexto coordinates between different tools:
 
+<ExpandableMermaid title="Dexto + LangChain Integration Pattern">
 ```mermaid
 graph TD
     A[Dexto Orchestrator] --> B[Filesystem Tools]
     A --> C[Puppeteer Tools]
     A --> D[LangChain Agent]
-    
+
     style A fill:#4f46e5,stroke:#312e81,stroke-width:2px,color:#fff
     style B fill:#10b981,stroke:#065f46,stroke-width:1px,color:#fff
     style C fill:#f59e0b,stroke:#92400e,stroke-width:1px,color:#fff
     style D fill:#8b5cf6,stroke:#5b21b6,stroke-width:1px,color:#fff
 ```
+</ExpandableMermaid>
 
 Your existing LangChain agent becomes just another tool in Dexto's toolkit, working alongside file operations and web browsing.
 
@@ -35,7 +39,7 @@ import { PromptTemplate } from '@langchain/core/prompts';
 
 class LangChainAgent {
     constructor() {
-        this.llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+        this.llm = new ChatOpenAI({ model: 'gpt-5-mini' });
         this.tools = {
             summarize: this.summarize.bind(this),
             translate: this.translate.bind(this),
@@ -118,7 +122,7 @@ mcpServers:
   langchain:
     type: stdio
     command: node
-    args: ["./langchain-agent/dist/mcp-server.js"]
+    args: ["${{dexto.agent_dir}}/langchain-agent/dist/mcp-server.js"]
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
 ```
@@ -157,17 +161,17 @@ mcpServers:
   langchain:
     type: stdio
     command: node
-    args: ["./langchain-agent/dist/mcp-server.js"]
-    
+    args: ["${{dexto.agent_dir}}/langchain-agent/dist/mcp-server.js"]
+
   # Add more agents
   autogen-research:
     type: stdio
     command: python
-    args: ["./autogen-agent/mcp_server.py"]
-    
+    args: ["${{dexto.agent_dir}}/autogen-agent/mcp_server.py"]
+
   custom-analyzer:
     type: stdio
-    command: "./custom-agent/target/release/mcp-server"
+    command: "${{dexto.agent_dir}}/custom-agent/target/release/mcp-server"
 ```
 
 Each agent runs independently, but Dexto can orchestrate between all of them based on the task at hand.

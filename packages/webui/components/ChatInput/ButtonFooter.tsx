@@ -14,8 +14,8 @@ export function ButtonFooter({ leftButtons, rightButtons, className }: ButtonFoo
     <div className={cn(
       // Normal flow footer row
       "flex items-center justify-between",
-      // Fixed footer height
-      "h-12 px-2",
+      // Fixed footer height with safe area padding for mobile
+      "h-12 px-3 pr-4",
       // No visual separator; seamless with editor area
       // Ensure interactions work normally
       className

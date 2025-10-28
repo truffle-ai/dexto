@@ -1,9 +1,14 @@
+/* Container for the thumbnail */
+.image-thumbnail-container {
+  margin: 1.5rem 0;
+}
+
 /* Thumbnail view - clickable image */
 .image-thumbnail {
   position: relative;
+  display: inline-block;
   border: 1px solid var(--ifm-color-gray-200);
   border-radius: var(--ifm-card-border-radius);
-  margin: 1.5rem 0;
   background: var(--ifm-background-surface-color);
   overflow: hidden;
   cursor: pointer;
@@ -20,6 +25,11 @@
   border-color: var(--ifm-color-gray-700);
 }
 
+.image-thumbnail img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 /* Overlay with expand hint */
 .image-overlay {
   position: absolute;
@@ -54,6 +64,7 @@
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
+<<<<<<< HEAD
 /* Thumbnail image styling */
 .thumbnail-image {
   width: 100%;
@@ -62,6 +73,8 @@
   border-radius: var(--ifm-card-border-radius);
 }
 
+=======
+>>>>>>> main
 /* Full-screen modal */
 .image-modal-backdrop {
   position: fixed;
@@ -98,11 +111,11 @@
 }
 
 @keyframes slideIn {
-  from { 
+  from {
     opacity: 0;
     transform: scale(0.9) translateY(-20px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
@@ -157,12 +170,12 @@
   justify-content: center;
 }
 
-.modal-image {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
+.image-modal-body img {
+  width: 100%;
   height: auto;
-  border-radius: var(--ifm-card-border-radius);
+  max-width: none;
+  max-height: 85vh;
+  object-fit: contain;
 }
 
 /* Mobile responsiveness */
@@ -170,19 +183,19 @@
   .image-modal-backdrop {
     padding: 1rem;
   }
-  
+
   .image-modal-header {
     padding: 0.75rem 1rem;
   }
-  
+
   .image-modal-header h3 {
     font-size: 1rem;
   }
-  
+
   .image-modal-body {
     padding: 1rem;
   }
-  
+
   .expand-hint span {
     font-size: 0.875rem;
   }

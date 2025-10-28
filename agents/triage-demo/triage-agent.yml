@@ -1,6 +1,9 @@
 # Customer Support Triage Agent Configuration
 # Main coordination agent that routes requests to specialized support agents
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🎯 Hello! I'm your Support Triage Agent. How can I help you today?"
+
 systemPrompt:
   contributors:
     - id: base-prompt
@@ -168,5 +171,5 @@ mcpServers:
 
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5
   apiKey: $OPENAI_API_KEY 

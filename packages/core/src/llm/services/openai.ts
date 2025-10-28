@@ -11,15 +11,28 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { OpenAIMessageFormatter } from '../formatters/openai.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import { shouldIncludeRawToolResult } from '../../utils/debug.js';
+import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * OpenAI implementation of LLMService
  * Not actively maintained, so might be buggy or outdated
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
+ *   - LLM call counters (by provider/model)
+ *   - Token usage histograms (input/output/total/reasoning)
+ *   - Request latency histograms
+ *   - Error rate counters
+ *   See feature-plans/telemetry.md for details
  */
+@InstrumentClass({
+    prefix: 'llm.openai',
+    excludeMethods: ['getAllTools', 'formatToolsForOpenAI', 'getConfig', 'getContextManager'],
+})
 export class OpenAIService implements ILLMService {
     private openai: OpenAI;
     private config: ValidatedLLMConfig;
@@ -31,11 +44,12 @@ export class OpenAIService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         openai: OpenAI,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager: import('../../resources/index.js').ResourceManager
     ) {
         this.config = config;
         this.openai = openai;
@@ -51,11 +65,13 @@ export class OpenAIService implements ILLMService {
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            resourceManager
+            // compressionStrategies uses default
         );
     }
 
@@ -144,6 +160,25 @@ export class OpenAIService implements ILLMService {
                         router: 'in-built',
                         tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                     });
+
+                    // Add token usage to active span (if telemetry is enabled)
+                    const activeSpan = trace.getActiveSpan();
+                    if (activeSpan && totalTokens > 0) {
+                        const attributes: Record<string, number> = {
+                            'gen_ai.usage.total_tokens': totalTokens,
+                        };
+                        if (inputTokens > 0) {
+                            attributes['gen_ai.usage.input_tokens'] = inputTokens;
+                        }
+                        if (outputTokens > 0) {
+                            attributes['gen_ai.usage.output_tokens'] = outputTokens;
+                        }
+                        if (reasoningTokens > 0) {
+                            attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
+                        }
+                        activeSpan.setAttributes(attributes);
+                    }
+
                     return finalContent;
                 }
 
@@ -195,15 +230,21 @@ export class OpenAIService implements ILLMService {
                         args = JSON.parse(toolCall.function.arguments);
                     } catch (e) {
                         logger.error(`Error parsing arguments for ${toolName}:`, e);
-                        await this.contextManager.addToolResult(toolCall.id, toolName, {
-                            error: `Failed to parse arguments: ${e}`,
-                        });
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolCall.id,
+                            toolName,
+                            { error: `Failed to parse arguments: ${e}` },
+                            { success: false }
+                        );
                         // Notify failure so UI & logging subscribers stay in sync
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result: { error: `Failed to parse arguments: ${e}` },
                             callId: toolCall.id,
                             success: false,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult()
+                                ? { rawResult: { error: `Failed to parse arguments: ${e}` } }
+                                : {}),
                         });
                         continue;
                     }
@@ -224,14 +265,20 @@ export class OpenAIService implements ILLMService {
                         );
 
                         // Add tool result to message manager
-                        await this.contextManager.addToolResult(toolCall.id, toolName, result);
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolCall.id,
+                            toolName,
+                            result,
+                            { success: true }
+                        );
 
                         // Notify tool result
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result,
                             callId: toolCall.id,
                             success: true,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                         });
                     } catch (error) {
                         // Handle tool execution error
@@ -239,15 +286,21 @@ export class OpenAIService implements ILLMService {
                         logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
 
                         // Add error as tool result
-                        await this.contextManager.addToolResult(toolCall.id, toolName, {
-                            error: errorMessage,
-                        });
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolCall.id,
+                            toolName,
+                            { error: errorMessage },
+                            { success: false }
+                        );
 
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result: { error: errorMessage },
                             callId: toolCall.id,
                             success: false,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult()
+                                ? { rawResult: { error: errorMessage } }
+                                : {}),
                         });
                     }
                 }
@@ -284,6 +337,25 @@ export class OpenAIService implements ILLMService {
                 router: 'in-built',
                 tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
             });
+
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan && totalTokens > 0) {
+                const attributes: Record<string, number> = {
+                    'gen_ai.usage.total_tokens': totalTokens,
+                };
+                if (inputTokens > 0) {
+                    attributes['gen_ai.usage.input_tokens'] = inputTokens;
+                }
+                if (outputTokens > 0) {
+                    attributes['gen_ai.usage.output_tokens'] = outputTokens;
+                }
+                if (reasoningTokens > 0) {
+                    attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
+                }
+                activeSpan.setAttributes(attributes);
+            }
+
             return finalResponse;
         } catch (error) {
             if (

@@ -17,7 +17,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4.1-mini',
+    model: 'gpt-5-mini',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -69,11 +69,11 @@ Switch between models and providers dynamically.
 const currentLLM = agent.getCurrentLLMConfig();
 
 // Switch models (provider inferred automatically)
-await agent.switchLLM({ model: 'gpt-4.1-mini' });
-await agent.switchLLM({ model: 'claude-4-sonnet-20250514' });
+await agent.switchLLM({ model: 'gpt-5-mini' });
+await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
 // Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-4.1-mini' }, '1234')
+await agent.switchLLM({ model: 'gpt-5-mini' }, '1234')
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
@@ -107,6 +107,26 @@ const result = await manager.executeTool('readFile', { path: './README.md' });
 
 await manager.disconnectAll();
 ```
+
+### Telemetry
+
+Built-in OpenTelemetry distributed tracing for observability.
+
+```typescript
+const agent = new DextoAgent({
+  llm: { /* ... */ },
+  telemetry: {
+    enabled: true,
+    serviceName: 'my-agent',
+    export: {
+      type: 'otlp',
+      endpoint: 'http://localhost:4318/v1/traces'
+    }
+  }
+});
+```
+
+Automatically traces agent operations, LLM calls with token usage, and tool executions. See `src/telemetry/README.md` for details.
 
 See the DextoAgent API reference for all methods:
 https://docs.dexto.ai/api/dexto-agent/
