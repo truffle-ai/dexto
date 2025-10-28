@@ -193,29 +193,20 @@ mcpServers:
 
 ## Step 3: Test Your Agent
 
-### Quick One-Shot Research
 Run your agent with a practical market research task:
 
 ```bash
-dexto --agent market-research-assistant.yml "Research the AI coding assistant market. Analyze the top 3 competitors, their pricing strategies, and identify opportunities for a new entrant"
+dexto --agent market-research-assistant.yml
 ```
 
-When you provide a prompt directly, Dexto automatically uses CLI mode for quick, one-shot execution.
+This opens the web UI. Then ask the agent this:
+"Research the AI coding assistant market. Analyze the top 3 competitors, their pricing strategies, and identify opportunities for a new entrant"
 
 Your agent will:
 1. 🔍 Use AI-powered search to find relevant companies and data
 2. 📊 Analyze competitor strategies and market positioning
 3. 📝 Generate a comprehensive market analysis report
 4. 💡 Provide actionable recommendations
-
-### Interactive Web UI (Default)
-For interactive conversations and a richer experience, run without a prompt:
-
-```bash
-dexto --agent market-research-assistant.yml
-```
-
-This opens the Web UI (the default mode), providing a web interface for multi-turn conversations with your agent.
 
 :::tip CLI Mode
 For terminal-based interaction, add `--mode cli`: `dexto --agent market-research-assistant.yml --mode cli`
