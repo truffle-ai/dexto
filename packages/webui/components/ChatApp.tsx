@@ -584,13 +584,35 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           action: () => setServersPanelOpen(true),
         });
       } else {
-        // Use the actual prompt text from metadata if available, otherwise fall back to slash command
-        const promptText = prompt.metadata?.prompt as string | undefined;
-        const messageToSend = promptText || `/${prompt.name}`;
+        // Starter prompts need to be resolved via API (metadata.prompt is stripped for security/performance)
+        // This matches the resolution logic in InputArea for slash commands
         actions.push({
           description,
           tooltip,
-          action: () => handleSend(messageToSend),
+          action: async () => {
+            try {
+              // Resolve the prompt server-side just like InputArea does
+              const url = new URL(`${getApiUrl()}/api/prompts/${encodeURIComponent(prompt.name)}/resolve`);
+              const res = await fetch(url.toString());
+              if (res.ok) {
+                const data = await res.json();
+                const resolvedText = typeof data?.text === 'string' ? data.text : '';
+                if (resolvedText.trim()) {
+                  handleSend(resolvedText.trim());
+                } else {
+                  // Fallback: send slash command if resolution returned empty
+                  handleSend(`/${prompt.name}`);
+                }
+              } else {
+                // Fallback: send slash command if API fails
+                handleSend(`/${prompt.name}`);
+              }
+            } catch (error) {
+              console.error(`Failed to resolve starter prompt ${prompt.name}:`, error);
+              // Fallback: send slash command on error
+              handleSend(`/${prompt.name}`);
+            }
+          },
         });
       }
     });
