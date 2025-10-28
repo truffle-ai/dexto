@@ -70,4 +70,4 @@ dexto
 
 - [CLI Guide](/docs/guides/cli/overview)
 - [Agent Configuration](/docs/guides/configuring-dexto/overview)
-- [Tool Approval](/docs/guides/configuring-dexto/agent-yml#tool-approval)
+- [Tool Confirmation](/docs/guides/configuring-dexto/agent-yml#tool-confirmation)

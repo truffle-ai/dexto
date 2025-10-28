@@ -71,6 +71,6 @@ dexto --agent nano-banana-agent "create a cute robot mascot for a tech startup"
 
 ## Learn More
 
-- [Nano Banana Agent in Registry](/docs/guides/agent-registry#image--media)
+- [Nano Banana Agent in Registry](/docs/guides/agent-registry#%EF%B8%8F-nano-banana-agent)
 - [Agent Configuration](/docs/guides/configuring-dexto/overview)
 - [Google Gemini Models](https://ai.google.dev/)

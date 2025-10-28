@@ -71,7 +71,7 @@ mcpServers:
 
 ## Available MCP Servers
 
-Browse 20+ ready-to-use MCP servers in the [MCP Store](#mcp-store) including:
+Browse 20+ ready-to-use MCP servers in the [MCP Store](/examples/mcp-store) including:
 - **Filesystem** - File operations
 - **Brave Search** - Web search
 - **GitHub** - Repository management

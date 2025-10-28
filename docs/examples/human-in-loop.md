@@ -73,5 +73,5 @@ toolApproval:
 ## Learn More
 
 - [Agent Configuration](/docs/guides/configuring-dexto/overview)
-- [Tool Approval Settings](/docs/guides/configuring-dexto/agent-yml#tool-approval)
+- [Tool Confirmation Settings](/docs/guides/configuring-dexto/agent-yml#tool-confirmation)
 - [MCP Elicitation](/docs/mcp/elicitation)
