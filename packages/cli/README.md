@@ -66,17 +66,17 @@ cd dexto && pnpm install && pnpm install-cli
 ## Quick Start
 
 ```bash
-# 1. Run setup workflow - this prompts for your preferred LLM and API keys and starts the interactive CLI
+# 1. Run setup workflow - this prompts for your preferred LLM and API keys and opens the Web UI
 dexto
 
-# 2. Try a multi-step task
-dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
+# 2. Try this prompt in the web UI:
+"create a snake game in HTML/CSS/JS, then open it in the browser"
 
-# 3. Launch the Dexto Web UI
-dexto --mode web
+# 3. Start interactive CLI mode
+dexto --mode cli
 ```
 
-In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI allows you to navigate previous conversations and experiment with different models, tools and more.
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. The interactive CLI (3) allows you to interact with agents in the terminal
 
 ### Skip Tool Prompts While Prototyping
 
