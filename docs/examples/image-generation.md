@@ -36,10 +36,15 @@ The Nano Banana Agent uses Google's Gemini 2.5 Flash Image model (formerly Nano 
 # Install the agent
 dexto install nano-banana-agent
 
-# Generate images
-dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
-dexto --agent nano-banana-agent "generate a watercolor painting of a sunset over mountains"
-dexto --agent nano-banana-agent "create a cute robot mascot for a tech startup"
+# Open the agent in web UI
+dexto --agent nano-banana-agent
+```
+
+Try different Prompts to generate images:
+```
+"create a futuristic cityscape with flying cars"
+"generate a watercolor painting of a sunset over mountains"
+"create a cute robot mascot for a tech startup"
 ```
 
 ## Features

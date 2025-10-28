@@ -70,6 +70,8 @@ Try different types of requests:
 "What are your business hours?"
 ```
 
+Watch the multi-agent system communicate to get your responses.
+
 ## Learn More
 
 - [Multi-Agent Systems Tutorial](/docs/tutorials/multi-agent-systems)

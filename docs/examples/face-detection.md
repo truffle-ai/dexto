@@ -37,9 +37,6 @@ dexto install image-editor-agent
 
 # Run it
 dexto --agent image-editor-agent
-
-# Or run in CLI mode
-dexto --agent image-editor-agent --mode cli
 ```
 
 Upload an image in the Web UI, then ask:
