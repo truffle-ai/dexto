@@ -22,7 +22,25 @@ export class SQLiteStore implements Database {
 
     constructor(config: SqliteDatabaseConfig, agentId?: string) {
         this.config = config;
-        this.agentId = agentId;
+
+        // Validate agentId for filesystem safety if provided
+        if (agentId) {
+            const trimmed = agentId.trim();
+            if (!trimmed) {
+                throw StorageError.databaseInvalidConfig(
+                    'agentId cannot be empty or whitespace-only'
+                );
+            }
+            if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+                throw StorageError.databaseInvalidConfig(
+                    'agentId must contain only alphanumeric characters, hyphens, and underscores'
+                );
+            }
+            this.agentId = trimmed;
+        } else {
+            this.agentId = agentId;
+        }
+
         // Path will be resolved in connect() method
         this.dbPath = '';
     }

@@ -43,10 +43,10 @@ export class StorageManager {
             return;
         }
 
-        // Create store instances
+        // Create store instances with agent-specific isolation where applicable
         this.cache = await createCache(this.config.cache);
         this.database = await createDatabase(this.config.database, this.agentId);
-        this.blobStore = createBlobStore(this.config.blob);
+        this.blobStore = createBlobStore(this.config.blob, this.agentId);
 
         this.initialized = true;
     }

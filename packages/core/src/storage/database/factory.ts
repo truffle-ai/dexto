@@ -63,7 +63,10 @@ async function createSQLiteStore(
             const module = await import('./sqlite-store.js');
             SQLiteStore = module.SQLiteStore;
         }
-        logger.info(`Using SQLite database at ${config.path}`);
+        // Derive the effective path that will be used (matches SQLiteStore logic)
+        const defaultFilename = agentId ? `${agentId}.db` : 'dexto.db';
+        const effectivePath = config.path || defaultFilename;
+        logger.info(`Creating SQLite database store: ${effectivePath}`);
         return new SQLiteStore(config, agentId);
     } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));

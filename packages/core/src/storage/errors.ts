@@ -112,6 +112,25 @@ export class StorageError {
         );
     }
 
+    /**
+     * Invalid database configuration
+     */
+    static databaseInvalidConfig(
+        message: string,
+        context?: Record<string, unknown>
+    ): DextoValidationError {
+        return new DextoValidationError([
+            {
+                code: StorageErrorCode.BLOB_INVALID_CONFIG,
+                message,
+                scope: ErrorScope.STORAGE,
+                type: ErrorType.USER,
+                severity: 'error' as const,
+                context: context || {},
+            },
+        ]);
+    }
+
     // ==================== Blob Storage Errors ====================
 
     /**

@@ -43,7 +43,6 @@ import { safeStringify } from '@core/utils/safe-stringify.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
 import { parseDocument } from 'yaml';
-import * as path from 'path';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
@@ -191,15 +190,9 @@ export class DextoAgent {
         try {
             logger.info('Starting DextoAgent...');
 
-            // Derive agent ID for database naming
-            const agentId =
-                this.config.agentCard?.name ||
-                (this.configPath
-                    ? path.basename(this.configPath, path.extname(this.configPath))
-                    : undefined);
-
             // Initialize all services asynchronously
-            const services = await createAgentServices(this.config, this.configPath, agentId);
+            // Note: createAgentServices handles agentId derivation internally
+            const services = await createAgentServices(this.config, this.configPath);
 
             // Validate all required services are provided
             for (const service of requiredServices) {

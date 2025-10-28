@@ -30,12 +30,32 @@ export class LocalBlobStore implements BlobStore {
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
+    private agentId: string | undefined;
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobStoreConfig) {
+    constructor(config: LocalBlobStoreConfig, agentId?: string) {
         this.config = config;
-        this.storePath = config.storePath || getDextoPath('data', 'blobs');
+
+        // Validate agentId for filesystem safety if provided
+        if (agentId) {
+            const trimmed = agentId.trim();
+            if (!trimmed) {
+                throw StorageError.blobInvalidConfig('agentId cannot be empty or whitespace-only');
+            }
+            if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+                throw StorageError.blobInvalidConfig(
+                    'agentId must contain only alphanumeric characters, hyphens, and underscores'
+                );
+            }
+            this.agentId = trimmed;
+        } else {
+            this.agentId = agentId;
+        }
+
+        // Use agent-specific blob directory if agentId is provided, otherwise use shared 'blobs' directory
+        const blobSubdir = this.agentId ? `blobs-${this.agentId}` : 'blobs';
+        this.storePath = config.storePath || getDextoPath('data', blobSubdir);
     }
 
     async connect(): Promise<void> {
@@ -47,6 +67,12 @@ export class LocalBlobStore implements BlobStore {
             this.lastStatsRefresh = Date.now();
             this.connected = true;
             logger.debug(`LocalBlobStore connected at: ${this.storePath}`);
+
+            // TODO: Implement automatic blob cleanup scheduling
+            // - Call cleanup() on connect to remove old blobs based on cleanupAfterDays config
+            // - Start a background interval task (e.g., daily) to periodically run cleanup()
+            // - Ensure the background task can be cancelled on disconnect()
+            // - Use the configured cleanupAfterDays value when invoking cleanup()
         } catch (error) {
             throw StorageError.blobOperationFailed('connect', 'local', error);
         }

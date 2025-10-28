@@ -66,8 +66,8 @@ storage:
     type: sqlite
   blob:
     type: local
-    maxBlobSize: 52428800     # 50MB per blob
-    maxTotalSize: 1073741824  # 1GB total storage
+    maxBlobSize: 209715200    # 200MB per blob (for HD videos up to 32 seconds)
+    maxTotalSize: 2147483648  # 2GB total storage
     cleanupAfterDays: 30
 
 # Starter prompts - video generation examples

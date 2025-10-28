@@ -166,17 +166,20 @@ export class VercelLLMService implements ILLMService {
                             // Handle tool execution errors
                             // Note: toolCall event was already emitted before execution
                             let errorResult: { error: string; denied?: boolean; timeout?: boolean };
+                            let errorFlags = '';
 
                             if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.EXECUTION_DENIED
                             ) {
                                 errorResult = { error: err.message, denied: true };
+                                errorFlags = ' (denied)';
                             } else if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
                             ) {
                                 errorResult = { error: err.message, denied: true, timeout: true };
+                                errorFlags = ' (timeout)';
                             } else {
                                 const message = err instanceof Error ? err.message : String(err);
                                 errorResult = { error: message };
@@ -206,7 +209,8 @@ export class VercelLLMService implements ILLMService {
                                 );
                             }
 
-                            return errorResult;
+                            // Return a concise error string for consistency with success path
+                            return `Tool ${toolName} failed${errorFlags}: ${errorResult.error}`;
                         }
                     },
                     ...(tool.description && { description: tool.description }),
