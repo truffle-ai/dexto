@@ -119,14 +119,19 @@ Once deployed, your Dexto server provides:
 
 ### REST API
 - `POST /api/message` - Send async message
-- `POST /api/message-sync` - Send sync message  
+- `POST /api/message-sync` - Send sync message
 - `POST /api/reset` - Reset conversation
 - `GET /api/mcp/servers` - List MCP servers
 - `GET /health` - Health check
+- And many more for sessions, LLM management, agents, webhooks, etc.
+
+**See the complete [REST API Documentation](/api/rest/conversation)** for all available endpoints.
 
 ### WebSocket
 - Real-time events and streaming responses
-- Connect to `ws://localhost:3001/ws`
+- Connect to `ws://localhost:3001/`
+
+**See the [WebSocket API Documentation](/api/websocket)** for event types and usage.
 
 
 ## Next Steps

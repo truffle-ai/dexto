@@ -15,9 +15,11 @@ When Dexto runs in web mode, it provides these endpoints:
 - **`POST /api/reset`** - Reset conversation history
 - **`POST /api/mcp/servers`** - Dynamically add new MCP servers
 - **`GET /api/mcp/servers`** - List connected servers
-- **`GET /api/mcp/servers/:id/tools`** - List tools for a server
-- **`POST /api/mcp/servers/:id/tools/:tool/execute`** - Execute specific tools
+- **`GET /api/mcp/servers/:serverId/tools`** - List tools for a server
+- **`POST /api/mcp/servers/:serverId/tools/:toolName/execute`** - Execute specific tools
 - **WebSocket at `/`** - Real-time streaming responses
+
+For the complete API reference including sessions, LLM management, webhooks, and more, see the **[REST API Documentation](/api/rest/conversation)**.
 
 Let's start simple and build up our React app layer by layer.
 
