@@ -75,11 +75,21 @@ body::after {
   transition: text-shadow var(--ifm-transition-fast);
 }
 
-/* Larger logo size - increase overall scale */
+/* Optimized logo size for navbar with multiple items */
 .navbar__logo {
-  transform: scale(1.5);
+  transform: scale(1.2);
   transform-origin: left center;
-  margin-right: 4rem;
+  margin-right: 1.5rem;
+}
+
+/* Reduce spacing between navbar items to fit more content */
+.navbar__item {
+  padding: 0 0.75rem;
+}
+
+/* Ensure right-side items stay visible */
+.navbar__items--right {
+  flex-shrink: 0;
 }
 
 /* Announcement bar styling */
