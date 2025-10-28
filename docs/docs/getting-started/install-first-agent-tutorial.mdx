@@ -9,6 +9,12 @@ import TabItem from '@theme/TabItem';
 
 Now that you have used Dexto to build your own agent, let's explore some of the in-built agents that come with Dexto.
 
+<Tabs groupId="interface" defaultValue="webui" values={[
+  { label: 'CLI', value: 'cli' },
+  { label: 'WebUI', value: 'webui' },
+]}>
+  <TabItem value="cli">
+
 ### 1. List available Agents
 
 Dexto comes shipped with in-built agents for common use-cases.
@@ -158,18 +164,97 @@ You can now interact with the database agent in the Web UI, or close it and re-r
 Use `--no-auto-install` with `dexto` to disable the automatic install behavior.
 :::
 
+  </TabItem>
+  <TabItem value="webui">
+
+### 1. View Available Agents
+
+First, start the Dexto Web UI:
+
+```bash
+dexto --mode web
+```
+
+Click on the **Agent Selector** button (with the sparkle icon) at the top of the page to see all available agents.
+
+![Agent sections](/img/screenshots/install-agent/webui-agent-sections.png)
+
+The dropdown organizes agents into sections:
+- **Custom Agents** – Your personally created agents (with trash icon to delete)
+- **Installed** – Built-in agents you've already installed
+- **Available** – Built-in agents ready to install (with download icon)
+
+**📚 See the full [Agent Registry](../guides/agent-registry.md) for detailed information about all available agents, their capabilities, and use cases.**
+
+### 2. Install an Available Agent
+
+Scroll to the **Available** section and find an agent you want to try, like **Music Agent**.
+
+![Available agents](/img/screenshots/install-agent/webui-available-agents.png)
+
+Click on the agent with the download icon. It will be installed automatically with your preferred LLM.
+
+### 3. Switch to the Installed Agent
+
+After installation, you need to open the Agent Selector again. The agent will now appear in the **Installed** section.
+
+![Installed agents](/img/screenshots/install-agent/webui-installed-agents.png)
+
+Click on **Music Agent** to switch to it.
+
+### 4. Use Your Agent
+
+You're now talking to the Music Agent! The Agent Selector button at the top shows which agent is currently active.
+
+![Music agent active](/img/screenshots/install-agent/webui-agent-active.png)
+
+You can start chatting with the music agent immediately. Try asking it about music creation or audio processing.
+
+Check out [Music Agent Demo and Tutorial](../tutorials/music-agent.md) for a full tutorial of how to use this agent.
+
+### 5. Delete Custom Agents
+
+To delete a custom agent you created, open the Agent Selector dropdown and find it under **Custom Agents**. Click the **trash icon** next to it to delete.
+
+:::note
+Built-in agents (from the Installed or Available sections) cannot be deleted through the UI.
+:::
+
+  </TabItem>
+</Tabs>
+
 ## Congratulations!
-You've just installed your first pre-built AI agent with Dexto and set it as your default agent!
+You've just installed your first pre-built AI agent with Dexto!
+
+<Tabs groupId="interface" defaultValue="webui" values={[
+  { label: 'CLI', value: 'cli' },
+  { label: 'WebUI', value: 'webui' },
+]}>
+  <TabItem value="cli">
 
 You've learned how to:
 
 - ✅ List available agents in dexto with the `dexto list-agents` command
 - ✅ Install agents with the `dexto install` command
 - ✅ Uninstall agents with the `dexto uninstall` command
-- ✅ Use the `--no-inject-preferences` argument with `dexto install` command to use default LLM preferences.
+- ✅ Use the `--no-inject-preferences` argument with `dexto install` command to use default LLM preferences
 - ✅ Find the file path to installed agents with the `dexto which` command
 - ✅ Set any agent as your preferred default agent in `dexto`
 - ✅ Automatically install and run an agent with `dexto -a <agent_name>`
+
+</TabItem>
+<TabItem value="webui">
+
+You've learned how to:
+
+- ✅ View available agents using the Agent Selector dropdown
+- ✅ Understand the different agent sections (Custom, Installed, Available)
+- ✅ Install agents by clicking on them in the Available section
+- ✅ Switch between installed agents
+- ✅ Delete custom agents using the trash icon
+
+</TabItem>
+</Tabs>
 
 You are now ready to explore other in-built agents like the podcast agent, triage agent, database agent, and more!
 
