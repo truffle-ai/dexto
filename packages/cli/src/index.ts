@@ -98,7 +98,7 @@ program
     .option('-r, --resume <sessionId>', 'Resume session by ID')
     .option(
         '--mode <mode>',
-        'The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp',
+        'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
         'web'
     )
     .option('--web-port <port>', 'optional port for the web UI', '3000')
@@ -984,7 +984,7 @@ program
 
                     default:
                         console.error(
-                            `❌ Unknown mode '${opts.mode}'. Use cli, web, server, discord, telegram, or mcp.`
+                            `❌ Unknown mode '${opts.mode}'. Use web, cli, server, discord, telegram, or mcp.`
                         );
                         safeExit('main', 1, 'unknown-mode');
                 }

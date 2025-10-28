@@ -15,10 +15,10 @@ export function validateCliOptions(opts: any): void {
         agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
         strict: z.boolean().optional().default(false),
         verbose: z.boolean().optional().default(true),
-        mode: z.enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'], {
+        mode: z.enum(['web', 'cli', 'server', 'discord', 'telegram', 'mcp'], {
             errorMap: () => ({
                 message:
-                    'Mode must be one of "cli", "web", "server", "discord", "telegram", or "mcp"',
+                    'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
             }),
         }),
         webPort: z.string().refine(

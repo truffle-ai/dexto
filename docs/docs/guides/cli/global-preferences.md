@@ -30,7 +30,7 @@ llm:
 
 defaults:
   defaultAgent: default-agent
-  defaultMode: web  # cli | web | server | discord | telegram | mcp
+  defaultMode: web  # web | cli | server | discord | telegram | mcp
 
 setup:
   completed: true
