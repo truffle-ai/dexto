@@ -69,10 +69,10 @@ cd dexto && pnpm install && pnpm install-cli
 # 1. Run setup workflow - this prompts for your preferred LLM and API keys and opens the Web UI
 dexto
 
-# 2. Try this prompt in the web UI:
+# 2. Try a multi-step task in the web UI:
 "create a snake game in HTML/CSS/JS, then open it in the browser"
 
-# 3. Start interactive CLI mode
+# 3. Start interactive CLI mode instead of web UI
 dexto --mode cli
 ```
 
