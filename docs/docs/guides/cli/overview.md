@@ -22,15 +22,15 @@ Some of the cool things you can do with Dexto CLI:
 ### Basic Usage
 
 ```bash
-# Start interactive CLI
+# Start interactive session (opens Web UI by default)
 dexto
 
-# Run a single prompt
+# Start interactive CLI mode
+dexto --mode cli
+
+# Run a single prompt (auto-uses CLI mode)
 dexto "list files here"
 dexto -p "create a snake game"
-
-# Launch Web UI
-dexto --mode web
 
 # Start as API server
 dexto --mode server
@@ -44,6 +44,10 @@ dexto --mode discord
 # Start Telegram bot
 dexto --mode telegram
 ```
+
+:::tip Mode Auto-Detection
+`dexto` opens the Web UI by default. When you provide a prompt via `-p` or as a positional argument, Dexto automatically switches to CLI mode for one-shot execution.
+:::
 
 ### Main Command Options
 
@@ -362,20 +366,23 @@ Once in interactive mode (`dexto`), use these slash commands:
 ### Quick Start
 
 ```bash
-# Interactive CLI with default settings
+# Interactive session with default settings (opens Web UI)
 dexto
 
-# Use a specific agent
+# Interactive CLI mode
+dexto --mode cli
+
+# Use a specific agent (opens Web UI)
 dexto --agent nano-banana-agent
 
-# Start with a specific model
+# Start with a specific model (opens Web UI)
 dexto -m claude-sonnet-4-5-20250929
 ```
 
 ### One-Shot Prompts
 
 ```bash
-# Run single task and exit
+# Run single task and exit (auto-uses CLI mode)
 dexto "list all TypeScript files in src/"
 dexto -p "create a README for this project"
 
@@ -386,10 +393,14 @@ dexto --auto-approve "format all JavaScript files"
 ### Session Continuation
 
 ```bash
-# Continue last conversation
+# Continue last conversation (opens Web UI)
 dexto --continue
 
-# Resume specific session
+# Continue in CLI mode
+dexto --continue --mode cli
+
+# Resume specific session (opens Web UI)
+# Get session id from the web UI
 dexto --resume my-project-session
 ```
 
@@ -410,13 +421,13 @@ dexto which coding-agent
 
 ```bash
 # Launch on default port (3000)
-dexto --mode web
+dexto
 
 # Custom port
-dexto --mode web --web-port 8080
+dexto --web-port 8080
 
 # With specific agent
-dexto --mode web --agent database-agent
+dexto --agent database-agent
 ```
 
 ### API Server

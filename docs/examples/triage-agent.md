@@ -61,8 +61,10 @@ dexto install triage-agent
 
 # Run it
 dexto --agent triage-agent
+```
 
-# Try different types of requests
+Try different types of requests:
+```
 "I have a billing question"
 "My API isn't responding"
 "What are your business hours?"

@@ -11,7 +11,7 @@ Generate images using Hugging Face models with simple text prompts.
 **Task:** `Generate a photo of a baby panda.`
 
 ```bash
-dexto --agent nano-banana-agent
+dexto --agent nano-banana-agent 
 ```
 
 <ExpandableImage src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" title="Hugging Face: Image Generation" width={900} />
