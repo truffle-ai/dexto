@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ExpandableImage.css';
 
 interface ExpandableImageProps {
@@ -25,10 +25,10 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({
     document.body.style.overflow = 'hidden';
   };
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setIsModalOpen(false);
     document.body.style.overflow = 'unset';
-  };
+  }, [setIsModalOpen]);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -45,7 +45,7 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, closeModal]);
 
   // Cleanup body overflow on unmount
   useEffect(() => {

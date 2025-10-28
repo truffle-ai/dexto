@@ -1,6 +1,8 @@
 /* Container for the thumbnail */
 .image-thumbnail-container {
   margin: 1.5rem 0;
+  display: flex;
+  justify-content: center;
 }
 
 /* Thumbnail view - clickable image */
@@ -30,7 +32,6 @@
   max-width: 100%;
   height: auto;
 }
-
 /* Overlay with expand hint */
 .image-overlay {
   position: absolute;
@@ -79,6 +80,9 @@
   z-index: 9999;
   padding: 2rem;
   animation: fadeIn 0.2s ease;
+  /* Ensure modal centers relative to viewport, not page */
+  height: 100vh;
+  width: 100vw;
 }
 
 @keyframes fadeIn {
