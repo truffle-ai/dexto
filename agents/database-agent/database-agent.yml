@@ -129,3 +129,30 @@ llm:
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
   temperature: 0.1  # Lower temperature for more consistent database operations
+
+# Starter prompts - database interaction examples
+starterPrompts:
+  - id: explore-database
+    title: "🔍 Explore Database"
+    description: "See what's in the database"
+    prompt: "Show me what tables exist in the database and their structure."
+    category: exploration
+    priority: 10
+  - id: create-table
+    title: "🗂️ Create Table"
+    description: "Design and create a new database table"
+    prompt: "Create a products table with columns for name, description, price, and stock quantity."
+    category: schema
+    priority: 9
+  - id: insert-data
+    title: "➕ Insert Data"
+    description: "Add new records to a table"
+    prompt: "Insert a new product into the products table with name 'Laptop', price 999.99, and stock 15."
+    category: data-management
+    priority: 8
+  - id: query-data
+    title: "📊 Query Data"
+    description: "Search and filter database records"
+    prompt: "Show me all products from the products table sorted by price."
+    category: queries
+    priority: 7

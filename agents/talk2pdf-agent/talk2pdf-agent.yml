@@ -54,4 +54,4 @@ storage:
 llm:
   provider: openai
   model: gpt-5-mini
-  apiKey: $OPENAI_API_KEY 
+  apiKey: $OPENAI_API_KEY

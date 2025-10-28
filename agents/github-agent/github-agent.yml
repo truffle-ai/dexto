@@ -70,3 +70,30 @@ llm:
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
+# Starter prompts - GitHub operations examples
+starterPrompts:
+  - id: repo-info
+    title: "📊 Repository Info"
+    description: "Get details about the Dexto repository"
+    prompt: "Show me information about the truffle-ai/dexto repository including stars, forks, and recent activity."
+    category: info
+    priority: 10
+  - id: list-issues
+    title: "📋 List Issues"
+    description: "View open issues in Dexto"
+    prompt: "List all open issues in the truffle-ai/dexto repository."
+    category: issues
+    priority: 9
+  - id: star-dexto
+    title: "⭐ Star Dexto"
+    description: "Star the Dexto repository"
+    prompt: "Star the truffle-ai/dexto repository on GitHub."
+    category: engagement
+    priority: 8
+  - id: recent-commits
+    title: "📝 Recent Commits"
+    description: "View latest commits to Dexto"
+    prompt: "Show me the recent commits to the truffle-ai/dexto repository."
+    category: activity
+    priority: 7
+

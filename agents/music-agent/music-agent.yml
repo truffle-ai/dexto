@@ -47,4 +47,31 @@ storage:
     type: local
     maxBlobSize: 52428800     # 50MB per blob
     maxTotalSize: 1073741824  # 1GB total storage
-    cleanupAfterDays: 30 
+    cleanupAfterDays: 30
+
+# Starter prompts - music creation examples
+starterPrompts:
+  - id: create-melody
+    title: "🎼 Create Melody"
+    description: "Generate a musical melody"
+    prompt: "Create a cheerful melody in G major at 140 BPM that lasts 15 seconds."
+    category: generation
+    priority: 10
+  - id: create-chords
+    title: "🎹 Create Chord Progression"
+    description: "Generate chord progressions"
+    prompt: "Create a I-IV-V-I chord progression in D major."
+    category: generation
+    priority: 9
+  - id: create-drums
+    title: "🥁 Create Drum Pattern"
+    description: "Generate drum patterns"
+    prompt: "Create a basic rock drum pattern at 120 BPM."
+    category: generation
+    priority: 8
+  - id: list-effects
+    title: "🎚️ List Available Effects"
+    description: "See what audio effects are available"
+    prompt: "Show me all available audio effects and how to use them."
+    category: discovery
+    priority: 7

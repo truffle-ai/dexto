@@ -69,3 +69,30 @@ storage:
     maxBlobSize: 52428800     # 50MB per blob
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30
+
+# Starter prompts - video generation examples
+starterPrompts:
+  - id: create-video
+    title: "🎬 Create Video"
+    description: "Generate video from text prompt"
+    prompt: "Create an 8-second video of a cat playing piano in a cozy living room with warm lighting."
+    category: generation
+    priority: 10
+  - id: nature-video
+    title: "🌄 Nature Video"
+    description: "Generate scenic landscape video"
+    prompt: "Generate an 8-second video in 16:9 format showing a breathtaking sunset over mountains with clouds moving across the sky."
+    category: nature
+    priority: 9
+  - id: social-video
+    title: "📱 Social Media Video"
+    description: "Create vertical video for social platforms"
+    prompt: "Create a 4-second vertical video (9:16) showing a product reveal with dramatic lighting."
+    category: social-media
+    priority: 8
+  - id: futuristic-video
+    title: "🚀 Futuristic Scene"
+    description: "Generate sci-fi themed video"
+    prompt: "Create a 16-second video showing a futuristic cityscape with flying cars and neon lights at night."
+    category: sci-fi
+    priority: 7
