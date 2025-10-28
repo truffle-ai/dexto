@@ -60,8 +60,8 @@ dexto --mode telegram
 | `--router <router>` | Specify router (vercel/in-built) | `dexto --router vercel` |
 | `-c, --continue` | Continue the last session | `dexto --continue` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
-| `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp) | `dexto --mode web` |
-| `--web-port <port>` | Web UI port (default: 3000) | `dexto --mode web --web-port 8080` |
+| `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
+| `--web-port <port>` | Web UI port (default: 3000) | `dexto --web-port 8080` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |

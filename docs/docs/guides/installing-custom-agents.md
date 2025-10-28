@@ -122,7 +122,7 @@ The Web UI provides a visual way to create custom agents without writing YAML fi
 
 1. **Open the Web UI:**
    ```bash
-   dexto --mode web
+   dexto
    ```
 
 2. **Click "+New Agent"** in the agent selector (top of the interface)

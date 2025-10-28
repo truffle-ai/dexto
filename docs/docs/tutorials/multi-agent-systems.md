@@ -24,7 +24,7 @@ The Writer agent will be able to delegate research tasks to the Researcher agent
 
 ### Mode Selection Strategy
 - **`--mode mcp`**: Use for agents that primarily serve as MCP servers for other agents (like our Researcher)
-- **`--mode web`**: Use for agents that need web UI access for user interaction (like our Writer)
+- **Default (web) mode**: Use for agents that need web UI access for user interaction (like our Writer)
 
 Both modes expose the `/mcp` endpoint, but `mcp` mode is optimized for API-only usage.
 
@@ -169,9 +169,9 @@ That's it! No custom code needed. Just run Dexto with different configs and port
 dexto --mode mcp --web-port 3001 --agent researcher.yml
 ```
 
-### Terminal 2: Start the Writer Agent  
+### Terminal 2: Start the Writer Agent
 ```bash
-dexto --mode web --web-port 3002 --agent writer.yml
+dexto --web-port 3002 --agent writer.yml
 ```
 
 ### Terminal 3: Test the System
@@ -256,7 +256,7 @@ dexto --mode mcp --web-port 3003 --agent fact-checker.yml
 dexto --mode mcp --web-port 3004 --agent editor.yml
 
 # Terminal 4: Writer (Web UI for user interaction)
-dexto --mode web --web-port 3002 --agent writer.yml
+dexto --web-port 3002 --agent writer.yml
 ```
 
 ### 2. Bidirectional Communication
@@ -320,7 +320,7 @@ dexto --mode mcp --web-port 3002 --agent writer.yml
 dexto --mode mcp --web-port 3003 --agent reviewer.yml
 
 # Start coordinator (Web UI for user interaction)
-dexto --mode web --web-port 3000 --agent coordinator.yml
+dexto --web-port 3000 --agent coordinator.yml
 ```
 
 ## Production Considerations
@@ -342,9 +342,9 @@ module.exports = {
       args: '--mode mcp --web-port 3001 --agent researcher.yml'
     },
     {
-      name: 'writer-agent', 
+      name: 'writer-agent',
       script: 'dexto',
-      args: '--mode web --web-port 3002 --agent writer.yml'
+      args: '--web-port 3002 --agent writer.yml'
     }
   ]
 };
@@ -385,7 +385,7 @@ services:
       - "3002:3000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    command: dexto --mode web --web-port 3000 --agent writer.yml
+    command: dexto --web-port 3000 --agent writer.yml
     depends_on:
       - researcher
 ```
