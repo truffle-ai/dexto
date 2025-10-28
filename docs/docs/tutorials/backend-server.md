@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # React Chat App using Dexto
 
-When you run `dexto --mode web`, you get a powerful backend server with REST APIs and WebSocket support. Let's build a React chat application step by step, introducing each API capability as we go.
+When you run `dexto` (web is the default mode), you get a powerful backend server with REST APIs and WebSocket support. Let's build a React chat application step by step, introducing each API capability as we go.
 
 ## Available Dexto Server APIs
 

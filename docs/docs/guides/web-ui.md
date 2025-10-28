@@ -19,14 +19,14 @@ Dexto web UI also stores your conversation history locally so it remembers your 
 **Start dexto web UI:**
 
 ```bash
-dexto --mode web
+dexto
 ```
-Then open [http://localhost:3000](http://localhost:3000) in your browser.
+This opens the Web UI at [http://localhost:3000](http://localhost:3000) in your browser (web is the default mode).
 
-Or open dexto web UI in a different port:
+**Use a different port:**
 
 ```bash
-dexto --mode web --web-port 3333
+dexto --web-port 3333
 ```
 
 ## Conversation storage
