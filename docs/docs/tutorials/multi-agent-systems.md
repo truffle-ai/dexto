@@ -23,14 +23,14 @@ We'll create two specialized agents:
 The Writer agent will be able to delegate research tasks to the Researcher agent using MCP tool calls.
 
 :::tip Port Convention
-Each agent uses two ports: frontend (web UI) and API. For example, the Researcher uses port 4000 for its web interface and 4001 for its API endpoints.
+Each agent uses an API port to expose its REST API and MCP endpoint. For example, the Researcher uses port 4001 for its API endpoints.
 :::
 
 ### Mode Selection Strategy
-- **`--mode mcp`**: Use for agents that primarily serve as MCP servers for other agents (like our Researcher)
-- **Default (web) mode**: Use for agents that need web UI access for user interaction (like our Writer)
+- **`--mode server`**: Use for agents that serve as MCP servers for other agents via HTTP (like our Researcher). Exposes REST APIs and the `/mcp` endpoint without opening a web UI.
+- **Default (web) mode**: Use for agents that need web UI access for user interaction (like our Writer). Also exposes REST APIs and `/mcp` endpoint.
 
-Both modes expose the `/mcp` endpoint, but `mcp` mode is optimized for API-only usage.
+Both modes expose the `/mcp` endpoint at `http://localhost:{api-port}/mcp` for other agents to connect to.
 
 ## Step 1: Create the Project Structure
 
@@ -170,12 +170,12 @@ That's it! No custom code needed. Just run Dexto with different configs and port
 
 ### Terminal 1: Start the Researcher Agent
 ```bash
-dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
+dexto --mode server --api-port 4001 --agent researcher.yml
 ```
 
 ### Terminal 2: Start the Writer Agent
 ```bash
-dexto --web-port 5000 --api-port 5001 --agent writer.yml
+dexto --api-port 5001 --agent writer.yml
 ```
 
 ### Terminal 3: Test the System
@@ -191,9 +191,10 @@ curl -X POST http://localhost:5001/api/message-sync \
   -d '{"message": "Write a blog post about AI agent collaboration. Research current trends first."}'
 ```
 
-You can also open the web interfaces:
-- **Researcher**: `http://localhost:4000` (Web UI on 4000, API on 4001)
-- **Writer**: `http://localhost:5000` (Web UI on 5000, API on 5001)
+You can also interact via the Writer's web interface:
+- **Writer**: `http://localhost:5000` (Web UI automatically opens, API on 5001)
+
+Note: The Researcher runs in server mode (no web UI) and only exposes its API on port 4001.
 
 ## How It Works
 
@@ -214,11 +215,11 @@ In the Writer's configuration, this section connects to the Researcher:
 ```yaml
 researcher:
   type: http                           # Use HTTP MCP connection
-  baseUrl: http://localhost:3001/mcp   # Researcher's MCP endpoint (auto-available in mcp mode)
+  baseUrl: http://localhost:4001/mcp   # Researcher's MCP endpoint
   timeout: 30000                       # 30-second timeout
 ```
 
-When Dexto runs in `mcp` or `web` mode, it automatically exposes an MCP endpoint at `/mcp` that other agents can connect to. The `mcp` mode is specifically designed for agents that primarily serve as MCP servers for other agents.
+When Dexto runs in `server` or `web` mode, it automatically exposes an MCP endpoint at `/mcp` that other agents can connect to via HTTP. Use `server` mode for agents that only need to serve as MCP servers (no web UI), and `web` mode for agents that need user interaction through a web interface.
 
 ### The Power of Configuration-First
 
@@ -250,17 +251,17 @@ mcpServers:
 
 Then run:
 ```bash
-# Terminal 1: Researcher (MCP server mode)
-dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
+# Terminal 1: Researcher (Server mode - HTTP MCP, no UI)
+dexto --mode server --api-port 4001 --agent researcher.yml
 
-# Terminal 2: Fact-checker (MCP server mode)
-dexto --mode mcp --web-port 6000 --api-port 6001 --agent fact-checker.yml
+# Terminal 2: Fact-checker (Server mode - HTTP MCP, no UI)
+dexto --mode server --api-port 6001 --agent fact-checker.yml
 
-# Terminal 3: Editor (MCP server mode)
-dexto --mode mcp --web-port 7000 --api-port 7001 --agent editor.yml
+# Terminal 3: Editor (Server mode - HTTP MCP, no UI)
+dexto --mode server --api-port 7001 --agent editor.yml
 
-# Terminal 4: Writer (Web UI for user interaction)
-dexto --web-port 5000 --api-port 5001 --agent writer.yml
+# Terminal 4: Writer (Web mode - UI for user interaction)
+dexto --api-port 5001 --agent writer.yml
 ```
 
 ### 2. Bidirectional Communication
@@ -318,13 +319,13 @@ llm:
 
 Run the system:
 ```bash
-# Start specialized agents (MCP servers)
-dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
-dexto --mode mcp --web-port 5000 --api-port 5001 --agent writer.yml
-dexto --mode mcp --web-port 6000 --api-port 6001 --agent reviewer.yml
+# Start specialized agents (Server mode - HTTP MCP servers)
+dexto --mode server --api-port 4001 --agent researcher.yml
+dexto --mode server --api-port 5001 --agent writer.yml
+dexto --mode server --api-port 6001 --agent reviewer.yml
 
-# Start coordinator (Web UI for user interaction)
-dexto --web-port 8000 --api-port 8001 --agent coordinator.yml
+# Start coordinator (Web mode - UI for user interaction)
+dexto --api-port 8001 --agent coordinator.yml
 ```
 
 ## Production Considerations
@@ -343,12 +344,12 @@ module.exports = {
     {
       name: 'researcher-agent',
       script: 'dexto',
-      args: '--mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml'
+      args: '--mode server --api-port 4001 --agent researcher.yml'
     },
     {
       name: 'writer-agent',
       script: 'dexto',
-      args: '--web-port 5000 --api-port 5001 --agent writer.yml'
+      args: '--api-port 5001 --agent writer.yml'
     }
   ]
 };
@@ -377,11 +378,11 @@ services:
   researcher:
     build: .
     ports:
-      - "4000-4001:4000-4001"
+      - "4001:4001"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
-    command: dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
+    command: dexto --mode server --api-port 4001 --agent researcher.yml
 
   writer:
     build: .
@@ -389,7 +390,7 @@ services:
       - "5000-5001:5000-5001"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    command: dexto --web-port 5000 --api-port 5001 --agent writer.yml
+    command: dexto --api-port 5001 --agent writer.yml
     depends_on:
       - researcher
 ```

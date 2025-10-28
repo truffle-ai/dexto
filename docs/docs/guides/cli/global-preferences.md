@@ -193,26 +193,6 @@ Edit `~/.dexto/preferences.yml` directly, ensuring:
 - Provider and model are compatible
 - All required fields present
 
-### Programmatic Updates
-
-```typescript
-// Update LLM configuration
-await updateGlobalPreferences({
-    llm: {
-        provider: 'openai',
-        model: 'gpt-5-mini',
-        apiKey: '$OPENAI_API_KEY'
-    }
-});
-
-// Update default mode
-await updateGlobalPreferences({
-    defaults: {
-        defaultMode: 'cli'  // Switch to CLI-first workflow
-    }
-});
-```
-
 ### Re-run Setup
 
 ```bash
