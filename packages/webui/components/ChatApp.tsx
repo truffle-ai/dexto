@@ -90,8 +90,21 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   // Starter prompts state (from agent config via /api/prompts)
   const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
   const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
+  const [promptsReloadKey, setPromptsReloadKey] = useState(0);
 
-  // Fetch starter prompts when in welcome state
+  // Listen for agent switch events to reload prompts
+  useEffect(() => {
+    const handleAgentSwitch = () => {
+      setPromptsReloadKey((key) => key + 1);
+    };
+
+    window.addEventListener('dexto:agentSwitched', handleAgentSwitch);
+    return () => {
+      window.removeEventListener('dexto:agentSwitched', handleAgentSwitch);
+    };
+  }, []);
+
+  // Fetch starter prompts when in welcome state or when agent switches
   useEffect(() => {
     if (!isWelcomeState) return;
 
@@ -113,7 +126,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     return () => {
       cancelled = true;
     };
-  }, [isWelcomeState]);
+  }, [isWelcomeState, promptsReloadKey]);
 
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
