@@ -584,6 +584,10 @@ program
             '  dexto -r "<session-id>" "query"  Resume with one-shot query\n\n' +
             'Tool Confirmation:\n' +
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
+            'Agent Selection:\n' +
+            '  dexto --agent coding-agent       Use installed agent by name\n' +
+            '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
+            '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode discord     Run as Discord bot\n' +
