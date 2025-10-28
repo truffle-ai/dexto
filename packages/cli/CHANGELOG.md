@@ -1,5 +1,51 @@
 # dexto
 
+## 1.2.0
+
+### Minor Changes
+
+- 1e25f91: Update web UI to be default, fix port bugs, update docs
+
+### Patch Changes
+
+- 4a191d2: Update agents
+- a27ddf0: Add OTEL telemetry to trace agent execution
+- 3a65cde: Update older LLMs to new LLMs, update docs
+- 5ba5d38: **Features:**
+    - Agent switcher now supports file-based agents loaded via CLI (e.g., `dexto --agent path/to/agent.yml`)
+    - Agent selector UI remembers recent agents (up to 5) with localStorage persistence
+    - WebUI displays currently active file-based agent and recent agent history
+    - Dev server (`pnpm dev`) now auto-opens browser when WebUI is ready
+    - Added `/test-api` custom command for automated API test coverage analysis
+
+    **Bug Fixes:**
+    - Fixed critical bug where Memory, A2A, and MCP API routes used stale agent references after switching
+    - Fixed telemetry shutdown blocking agent switches when observability infrastructure (Jaeger/OTLP) is unavailable
+    - Fixed dark mode styling issues when Chrome's Auto Dark Mode is enabled
+    - Fixed agent card not updating for A2A and MCP routes after agent switch
+
+    **Improvements:**
+    - Refactored `Dexto.createAgent()` to static method, removing unnecessary singleton pattern
+    - Improved error handling for agent switching with typed errors (CONFLICT error type, `AgentError.switchInProgress()`)
+    - Telemetry now disabled by default (opt-in) in default agent configuration
+    - Added localStorage corruption recovery for recent agents list
+
+- c6594d9: Add changeset for updated readme and docs.
+- 3f99854: Update docs, update agents to use newer LLMs, update readmes
+- 930a4ca: Fixes in UI, docs and agents
+- 2940fbf: Add changeset for playground ui updates
+- 930d75a: Add mcp server restart feature and button in webUI
+- Updated dependencies [b51e4d9]
+- Updated dependencies [a27ddf0]
+- Updated dependencies [155813c]
+- Updated dependencies [1e25f91]
+- Updated dependencies [3a65cde]
+- Updated dependencies [5ba5d38]
+- Updated dependencies [930a4ca]
+- Updated dependencies [ecad345]
+- Updated dependencies [930d75a]
+    - @dexto/core@1.2.0
+
 ## 1.1.11
 
 ### Patch Changes
