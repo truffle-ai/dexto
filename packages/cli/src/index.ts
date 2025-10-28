@@ -107,7 +107,8 @@ program
         'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
         'web'
     )
-    .option('--web-port <port>', 'optional port for the web UI', '3000')
+    .option('--web-port <port>', 'port for the web UI (default: 3000)', '3000')
+    .option('--api-port <port>', 'port for the API server (default: web-port + 1)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .enablePositionalOptions();
 
@@ -886,7 +887,11 @@ program
                             webPort,
                             'FRONTEND_PORT'
                         );
-                        const apiPort = getPort(process.env.API_PORT, webPort + 1, 'API_PORT');
+                        // Use explicit --api-port if provided, otherwise default to webPort + 1
+                        const defaultApiPort = opts.apiPort
+                            ? parseInt(opts.apiPort, 10)
+                            : webPort + 1;
+                        const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
                         const nextJSserverURL =
                             process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
@@ -929,7 +934,9 @@ program
                     case 'server': {
                         // Start server with REST APIs and WebSockets only
                         const agentCard = agent.getEffectiveConfig().agentCard ?? {};
-                        const apiPort = getPort(process.env.API_PORT, 3001, 'API_PORT');
+                        // Use explicit --api-port if provided, otherwise default to 3001
+                        const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : 3001;
+                        const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');

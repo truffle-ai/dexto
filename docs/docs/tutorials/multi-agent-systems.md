@@ -17,10 +17,14 @@ In this guide, you'll learn how to:
 ## What We're Building
 
 We'll create two specialized agents:
-- **Researcher Agent** (Port 3001): Specializes in gathering and analyzing information
-- **Writer Agent** (Port 3002): Specializes in content creation, can call the Researcher for help
+- **Researcher Agent** (Ports 4000/4001): Specializes in gathering and analyzing information
+- **Writer Agent** (Ports 5000/5001): Specializes in content creation, can call the Researcher for help
 
 The Writer agent will be able to delegate research tasks to the Researcher agent using MCP tool calls.
+
+:::tip Port Convention
+Each agent uses two ports: frontend (web UI) and API. For example, the Researcher uses port 4000 for its web interface and 4001 for its API endpoints.
+:::
 
 ### Mode Selection Strategy
 - **`--mode mcp`**: Use for agents that primarily serve as MCP servers for other agents (like our Researcher)
@@ -134,7 +138,7 @@ mcpServers:
   # Connect to the Researcher Agent as an MCP server
   researcher:
     type: http
-    baseUrl: http://localhost:3001/mcp
+    baseUrl: http://localhost:4001/mcp
     timeout: 30000
 
 llm:
@@ -166,30 +170,30 @@ That's it! No custom code needed. Just run Dexto with different configs and port
 
 ### Terminal 1: Start the Researcher Agent
 ```bash
-dexto --mode mcp --web-port 3001 --agent researcher.yml
+dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
 ```
 
 ### Terminal 2: Start the Writer Agent
 ```bash
-dexto --web-port 3002 --agent writer.yml
+dexto --web-port 5000 --api-port 5001 --agent writer.yml
 ```
 
 ### Terminal 3: Test the System
 ```bash
-# Test the researcher directly
-curl -X POST http://localhost:3001/api/message-sync \
+# Test the researcher directly (hits API port)
+curl -X POST http://localhost:4001/api/message-sync \
   -H "Content-Type: application/json" \
   -d '{"message": "Research the latest developments in AI agents"}'
 
 # Test the writer (which can call the researcher)
-curl -X POST http://localhost:3002/api/message-sync \
+curl -X POST http://localhost:5001/api/message-sync \
   -H "Content-Type: application/json" \
   -d '{"message": "Write a blog post about AI agent collaboration. Research current trends first."}'
 ```
 
 You can also open the web interfaces:
-- **Researcher**: http://localhost:3001 (API endpoints only)
-- **Writer**: http://localhost:3002 (Full web UI)
+- **Researcher**: http://localhost:4000 (Web UI on 4000, API on 4001)
+- **Writer**: http://localhost:5000 (Web UI on 5000, API on 5001)
 
 ## How It Works
 
@@ -247,16 +251,16 @@ mcpServers:
 Then run:
 ```bash
 # Terminal 1: Researcher (MCP server mode)
-dexto --mode mcp --web-port 3001 --agent researcher.yml
+dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
 
 # Terminal 2: Fact-checker (MCP server mode)
-dexto --mode mcp --web-port 3003 --agent fact-checker.yml
+dexto --mode mcp --web-port 6000 --api-port 6001 --agent fact-checker.yml
 
 # Terminal 3: Editor (MCP server mode)
-dexto --mode mcp --web-port 3004 --agent editor.yml
+dexto --mode mcp --web-port 7000 --api-port 7001 --agent editor.yml
 
 # Terminal 4: Writer (Web UI for user interaction)
-dexto --web-port 3002 --agent writer.yml
+dexto --web-port 5000 --api-port 5001 --agent writer.yml
 ```
 
 ### 2. Bidirectional Communication
@@ -270,10 +274,10 @@ mcpServers:
     type: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
-  
+
   writer:
     type: http
-    baseUrl: http://localhost:3002/mcp
+    baseUrl: http://localhost:5001/mcp
 ```
 
 ### 3. Agent Orchestration
@@ -285,15 +289,15 @@ Create a coordinator agent that manages multiple specialized agents:
 mcpServers:
   researcher:
     type: http
-    baseUrl: http://localhost:3001/mcp
-  
+    baseUrl: http://localhost:4001/mcp
+
   writer:
     type: http
-    baseUrl: http://localhost:3002/mcp
-  
+    baseUrl: http://localhost:5001/mcp
+
   reviewer:
     type: http
-    baseUrl: http://localhost:3003/mcp
+    baseUrl: http://localhost:6001/mcp
 
 # Coordinator Agent Configuration
 systemPrompt: |
@@ -315,12 +319,12 @@ llm:
 Run the system:
 ```bash
 # Start specialized agents (MCP servers)
-dexto --mode mcp --web-port 3001 --agent researcher.yml
-dexto --mode mcp --web-port 3002 --agent writer.yml  
-dexto --mode mcp --web-port 3003 --agent reviewer.yml
+dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
+dexto --mode mcp --web-port 5000 --api-port 5001 --agent writer.yml
+dexto --mode mcp --web-port 6000 --api-port 6001 --agent reviewer.yml
 
 # Start coordinator (Web UI for user interaction)
-dexto --web-port 3000 --agent coordinator.yml
+dexto --web-port 8000 --api-port 8001 --agent coordinator.yml
 ```
 
 ## Production Considerations
@@ -339,12 +343,12 @@ module.exports = {
     {
       name: 'researcher-agent',
       script: 'dexto',
-      args: '--mode mcp --web-port 3001 --agent researcher.yml'
+      args: '--mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml'
     },
     {
       name: 'writer-agent',
       script: 'dexto',
-      args: '--web-port 3002 --agent writer.yml'
+      args: '--web-port 5000 --api-port 5001 --agent writer.yml'
     }
   ]
 };
@@ -373,19 +377,19 @@ services:
   researcher:
     build: .
     ports:
-      - "3001:3000"
+      - "4000-4001:4000-4001"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
-    command: dexto --mode mcp --web-port 3000 --agent researcher.yml
-    
+    command: dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher.yml
+
   writer:
     build: .
     ports:
-      - "3002:3000"
+      - "5000-5001:5000-5001"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    command: dexto --web-port 3000 --agent writer.yml
+    command: dexto --web-port 5000 --api-port 5001 --agent writer.yml
     depends_on:
       - researcher
 ```
@@ -395,9 +399,9 @@ Use nginx to load balance multiple instances:
 
 ```nginx
 upstream researcher_agents {
-    server localhost:3001;
-    server localhost:3011;
-    server localhost:3021;
+    server localhost:4001;  # Instance 1
+    server localhost:4011;  # Instance 2
+    server localhost:4021;  # Instance 3
 }
 
 server {

@@ -486,8 +486,9 @@ Options:
   -m, --model <model>              Specify the LLM model to use
   -r, --router <router>            Specify the LLM router to use (vercel or in-built)
   --new-session [sessionId]        Start with a new session (optionally specify session ID)
-  --mode <mode>                    The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp (default: "cli")
-  --web-port <port>                optional port for the web UI (default: "3000")
+  --mode <mode>                    The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp (default: "web")
+  --web-port <port>                port for the web UI (default: "3000")
+  --api-port <port>                port for the API server (default: web-port + 1)
   --no-auto-install                Disable automatic installation of missing agents from registry
   -h, --help                       display help for command
 

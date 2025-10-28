@@ -62,6 +62,7 @@ dexto --mode telegram
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
 | `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
 | `--web-port <port>` | Web UI port (default: 3000) | `dexto --web-port 8080` |
+| `--api-port <port>` | API server port (default: web-port + 1) | `dexto --web-port 5000 --api-port 5001` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
