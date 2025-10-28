@@ -52,8 +52,6 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
-    // Map of toolCallId -> queue of raw results to emit with that callId
-    private rawResultsByCallId: Map<string, unknown[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -132,11 +130,6 @@ export class VercelLLMService implements ILLMService {
                                 args as Record<string, unknown>,
                                 this.sessionId
                             );
-
-                            // Queue raw, unfiltered result under the specific toolCallId
-                            const queue = this.rawResultsByCallId.get(callId) ?? [];
-                            queue.push(rawResult);
-                            this.rawResultsByCallId.set(callId, queue);
 
                             // Persist result and emit event immediately after tool execution
                             // This sanitizes the result, persists blobs to storage, and returns sanitized parts
@@ -397,15 +390,6 @@ export class VercelLLMService implements ILLMService {
                     // Do not emit intermediate llmservice:response; generateText is non-stream so we only emit once after completion.
                     // toolCall and toolResult events are now emitted immediately in execute() function
                     // Clean up any remaining raw results from the queue
-                    if (step.toolResults && step.toolResults.length > 0) {
-                        for (const toolResult of step.toolResults) {
-                            const callId = toolResult.toolCallId;
-                            if (callId) {
-                                // Clean up the queue entry
-                                this.rawResultsByCallId.delete(callId);
-                            }
-                        }
-                    }
                 },
                 stopWhen: stepCountIs(maxSteps),
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
@@ -602,16 +586,6 @@ export class VercelLLMService implements ILLMService {
 
                 // Do not emit intermediate llmservice:response; chunks update the UI during streaming.
                 // toolCall and toolResult events are now emitted immediately in execute() function
-                // Clean up any remaining raw results from the queue
-                if (step.toolResults && step.toolResults.length > 0) {
-                    for (const toolResult of step.toolResults) {
-                        const callId = toolResult.toolCallId;
-                        if (callId) {
-                            // Clean up the queue entry
-                            this.rawResultsByCallId.delete(callId);
-                        }
-                    }
-                }
             },
             // No onFinish: we finalize after the stream completes below.
             stopWhen: stepCountIs(maxSteps),

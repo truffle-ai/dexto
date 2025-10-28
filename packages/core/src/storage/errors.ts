@@ -121,7 +121,7 @@ export class StorageError {
     ): DextoValidationError {
         return new DextoValidationError([
             {
-                code: StorageErrorCode.BLOB_INVALID_CONFIG,
+                code: StorageErrorCode.DATABASE_INVALID_CONFIG,
                 message,
                 scope: ErrorScope.STORAGE,
                 type: ErrorType.USER,
