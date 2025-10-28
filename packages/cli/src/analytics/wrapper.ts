@@ -85,7 +85,8 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             return result as R;
         } catch (err) {
             if (err instanceof ExitSignal) {
-                process.exitCode = err.code ?? 0;
+                const exitCode = err.code ?? 0;
+                process.exitCode = exitCode;
                 try {
                     const endMeta: Partial<
                         Omit<CliCommandEndEvent, 'name' | 'phase' | 'success' | 'durationMs'>
@@ -96,11 +97,12 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                     if (err.commandName) {
                         endMeta.command = err.commandName;
                     }
-                    await onCommandEnd(commandName, err.code === 0, endMeta);
+                    await onCommandEnd(commandName, exitCode === 0, endMeta);
                 } catch {
                     // Ignore analytics errors when propagating ExitSignal.
                 }
-                return undefined as unknown as R;
+                // Actually exit the process after analytics
+                process.exit(exitCode);
             }
             try {
                 await onCommandEnd(commandName, false, {
