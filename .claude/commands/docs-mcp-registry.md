@@ -52,7 +52,7 @@ For each server in the registry:
 
 **Entry format:**
 
-```markdown
+````markdown
 ### {name}
 **{Official/Community} MCP Server** by {author}
 
@@ -73,7 +73,7 @@ mcpServers:
 **Homepage:** {homepage}
 
 ---
-```
+````
 
 ### 4. Update Documentation
 

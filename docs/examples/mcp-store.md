@@ -36,7 +36,7 @@ dexto --mode web
    - Server tools become available instantly
 
 4. **Use in conversation:**
-```
+```text
 "Search the web for latest AI news"  # Uses Brave Search
 "List files in this directory"  # Uses Filesystem tools
 "Send a message to the team channel"  # Uses Slack integration

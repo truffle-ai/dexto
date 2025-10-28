@@ -62,7 +62,7 @@ For each agent in the registry:
 
 **Entry format:**
 
-```markdown
+````markdown
 ## {name}
 
 {description}
@@ -72,7 +72,9 @@ For each agent in the registry:
 
 ### Features
 
-{list of key features extracted from agent config}
+- Feature 1
+- Feature 2
+- Feature 3
 
 ### Configuration
 
@@ -85,7 +87,7 @@ dexto install {id}
 ```
 
 ---
-```
+````
 
 ### 5. Update Documentation
 

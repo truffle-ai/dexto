@@ -46,7 +46,7 @@ telemetry:
 
 ### 3. View Traces
 
-Open http://localhost:16686 and explore your traces.
+Open [http://localhost:16686](http://localhost:16686) and explore your traces.
 
 ## Configuration Options
 

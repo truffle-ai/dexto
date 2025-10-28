@@ -46,7 +46,7 @@ For each provider in llms.txt:
 
 **Built-in Provider format:**
 
-```markdown
+````markdown
 ### {Provider Name}
 
 ```yaml
@@ -59,14 +59,16 @@ llm:
 **Supported models:**
 - {list of models, with default first}
 
-**Features:** {key features}
+**Features:**
+- Feature 1
+- Feature 2
 
 ---
-```
+````
 
 **OpenAI-Compatible Provider format:**
 
-```markdown
+````markdown
 ### {Provider Name}
 
 ```yaml
@@ -81,7 +83,7 @@ llm:
 **{Additional notes or popular models}**
 
 ---
-```
+````
 
 ### 4. Update Documentation
 
