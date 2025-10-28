@@ -49,15 +49,7 @@ const nextConfig: NextConfig = {
     },
     // Allow static asset requests from these origins in dev mode
     allowedDevOrigins: allowedOrigins,
-    async rewrites() {
-        const apiPort = process.env.API_PORT ?? '3001';
-        return [
-            {
-                source: '/api/:path*',
-                destination: `http://localhost:${apiPort}/api/:path*`, // Proxy to backend
-            },
-        ];
-    },
+    // No rewrites needed - frontend calculates API URL at runtime based on its own port
     // Allow cross-origin requests for Next.js static and HMR assets during dev
     async headers() {
         return [

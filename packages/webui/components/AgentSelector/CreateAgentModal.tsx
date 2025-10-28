@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -160,7 +161,7 @@ export default function CreateAgentModal({ open, onOpenChange, onAgentCreated }:
         systemPromptContent = 'You are a helpful AI assistant.';
       }
 
-      const response = await fetch('/api/agents/custom/create', {
+      const response = await fetch(`${getApiUrl()}/api/agents/custom/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -78,7 +79,7 @@ export default function SessionPanel({
     }
     setError(null);
     try {
-      const response = await fetch('/api/sessions');
+      const response = await fetch(`${getApiUrl()}/api/sessions`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const responseText = await response.text();
 
@@ -216,7 +217,7 @@ export default function SessionPanel({
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
     try {
-      const response = await fetch('/api/sessions', {
+      const response = await fetch(`${getApiUrl()}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: newSessionId.trim() || undefined }),
@@ -261,7 +262,7 @@ export default function SessionPanel({
     isDeletingRef.current = true;
     setDeletingSessionId(sessionId);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}`, {
+      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}`, {
         method: 'DELETE',
       });
 
@@ -301,7 +302,7 @@ export default function SessionPanel({
     isDeletingRef.current = true;
     setIsDeletingConversation(true);
     try {
-      const response = await fetch(`/api/sessions/${selectedSessionForAction}`, {
+      const response = await fetch(`${getApiUrl()}/api/sessions/${selectedSessionForAction}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

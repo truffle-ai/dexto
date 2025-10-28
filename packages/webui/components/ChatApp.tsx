@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import MessageList from './MessageList';
@@ -438,7 +439,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
       try {
         setIsRegistryBusy(true);
-        const res = await fetch('/api/mcp/servers', {
+        const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
@@ -501,7 +502,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/sessions/${currentSessionId}`, {
+      const response = await fetch(`${getApiUrl()}/api/sessions/${currentSessionId}`, {
         method: 'DELETE',
       });
       

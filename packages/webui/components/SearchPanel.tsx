@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -121,7 +122,7 @@ export default function SearchPanel({
           params.append('sessionId', sessionFilter);
         }
 
-        const response = await fetch(`/api/search/messages?${params}`);
+        const response = await fetch(`${getApiUrl()}/api/search/messages?${params}`);
         if (!response.ok) {
           throw new Error('Search failed');
         }
@@ -132,7 +133,7 @@ export default function SearchPanel({
         setHasMore(data.hasMore);
       } else {
         const params = new URLSearchParams({ q: query });
-        const response = await fetch(`/api/search/sessions?${params}`);
+        const response = await fetch(`${getApiUrl()}/api/search/sessions?${params}`);
         if (!response.ok) {
           throw new Error('Search failed');
         }

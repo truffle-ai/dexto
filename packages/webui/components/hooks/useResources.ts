@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import type { ResourceMetadata } from '@dexto/core';
 
 let cachedResources: ResourceMetadata[] | null = null;
@@ -6,7 +7,7 @@ let cachedError: string | null = null;
 let pendingRequest: Promise<ResourceMetadata[]> | null = null;
 
 async function fetchResources(): Promise<ResourceMetadata[]> {
-    const response = await fetch('/api/resources');
+    const response = await fetch(`${getApiUrl()}/api/resources`);
     if (!response.ok) {
         const text = await response.text().catch(() => '');
         throw new Error(text ? `HTTP ${response.status}: ${text}` : `HTTP ${response.status}`);

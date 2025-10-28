@@ -571,18 +571,19 @@ program
     .description(
         'Dexto CLI - AI-powered assistant with session management\n\n' +
             'Basic Usage:\n' +
-            '  dexto                    Start interactive REPL\n' +
-            '  dexto "query"            Start REPL with initial prompt\n' +
-            '  dexto -p "query"         Run query, then exit\n' +
+            '  dexto                    Start web UI (default)\n' +
+            '  dexto "query"            Run one-shot query (auto-uses CLI mode)\n' +
+            '  dexto -p "query"         Run one-shot query, then exit\n' +
             '  cat file | dexto -p "query"  Process piped content\n\n' +
+            'CLI Mode:\n' +
+            '  dexto --mode cli         Start interactive CLI REPL\n\n' +
             'Session Management:\n' +
             '  dexto -c                 Continue most recent conversation\n' +
-            '  dexto -c -p "query"      Continue conversation, then exit\n' +
-            '  dexto -r "<session-id>" "query"  Resume session by ID\n\n' +
+            '  dexto -c -p "query"      Continue with one-shot query, then exit\n' +
+            '  dexto -r "<session-id>" "query"  Resume with one-shot query\n\n' +
             'Tool Confirmation:\n' +
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Advanced Modes:\n' +
-            '  dexto --mode web         Run web UI\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode discord     Run as Discord bot\n' +
             '  dexto --mode telegram    Run as Telegram bot\n' +

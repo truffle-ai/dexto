@@ -38,22 +38,13 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
+import { getWsUrl, getApiUrl } from '@/lib/api-url';
+
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
-  // Determine WebSocket URL; replace localhost for network access
-  let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
-  if (typeof window !== 'undefined') {
-    try {
-      const urlObj = new URL(wsUrl);
-      if (urlObj.hostname === 'localhost') {
-        urlObj.hostname = window.location.hostname;
-        wsUrl = urlObj.toString();
-      }
-    } catch (e) {
-      console.warn('Invalid WS URL:', wsUrl);
-    }
-  }
+  // Calculate WebSocket URL at runtime based on frontend port
+  const wsUrl = getWsUrl();
 
   // Start with no session - pure welcome state
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -99,7 +90,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
-    const response = await fetch('/api/sessions', {
+    const response = await fetch(`${getApiUrl()}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}), // Let server generate random UUID
@@ -180,7 +171,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const loadSessionHistory = useCallback(async (sessionId: string) => {
 
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/history`);
+      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}/history`);
       if (!response.ok) {
         if (response.status === 404) {
           // Session doesn't exist - don't auto-create, just clear messages

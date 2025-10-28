@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
@@ -202,7 +203,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   useEffect(() => {
     const loadSupportedFileTypes = async () => {
       try {
-        const res = await fetch('/api/llm/catalog?mode=flat');
+        const res = await fetch(`${getApiUrl()}/api/llm/catalog?mode=flat`);
         if (!res.ok) return;
         const data = await res.json();
         const models: Array<{ provider: string; name: string; supportedFileTypes?: string[] }> = data.models || [];

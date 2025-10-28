@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
@@ -121,7 +122,7 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     };
 
     try {
-      const response = await fetch('/api/prompts/custom', {
+      const response = await fetch(`${getApiUrl()}/api/prompts/custom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

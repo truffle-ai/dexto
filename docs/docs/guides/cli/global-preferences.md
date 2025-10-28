@@ -82,10 +82,6 @@ defaults:
   - `telegram` - Telegram bot mode
   - `mcp` - MCP server mode
 
-:::tip Default Mode Changed in v1.2.0
-Starting from v1.2.0, the default mode is now `web` instead of `cli`. This means running `dexto` without arguments will open the Web UI. To use CLI mode by default, set `defaultMode: cli` in your preferences or use `dexto --mode cli`.
-:::
-
 ### Setup Section
 
 Setup completion tracking:

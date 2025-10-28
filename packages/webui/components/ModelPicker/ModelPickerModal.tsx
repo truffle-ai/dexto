@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { getApiUrl } from '@/lib/api-url';
 import Image from "next/image";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -182,7 +183,7 @@ export default function ModelPickerModal() {
       setLoading(true);
       setError(null);
       try {
-        const catRes = await fetch('/api/llm/catalog');
+        const catRes = await fetch(`${getApiUrl()}/api/llm/catalog`);
         if (!cancelled) {
           if (catRes.ok) {
             const body = (await catRes.json()) as CatalogResponse;
@@ -313,7 +314,7 @@ export default function ModelPickerModal() {
       if (useBaseURL && providers[providerId]?.supportsBaseURL) body.baseURL = useBaseURL;
       if (currentSessionId) body.sessionId = currentSessionId;
 
-      const res = await fetch('/api/llm/switch', {
+      const res = await fetch(`${getApiUrl()}/api/llm/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
