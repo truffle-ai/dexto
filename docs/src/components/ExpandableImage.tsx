@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './ExpandableImage.css';
 
 interface ExpandableImageProps {
@@ -6,15 +6,19 @@ interface ExpandableImageProps {
   alt: string;
   title?: string;
   width?: string | number;
+  videoSrc?: string; // Optional: MP4 video source for better performance
 }
 
 const ExpandableImage: React.FC<ExpandableImageProps> = ({
   src,
   alt,
   title = alt,
-  width = 600
+  width = 600,
+  videoSrc
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const thumbnailRef = useRef<HTMLDivElement>(null);
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -50,10 +54,35 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({
     };
   }, []);
 
+  // Intersection Observer for lazy loading with margin
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsInView(true);
+            observer.disconnect();
+          }
+        });
+      },
+      {
+        rootMargin: '50px', // Start loading 50px before entering viewport
+      }
+    );
+
+    if (thumbnailRef.current) {
+      observer.observe(thumbnailRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <>
-      {/* Thumbnail image with click-to-expand */}
-      <div className="image-thumbnail-container">
+      {/* Thumbnail image/video with click-to-expand */}
+      <div className="image-thumbnail-container" ref={thumbnailRef}>
         <div className="image-thumbnail" onClick={openModal}>
           <div className="image-overlay">
             <div className="expand-hint">
@@ -63,7 +92,29 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({
               <span>Click to expand</span>
             </div>
           </div>
-          <img src={src} alt={alt} width={width} />
+          {isInView && (
+            <>
+              {videoSrc ? (
+                <video
+                  src={videoSrc}
+                  width={width}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                  style={{ display: 'block' }}
+                />
+              ) : (
+                <img src={src} alt={alt} width={width} loading="lazy" decoding="async" />
+              )}
+            </>
+          )}
+          {!isInView && (
+            <div style={{ width, height: '400px', backgroundColor: 'var(--ifm-color-emphasis-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: 'var(--ifm-color-emphasis-600)' }}>Loading...</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -86,7 +137,19 @@ const ExpandableImage: React.FC<ExpandableImageProps> = ({
               </button>
             </div>
             <div className="image-modal-body">
-              <img src={src} alt={alt} />
+              {videoSrc ? (
+                <video
+                  src={videoSrc}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  controls
+                  style={{ display: 'block', maxWidth: '100%', maxHeight: '85vh' }}
+                />
+              ) : (
+                <img src={src} alt={alt} loading="lazy" decoding="async" />
+              )}
             </div>
           </div>
         </div>
