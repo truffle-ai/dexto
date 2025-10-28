@@ -1,4 +1,4 @@
-# Contributing to Dexto
+  # Contributing to Dexto
 
 We welcome contributions! This guide will help you get started with contributing to the Dexto project.
 
@@ -169,6 +169,11 @@ Once you've created a comprehensive example agent, you can add it to the officia
 2. Edit `agents/agent-registry.json` and add your agent entry
 3. Edit `packages/cli/scripts/copy-agents.ts` and add your agent to the `AGENTS_TO_COPY` array
 4. Test the build to ensure your agent is properly copied
+5. Open a pull request with:
+   - Link to your agent directory
+   - Description of the agent's purpose and value
+   - Screenshots or demos if applicable
+   - Evidence of testing and documentation
 
 **Registry Entry Structure (`agents/agent-registry.json`):**
 
@@ -271,30 +276,12 @@ const AGENTS_TO_COPY = [
 - The script copies agents to `packages/cli/dist/agents/` during build
 - Run `pnpm run build` to test that your agent is properly copied
 
-### 4. Requesting Pre-installed Agent Status
-
-For widely-useful agents, you can request to have them added as pre-installed agents in Dexto.
-
-**How to request pre-installed status:**
-
-1. Create a comprehensive example agent (following step 2 above)
-2. Add it to the agent registry (following step 3 above)
-3. Test it thoroughly and document all features
-4. Open an issue with the label `agent-registry-request`
-5. Include:
-   - Link to your agent directory
-   - Description of the agent's purpose and value
-   - Screenshots or demos if applicable
-   - Why it should be pre-installed
-   - Evidence of community interest or usefulness
-
-**Criteria for pre-installed agents:**
+**Criteria for registry acceptance:**
 - Solves a common, well-defined problem
 - Has clear documentation and examples
 - Works reliably across different environments
 - Provides significant value to the Dexto community
 - Follows all coding standards and best practices
-- Has been tested by multiple users
 - Demonstrates unique capabilities or fills a gap
 
 ### Documentation

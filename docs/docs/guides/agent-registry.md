@@ -7,6 +7,10 @@ title: "Agent Registry"
 
 Dexto comes with a curated collection of pre-built agents ready to use for common tasks. Each agent is optimized with specific tools, system prompts, and LLM configurations for its domain.
 
+:::tip Adding Custom Agents
+Want to add your Agent to this registry? Check out our [Community Contribution Guide](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md#3-adding-agents-to-the-official-registry) for step-by-step instructions.
+:::
+
 ## Quick Start
 
 ```bash
