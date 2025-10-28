@@ -92,9 +92,11 @@ Use the `--auto-approve` flag to bypass confirmation prompts when you trust the 
 
 ### Logs
 
-Logs are stored in `~/.dexto/logs` directory by default
-Use `DEXTO_LOG_TO_CONSOLE=true` to log to console when running dexto
-Use `DEXTO_LOG_LEVEL=debug` for debug logs
+Logs are stored in `~/.dexto/logs` directory by default.
+
+Use `DEXTO_LOG_TO_CONSOLE=true` to log to console when running dexto.
+
+Use `DEXTO_LOG_LEVEL=debug` for debug logs.
 
 ## Agent Recipes
 
