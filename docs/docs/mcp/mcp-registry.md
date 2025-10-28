@@ -29,7 +29,7 @@ mcpServers:
 ```
 
 **Tags:** file, directory, filesystem, io
-**Homepage:** https://github.com/modelcontextprotocol/servers
+**Homepage:** [GitHub - MCP Servers](https://github.com/modelcontextprotocol/servers)
 
 ---
 
@@ -48,7 +48,7 @@ mcpServers:
 ```
 
 **Tags:** linear, tasks, projects
-**Homepage:** https://mcp.linear.app
+**Homepage:** [Linear MCP](https://mcp.linear.app)
 
 ---
 
@@ -67,7 +67,7 @@ mcpServers:
 ```
 
 **Tags:** browser, automation, web, puppeteer
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -92,7 +92,7 @@ mcpServers:
 
 **Tags:** meme, image, creative
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://www.npmjs.com/package/meme-mcp
+**Homepage:** [NPM - meme-mcp](https://www.npmjs.com/package/meme-mcp)
 
 ---
 
@@ -112,7 +112,7 @@ mcpServers:
 
 **Tags:** image, edit, opencv, pillow
 **Requirements:** Python >= 3.10
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -132,7 +132,7 @@ mcpServers:
 
 **Tags:** audio, music, effects
 **Requirements:** Python >= 3.10
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -154,7 +154,7 @@ mcpServers:
 
 **Tags:** tts, voice, audio, synthesis
 **Requirements:** Python >= 3.10
-**Homepage:** https://github.com/elevenlabs/elevenlabs-mcp
+**Homepage:** [GitHub - ElevenLabs MCP](https://github.com/elevenlabs/elevenlabs-mcp)
 
 ---
 
@@ -176,7 +176,7 @@ mcpServers:
 
 **Tags:** tts, speech, voice, audio, gemini, multi-speaker
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -198,7 +198,7 @@ mcpServers:
 
 **Tags:** image, generation, editing, ai, gemini, nano-banana
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -220,7 +220,7 @@ mcpServers:
 
 **Tags:** audio, voice, synthesis, heygen
 **Requirements:** Python >= 3.10
-**Homepage:** https://github.com/heygen-com/heygen-mcp
+**Homepage:** [GitHub - HeyGen MCP](https://github.com/heygen-com/heygen-mcp)
 
 ---
 
@@ -242,7 +242,7 @@ mcpServers:
 
 **Tags:** runway, video, generation, ai, creative
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://docs.runway.team/api/runway-mcp-server
+**Homepage:** [Runway MCP Server Docs](https://docs.runway.team/api/runway-mcp-server)
 
 ---
 
@@ -264,7 +264,7 @@ mcpServers:
 
 **Tags:** video, generation, ai, creative
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -286,7 +286,7 @@ mcpServers:
 
 **Tags:** research, naming, brand
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -306,7 +306,7 @@ mcpServers:
 
 **Tags:** search, web, research
 **Requirements:** Python >= 3.10, uv
-**Homepage:** https://github.com/duckduckgo/mcp-server
+**Homepage:** [GitHub - DuckDuckGo MCP Server](https://github.com/duckduckgo/mcp-server)
 
 ---
 
@@ -326,7 +326,7 @@ mcpServers:
 
 **Tags:** domains, availability, research
 **Requirements:** Python >= 3.10
-**Homepage:** https://github.com/truffle-ai/mcp-servers
+**Homepage:** [GitHub - Truffle AI MCP Servers](https://github.com/truffle-ai/mcp-servers)
 
 ---
 
@@ -348,7 +348,7 @@ mcpServers:
 
 **Tags:** search, web, research, ai
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://www.npmjs.com/package/tavily-mcp
+**Homepage:** [NPM - tavily-mcp](https://www.npmjs.com/package/tavily-mcp)
 
 ---
 
@@ -371,7 +371,7 @@ mcpServers:
 
 **Tags:** search, web, research, ai
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/perplexityai/modelcontextprotocol/tree/main
+**Homepage:** [GitHub - Perplexity MCP](https://github.com/perplexityai/modelcontextprotocol/tree/main)
 
 ---
 
@@ -393,7 +393,7 @@ mcpServers:
 
 **Tags:** huggingface, models, ai, ml
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/llmindset/mcp-hfspace
+**Homepage:** [GitHub - mcp-hfspace](https://github.com/llmindset/mcp-hfspace)
 
 ---
 
@@ -415,7 +415,7 @@ mcpServers:
 
 **Tags:** chart, visualization, data, chartjs
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/ax-crew/chartjs-mcp-server
+**Homepage:** [GitHub - ChartJS MCP Server](https://github.com/ax-crew/chartjs-mcp-server)
 
 ---
 
@@ -435,7 +435,7 @@ mcpServers:
 
 **Tags:** rag, data, ai
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://github.com/raglite/rag-lite-ts
+**Homepage:** [GitHub - rag-lite-ts](https://github.com/raglite/rag-lite-ts)
 
 ---
 
@@ -454,7 +454,7 @@ mcpServers:
 
 **Tags:** rag, data, ai
 **Requirements:** Node >= 18.0.0
-**Homepage:** https://docs.exa.ai/reference/exa-mcp
+**Homepage:** [Exa MCP Docs](https://docs.exa.ai/reference/exa-mcp)
 
 ---
 

@@ -158,7 +158,7 @@ plugins:
 ## Custom Plugin Implementation
 
 ```typescript
-import type { DextoPlugin, BeforeLLMRequestPayload, PluginResult } from '@core/plugins/types.js';
+import type { DextoPlugin, BeforeLLMRequestPayload, PluginResult, PluginExecutionContext } from '@core/plugins/types.js';
 
 export class MyPlugin implements DextoPlugin {
     private config: any;
@@ -167,7 +167,7 @@ export class MyPlugin implements DextoPlugin {
         this.config = config;
     }
 
-    async beforeLLMRequest(payload: BeforeLLMRequestPayload): Promise<PluginResult> {
+    async beforeLLMRequest(payload: BeforeLLMRequestPayload, context: PluginExecutionContext): Promise<PluginResult> {
         // Validate or modify input
         return { ok: true };
     }
