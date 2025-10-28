@@ -59,9 +59,11 @@ This command will verify that the agent was installed successfully.
 dexto --agent music-agent
 ```
 
-With this command, you will now be talking to your newly installed music agent!
+This opens the Web UI (the default) where you can interact with your newly installed music agent!
 
-Use the `/tools` command to list its available tools in the CLI.
+:::tip Terminal Mode
+Prefer terminal-based interaction? Use `dexto --agent music-agent --mode cli` to run in CLI mode, where you can use slash commands like `/tools` to list available tools.
+:::
 
 Check out [Music Agent Demo and Tutorial](../tutorials/music-agent.md) for a full tutorial of how to use this agent.
 
@@ -138,7 +140,7 @@ Now re-start dexto without any arguments
 dexto
 ```
 
-Ask it "Who are you?", and you will see that instead of the `default-agent`, dexto is now using the `music-agent`!
+This opens the Web UI with your new default agent. Ask it "Who are you?", and you will see that instead of the `default-agent`, dexto is now using the `music-agent`!
 
 Similarly, if you want to change the default to any other agent, just update `defaultAgent` to any valid agent-name!
 
@@ -148,11 +150,13 @@ Similarly, if you want to change the default to any other agent, just update `de
 dexto -a database-agent
 ```
 
-If you don't run the install command, Dexto will automatically install the agent with your preferred LLM and start up the agent directly!
+If you don't run the install command first, Dexto will automatically install the agent with your preferred LLM and open the Web UI for you to start chatting!
 
-You can now chat with the database agent, or exit and re-run the `list-agents` command to verify that the `database-agent` was installed
+You can now interact with the database agent in the Web UI, or close it and re-run the `list-agents` command to verify that the `database-agent` was installed.
 
-You can use the `--no-auto-install` argument with `dexto` to disable the auto install behaviour.
+:::note
+Use `--no-auto-install` with `dexto` to disable the automatic install behavior.
+:::
 
 ## Congratulations!
 You've just installed your first pre-built AI agent with Dexto and set it as your default agent!

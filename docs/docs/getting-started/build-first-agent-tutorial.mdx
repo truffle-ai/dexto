@@ -134,9 +134,13 @@ Now run your agent from inside the `my-pirate-agent` directory:
 dexto --agent agent.yml "Who are you?"
 ```
 
-Your agent should now respond like a pirate. You've just changed your agent's behavior through declarative configuration—no code required.
+Your agent should now respond like a pirate in your terminal. When you provide a prompt directly (via `-p` or as a positional argument), Dexto automatically uses CLI mode for quick, one-shot execution.
 
-Note: You can also use `dexto -a <agent>` instead of `dexto --agent <agent>` as a short-hand.
+:::tip Interactive Mode
+For interactive conversations, use `dexto --agent agent.yml` without a prompt. This opens the Web UI by default, or you can use `dexto --agent agent.yml --mode cli` for terminal-based interaction.
+
+Short-hand: `dexto -a <agent>` works the same as `dexto --agent <agent>`
+:::
 
 ### 3. Add Tool Integration
 A core feature of Dexto is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
@@ -160,13 +164,13 @@ mcpServers:
 The runtime will automatically handle tool installation and integration when you first run the agent.
 
 ### 4. Test Your Enhanced Agent In the Web UI
-Start an interactive session with your enhanced agent, this time in the web UI:
+Start an interactive session with your enhanced agent in the Web UI:
 
 ```bash
-dexto --agent agent.yml --mode web
+dexto --agent agent.yml
 ```
 
-This will open the Dexto Web UI, which is a web interface for you to talk to your agents.
+This will open the Dexto Web UI (the default mode), which provides a web interface for talking to your agents.
 
 Now ask it to use its new web browsing capability:
 > `summarize the main points of the article at https://en.wikipedia.org/wiki/Piracy`
