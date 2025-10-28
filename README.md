@@ -106,7 +106,8 @@ dexto --agent nano-banana-agent --mode cli "create a futuristic cityscape with f
 dexto --agent podcast-agent --mode cli "generate a podcast intro with two hosts discussing AI"
 dexto --agent coding-agent --mode cli "create a landing page for a coffee brand inspired by star wars"
 
-# Alternatively, start the agent in web UI and put in the prompt
+# Alternatively, start the agent in web UI and put in the prompt yourself
+dexto --agent nano-banana-agent
 ```
 
 **Available Agents:**
@@ -126,7 +127,7 @@ Each agent is pre-configured with the right tools, prompts, and LLM settings for
 
 **📚 See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry) for detailed information about all agents, their capabilities, use cases, and requirements.**
 
-More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
+More ready-to-run recipes live in [`agents/`](agents/).
 
 ## Examples & Demos
 
@@ -254,8 +255,8 @@ dexto --agent ./agents/examples/email_slack.yml
 
 | Mode | Command | Best for |
 |------|---------|----------|
-| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
 | **Web UI** | `dexto` | Friendly chat interface w/ image support (default) |
+| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
@@ -485,6 +486,11 @@ Session Management:
 Tool Confirmation:
   dexto --auto-approve     Auto-approve all tool executions
 
+Agent Selection:
+  dexto --agent coding-agent       Use installed agent by name
+  dexto --agent ./my-agent.yml     Use agent from file path
+  dexto -a agents/custom.yml       Short form with relative path
+
 Advanced Modes:
   dexto --mode server      Run as API server
   dexto --mode discord     Run as Discord bot
@@ -549,6 +555,8 @@ Commands:
                                    agent as an MCP server by default.
 ```
 </details>
+
+See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 
 ---
 
