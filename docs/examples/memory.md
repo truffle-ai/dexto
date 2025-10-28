@@ -64,6 +64,6 @@ Delete individual memories or clear all via the Web UI settings.
 
 ## Learn More
 
-- [Session Management](/docs/concepts/sessions)
+- [Session Management](/docs/guides/configuring-dexto/sessions)
 - [Storage Configuration](/docs/guides/configuring-dexto/storage)
 - [Agent Configuration](/docs/guides/configuring-dexto/overview)

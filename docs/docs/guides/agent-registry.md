@@ -515,5 +515,5 @@ Pre-installed status is available for high-quality, well-documented agents that 
 - **Get Started:** Follow the [Install Your First Agent tutorial](../getting-started/install-first-agent-tutorial.mdx)
 - **Install Guide:** Learn more about [installing custom agents](./installing-custom-agents)
 - **Create Your Own:** Build custom agents with the [Configuration Guide](./configuring-dexto/agent-yml.md)
-- **Examples:** Explore [examples and demos](../category/examples--demos)
-- **Tutorials:** Deep-dive into agent-specific tutorials in the [tutorials section](../category/building-applications)
+- **Examples:** Explore [examples and demos](/examples/intro)
+- **Tutorials:** Deep-dive into agent-specific tutorials in the [tutorials section](../tutorials)

@@ -47,7 +47,7 @@ console.log(response);
 await agent.stop();
 ```
 
-For more detailed examples, see the [Examples & Demos](/docs/category/examples--demos) section.
+For more detailed examples, see the [Examples](/examples/intro) section.
 
 ## Overview
 
@@ -464,4 +464,4 @@ agent.agentEventBus.on('llmservice:toolResult', (data) => {
 - **[DextoAgent API](/api/sdk/dexto-agent)** - Detailed method documentation
 - **[MCP Guide](/docs/mcp/overview)** - Learn about Model Context Protocol
 - **[Deployment Guide](/docs/guides/deployment)** - Production deployment strategies
-- **[Examples](/docs/category/examples--demos)** - Complete example applications
+- **[Examples](/examples/intro)** - Complete example applications

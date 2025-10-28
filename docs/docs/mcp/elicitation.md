@@ -81,6 +81,6 @@ Elicitation is designed for workflow data, not sensitive credentials:
 
 ## See Also
 
-- [MCP Tools](./tools) - Server-provided actions and capabilities
+- [Tools](../concepts/tools) - Understanding agent tools and capabilities
 - [MCP Prompts](./prompts) - Templated prompts from servers
 - [MCP Overview](./overview) - Introduction to MCP

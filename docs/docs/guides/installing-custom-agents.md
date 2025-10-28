@@ -385,4 +385,4 @@ dexto install ./project-manager-agent/
 - Learn about [agent configuration options](./configuring-dexto/agent-yml.md)
 - Explore [MCP integration](../mcp/overview.md) for advanced tools
 - Check out [system prompt configuration](./configuring-dexto/systemPrompt.md)
-- Read about [LLM providers and models](./configuring-dexto/llm/providers.md)
+- Read about [LLM providers and models](./configuring-dexto/llm.md)
