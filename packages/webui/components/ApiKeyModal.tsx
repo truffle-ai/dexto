@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
+import { getApiUrl } from "@/lib/api-url";
 
 export type ApiKeyModalProps = {
   open: boolean;
@@ -28,7 +29,7 @@ export function ApiKeyModal({ open, onOpenChange, provider, primaryEnvVar, onSav
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/llm/key", {
+      const res = await fetch(`${getApiUrl()}/api/llm/key`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, apiKey }),

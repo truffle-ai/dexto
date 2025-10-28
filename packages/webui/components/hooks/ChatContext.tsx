@@ -59,7 +59,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const fetchCurrentLLM = useCallback(async (sessionIdOverride?: string | null) => {
     try {
       const targetSessionId = sessionIdOverride !== undefined ? sessionIdOverride : currentSessionId;
-      const url = targetSessionId ? `/api/llm/current?sessionId=${targetSessionId}` : '/api/llm/current';
+      const url = targetSessionId ? `${getApiUrl()}/api/llm/current?sessionId=${targetSessionId}` : `${getApiUrl()}/api/llm/current`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();

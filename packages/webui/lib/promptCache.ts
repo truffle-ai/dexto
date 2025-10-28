@@ -1,10 +1,11 @@
 import type { PromptInfo } from '@dexto/core';
+import { getApiUrl } from './api-url';
 
 let cachedPrompts: PromptInfo[] | null = null;
 let pendingRequest: Promise<PromptInfo[]> | null = null;
 
 async function fetchPrompts(): Promise<PromptInfo[]> {
-    const response = await fetch('/api/prompts');
+    const response = await fetch(`${getApiUrl()}/api/prompts`);
     if (!response.ok) {
         const message = await response.text().catch(() => '');
         throw new Error(

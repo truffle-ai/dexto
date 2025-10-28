@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { GreetingResponse } from '@/types';
+import { getApiUrl } from '@/lib/api-url';
 
 export function useGreeting(sessionId?: string | null) {
     const [greeting, setGreeting] = useState<string | null>(null);
@@ -15,8 +16,8 @@ export function useGreeting(sessionId?: string | null) {
 
             try {
                 const url = sessionId
-                    ? `/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
-                    : '/api/greeting';
+                    ? `${getApiUrl()}/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
+                    : `${getApiUrl()}/api/greeting`;
 
                 const response = await fetch(url, { signal });
 
@@ -32,7 +33,8 @@ export function useGreeting(sessionId?: string | null) {
             } catch (err) {
                 // Ignore abort errors
                 if ((err as { name?: string } | null | undefined)?.name === 'AbortError') return;
-                const errorMessage = err instanceof Error ? err.message : 'Failed to fetch greeting';
+                const errorMessage =
+                    err instanceof Error ? err.message : 'Failed to fetch greeting';
                 setError(errorMessage);
                 console.error(`Error fetching greeting: ${errorMessage}`);
             } finally {
