@@ -30,6 +30,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 - **Autonomous Agents**  - Agents that plan, execute, and adapt to user goals.
 - **Digital Companions** - AI assistants & copilots that remember context and anticipate needs.
 - **MCP Clients** - Connect multiple tools, files, APIs, and data via MCP Servers.
+- **MCP Servers** - Dexto Web UI and MCP playground help you to easily test your own MCP servers.
 - **Multi-Agent Systems**  - Architect agents that collaborate, delegate, and solve complex tasks together.
 - **Agent-as-a-Service** – Transform your existing SaaS products and APIs into dynamic, conversational experiences.
 - **Agentic Applications** – Integrate Dexto as a reasoning engine to power interactive, multimodal, AI-native applications.
@@ -44,6 +45,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 - **Flexible Interfaces** – One agent, endless ways to interact: Ready-to-use CLI, WebUI, APIs, or integrate with your own UI.
 - **30+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP) or use our internal tools.
 - **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, S3 and more for cache, database & blob backends.
+- **Human in the loop** - Configure approval policies for tool execution, agents can also remember which tools are safe per session. 
 - **Observability** – Built-in OpenTelemetry distributed tracing, token usage monitoring, and error handling.
 
 ---
@@ -107,13 +109,16 @@ dexto --agent coding-agent "create a landing page for a coffee brand inspired by
 - **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
 - **Sora Video Agent** – AI video generation using OpenAI's Sora with custom settings, remixing, and reference support
 - **Database Agent** – Demo agent for SQL queries and database operations
+- **GitHub Agent** – GitHub operations, PR analysis, and repository management
 - **Image Editor Agent** – Image editing and manipulation
 - **Music Agent** – Music creation and audio processing
-- **PDF Agent** – Document analysis and conversation
+- **Talk2PDF Agent** – Document analysis and conversation
 - **Product Researcher** – Product naming and branding research
 - **Triage Agent** – Demo multi-agent customer support routing system
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
+
+**📚 See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry) for detailed information about all agents, their capabilities, use cases, and requirements.**
 
 More ready-to-run recipes live in [`agents/`](https://github.com/truffle-ai/dexto/tree/HEAD/agents/) and the [docs site](https://docs.dexto.ai/).
 
@@ -259,6 +264,8 @@ Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
 Dexto treats each configuration as a unique agent allowing you to define and save combinations of LLMs, servers, storage options, etc. based on your needs for easy portability. Define agents in version-controlled YAML. Change the file, reload, and chat—state, memory, and tools update automatically.
 
+Example configuration:
+
 ```yaml
 # agents/my-agent.yml
 llm:
@@ -299,7 +306,9 @@ dexto -m claude-sonnet-4-5-20250929
 dexto -m gemini-2.5-pro
 ```
 
-See our [Configuration Guide](https://docs.dexto.ai/docs/category/guides/) for complete setup instructions.
+You can configure things like LLM, system prompt, MCP servers, storage, sessions, human-in-the loop, telemetry and more!
+
+See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) for complete setup instructions.
 
 
 ## Programmatic API
@@ -334,7 +343,7 @@ await agent.run('Make it funnier');
 await agent.stop();
 ```
 
-See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/typescript-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
 
 ---
 
@@ -439,7 +448,7 @@ sessions:
 - **Production**: Redis + PostgreSQL for scale
 - **Simple**: SQLite for single-instance persistence
 
-See the [DextoAgent API Documentation](https://docs.dexto.ai/api/dexto-agent/) for complete method references.
+See the [DextoAgent API Documentation](https://docs.dexto.ai/api/sdk/dexto-agent) for complete method references.
 
 ---
 
