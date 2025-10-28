@@ -93,7 +93,7 @@ describe('LLM Registry Core Functions', () => {
 
     describe('getDefaultModelForProvider', () => {
         it('returns default model for provider with default', () => {
-            expect(getDefaultModelForProvider('openai')).toBe('gpt-4.1-mini');
+            expect(getDefaultModelForProvider('openai')).toBe('gpt-5-mini');
             expect(getDefaultModelForProvider('groq')).toBe('llama-3.3-70b-versatile');
         });
 
@@ -412,7 +412,7 @@ describe('Provider-Specific Tests', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('openai');
             expect(getSupportedModels('openai')).toContain('o4-mini');
-            expect(getDefaultModelForProvider('openai')).toBe('gpt-4.1-mini');
+            expect(getDefaultModelForProvider('openai')).toBe('gpt-5-mini');
             expect(supportsBaseURL('openai')).toBe(false);
             expect(requiresBaseURL('openai')).toBe(false);
             expect(acceptsAnyModel('openai')).toBe(false);

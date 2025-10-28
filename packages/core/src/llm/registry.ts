@@ -100,6 +100,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-5-mini',
                 displayName: 'GPT-5 Mini',
                 maxInputTokens: 400000,
+                default: true,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.25,
@@ -139,7 +140,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'gpt-4.1-mini',
                 displayName: 'GPT-4.1 Mini',
                 maxInputTokens: 1048576,
-                default: true,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
                     inputPerM: 0.4,
