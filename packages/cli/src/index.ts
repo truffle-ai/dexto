@@ -611,8 +611,10 @@ program
                 const opts = program.opts();
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
-                // If --mode was not explicitly provided, use defaultMode from preferences
-                if (!process.argv.includes('--mode')) {
+                // If --mode was not explicitly provided on CLI, use defaultMode from preferences
+                const modeSource = program.getOptionValueSource('mode');
+                const explicitModeProvided = modeSource === 'cli';
+                if (!explicitModeProvided) {
                     try {
                         if (globalPreferencesExist()) {
                             const preferences = await loadGlobalPreferences();
