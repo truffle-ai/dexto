@@ -14,6 +14,7 @@ import {
 import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck, Plus } from 'lucide-react';
 import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 type AgentItem = {
   id: string;
@@ -53,7 +54,8 @@ const MAX_RECENT_AGENTS = 5;
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
   const router = useRouter();
-  const { returnToWelcome } = useChatContext();
+  const { returnToWelcome, currentLLM, currentSessionId } = useChatContext();
+  const analytics = useAnalytics();
 
   const [installed, setInstalled] = useState<AgentItem[]>([]);
   const [available, setAvailable] = useState<AgentItem[]>([]);
@@ -153,7 +155,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         console.error(`Agent not found in installed list: ${agentId}`);
         throw new Error(`Agent '${agentId}' not found. Please refresh the agents list.`);
       }
-      
+
+      // Capture current LLM before switch
+      const fromLLM = currentLLM;
+
       const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,6 +174,30 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
       // Refresh agent list and current path to reflect the switch
       await loadAgents();
+
+      // Fetch the new LLM config after switch
+      let toLLM = null;
+      try {
+        const llmRes = await fetch(`${getApiUrl()}/api/llm/current`);
+        if (llmRes.ok) {
+          const llmData = await llmRes.json();
+          toLLM = llmData.config || llmData;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch new LLM config:', e);
+      }
+
+      // Track LLM switch
+      if (fromLLM && toLLM) {
+        analytics.trackLLMSwitched({
+          fromProvider: fromLLM.provider,
+          fromModel: fromLLM.model,
+          toProvider: toLLM.provider,
+          toModel: toLLM.model,
+          sessionId: currentSessionId || undefined,
+          trigger: 'user_action',
+        });
+      }
 
       try {
         window.dispatchEvent(
@@ -188,7 +217,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, installed, loadAgents, router]);
+  }, [returnToWelcome, installed, loadAgents, router, currentLLM, currentSessionId, analytics]);
 
   const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
     try {

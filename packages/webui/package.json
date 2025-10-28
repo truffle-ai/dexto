@@ -27,6 +27,7 @@
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.507.0",
     "next": "15.5.2",
+    "posthog-js": "^1.281.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",

@@ -11,6 +11,7 @@ import type {
 } from '@dexto/core';
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -138,6 +139,7 @@ export interface ErrorMessage {
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
+    const analytics = useAnalytics();
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -558,6 +560,17 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 toolResultMeta: sanitized?.meta,
                                 toolResultSuccess: successFlag,
                             };
+
+                            // Track tool call completion
+                            const sessionId = (payload as any).sessionId;
+                            if (sessionId && name) {
+                                analytics.trackToolCalled({
+                                    toolName: name,
+                                    success: successFlag !== false,
+                                    sessionId,
+                                });
+                            }
+
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
                         console.warn(

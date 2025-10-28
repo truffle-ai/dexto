@@ -12,6 +12,7 @@ import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/
 import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 interface ServersPanelProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ const API_BASE_URL = `${getApiUrl()}/api`;
 
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant: variantProp, refreshTrigger }: ServersPanelProps) {
   const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
+  const analytics = useAnalytics();
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -135,6 +137,12 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       } catch (e) {
         console.warn('Failed to sync registry after server install:', e);
       }
+
+      // Track MCP server connection
+      analytics.trackMCPServerConnected({
+        serverName: entry.name,
+        transportType: config.type as 'stdio' | 'http' | 'sse',
+      });
 
       setIsRegistryModalOpen(false);
       onServerConnected?.(entry.name);
