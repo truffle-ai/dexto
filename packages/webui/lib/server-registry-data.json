@@ -454,7 +454,7 @@
   {
     "id": "firecrawl",
     "name": "Firecrawl",
-    "description": "AI-powered web search and research API with semantic search capabilities.",
+    "description": "AI-powered web search and research API that performs semantic search across web sources, aggregates and ranks results for relevance, and returns contextual summaries with citations",
     "category": "data",
     "icon": "🔍",
     "config": {
@@ -501,7 +501,8 @@
     "icon": "💰",
     "config": {
       "type": "http",
-      "url": "https://mcp.kite.trade/mcp"
+      "url": "https://mcp.kite.trade/mcp",
+      "headers": {}
     },
     "tags": ["kite", "trade", "data", "ai"],
     "isOfficial": true,
