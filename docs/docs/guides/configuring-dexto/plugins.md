@@ -211,6 +211,17 @@ return {
 6. **Use agent-relative paths** - `${{dexto.agent_dir}}` for portability
 7. **Clean up resources** - Implement cleanup() properly
 
+## Plugin Examples
+
+### Built-in Plugins
+
+- **[Content Policy Plugin](https://github.com/truffle-ai/dexto/blob/main/packages/core/src/plugins/content-policy-plugin.ts)** - Input validation and content filtering
+- **[Response Sanitizer Plugin](https://github.com/truffle-ai/dexto/blob/main/packages/core/src/plugins/response-sanitizer-plugin.ts)** - Output sanitization and PII redaction
+
+### Custom Plugin Examples
+
+- **[Request Logger Plugin](https://github.com/truffle-ai/dexto/blob/main/agents/logger-agent/plugins/request-logger.ts)** - Complete custom plugin implementation with logging
+
 ## See Also
 
 - [agent.yml Reference → Plugins](./agent-yml.md#plugins) - Complete field documentation
