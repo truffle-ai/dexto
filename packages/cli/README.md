@@ -76,7 +76,7 @@ dexto
 dexto --mode cli
 ```
 
-In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. The interactive CLI (3) allows you to interact with agents in the terminal
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. The interactive CLI (3) allows you to interact with agents in the terminal. See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 
 ### Skip Tool Prompts While Prototyping
 

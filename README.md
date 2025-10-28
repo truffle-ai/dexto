@@ -76,7 +76,11 @@ dexto
 dexto --mode cli
 ```
 
-In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. The interactive CLI (3) allows you to interact with agents in the terminal
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. 
+
+The interactive CLI (3) allows you to interact with agents in the terminal. See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
+
+
 
 ### Skip Tool Prompts While Prototyping
 
@@ -97,10 +101,12 @@ dexto list-agents
 # Install specific agents
 dexto install nano-banana-agent podcast-agent coding-agent
 
-# Use an agent
-dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
-dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
-dexto --agent coding-agent "create a landing page for a coffee brand inspired by star wars"
+# Use an agent with one shot prompt
+dexto --agent nano-banana-agent --mode cli "create a futuristic cityscape with flying cars"
+dexto --agent podcast-agent --mode cli "generate a podcast intro with two hosts discussing AI"
+dexto --agent coding-agent --mode cli "create a landing page for a coffee brand inspired by star wars"
+
+# Alternatively, start the agent in web UI and put in the prompt
 ```
 
 **Available Agents:**
