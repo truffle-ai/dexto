@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.2.3
+
+### Patch Changes
+
+- 5d6ae73: Bump up version to fix bugs
+
 ## 1.2.2
 
 ## 1.2.1
