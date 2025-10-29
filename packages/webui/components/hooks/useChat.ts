@@ -140,6 +140,7 @@ const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).s
 
 export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
     const analytics = useAnalytics();
+    const analyticsRef = useRef(analytics);
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -152,6 +153,11 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
+
+    // Keep analytics ref updated
+    useEffect(() => {
+        analyticsRef.current = analytics;
+    }, [analytics]);
 
     // Track the active session id from the host (ChatContext)
     const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
@@ -388,6 +394,16 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                         typeof payload.success === 'boolean' ? payload.success : undefined;
                     const result = sanitized ?? rawResult;
 
+                    // Track tool call completion
+                    const sessionId = (payload as any).sessionId;
+                    if (sessionId && name) {
+                        analyticsRef.current.trackToolCalled({
+                            toolName: name,
+                            success: successFlag !== false,
+                            sessionId,
+                        });
+                    }
+
                     // Process and normalize the tool result to ensure proper image handling
                     let processedResult = result;
 
@@ -560,16 +576,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 toolResultMeta: sanitized?.meta,
                                 toolResultSuccess: successFlag,
                             };
-
-                            // Track tool call completion
-                            const sessionId = (payload as any).sessionId;
-                            if (sessionId && name) {
-                                analytics.trackToolCalled({
-                                    toolName: name,
-                                    success: successFlag !== false,
-                                    sessionId,
-                                });
-                            }
 
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }

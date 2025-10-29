@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api-url';
 import { Button } from '../ui/button';
@@ -56,6 +56,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const router = useRouter();
   const { returnToWelcome, currentLLM, currentSessionId } = useChatContext();
   const analytics = useAnalytics();
+  const analyticsRef = useRef(analytics);
 
   const [installed, setInstalled] = useState<AgentItem[]>([]);
   const [available, setAvailable] = useState<AgentItem[]>([]);
@@ -66,6 +67,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  // Keep analytics ref up to date to avoid stale closure issues
+  useEffect(() => {
+    analyticsRef.current = analytics;
+  }, [analytics]);
 
   // Load recent agents from localStorage
   const loadRecentAgents = useCallback((): RecentAgent[] => {
@@ -187,9 +193,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         console.warn('Failed to fetch new LLM config:', e);
       }
 
-      // Track LLM switch
+      // Track LLM switch using ref to avoid stale closure
       if (fromLLM && toLLM) {
-        analytics.trackLLMSwitched({
+        analyticsRef.current.trackLLMSwitched({
           fromProvider: fromLLM.provider,
           fromModel: fromLLM.model,
           toProvider: toLLM.provider,
