@@ -88,12 +88,6 @@ export function AnalyticsProvider({ children }: AnalyticsProviderProps) {
           posthogInstance.identify(config.distinctId);
           setEnabled(true);
           setIsReady(true);
-
-          // Emit session start event
-          posthogInstance.capture('dexto_webui_session_start', {
-            ...getBaseContext(),
-            referrer: document.referrer || undefined,
-          });
         },
         autocapture: false, // Disable automatic event capture
         capture_pageview: false, // We'll manually track page views for better control

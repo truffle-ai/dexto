@@ -162,8 +162,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         throw new Error(`Agent '${agentId}' not found. Please refresh the agents list.`);
       }
 
-      // Capture current LLM before switch
-      const fromLLM = currentLLM;
+      // Capture current agent ID before switch
+      const fromAgentId = currentId;
 
       const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
@@ -181,29 +181,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       // Refresh agent list and current path to reflect the switch
       await loadAgents();
 
-      // Fetch the new LLM config after switch
-      let toLLM = null;
-      try {
-        const llmRes = await fetch(`${getApiUrl()}/api/llm/current`);
-        if (llmRes.ok) {
-          const llmData = await llmRes.json();
-          toLLM = llmData.config || llmData;
-        }
-      } catch (e) {
-        console.warn('Failed to fetch new LLM config:', e);
-      }
-
-      // Track LLM switch using ref to avoid stale closure
-      if (fromLLM && toLLM) {
-        analyticsRef.current.trackLLMSwitched({
-          fromProvider: fromLLM.provider,
-          fromModel: fromLLM.model,
-          toProvider: toLLM.provider,
-          toModel: toLLM.model,
-          sessionId: currentSessionId || undefined,
-          trigger: 'user_action',
-        });
-      }
+      // Track agent switch using ref to avoid stale closure
+      analyticsRef.current.trackAgentSwitched({
+        fromAgentId,
+        toAgentId: agentId,
+        toAgentName: agent.name,
+        sessionId: currentSessionId || undefined,
+      });
 
       try {
         window.dispatchEvent(
@@ -229,6 +213,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     try {
       setSwitching(true);
 
+      // Capture current agent ID before switch
+      const fromAgentId = currentId;
+
       const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,6 +234,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
       // Add to recent agents
       addToRecentAgents(agent);
+
+      // Track agent switch using ref to avoid stale closure
+      analyticsRef.current.trackAgentSwitched({
+        fromAgentId,
+        toAgentId: agent.id,
+        toAgentName: agent.name,
+        sessionId: currentSessionId || undefined,
+      });
 
       try {
         window.dispatchEvent(
@@ -271,6 +266,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
       setSwitching(true);
+
+      // Capture current agent ID before switch
+      const fromAgentId = currentId;
+
       const res = await fetch(`${getApiUrl()}/api/agents/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -306,6 +305,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       }
       setCurrentId(agentId);
       setOpen(false);
+
+      // Track agent switch using ref to avoid stale closure
+      analyticsRef.current.trackAgentSwitched({
+        fromAgentId,
+        toAgentId: agentId,
+        toAgentName: agent.name,
+        sessionId: currentSessionId || undefined,
+      });
+
       try {
         window.dispatchEvent(
           new CustomEvent('dexto:agentSwitched', {

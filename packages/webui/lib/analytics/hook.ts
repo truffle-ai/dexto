@@ -11,6 +11,7 @@ import type {
     SessionSwitchedEvent,
     SessionCreatedEvent,
     ConversationResetEvent,
+    AgentSwitchedEvent,
     ToolCalledEvent,
     LLMSwitchedEvent,
     FileUploadedEvent,
@@ -59,6 +60,7 @@ export interface UseAnalyticsReturn {
     trackSessionCreated: (params: SessionCreatedEvent) => void;
     trackSessionSwitched: (params: SessionSwitchedEvent) => void;
     trackConversationReset: (params: ConversationResetEvent) => void;
+    trackAgentSwitched: (params: AgentSwitchedEvent) => void;
     trackToolCalled: (params: ToolCalledEvent) => void;
     trackLLMSwitched: (params: LLMSwitchedEvent) => void;
     trackFileUploaded: (params: FileUploadedEvent) => void;
@@ -136,6 +138,14 @@ export function useAnalytics(): UseAnalyticsReturn {
             // Reset message count for this session
             messageCountRef.current[params.sessionId] = 0;
             capture('dexto_webui_conversation_reset', params);
+        },
+        [capture, enabled]
+    );
+
+    const trackAgentSwitched = useCallback(
+        (params: AgentSwitchedEvent) => {
+            if (!enabled) return;
+            capture('dexto_webui_agent_switched', params);
         },
         [capture, enabled]
     );
@@ -220,6 +230,7 @@ export function useAnalytics(): UseAnalyticsReturn {
         trackSessionCreated,
         trackSessionSwitched,
         trackConversationReset,
+        trackAgentSwitched,
         trackToolCalled,
         trackLLMSwitched,
         trackFileUploaded,

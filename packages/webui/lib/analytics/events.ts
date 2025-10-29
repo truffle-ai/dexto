@@ -19,11 +19,6 @@ export interface BaseEventContext {
 
 // Session & Activation Events
 
-export interface SessionStartEvent {
-    // Emitted once per page load
-    referrer?: string;
-}
-
 export interface FirstMessageEvent {
     // Critical activation metric - first message ever sent by this user
     provider: string;
@@ -58,6 +53,13 @@ export interface SessionCreatedEvent {
 export interface ConversationResetEvent {
     sessionId: string;
     messageCount: number; // How many messages were cleared
+}
+
+export interface AgentSwitchedEvent {
+    fromAgentId: string | null;
+    toAgentId: string;
+    toAgentName?: string;
+    sessionId?: string;
 }
 
 // Feature Usage Events
@@ -130,7 +132,6 @@ export interface DailyActiveEvent {
  */
 export interface WebUIAnalyticsEventMap {
     // Session & Activation
-    dexto_webui_session_start: SessionStartEvent;
     dexto_webui_first_message: FirstMessageEvent;
 
     // User Interactions
@@ -138,6 +139,7 @@ export interface WebUIAnalyticsEventMap {
     dexto_webui_session_switched: SessionSwitchedEvent;
     dexto_webui_session_created: SessionCreatedEvent;
     dexto_webui_conversation_reset: ConversationResetEvent;
+    dexto_webui_agent_switched: AgentSwitchedEvent;
 
     // Feature Usage
     dexto_webui_mcp_server_connected: MCPServerConnectedEvent;
