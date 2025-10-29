@@ -1,5 +1,14 @@
 # dexto
 
+## 1.2.2
+
+### Patch Changes
+
+- 8b96b63: Add posthog analytics package and add to web ui
+- Updated dependencies [8b96b63]
+    - @dexto/analytics@1.2.2
+    - @dexto/core@1.2.2
+
 ## 1.2.1
 
 ### Patch Changes
