@@ -207,7 +207,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, installed, loadAgents, router, currentLLM, currentSessionId, analytics]);
+  }, [returnToWelcome, installed, loadAgents, router, currentId, currentSessionId]);
 
   const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
     try {
@@ -261,7 +261,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, addToRecentAgents, loadAgents, router]);
+  }, [returnToWelcome, addToRecentAgents, loadAgents, router, currentId, currentSessionId]);
 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
@@ -329,7 +329,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [loadAgents, returnToWelcome]);
+  }, [loadAgents, returnToWelcome, currentId, currentSessionId]);
 
   const handleDelete = useCallback(async (agent: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete
