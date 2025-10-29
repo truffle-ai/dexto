@@ -1,5 +1,13 @@
 # @dexto/client-sdk
 
+## 1.2.4
+
+### Patch Changes
+
+- cd706e7: bump up version after fixing node-machine-id
+- Updated dependencies [cd706e7]
+    - @dexto/core@1.2.4
+
 ## 1.2.3
 
 ### Patch Changes
