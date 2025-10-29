@@ -1,5 +1,14 @@
 # @dexto/webui
 
+## 0.2.3
+
+### Patch Changes
+
+- 5d6ae73: Bump up version to fix bugs
+- Updated dependencies [5d6ae73]
+    - @dexto/analytics@1.2.3
+    - @dexto/core@1.2.3
+
 ## 0.2.2
 
 ### Patch Changes
