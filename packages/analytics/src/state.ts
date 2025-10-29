@@ -5,11 +5,6 @@ import * as path from 'path';
 import os from 'os';
 import { randomUUID, createHash } from 'crypto';
 import { createRequire } from 'module';
-const requireCJS = createRequire(import.meta.url);
-// node-machine-id is CommonJS; import via createRequire to avoid ESM interop issues
-const { machineIdSync } = requireCJS('node-machine-id') as {
-    machineIdSync: (original?: boolean) => string;
-};
 import { getDextoGlobalPath } from '@dexto/core';
 
 /**
@@ -75,6 +70,11 @@ export async function saveState(state: AnalyticsState): Promise<void> {
  */
 function computeDistinctId(): string {
     try {
+        // node-machine-id is CommonJS; require lazily to avoid import-time failures
+        const requireCJS = createRequire(import.meta.url);
+        const { machineIdSync } = requireCJS('node-machine-id') as {
+            machineIdSync: (original?: boolean) => string;
+        };
         // machineIdSync(true) returns a hashed, stable identifier
         const id = machineIdSync(true);
         if (typeof id === 'string' && id.length > 0) return `DEXTO-${id}`;
