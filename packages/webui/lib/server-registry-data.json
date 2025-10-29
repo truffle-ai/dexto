@@ -483,7 +483,8 @@
     "config": {
       "type": "stdio",
       "command": "npx",
-      "args": ["shadcn@latest", "mcp"]  
+      "args": ["shadcn@latest", "mcp"],
+      "timeout": 30000
     },
     "tags": ["shadcn", "ui", "components", "mcp"],
     "isOfficial": true,
@@ -520,7 +521,8 @@
     "icon": "💰",
     "config": {
       "type": "http",
-      "url": "https://mcp.api.coingecko.com/mcp"
+      "url": "https://mcp.api.coingecko.com/mcp",
+      "headers": {}
     },
     "tags": ["coingecko", "data", "ai"],
     "isOfficial": true,
