@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.2.4
+
+### Patch Changes
+
+- cd706e7: bump up version after fixing node-machine-id
+
 ## 1.2.3
 
 ### Patch Changes
