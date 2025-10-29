@@ -450,5 +450,86 @@
     "author": "Exa",
     "homepage": "https://docs.exa.ai/reference/exa-mcp",
     "matchIds": ["exa"]
+  },
+  {
+    "id": "firecrawl",
+    "name": "Firecrawl",
+    "description": "AI-powered web search and research API that performs semantic search across web sources, aggregates and ranks results for relevance, and returns contextual summaries with citations",
+    "category": "data",
+    "icon": "🔍",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": ""
+      },
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Firecrawl",
+    "homepage": "https://docs.firecrawl.dev/mcp-server",
+    "matchIds": ["firecrawl"]
+  },
+  {
+    "id": "shadcn",
+    "name": "Shadcn",
+    "description": "Shadcn UI components for MCP servers",
+    "category": "development",
+    "icon": "🖌️",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"],
+      "timeout": 30000
+    },
+    "tags": ["shadcn", "ui", "components", "mcp"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Shadcn",
+    "homepage": "https://ui.shadcn.com/docs/mcp#configuration",
+    "matchIds": ["shadcn"]
+  },
+  {
+    "id": "kite-trade",
+    "name": "Kite",
+    "description": "Zerodha Kite API MCP server",
+    "category": "data",
+    "icon": "💰",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.kite.trade/mcp",
+      "headers": {}
+    },
+    "tags": ["kite", "trade", "data", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "Zerodha",
+    "homepage": "https://github.com/zerodha/kite-mcp-server",
+    "matchIds": ["kite-trade"]
+  },
+  {
+    "id": "coingecko",
+    "name": "CoinGecko",
+    "description": "CoinGecko API MCP server",
+    "category": "data",
+    "icon": "💰",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.api.coingecko.com/mcp",
+      "headers": {}
+    },
+    "tags": ["coingecko", "data", "ai"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "CoinGecko",
+    "homepage": "https://docs.coingecko.com/docs/mcp-server",
+    "matchIds": ["coingecko"]
   }
 ]
