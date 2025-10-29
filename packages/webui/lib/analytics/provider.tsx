@@ -101,10 +101,12 @@ export function AnalyticsProvider({ children }: AnalyticsProviderProps) {
       setIsReady(true);
     }
 
-    // Cleanup on unmount
+    // Cleanup on unmount - always reset to clear identity
     return () => {
-      if (enabled) {
-        posthog.reset(); // Clear identity and flush events
+      try {
+        posthog.reset(); // Always clear identity on unmount
+      } catch {
+        // Ignore errors if PostHog wasn't initialized
       }
     };
   }, []); // Run once on mount

@@ -4,9 +4,9 @@ import "./globals.css";
 import { ChatProvider } from '../components/hooks/ChatContext';
 import { SpeechReset } from "../components/ui/speech-reset";
 import { cookies } from 'next/headers';
-import { loadState } from '../../cli/src/analytics/state.js';
-import { isAnalyticsDisabled, DEFAULT_POSTHOG_KEY, DEFAULT_POSTHOG_HOST } from '../../cli/src/analytics/constants.js';
+import { loadState, isAnalyticsDisabled, DEFAULT_POSTHOG_KEY, DEFAULT_POSTHOG_HOST } from '@dexto/analytics';
 import { AnalyticsProvider } from '../lib/analytics/index.js';
+import packageJson from '../package.json';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,7 +83,7 @@ export default async function RootLayout({
         distinctId: state.distinctId,
         posthogKey: process.env.DEXTO_POSTHOG_KEY ?? DEFAULT_POSTHOG_KEY,
         posthogHost: process.env.DEXTO_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
-        appVersion: '1.2.1', // Match CLI version
+        appVersion: packageJson.version,
       };
     } catch (error) {
       // If analytics state loading fails, silently disable analytics

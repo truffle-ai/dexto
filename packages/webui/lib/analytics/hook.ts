@@ -16,10 +16,6 @@ import type {
     LLMSwitchedEvent,
     FileUploadedEvent,
     ImageUploadedEvent,
-    StreamingToggledEvent,
-    ThemeChangedEvent,
-    SettingsOpenedEvent,
-    PageViewEvent,
     MCPServerConnectedEvent,
 } from './events.js';
 
@@ -65,10 +61,6 @@ export interface UseAnalyticsReturn {
     trackLLMSwitched: (params: LLMSwitchedEvent) => void;
     trackFileUploaded: (params: FileUploadedEvent) => void;
     trackImageUploaded: (params: ImageUploadedEvent) => void;
-    trackStreamingToggled: (params: StreamingToggledEvent) => void;
-    trackThemeChanged: (params: ThemeChangedEvent) => void;
-    trackSettingsOpened: (params: SettingsOpenedEvent) => void;
-    trackPageView: (params: PageViewEvent) => void;
     trackMCPServerConnected: (params: MCPServerConnectedEvent) => void;
 }
 
@@ -182,38 +174,6 @@ export function useAnalytics(): UseAnalyticsReturn {
         [capture, enabled]
     );
 
-    const trackStreamingToggled = useCallback(
-        (params: StreamingToggledEvent) => {
-            if (!enabled) return;
-            capture('dexto_webui_streaming_toggled', params);
-        },
-        [capture, enabled]
-    );
-
-    const trackThemeChanged = useCallback(
-        (params: ThemeChangedEvent) => {
-            if (!enabled) return;
-            capture('dexto_webui_theme_changed', params);
-        },
-        [capture, enabled]
-    );
-
-    const trackSettingsOpened = useCallback(
-        (params: SettingsOpenedEvent) => {
-            if (!enabled) return;
-            capture('dexto_webui_settings_opened', params);
-        },
-        [capture, enabled]
-    );
-
-    const trackPageView = useCallback(
-        (params: PageViewEvent) => {
-            if (!enabled) return;
-            capture('dexto_webui_page_view', params);
-        },
-        [capture, enabled]
-    );
-
     const trackMCPServerConnected = useCallback(
         (params: MCPServerConnectedEvent) => {
             if (!enabled) return;
@@ -235,10 +195,6 @@ export function useAnalytics(): UseAnalyticsReturn {
         trackLLMSwitched,
         trackFileUploaded,
         trackImageUploaded,
-        trackStreamingToggled,
-        trackThemeChanged,
-        trackSettingsOpened,
-        trackPageView,
         trackMCPServerConnected,
     };
 }

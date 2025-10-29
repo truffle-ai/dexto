@@ -87,11 +87,6 @@ export interface LLMSwitchedEvent {
     trigger: 'user_action' | 'config_change'; // How was switch triggered?
 }
 
-export interface StreamingToggledEvent {
-    enabled: boolean;
-    sessionId?: string;
-}
-
 export interface FileUploadedEvent {
     fileType: string; // MIME type
     fileSizeBytes?: number;
@@ -102,28 +97,6 @@ export interface ImageUploadedEvent {
     imageType: string; // MIME type (image/png, image/jpeg, etc.)
     imageSizeBytes?: number;
     sessionId: string;
-}
-
-// Settings & Configuration Events
-
-export interface ThemeChangedEvent {
-    theme: 'light' | 'dark';
-}
-
-export interface SettingsOpenedEvent {
-    section?: string; // Which settings section was opened
-}
-
-// Retention & Engagement Events
-
-export interface PageViewEvent {
-    path: string;
-    title?: string;
-}
-
-export interface DailyActiveEvent {
-    // Emitted once per day per user (tracked client-side with localStorage)
-    date: string; // YYYY-MM-DD
 }
 
 /**
@@ -145,17 +118,8 @@ export interface WebUIAnalyticsEventMap {
     dexto_webui_mcp_server_connected: MCPServerConnectedEvent;
     dexto_webui_tool_called: ToolCalledEvent;
     dexto_webui_llm_switched: LLMSwitchedEvent;
-    dexto_webui_streaming_toggled: StreamingToggledEvent;
     dexto_webui_file_uploaded: FileUploadedEvent;
     dexto_webui_image_uploaded: ImageUploadedEvent;
-
-    // Settings & Configuration
-    dexto_webui_theme_changed: ThemeChangedEvent;
-    dexto_webui_settings_opened: SettingsOpenedEvent;
-
-    // Retention & Engagement
-    dexto_webui_page_view: PageViewEvent;
-    dexto_webui_daily_active: DailyActiveEvent;
 }
 
 export type WebUIAnalyticsEventName = keyof WebUIAnalyticsEventMap;

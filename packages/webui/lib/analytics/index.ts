@@ -17,11 +17,6 @@ export type {
     MCPServerConnectedEvent,
     ToolCalledEvent,
     LLMSwitchedEvent,
-    StreamingToggledEvent,
     FileUploadedEvent,
     ImageUploadedEvent,
-    ThemeChangedEvent,
-    SettingsOpenedEvent,
-    PageViewEvent,
-    DailyActiveEvent,
 } from './events.js';

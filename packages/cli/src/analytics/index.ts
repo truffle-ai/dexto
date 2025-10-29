@@ -2,8 +2,14 @@
 
 import { PostHog } from 'posthog-node';
 import os from 'os';
-import { isAnalyticsDisabled, DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_KEY } from './constants.js';
-import { AnalyticsState, loadState, saveState } from './state.js';
+import {
+    isAnalyticsDisabled,
+    DEFAULT_POSTHOG_HOST,
+    DEFAULT_POSTHOG_KEY,
+    loadState,
+    saveState,
+} from '@dexto/analytics';
+import type { AnalyticsState } from '@dexto/analytics';
 import { getExecutionContext } from '@dexto/core';
 import { randomUUID } from 'crypto';
 import {
