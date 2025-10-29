@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { getApiUrl } from '@/lib/api-url';
 import Image from "next/image";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
@@ -27,6 +27,7 @@ import {
 import type { LLMProvider } from "@dexto/core";
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 interface CompactModelCardProps {
   provider: LLMProvider;
@@ -165,6 +166,15 @@ export default function ModelPickerModal() {
   const [pendingSelection, setPendingSelection] = useState<{ provider: string; model: string } | null>(null);
 
   const { currentSessionId, currentLLM, refreshCurrentLLM } = useChatContext();
+
+  // Analytics tracking
+  const analytics = useAnalytics();
+  const analyticsRef = useRef(analytics);
+
+  // Keep analytics ref up to date to avoid stale closure issues
+  useEffect(() => {
+    analyticsRef.current = analytics;
+  }, [analytics]);
 
   // When opening, initialize advanced panel inputs from current session LLM
   useEffect(() => {
@@ -308,6 +318,10 @@ export default function ModelPickerModal() {
   async function performSwitch(providerId: string, model: ModelInfo, useBaseURL?: string) {
     setSaving(true);
     setError(null);
+
+    // Capture current LLM before switching for analytics
+    const fromLLM = currentLLM;
+
     try {
       const router = pickRouterFor(providerId, model);
       const body: Record<string, any> = { provider: providerId, model: model.name, router };
@@ -327,6 +341,19 @@ export default function ModelPickerModal() {
       }
       // Update context config immediately so the trigger label updates
       await refreshCurrentLLM();
+
+      // Track LLM switch using ref to avoid stale closure
+      if (fromLLM) {
+        analyticsRef.current.trackLLMSwitched({
+          fromProvider: fromLLM.provider,
+          fromModel: fromLLM.model,
+          toProvider: providerId,
+          toModel: model.name,
+          sessionId: currentSessionId || undefined,
+          trigger: 'user_action',
+        });
+      }
+
       // Close immediately for snappy feel
       setOpen(false);
     } catch {

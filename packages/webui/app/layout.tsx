@@ -4,6 +4,9 @@ import "./globals.css";
 import { ChatProvider } from '../components/hooks/ChatContext';
 import { SpeechReset } from "../components/ui/speech-reset";
 import { cookies } from 'next/headers';
+import { loadState, isAnalyticsDisabled, DEFAULT_POSTHOG_KEY, DEFAULT_POSTHOG_HOST } from '@dexto/analytics';
+import { AnalyticsProvider } from '../lib/analytics/index.js';
+import packageJson from '../package.json';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,6 +72,26 @@ export default async function RootLayout({
   // Inject API port from server-side env var into client-side global
   const apiPort = process.env.API_PORT;
 
+  // Load analytics configuration server-side
+  const analyticsEnabled = !isAnalyticsDisabled();
+  let analyticsConfig: { distinctId: string; posthogKey: string; posthogHost: string; appVersion: string } | null = null;
+
+  if (analyticsEnabled) {
+    try {
+      const state = await loadState();
+      analyticsConfig = {
+        distinctId: state.distinctId,
+        posthogKey: process.env.DEXTO_POSTHOG_KEY ?? DEFAULT_POSTHOG_KEY,
+        posthogHost: process.env.DEXTO_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
+        appVersion: packageJson.version,
+      };
+    } catch (error) {
+      // If analytics state loading fails, silently disable analytics
+      console.error('Failed to load analytics state:', error);
+      analyticsConfig = null;
+    }
+  }
+
   return (
     <html lang="en" className={isDark ? 'dark' : ''}>
       <head>
@@ -79,14 +102,23 @@ export default async function RootLayout({
             }}
           />
         )}
+        {analyticsConfig && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__DEXTO_ANALYTICS__ = ${JSON.stringify(analyticsConfig)};`,
+            }}
+          />
+        )}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <ChatProvider>
-          <SpeechReset />
-          <div className="flex h-screen w-screen flex-col supports-[height:100svh]:h-[100svh] supports-[height:100dvh]:h-[100dvh]">{children}</div>
-        </ChatProvider>
+        <AnalyticsProvider>
+          <ChatProvider>
+            <SpeechReset />
+            <div className="flex h-screen w-screen flex-col supports-[height:100svh]:h-[100svh] supports-[height:100dvh]:h-[100dvh]">{children}</div>
+          </ChatProvider>
+        </AnalyticsProvider>
       </body>
     </html>
   );

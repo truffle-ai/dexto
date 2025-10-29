@@ -6,6 +6,7 @@ import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 interface ChatContextType {
   messages: Message[];
@@ -42,6 +43,7 @@ import { getWsUrl, getApiUrl } from '@/lib/api-url';
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const analytics = useAnalytics();
 
   // Calculate WebSocket URL at runtime based on frontend port
   const wsUrl = getWsUrl();
@@ -117,8 +119,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       throw new Error('Session ID not found in server response');
     }
 
-    return data.session.id;
-  }, []);
+    const sessionId = data.session.id;
+
+    // Track session creation
+    analytics.trackSessionCreated({
+      sessionId,
+      trigger: 'first_message',
+    });
+
+    return sessionId;
+  }, [analytics]);
 
   // Enhanced sendMessage with auto-session creation
   const sendMessage = useCallback(async (
@@ -155,17 +165,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Only send after session is confirmed ready
     if (sessionId) {
       originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+
+      // Track message sent
+      const provider = currentLLM?.provider || 'unknown';
+      const model = currentLLM?.model || 'unknown';
+      analytics.trackMessageSent({
+        sessionId,
+        provider,
+        model,
+        hasImage: !!imageData,
+        hasFile: !!fileData,
+        messageLength: content.length,
+      });
     } else {
       console.error('No session available for sending message');
     }
-  }, [originalSendMessage, currentSessionId, isWelcomeState, isCreatingSession, createAutoSession, isStreaming, fetchCurrentLLM, router]);
+  }, [originalSendMessage, currentSessionId, isWelcomeState, isCreatingSession, createAutoSession, isStreaming, fetchCurrentLLM, router, analytics, currentLLM]);
 
   // Enhanced reset with session support
   const reset = useCallback(() => {
     if (currentSessionId) {
+      // Track conversation reset
+      const messageCount = messages.filter(m => m.sessionId === currentSessionId).length;
+      analytics.trackConversationReset({
+        sessionId: currentSessionId,
+        messageCount,
+      });
+
       originalReset(currentSessionId);
     }
-  }, [originalReset, currentSessionId]);
+  }, [originalReset, currentSessionId, analytics, messages]);
 
   // Load session history when switching sessions
   const loadSessionHistory = useCallback(async (sessionId: string) => {
@@ -363,6 +392,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     setIsSwitchingSession(true);
     try {
+      // Track session switch
+      analytics.trackSessionSwitched({
+        fromSessionId: currentSessionId,
+        toSessionId: sessionId,
+      });
+
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
       await loadSessionHistory(sessionId);
@@ -376,7 +411,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Always reset the switching flag, even if error occurs
       setIsSwitchingSession(false);
     }
-  }, [currentSessionId, isSwitchingSession, loadSessionHistory, fetchCurrentLLM]);
+  }, [currentSessionId, isSwitchingSession, loadSessionHistory, fetchCurrentLLM, analytics]);
 
 
   // Return to welcome state (no active session)

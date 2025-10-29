@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/api-url';
 import { Button } from '../ui/button';
@@ -14,6 +14,7 @@ import {
 import { ChevronDown, Check, DownloadCloud, Sparkles, Trash2, BadgeCheck, Plus } from 'lucide-react';
 import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 type AgentItem = {
   id: string;
@@ -53,7 +54,9 @@ const MAX_RECENT_AGENTS = 5;
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
   const router = useRouter();
-  const { returnToWelcome } = useChatContext();
+  const { returnToWelcome, currentLLM, currentSessionId } = useChatContext();
+  const analytics = useAnalytics();
+  const analyticsRef = useRef(analytics);
 
   const [installed, setInstalled] = useState<AgentItem[]>([]);
   const [available, setAvailable] = useState<AgentItem[]>([]);
@@ -64,6 +67,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  // Keep analytics ref up to date to avoid stale closure issues
+  useEffect(() => {
+    analyticsRef.current = analytics;
+  }, [analytics]);
 
   // Load recent agents from localStorage
   const loadRecentAgents = useCallback((): RecentAgent[] => {
@@ -153,7 +161,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         console.error(`Agent not found in installed list: ${agentId}`);
         throw new Error(`Agent '${agentId}' not found. Please refresh the agents list.`);
       }
-      
+
+      // Capture current agent ID before switch
+      const fromAgentId = currentId;
+
       const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,6 +180,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
       // Refresh agent list and current path to reflect the switch
       await loadAgents();
+
+      // Track agent switch using ref to avoid stale closure
+      analyticsRef.current.trackAgentSwitched({
+        fromAgentId,
+        toAgentId: agentId,
+        toAgentName: agent.name,
+        sessionId: currentSessionId || undefined,
+      });
 
       try {
         window.dispatchEvent(
@@ -188,11 +207,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, installed, loadAgents, router]);
+  }, [returnToWelcome, installed, loadAgents, router, currentId, currentSessionId]);
 
   const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
     try {
       setSwitching(true);
+
+      // Capture current agent ID before switch
+      const fromAgentId = currentId;
 
       const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
         method: 'POST',
@@ -213,6 +235,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       // Add to recent agents
       addToRecentAgents(agent);
 
+      // Track agent switch using ref to avoid stale closure
+      analyticsRef.current.trackAgentSwitched({
+        fromAgentId,
+        toAgentId: agent.id,
+        toAgentName: agent.name,
+        sessionId: currentSessionId || undefined,
+      });
+
       try {
         window.dispatchEvent(
           new CustomEvent('dexto:agentSwitched', {
@@ -231,11 +261,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, addToRecentAgents, loadAgents, router]);
+  }, [returnToWelcome, addToRecentAgents, loadAgents, router, currentId, currentSessionId]);
 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
       setSwitching(true);
+
+      // Capture current agent ID before switch
+      const fromAgentId = currentId;
+
       const res = await fetch(`${getApiUrl()}/api/agents/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -271,6 +305,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       }
       setCurrentId(agentId);
       setOpen(false);
+
+      // Track agent switch using ref to avoid stale closure
+      analyticsRef.current.trackAgentSwitched({
+        fromAgentId,
+        toAgentId: agentId,
+        toAgentName: agent.name,
+        sessionId: currentSessionId || undefined,
+      });
+
       try {
         window.dispatchEvent(
           new CustomEvent('dexto:agentSwitched', {
@@ -286,7 +329,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [loadAgents, returnToWelcome]);
+  }, [loadAgents, returnToWelcome, currentId, currentSessionId]);
 
   const handleDelete = useCallback(async (agent: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete

@@ -30,6 +30,7 @@ import CreatePromptModal from './CreatePromptModal';
 import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { clearPromptCache } from '../lib/promptCache';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 interface ModelOption {
   name: string;
@@ -68,7 +69,16 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   
   // Get current session context to ensure model switch applies to the correct session
   const { currentSessionId, isStreaming, setStreaming, cancel, processing, currentLLM } = useChatContext();
-  
+
+  // Analytics tracking
+  const analytics = useAnalytics();
+  const analyticsRef = useRef(analytics);
+
+  // Keep analytics ref up to date to avoid stale closure issues
+  useEffect(() => {
+    analyticsRef.current = analytics;
+  }, [analytics]);
+
   // LLM selector state
   const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
@@ -521,6 +531,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         const base64 = result.substring(commaIndex + 1);
         setFileData({ base64, mimeType: 'application/pdf', filename: file.name });
         setFileUploadError(null); // Clear any previous errors
+
+        // Track file upload
+        if (currentSessionId) {
+          analyticsRef.current.trackFileUploaded({
+            fileType: 'application/pdf',
+            fileSizeBytes: file.size,
+            sessionId: currentSessionId,
+          });
+        }
       } catch (error) {
         showUserError('Failed to process PDF file. Please try again.');
         setFileData(null);
@@ -577,6 +596,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               mimeType: mimeType,
               filename: `recording.${ext}`,
             });
+
+            // Track audio recording upload
+            if (currentSessionId) {
+              analyticsRef.current.trackFileUploaded({
+                fileType: mimeType,
+                fileSizeBytes: blob.size,
+                sessionId: currentSessionId,
+              });
+            }
           } catch (error) {
             showUserError('Failed to process audio recording. Please try again.');
             setFileData(null);
@@ -634,6 +662,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
         setImageData({ base64, mimeType });
         setFileUploadError(null); // Clear any previous errors
+
+        // Track image upload
+        if (currentSessionId) {
+          analyticsRef.current.trackImageUploaded({
+            imageType: mimeType,
+            imageSizeBytes: file.size,
+            sessionId: currentSessionId,
+          });
+        }
       } catch (error) {
           showUserError('Failed to process image file. Please try again.');
           setImageData(null);
@@ -691,6 +728,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         // Preserve original MIME type from file
         setFileData({ base64, mimeType: file.type, filename: file.name });
         setFileUploadError(null); // Clear any previous errors
+
+        // Track file upload
+        if (currentSessionId) {
+          analyticsRef.current.trackFileUploaded({
+            fileType: file.type,
+            fileSizeBytes: file.size,
+            sessionId: currentSessionId,
+          });
+        }
       } catch (error) {
         showUserError('Failed to process audio file. Please try again.');
         setFileData(null);

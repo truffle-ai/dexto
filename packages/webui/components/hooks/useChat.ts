@@ -11,6 +11,7 @@ import type {
 } from '@dexto/core';
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -138,6 +139,8 @@ export interface ErrorMessage {
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
+    const analytics = useAnalytics();
+    const analyticsRef = useRef(analytics);
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -150,6 +153,11 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
+
+    // Keep analytics ref updated
+    useEffect(() => {
+        analyticsRef.current = analytics;
+    }, [analytics]);
 
     // Track the active session id from the host (ChatContext)
     const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
@@ -386,6 +394,16 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                         typeof payload.success === 'boolean' ? payload.success : undefined;
                     const result = sanitized ?? rawResult;
 
+                    // Track tool call completion
+                    const sessionId = (payload as any).sessionId;
+                    if (sessionId && name) {
+                        analyticsRef.current.trackToolCalled({
+                            toolName: name,
+                            success: successFlag !== false,
+                            sessionId,
+                        });
+                    }
+
                     // Process and normalize the tool result to ensure proper image handling
                     let processedResult = result;
 
@@ -558,6 +576,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 toolResultMeta: sanitized?.meta,
                                 toolResultSuccess: successFlag,
                             };
+
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
                         console.warn(
