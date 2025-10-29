@@ -124,6 +124,19 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
+                name: 'gpt-5-codex',
+                displayName: 'GPT-5 Codex',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'gpt-4.1',
                 displayName: 'GPT-4.1',
                 maxInputTokens: 1048576,
