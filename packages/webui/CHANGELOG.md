@@ -1,5 +1,15 @@
 # @dexto/webui
 
+## 0.2.2
+
+### Patch Changes
+
+- 4a3b1b5: Add changeset for new mcp servers
+- 8b96b63: Add posthog analytics package and add to web ui
+- Updated dependencies [8b96b63]
+    - @dexto/analytics@1.2.2
+    - @dexto/core@1.2.2
+
 ## 0.2.1
 
 ### Patch Changes
