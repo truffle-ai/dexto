@@ -161,7 +161,7 @@ describe('Core Environment Loading', () => {
             const sourceDir = createTempDir();
             createTempDirStructure(
                 {
-                    'package.json': JSON.stringify({ name: 'dexto', version: '1.0.0' }),
+                    'package.json': JSON.stringify({ name: 'dexto-monorepo', version: '1.0.0' }),
                     '.env': 'OPENAI_API_KEY=source-key\nDEXTO_LOG_LEVEL=error',
                     'agents/default-agent.yml': 'mcpServers: {}',
                 },

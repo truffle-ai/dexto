@@ -234,8 +234,10 @@ describe('resolveBundledScript', () => {
 describe('getDextoEnvPath', () => {
     describe('in dexto project', () => {
         let tempDir: string;
+        let originalCwd: string;
 
         beforeEach(() => {
+            originalCwd = process.cwd();
             tempDir = createTempDirStructure({
                 'package.json': {
                     name: 'test-project',
@@ -245,10 +247,12 @@ describe('getDextoEnvPath', () => {
         });
 
         afterEach(() => {
+            process.chdir(originalCwd);
             fs.rmSync(tempDir, { recursive: true, force: true });
         });
 
         it('returns project root .env path', () => {
+            process.chdir(tempDir);
             const result = getDextoEnvPath(tempDir);
             expect(result).toBe(path.join(tempDir, '.env'));
         });
@@ -256,12 +260,14 @@ describe('getDextoEnvPath', () => {
 
     describe('in dexto source', () => {
         let tempDir: string;
+        let originalCwd: string;
         const originalDevMode = process.env.DEXTO_DEV_MODE;
 
         beforeEach(() => {
+            originalCwd = process.cwd();
             tempDir = createTempDirStructure({
                 'package.json': {
-                    name: 'dexto',
+                    name: 'dexto-monorepo',
                     version: '1.0.0',
                 },
                 'agents/default-agent.yml': 'mcpServers: {}',
@@ -269,6 +275,7 @@ describe('getDextoEnvPath', () => {
         });
 
         afterEach(() => {
+            process.chdir(originalCwd);
             fs.rmSync(tempDir, { recursive: true, force: true });
             // Restore original env
             if (originalDevMode === undefined) {
@@ -279,18 +286,21 @@ describe('getDextoEnvPath', () => {
         });
 
         it('returns repo .env when DEXTO_DEV_MODE=true', () => {
+            process.chdir(tempDir);
             process.env.DEXTO_DEV_MODE = 'true';
             const result = getDextoEnvPath(tempDir);
             expect(result).toBe(path.join(tempDir, '.env'));
         });
 
         it('returns global ~/.dexto/.env when DEXTO_DEV_MODE is not set', () => {
+            process.chdir(tempDir);
             delete process.env.DEXTO_DEV_MODE;
             const result = getDextoEnvPath(tempDir);
             expect(result).toBe(path.join(homedir(), '.dexto', '.env'));
         });
 
         it('returns global ~/.dexto/.env when DEXTO_DEV_MODE=false', () => {
+            process.chdir(tempDir);
             process.env.DEXTO_DEV_MODE = 'false';
             const result = getDextoEnvPath(tempDir);
             expect(result).toBe(path.join(homedir(), '.dexto', '.env'));
