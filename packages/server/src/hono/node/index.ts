@@ -12,6 +12,7 @@ import {
     ErrorScope,
     ErrorType,
     redactSensitiveData,
+    ApprovalResponseSchema,
 } from '@dexto/core';
 import { WebSocketEventSubscriber } from '../../events/websocket-subscriber.js';
 import {
@@ -116,6 +117,30 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
             return;
         }
 
+        // Authenticate WebSocket connections
+        // Default: Development mode (no auth)
+        // NODE_ENV=production or DEXTO_SERVER_REQUIRE_AUTH=true: Requires auth
+        const apiKey = process.env.DEXTO_SERVER_API_KEY;
+        const isProduction = process.env.NODE_ENV === 'production';
+        const requireAuth = process.env.DEXTO_SERVER_REQUIRE_AUTH === 'true';
+
+        // Only enforce auth if production mode OR explicit requirement
+        if ((isProduction || requireAuth) && apiKey) {
+            const authHeader = req.headers['authorization'];
+            const providedKey = authHeader?.replace(/^Bearer\s+/i, '');
+
+            if (!providedKey || providedKey !== apiKey) {
+                logger.warn('Unauthorized WebSocket connection attempt', {
+                    host: req.headers.host,
+                    origin: req.headers.origin,
+                    mode: isProduction ? 'production' : 'development',
+                });
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+        }
+
         websocketServer.handleUpgrade(req, socket, head, (ws) => {
             // Emit the standard 'connection' event so any listeners (like our
             // WebSocketEventSubscriber) can register this client.
@@ -161,14 +186,23 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
             }
 
             const data = JSON.parse(messageString);
-            if (data.type === 'toolConfirmationResponse' && data.data) {
-                // Map to approvalResponse event - toolConfirmationResponse is deprecated
-                agent.agentEventBus.emit('dexto:approvalResponse', {
-                    approvalId: data.data.approvalId || '',
-                    status: data.data.status || 'approved',
-                    sessionId: data.data.sessionId,
-                    data: data.data.data,
-                });
+
+            // Handle approval responses (both new and deprecated formats)
+            if (
+                (data.type === 'approvalResponse' || data.type === 'toolConfirmationResponse') &&
+                data.data
+            ) {
+                // Validate the approval response payload with Zod schema
+                const validationResult = ApprovalResponseSchema.safeParse(data.data);
+                if (!validationResult.success) {
+                    logger.warn(
+                        `Received invalid approval response payload: ${validationResult.error.message}`
+                    );
+                    // Do not emit invalid payloads
+                    return;
+                }
+                // Route validated approval response back via AgentEventBus
+                agent.agentEventBus.emit('dexto:approvalResponse', validationResult.data);
                 return;
             }
 
@@ -192,6 +226,18 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                     return;
                 }
                 const stream = data.stream === true;
+
+                // Check agent availability before processing message
+                // Prevents processing during agent switching, stopping, or startup failures
+                if (!agent.isStarted() || agent.isStopped()) {
+                    logger.error('Agent not available for WebSocket message processing');
+                    sendWebSocketError(
+                        ws,
+                        new Error('Agent is not available. Please try again.'),
+                        sessionId
+                    );
+                    return;
+                }
 
                 const currentConfig = agent.getEffectiveConfig(sessionId);
                 const llmProvider = currentConfig.llm.provider;
@@ -242,6 +288,20 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                 logger.info(
                     `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                 );
+
+                // Check agent availability before processing reset
+                if (!agent.isStarted() || agent.isStopped()) {
+                    logger.error('Agent not available for WebSocket reset');
+                    if (sessionId) {
+                        sendWebSocketError(
+                            ws,
+                            new Error('Agent is not available. Please try again.'),
+                            sessionId
+                        );
+                    }
+                    return;
+                }
+
                 await agent.resetConversation(sessionId);
                 return;
             }
@@ -251,6 +311,20 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
                 logger.info(
                     `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                 );
+
+                // Check agent availability before processing cancel
+                if (!agent.isStarted() || agent.isStopped()) {
+                    logger.error('Agent not available for WebSocket cancel');
+                    if (sessionId) {
+                        sendWebSocketError(
+                            ws,
+                            new Error('Agent is not available. Please try again.'),
+                            sessionId
+                        );
+                    }
+                    return;
+                }
+
                 const cancelled = await agent.cancel(sessionId);
                 if (!cancelled) {
                     logger.debug('No in-flight run to cancel');

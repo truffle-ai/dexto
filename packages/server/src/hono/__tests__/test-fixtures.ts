@@ -90,7 +90,7 @@ export async function startTestServer(
     const app = createDextoApp({
         getAgent,
         getAgentCard,
-        agentsContext, // Include agentsContext if provided
+        ...(agentsContext ? { agentsContext } : {}), // Include agentsContext only if provided
     });
 
     // Create Node server bridge

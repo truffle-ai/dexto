@@ -257,6 +257,8 @@ export async function initializeHonoApi(
     // Getter functions for routes (always use current agent)
     // getAgent automatically ensures agent is available before returning it
     const getAgent = (): DextoAgent => {
+        // CRITICAL: Check agent availability before every access to prevent race conditions
+        // during agent switching, stopping, or startup failures
         ensureAgentAvailable();
         return activeAgent;
     };

@@ -18,6 +18,8 @@ import { createAgentsRouter } from './routes/agents.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
+import { createCorsMiddleware } from './middleware/cors.js';
+import { createAuthMiddleware } from './middleware/auth.js';
 
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
@@ -41,6 +43,12 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const agent = getAgent();
     webhookSubscriber.subscribe(agent.agentEventBus);
     app.webhookSubscriber = webhookSubscriber;
+
+    // Global CORS middleware for cross-origin requests (must be first)
+    app.use('*', createCorsMiddleware());
+
+    // Global authentication middleware (after CORS, before routes)
+    app.use('*', createAuthMiddleware());
 
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
