@@ -17,4 +17,7 @@ export enum ConfigErrorCode {
     SETUP_INCOMPLETE = 'config_setup_incomplete',
     BUNDLED_NOT_FOUND = 'config_bundled_not_found',
     UNKNOWN_CONTEXT = 'config_unknown_context',
+
+    // Validation errors
+    INVALID_SUB_AGENT = 'config_invalid_sub_agent',
 }

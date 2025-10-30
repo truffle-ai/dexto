@@ -434,9 +434,8 @@ npm test -- agents/built-in/general-purpose.test.ts
 ## Additional Resources
 
 - [Multi-Agent Systems Tutorial](../../docs/docs/tutorials/multi-agent-systems.md)
-- [spawn_agent Migration Guide](../../docs/guides/migration/spawn-agent.md)
-- [Agent Configuration Reference](../../docs/docs/configuration/agent-config.md)
-- [Internal Tools Documentation](../../docs/docs/tools/internal-tools.md)
+- [Agent Configuration Reference](../../docs/docs/guides/configuring-dexto/agent-yml.md)
+- [Internal Tools Documentation](../../docs/docs/guides/configuring-dexto/internalTools.md)
 
 ---
 

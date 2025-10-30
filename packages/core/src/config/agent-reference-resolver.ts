@@ -379,7 +379,7 @@ function mergeSystemPrompts(
 export function validateSubAgentConfig(config: AgentConfig): void {
     // Ensure spawn_agent is not in the tool list (prevent recursion)
     if (config.internalTools?.includes('spawn_agent')) {
-        throw new Error(
+        throw ConfigError.invalidSubAgent(
             'Sub-agents cannot have spawn_agent tool enabled to prevent infinite recursion'
         );
     }
