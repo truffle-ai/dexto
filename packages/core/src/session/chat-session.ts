@@ -107,6 +107,13 @@ export class ChatSession {
     private currentRunController: AbortController | null = null;
 
     /**
+     * Optional agent configuration for this session.
+     * When provided, overrides system prompts, tools, and LLM settings.
+     * Used primarily for sub-agent sessions with specialized capabilities.
+     */
+    private agentConfig?: import('../agent/schemas.js').AgentConfig | undefined;
+
+    /**
      * Creates a new ChatSession instance.
      *
      * Each session creates its own isolated services:
@@ -116,6 +123,7 @@ export class ChatSession {
      *
      * @param services - The shared services from the agent (state manager, prompt, client managers, etc.)
      * @param id - Unique identifier for this session
+     * @param agentConfig - Optional agent configuration to override default behavior
      */
     constructor(
         private services: {
@@ -129,8 +137,11 @@ export class ChatSession {
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
         },
-        public readonly id: string
+        public readonly id: string,
+        agentConfig?: import('../agent/schemas.js').AgentConfig
     ) {
+        this.agentConfig = agentConfig;
+
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
 
@@ -138,7 +149,8 @@ export class ChatSession {
         this.setupEventForwarding();
 
         // Services will be initialized in init() method due to async requirements
-        logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
+        const configInfo = agentConfig ? ' with custom agent config' : '';
+        logger.debug(`ChatSession ${this.id}: Created${configInfo}, awaiting initialization`);
     }
 
     /**
@@ -183,10 +195,25 @@ export class ChatSession {
 
     /**
      * Initializes session-specific services.
+     * Applies agent config overrides if provided.
      */
     private async initializeServices(): Promise<void> {
         // Get current effective configuration for this session from state manager
-        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        let llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        let toolManager = this.services.toolManager;
+        let systemPromptManager = this.services.systemPromptManager;
+
+        // Apply agent config overrides if provided
+        if (this.agentConfig) {
+            const overrides = await this.applyAgentConfigOverrides(
+                llmConfig,
+                this.services.toolManager,
+                systemPromptManager
+            );
+            llmConfig = overrides.llmConfig;
+            toolManager = overrides.toolManager;
+            systemPromptManager = overrides.systemPromptManager;
+        }
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -200,15 +227,124 @@ export class ChatSession {
         this.llmService = createLLMService(
             llmConfig,
             llmConfig.router,
-            this.services.toolManager,
-            this.services.systemPromptManager,
+            toolManager, // May be custom instance if agentConfig provided
+            systemPromptManager, // May be overridden if agentConfig provided
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
             this.id,
             this.services.resourceManager // Pass ResourceManager for blob storage
         );
 
-        logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
+        const configInfo = this.agentConfig ? ' with custom agent config applied' : '';
+        logger.debug(`ChatSession ${this.id}: Services initialized with storage${configInfo}`);
+    }
+
+    /**
+     * Apply agent config overrides to session services.
+     * Returns overridden services for LLM, tools, and system prompts.
+     */
+    private async applyAgentConfigOverrides(
+        baseLLMConfig: ValidatedLLMConfig,
+        baseToolManager: ToolManager,
+        baseSystemPromptManager: SystemPromptManager
+    ): Promise<{
+        llmConfig: ValidatedLLMConfig;
+        toolManager: ToolManager;
+        systemPromptManager: SystemPromptManager;
+    }> {
+        if (!this.agentConfig) {
+            return {
+                llmConfig: baseLLMConfig,
+                toolManager: baseToolManager,
+                systemPromptManager: baseSystemPromptManager,
+            };
+        }
+
+        logger.info(`Applying agent config overrides for session ${this.id}`);
+
+        // 1. Override LLM if specified in agent config
+        let llmConfig = baseLLMConfig;
+        if (this.agentConfig.llm) {
+            logger.debug(`Overriding LLM config from agent config`);
+            // Import and validate LLM schema
+            const { LLMConfigSchema } = await import('../llm/schemas.js');
+            try {
+                const validated = LLMConfigSchema.parse(this.agentConfig.llm);
+                llmConfig = validated;
+                logger.info(
+                    `LLM overridden: ${llmConfig.provider}/${llmConfig.model} for session ${this.id}`
+                );
+            } catch (error) {
+                logger.warn(
+                    `Invalid LLM config in agent config, using parent config: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        // 2. Apply tool scoping if specified in agent config
+        let toolManager = baseToolManager;
+        if (this.agentConfig.internalTools) {
+            logger.debug(
+                `Creating custom ToolManager with ${this.agentConfig.internalTools.length} allowed tools`
+            );
+
+            // Import ToolManager to create a fresh instance with custom config
+            const { ToolManager } = await import('../tools/tool-manager.js');
+
+            // Create fresh ToolManager with shared infrastructure but custom internalToolsConfig
+            toolManager = new ToolManager(
+                baseToolManager.getMcpManager(),
+                baseToolManager.getApprovalManager(),
+                baseToolManager.getAllowedToolsProvider(),
+                baseToolManager.getApprovalMode(),
+                this.services.agentEventBus,
+                baseToolManager.getToolPolicies(),
+                {
+                    internalToolsServices: baseToolManager.getInternalToolsServices(),
+                    internalToolsConfig: this.agentConfig.internalTools,
+                }
+            );
+            await toolManager.initialize();
+
+            logger.info(
+                `Custom ToolManager created with tools: ${this.agentConfig.internalTools.join(', ')} for session ${this.id}`
+            );
+        }
+
+        // 3. System prompt override
+        let systemPromptManager = baseSystemPromptManager;
+        if (this.agentConfig.systemPrompt) {
+            logger.debug(`Overriding system prompt from agent config`);
+            const { SystemPromptManager } = await import('../systemPrompt/manager.js');
+            const { SystemPromptConfigSchema } = await import('../systemPrompt/schemas.js');
+
+            try {
+                // Validate system prompt config
+                const validated = SystemPromptConfigSchema.parse(this.agentConfig.systemPrompt);
+
+                // Create session-specific SystemPromptManager
+                // Note: We don't pass memoryManager since sub-agents shouldn't access parent memories
+                systemPromptManager = new SystemPromptManager(
+                    validated,
+                    process.cwd(), // configDir for file contributors
+                    undefined // No memory manager for sub-agents
+                );
+
+                logger.info(
+                    `System prompt overridden with ${validated.contributors.length} contributors for session ${this.id}`
+                );
+            } catch (error) {
+                logger.warn(
+                    `Invalid system prompt config in agent config, using parent config: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        return {
+            llmConfig,
+            toolManager,
+            systemPromptManager,
+        };
     }
 
     /**

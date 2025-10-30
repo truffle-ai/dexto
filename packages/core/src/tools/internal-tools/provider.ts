@@ -113,8 +113,8 @@ export class InternalToolsProvider {
         this.services.sessionManager = sessionManager;
 
         // Re-register tools that depend on sessionManager
-        if (this.config.includes('spawn_task')) {
-            this.registerTool('spawn_task');
+        if (this.config.includes('spawn_agent')) {
+            this.registerTool('spawn_agent');
         }
 
         logger.debug('SessionManager configured for internal tools');
@@ -194,5 +194,9 @@ export class InternalToolsProvider {
      */
     getToolCount(): number {
         return this.tools.size;
+    }
+
+    getServices(): InternalToolsServices {
+        return this.services;
     }
 }

@@ -18,6 +18,7 @@ export interface SessionMetadata {
     parentSessionId?: string; // ID of parent session if this is a sub-agent
     depth: number; // 0 for primary sessions, 1+ for sub-agents
     sessionType: 'primary' | 'sub-agent'; // Session type for filtering/management
+    agentIdentifier?: string; // Built-in agent name or custom config indicator
     // Additional metadata for session management
 }
 
@@ -174,7 +175,11 @@ export class SessionManager {
      */
     public async createSession(
         sessionId?: string,
-        parentContext?: { parentSessionId: string; depth: number }
+        parentContext?: {
+            parentSessionId: string;
+            depth: number;
+            agentConfig?: import('../agent/schemas.js').AgentConfig;
+        }
     ): Promise<ChatSession> {
         await this.ensureInitialized();
 
@@ -196,6 +201,8 @@ export class SessionManager {
         // Check if session already exists in memory
         if (this.sessions.has(id)) {
             await this.updateSessionActivity(id);
+            // Note: Existing sessions don't get their config updated on retrieval
+            // This is intentional to maintain session consistency
             return this.sessions.get(id)!;
         }
 
@@ -218,7 +225,11 @@ export class SessionManager {
      */
     private async createSessionInternal(
         id: string,
-        parentContext?: { parentSessionId: string; depth: number }
+        parentContext?: {
+            parentSessionId: string;
+            depth: number;
+            agentConfig?: import('../agent/schemas.js').AgentConfig;
+        }
     ): Promise<ChatSession> {
         // Clean up expired sessions first
         await this.cleanupExpiredSessions();
@@ -231,6 +242,8 @@ export class SessionManager {
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
+            // Note: Restored sessions use parent agent config, not custom sub-agent configs
+            // This is intentional as agentConfig is session-creation-time only
             const session = new ChatSession({ ...this.services, sessionManager: this }, id);
             await session.init();
             this.sessions.set(id, session);
@@ -269,7 +282,12 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession({ ...this.services, sessionManager: this }, id);
+            // Pass agentConfig from parentContext if provided
+            session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                parentContext?.agentConfig
+            );
             await session.init();
             this.sessions.set(id, session);
 

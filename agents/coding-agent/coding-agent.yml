@@ -78,7 +78,7 @@ toolConfirmation:
       - internal--bash_output    # Check background process output
       - internal--kill_process   # Kill processes without approval
       - internal--todo_write     # Track tasks without approval
-      - internal--spawn_task     # Spawn sub-agents without approval
+      - internal--spawn_agent    # Spawn sub-agents without approval
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations
@@ -97,7 +97,7 @@ internalTools:
   - bash_output    # Retrieve output from background processes
   - kill_process   # Terminate background processes
   - todo_write     # Track tasks and progress during complex workflows
-  - spawn_task     # Spawn sub-agent tasks for parallel or delegated work
+  - spawn_agent    # Spawn sub-agent tasks for parallel or delegated work
 
 # Internal resources configuration - expanded for coding projects
 internalResources:
