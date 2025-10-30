@@ -109,6 +109,18 @@ export class ConfigError {
         );
     }
 
+    // Validation errors
+    static invalidSubAgent(reason: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.INVALID_SUB_AGENT,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Sub-agent configuration is invalid: ${reason}`,
+            { reason },
+            'Ensure sub-agent configuration follows security constraints'
+        );
+    }
+
     // Built-in agent errors
     static builtInAgentNotFound(agentName: string, searchPath?: string) {
         const message = searchPath

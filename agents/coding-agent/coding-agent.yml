@@ -31,7 +31,7 @@ systemPrompt:
         - Provide clear explanations for your code decisions
         - Ask for clarification when requirements are ambiguous
         - For complex multi-step tasks, use todo_write to track progress
-        - For parallel work or specialized analysis, use spawn_task to delegate to sub-agents
+        - For parallel work or specialized analysis, use spawn_agent to delegate to sub-agents
     - id: memories
       type: memory
       priority: 40

@@ -3,6 +3,7 @@ import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import { ApprovalStatus } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
+import type { Todo, SpawnedTaskStatus } from '../orchestration/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -267,7 +268,7 @@ export interface AgentEventMap {
     /** Fired when todos are updated for a session */
     'todo:updated': {
         sessionId: string;
-        todos: any[]; // Todo[] type from orchestration
+        todos: Todo[];
         stats: {
             created: number;
             updated: number;
@@ -292,7 +293,7 @@ export interface AgentEventMap {
     'task:updated': {
         taskId: string;
         sessionId: string;
-        status: 'pending' | 'in_progress' | 'completed' | 'failed';
+        status: SpawnedTaskStatus;
         result?: string;
         error?: string;
     };

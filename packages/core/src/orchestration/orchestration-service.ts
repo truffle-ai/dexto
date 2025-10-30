@@ -9,6 +9,7 @@ import type { Database } from '../storage/database/types.js';
 import type { AgentEventBus } from '../events/index.js';
 import { logger } from '../logger/index.js';
 import { OrchestrationError } from './errors.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import type {
     Todo,
     TodoInput,
@@ -40,9 +41,9 @@ export class OrchestrationService {
         this.database = database;
         this.eventBus = eventBus;
         this.config = {
-            maxTodosPerSession: config.maxTodosPerSession || DEFAULT_MAX_TODOS,
+            maxTodosPerSession: config.maxTodosPerSession ?? DEFAULT_MAX_TODOS,
             maxSpawnedTasksPerSession:
-                config.maxSpawnedTasksPerSession || DEFAULT_MAX_SPAWNED_TASKS,
+                config.maxSpawnedTasksPerSession ?? DEFAULT_MAX_SPAWNED_TASKS,
             enableEvents: config.enableEvents ?? true,
         };
     }
@@ -148,7 +149,7 @@ export class OrchestrationService {
                 ...stats,
             };
         } catch (error) {
-            if (error instanceof Error && error.message.includes('OrchestrationService')) {
+            if (error instanceof DextoRuntimeError) {
                 throw error;
             }
             throw OrchestrationError.databaseError(
@@ -171,6 +172,9 @@ export class OrchestrationService {
             const todos = await this.database.get<Todo[]>(key);
             return todos || [];
         } catch (error) {
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw OrchestrationError.databaseError(
                 'getTodos',
                 error instanceof Error ? error.message : String(error)
@@ -196,6 +200,9 @@ export class OrchestrationService {
 
             logger.debug(`Cleared todos for session ${sessionId}`);
         } catch (error) {
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw OrchestrationError.databaseError(
                 'clearTodos',
                 error instanceof Error ? error.message : String(error)
@@ -215,6 +222,9 @@ export class OrchestrationService {
             const keys = await this.database.list(TODOS_KEY_PREFIX);
             return keys.map((key) => key.replace(TODOS_KEY_PREFIX, ''));
         } catch (error) {
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw OrchestrationError.databaseError(
                 'listSessions',
                 error instanceof Error ? error.message : String(error)
@@ -295,7 +305,7 @@ export class OrchestrationService {
 
             return result;
         } catch (error) {
-            if (error instanceof Error && error.message.includes('OrchestrationService')) {
+            if (error instanceof DextoRuntimeError) {
                 throw error;
             }
             throw OrchestrationError.taskCreateFailed(
@@ -327,6 +337,9 @@ export class OrchestrationService {
 
             return tasks;
         } catch (error) {
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw OrchestrationError.databaseError(
                 'getSpawnedTasks',
                 error instanceof Error ? error.message : String(error)
@@ -347,6 +360,9 @@ export class OrchestrationService {
             const task = await this.database.get<SpawnedTask>(taskKey);
             return task || null;
         } catch (error) {
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw OrchestrationError.databaseError(
                 'getSpawnedTask',
                 error instanceof Error ? error.message : String(error)
@@ -411,7 +427,7 @@ export class OrchestrationService {
 
             logger.debug(`Updated spawned task ${taskId} to status: ${status}`);
         } catch (error) {
-            if (error instanceof Error && error.message.includes('OrchestrationService')) {
+            if (error instanceof DextoRuntimeError) {
                 throw error;
             }
             throw OrchestrationError.taskUpdateFailed(
