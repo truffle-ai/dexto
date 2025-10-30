@@ -531,7 +531,15 @@ export class FileSystemService {
             return 0;
         }
 
-        const backupDir = this.getBackupDir();
+        let backupDir: string;
+        try {
+            backupDir = this.getBackupDir();
+        } catch (error) {
+            logger.warn(
+                `Failed to resolve backup directory: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return 0;
+        }
 
         try {
             // Check if backup directory exists
