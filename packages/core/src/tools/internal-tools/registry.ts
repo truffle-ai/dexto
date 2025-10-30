@@ -16,7 +16,7 @@ import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
 import { createTodoWriteTool } from './implementations/todo-write-tool.js';
-import { createSpawnTaskTool } from './implementations/spawn-task-tool.js';
+import { createSpawnAgentTool } from './implementations/spawn-agent-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -104,8 +104,9 @@ export const INTERNAL_TOOL_REGISTRY: Record<
             createTodoWriteTool(services.orchestrationService!),
         requiredServices: ['orchestrationService'] as const,
     },
-    spawn_task: {
-        factory: (services: InternalToolsServices) => createSpawnTaskTool(services.sessionManager!),
+    spawn_agent: {
+        factory: (services: InternalToolsServices) =>
+            createSpawnAgentTool(services.sessionManager!),
         requiredServices: ['sessionManager'] as const,
     },
 };

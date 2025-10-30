@@ -264,7 +264,7 @@ export async function createAgentServices(
     toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
     logger.debug('Plugin support connected to ToolManager');
 
-    // 12.6 Wire up SessionManager to internal tools (for spawn_task tool)
+    // 12.6 Wire up SessionManager to internal tools (for spawn_agent tool)
     toolManager.setSessionManager(sessionManager);
     logger.debug('SessionManager connected to internal tools');
 

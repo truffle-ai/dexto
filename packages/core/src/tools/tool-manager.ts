@@ -136,7 +136,7 @@ export class ToolManager {
     }
 
     /**
-     * Set session manager for internal tools that need it (e.g., spawn_task)
+     * Set session manager for internal tools that need it (e.g., spawn_agent)
      */
     setSessionManager(sessionManager: SessionManager): void {
         this.sessionManager = sessionManager;
@@ -173,6 +173,26 @@ export class ToolManager {
 
     getMcpManager(): MCPManager {
         return this.mcpManager;
+    }
+
+    getApprovalManager(): ApprovalManager {
+        return this.approvalManager;
+    }
+
+    getAllowedToolsProvider(): IAllowedToolsProvider {
+        return this.allowedToolsProvider;
+    }
+
+    getApprovalMode(): 'event-based' | 'auto-approve' | 'auto-deny' {
+        return this.approvalMode;
+    }
+
+    getToolPolicies(): ToolPolicies | undefined {
+        return this.toolPolicies;
+    }
+
+    getInternalToolsServices(): InternalToolsServices {
+        return this.internalToolsProvider?.getServices() || {};
     }
 
     /**

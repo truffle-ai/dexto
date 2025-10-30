@@ -108,4 +108,54 @@ export class ConfigError {
             'This is an internal error - please report it'
         );
     }
+
+    // Built-in agent errors
+    static builtInAgentNotFound(agentName: string, searchPath?: string) {
+        const message = searchPath
+            ? `Built-in agent '${agentName}' not found at: ${searchPath}`
+            : `Built-in agent '${agentName}' not found`;
+        const availableAgents = ['general-purpose', 'code-reviewer', 'test-runner'].join(', ');
+
+        return new DextoRuntimeError(
+            ConfigErrorCode.FILE_NOT_FOUND,
+            ErrorScope.CONFIG,
+            ErrorType.NOT_FOUND,
+            message,
+            { agentName, searchPath },
+            `Available built-in agents: ${availableAgents}`
+        );
+    }
+
+    static builtInAgentLoadFailed(agentName: string, cause: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.FILE_READ_ERROR,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to load built-in agent '${agentName}': ${cause}`,
+            { agentName, cause },
+            'This may indicate a corrupted installation. Try reinstalling Dexto.'
+        );
+    }
+
+    static loadFailed(configPath: string, cause: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.FILE_READ_ERROR,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to load agent config from '${configPath}': ${cause}`,
+            { configPath, cause },
+            'Check file permissions and ensure the file contains valid YAML'
+        );
+    }
+
+    static inlineConfigMergeFailed(cause: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.PARSE_ERROR,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Failed to merge inline agent config: ${cause}`,
+            { cause },
+            'Ensure the inline config object is valid and compatible with AgentConfig schema'
+        );
+    }
 }

@@ -20,7 +20,7 @@ export const INTERNAL_TOOL_NAMES = [
     'bash_output',
     'kill_process',
     'todo_write',
-    'spawn_task',
+    'spawn_agent',
 ] as const;
 
 export type KnownInternalTool = (typeof INTERNAL_TOOL_NAMES)[number];
